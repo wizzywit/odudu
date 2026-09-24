@@ -104,3 +104,77 @@ describe('admin authentication', () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+describe('admin authorization', () => {
+  it('refuses a capability the caller does not hold', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-audit']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('allows a caller holding the required capability', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  // manage-users composes view-users (@odudu/domain-tenant's
+  // viewCounterpart), so effectiveRoles' composite closure must satisfy a
+  // route that only asks for the weaker capability without either side
+  // special-casing the pair.
+  it('admits a route requiring view-users to a caller holding only manage-users', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('stops honouring a capability the moment it is revoked', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+    const url = `/admin/tenants/${t.name}/subjects`;
+    const headers = { authorization: `Bearer ${token}` };
+    expect((await fixture.http.inject({ method: 'GET', url, headers })).statusCode).toBe(200);
+    await fixture.revokeCapability(t.name, token, 'view-users');
+    expect((await fixture.http.inject({ method: 'GET', url, headers })).statusCode).toBe(403);
+  });
+
+  it('allows a system admin holding manage-tenants and the route capability', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.systemAdminToken(['manage-tenants', 'view-users']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  // A system admin who passes the issuer check (401 is not the outcome here)
+  // but lacks manage-tenants is refused with 403, not treated as
+  // unauthenticated — the two checks stay distinguishable.
+  it('refuses a system admin who holds the route capability but not manage-tenants', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.systemAdminToken(['view-users']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});

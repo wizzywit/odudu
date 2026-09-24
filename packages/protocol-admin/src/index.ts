@@ -1,12 +1,17 @@
 import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
 import { type DatabaseHandle, withTenant } from '@odudu/db';
+import { effectiveRoles } from '@odudu/domain-authz';
 import { clientRepository } from '@odudu/domain-tenant';
 import { type Clock, type Logger, systemClock } from '@odudu/kernel';
 import { tenantLookupRepository, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { type FastifyPluginAsync } from 'fastify';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
+import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
+import { registerListSubjectsRoute } from '#/view/routes/subjects';
 import { registerWhoamiRoute } from '#/view/routes/whoami';
+
+export { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 
 export interface AdminRoutesDeps {
   database: DatabaseHandle;
@@ -38,9 +43,15 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
         }),
     };
 
-    registerWhoamiRoute(app, authDeps, clock);
+    const authzDeps: AuthorizeAdminDeps = {
+      effectiveRoles: (tenantId, subjectId) =>
+        withTenant(deps.database.db, tenantId, (tx) => effectiveRoles(tx, subjectId)),
+    };
 
-    deps.logger.debug({}, 'protocol-admin registered the whoami route');
+    registerWhoamiRoute(app, authDeps, clock);
+    registerListSubjectsRoute(app, authDeps, authzDeps, clock);
+
+    deps.logger.debug({}, 'protocol-admin registered the whoami and subjects routes');
     return Promise.resolve();
   };
 }

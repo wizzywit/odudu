@@ -17,6 +17,7 @@
     "@odudu/authn-flows": "workspace:*",
     "@odudu/crypto": "workspace:*",
     "@odudu/db": "workspace:*",
+    "@odudu/domain-authz": "workspace:*",
     "@odudu/domain-tenant": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "@odudu/protocol-oidc": "workspace:*",
@@ -24,7 +25,6 @@
   },
   "devDependencies": {
     "@fastify/formbody": "9.0.0",
-    "@odudu/domain-authz": "workspace:*",
     "@odudu/domain-identity": "workspace:*",
     "@odudu/testkit": "workspace:*",
     "drizzle-orm": "0.45.2",
