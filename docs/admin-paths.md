@@ -45,7 +45,16 @@ surface — sent as `Authorization: Bearer …`. Two authorities can hold one:
   knows which tenant they administer.
 - **A system admin.** A subject in the `system` tenant, holding
   `manage-tenants`. Reaches every tenant's `/admin/tenants/{tenant}/**`,
-  plus `/admin/tenants` itself.
+  plus `/admin/tenants` itself. `manage-tenants` authorizes the hop into
+  another tenant and nothing more: the route's own capability is checked
+  after it, on the same `system` admin client, so reading another tenant's
+  subjects takes `manage-tenants` **and** `view-users`, amending its
+  settings `manage-tenants` **and** `manage-tenant`, and so on — a system
+  admin carrying only `manage-tenants` is refused with `403` by every route
+  that names a capability of its own (`authorizeAdmin`,
+  `packages/protocol-admin/src/usecase/authorize-admin.ts`). `/admin/tenants`
+  and `whoami` are what it reaches alone: the first names `manage-tenants`
+  as its own capability, the second names none.
 
 Either way, the token must carry an `aud` naming this admin API,
 `urn:odudu:params:admin-api` — an ordinary access token minted for the
