@@ -23,15 +23,18 @@ export interface ReadSettingsResult {
   readonly etag: string;
 }
 
-export async function readSettings(
-  tx: TenantScopedDatabase,
-  tenantId: string,
-): Promise<ReadSettingsResult> {
-  const settings = await tenantSettingsRepository(tx).byId(tenantId);
+function toResult(tenantId: string, settings: TenantSettingsRecord | null): ReadSettingsResult {
   if (settings === null) {
     throw new Error(`tenant ${tenantId} has no settings row`);
   }
   return { settings, etag: etagOf(settings) };
+}
+
+export async function readSettings(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+): Promise<ReadSettingsResult> {
+  return toResult(tenantId, await tenantSettingsRepository(tx).byId(tenantId));
 }
 
 export interface AmendSettingsInput {
@@ -103,7 +106,14 @@ export async function amendSettings(
   const coerced = coerceAll(input.values);
   if (coerced.kind !== 'ok') return coerced;
 
-  const current = await readSettings(tx, input.tenantId);
+  // Locked, not merely read: the comparison and the UPDATE below have to be
+  // the only ones running against this row, or two callers holding the same
+  // `If-Match` both match and the later write replaces the earlier with no
+  // sign to either of them.
+  const current = toResult(
+    input.tenantId,
+    await tenantSettingsRepository(tx).lockById(input.tenantId),
+  );
   if (matches(input.ifMatch, current.etag) === 'mismatch') {
     return { kind: 'precondition_failed' };
   }

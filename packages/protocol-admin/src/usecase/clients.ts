@@ -505,7 +505,11 @@ export async function amendClient(
   deps: AmendClientDeps,
   input: AmendClientInput,
 ): Promise<AmendClientOutcome> {
-  const clientRow = await clientRepository(tx).byId(input.clientDbId);
+  // Locked for the rest of the transaction, so the `If-Match` comparison
+  // below and the writes that follow it cannot interleave with another
+  // amendment of the same client — the config row is reached only through
+  // this one, so locking it serialises both halves of the resource.
+  const clientRow = await clientRepository(tx).byIdForUpdate(input.clientDbId);
   if (clientRow === null) return { kind: 'not_found' };
 
   for (const field of Object.keys(input.values)) {

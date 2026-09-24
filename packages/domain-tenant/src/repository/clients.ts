@@ -80,6 +80,16 @@ export function clientRepository(tx: TenantScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
+    // `byId` with the row locked for the rest of the transaction, so a
+    // read-compare-write amendment cannot interleave with another: two
+    // callers holding the same `ETag` would otherwise both match and the
+    // second write would silently replace the first.
+    async byIdForUpdate(id: string): Promise<ClientRecord | null> {
+      const rows = await tx.select().from(clients).where(eq(clients.id, id)).for('update');
+      const row = rows[0];
+      return row === undefined ? null : toRecord(row);
+    },
+
     // The bootstrap seed command creates clients through this repository, and
     // client resolution reads them back alongside their OIDC config, so an
     // insert path belongs here rather than only in a migration.

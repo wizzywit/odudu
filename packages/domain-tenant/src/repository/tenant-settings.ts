@@ -64,6 +64,16 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
+    // `SELECT ... FOR UPDATE`, in the same transaction the caller amends in:
+    // an `If-Match` compared against a row another transaction is already
+    // rewriting prevents nothing, because both readers match and the second
+    // write silently replaces the first.
+    async lockById(tenantId: string): Promise<TenantSettingsRecord | null> {
+      const rows = await tx.select().from(tenants).where(eq(tenants.id, tenantId)).for('update');
+      const row = rows[0];
+      return row === undefined ? null : toRecord(row);
+    },
+
     async amend(
       tenantId: string,
       columns: Readonly<Record<string, boolean | number | string>>,

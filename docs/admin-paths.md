@@ -159,7 +159,11 @@ that role there, `manage-tenants` alone is not enough. A `GET`
 carries an `ETag` over the settings as they stand. A `PATCH` may carry
 `If-Match`: absent, the write proceeds unconditionally; present and stale,
 the request is refused with `412` and nothing is changed — the concurrency
-control every amending endpoint in this API shares.
+control every amending endpoint in this API shares. The row is locked for
+the rest of the amending transaction before its current `ETag` is computed,
+so two `PATCH`es sent at once are serialised: the second reads what the
+first wrote and its `If-Match` is stale, rather than both matching the same
+pre-write row and the later write replacing the earlier one unseen.
 
 A request shape:
 
@@ -344,8 +348,8 @@ last-write-wins on one of these silently reinstates exactly what another
 admin just removed, `If-Match` is **required** when a request touches any
 of the five, answered with `428 Precondition Required` when it is missing;
 every other field amends with `If-Match` optional, the same concurrency
-control `PATCH /settings` uses. A stale `If-Match` is `412` either way, and
-nothing is changed.
+control `PATCH /settings` uses, row lock included. A stale `If-Match` is
+`412` either way, and nothing is changed.
 
 The RFC 7591 metadata fields among them — `redirect_uris`, `grant_types`,
 `token_endpoint_auth_method`, `jwks`, `jwks_uri`, the two logout URIs and
