@@ -8,7 +8,8 @@ import {
   type SetRolesResponse,
   type Subject,
 } from '@odudu/contracts/admin';
-import { withTenant, type Database } from '@odudu/db';
+import { isUniqueViolation, withTenant, type Database } from '@odudu/db';
+import { OduduError } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
@@ -54,14 +55,18 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-// `users_username_unique` (0005_subjects.sql) is what actually refuses a
-// duplicate; this only recognizes the refusal after the fact — the same
-// shape `classifyAccountCreationError` (packages/account/src/usecase/register.ts)
-// reads for self-registration's own identical constraint.
-function isUsernameTakenError(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  const cause = err.cause;
-  return cause instanceof Error && cause.message.includes('users_username_unique');
+// `users_username_unique` (0005_subjects.sql) and `users_email_unique`
+// (0023_users_email_unique.sql) are what actually refuse a duplicate;
+// `isUniqueViolation` (@odudu/db) recognizes the SQLSTATE, and the
+// constraint name — still on the wrapped driver error at this depth — says
+// which column it was, the same shape
+// `classifyAccountCreationError` (packages/account/src/usecase/register.ts)
+// reads for self-registration's own identical constraints.
+function isUniqueViolationNaming(err: unknown, constraint: string): boolean {
+  if (!isUniqueViolation(err)) return false;
+  const cause = err instanceof Error ? err.cause : undefined;
+  const message = cause instanceof Error ? cause.message : err instanceof Error ? err.message : '';
+  return message.includes(constraint);
 }
 
 export function listSubjectsHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
@@ -151,7 +156,7 @@ export function createSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
       // The transaction has already rolled back by the time this is
       // caught — the same shape createClientHandler leaves
       // ClientIdConflictError in (#/view/routes/clients.ts).
-      if (isUsernameTakenError(error)) {
+      if (isUniqueViolationNaming(error, 'users_username_unique')) {
         return sendProblem(
           reply,
           request,
@@ -161,6 +166,25 @@ export function createSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
             'Conflict',
             `the username ${JSON.stringify(body.username)} is already in use`,
           ),
+        );
+      }
+      if (isUniqueViolationNaming(error, 'users_email_unique')) {
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            409,
+            'about:blank',
+            'Conflict',
+            `the email ${JSON.stringify(body.email)} is already in use`,
+          ),
+        );
+      }
+      if (error instanceof OduduError && error.code === 'invalid_email') {
+        return sendProblem(
+          reply,
+          request,
+          problem(400, 'about:blank', 'Bad Request', error.message),
         );
       }
       throw error;

@@ -128,6 +128,43 @@ describe('POST /admin/tenants/{t}/subjects', () => {
     const second = await fixture.http.inject({ method: 'POST', url, headers, payload });
     expect(second.statusCode).toBe(409);
   });
+
+  it('refuses a malformed email with 400', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { username: `x-${newId()}`, email: 'not-an-address' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('refuses a duplicate email with 409', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const url = `/admin/tenants/${t.name}/subjects`;
+    const email = `dup-${newId()}@example.com`;
+
+    const first = await fixture.http.inject({
+      method: 'POST',
+      url,
+      headers,
+      payload: { username: `a-${newId()}`, email },
+    });
+    expect(first.statusCode).toBe(201);
+
+    const second = await fixture.http.inject({
+      method: 'POST',
+      url,
+      headers,
+      payload: { username: `b-${newId()}`, email },
+    });
+    expect(second.statusCode).toBe(409);
+  });
 });
 
 describe('GET /admin/tenants/{t}/subjects', () => {
