@@ -75,7 +75,8 @@ Five things the spec implies and no happy path exercises, most likely to bite fi
 2. **An ordinary application access token — correct tenant, correct signature, live grant — presented at `/admin`.** Without the `aud` check, every token in the tenant administers it. Expected: 401. — Increment 2, Task 2.3.
 3. **A cursor from one collection replayed against another, and a hand-written one.** Keyset pagination that trusts its cursor is an arbitrary-offset read. Expected: 400, never a page. — Increment 3, Task 3.4.
 4. **Disabling the built-in admin client, and disabling the client whose token is making the request.** The first locks out every admin in the tenant; the second is legitimate but surprising. Expected: 409 for the built-in one; allowed with the consequence audited for the other. — Increment 5, Task 5.6.
-5. **`PATCH` of `grant_types` narrowing a grant a client is mid-flight on, and of `redirect_uris` to a list that `parseClientMetadata` would refuse at registration.** P4a made `grant_types` gate every grant, so this is a live authorization change. Expected: the narrow takes effect on the next `/token` call; the invalid list is refused with the same error registration gives. — Increment 5, Task 5.4.
+5. **A caller holding `manage-users` alone assigning `tenant-admin`, or `manage-tenants` in the system tenant.** Capabilities are re-resolved per request, so a subject that can write role assignments can write its own authority upward unless the write has a ceiling (CWE-269). Expected: 403, both directly and through a composite that nests the capability. — Increment 6, Task 6.3.
+6. **`PATCH` of `grant_types` narrowing a grant a client is mid-flight on, and of `redirect_uris` to a list that `parseClientMetadata` would refuse at registration.** P4a made `grant_types` gate every grant, so this is a live authorization change. Expected: the narrow takes effect on the next `/token` call; the invalid list is refused with the same error registration gives. — Increment 5, Task 5.4.
 
 ## Spikes
 
@@ -2098,6 +2099,8 @@ git commit -m "Allowlist the amendable client fields, with a reason for each ref
 
 Cover: a `PATCH` of `name` succeeds and bumps the `ETag`; a `PATCH` naming `client_id` is a 400 quoting `refusalFor`'s reason; `POST /secret` returns a new secret once and the old one stops authenticating at `/token`; `DELETE` removes the client and its config; `If-Match` mismatch is 412.
 
+Also cover the precondition rule the spec's §9 amendment adds: a `PATCH` of `name` with **no** `If-Match` succeeds, and a `PATCH` of each of `redirect_uris`, `post_logout_redirect_uris`, `web_origins`, `audiences` and `grant_types` with no `If-Match` is **428 Precondition Required**. Those five are allowlists replaced whole, so last-write-wins on one silently reinstates exactly what another admin just removed. Assert all five by name, not one as a representative — the failure this guards against is the rule reaching only some of them.
+
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pnpm vitest run packages/protocol-admin/tests/clients.int.test.ts`
@@ -2307,6 +2310,41 @@ it('refuses to delete it', async () => {
   /* 409 */
 });
 
+it('refuses to PATCH the fields that would lock administrators out', async () => {
+  // Blocking `enabled: false` is not enough: replacing grant_types can
+  // remove the grant admin tokens are issued through, locking everyone out
+  // while the client stays enabled — the same lockout through a second door.
+  const t = await fixture.createTenant('acme');
+  const token = await fixture.adminToken(t.name, ['manage-clients']);
+  const admin = await fixture.builtinAdminClient(t.name);
+  for (const body of [
+    { grant_types: ['refresh_token'] },
+    { token_endpoint_auth_method: 'none' },
+    { redirect_uris: [] },
+  ]) {
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${admin.id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: body,
+    });
+    expect(res.statusCode, JSON.stringify(body)).toBe(409);
+  }
+});
+
+it('still amends the built-in client's ordinary fields', async () => {
+  const t = await fixture.createTenant('acme');
+  const token = await fixture.adminToken(t.name, ['manage-clients']);
+  const admin = await fixture.builtinAdminClient(t.name);
+  const res = await fixture.http.inject({
+    method: 'PATCH',
+    url: `/admin/tenants/${t.name}/clients/${admin.id}`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: { name: 'Administration' },
+  });
+  expect(res.statusCode).toBe(200);
+});
+
 it('reads builtin_admin, not the client_id, so a rename does not evade it', async () => {
   // The guard must survive a client_id that no longer says "odudu-admin".
   const t = await fixture.createTenant('acme');
@@ -2480,7 +2518,9 @@ git commit -m "List, read and create subjects through the admin API"
 
 - [ ] **Step 1: Write the failing test**
 
-Cover: `PATCH` amends `email` and `enabled`; `DELETE` removes the subject and, per Task 6.1, detaches a client that named it; `GET /credentials` returns type, `created_at`, `expired` and a recovery-code **count**, and contains neither `secret_data` nor any hash — assert on the serialised body, not on a mapped object, so a leak through an unmapped field is caught; `DELETE /credentials/{id}` removes a TOTP enrolment and the subject can then log in without it; `PUT /required-actions` sets the list; `PUT /roles` replaces a subject's role assignments and a removed role stops appearing in `effectiveRoles`.
+Cover the capability ceiling first, because without it this task ships privilege escalation: a caller holding `manage-users` and nothing else `PUT`s a role set containing `tenant-admin` and gets **403**; the same caller in the system tenant `PUT`ting `manage-tenants` gets **403**; a caller holding `tenant-admin` may assign `manage-users` freely; and `POST /roles/{id}/composites` refuses to nest a capability the caller does not hold, which is the same escalation one level down. The write expands both the requested role set and the caller's own through `role_composites` before comparing, so a composite cannot smuggle a capability past a name check.
+
+Then cover: `PATCH` amends `email` and `enabled`; `DELETE` removes the subject and, per Task 6.1, detaches a client that named it; `GET /credentials` returns type, `created_at`, `expired` and a recovery-code **count**, and contains neither `secret_data` nor any hash — assert on the serialised body, not on a mapped object, so a leak through an unmapped field is caught; `DELETE /credentials/{id}` removes a TOTP enrolment and the subject can then log in without it; `PUT /required-actions` sets the list; `PUT /roles` replaces a subject's role assignments and a removed role stops appearing in `effectiveRoles`.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -2838,6 +2878,20 @@ describe('key rotation', () => {
     expect(res.payload).not.toContain('private_jwk_encrypted');
   });
 
+  it('refuses to retire the active key, however well covered its algorithm is', async () => {
+    // Coverage alone would permit retiring the sole active key whenever a
+    // rotating key shared its algorithm, leaving the tenant with no active
+    // key and the selection fallback pointing at nothing. Promote first.
+    const { tenant, active, token } = await stageSecondKeySameAlg();
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${tenant.name}/keys/${active.id}/retire`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail: string }).detail).toMatch(/active/u);
+  });
+
   it('refuses to retire a key whose algorithm a client still needs', async () => {
     const { tenant, old, token } = await promoteToDifferentAlgorithm();
     await fixture.registerClientWithUserinfoAlg(tenant.name, old.alg);
@@ -3011,7 +3065,7 @@ Expected: FAIL on the second case — `required` currently passes when inapplica
 
 - [ ] **Step 3: Write minimal implementation**
 
-`groupSteps` gains a third group kind, or `isGroupSatisfied` distinguishes the two requirements within `single`; either is fine, and the unit tests above pin the behaviour rather than the shape. The migration rewrites the seeded browser flow's rows from `required` to `conditional` wherever the step's applicability is subject-dependent — OTP, passkey and recovery code — leaving `password` as it is.
+`groupSteps` gains a third group kind, or `isGroupSatisfied` distinguishes the two requirements within `single`; either is fine, and the unit tests above pin the behaviour rather than the shape. The migration rewrites **every** row whose requirement is `required` and whose authenticator is subject-dependent — OTP, passkey and recovery code — to `conditional`, matching on the condition rather than on which flow created the row, and leaving `password` as it is. Nothing can customise a flow today (`executionRepository` exposes `forTenant` and `create` and nothing else) and nothing is deployed, so the two sets are identical in practice; matching on the condition costs nothing and is what keeps a hand-written row from becoming a silent lockout.
 
 `EXPECTED_BEFORE_SPLIT` is captured by running `walkFlow` on the current build **before** the change and pasting the result, so the test compares against observed behaviour rather than against what the behaviour was believed to be.
 
@@ -3117,6 +3171,15 @@ git commit -m "Configure a tenant's authentication flow through the admin API"
 
 ```ts
 describe('per-tenant claim mapper bindings', () => {
+  it('leaves an unbound scope on its declared mappers after another is bound', async () => {
+    // The fallback is per scope, not per tenant: binding one scope must not
+    // strip the defaults from every other scope in the same tenant.
+    const t = await fixture.createTenant('acme');
+    await bindMappers(t, 'profile', ['sub']);
+    const claims = await issueIdTokenClaims(t, 'openid email');
+    expect(claims).toHaveProperty('email');
+  });
+
   it('changes nothing for a tenant with no bindings', async () => {
     // The fallback is what keeps this from being a migration of every
     // existing tenant: with no rows, a mapper's own declared scopes apply.

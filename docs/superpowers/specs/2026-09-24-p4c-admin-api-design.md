@@ -122,6 +122,16 @@ tenant. Each `manage-` role composes its `view-` counterpart, so granting
 `manage-users` never needs `view-users` beside it. All of this uses `roles`,
 `role_composites` and `subject_roles` unchanged.
 
+**The built-in admin client's amendable fields are restricted too.** Blocking
+`enabled: false` and `DELETE` is not enough: a `PATCH` replacing its
+`grant_types` can remove the grant admin tokens are issued through and lock
+every administrator out while the client stays enabled — the same lockout
+through a second door, which is the defect `docs/phases/p3b.md` names as this
+repository's recurring one. On the built-in client, `grant_types`,
+`token_endpoint_auth_method` and `redirect_uris` are refused with 409; the
+rest of the 25 amendable fields behave normally. Added after review on
+2026-09-24.
+
 **The built-in admin client is neither disablable nor deletable** — 409 with
 the reason named. That is the guard against total lockout, and §11 explains
 why it is needed.
@@ -202,6 +212,17 @@ tenant even with a forged path.
 | `/admin/tenants/{t}/keys/{id}/promote`, `/retire` | `POST`                   | `manage-keys`                 |
 | `/admin/tenants/{t}/audit`                        | `GET`                    | `view-audit`                  |
 
+**A caller may never assign authority it does not hold.** `PUT
+…/subjects/{id}/roles` runs under `manage-users`, and without a ceiling that
+caller could assign `tenant-admin` — or, in the system tenant,
+`manage-tenants` — to any subject including itself, which is privilege
+escalation by design (CWE-269). So the write expands the requested role set
+through `role_composites` to its **effective capabilities**, expands the
+caller's the same way, and refuses with 403 when the requested set is not a
+subset of the caller's. The same ceiling governs `POST /roles/{id}/composites`,
+which could otherwise smuggle a capability into a role the caller may already
+assign. Added after review on 2026-09-24; the original named no ceiling.
+
 **Credentials are readable as metadata only** — type, created-at, whether a
 password is expired, how many recovery codes remain. Never the secret, never
 the hash. `DELETE` removes a lost TOTP enrolment.
@@ -241,10 +262,18 @@ require it. Two error shapes, each correct for its surface.
 ### Concurrency
 
 Every single-resource `GET` returns an `ETag` over the row's state. `PATCH`
-and `PUT` accept `If-Match` and answer `412` on mismatch. Optional, so a
-simple client works — but it is what makes a two-admin redirect-URI edit
-safe rather than last-write-wins, which matters precisely because §11 makes
-allowlists amendable.
+and `PUT` accept `If-Match` and answer `412` on mismatch.
+
+**Optional in general, required for an authorization-bearing list.** A
+simple client editing a display name should not need a read first. But a
+`PATCH` that changes `redirect_uris`, `post_logout_redirect_uris`,
+`web_origins`, `audiences` or `grant_types` is **refused with `428
+Precondition Required`** when `If-Match` is absent. Those five are
+allowlists: last-write-wins on one silently discards another admin's
+narrowing, and §11 replaces them whole rather than merging, so a stale
+`PATCH` reinstates exactly what someone just removed. Amended after review
+on 2026-09-24 — the original made the precondition optional everywhere and
+then relied on it for safety.
 
 ### Contracts, and ADR 0007
 
@@ -369,9 +398,14 @@ the overlap window is published today; only rotation has no door.
 - `POST /keys/{id}/promote` — demote the current `active` to `rotating` and
   promote this one, in one transaction, so no window has two actives or
   none.
-- `POST /keys/{id}/retire` — **refused with 409** while a client is
-  registered against an algorithm no remaining non-retired key produces,
-  listing the offending clients.
+- `POST /keys/{id}/retire` — **refused with 409** in two cases: while a
+  client is registered against an algorithm no remaining non-retired key
+  produces, listing the offending clients; and whenever the key's own status
+  is `active`. Promotion must come first. Checking algorithm coverage alone
+  would permit retiring the sole active key whenever a `rotating` key shared
+  its algorithm, leaving the tenant with no active key at all and the
+  selection rule's fallback pointing at nothing. Amended after review on
+  2026-09-24.
 - `GET /keys` — status, `kid`, `alg`, `created_at`, `not_after`. Never the
   private half, encrypted or otherwise.
 
@@ -407,11 +441,16 @@ inapplicable — which is `conditional`'s semantics, applied to both.
 - **`required`** — must be satisfied; a subject for whom it is inapplicable
   **fails the flow**.
 
-That is a behaviour change on a login path, so the migration rewrites the
-seeded default flow's rows to `conditional` wherever they rely on the
-inapplicable-pass, and a test asserts a default tenant's flow behaves
-identically before and after. Without that rewrite this is a silent lockout,
-which is the worst available shape for an authentication change.
+That is a behaviour change on a login path, so the migration rewrites
+**every** row whose requirement is `required` and whose authenticator is
+subject-dependent — OTP, passkey and recovery code — to `conditional`, not
+only the rows the seeded flow created. Nothing can customise a flow today
+(`executionRepository` exposes `forTenant` and `create` and nothing else)
+and nothing is deployed, so in practice the two sets are identical; matching
+on the condition rather than on provenance costs nothing and is what keeps a
+hand-written row from becoming a silent lockout. A test asserts a default
+tenant's flow behaves identically before and after. Amended after review on
+2026-09-24 — the original rewrote seeded rows only.
 
 ## 14. Claim mappers a scope reaches
 
@@ -422,8 +461,14 @@ table saying which registered mapper this tenant attaches to which client
 scope.
 
 `assemble` consults the tenant's bindings; a tenant with no bindings falls
-back to the mappers' declared scopes, so every existing tenant behaves
-exactly as it does now and the migration backfills nothing.
+back to the mappers' declared scopes. **The fallback is per scope, not per
+tenant**: a scope with no binding rows uses the mappers that declare it,
+whatever other scopes in the same tenant have been bound. A per-tenant
+fallback would mean the first binding written for one scope silently
+stripped the defaults from every other scope in that tenant — one edit,
+unrelated claims gone. Every existing tenant therefore behaves exactly as it
+does now and the migration backfills nothing. Amended after review on
+2026-09-24.
 `claims_supported` in discovery derives from the tenant's bindings rather
 than from the process singleton, which is what makes the document genuinely
 per-tenant.
