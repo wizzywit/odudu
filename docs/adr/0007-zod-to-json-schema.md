@@ -24,3 +24,22 @@ service. Two failures, two layers, no overlap.
 author and weaker at transforms.
 
 **Valibot.** Smallest bundle, but immature for a system with this lifespan.
+
+## Amendment — 2026-09-24
+
+This ADR governs **JSON endpoints**; the admin API (P4c) is its first
+execution.
+
+The form-encoded protocol endpoints keep `parseStructure` rather than a
+Zod-authored contract, for two reasons. Their 400 body is RFC-defined
+(`error`/`error_description`), and ajv's is not. And at `/authorize`, a
+check's _position in the sequence_ is what makes it safe: boundary
+validation that rejects every structurally invalid request up front would
+collapse the render-versus-redirect distinction for a missing
+`redirect_uri`, where the response has to render rather than redirect.
+
+`authorizeQuerySchema` and `AuthorizeQuery` are deleted from
+`packages/contracts`, `2e1e0e4`'s deletion of `tokenRequestSchema` being the
+precedent. Both had no consumer and were stale in the same way — no
+`response_mode`, no `resource`, no `claims`, all three accepted by
+`/authorize` since P3b.

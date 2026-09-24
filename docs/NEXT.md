@@ -336,17 +336,6 @@ can currently demonstrate the refusal.
   that introduces time-travel fixtures capable of moving the database's
   own clock rather than only the app's.
 
-**ADR 0007 has never been executed.** Schemas are to be authored in Zod in
-`packages/contracts` and compiled with `z.toJSONSchema()` for ajv validation
-and OpenAPI. `parseStructure` in `token-issuance.ts` is the real authority
-for the token request instead, and the contracts schemas that described it
-were deleted in P4a rather than extended with a fourth grant, because a
-stale union is worse than an absent one.
-
-- Trigger: **P4c**, which publishes OpenAPI and so must either honour ADR
-  0007 or amend it. `verified:` `z.toJSONSchema` exists in Zod 4.6.1 and
-  emits draft 2020-12, the dialect OpenAPI 3.1 uses.
-
 **`token_grants_session_fk` (0026_token_grants_session.sql) has the same
 unrestricted-`ON DELETE SET NULL` defect P4a's review caught in 0059:
 deleting a session would null `tenant_id` alongside `session_id`, and the
