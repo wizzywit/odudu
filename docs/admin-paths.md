@@ -389,9 +389,12 @@ public/confidential boundary — `none` for a confidential client, or
 anything else for a public one — is refused with `409`, naming the
 client's current type and the type the new method implies: the same
 concern `type` itself being unamendable exists for, reached through a
-different field. `client_secret_basic`, `client_secret_post`,
-`private_key_jwt` and `tls_client_auth` are all confidential and freely
-amendable into one another; `none` is the only public method.
+different field. `client_secret_basic`, `client_secret_post` and
+`private_key_jwt` are always confidential and freely amendable into one
+another; `tls_client_auth` joins them only when TLS client authentication
+is enabled (`ODUDU_TRUST_PROXY`) — `parseClientMetadata` refuses it
+otherwise, on a create or an amend alike. `none` is the only public
+method.
 
 The built-in admin client (`builtin_admin`) refuses three kinds of
 amendment with `409`, each naming the client and the reason: disabling it
