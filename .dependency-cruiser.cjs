@@ -51,6 +51,16 @@ module.exports = {
       from: { path: '(^|/)packages/protocol-(?!admin/)[^/]+/' },
       to: { path: '(^|/)packages/protocol-admin/' },
     },
+    {
+      name: 'no-admin-to-other-protocol',
+      severity: 'error',
+      comment:
+        'The admin API is downstream of the OIDC surface (ADR 0035), which is one ' +
+        'edge, not a blanket exemption. Any other protocol package it reaches for ' +
+        'is a decision to make deliberately, not one to inherit from this rule.',
+      from: { path: '(^|/)packages/protocol-admin/' },
+      to: { path: '(^|/)packages/protocol-(?!oidc/|admin/)[^/]+/' },
+    },
     // `/src/(.+/)?view/` fails dependency-cruiser's safe-regex check (star
     // height > 1: the optional group wraps a quantifier). The alternation
     // below is unquantified, so it stays star-height 1 while still matching

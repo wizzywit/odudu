@@ -32,7 +32,12 @@ through it, exactly the coupling the original rule exists to prevent.
 `protocol-admin → protocol-oidc` is the only edge this permits.
 `protocol-oidc → protocol-admin`, `protocol-admin → <a future protocol-saml>`
 without the same justification, and any edge between two peer protocols all
-remain forbidden, unchanged.
+remain forbidden, unchanged. The exemption is edge-specific, not a blanket
+release of `protocol-admin` from `no-protocol-to-protocol`: a third rule,
+`no-admin-to-other-protocol`, forbids `protocol-admin` from importing any
+protocol package other than `protocol-oidc`, so the claim above is
+something a reader can check against `.dependency-cruiser.cjs` rather than
+trust.
 
 ## Consequences
 

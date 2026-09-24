@@ -69,6 +69,13 @@ describe('boundary rules', () => {
     ).toBe(true);
   });
 
+  it('forbids the admin API importing a protocol package other than OIDC', async () => {
+    const found = await violations('no-admin-to-other-protocol');
+    expect(
+      found.filter((v) => v.from.includes('protocol-admin') && v.to.includes('protocol-saml')),
+    ).toHaveLength(1);
+  });
+
   it('rejects a circular import', async () => {
     expect((await violations('no-circular')).length).toBeGreaterThan(0);
   });
