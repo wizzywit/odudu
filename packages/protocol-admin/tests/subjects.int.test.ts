@@ -399,6 +399,94 @@ describe('PATCH /admin/tenants/{t}/subjects/{id}', () => {
     expect(body.enabled).toBe(false);
   });
 
+  // Regression for a partial write: `enabled` used to be written before
+  // `email` was validated, so a refusal on `email` still committed the
+  // disable. A service subject has no `users` row, which is what makes
+  // `email` refuse here — the write of `enabled` must not survive that.
+  it('refuses email on a service subject with 400, and leaves it enabled', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {});
+    const serviceSubjectId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const row = await clientRepository(tx).byId(client.id);
+      if (row?.serviceSubjectId === null || row?.serviceSubjectId === undefined) {
+        throw new Error('fixture: confidential client has no service subject');
+      }
+      return row.serviceSubjectId;
+    });
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/subjects/${serviceSubjectId}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { enabled: false, email: 'ops@example.com' },
+    });
+    expect(res.statusCode).toBe(400);
+
+    const after = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects/${serviceSubjectId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(after.json<{ enabled: boolean }>().enabled).toBe(true);
+  });
+
+  it('refuses a malformed email with 400 and writes nothing, enabled included', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `pat-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/subjects/${id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { enabled: false, email: 'x' },
+    });
+    expect(res.statusCode).toBe(400);
+
+    const after = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const body = after.json<{ enabled: boolean; email: string | null }>();
+    expect(body.enabled).toBe(true);
+    expect(body.email).toBeNull();
+  });
+
+  it('repeating a disable is a no-op for the timestamp', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `pat-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+
+    const first = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/subjects/${id}`,
+      headers,
+      payload: { enabled: false },
+    });
+    expect(first.statusCode).toBe(200);
+    const disabledAt = await withTenant(fixture.app.db, t.id, (tx) =>
+      subjectRepository(tx).byId(id),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const second = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/subjects/${id}`,
+      headers,
+      payload: { enabled: false },
+    });
+    expect(second.statusCode).toBe(200);
+    const stillDisabledAt = await withTenant(fixture.app.db, t.id, (tx) =>
+      subjectRepository(tx).byId(id),
+    );
+
+    expect(stillDisabledAt?.disabledAt?.getTime()).toBe(disabledAt?.disabledAt?.getTime());
+  });
+
   it('answers 412 when If-Match no longer matches', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const { id } = await fixture.createSubject(t.name, `pat-${newId()}`);

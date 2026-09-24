@@ -4,6 +4,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository, roles, rolesReachableFrom, subjectRoles } from '@odudu/domain-authz';
 import {
   credentialRepository,
+  isEmailAddress,
   passwordExpired,
   subjectRepository,
   subjects,
@@ -312,13 +313,15 @@ export async function amendSubject(
     return { kind: 'precondition_failed' };
   }
 
-  if ('enabled' in input.values) {
-    if (typeof input.values.enabled !== 'boolean') {
-      return { kind: 'invalid_value', field: 'enabled', description: 'enabled must be a boolean' };
-    }
-    await subjectRepository(tx).setEnabled(input.subjectId, input.values.enabled);
+  // Every field is validated before any of them is written — a refusal
+  // below must leave every column, `disabled_at` included, exactly as it
+  // was. `email`'s shape is checked here rather than left to
+  // `userRepository.updateEmail`'s own throw, which a malformed address
+  // would otherwise reach only after `enabled` had already been written.
+  let email: string | null | undefined;
+  if ('enabled' in input.values && typeof input.values.enabled !== 'boolean') {
+    return { kind: 'invalid_value', field: 'enabled', description: 'enabled must be a boolean' };
   }
-
   if ('email' in input.values) {
     const value = input.values.email;
     if (value !== null && typeof value !== 'string') {
@@ -335,7 +338,21 @@ export async function amendSubject(
         description: `subject ${input.subjectId} has no user profile to carry an email`,
       };
     }
-    await userRepository(tx).updateEmail(input.subjectId, value);
+    if (value !== null && !isEmailAddress(value)) {
+      return {
+        kind: 'invalid_value',
+        field: 'email',
+        description: `${JSON.stringify(value)} is not an address the email claim may carry`,
+      };
+    }
+    email = value;
+  }
+
+  if ('enabled' in input.values && typeof input.values.enabled === 'boolean') {
+    await subjectRepository(tx).setEnabled(input.subjectId, input.values.enabled);
+  }
+  if (email !== undefined) {
+    await userRepository(tx).updateEmail(input.subjectId, email);
   }
 
   await deps.audit({
