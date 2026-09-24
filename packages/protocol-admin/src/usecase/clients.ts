@@ -5,8 +5,11 @@ import {
   ADMIN_CLIENT_ID,
   clientRepository,
   clients,
+  clientScopeAssignments,
+  clientScopes,
   provisionClientDefaults,
   type ClientRecord,
+  type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
 import {
   clientOidcConfig,
@@ -14,7 +17,7 @@ import {
   parseClientMetadata,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
-import { asc, eq, gt } from 'drizzle-orm';
+import { asc, eq, gt, inArray } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
 import { AMENDABLE_CLIENT_FIELDS, refusalFor } from '#/service/client-patch';
@@ -87,6 +90,61 @@ export interface ClientView {
   readonly userinfoEncryptedResponseAlg: string | null;
   readonly userinfoEncryptedResponseEnc: string | null;
   readonly tlsClientAuthSubjectDn: string | null;
+  readonly scopes: readonly ClientScopeAssignmentView[];
+}
+
+export interface ClientScopeAssignmentView {
+  readonly id: string;
+  readonly name: string;
+  readonly assignment: ClientScopeAssignment;
+}
+
+// A batched read, never one query per client: `listClients` would
+// otherwise issue one extra round trip per row on the page, the same N+1
+// a page of sessions was found doing before its own query was batched.
+async function scopesForClients(
+  tx: TenantScopedDatabase,
+  clientIds: readonly string[],
+): Promise<Map<string, ClientScopeAssignmentView[]>> {
+  const map = new Map<string, ClientScopeAssignmentView[]>();
+  if (clientIds.length === 0) return map;
+
+  const rows = await tx
+    .select({
+      clientId: clientScopeAssignments.clientId,
+      id: clientScopes.id,
+      name: clientScopes.name,
+      assignment: clientScopeAssignments.assignment,
+    })
+    .from(clientScopeAssignments)
+    .innerJoin(clientScopes, eq(clientScopeAssignments.clientScopeId, clientScopes.id))
+    .where(inArray(clientScopeAssignments.clientId, [...clientIds]));
+
+  for (const row of rows) {
+    const list = map.get(row.clientId) ?? [];
+    list.push({ id: row.id, name: row.name, assignment: row.assignment });
+    map.set(row.clientId, list);
+  }
+  return map;
+}
+
+async function attachScopes(
+  tx: TenantScopedDatabase,
+  view: Omit<ClientView, 'scopes'>,
+): Promise<ClientView> {
+  const scopesByClient = await scopesForClients(tx, [view.id]);
+  return { ...view, scopes: scopesByClient.get(view.id) ?? [] };
+}
+
+async function attachScopesMany(
+  tx: TenantScopedDatabase,
+  views: readonly Omit<ClientView, 'scopes'>[],
+): Promise<ClientView[]> {
+  const scopesByClient = await scopesForClients(
+    tx,
+    views.map((view) => view.id),
+  );
+  return views.map((view) => ({ ...view, scopes: scopesByClient.get(view.id) ?? [] }));
 }
 
 function clientsJoinedWithConfig(tx: TenantScopedDatabase) {
@@ -102,7 +160,9 @@ function clientsJoinedWithConfig(tx: TenantScopedDatabase) {
 // raw select reads them back as `string`, the same narrowing
 // `clientRepository`'s and `clientOidcConfigRepository`'s own `toRecord`
 // apply.
-function narrowRow(row: Awaited<ReturnType<typeof clientsJoinedWithConfig>>[number]): ClientView {
+function narrowRow(
+  row: Awaited<ReturnType<typeof clientsJoinedWithConfig>>[number],
+): Omit<ClientView, 'scopes'> {
   return {
     ...row,
     type: row.type as ClientView['type'],
@@ -148,7 +208,8 @@ export async function listClients(
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;
-  const items = (hasMore ? rows.slice(0, input.limit) : rows).map(narrowRow);
+  const bareItems = (hasMore ? rows.slice(0, input.limit) : rows).map(narrowRow);
+  const items = await attachScopesMany(tx, bareItems);
   const last = items[items.length - 1];
   const next =
     hasMore && last !== undefined
@@ -170,7 +231,9 @@ export async function readClient(
 ): Promise<ReadClientOutcome> {
   const rows = await clientsJoinedWithConfig(tx).where(eq(clients.id, clientDbId));
   const row = rows[0];
-  return row === undefined ? { kind: 'not_found' } : { kind: 'ok', client: narrowRow(row) };
+  return row === undefined
+    ? { kind: 'not_found' }
+    : { kind: 'ok', client: await attachScopes(tx, narrowRow(row)) };
 }
 
 export interface CreateClientInput {
@@ -216,7 +279,7 @@ function clientType(tokenEndpointAuthMethod: string): 'public' | 'confidential' 
   return tokenEndpointAuthMethod === 'none' ? 'public' : 'confidential';
 }
 
-function toClientView(client: ClientRecord, config: ClientOidcConfig): ClientView {
+function toClientView(client: ClientRecord, config: ClientOidcConfig): Omit<ClientView, 'scopes'> {
   return {
     id: client.id,
     clientId: client.clientId,
@@ -348,7 +411,7 @@ export async function createClient(
     actorSubjectId: input.actorSubjectId,
   });
 
-  return { kind: 'ok', client: toClientView(client, config), secret };
+  return { kind: 'ok', client: await attachScopes(tx, toClientView(client, config)), secret };
 }
 
 // The wire shape a caller reads back, and what an `ETag` is hashed over —
@@ -386,6 +449,11 @@ export function clientWireShape(view: ClientView): Client {
     userinfo_encrypted_response_alg: view.userinfoEncryptedResponseAlg,
     userinfo_encrypted_response_enc: view.userinfoEncryptedResponseEnc,
     tls_client_auth_subject_dn: view.tlsClientAuthSubjectDn,
+    scopes: view.scopes.map((scope) => ({
+      id: scope.id,
+      name: scope.name,
+      assignment: scope.assignment,
+    })),
   };
 }
 
@@ -697,7 +765,7 @@ export async function amendClient(
     return { kind: 'precondition_required', field: requiredIfMatchField };
   }
 
-  const currentView = toClientView(clientRow, configRow);
+  const currentView = await attachScopes(tx, toClientView(clientRow, configRow));
   const currentEtag = etagOf(clientWireShape(currentView));
   if (matches(input.ifMatch, currentEtag) === 'mismatch') {
     return { kind: 'precondition_failed' };
@@ -719,7 +787,7 @@ export async function amendClient(
     actorSubjectId: input.actorSubjectId,
   });
 
-  const view = toClientView(updatedClientRow, updatedConfigRow);
+  const view = await attachScopes(tx, toClientView(updatedClientRow, updatedConfigRow));
   return { kind: 'ok', client: view, etag: etagOf(clientWireShape(view)) };
 }
 
@@ -763,7 +831,11 @@ export async function rotateClientSecret(
   if (configRow === null) {
     throw new Error(`client ${input.clientDbId} has no client_oidc_config row`);
   }
-  return { kind: 'ok', client: toClientView(updatedClientRow, configRow), secret };
+  return {
+    kind: 'ok',
+    client: await attachScopes(tx, toClientView(updatedClientRow, configRow)),
+    secret,
+  };
 }
 
 export interface DeleteClientInput {
