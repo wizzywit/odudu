@@ -3,6 +3,11 @@
 // renameable id could hide it from all three.
 export const ADMIN_CLIENT_ID = 'odudu-admin';
 
+// The resource identifier an admin token must name in `aud`. A URN and not
+// an issuer-derived URL because issuers are resolved per request, so there
+// is no issuer to register in the client's audiences when it is created.
+export const ADMIN_API_AUDIENCE = 'urn:odudu:params:admin-api';
+
 // Design rationale: docs/superpowers/specs/2026-09-10-odudu-design.md §5.
 export const SYSTEM_TENANT_NAME = 'system';
 

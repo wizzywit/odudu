@@ -875,7 +875,8 @@ created.
 
 The `odudu-admin` client is provisioned as a public client authorised with
 `authorization_code` and `refresh_token`, carrying the tenant's default
-scopes and one redirect URI, `http://127.0.0.1:8080/callback`. There is no
+scopes, the admin API's resource identifier `urn:odudu:params:admin-api` as
+its registered audience, and one redirect URI, `http://127.0.0.1:8080/callback`. There is no
 administration console yet, so that loopback address (RFC 8252 §7.3) is
 the only place a code can be delivered: an administrator obtains a token by
 running a listener on that exact port and completing the flow with PKCE.

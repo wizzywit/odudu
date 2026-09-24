@@ -6,6 +6,7 @@ export {
   type TenantSettingName,
 } from '#/service/tenant-settings';
 export {
+  ADMIN_API_AUDIENCE,
   ADMIN_CLIENT_ID,
   MANAGE_TENANTS,
   SYSTEM_TENANT_ID,

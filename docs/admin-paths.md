@@ -38,9 +38,9 @@ as `Authorization: Bearer …`. Two authorities can hold one:
 - **A system admin.** A subject in the `system` tenant, holding
   `manage-tenants`. Reaches every tenant's `/admin/tenants/{tenant}/**`.
 
-Either way, the token must carry an `aud` naming this admin API — an
-ordinary access token minted for the protocol surface does not authorize
-anything here — and the request is refused if the grant behind the token
+Either way, the token must carry an `aud` naming this admin API,
+`urn:odudu:params:admin-api` — an ordinary access token minted for the
+protocol surface does not authorize anything here — and the request is refused if the grant behind the token
 has been revoked, its session has ended, or its client has since been
 disabled. A `client_credentials` token has no session behind it, and is
 refused only on the other two counts. `docs/superpowers/specs/2026-09-24-p4c-admin-api-design.md`

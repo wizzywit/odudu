@@ -1,4 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
+import { ADMIN_API_AUDIENCE } from '@odudu/domain-tenant';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
 /**
@@ -33,7 +34,7 @@ export async function provisionAdminClientOidc(
     // holds no secret, so it authenticates at /token with none.
     grantTypes: ['authorization_code', 'refresh_token'],
     tokenEndpointAuthMethod: 'none',
-    audiences: [],
+    audiences: [ADMIN_API_AUDIENCE],
     accessTokenTtlSeconds: 300,
     refreshTokenTtlSeconds: 1_209_600,
   });

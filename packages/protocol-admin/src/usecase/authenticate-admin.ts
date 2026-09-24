@@ -1,6 +1,6 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
-import { SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
+import { ADMIN_API_AUDIENCE, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { type TenantLookup, type TokenGrantRecord } from '@odudu/protocol-oidc';
 
 export interface AdminPrincipal {
@@ -126,7 +126,7 @@ export async function authenticateAdmin(
     payload = await verifyJwt(token, {
       keys,
       issuer: iss,
-      audience: `${iss}/admin`,
+      audience: ADMIN_API_AUDIENCE,
       typ: 'at+jwt',
     });
   } catch {

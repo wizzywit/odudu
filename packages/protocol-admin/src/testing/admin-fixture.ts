@@ -19,6 +19,7 @@ import { provisionTenant, sessionRepository } from '@odudu/authn-flows';
 import { roleRepository, subjectRoles } from '@odudu/domain-authz';
 import { hashPassword, subjectRepository, userRepository } from '@odudu/domain-identity';
 import {
+  ADMIN_API_AUDIENCE,
   ADMIN_CLIENT_ID,
   clientRepository,
   clients,
@@ -76,9 +77,10 @@ export interface AdminFixture {
   createTenant(name: string): Promise<{ id: string; name: string }>;
   stop(): Promise<void>;
 
-  // Tokens. `adminToken` and `systemAdminToken` carry `aud` = `${issuer}/admin`;
-  // `applicationToken` deliberately does not, which is what tells the admin
-  // audience check apart from an ordinary access token.
+  // Tokens. `adminToken` and `systemAdminToken` carry the admin API's
+  // resource identifier in `aud`; `applicationToken` deliberately does not,
+  // which is what tells the admin audience check apart from an ordinary
+  // access token.
   adminToken(tenantName: string, capabilities: readonly string[]): Promise<string>;
   systemAdminToken(capabilities: readonly string[]): Promise<string>;
   applicationToken(tenantName: string, options: { audience: string }): Promise<string>;
@@ -419,7 +421,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
 
   async function adminToken(tenantName: string, capabilities: readonly string[]): Promise<string> {
     const ctx = requireTenant(tenantName);
-    return mintAdminLikeToken(ctx, capabilities, [`${ctx.issuer}/admin`]);
+    return mintAdminLikeToken(ctx, capabilities, [ADMIN_API_AUDIENCE]);
   }
 
   async function adminTokenAt(
@@ -429,11 +431,11 @@ export async function startAdminFixture(): Promise<AdminFixture> {
   ): Promise<string> {
     const ctx = requireTenant(tenantName);
     const issuer = tenantIssuerFor({ protocol: 'http', host }, tenantName);
-    return mintAdminLikeToken({ ...ctx, issuer }, capabilities, [`${issuer}/admin`]);
+    return mintAdminLikeToken({ ...ctx, issuer }, capabilities, [ADMIN_API_AUDIENCE]);
   }
 
   async function systemAdminToken(capabilities: readonly string[]): Promise<string> {
-    return mintAdminLikeToken(systemTenant, capabilities, [`${systemTenant.issuer}/admin`]);
+    return mintAdminLikeToken(systemTenant, capabilities, [ADMIN_API_AUDIENCE]);
   }
 
   // Carries the same capabilities `adminToken` would, so the two differ in
@@ -491,7 +493,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
       // The admin audience, so this client's own client_credentials grant
       // authenticates at /admin the same way `adminToken` does, and
       // `disableClientOf` breaks it the same way it breaks any other.
-      audiences: [`${ctx.issuer}/admin`],
+      audiences: [ADMIN_API_AUDIENCE],
     });
     const serviceSubjectId = client.serviceSubjectId;
     if (serviceSubjectId !== null) {
@@ -561,7 +563,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
         subjectId: subject.id,
         client: adminClient,
         sessionId,
-        audience: [`${ctx.issuer}/admin`],
+        audience: [ADMIN_API_AUDIENCE],
       });
     });
   }
@@ -609,7 +611,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     body: Record<string, unknown>,
   ): Promise<LightMyRequestResponse> {
     const ctx = requireTenant(tenantName);
-    const token = await mintAdminLikeToken(ctx, ['manage-clients'], [`${ctx.issuer}/admin`]);
+    const token = await mintAdminLikeToken(ctx, ['manage-clients'], [ADMIN_API_AUDIENCE]);
     return http.inject({
       method: 'PATCH',
       url: `/admin/tenants/${tenantName}/clients/${clientDbId}`,

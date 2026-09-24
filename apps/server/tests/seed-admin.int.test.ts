@@ -9,7 +9,7 @@ import { ADMIN_CLIENT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { eq } from 'drizzle-orm';
-import { type FastifyInstance } from 'fastify';
+import { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
 import { seedAdmin } from '#/cli/seed';
@@ -60,23 +60,102 @@ function buildTestApp(): FastifyInstance {
   });
 }
 
-async function authorize(
-  instance: FastifyInstance,
-  params: Record<string, string>,
-): Promise<{ statusCode: number; body: string }> {
+const REDIRECT_URI = 'http://127.0.0.1:8080/callback';
+// RFC 7636 Appendix B's worked example, verifier and challenge.
+const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+const NEW_PASSWORD = 'Str0ng-Passw0rd!42';
+
+async function authorize(instance: FastifyInstance): Promise<LightMyRequestResponse> {
   const query = new URLSearchParams({
     response_type: 'code',
     client_id: ADMIN_CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
     scope: 'openid',
     state: 'xyz-123',
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
-    ...params,
   });
-  const res = await instance.inject({
+  return instance.inject({
     url: `/tenants/${SYSTEM_TENANT_NAME}/protocol/openid-connect/auth?${query.toString()}`,
   });
-  return { statusCode: res.statusCode, body: res.body };
+}
+
+function formPost(
+  instance: FastifyInstance,
+  url: string,
+  fields: Record<string, string>,
+): Promise<LightMyRequestResponse> {
+  return instance.inject({
+    method: 'POST',
+    url,
+    payload: new URLSearchParams(fields).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+}
+
+function readField(body: string, name: string): string {
+  const match = new RegExp(`name="${name}" value="([^"]*)"`, 'u').exec(body);
+  const value = match?.[1];
+  if (value === undefined) throw new Error(`${name} not found in the rendered page`);
+  return value;
+}
+
+// The whole flow an administrator walks: the login form, the password
+// change seed admin queues, the code, and the token that code buys.
+async function bootstrapAdminToken(
+  instance: FastifyInstance,
+  username: string,
+  password: string,
+): Promise<string> {
+  const form = await authorize(instance);
+  expect(form.statusCode).toBe(200);
+  const authSessionId = readField(form.body, 'auth_session_id');
+
+  const login = await formPost(
+    instance,
+    `/tenants/${SYSTEM_TENANT_NAME}/login-actions/authenticate`,
+    { auth_session_id: authSessionId, username, password },
+  );
+  expect(login.body).toContain('Change your password');
+  const changeSessionId = readField(login.body, 'auth_session_id');
+
+  // A completed action hands the parked login back to its first factor,
+  // so the new password is what actually signs in.
+  const changed = await formPost(
+    instance,
+    `/tenants/${SYSTEM_TENANT_NAME}/login-actions/required-action?action=update-password`,
+    { auth_session_id: changeSessionId, password: NEW_PASSWORD },
+  );
+  expect(changed.statusCode).toBe(200);
+
+  const signedIn = await formPost(
+    instance,
+    `/tenants/${SYSTEM_TENANT_NAME}/login-actions/authenticate`,
+    {
+      auth_session_id: readField(changed.body, 'auth_session_id'),
+      username,
+      password: NEW_PASSWORD,
+    },
+  );
+  expect(signedIn.statusCode).toBe(302);
+  const location = signedIn.headers.location;
+  if (typeof location !== 'string') throw new Error('the sign-in did not redirect');
+  const code = new URL(location).searchParams.get('code');
+  if (code === null) throw new Error(`no code in ${location}`);
+
+  const token = await formPost(
+    instance,
+    `/tenants/${SYSTEM_TENANT_NAME}/protocol/openid-connect/token`,
+    {
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: REDIRECT_URI,
+      client_id: ADMIN_CLIENT_ID,
+      code_verifier: VERIFIER,
+    },
+  );
+  expect(token.statusCode).toBe(200);
+  return token.json<{ access_token: string }>().access_token;
 }
 
 // Runs before anything here has bootstrapped the system tenant, since
@@ -97,18 +176,22 @@ describe('seed admin against a system tenant under a foreign id', () => {
 });
 
 describe('the client seed admin bootstraps', () => {
-  it('can carry an administrator as far as the login form', async () => {
-    await seedAdmin({ username: `ada-${newId()}` });
+  it('carries the administrator through to an accepted admin request', async () => {
+    const username = `ada-${newId()}`;
+    const { password } = await seedAdmin({ username });
     const instance = buildTestApp();
     await instance.ready();
 
     try {
-      const res = await authorize(instance, {
-        redirect_uri: 'http://127.0.0.1:8080/callback',
+      const accessToken = await bootstrapAdminToken(instance, username, password);
+
+      const res = await instance.inject({
+        method: 'GET',
+        url: `/admin/tenants/${SYSTEM_TENANT_NAME}/whoami`,
+        headers: { authorization: `Bearer ${accessToken}` },
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.body).toContain('auth_session_id');
     } finally {
       await instance.close();
     }
