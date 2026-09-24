@@ -68,6 +68,20 @@ describe('admin authentication', () => {
     expect(res.statusCode).toBe(401);
   });
 
+  // A client_credentials grant has no session, which is not the same as a
+  // session that has ended: a service account provisioning users is the
+  // case the admin API exists to serve.
+  it('accepts a service account token, which carries no sid', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await fixture.createServiceAccountClient(t.name, ['manage-users']);
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${client.token}` },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
   it('accepts a token from the target tenant with the admin audience', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users']);

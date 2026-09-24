@@ -144,10 +144,15 @@ export async function authenticateAdmin(
   const grant = await deps.loadGrant(matched.id, grantId);
   if (grant?.revokedAt !== null) return unauthenticated('invalid_grant');
 
-  const sid = payload.sid;
-  if (typeof sid !== 'string' || sid.length === 0) return unauthenticated('invalid_token');
-  const live = await deps.isSessionLive(matched.id, sid, matched.lifespans, input.now);
-  if (!live) return unauthenticated('dead_session');
+  // A client_credentials grant has no session at all, which is not a dead
+  // one: a service account is refused here only if its grant is revoked or
+  // its client disabled.
+  if (grant.sessionId !== null) {
+    const sid = payload.sid;
+    if (typeof sid !== 'string' || sid.length === 0) return unauthenticated('invalid_token');
+    const live = await deps.isSessionLive(matched.id, sid, matched.lifespans, input.now);
+    if (!live) return unauthenticated('dead_session');
+  }
 
   const enabled = await deps.isClientEnabled(matched.id, grant.clientId);
   if (!enabled) return unauthenticated('client_disabled');
