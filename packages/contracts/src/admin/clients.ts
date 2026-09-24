@@ -1,8 +1,15 @@
 import { z } from 'zod';
+import { clientScopeAssignmentSchema } from '#/admin/scopes';
 import { createdAtSchema, idSchema } from '#/admin/shared';
 
 export const clientTypeSchema = z.enum(['public', 'confidential']);
 export const registrationOriginSchema = z.enum(['seeded', 'anonymous', 'token', 'operator']);
+
+export const clientScopeAssignmentViewSchema = z.object({
+  id: idSchema,
+  name: z.string(),
+  assignment: clientScopeAssignmentSchema,
+});
 
 export const clientSchema = z.object({
   id: idSchema,
@@ -34,6 +41,7 @@ export const clientSchema = z.object({
   userinfo_encrypted_response_alg: z.string().nullable(),
   userinfo_encrypted_response_enc: z.string().nullable(),
   tls_client_auth_subject_dn: z.string().nullable(),
+  scopes: z.array(clientScopeAssignmentViewSchema),
 });
 export type Client = z.infer<typeof clientSchema>;
 
