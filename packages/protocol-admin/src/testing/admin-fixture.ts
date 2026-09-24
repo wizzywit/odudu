@@ -26,6 +26,7 @@ import {
   provisionClientDefaults,
   SYSTEM_TENANT_ID,
   SYSTEM_TENANT_NAME,
+  TENANT_CAPABILITIES,
   type ClientRecord,
 } from '@odudu/domain-tenant';
 import { FakeClock, newId } from '@odudu/kernel';
@@ -39,7 +40,7 @@ import {
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
-import { adminRoutes } from '#/routes';
+import { adminRoutes } from '#/index';
 
 // Encrypts every signing key this fixture generates, and decrypts every one
 // it signs with — a fixed value is fine because nothing outside this
@@ -126,7 +127,11 @@ interface TenantContext {
 
 function decodeUnverified(token: string): Record<string, unknown> {
   const segment = token.split('.')[1] ?? '';
-  return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')) as Record<string, unknown>;
+  const parsed: unknown = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('fixture: token payload is not a JSON object');
+  }
+  return parsed as Record<string, unknown>;
 }
 
 // `iss` is always `<base>/tenants/<name>` (packages/protocol-oidc/src/
@@ -288,10 +293,8 @@ export async function startAdminFixture(): Promise<AdminFixture> {
   }
 
   // Shared by `adminToken`, `systemAdminToken` and `applicationToken`: a
-  // fresh subject carrying exactly the named capabilities, a live session,
-  // and a grant minted through the tenant's own built-in admin client. Only
-  // the audience differs between the three, which is the one thing the
-  // authentication chain (Task 2.3) is meant to key off.
+  // fresh subject carrying the named capabilities, a live session, and a
+  // grant minted through the tenant's own built-in admin client.
   async function mintAdminLikeToken(
     ctx: TenantContext,
     capabilities: readonly string[],
@@ -404,12 +407,17 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     return mintAdminLikeToken(systemTenant, capabilities, [`${systemTenant.issuer}/admin`]);
   }
 
+  // Carries the same capabilities `adminToken` would, so the two differ in
+  // exactly one respect: `aud`. A test that refuses this token must be
+  // refusing it for the audience, never for a capability it was never
+  // given — otherwise the admin audience check could be missing entirely
+  // and the test would still pass.
   async function applicationToken(
     tenantName: string,
     options: { audience: string },
   ): Promise<string> {
     const ctx = requireTenant(tenantName);
-    return mintAdminLikeToken(ctx, [], [options.audience]);
+    return mintAdminLikeToken(ctx, TENANT_CAPABILITIES, [options.audience]);
   }
 
   async function createSubject(tenantName: string, username: string): Promise<{ id: string }> {

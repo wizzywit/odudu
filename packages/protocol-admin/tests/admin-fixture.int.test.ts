@@ -1,12 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 
+let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
 beforeAll(async () => {
-  fixture = await startAdminFixture();
+  fixtureHandle = await startAdminFixture();
+  fixture = fixtureHandle;
 }, 180_000);
 afterAll(async () => {
-  await fixture.stop();
+  // Optional: if `beforeAll` threw before assigning `fixtureHandle`, this
+  // must not mask that failure with a TypeError of its own.
+  await fixtureHandle?.stop();
 });
 
 describe('startAdminFixture', () => {
