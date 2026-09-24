@@ -225,16 +225,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const activeSigningKey = (tenantId: string) =>
       withTenant(deps.database.db, tenantId, (tx) => signingKeyRepository(tx).active());
 
-    // `null` rather than thrown: a tenant provisioned before its first
+    // Empty rather than thrown: a tenant provisioned before its first
     // signing key still gets a discovery document.
-    const activeSigningKeyAlg = (tenantId: string) =>
-      withTenant(deps.database.db, tenantId, async (tx) => {
-        try {
-          return (await signingKeyRepository(tx).active()).alg;
-        } catch {
-          return null;
-        }
-      });
+    const algorithmsAvailable = (tenantId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) => signingKeyRepository(tx).algorithmsAvailable());
 
     // One definition, read by discovery for scopes_supported and by
     // /authorize for what it will accept, so the advertised list and the
@@ -390,7 +384,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       findTenant,
       claimNames: () => claimMappers.claimNames(),
       scopesForTenant,
-      activeSigningKeyAlg,
+      algorithmsAvailable,
       userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,
       userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENCS_PERMITTED,
       trustProxy: deps.trustProxy ?? false,

@@ -5,7 +5,7 @@ const claimNames = () => ['sub', 'name', 'email', 'email_verified'];
 // Rows come back from client_scopes in no particular order, so this returns
 // them out of order deliberately.
 const scopesForTenant = () => Promise.resolve(['profile', 'openid', 'email']);
-const activeSigningKeyAlg = () => Promise.resolve('RS256');
+const algorithmsAvailable = () => Promise.resolve(['RS256']);
 const userinfoEncryptionAlgSupported = ['RSA-OAEP-256'];
 const userinfoEncryptionEncSupported = ['A128CBC-HS256'];
 
@@ -16,7 +16,7 @@ describe('resolveDiscoveryDocument', () => {
         findTenant: () => Promise.resolve(null),
         claimNames,
         scopesForTenant,
-        activeSigningKeyAlg,
+        algorithmsAvailable,
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
         trustProxy: false,
@@ -45,7 +45,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForTenant,
-        activeSigningKeyAlg,
+        algorithmsAvailable,
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
         trustProxy: false,
@@ -74,7 +74,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForTenant,
-        activeSigningKeyAlg,
+        algorithmsAvailable,
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
         trustProxy: false,
@@ -103,7 +103,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForTenant,
-        activeSigningKeyAlg,
+        algorithmsAvailable,
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
         trustProxy: false,
@@ -132,7 +132,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForTenant,
-        activeSigningKeyAlg,
+        algorithmsAvailable,
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
         trustProxy: false,
@@ -171,7 +171,7 @@ describe('resolveDiscoveryDocument', () => {
             }),
           claimNames,
           scopesForTenant,
-          activeSigningKeyAlg,
+          algorithmsAvailable,
           userinfoEncryptionAlgSupported,
           userinfoEncryptionEncSupported,
           trustProxy: false,
@@ -209,7 +209,7 @@ describe('resolveDiscoveryDocument', () => {
             }),
           claimNames,
           scopesForTenant,
-          activeSigningKeyAlg,
+          algorithmsAvailable,
           userinfoEncryptionAlgSupported,
           userinfoEncryptionEncSupported,
           trustProxy,
@@ -223,7 +223,7 @@ describe('resolveDiscoveryDocument', () => {
     },
   );
 
-  it('advertises the tenant active key alg plus none, never a fixed pair', async () => {
+  it('advertises every available signing algorithm plus none, never a fixed pair', async () => {
     const doc = await resolveDiscoveryDocument(
       {
         findTenant: () =>
@@ -241,7 +241,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForTenant,
-        activeSigningKeyAlg: () => Promise.resolve('ES256'),
+        algorithmsAvailable: () => Promise.resolve(['ES256']),
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
         trustProxy: false,
@@ -270,7 +270,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForTenant,
-        activeSigningKeyAlg: () => Promise.resolve(null),
+        algorithmsAvailable: () => Promise.resolve([]),
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
         trustProxy: false,
@@ -282,7 +282,7 @@ describe('resolveDiscoveryDocument', () => {
     expect(doc?.userinfo_encryption_enc_values_supported).toEqual(userinfoEncryptionEncSupported);
   });
 
-  it('advertises only none for a tenant with no active signing key yet', async () => {
+  it('advertises only none for a tenant with no signing key yet', async () => {
     const doc = await resolveDiscoveryDocument(
       {
         findTenant: () =>
@@ -300,7 +300,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForTenant,
-        activeSigningKeyAlg: () => Promise.resolve(null),
+        algorithmsAvailable: () => Promise.resolve([]),
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
         trustProxy: false,
@@ -329,7 +329,7 @@ describe('resolveDiscoveryDocument', () => {
           }),
         claimNames,
         scopesForTenant,
-        activeSigningKeyAlg,
+        algorithmsAvailable,
         userinfoEncryptionAlgSupported,
         userinfoEncryptionEncSupported,
         trustProxy: false,

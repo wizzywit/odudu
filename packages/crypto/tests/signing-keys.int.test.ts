@@ -52,9 +52,9 @@ async function insertKey(
   tx: TenantScopedDatabase,
   tenantId: string,
   overrides: Partial<typeof signingKeys.$inferInsert> = {},
-): Promise<void> {
+): Promise<{ id: string }> {
+  const id = overrides.id ?? newId();
   await tx.insert(signingKeys).values({
-    id: newId(),
     tenantId,
     kid: newId(),
     alg: 'RS256',
@@ -62,7 +62,9 @@ async function insertKey(
     publicJwk: PUBLIC_JWK,
     privateJwkEncrypted: PRIVATE_ENCRYPTED,
     ...overrides,
+    id,
   });
+  return { id };
 }
 
 describe('signingKeyRepository', () => {
@@ -196,5 +198,81 @@ describe('signingKeyRepository', () => {
         expect((result as { error: unknown }).error).toBeInstanceOf(OduduError);
       },
     });
+  });
+});
+
+describe('selecting a signing key', () => {
+  it('prefers a non-retired key matching the algorithm asked for', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await withTenant(app.db, tenantId, (tx) =>
+      insertKey(tx, tenantId, { alg: 'RS256', status: 'active' }),
+    );
+    const rotating = await withTenant(app.db, tenantId, (tx) =>
+      insertKey(tx, tenantId, { alg: 'ES256', status: 'rotating' }),
+    );
+
+    const chosen = await withTenant(app.db, tenantId, (tx) =>
+      signingKeyRepository(tx).forAlg('ES256'),
+    );
+    expect(chosen?.id).toBe(rotating.id);
+  });
+
+  it('prefers active over rotating when both match the algorithm', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const active = await withTenant(app.db, tenantId, (tx) =>
+      insertKey(tx, tenantId, { alg: 'RS256', status: 'active' }),
+    );
+    await withTenant(app.db, tenantId, (tx) =>
+      insertKey(tx, tenantId, { alg: 'RS256', status: 'rotating' }),
+    );
+
+    const chosen = await withTenant(app.db, tenantId, (tx) =>
+      signingKeyRepository(tx).forAlg('RS256'),
+    );
+    expect(chosen?.id).toBe(active.id);
+  });
+
+  it('never selects a retired key', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await withTenant(app.db, tenantId, (tx) =>
+      insertKey(tx, tenantId, { alg: 'ES256', status: 'retired' }),
+    );
+
+    const chosen = await withTenant(app.db, tenantId, (tx) =>
+      signingKeyRepository(tx).forAlg('ES256'),
+    );
+    expect(chosen).toBeNull();
+  });
+
+  it('reports every non-retired algorithm, so discovery can advertise them', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await withTenant(app.db, tenantId, (tx) =>
+      insertKey(tx, tenantId, { alg: 'RS256', status: 'active' }),
+    );
+    await withTenant(app.db, tenantId, (tx) =>
+      insertKey(tx, tenantId, { alg: 'ES256', status: 'rotating' }),
+    );
+    await withTenant(app.db, tenantId, (tx) =>
+      insertKey(tx, tenantId, { alg: 'ES256', status: 'retired' }),
+    );
+
+    const algs = await withTenant(app.db, tenantId, (tx) =>
+      signingKeyRepository(tx).algorithmsAvailable(),
+    );
+    expect([...algs].sort()).toEqual(['ES256', 'RS256']);
+  });
+
+  it('reports no algorithms for a tenant with no non-retired key', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+
+    const algs = await withTenant(app.db, tenantId, (tx) =>
+      signingKeyRepository(tx).algorithmsAvailable(),
+    );
+    expect(algs).toEqual([]);
   });
 });

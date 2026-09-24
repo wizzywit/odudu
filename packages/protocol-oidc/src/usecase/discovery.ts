@@ -9,8 +9,8 @@ export interface DiscoveryUsecaseDeps {
   // something `/userinfo`, ID token issuance or `/authorize` disagree with.
   claimNames(): readonly string[];
   scopesForTenant(tenantId: string): Promise<readonly string[]>;
-  // `null` for a tenant provisioned before a key was generated for it.
-  activeSigningKeyAlg(tenantId: string): Promise<string | null>;
+  // Empty for a tenant provisioned before a key was generated for it.
+  algorithmsAvailable(tenantId: string): Promise<readonly string[]>;
   // Unlike signing, encryption involves no server key, so these never vary
   // per tenant: `@odudu/crypto`'s `JWE_ALGS_PERMITTED` and
   // `service/client-metadata.ts`'s `USERINFO_ENCRYPTION_ENCS_PERMITTED`.
@@ -33,13 +33,13 @@ export async function resolveDiscoveryDocument(
   // Sorted: the rows arrive in whatever order the table hands over, and a
   // document that reshuffles between identical requests cannot be diffed.
   const scopesSupported = [...(await deps.scopesForTenant(tenant.id))].sort();
-  const activeAlg = await deps.activeSigningKeyAlg(tenant.id);
+  const algs = [...(await deps.algorithmsAvailable(tenant.id))].sort();
   return discoveryDocument({
     issuer: tenantIssuer(issuerBase, tenantName),
     claimsSupported: deps.claimNames(),
     scopesSupported,
     // `none` always belongs: it needs no key (OIDC Discovery §3).
-    userinfoSigningAlgSupported: activeAlg === null ? ['none'] : [activeAlg, 'none'],
+    userinfoSigningAlgSupported: [...algs, 'none'],
     userinfoEncryptionAlgSupported: deps.userinfoEncryptionAlgSupported,
     userinfoEncryptionEncSupported: deps.userinfoEncryptionEncSupported,
     clientRegistrationEnabled: tenant.clientRegistrationPolicy !== 'disabled',
