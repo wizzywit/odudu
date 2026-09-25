@@ -68,16 +68,17 @@ export async function setScopeMappers(
   if (scope === null) return { kind: 'not_found' };
 
   const known = new Set(claimMappers.mapperNames());
-  const unknown = [...new Set(input.mapperNames)].filter((name) => !known.has(name));
+  // Deduplicated once, then used for both the validation and the insert
+  // below — replaceForScope inserts one row per name against a
+  // (tenant_id, client_scope_id, mapper_name) primary key, so a repeated
+  // name in the request would otherwise collide on its own insert.
+  const uniqueNames = [...new Set(input.mapperNames)];
+  const unknown = uniqueNames.filter((name) => !known.has(name));
   if (unknown.length > 0) {
     return { kind: 'unknown_mapper', names: unknown, known: [...known] };
   }
 
-  await clientScopeMapperRepository(tx).replaceForScope(
-    scope.tenantId,
-    input.scopeId,
-    input.mapperNames,
-  );
+  await clientScopeMapperRepository(tx).replaceForScope(scope.tenantId, input.scopeId, uniqueNames);
 
   await deps.audit({
     action: 'scope.mappers_set',

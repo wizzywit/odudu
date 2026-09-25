@@ -92,6 +92,17 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/mappers', () => {
     expect(second.json<{ bound: string[] }>().bound).toEqual(['sub']);
   });
 
+  it('accepts a duplicate name in the same request rather than 500ing on the insert', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const scopeId = await createScope(token, t.name, `s-${newId()}`);
+
+    const res = await putMappers(token, t.name, scopeId, ['sub', 'sub']);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ bound: string[] }>().bound).toEqual(['sub']);
+  });
+
   it('refuses an unregistered mapper name with 400, listing the known ones', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);
