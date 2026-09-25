@@ -60,6 +60,7 @@ export interface ReplaceFlowDeps {
 export type ReplaceFlowOutcome =
   | { kind: 'empty' }
   | { kind: 'unresolvable_authenticator'; name: string; known: readonly string[] }
+  | { kind: 'duplicate_authenticator'; name: string }
   | { kind: 'no_enabled_step' }
   | { kind: 'no_step_runnable_at_start' }
   | { kind: 'precondition_required' }

@@ -121,3 +121,49 @@ describe('an amendment that changes what a client may do', () => {
     ]);
   });
 });
+
+describe('PATCH clients, web_origins', () => {
+  // The database has refused these since 0015; until now its CHECK was the
+  // only thing that did, and a CHECK fires with the transaction already
+  // aborted, so the caller saw a 500.
+  it('refuses a value the CHECK would, naming the entry', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {});
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const etag = await currentEtag(t.name, client.id, token);
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${client.id}`,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        'if-match': etag,
+      },
+      payload: { web_origins: ['https://app.example.test/callback'] },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('https://app.example.test/callback');
+  });
+
+  it('accepts a bare origin and the + wildcard', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {});
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const etag = await currentEtag(t.name, client.id, token);
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${client.id}`,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        'if-match': etag,
+      },
+      payload: { web_origins: ['https://app.example.test', '+'] },
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+});

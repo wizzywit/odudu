@@ -44,6 +44,13 @@ function replaceFlowProblem(outcome: Exclude<ReplaceFlowOutcome, { kind: 'ok' }>
         'Bad Request',
         `unknown authenticator ${JSON.stringify(outcome.name)}; expected one of ${outcome.known.join(', ')}`,
       );
+    case 'duplicate_authenticator':
+      return problem(
+        400,
+        'about:blank',
+        'Bad Request',
+        `authenticator ${JSON.stringify(outcome.name)} appears more than once; a step is addressed by its authenticator, so a repeat has no unambiguous meaning`,
+      );
     case 'no_enabled_step':
       return problem(
         400,

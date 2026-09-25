@@ -46,3 +46,29 @@ describe('validateFlowSteps', () => {
     expect(validateFlowSteps(steps, KNOWN).kind).toBe('unresolvable_authenticator');
   });
 });
+
+describe('validateFlowSteps, given the same authenticator twice', () => {
+  it('refuses the duplicate rather than letting dispatch order decide', () => {
+    const outcome = validateFlowSteps(
+      [
+        { authenticator: 'password', requirement: 'required' },
+        { authenticator: 'password', requirement: 'alternative' },
+      ],
+      ['password'],
+    );
+
+    expect(outcome).toEqual({ kind: 'duplicate_authenticator', name: 'password' });
+  });
+
+  it('reports an unresolvable name before a duplicate one', () => {
+    const outcome = validateFlowSteps(
+      [
+        { authenticator: 'nope', requirement: 'required' },
+        { authenticator: 'nope', requirement: 'required' },
+      ],
+      ['password'],
+    );
+
+    expect(outcome.kind).toBe('unresolvable_authenticator');
+  });
+});

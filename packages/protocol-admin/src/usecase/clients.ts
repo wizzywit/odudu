@@ -593,6 +593,23 @@ function checkedStringArray(field: string, value: unknown): string[] | FieldErro
     : { field, description: `${field} must be an array of strings` };
 }
 
+// Mirrors `web_origins_are_valid` (0015_client_web_origins.sql): a bare
+// origin, or `+` for "every registered redirect URI's origin". Without a
+// mirror the CHECK is the only thing refusing, and a CHECK fires after the
+// statement has already aborted the transaction — so the caller is told
+// the server broke rather than which value it would not take.
+const WEB_ORIGIN = /^https?:\/\/[^/?#\s*]+$/u;
+
+function checkedWebOrigins(origins: readonly string[]): string[] | FieldError {
+  const bad = origins.find((origin) => origin !== '+' && !WEB_ORIGIN.test(origin));
+  return bad === undefined
+    ? [...origins]
+    : {
+        field: 'web_origins',
+        description: `web_origins entry ${JSON.stringify(bad)} is not an origin: expected a scheme and host with no path, or "+" for every registered redirect URI's origin`,
+      };
+}
+
 // `undefined` when `key` is absent from `patch` (falls back to `current`),
 // and `undefined` in place of a literal `null` either way —
 // `parseClientMetadata`'s shape treats an unset field as absent, never as
@@ -693,8 +710,11 @@ export async function amendClient(
     const checked = checkedStringArray(field, input.values[field]);
     if (isFieldError(checked)) return { kind: 'invalid_value', ...checked };
     if (field === 'audiences') configPatch.audiences = checked;
-    else if (field === 'web_origins') configPatch.webOrigins = checked;
-    else if (field === 'post_logout_redirect_uris') configPatch.postLogoutRedirectUris = checked;
+    else if (field === 'web_origins') {
+      const origins = checkedWebOrigins(checked);
+      if (isFieldError(origins)) return { kind: 'invalid_value', ...origins };
+      configPatch.webOrigins = origins;
+    } else if (field === 'post_logout_redirect_uris') configPatch.postLogoutRedirectUris = checked;
     else configPatch.clientCredentialsScopes = checked;
   }
   for (const field of ['access_token_ttl_seconds', 'refresh_token_ttl_seconds'] as const) {

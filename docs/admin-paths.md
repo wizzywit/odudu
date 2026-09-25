@@ -1586,9 +1586,11 @@ flow's meaning is in its order and a flow is short. The request carries no
 `index` contiguously from it regardless of what a caller sent, so there is
 no gap or duplicate to hand-manage. It refuses with `400`, each naming the
 reason in `detail`: an empty list, since a tenant with no flow cannot be
-logged into; a list where every step is `disabled`, the same reason; and an
+logged into; a list where every step is `disabled`, the same reason; an
 `authenticator` name the executor's own registry does not resolve, which
-lists the known names.
+lists the known names; and the same `authenticator` named twice, since a
+step is addressed by its authenticator and a repeat leaves whichever one
+dispatch reaches first standing for both.
 
 **`If-Match` is mandatory here, not optional.** This route replaces an
 authorization-bearing list whole, so a stale write reinstates exactly what
