@@ -1031,6 +1031,11 @@ describe("the built-in admin client's guards", () => {
       { grant_types: ['refresh_token'] },
       { token_endpoint_auth_method: 'none' },
       { redirect_uris: [] },
+      // `aud` naming the admin API's resource identifier is what admits a
+      // token here at all, and that identifier is stored in this column:
+      // clearing it locks every administrator of the tenant out while the
+      // client stays enabled and its grants untouched.
+      { audiences: [] },
     ]) {
       const res = await fixture.http.inject({
         method: 'PATCH',

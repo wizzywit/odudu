@@ -21,7 +21,11 @@ import { asc, eq, gt, inArray } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { redactedDiff } from '#/service/audit-detail';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
-import { AMENDABLE_CLIENT_FIELDS, refusalFor } from '#/service/client-patch';
+import {
+  AMENDABLE_CLIENT_FIELDS,
+  BUILTIN_ADMIN_AMENDABLE_FIELDS,
+  refusalFor,
+} from '#/service/client-patch';
 import { etagOf, matches } from '#/service/etag';
 
 const COLLECTION = 'clients';
@@ -527,11 +531,6 @@ export type AmendClientOutcome =
   | { kind: 'auth_method_changes_type'; reason: string }
   | { kind: 'ok'; client: ClientView; etag: string };
 
-// Narrowing any of these on the built-in admin client can lock every
-// administrator out while the client stays enabled — the same lockout
-// `enabled: false` produces, through a second door.
-const BUILTIN_ADMIN_LOCKOUT_FIELDS = ['grant_types', 'token_endpoint_auth_method', 'redirect_uris'];
-
 // The six list fields the schema stores whole (the same six
 // `clientOidcConfigRepository.update`'s own comment names): last-write-wins
 // on one silently reinstates exactly what another admin just removed, so a
@@ -646,11 +645,13 @@ export async function amendClient(
         reason: `${clientRow.clientId} is this tenant's built-in admin client and cannot be disabled`,
       };
     }
-    const lockoutField = BUILTIN_ADMIN_LOCKOUT_FIELDS.find((field) => field in input.values);
-    if (lockoutField !== undefined) {
+    const guarded = Object.keys(input.values).find(
+      (field) => !BUILTIN_ADMIN_AMENDABLE_FIELDS.includes(field),
+    );
+    if (guarded !== undefined) {
       return {
         kind: 'builtin_admin_guarded',
-        reason: `${lockoutField} on ${clientRow.clientId}, this tenant's built-in admin client, would lock administrators out`,
+        reason: `${guarded} on ${clientRow.clientId}, this tenant's built-in admin client, is not amendable: it could leave every administrator of this tenant locked out`,
       };
     }
   }

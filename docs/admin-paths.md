@@ -517,14 +517,20 @@ is enabled (`ODUDU_TRUST_PROXY`) — `parseClientMetadata` refuses it
 otherwise, on a create or an amend alike. `none` is the only public
 method.
 
-The built-in admin client (`builtin_admin`) refuses three kinds of
-amendment with `409`, each naming the client and the reason: disabling it
-(`enabled: false`), and amending any of `grant_types`,
-`token_endpoint_auth_method` or `redirect_uris` — the fields that could
-lock every administrator out while the client stays enabled, the same
-lockout `enabled: false` produces through a second door. The guard reads
-the `builtin_admin` column, not `client_id`, so renaming the client does
-not evade it. Every other field on the built-in client amends normally. An
+The built-in admin client (`builtin_admin`) is amended through an
+allowlist, not an exclusion list: `name`, `consent_required`, the two
+logout URIs and their `_session_required` flags, and the three
+`userinfo_*` algorithms. Every other field is refused with `409` naming
+the field and the client, because each could leave every administrator of
+the tenant locked out while the client stays enabled — `audiences` carries
+the admin API's own resource identifier, `grant_types`,
+`token_endpoint_auth_method` and `redirect_uris` decide how a token is
+obtained at all, and recovery from any of them is through `psql`.
+Disabling it (`enabled: false`) carries its own reason. Stated this way
+round, a column added to `clients` or `client_oidc_config` later is
+refused on this one client until somebody judges it safe, rather than
+opening a fresh door by default. The guard reads the `builtin_admin`
+column, not `client_id`, so renaming the client does not evade it. An
 **ordinary** admin-capable client carries no such guard and may be
 disabled even by the caller whose own token runs through it — the built-in
 client is the recovery path that makes that permissible.
