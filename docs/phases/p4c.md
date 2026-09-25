@@ -321,50 +321,45 @@ administrator authenticates as a subject through the ordinary login flow,
 and an application that provisions users registers its own confidential
 client.
 
-## Found and left standing, with the reason
+## Four defects the phase note recorded, then closed
 
-Four defects this phase found and did not fix. Each is one line in
-[docs/NEXT.md](../NEXT.md) against the phase that owns it; the argument for
-leaving it is here, because that file orients the next phase rather than
-holding a backlog.
+They were written up here as placed work, with a paragraph each arguing
+why the phase did not own them. The argument held for three and not for
+the fourth, and re-reading them together is what showed it.
 
-**A tenant's SMTP host is checked by address and then dialled by name.**
-`checkSmtpDestination`
-(`packages/protocol-admin/src/service/smtp-destination.ts`) resolves the
-host and refuses loopback, link-local, private and the other reserved
-ranges in the numeric domain, exactly as ADR 0028 bounds a client-supplied
-`jwks_uri`. Unlike that fetcher, nodemailer then resolves the name again
-itself, so a name answering differently on the second lookup reaches an
-address this check refused. The fix is the shape the fetcher already has:
-inject a `lookup` into the transport that answers only the addresses
-already checked, or connect to the checked address and carry the hostname
-as an SNI `servername` override, so certificate verification still names
-the host the tenant configured. Either keeps one resolution between the
-check and the connection. It belongs with the two undeadlined outbound
-lookups that `NEXT.md` also records, because all three are one question:
-how this server opens an outbound connection.
+**The SMTP destination guard was half of ADR 0028.** `checkSmtpDestination`
+resolves a tenant's relay host and refuses loopback, link-local, private
+and the other reserved ranges — the ADR's first half. The second half is
+that the connection is then made _to an address that passed_, never by
+re-resolving the name, and it was missing: nodemailer resolved the host
+again and a name answering differently the second time reached an address
+the check had refused. This repository already had that half twice, in
+`client-key-transport.ts` and `logout-delivery-transport.ts`, so this was
+the recurring defect [p3b.md](p3b.md) names — a rule applied at one door
+out of several — and not a scope decision.
 
-**A path parameter that is not a UUID answers `500`.** PostgreSQL's parse
-error surfaces unmapped, observed on `clients` and the same way on
-`subjects` and `roles`. The generated schemas validate the body, not the
-path, and nothing between the route and the repository narrows an id.
-Harmless — nothing is disclosed and the request changes nothing — but a
-caller with a typo is told the server broke. The distinction between "no
-such client" and "that is not an id" is worth making where ids arrive from
-links rather than by hand, which is a console's problem rather than this
-API's.
+What made it survive review was the comment beside it, which said the
+second lookup was forced by the SMTP client. That was never verified.
+nodemailer skips its own resolution when `host` is already an IP
+(`lib/shared/index.js`, `resolveHostname`) and verifies the certificate
+against `servername`, so the pin costs a field: `checkSmtpDestination`
+returns the address it admitted, `smtpConfigFromRecord` passes it as
+`host`, and the tenant's hostname rides along as `servername`. A claim
+about a library, asserted rather than run, is what the P0 rule exists to
+catch, and it is worth noting that it can be load-bearing for a security
+control rather than only for a plan.
 
-**`PATCH /clients/{id}` translates no CHECK violation into a `400`.** Its
-two `update` calls (`clientRepository`, `clientOidcConfigRepository`) do
-not do what `createClient` now does for the unique index, so an amendment
-JS-side validation admits and `client_oidc_config`'s `web_origins_are_valid`
-CHECK still refuses surfaces as a generic `500`. Left standing because the
-exposure is one constraint wide: neither `update` touches a unique index,
-and everything else they write has already passed `parseClientMetadata` or
-the checked coercions beside it. `web_origins_are_valid` is the single
-CHECK with no JS-side mirror standing in front of it.
+**The other three were cheap, which is the argument that actually
+mattered.** A non-UUID path parameter answering `500`, a
+`web_origins_are_valid` violation answering `500`, and `validateFlowSteps`
+admitting the same authenticator twice were each defended on severity —
+nothing disclosed, nothing written, no bypass. All three were true and
+none of them was a reason: severity says whether a defect blocks, not
+whether it is worth fixing, and the three together came to one derived
+schema, one predicate mirroring a CHECK, and one `Set`.
 
-**`validateFlowSteps` admits the same authenticator twice.** Nothing
-rejects the duplicate, and whichever one dispatch reaches first is not
-obviously the caller's intent. A script calling the API directly is
-unlikely to produce one; a form that appends rows is.
+The path-parameter fix is the one worth copying. It would have been
+natural to narrow the ids on the routes that had been observed failing;
+instead `paramsSchemaFor` derives the schema from the pattern each route
+already declares, so a route added later is narrowed by existing. That is
+the difference between fixing four doors and closing the corridor.
