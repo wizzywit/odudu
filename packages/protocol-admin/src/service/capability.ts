@@ -18,6 +18,8 @@ import {
   cursorQuerySchema,
   createKeyRequestSchema,
   groupSchema,
+  listExecutionsResponseSchema,
+  replaceExecutionsRequestSchema,
   listClientsResponseSchema,
   listCredentialsResponseSchema,
   listGroupsResponseSchema,
@@ -426,6 +428,26 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Refused with 409 while the key is active, or while a client is registered against ' +
       'an algorithm no remaining key would produce.',
+  },
+  // A tenant's authentication flow: manage-tenant, the same capability as
+  // roles, groups and scopes above. No partial edit — PUT replaces the
+  // whole ordered list, renumbering indices contiguously regardless of what
+  // the caller sent, since a flow's meaning is in its order.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/flow/executions',
+    capability: 'manage-tenant',
+    responseSchema: listExecutionsResponseSchema,
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/flow/executions',
+    capability: 'manage-tenant',
+    responseSchema: listExecutionsResponseSchema,
+    bodySchema: replaceExecutionsRequestSchema,
+    description:
+      'Refused with 400 for an empty list, a list where every step is disabled, or an ' +
+      'authenticator name the registry does not resolve.',
   },
 ];
 

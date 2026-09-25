@@ -293,6 +293,11 @@ export function isRegisteredAuthenticator(name: string): boolean {
   return Object.hasOwn(AUTHENTICATORS, name);
 }
 
+/** Every name `isRegisteredAuthenticator` accepts — what a refusal names back to the caller. */
+export function registeredAuthenticatorNames(): readonly string[] {
+  return Object.keys(AUTHENTICATORS);
+}
+
 // What the flow's applicability decisions are made against: the subject the
 // attempt is bound to (nothing is known about anybody before the first
 // factor succeeds), the tenant's own switches, what the attempt has already
@@ -821,14 +826,11 @@ export async function pendingSession(
 
 // Whom a required-action submission may act for: the subject a *finished*
 // authentication bound to this session, plus the authenticators it
-// finished with — what a consent decision made after the login has already
-// completed (protocol-oidc's completeAuthorizedLogin) needs to carry the
-// same `amr` forward. The binding alone is not enough: the first factor
-// writes it while later ones are still outstanding, which is why liveness
-// alone (sessionIsLive) is not enough here the way it is for pendingSession
-// — a session that has already driven a login to an authorization code is
-// spent, and an action arriving against it now is a form the browser still
-// had open.
+// finished with — carried forward into a later consent decision
+// (protocol-oidc's completeAuthorizedLogin). Liveness alone is not enough
+// here the way it is for pendingSession: the first factor binds the
+// subject while later ones are still outstanding, and a session already
+// consumed into an authorization code is a form the browser still had open.
 export async function authenticatedSession(
   tx: TenantScopedDatabase,
   authSessionId: string,

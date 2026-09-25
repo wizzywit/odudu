@@ -10,6 +10,7 @@ import { type FastifyPluginAsync } from 'fastify';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
 import { type Audit as ClientAudit } from '#/usecase/clients';
+import { type Audit as FlowAudit } from '#/usecase/flow';
 import { type Audit as GroupAudit } from '#/usecase/groups';
 import { type Audit as KeyAudit } from '#/usecase/keys';
 import { type Audit as RoleAudit } from '#/usecase/roles';
@@ -37,6 +38,7 @@ import {
   setGroupRolesHandler,
   type GroupsRouteDeps,
 } from '#/view/routes/groups';
+import { listFlowHandler, replaceFlowHandler, type FlowRouteDeps } from '#/view/routes/flow';
 import {
   createKeyHandler,
   listKeysHandler,
@@ -137,6 +139,7 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     const noopGroupAudit: GroupAudit = () => Promise.resolve();
     const noopScopeAudit: ScopeAudit = () => Promise.resolve();
     const noopKeyAudit: KeyAudit = () => Promise.resolve();
+    const noopFlowAudit: FlowAudit = () => Promise.resolve();
     // Same call `authzDeps.effectiveRoles` makes below, scoped to whichever
     // tenant the caller's own token was issued from — never the target
     // tenant a cross-tenant system admin is reaching into. Shared by
@@ -183,6 +186,10 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       cursorKey: deps.cursorKey,
       kek: deps.kek,
       audit: noopKeyAudit,
+    };
+    const flowDeps: FlowRouteDeps = {
+      database: deps.database.db,
+      audit: noopFlowAudit,
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,
@@ -260,6 +267,8 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       'POST /admin/tenants/:tenant/keys': createKeyHandler(keysDeps),
       'POST /admin/tenants/:tenant/keys/:id/promote': promoteKeyHandler(keysDeps),
       'POST /admin/tenants/:tenant/keys/:id/retire': retireKeyHandler(keysDeps),
+      'GET /admin/tenants/:tenant/flow/executions': listFlowHandler(flowDeps),
+      'PUT /admin/tenants/:tenant/flow/executions': replaceFlowHandler(flowDeps),
     };
 
     const authDeps: AuthenticateAdminDeps = {

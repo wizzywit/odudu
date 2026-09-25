@@ -1,0 +1,72 @@
+import {
+  executionRepository,
+  registeredAuthenticatorNames,
+  type AuthenticationExecutionRecord,
+  type ExecutionInput,
+} from '@odudu/authn-flows';
+import { type ExecutionStep } from '@odudu/contracts/admin';
+import { type TenantScopedDatabase } from '@odudu/db';
+import { validateFlowSteps } from '#/service/flow-validation';
+
+export interface FlowAuditEvent {
+  readonly action: 'flow.replace';
+  readonly resourceType: 'flow';
+  readonly resourceId: string;
+  readonly actorSubjectId: string;
+}
+
+/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
+export type Audit = (event: FlowAuditEvent) => Promise<void>;
+
+function toWireShape(record: AuthenticationExecutionRecord): ExecutionStep {
+  return {
+    index: record.index,
+    authenticator: record.authenticator,
+    requirement: record.requirement,
+  };
+}
+
+export async function listFlow(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+): Promise<readonly ExecutionStep[]> {
+  const rows = await executionRepository(tx).forTenant(tenantId);
+  return rows.map(toWireShape);
+}
+
+export interface ReplaceFlowInput {
+  readonly tenantId: string;
+  readonly steps: ExecutionInput[];
+  readonly actorSubjectId: string;
+}
+
+export interface ReplaceFlowDeps {
+  readonly audit: Audit;
+}
+
+export type ReplaceFlowOutcome =
+  | { kind: 'empty' }
+  | { kind: 'unresolvable_authenticator'; name: string; known: readonly string[] }
+  | { kind: 'no_enabled_step' }
+  | { kind: 'ok'; items: readonly ExecutionStep[] };
+
+/** Replaces a tenant's whole flow — no partial edit is offered, since a flow's meaning is in its order. */
+export async function replaceFlow(
+  tx: TenantScopedDatabase,
+  deps: ReplaceFlowDeps,
+  input: ReplaceFlowInput,
+): Promise<ReplaceFlowOutcome> {
+  const validated = validateFlowSteps(input.steps, registeredAuthenticatorNames());
+  if (validated.kind !== 'ok') return validated;
+
+  const rows = await executionRepository(tx).replaceForTenant(input.tenantId, input.steps);
+
+  await deps.audit({
+    action: 'flow.replace',
+    resourceType: 'flow',
+    resourceId: input.tenantId,
+    actorSubjectId: input.actorSubjectId,
+  });
+
+  return { kind: 'ok', items: rows.map(toWireShape) };
+}

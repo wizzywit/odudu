@@ -8217,11 +8217,12 @@ session lifecycle. A citation of either half here means that half.
   `recovery-code` is applicable on the same terms — only to a submission
   carrying one — which is how it substitutes for the OTP step instead of
   competing with it ([Recovery codes](#recovery-codes)).
-  What is not there: any way to **change** a tenant's flow.
-  `authentication_executions` has an insert and nothing else, so the rows
-  `provisionBrowserFlow` writes are what a tenant has for good unless somebody
-  edits the table. Giving the rows a write surface is **P4c**; the editor
-  that drives it is **P4d**.
+  `GET`/`PUT /admin/tenants/{tenant}/flow/executions`
+  ([Admin paths](admin-paths.md#get-flowexecutions-and-put-flowexecutions))
+  now reads and replaces the ordered list wholesale — `authentication_executions`
+  is no longer insert-only, so the rows `provisionBrowserFlow` writes are a
+  starting point rather than what a tenant has for good. What is not there:
+  a UI to drive it, which is **P4d**'s.
 - **Recovery codes are issued once and shown once.** Ten per subject, each
   Argon2id-hashed in its own credential row, offered by the
   `generate-recovery-codes` required action that enrolling either second

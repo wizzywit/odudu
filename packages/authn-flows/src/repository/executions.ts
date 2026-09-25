@@ -26,6 +26,12 @@ export interface NewAuthenticationExecution {
   requirement: Requirement;
 }
 
+/** An execution with no `index`: `replaceForTenant` assigns it from array order. */
+export interface ExecutionInput {
+  authenticator: string;
+  requirement: Requirement;
+}
+
 // All persistence for a tenant's flat authentication flow. Evaluating it
 // into a decision for a given subject is a later task; this is only the
 // ordered read `forTenant` gives and the write that seeds it.
@@ -48,6 +54,44 @@ export function executionRepository(tx: TenantScopedDatabase) {
         authenticator: input.authenticator,
         requirement: input.requirement,
       });
+    },
+
+    // Deletes and re-inserts in the caller's own transaction (withTenant's),
+    // never partially: a flow's meaning is in its order, so there is no
+    // partial edit to offer. Existing rows are locked first — the delete
+    // that follows would otherwise be a read-then-write with nothing
+    // serialising it against a concurrent replaceForTenant.
+    async replaceForTenant(
+      tenantId: string,
+      steps: readonly ExecutionInput[],
+    ): Promise<AuthenticationExecutionRecord[]> {
+      await tx
+        .select({ id: authenticationExecutions.id })
+        .from(authenticationExecutions)
+        .where(eq(authenticationExecutions.tenantId, tenantId))
+        .for('update');
+
+      await tx
+        .delete(authenticationExecutions)
+        .where(eq(authenticationExecutions.tenantId, tenantId));
+
+      const rows = steps.map((step, index) => ({
+        id: newId(),
+        tenantId,
+        index,
+        authenticator: step.authenticator,
+        requirement: step.requirement,
+      }));
+      if (rows.length > 0) {
+        await tx.insert(authenticationExecutions).values(rows);
+      }
+      return rows.map((row) => ({
+        id: row.id,
+        tenantId: row.tenantId,
+        index: row.index,
+        authenticator: row.authenticator,
+        requirement: row.requirement,
+      }));
     },
   };
 }
