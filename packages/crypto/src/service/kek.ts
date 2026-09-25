@@ -14,19 +14,20 @@ function assertKek(kek: Uint8Array): void {
   }
 }
 
-export function wrapPrivateJwk(jwk: unknown, kek: Uint8Array): string {
+// The one envelope every key-encrypted secret in this codebase uses — a
+// private JWK (wrapPrivateJwk) and a tenant's own SMTP password
+// (@odudu/protocol-admin's tenant-smtp repository) both wrap through this,
+// so "the same key-encryption interface" means one implementation rather
+// than two that merely agree today.
+export function wrapSecret(plaintext: string, kek: Uint8Array): string {
   assertKek(kek);
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGORITHM, kek, iv);
-  const body = Buffer.concat([cipher.update(JSON.stringify(jwk), 'utf8'), cipher.final()]);
+  const body = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   return Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64');
 }
 
-// T is a caller-asserted cast, not inferred from any argument — the same
-// shape as JSON.parse's own typed overloads — so it is deliberately used
-// only in the return position.
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
-export function unwrapPrivateJwk<T = unknown>(wrapped: string, kek: Uint8Array): T {
+export function unwrapSecret(wrapped: string, kek: Uint8Array): string {
   assertKek(kek);
   const raw = Buffer.from(wrapped, 'base64');
   const decipher = createDecipheriv(ALGORITHM, kek, raw.subarray(0, IV_BYTES));
@@ -35,5 +36,17 @@ export function unwrapPrivateJwk<T = unknown>(wrapped: string, kek: Uint8Array):
     decipher.update(raw.subarray(IV_BYTES + TAG_BYTES)),
     decipher.final(),
   ]);
-  return JSON.parse(plain.toString('utf8')) as T;
+  return plain.toString('utf8');
+}
+
+export function wrapPrivateJwk(jwk: unknown, kek: Uint8Array): string {
+  return wrapSecret(JSON.stringify(jwk), kek);
+}
+
+// T is a caller-asserted cast, not inferred from any argument — the same
+// shape as JSON.parse's own typed overloads — so it is deliberately used
+// only in the return position.
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
+export function unwrapPrivateJwk<T = unknown>(wrapped: string, kek: Uint8Array): T {
+  return JSON.parse(unwrapSecret(wrapped, kek)) as T;
 }
