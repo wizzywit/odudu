@@ -82,12 +82,15 @@ anything grant-specific runs.
 
 ## Bootstrap
 
-There is no admin API yet, so a tenant, its first user and its signing key
-are created by the server's seed command — the only way to create the
-first of anything. A client is the one exception once a tenant opens
-registration to it: `seed client` still works, but
-[dynamic client registration](#dynamic-client-registration) is a second
-door, open to whoever the tenant's `client_registration_policy` admits.
+A tenant, its first user and its signing key are created by the server's
+seed command — the only way to create the first of anything, since the
+[admin API](admin-paths.md) needs an administrator who needs a tenant.
+Everything after that first row has two more doors: the admin API, and, for
+a client on a tenant that opens registration to it,
+[dynamic client registration](#dynamic-client-registration). This document
+seeds, because a seed command is reproducible from a shell with no token in
+it; [docs/admin-paths.md](admin-paths.md) walks the same ground through the
+API.
 
 ### Pick how you are running it
 
@@ -2231,13 +2234,15 @@ sending the other is `invalid_client` even with the right secret — the matrix
 is in
 [Client authentication is by the registered method and no other](#client-authentication-is-by-the-registered-method-and-no-other).
 
-A third method, `private_key_jwt`, is also registered by no client on this
-stack — `seed client` cannot produce one, and the clients this document
-registers dynamically all leave `token_endpoint_auth_method` at its default
-— so no transcript for it appears here; see
-[What is not implemented](#what-is-not-implemented)'s "Any admin API" row
-for why, and the [`/token`](#token) refusal table for the bytes each of
-its failures answers with.
+A third method, `private_key_jwt`, is registered by no client on this stack
+— `seed client` cannot produce one, and the clients this document registers
+dynamically all leave `token_endpoint_auth_method` at its default — so no
+transcript for it appears here. `POST /admin/tenants/{tenant}/clients`
+([Admin paths](admin-paths.md#get-clients-post-clients-and-get-clientsid))
+can produce one, and dynamic registration always could; see
+[What is not implemented](#what-is-not-implemented)'s `seed client` row for
+why this document does not, and the [`/token`](#token) refusal table for
+the bytes each of its failures answers with.
 
 Presenting no secret at all is refused the same way. A confidential client
 cannot redeem a code as though it were public, however good the code and the
@@ -4997,8 +5002,9 @@ client, and refuses a client that already exists — deliberately, because a
 re-run that quietly widened a registered redirect list is how an allowlist
 grows by accident. `demo-spa` was seeded back in
 [Bootstrap](#bootstrap), so this walkthrough sets the column directly;
-changing a registered client is client-management work, which is P3a's
-pending its RFC 7592 spike and P4c's otherwise:
+`PATCH /admin/tenants/{tenant}/clients/{id}` amends the list with
+`If-Match`, and RFC 7592's own client-configuration endpoint — a client
+amending itself with its registration token — is **P13**'s:
 
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \
@@ -5091,10 +5097,13 @@ below use a freshly seeded tenant and confidential client of their own,
 `revokedoc`/`revoke-doc-client`, so a resource server that wants to see a
 revocation before `exp` has something to call. `seed client` has no
 `--audience` flag (see [What is not
-implemented](#what-is-not-implemented)'s "Any admin API" row), so the
+implemented](#what-is-not-implemented)'s `seed client` row), so the
 client's own `client_oidc_config.audiences` is set directly, the same way
 [the section above](#rp-initiated-logout) sets `post_logout_redirect_uris`
-directly:
+directly. `PATCH /admin/tenants/{tenant}/clients/{id}` sets it too, with
+`If-Match` — `audiences` is one of the six list fields that require one
+([Admin paths](admin-paths.md#patch-clientsid)) — and a walkthrough driven
+from a shell with no admin token in it reaches for SQL instead:
 
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \
@@ -5433,10 +5442,13 @@ a grant under that session. [Back-Channel Logout 1.0](protocols/oidc-backchannel
 asks it to also `POST` a signed Logout Token to every client that
 registered a `backchannel_logout_uri` and held a grant under that session.
 `seed client` has no flag for either URI (see
-[What is not implemented](#what-is-not-implemented)'s "Any admin API"
-row), so a second client is seeded and given both directly, the same way
-`post_logout_redirect_uris`
-was set above:
+[What is not implemented](#what-is-not-implemented)'s `seed client` row),
+so a second client is seeded and given both directly, the same way
+`post_logout_redirect_uris` was set above.
+`PATCH /admin/tenants/{tenant}/clients/{id}` sets both, revalidating them
+the way registration does — a `frontchannel_logout_uri` that shares no
+registered redirect URI's origin is refused `400` there
+([Admin paths](admin-paths.md#patch-clientsid)):
 
 ```bash
 odudu seed client \
@@ -5688,8 +5700,10 @@ consent screen ([below](#the-consent-screen)) tell it apart from a scope
 pre-approved the moment a client is assigned it (it maps no claims either
 way — see [Discovery](#1-discovery) above). `demo-spa`'s own
 `consent_required` is `false` — `seed client` names no way to set it (see
-[What is not implemented](#what-is-not-implemented)'s "Any admin API" row)
-— so every seeded client keeps the column's own default — so the transcript
+[What is not implemented](#what-is-not-implemented)'s `seed client` row;
+`PATCH /admin/tenants/{tenant}/clients/{id}` does, without `If-Match`,
+being no list field) — so every seeded client keeps the column's own
+default — so the transcript
 below reuses without ever seeing that screen; the consent section
 demonstrates asking, against an anonymously self-registered client, whose
 `consent_required` defaults `true` (ADR 0027, and the registration section
@@ -8192,8 +8206,12 @@ session lifecycle. A citation of either half here means that half.
   refusal or a second value; only two genuinely distinct values are a
   repeat. Omitting it resolves to the client's whole registered list, and
   a client
-  with no registered audience — every client in this repository, today —
-  still succeeds with an empty one rather than being refused. `[]` on the
+  with no registered audience — every client this document seeds, and every
+  one `seed client` can produce, since it has no `--audience` flag — still
+  succeeds with an empty one rather than being refused.
+  `PATCH /admin/tenants/{tenant}/clients/{id}` registers the list, and the
+  built-in admin client is provisioned with one, so "no client has an
+  audience" stopped being true of the server when the admin API landed. `[]` on the
   stored column has exactly one meaning: the resolved audience is empty,
   never "not carried" — every door that mints a code resolves and stores
   the same value: immediate session-reuse at `/authorize`, an ordinary
@@ -8264,12 +8282,15 @@ session lifecycle. A citation of either half here means that half.
   verified — no authorization code, not just a page saying so. Each queues
   its mail in `email_outbox` and answers; a pass of its own sends it
   ([Sending queued mail](#sending-queued-mail-odudu-send-mail)), which is
-  what closed the reset endpoint's timing oracle. What is not there yet:
-  per-tenant SMTP configuration — the transport is one set of
-  `ODUDU_SMTP_*` variables for the whole server. That is **P4c**: it is tenant
-  configuration carrying a credential, and the per-tenant secret it needs
-  already has a home in the key-encryption interface §5 puts the signing key
-  behind.
+  what closed the reset endpoint's timing oracle. Per-tenant SMTP is no
+  longer missing: `GET`/`PUT /admin/tenants/{tenant}/smtp` configures a
+  tenant's own transport and `POST /admin/tenants/{tenant}/smtp/test` sends
+  one message through it
+  ([Admin paths](admin-paths.md#get-smtp-put-smtp-and-post-smtptest)), with
+  the password behind the same key-encryption interface §5 puts a signing
+  key behind, and `resolveSender` falling back to the deployment's own
+  `ODUDU_SMTP_*` where a tenant configures none. What is not there yet: a UI
+  to configure it, which is **P4d**'s.
 
 - **Every page this server renders is hardcoded HTML**, dependency-free with
   every interpolated value escaped: twelve `*-html.ts` renderers across the
@@ -8288,12 +8309,12 @@ session lifecycle. A citation of either half here means that half.
 
 **`/token`**
 
-- **`token_exchange_impersonation_allowed` is settable only by `psql`.**
-  `seed client` has no flag for it — [Path D](#path-d-token-exchange) sets
-  it directly, the same way it sets `audiences` — and there is no
-  registration field either, so a tenant that wants a client to impersonate
-  rather than only delegate has no door but SQL. **P4c**, alongside every
-  other client column only `psql` reaches today.
+- **`token_exchange_impersonation_allowed` has no `seed client` flag and no
+  registration field.** `PATCH /admin/tenants/{tenant}/clients/{id}` sets
+  it, which is the door it did not have; [Path D](#path-d-token-exchange)
+  still sets it with SQL, because that walkthrough holds no admin token.
+  What remains is the CLI gap alone, and that is a decision — see the
+  `seed client` row below for it.
 - **No CIBA.** **P5**, whose exit criterion is CIBA approvals end to end.
 - **No device authorization grant.** **P13**, whose criterion names a
   device-code client completing a login on a second device. It shares that
@@ -8328,12 +8349,18 @@ session lifecycle. A citation of either half here means that half.
   is explicit: §5.6.2 says "Normal Claims MUST be supported. Support for
   Aggregated Claims and Distributed Claims is OPTIONAL." No phase is owed
   one.
-- **No admin-configurable protocol mappers.** The claim registry
-  (`standardClaimMappers`, the 22 names in `claims_supported`) and the
-  role/group claims alongside it are fixed by the server, not by anything a
-  tenant operator can add or change. Reconfiguring what a scope maps to —
-  Keycloak's protocol mapper concept — is **P4c**'s, alongside the rest of
-  the admin surface. `entitlements`, in particular, is deliberately never
+- **A tenant can rebind a scope's mappers but cannot add one.**
+  `PUT /admin/tenants/{tenant}/scopes/{id}/mappers`
+  ([Admin paths](admin-paths.md#get-scopesidmappers-and-put-scopesidmappers))
+  chooses which of the process's registered mappers a scope carries, which
+  is the reconfiguration P4c owed. The registry itself —
+  `standardClaimMappers`, the 22 names in `claims_supported`, and the
+  role/group claims alongside them — is still fixed by the server: a mapper
+  that computes a claim nothing in the registry computes cannot be defined
+  by an operator. **P10**, whose criterion names it: a mapper an operator
+  writes is code the server did not ship, which is the same problem as
+  loading a provider without a rebuild, not a missing admin endpoint.
+  `entitlements`, in particular, is deliberately never
   advertised: there is no notion of one in this identity model yet, and
   `packages/protocol-oidc/tests/claims-supported.int.test.ts` fails the
   build if it appears in a live discovery response.
@@ -8356,12 +8383,13 @@ session lifecycle. A citation of either half here means that half.
 
 **Endpoints that do not exist at all**
 
-- **Any admin API.** **P4c.** The seed command and
-  [dynamic client registration](#dynamic-client-registration) are the only
-  administrative surfaces — the former for a tenant's first user, client and
-  signing key, the latter for a client a tenant has opened itself to — and
-  neither can add a user to an existing client, disable anything, rotate a
-  key, or delete anything. `seed client` takes `--redirect-uri`,
+- **`seed client` sets a fraction of what a client carries, and only at
+  creation.** The [admin API](admin-paths.md) closed the surface this row
+  used to aggregate — a client is created, amended, disabled, deleted and
+  re-credentialled through it, a key rotated, a session ended, a flow
+  reordered — so what is left here is the CLI's own reach, which matters
+  because every walkthrough in this document runs from a shell holding no
+  admin token. `seed client` takes `--redirect-uri`,
   `--post-logout-redirect-uri`, `--web-origin`, `--client-secret`,
   `--token-endpoint-auth-method` and `--grant-type` (repeatable, validated
   against the same list `client_oidc_config_grant_types_check` enforces;
@@ -8375,22 +8403,26 @@ session lifecycle. A citation of either half here means that half.
   `--tls-client-auth-subject-dn` flag either, so `seed client` cannot
   produce a `private_key_jwt` or `tls_client_auth` client at all; the only
   route to either is dynamic client registration, on a tenant whose
-  `clientRegistrationPolicy` allows it. The demo tenant's does not, which is
-  why no transcript below exercises `private_key_jwt` or `tls_client_auth`
-  the way [Redeeming the code with
+  `clientRegistrationPolicy` allows it, or the admin API. The demo tenant
+  opens neither to this document, which is why no transcript below
+  exercises `private_key_jwt` or `tls_client_auth` the way [Redeeming the
+  code with
   `client_secret_basic`](#redeeming-the-code-with-client_secret_basic) and
-  its `client_secret_post` sibling exercise theirs — there is no command to
-  run that would produce one, per this document's own rule for a command
-  that cannot be run. A second, different gap sits beside it: metadata a
-  flag does set is only settable at creation, so a client already seeded is
-  amended with SQL too.
-  Each site in this document that reaches for SQL instead says so at the
-  point it does it — [Front-channel
-  and back-channel logout](#front-channel-and-back-channel-logout), [Token
-  introspection and revocation](#token-introspection-and-revocation), and
-  [Offline access](#offline-access) — and this is the one row that
-  aggregates all three, rather than each staying an individually honest but
-  uncollected admission.
+  its `client_secret_post` sibling exercise theirs — there is no seed
+  command to run that would produce one, per this document's own rule for a
+  command that cannot be run. A second gap sits beside it: metadata a flag
+  does set is only settable at creation, so a client already seeded is
+  amended elsewhere. The three sites here that reach for SQL —
+  [Front-channel and back-channel
+  logout](#front-channel-and-back-channel-logout), [Token introspection and
+  revocation](#token-introspection-and-revocation) and [Offline
+  access](#offline-access) — each name the admin endpoint that now sets the
+  same column, and reach for SQL anyway because a walkthrough that has to
+  mint an admin token first is a different walkthrough.
+  A decision, now that the admin API exists: `seed` is the bootstrap tool
+  that creates the first of everything with no token in hand, and amendment
+  belongs to the API. Widening the CLI to a second amendment surface would
+  give every client column two doors to keep in step.
 - **SAML, LDAP federation, identity brokering, authorization services.**
   P6–P9.
 
