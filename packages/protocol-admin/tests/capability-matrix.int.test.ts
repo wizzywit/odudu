@@ -1,4 +1,9 @@
-import { MANAGE_TENANTS, TENANT_CAPABILITIES, viewCounterpart } from '@odudu/domain-tenant';
+import {
+  MANAGE_TENANTS,
+  TENANT_CAPABILITIES,
+  viewCounterpart,
+  type TenantCapability,
+} from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -32,11 +37,12 @@ function admits(held: AdminCapability, required: AdminCapability): boolean {
 
 // ajv validates a route's body/querystring before the router ever checks a
 // capability (verified: an unauthorized POST with no body and the wrong
-// capability answers 400, not 403 — packages/protocol-admin/src/adapter/
-// validation.ts installs a strict compiler ahead of authorizeAdmin). Each
-// entry is shaped only to satisfy that schema, never to be a business-valid
-// request: what happens after authorization succeeds is not this test's
-// concern, only that it is never itself a 403.
+// capability answers 400, not 403 — validation.ts installs a strict
+// compiler ahead of authorizeAdmin). Skip this and an authorization test on
+// a write route reads as the route itself being broken. Each entry only
+// satisfies the schema, never a business-valid request — what happens after
+// authorization succeeds is not this test's concern, only that it is never
+// itself a 403.
 const SAMPLE_BODIES: Readonly<Partial<Record<string, unknown>>> = {
   'POST /admin/tenants/:tenant/subjects': { username: 'sample' },
   'PUT /admin/tenants/:tenant/subjects/:id/required-actions': { actions: [] },
@@ -92,6 +98,42 @@ function requiredCapabilityOf(route: AdminRoute): AdminCapability {
     throw new Error(`capability-matrix: ${routeKey(route)} declares no capability`);
   }
   return capability;
+}
+
+// `tenantScopedRoutes` (below) already excludes the two manage-tenants-only
+// routes, so every capability reaching here is a `TenantCapability` —
+// narrowed by a runtime check because `requiredCapabilityOf`'s return type
+// cannot say so on its own.
+function tenantCapabilityOf(route: AdminRoute): TenantCapability {
+  const capability = requiredCapabilityOf(route);
+  if (capability === MANAGE_TENANTS) {
+    throw new Error(`capability-matrix: ${routeKey(route)} unexpectedly requires manage-tenants`);
+  }
+  return capability;
+}
+
+const TENANT_PATH_PREFIX = '/admin/tenants/:tenant/';
+
+// The resource a route's own path names, read from its static segments
+// alone — never from `capability`, so this is an oracle the table cannot
+// agree with itself. `sessions` nested under a subject is the one
+// resource that is not a sub-action of its parent (see its own
+// ADMIN_ROUTES entry, "No view-sessions..."); every other nested static
+// segment (`credentials`, `roles`, `composites`, `mappers`, `secret`,
+// `promote`, `retire`, `test`, `clients`) is one.
+function resourceFamilyOf(route: AdminRoute): string {
+  if (!route.pattern.startsWith(TENANT_PATH_PREFIX)) {
+    throw new Error(`capability-matrix: ${routeKey(route)} is not tenant-scoped`);
+  }
+  const segments = route.pattern
+    .slice(TENANT_PATH_PREFIX.length)
+    .split('/')
+    .filter((segment) => segment.length > 0 && !segment.startsWith(':'));
+  const [first, second] = segments;
+  if (first === undefined) {
+    throw new Error(`capability-matrix: ${routeKey(route)} names no resource segment`);
+  }
+  return second === 'sessions' ? second : first;
 }
 
 // Every other bodySchema in ADMIN_ROUTES (the amend* endpoints) is a
@@ -181,5 +223,45 @@ describe('the capability matrix', () => {
       const permitted = admits(capability, requiredCapabilityOf(route));
       expect(res.statusCode === 403, `${capability} at ${routeKey(route)}`).toBe(!permitted);
     }
+  });
+
+  // The grid above proves `authorizeAdmin` enforces whatever `ADMIN_ROUTES`
+  // declares; it reads its own expectation from that same table, so a route
+  // wired to a plausible but wrong capability — the copy-paste `CLAUDE.md`
+  // names — passes it unchanged. These two checks read no capability from
+  // the table at all: they hold for a correctly-wired route because of what
+  // its path and method already say, independent of what any route
+  // actually declares.
+  describe('a route names a capability its own path and method already imply', () => {
+    it('no mutating method requires a bare view-* capability', () => {
+      for (const route of tenantScopedRoutes) {
+        if (route.method === 'GET') continue;
+        const capability = requiredCapabilityOf(route);
+        expect(capability.startsWith('view-'), routeKey(route)).toBe(false);
+      }
+    });
+
+    const families = new Map<string, AdminRoute[]>();
+    for (const route of tenantScopedRoutes) {
+      const family = resourceFamilyOf(route);
+      families.set(family, [...(families.get(family) ?? []), route]);
+    }
+    const familyGroups = [...families.entries()].map(([family, routes]) => ({ family, routes }));
+
+    it.each(familyGroups)(
+      '$family: one capability, or a view/manage pair with GET on the view side',
+      ({ family, routes }) => {
+        const distinct = [...new Set(routes.map(tenantCapabilityOf))];
+        if (distinct.length === 1) return;
+        expect(distinct, `${family} names more than two capabilities`).toHaveLength(2);
+        const [a, b] = distinct as [TenantCapability, TenantCapability];
+        const view = viewCounterpart(a) === b ? b : viewCounterpart(b) === a ? a : undefined;
+        expect(view, `${a} and ${b} share a resource but neither composes the other`).toBeDefined();
+        for (const route of routes) {
+          const usesView = tenantCapabilityOf(route) === view;
+          expect(route.method === 'GET', routeKey(route)).toBe(usesView);
+        }
+      },
+    );
   });
 });
