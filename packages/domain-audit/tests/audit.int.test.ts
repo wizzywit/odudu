@@ -140,4 +140,89 @@ describe('record and list', () => {
       },
     });
   });
+
+  it('accepts a plain reason on a no-key action, with no cast needed', async () => {
+    // A real literal, not a cast: this is what pnpm typecheck compiles,
+    // proving `reason` is not typed as `never` on a no-extra-key action.
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await auditRepository(tx).record({
+        eventType: 'admin_access',
+        action: 'token.foreign_issuer',
+        outcome: 'refused',
+        detail: { reason: 'foreign_issuer' },
+      });
+    });
+
+    const rows = await withTenant(app.db, tenantId, (tx) =>
+      auditRepository(tx).list({ limit: 10 }),
+    );
+    expect(rows[0]).toMatchObject({
+      action: 'token.foreign_issuer',
+      detail: { reason: 'foreign_issuer' },
+    });
+  });
+
+  it('rejects a misspelled action carrying a disallowed key, and writes nothing', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+
+    const misspelled = {
+      eventType: 'token',
+      action: 'token.isue',
+      outcome: 'allowed',
+      detail: { client_secret: 's' },
+    } as unknown as AuditEventInput;
+
+    await expect(
+      withTenant(app.db, tenantId, (tx) => auditRepository(tx).record(misspelled)),
+    ).rejects.toThrow(/token\.isue/);
+
+    const rows = await withTenant(app.db, tenantId, (tx) =>
+      auditRepository(tx).list({ limit: 10 }),
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it('rejects an action from a different event type, and writes nothing', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+
+    const mismatched = {
+      eventType: 'session',
+      action: 'token.issue',
+      outcome: 'allowed',
+    } as unknown as AuditEventInput;
+
+    await expect(
+      withTenant(app.db, tenantId, (tx) => auditRepository(tx).record(mismatched)),
+    ).rejects.toThrow(/session/);
+
+    const rows = await withTenant(app.db, tenantId, (tx) =>
+      auditRepository(tx).list({ limit: 10 }),
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it('rejects a refused row with no reason, and writes nothing', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+
+    await expect(
+      withTenant(app.db, tenantId, (tx) =>
+        auditRepository(tx).record({
+          eventType: 'admin_access',
+          action: 'capability.refused',
+          outcome: 'refused',
+          detail: { capability: 'manage-clients' },
+        }),
+      ),
+    ).rejects.toThrow(/reason/);
+
+    const rows = await withTenant(app.db, tenantId, (tx) =>
+      auditRepository(tx).list({ limit: 10 }),
+    );
+    expect(rows).toHaveLength(0);
+  });
 });

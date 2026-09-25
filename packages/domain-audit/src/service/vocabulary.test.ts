@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertDetailAllowed, AUDIT_EVENT_TYPES } from '#/service/vocabulary';
+import { assertActionKnown, assertDetailAllowed, AUDIT_EVENT_TYPES } from '#/service/vocabulary';
 
 describe('assertDetailAllowed', () => {
   it('accepts the detail keys token.issue names', () => {
@@ -36,6 +36,40 @@ describe('assertDetailAllowed', () => {
     }).toThrow(/nonsense/);
   });
 
+  it('passes an action outside the vocabulary through untouched', () => {
+    expect(() => {
+      assertDetailAllowed('client.create', { anything: 'goes', name: 'acme' });
+    }).not.toThrow();
+  });
+
+  it('rejects any extra key on an action with no keys of its own', () => {
+    expect(() => {
+      assertDetailAllowed('password.changed', { username: 'alice' });
+    }).toThrow(/username/);
+  });
+
+  it('rejects a mode outside delegation|impersonation', () => {
+    expect(() => {
+      assertDetailAllowed('token.exchange', {
+        mode: 'takeover',
+        scope: 'openid',
+        requested_token_type: 'urn:x',
+      });
+    }).toThrow(/mode/);
+  });
+
+  it('rejects a via outside logout|admin|evicted', () => {
+    expect(() => {
+      assertDetailAllowed('session.ended', { via: 'timeout' });
+    }).toThrow(/via/);
+  });
+
+  it('rejects a non-string factor', () => {
+    expect(() => {
+      assertDetailAllowed('login.password', { factor: 7 });
+    }).toThrow(/factor/);
+  });
+
   it('lists every event type, admin_mutation first', () => {
     expect(AUDIT_EVENT_TYPES).toEqual([
       'admin_mutation',
@@ -45,5 +79,25 @@ describe('assertDetailAllowed', () => {
       'token',
       'credential',
     ]);
+  });
+});
+
+describe('assertActionKnown', () => {
+  it('accepts an action that belongs to its event type', () => {
+    expect(() => {
+      assertActionKnown('token', 'token.issue');
+    }).not.toThrow();
+  });
+
+  it('rejects an action from a different event type', () => {
+    expect(() => {
+      assertActionKnown('session', 'token.issue');
+    }).toThrow(/session/);
+  });
+
+  it('rejects a misspelled action', () => {
+    expect(() => {
+      assertActionKnown('token', 'token.isue');
+    }).toThrow(/token\.isue/);
   });
 });

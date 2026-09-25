@@ -3,7 +3,9 @@ import { newId } from '@odudu/kernel';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { auditEvents, type AuditEventRecord } from '#/schema/audit-events';
 import {
+  assertActionKnown,
   assertDetailAllowed,
+  isAuditReason,
   type AuditEventInput,
   type AuditEventType,
 } from '#/service/vocabulary';
@@ -31,10 +33,16 @@ export function auditRepository(tx: TenantScopedDatabase) {
   return {
     // No tenantId field: audit_events.tenant_id defaults to the same
     // app.tenant_id session variable withTenant already bound this
-    // transaction to, which is the mutation's target rather than
-    // whichever tenant issued the caller's own token.
+    // transaction to — the tenant the event happened to, not whichever
+    // tenant issued the caller's own token.
     async record(event: AuditEventInput): Promise<void> {
-      const detail = event.detail ?? {};
+      const detail: Record<string, unknown> = event.detail ?? {};
+      if (event.eventType !== 'admin_mutation') {
+        assertActionKnown(event.eventType, event.action);
+        if (event.outcome === 'refused' && !isAuditReason(detail.reason)) {
+          throw new Error(`audit event '${event.action}' is refused but has no valid reason`);
+        }
+      }
       assertDetailAllowed(event.action, detail);
 
       await tx.insert(auditEvents).values({

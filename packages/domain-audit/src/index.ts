@@ -5,7 +5,9 @@ export {
   type AuditEventFilter,
 } from '#/repository/audit';
 export {
+  assertActionKnown,
   assertDetailAllowed,
+  isAuditReason,
   AUDIT_ACTIONS,
   AUDIT_EVENT_TYPES,
   type AdminMutationInput,
@@ -14,4 +16,5 @@ export {
   type AuditOutcome,
   type AuditReason,
   type VocabularyEventInput,
+  type VocabularyEventType,
 } from '#/service/vocabulary';
