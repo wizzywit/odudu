@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadDocument, tableWithHeadings, type Document } from './markdown.js';
+import { loadDocument, scanFences, tableWithHeadings, type Document } from './markdown.js';
 
 // The roadmap table is the only place a phase is defined. `docs/request-paths.md`
 // and `README.md` cite phases in prose, and prose drifts silently: P2 became
@@ -44,14 +44,10 @@ interface Citation {
 // a key fingerprint is not a claim about the roadmap.
 function phaseCitations(document: Document): Citation[] {
   const found: Citation[] = [];
-  let inFence = false;
 
+  const { fenced } = scanFences(document);
   document.lines.forEach((line, index) => {
-    if (line.startsWith('```')) {
-      inFence = !inFence;
-      return;
-    }
-    if (inFence) return;
+    if (fenced[index] === true) return;
     for (const match of line.matchAll(/\bP\d+[a-z]?\b/gu)) {
       found.push({ phase: match[0], line: index + 1 });
     }

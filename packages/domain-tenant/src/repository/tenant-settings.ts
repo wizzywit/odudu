@@ -1,4 +1,4 @@
-import { tenants, type TenantScopedDatabase } from '@odudu/db';
+import { isCheckViolation, tenants, type TenantScopedDatabase } from '@odudu/db';
 import { eq } from 'drizzle-orm';
 import { TENANT_SETTING_COLUMNS, type TenantSettingName } from '#/service/tenant-settings';
 
@@ -50,11 +50,6 @@ function toRecord(row: typeof tenants.$inferSelect): TenantSettingsRecord {
 // parse a column back out of, some naming more than one column, so the
 // SQLSTATE alone is the signal; the caller already knows which columns it
 // tried to write.
-function isCheckViolation(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
-  if ('code' in error) return error.code === '23514';
-  return 'cause' in error && isCheckViolation(error.cause);
-}
 
 export function tenantSettingsRepository(tx: TenantScopedDatabase) {
   return {

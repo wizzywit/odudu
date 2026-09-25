@@ -101,7 +101,7 @@ the project. If a later phase wants it, this exception is what it removes.
 
 ## 5. The system tenant
 
-A migration creates a `system` tenant, structurally identical to every
+`odudu seed admin` creates a `system` tenant, structurally identical to every
 other, `enabled = true`, no subjects, no signing key. The bootstrap command
 mints the key, because the system tenant issues admin tokens and must
 therefore be a working issuer.
@@ -694,7 +694,7 @@ configured are grepped rather than assumed.
 
 ## 23. Exit criterion
 
-A system tenant provisioned by migration and bootstrapped by
+A system tenant created and bootstrapped by
 `odudu seed admin` with a single-use password and a forced change; an admin
 API at `/admin` serving both a tenant's own admins and a system admin
 holding `manage-tenants`, with capability re-resolved per request and proven

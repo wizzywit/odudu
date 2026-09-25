@@ -38,6 +38,20 @@ export function isSystemTenantName(name: string): boolean {
   return name === SYSTEM_TENANT_NAME;
 }
 
+// Every cross-tenant administrator authenticates against the system tenant,
+// and `authenticateAdmin` refuses a disabled one, so disabling it locks all
+// of them out with `psql` the only way back. Both doors that write
+// `tenants.enabled` — `amendTenant` and `amendSettings` — refuse through
+// this, and `settings.int.test.ts` asserts both rather than trusting that a
+// guard on one stands for the other.
+export const SYSTEM_TENANT_DISABLE_REFUSED =
+  `${SYSTEM_TENANT_NAME} is the tenant every cross-tenant administrator ` +
+  'authenticates against and cannot be disabled';
+
+export function isSystemTenantId(id: string): boolean {
+  return id === SYSTEM_TENANT_ID;
+}
+
 const VIEW_COUNTERPARTS: Partial<Record<TenantCapability, TenantCapability>> = {
   'manage-users': 'view-users',
 };

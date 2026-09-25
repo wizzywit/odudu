@@ -291,7 +291,9 @@ behaviour the design intends. Even with that bypassed it would be wrong: a
 row that always exists destroys "empty database" semantics, and three
 scheduled passes assert they do nothing against a database with no tenants.
 The system tenant is created by `odudu seed admin`, inside a bound tenant
-context, idempotently by name.
+context, idempotently by **id** — `onConflictDoNothing` on `tenants.id`, not
+on the name. A `system` name already held under a different id is refused
+rather than adopted, since a name lookup and an id insert can disagree.
 
 `provisionTenant` was not idempotent — its defaults were inserted
 unconditionally and collided with a unique index on a second run. Found by

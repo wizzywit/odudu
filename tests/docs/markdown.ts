@@ -37,10 +37,10 @@ export interface FencedBlock {
 // may carry an info string, a **closing** fence may carry nothing but its own
 // backticks and whitespace. So "``` and then a sentence" closes nothing, and
 // every line after it — headings included — is swallowed into the block.
-// `structuralProblems` below is the check that says so; every walker here
-// reads fences the same way so that none of them disagrees about where a
-// block ends.
-const FENCE = /^(?<ticks>`{3,})(?<info>.*)$/u;
+// Both fence characters and CommonMark's three spaces of indentation are
+// recognised, or a `~~~` block would hide a heading from every check built
+// on this. `structuralProblems` is where that is reported.
+const FENCE = /^ {0,3}(?<ticks>`{3,}|~{3,})(?<info>.*)$/u;
 
 export interface FenceSpan {
   readonly language: string;
@@ -80,7 +80,8 @@ export function scanFences(document: Document): DocumentScan {
       fenced.push(false);
       continue;
     }
-    if (match !== null && open !== null && ticks.length >= open.ticks.length) {
+    const sameCharacter = ticks.startsWith(open?.ticks.charAt(0) ?? '');
+    if (match !== null && open !== null && sameCharacter && ticks.length >= open.ticks.length) {
       if (info.trim() === '') {
         spans.push({
           language: open.language,

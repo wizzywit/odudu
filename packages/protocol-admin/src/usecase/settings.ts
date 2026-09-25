@@ -1,5 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
+  isSystemTenantId,
+  SYSTEM_TENANT_DISABLE_REFUSED,
   coerceTenantSetting,
   TENANT_SETTING_NAMES,
   tenantSettingsRepository,
@@ -58,6 +60,7 @@ export type AmendSettingsOutcome =
   | { kind: 'amended'; settings: TenantSettingsRecord; etag: string }
   | { kind: 'unknown_setting'; name: string; known: readonly string[] }
   | { kind: 'invalid_value'; name: string; expected: 'boolean' | 'integer' | 'text' }
+  | { kind: 'system_tenant_guarded'; reason: string }
   | { kind: 'precondition_failed' };
 
 // Thrown, never returned: by the time the CHECK fires, the UPDATE has
@@ -112,6 +115,15 @@ export async function amendSettings(
   const coerced = coerceAll(input.values);
   if (coerced.kind !== 'ok') return coerced;
 
+  // The same refusal `amendTenant` gives, because this route writes the same
+  // `tenants.enabled` column through a different door.
+  const disabling = coerced.settings.find(
+    (setting) => setting.column === 'enabled' && setting.value === false,
+  );
+  if (disabling !== undefined && isSystemTenantId(input.tenantId)) {
+    return { kind: 'system_tenant_guarded', reason: SYSTEM_TENANT_DISABLE_REFUSED };
+  }
+
   // Locked, not merely read: the comparison and the UPDATE below have to be
   // the only ones running against this row, or two callers holding the same
   // `If-Match` both match and the later write replaces the earlier with no
@@ -122,6 +134,14 @@ export async function amendSettings(
   );
   if (matches(input.ifMatch, current.etag) === 'mismatch') {
     return { kind: 'precondition_failed' };
+  }
+
+  // The request schema admits `{}` and Drizzle refuses an empty `set`, so a
+  // caller sending one would be told the server broke for a request the
+  // schema accepted. Answered after the precondition, so `If-Match` still
+  // decides whether the caller was looking at the row it is being shown.
+  if (coerced.settings.length === 0) {
+    return { kind: 'amended', settings: current.settings, etag: current.etag };
   }
 
   const columns = Object.fromEntries(

@@ -90,6 +90,8 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
             `tenant setting ${outcome.name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`,
           ),
         );
+      case 'system_tenant_guarded':
+        return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
       case 'precondition_failed':
         return sendProblem(
           reply,

@@ -8,7 +8,11 @@ import {
   type Database,
   type TenantScopedDatabase,
 } from '@odudu/db';
-import { isSystemTenantName, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
+import {
+  isSystemTenantName,
+  SYSTEM_TENANT_DISABLE_REFUSED,
+  SYSTEM_TENANT_NAME,
+} from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { provisionAdminClient } from '@odudu/protocol-oidc';
 import { asc, eq, gt } from 'drizzle-orm';
@@ -289,7 +293,7 @@ export async function amendTenant(
   if (input.values.enabled === false && current.name === SYSTEM_TENANT_NAME) {
     return {
       kind: 'system_tenant_guarded',
-      reason: `${SYSTEM_TENANT_NAME} is the tenant every cross-tenant administrator authenticates against and cannot be disabled`,
+      reason: SYSTEM_TENANT_DISABLE_REFUSED,
     };
   }
 

@@ -1,5 +1,6 @@
 import { withTenant } from '@odudu/db';
 import { tenantSettingsRepository } from '@odudu/domain-tenant';
+import { SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -234,6 +235,49 @@ describe('GET /admin/tenants/{t}/settings', () => {
       url: `/admin/tenants/${t.name}/settings`,
       headers: { authorization: `Bearer ${token}` },
     });
+    expect(res.statusCode).toBe(200);
+  });
+});
+
+// `tenants.enabled` has two doors — PATCH /tenants/{t} and PATCH
+// /settings — and disabling the system tenant closes the one every
+// cross-tenant administrator authenticates against, leaving psql the only
+// way back. Both are asserted here so a guard on one cannot stand in for
+// the other.
+describe('disabling the system tenant', () => {
+  it.each([
+    ['PATCH /settings', (t: string) => `/admin/tenants/${t}/settings`],
+    ['PATCH /tenants/{t}', (t: string) => `/admin/tenants/${t}`],
+  ])('is refused through %s', async (_name, url) => {
+    const token = await fixture.systemAdminToken(['manage-tenants', 'manage-tenant']);
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: url(SYSTEM_TENANT_NAME),
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { enabled: false },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toContain('cannot be disabled');
+  });
+});
+
+describe('PATCH /settings with nothing to set', () => {
+  // The request schema admits `{}`, and Drizzle refuses `.set({})` outright,
+  // so without a short-circuit the caller is told the server broke for
+  // sending a request the schema accepted.
+  it('answers the current settings rather than failing on an empty update', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {},
+    });
+
     expect(res.statusCode).toBe(200);
   });
 });
