@@ -394,17 +394,7 @@ function buildAdminRoutes(
     };
 
     registerOpenApiRoute(app);
-    registerAdminRoutes(app, handlers, authDeps, authzDeps, clock, (targetTenantId) =>
-      withTenant(deps.database.db, targetTenantId, (tx) =>
-        auditRepository(tx).record({
-          eventType: 'admin_mutation',
-          action: 'admin.cross_tenant_refused',
-          outcome: 'refused',
-          resourceType: 'tenant',
-          resourceId: targetTenantId,
-        }),
-      ),
-    );
+    registerAdminRoutes(app, handlers, authDeps, authzDeps, clock);
 
     deps.logger.debug({}, 'protocol-admin registered its admin routes');
     return Promise.resolve();

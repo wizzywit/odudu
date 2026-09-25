@@ -1130,12 +1130,13 @@ admin client it authenticated as — so a system admin's change to this
 tenant is a row this tenant's own administrators can read, and can see was
 made by someone outside it.
 
-One row is written with no mutation at all: a bearer token whose issuer
-names neither this tenant nor the system tenant is refused with `401`
-before its signature is even checked (the cross-tenant boundary this API's
-whole authentication step exists to enforce), and that refusal writes an
-`admin.cross_tenant_refused` row against **this** tenant naming no actor —
-nothing about the caller is known yet at that point.
+A request refused for a cross-tenant issuer mismatch — a bearer token
+naming an issuer neither this tenant nor the system tenant — writes no row
+here at all. That refusal is decided before the token's signature is even
+checked, since a token naming an unrecognised issuer has no keys to verify
+it against; auditing it at that point would let an unauthenticated caller
+append a row per request, which is a worse defect than the missing row.
+See `docs/NEXT.md`'s `deferred:` entry for what recording it safely needs.
 
 Paginated the same way every other list here is, over
 `(occurred_at, id)` descending rather than ascending `id`: newest first.

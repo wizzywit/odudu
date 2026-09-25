@@ -69,7 +69,6 @@ async function handleRoute(
   authDeps: AuthenticateAdminDeps,
   authzDeps: AuthorizeAdminDeps,
   clock: Clock,
-  onIssuerMismatch: (targetTenantId: string) => Promise<void>,
   request: AdminRequest,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
@@ -84,14 +83,7 @@ async function handleRoute(
     systemTenantIssuer: tenantIssuerFor(request, SYSTEM_TENANT_NAME),
     now: clock.now(),
   });
-  if (outcome.kind === 'unauthenticated') {
-    // A bearer token whose issuer names neither this tenant nor the system
-    // tenant is refused before its signature is even checked, so nothing
-    // about the caller is known yet — the row this tenant's own admins see
-    // names no actor, only that the attempt happened.
-    if (outcome.reason === 'issuer_mismatch') await onIssuerMismatch(targetTenant.id);
-    return sendUnauthorized(request, reply);
-  }
+  if (outcome.kind === 'unauthenticated') return sendUnauthorized(request, reply);
 
   const decision = await authorizeAdmin(
     authzDeps,
@@ -116,7 +108,6 @@ export function registerAdminRoutes(
   authDeps: AuthenticateAdminDeps,
   authzDeps: AuthorizeAdminDeps,
   clock: Clock,
-  onIssuerMismatch: (targetTenantId: string) => Promise<void>,
 ): void {
   const unclaimed = new Set(Object.keys(handlers));
 
@@ -136,7 +127,7 @@ export function registerAdminRoutes(
         ...(route.bodySchema !== undefined ? { body: route.bodySchema } : {}),
       },
       handler: (request, reply) =>
-        handleRoute(route, handler, authDeps, authzDeps, clock, onIssuerMismatch, request, reply),
+        handleRoute(route, handler, authDeps, authzDeps, clock, request, reply),
     });
   }
 

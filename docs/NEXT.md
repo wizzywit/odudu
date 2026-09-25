@@ -378,6 +378,20 @@ row, giving admission, logout and P4's session list one predicate.
   holds a list; there is no browser row), so it waits until something else
   wants that row — most likely P4's session surface.
 
+### The audit log
+
+**`deferred:`** An admin request refused for an issuer mismatch writes no
+audit row. The refusal is decided before signature verification, because a
+token naming an unrecognised issuer has no keys to verify against — so
+auditing there would let any unauthenticated caller append a row per
+request. Recording it safely means first resolving the named issuer to a
+tenant in this deployment and verifying the signature against that
+tenant's keys, then auditing only a token that is authentic but presented
+at a path it may not reach.
+
+- Trigger: whichever phase gives the admin surface rate limiting, or an
+  operator asking why a refused cross-tenant attempt left no trace.
+
 ### Operational and infrastructural
 
 **Neither of the server's two outbound DNS lookups carries a deadline, and

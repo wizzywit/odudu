@@ -9,8 +9,6 @@ import { type AdminRouteHandlers, registerAdminRoutes } from '#/view/routes/rout
 const authDeps = {} as unknown as AuthenticateAdminDeps;
 const authzDeps = {} as unknown as AuthorizeAdminDeps;
 const clock = { now: () => new Date(0) };
-// Never called: none of these tests reach an unauthenticated outcome.
-const onIssuerMismatch = () => Promise.reject(new Error('not called by these tests'));
 const noopHandler = () => {
   throw new Error('not called by these tests');
 };
@@ -27,14 +25,7 @@ describe('registerAdminRoutes', () => {
     // beside is not allowed to import. `hasRoute` reads the route table
     // `registerAdminRoutes` builds directly, without booting.
     const app = Fastify();
-    registerAdminRoutes(
-      app,
-      handlersFor(ADMIN_ROUTES),
-      authDeps,
-      authzDeps,
-      clock,
-      onIssuerMismatch,
-    );
+    registerAdminRoutes(app, handlersFor(ADMIN_ROUTES), authDeps, authzDeps, clock);
 
     for (const route of ADMIN_ROUTES) {
       expect(
@@ -50,7 +41,7 @@ describe('registerAdminRoutes', () => {
     const app = Fastify();
     const incomplete = handlersFor(ADMIN_ROUTES.slice(1));
     expect(() => {
-      registerAdminRoutes(app, incomplete, authDeps, authzDeps, clock, onIssuerMismatch);
+      registerAdminRoutes(app, incomplete, authDeps, authzDeps, clock);
     }).toThrow(/has no registered handler/u);
   });
 
@@ -61,7 +52,7 @@ describe('registerAdminRoutes', () => {
       'GET /admin/tenants/:tenant/not-a-real-route': noopHandler,
     };
     expect(() => {
-      registerAdminRoutes(app, extra, authDeps, authzDeps, clock, onIssuerMismatch);
+      registerAdminRoutes(app, extra, authDeps, authzDeps, clock);
     }).toThrow(/missing from ADMIN_ROUTES/u);
   });
 });
