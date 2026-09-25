@@ -1827,11 +1827,11 @@ curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
 
 Nothing here crosses the consented scope — the narrowing was never a
 confidentiality boundary, only the client asking for less than scope would
-give — so this is a consistency gap, not a security one; recorded in
-`docs/NEXT.md` rather than fixed here, alongside the question the gap
-actually depends on: whether narrowing scope-granted claims away is the
-right reading of §5.5 at all (`docs/protocols/oidc-core.md`'s own §5.5 rows
-have that argument).
+give — so this is a consistency gap, not a security one. ADR 0036 decides
+the narrowing itself is the right reading and this gap is the defect: the
+fix is threading `requested_userinfo_claims` onto the rotated grant, tracked
+against **P4e**, the authentication-and-token-audit-events phase split out
+of P4c (`docs/superpowers/specs/2026-09-24-p4c-admin-api-design.md` §2).
 
 ### Encrypted and nested UserInfo responses
 

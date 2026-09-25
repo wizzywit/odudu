@@ -224,24 +224,6 @@ agent identity layer's own instance, budget and `max_depth` (design spec
 
 ### The token surface
 
-**A `claims` `userinfo` request narrows `/userinfo`, and a refresh silently
-widens it back.** The parameter is parsed at `/authorize`, stored on the
-authorization code, and embedded on the access token as
-`requested_userinfo_claims`; `/userinfo` reads it back and narrows,
-intersected with granted scope. A `refresh_token` redemption mints from the
-rotated grant rather than from a code, so it carries no such claim and the
-narrowing disappears. Not a security defect — nothing returned after a
-refresh crosses the consented scope — and not clearly a spec defect either:
-OIDC Core §5.5 describes `claims` as requesting Claims _alongside_ what
-`scope` grants, and narrowing scope-granted Claims away is a stricter
-reading this implementation chose without writing the choice down.
-
-- Trigger: revisiting whether narrowing is right at all. If it is kept,
-  thread `requested_userinfo_claims` onto the rotated grant
-  (`packages/protocol-oidc/src/repository/grants.ts`,
-  `usecase/token-issuance.ts`'s `issueRefreshTokens`). If it is not, the
-  refresh gap disappears with it.
-
 **No scope means anything in particular at an audience.** RFC 9068 §2.2.3
 requires a token's `scope` to be coherent with its `aud`. A client may ask
 for `reports:read` against `resource=https://api.example` and nothing
