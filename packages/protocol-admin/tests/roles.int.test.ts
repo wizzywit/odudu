@@ -208,6 +208,55 @@ describe('PATCH /admin/tenants/{t}/roles/{id}', () => {
   });
 });
 
+describe('POST /admin/tenants/{t}/roles with a client_id', () => {
+  it('creates a role scoped to a client that exists', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const client = await fixture.createConfidentialClient(t.name, {});
+
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/roles`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { name: `scoped-${newId()}`, client_id: client.id },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json<{ client_id: string }>().client_id).toBe(client.id);
+  });
+
+  // The insert would fail on roles_client_fk, which is not the unique
+  // violation the route turns into a 409 — so it reached the error handler.
+  it('refuses a client_id no client holds with 400, not 500', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/roles`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { name: `scoped-${newId()}`, client_id: newId() },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toMatch(/client_id names no client/u);
+  });
+
+  it('refuses a client_id that is not an id at all with 400, not 500', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/roles`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { name: `scoped-${newId()}`, client_id: 'not-a-uuid' },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+});
+
 describe('DELETE /admin/tenants/{t}/roles/{id}', () => {
   it('removes the role', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);

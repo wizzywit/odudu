@@ -3,7 +3,6 @@ import {
   amendRoleRequestSchema,
   createRoleRequestSchema,
   listRolesQuerySchema,
-  type Role,
 } from '@odudu/contracts/admin';
 import { isUniqueViolation, withTenant, type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
@@ -19,6 +18,7 @@ import {
   type AddRoleCompositeOutcome,
   type AmendRoleOutcome,
   type Audit,
+  type CreateRoleOutcome,
 } from '#/usecase/roles';
 import { problem, sendProblem } from '#/view/problem';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
@@ -98,9 +98,9 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const body = createRoleRequestSchema.parse(request.body);
 
-    let role: Role;
+    let outcome: CreateRoleOutcome;
     try {
-      role = await withTenant(deps.database, targetTenantId, (tx) =>
+      outcome = await withTenant(deps.database, targetTenantId, (tx) =>
         createRole(
           tx,
           { audit: deps.audit },
@@ -137,7 +137,14 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
       throw error;
     }
 
-    return reply.code(201).send(role);
+    if (outcome.kind === 'unknown_client') {
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', 'client_id names no client'),
+      );
+    }
+    return reply.code(201).send(outcome.role);
   };
 }
 

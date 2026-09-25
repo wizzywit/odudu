@@ -1010,7 +1010,8 @@ plain — `packages/domain-authz/src/service/role-name.ts` has the format.
 `client_id` and `default_for_new_subjects` included, is refused with a
 reason, the same shape `PATCH /subjects/:id` refuses `id`, `type` and
 `username`. A duplicate name — per tenant for a tenant role, per client for
-a client-scoped one — answers `409`. `DELETE` cascades: every
+a client-scoped one — answers `409`, and a `client_id` naming no client
+answers `400`. `DELETE` cascades: every
 `role_composites` edge, `subject_roles` assignment and `client_scope_roles`
 mapping naming the role goes with it.
 
@@ -1077,8 +1078,10 @@ group's is `/name`, a child's is its parent's with `/name` appended, and
 `groupRepository` (`packages/domain-authz/src/repository/groups.ts`) is the
 only writer of it. `PATCH` amends only `parent_id` — reparenting, which
 recomputes `path` for the group and every descendant — every other field
-is refused with a reason. Reparenting into the group's own subtree answers
-`409` (`group_reparent_cycle`), the same way a role composite's cycle does.
+is refused with a reason. A `parent_id` naming no group answers `400`, the
+same refusal `POST /groups` gives for the same input. Reparenting into the
+group's own subtree answers `409` (`group_reparent_cycle`), the same way a
+role composite's cycle does.
 `DELETE` cascades: a descendant's `parent_id` edge, every `group_roles`
 mapping and every `subject_groups` membership naming the group goes with
 it.
@@ -1480,7 +1483,9 @@ Paginated the same way every other list here is, over
 `(occurred_at, id)` descending rather than ascending `id`: newest first.
 Filters narrow the page rather than requiring one: `actor_subject_id`,
 `resource_type`, `action`, `outcome`, and a `from`/`to` range on
-`occurred_at` (ISO 8601, with an offset).
+`occurred_at` (ISO 8601, with an offset). `actor_subject_id` must be a
+UUID, since the column is one — anything else answers `400` rather than
+reaching Postgres and failing there.
 
 ```bash
 curl -sS -G \

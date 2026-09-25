@@ -168,6 +168,44 @@ describe('GET /admin/tenants/{t}/groups/{id}', () => {
 });
 
 describe('PATCH /admin/tenants/{t}/groups/{id} — reparenting', () => {
+  // `POST /groups` already answers 400 for the same input; the ceiling
+  // passes here because `ancestorsOf` returns nothing for an id no group
+  // holds, and `reparent` then throws with nothing catching it.
+  it('refuses a parent_id naming no group with 400, not 500', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const child = (await createGroupHttp(token, t.name, { name: `c-${newId()}` })).json<{
+      id: string;
+    }>();
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/groups/${child.id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { parent_id: newId() },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toMatch(/parent_id names no group/u);
+  });
+
+  it('refuses a parent_id that is not an id at all with 400, not 500', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const child = (await createGroupHttp(token, t.name, { name: `c-${newId()}` })).json<{
+      id: string;
+    }>();
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/groups/${child.id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { parent_id: 'not-a-uuid' },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
   it('moves a group under a new parent, rewriting its path', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);

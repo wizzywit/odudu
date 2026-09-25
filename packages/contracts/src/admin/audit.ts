@@ -2,7 +2,9 @@ import { z } from 'zod';
 import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
 
 export const listAuditQuerySchema = cursorQuerySchema.extend({
-  actor_subject_id: z.string().optional(),
+  // A `uuid` column: anything else reaches Postgres and fails on syntax
+  // rather than filtering to nothing.
+  actor_subject_id: z.uuid().optional(),
   resource_type: z.string().optional(),
   action: z.string().optional(),
   outcome: z.enum(['allowed', 'refused', 'failed']).optional(),

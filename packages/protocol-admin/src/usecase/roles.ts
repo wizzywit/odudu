@@ -2,7 +2,7 @@ import { type Role } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
-import { OduduError } from '@odudu/kernel';
+import { isUuid, OduduError } from '@odudu/kernel';
 import { asc, eq, gt, inArray } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
@@ -108,11 +108,26 @@ export interface CreateRoleDeps {
   readonly audit: Audit;
 }
 
+export type CreateRoleOutcome = { kind: 'unknown_client' } | { kind: 'ok'; role: Role };
+
 export async function createRole(
   tx: TenantScopedDatabase,
   deps: CreateRoleDeps,
   input: CreateRoleInput,
-): Promise<Role> {
+): Promise<CreateRoleOutcome> {
+  // `roles_client_fk` would refuse this too, but as a foreign-key
+  // violation rather than the unique violation the route knows how to turn
+  // into a 409 — and a `client_id` that is not a uuid at all fails in the
+  // driver before any constraint is consulted.
+  if (input.clientId !== null) {
+    if (!isUuid(input.clientId)) return { kind: 'unknown_client' };
+    const owner = await tx
+      .select({ id: clients.id })
+      .from(clients)
+      .where(eq(clients.id, input.clientId));
+    if (owner.length === 0) return { kind: 'unknown_client' };
+  }
+
   const created = await roleRepository(tx).create({
     tenantId: input.tenantId,
     name: input.name,
@@ -131,7 +146,7 @@ export async function createRole(
     outcome: 'allowed',
   });
 
-  return roleWireShape(created);
+  return { kind: 'ok', role: roleWireShape(created) };
 }
 
 export interface AmendRoleInput {

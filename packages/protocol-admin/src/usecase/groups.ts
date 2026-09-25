@@ -1,7 +1,7 @@
 import { type Group } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { ancestorsOf, groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
-import { OduduError } from '@odudu/kernel';
+import { isUuid, OduduError } from '@odudu/kernel';
 import { asc, eq, gt, inArray } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
@@ -180,6 +180,7 @@ export interface AmendGroupDeps {
 
 export type AmendGroupOutcome =
   | { kind: 'not_found' }
+  | { kind: 'unknown_parent' }
   | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
   | { kind: 'precondition_failed' }
@@ -233,6 +234,12 @@ export async function amendGroup(
   }
 
   if (typeof parentId === 'string') {
+    // Before the ceiling: `ancestorsOf` returns the empty set for an id no
+    // group holds, so the ceiling passes and `reparent` throws
+    // `group_not_found` with nothing catching it.
+    if (!isUuid(parentId) || (await groupRepository(tx).byId(parentId)) === null) {
+      return { kind: 'unknown_parent' };
+    }
     const requestedCapabilities = await capabilitiesOfGroupAndAncestors(tx, parentId);
     const denied = overreach(requestedCapabilities, input.callerCapabilities);
     if (denied.length > 0) {

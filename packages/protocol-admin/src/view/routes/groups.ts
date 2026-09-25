@@ -162,6 +162,12 @@ function amendmentProblem(
   switch (outcome.kind) {
     case 'not_found':
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+    case 'unknown_parent':
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', 'parent_id names no group'),
+      );
     case 'refused_field':
       return sendProblem(
         reply,

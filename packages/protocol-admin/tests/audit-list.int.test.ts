@@ -136,6 +136,17 @@ describe('GET /admin/tenants/{t}/audit', () => {
     expect(byRange.json<{ items: unknown[] }>().items).toHaveLength(0);
   });
 
+  // audit_events.actor_subject_id is a uuid column: anything that is not
+  // one reaches Postgres and fails on syntax rather than filtering.
+  it('refuses an actor_subject_id that is not an id with 400, not 500', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-audit']);
+
+    const res = await getAudit(token, t.name, '?actor_subject_id=abc');
+
+    expect(res.statusCode).toBe(400);
+  });
+
   it('shows a tenant-local admin a system admin own change to their tenant', async () => {
     const u = await fixture.createTenant(`umbrella-${newId()}`);
     const systemToken = await fixture.systemAdminToken(['manage-tenants', 'manage-tenant']);
