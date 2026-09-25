@@ -6,8 +6,12 @@ note do not keep — what was discovered while building, especially what
 turned out to be wrong. The phase's own argument is in
 [its spec](../superpowers/specs/2026-09-23-p4a-token-exchange-design.md) and
 [its plan](../superpowers/plans/2026-09-23-p4a-token-exchange.md); the
-full task-by-task record is
-[the phase ledger](../superpowers/sdd/2026-09-23-p4a-token-exchange/progress.md).
+task-by-task ledger was a working file in the git-ignored `.superpowers/`
+directory and was never committed. What survives of the execution is the
+commit history and the review threads on
+[pull request #27](https://github.com/wizzywit/odudu/pull/27) and the eight
+increment requests it merged, #28 to #35; a ruling that still matters is
+recorded in this note or in the spec.
 
 ## A migration idiom copied from precedent that was itself wrong
 

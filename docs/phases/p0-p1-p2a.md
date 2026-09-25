@@ -56,7 +56,7 @@ body and status are identical — a timing oracle where the visible channel
 is closed. Closing it needs an outbox table and a background sender to take
 the send off the request path, which is the first background loop the
 codebase would have and a second table nothing deletes from; this phase's
-design spec rejected building one. [README.md](../README.md)'s "Known
+design spec rejected building one. [README.md](../../README.md)'s "Known
 limitation" paragraph, right after the password-reset walkthrough, states
 it for a reader; this is the record that it was a judgment call, not an
 oversight, so P2b inherits a decision rather than a bug report. **Closed in

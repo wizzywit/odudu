@@ -10,9 +10,12 @@ The phase's own argument is in
 [its spec](../superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md)
 and [its plan](../superpowers/plans/2026-09-18-p3a-clients-registration-consent.md);
 section 11 of [the umbrella spec](../superpowers/specs/2026-09-10-odudu-design.md)
-carries the roadmap-level amendments. The full task-by-task record, every
-review verdict and every ruling, is
-[the phase ledger](../superpowers/sdd/2026-09-18-p3a-clients-registration-consent/progress.md).
+carries the roadmap-level amendments. The task-by-task ledger, with every
+review verdict and ruling, was a working file in the git-ignored
+`.superpowers/` directory and was never committed. What survives of the
+execution is the commit history and the review threads on
+[pull request #12](https://github.com/wizzywit/odudu/pull/12); a ruling that
+still matters is recorded in this note or in the spec.
 
 ## Which of CLAUDE.md's two rules caught this phase's defects
 

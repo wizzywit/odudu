@@ -629,7 +629,7 @@ OP. Ran against a tenant seeded `client_registration_policy=open`
 plan leaves open, plan id `4JhQ5ffOdtF1Q`, suite `5.1.36`, on
 2026-09-19. Export committed at
 `results/dynamic-op-2026-09-19-v5.1.36.json` and its `-logs.zip`.
-[ADR 0031](adr/0031-the-dynamic-op-plan-cannot-pass-code-only.md) is the
+[ADR 0031](../../docs/adr/0031-the-dynamic-op-plan-cannot-pass-code-only.md) is the
 full record; this section is its summary.
 
 **1 PASSED / 3 SKIPPED / 18 FAILED / 1 never reached a terminal status
@@ -639,7 +639,7 @@ across all 23 modules' committed logs, not modules — counting modules
 once each is what hid how often the most common condition actually
 fired. Every occurrence was individually confirmed from its own log, not
 sampled; the full breakdown, including which modules share a condition,
-is in [ADR 0031](adr/0031-the-dynamic-op-plan-cannot-pass-code-only.md).
+is in [ADR 0031](../../docs/adr/0031-the-dynamic-op-plan-cannot-pass-code-only.md).
 
 | Condition                                                              | Occurrences | Cause                                                                                      |
 | ---------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
