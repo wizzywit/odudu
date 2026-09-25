@@ -82,7 +82,7 @@ export async function putSmtp(
 }
 
 // The one place a tenant's own row becomes a live transport — shared by
-// `testSmtp` below and by apps/server's own sender resolution
+// `sendTestMessage` below and by apps/server's own sender resolution
 // (email.ts's `resolveSender`), so a test send and a real one build the
 // transport the same way.
 export function smtpSenderFromRecord(record: TenantSmtpRecord, kek: Uint8Array): EmailSender {
@@ -98,34 +98,36 @@ export function smtpSenderFromRecord(record: TenantSmtpRecord, kek: Uint8Array):
   });
 }
 
-export interface TestSmtpInput {
-  readonly tenantId: string;
-  readonly to: string;
-}
+export type ReadSmtpForTestOutcome =
+  { kind: 'not_configured' } | { kind: 'ok'; record: TenantSmtpRecord };
 
-export interface TestSmtpDeps {
-  readonly kek: Uint8Array;
-}
-
-export type TestSmtpOutcome =
-  { kind: 'not_configured' } | { kind: 'sent' } | { kind: 'send_failed'; detail: string };
-
-// Sends synchronously and reports the transport's own failure, because the
-// whole value of this route is telling an operator now rather than letting
-// them discover a bad configuration when a user's verification mail
-// silently fails later.
-export async function testSmtp(
+export async function readSmtpForTest(
   tx: TenantScopedDatabase,
-  deps: TestSmtpDeps,
-  input: TestSmtpInput,
-): Promise<TestSmtpOutcome> {
-  const record = await tenantSmtpRepository(tx).byTenantId(input.tenantId);
-  if (record === null) return { kind: 'not_configured' };
+  tenantId: string,
+): Promise<ReadSmtpForTestOutcome> {
+  const record = await tenantSmtpRepository(tx).byTenantId(tenantId);
+  return record === null ? { kind: 'not_configured' } : { kind: 'ok', record };
+}
 
-  const sender = smtpSenderFromRecord(record, deps.kek);
+export type SendTestMessageOutcome = { kind: 'sent' } | { kind: 'send_failed'; detail: string };
+
+// Takes the record already read, never a transaction: the caller reads
+// inside withTenant (readSmtpForTest above) and calls this only after that
+// transaction has returned, so an unreachable or slow host never holds a
+// pooled tenant connection for the length of the attempt. Sends
+// synchronously and reports the transport's own failure, because the whole
+// value of this route is telling an operator now rather than letting them
+// discover a bad configuration when a user's verification mail silently
+// fails later.
+export async function sendTestMessage(
+  record: TenantSmtpRecord,
+  kek: Uint8Array,
+  to: string,
+): Promise<SendTestMessageOutcome> {
+  const sender = smtpSenderFromRecord(record, kek);
   try {
     await sender.send({
-      to: input.to,
+      to,
       subject: 'Odudu SMTP test',
       text: 'This is a test message from Odudu.',
       html: '<p>This is a test message from Odudu.</p>',

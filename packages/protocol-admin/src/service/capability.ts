@@ -455,7 +455,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   },
   // A tenant's own SMTP credential: manage-tenant, the same capability
   // `/settings` and `/flow` use. GET never carries a password; `configured`
-  // is false and every other field null for a tenant with no row.
+  // is false and every other field null for a tenant with no row. No
+  // `ETag`/`If-Match` — see the PUT description below for why that
+  // deviates from the resource pattern's default.
   {
     method: 'GET',
     pattern: '/admin/tenants/:tenant/smtp',
@@ -470,7 +472,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: putSmtpRequestSchema,
     description:
       'Replaces the whole configuration. Omitting `password` clears it, since GET never ' +
-      'hands one back to resend unchanged.',
+      'hands one back to resend unchanged. Carries no ETag/If-Match: PUT already fully ' +
+      'replaces the row rather than partially amending it, and the password being ' +
+      'write-only removes the one case a race would matter for — a caller can never read ' +
+      'the current value to decide whether its own write should still apply.',
   },
   {
     method: 'POST',

@@ -1,7 +1,7 @@
 import { putSmtpRequestSchema, testSmtpRequestSchema } from '@odudu/contracts/admin';
 import { withTenant, type Database } from '@odudu/db';
 import { readPasswordField } from '@odudu/kernel';
-import { putSmtp, readSmtp, testSmtp, type Audit } from '#/usecase/smtp';
+import { putSmtp, readSmtp, readSmtpForTest, sendTestMessage, type Audit } from '#/usecase/smtp';
 import { problem, sendProblem } from '#/view/problem';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
@@ -62,22 +62,27 @@ export function testSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
     const body = testSmtpRequestSchema.parse(request.body);
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
-      testSmtp(tx, { kek: deps.kek }, { tenantId: targetTenantId, to: body.to }),
+    // Read inside the tenant transaction, then release it before sending —
+    // an unreachable or slow SMTP host must never hold a pooled connection
+    // for the length of the attempt.
+    const readOutcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      readSmtpForTest(tx, targetTenantId),
     );
+    if (readOutcome.kind === 'not_configured') {
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', 'this tenant has no SMTP configuration'),
+      );
+    }
 
-    switch (outcome.kind) {
-      case 'not_configured':
-        return sendProblem(
-          reply,
-          request,
-          problem(400, 'about:blank', 'Bad Request', 'this tenant has no SMTP configuration'),
-        );
+    const sendOutcome = await sendTestMessage(readOutcome.record, deps.kek, body.to);
+    switch (sendOutcome.kind) {
       case 'send_failed':
         return sendProblem(
           reply,
           request,
-          problem(502, 'about:blank', 'Bad Gateway', outcome.detail),
+          problem(502, 'about:blank', 'Bad Gateway', sendOutcome.detail),
         );
       case 'sent':
         return reply.code(200).send({ sent: true });

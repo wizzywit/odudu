@@ -1052,6 +1052,13 @@ password wraps through the same envelope a signing key's private half does
 (`wrapSecret`/`unwrapSecret`, `@odudu/crypto`) — the column never carries
 plaintext.
 
+Neither route carries an `ETag`/`If-Match`, the deliberate deviation from
+the resource pattern's default: `PUT` already fully replaces the row, never
+a partial amend a concurrent writer could interleave with, and the
+password's own write-only shape removes the one case a race would matter
+for — a caller can never read the current value to decide whether its own
+write should still apply.
+
 Resolution order when this tenant's mail is actually sent
 (`apps/server/src/email.ts`'s `resolveSender`): this row first, then the
 deployment's own `ODUDU_SMTP_*` sender, then the capturing adapter. ADR

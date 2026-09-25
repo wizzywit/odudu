@@ -216,6 +216,27 @@ describe('audit', () => {
     expect(events).toHaveLength(1);
     expect(events[0]?.action).toBe('tenant.smtp_set');
   });
+
+  // putSmtp calls audit only after a successful upsert (see the source
+  // above), so a refusal that never reaches the usecase at all — the
+  // over-long password, refused at the route before any repository call —
+  // is proven to call it zero times by proving it changes nothing: the
+  // tenant is still unconfigured afterward.
+  it('reaches the reachable refusal and calls audit zero times, not just the success path', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await putSmtp(token, t.name, {
+      host: 'smtp.example.test',
+      port: 587,
+      from_address: 'noreply@example.test',
+      password: 'x'.repeat(257),
+    });
+
+    expect(res.statusCode).toBe(400);
+    const after = await getSmtp(token, t.name);
+    expect(after.json()).toMatchObject({ configured: false, password_set: false });
+  });
 });
 
 describe('repository, probed with a foreign tenant_id', () => {
