@@ -18,6 +18,14 @@ const TOTAL = 400;
 // rather than as three more paragraphs.
 const PER_SECTION = 130;
 
+// `loadDocument` splits on \n, so a file ending in one yields a final empty
+// entry that is not a line anybody wrote. Counting it would report 401 for a
+// 400-line file and refuse it, and the overage in the failure message is the
+// thing a reader acts on.
+function physicalLines(lines: readonly string[]): number {
+  return lines.at(-1) === '' ? lines.length - 1 : lines.length;
+}
+
 interface Measured {
   readonly heading: string;
   readonly headingLine: number;
@@ -29,13 +37,13 @@ function measure(): Measured[] {
   return sections(document, 4).map((section) => ({
     heading: section.heading,
     headingLine: section.headingLine,
-    lines: section.body.split('\n').length,
+    lines: physicalLines(section.body.split('\n')),
   }));
 }
 
 describe('docs/NEXT.md stays the size of an orientation', () => {
   it(`holds the whole file under ${String(TOTAL)} lines`, () => {
-    const total = loadDocument(GUIDE).lines.length;
+    const total = physicalLines(loadDocument(GUIDE).lines);
     const verdict = total <= TOTAL ? 'within budget' : `OVER by ${String(total - TOTAL)}`;
     expect(`${GUIDE}: ${String(total)} lines, ${verdict}`).toBe(
       `${GUIDE}: ${String(total)} lines, within budget`,
