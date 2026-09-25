@@ -16,6 +16,7 @@ import {
   type TestDatabase,
 } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { executionRepository } from '#/repository/executions';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { type PendingRequest } from '#/schema/authentication-sessions';
@@ -25,12 +26,14 @@ import { completePasskeyEnrolment } from '#/usecase/passkey-enrolment';
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
 import { beginTotpEnrolment, completeTotpEnrolment } from '#/usecase/totp-enrolment';
 
-// This suite pins the exact behaviour a default tenant's `BROWSER_FLOW_DEFAULT`
-// produced before `required` and `conditional` were split
-// (packages/authn-flows/src/service/requirements.ts). Every step in it is
-// `alternative` or `conditional`, never `required`, so the split changes
-// nothing here by construction — the values below were captured by running
-// this same walk against the pre-split code, then pasted in unchanged.
+// Pins the exact behaviour a default tenant's `BROWSER_FLOW_DEFAULT` produced
+// before `required` and `conditional` were split
+// (packages/authn-flows/src/service/requirements.ts). Every step in that
+// default flow is `alternative` or `conditional`, never `required`, so the
+// first four cases below changed nothing by construction — their values
+// were captured by running this same walk against the pre-split code, then
+// pasted in unchanged. The last case seeds a `required` row nothing here
+// provisions by default, and demonstrates the behaviour that did change.
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -203,5 +206,40 @@ describe('a default tenant login, walked for several subject shapes before and a
       advance(tx, authSessionId, { assertion }, undefined, { publicBaseUrl: PUBLIC_BASE_URL }),
     );
     expect(outcome).toEqual({ kind: 'success', subjectId, authenticators: ['passkey'] });
+  });
+
+  // The one shape none of the above can be: BROWSER_FLOW_DEFAULT has no
+  // `required` row, so nothing above touches the branch this increment
+  // actually changed. Before the split, an inapplicable `required` step
+  // passed exactly like `conditional` (requirements.test.ts's own
+  // "required versus conditional" cases pin that both ways); after it, this
+  // login has to fail instead of quietly succeeding a subject through a
+  // factor the tenant demanded but never got.
+  it('fails a login whose required otp step is inapplicable, where it used to pass', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+      const executions = executionRepository(tx);
+      await executions.create({
+        tenantId,
+        index: 0,
+        authenticator: 'password',
+        requirement: 'required',
+      });
+      await executions.create({
+        tenantId,
+        index: 1,
+        authenticator: 'otp',
+        requirement: 'required',
+      });
+    });
+    await seedUserWithPassword(tenantId, 'ada');
+    const authSessionId = await start(tenantId);
+
+    const outcome = await withTenant(app.db, tenantId, (tx) =>
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }),
+    );
+
+    expect(outcome).toEqual({ kind: 'failure', reason: 'no_applicable_execution' });
   });
 });

@@ -346,6 +346,21 @@ with no JS-side mirror standing behind it.
 - Trigger: `web_origins` getting its own shape validation ahead of the
   write, or a report that the CHECK has actually fired.
 
+### The flow-replace routes
+
+**`deferred:`** Every `PUT`-replace admin route (`groups/:id/roles`,
+`scopes/:id/roles`, and now `flow/executions`) answers no `ETag` and honours
+no `If-Match`, so two admins racing a replace get last-write-wins with
+neither told the other moved first. Consistent across the class, so it is a
+pattern decision rather than a defect in any one route.
+`validateFlowSteps` also admits a request naming the same authenticator
+twice; nothing rejects the duplicate, and whichever one dispatch reaches
+first is not obviously the caller's intent.
+
+- Trigger: a report of a lost concurrent edit, or `flow/executions` gaining
+  a UI (P4d) whose users are likelier to collide than a script calling the
+  admin API directly.
+
 ### The session set
 
 **The cap is per browser, and admits `cap + (k - 1)` under `k` concurrent
