@@ -23,9 +23,11 @@ describe('paramsSchemaFor', () => {
     expect(paramsSchemaFor('/admin/tenants')).toBeUndefined();
   });
 
-  // The rule holds for the table as it stands, so a later route cannot
-  // introduce a third kind of segment without this going red.
-  it('classifies every parameter in ADMIN_ROUTES as a tenant name or a row id', () => {
+  // Pins the set of names, not their meaning: a route that introduces a new
+  // parameter forces a decision here about whether it is a row id. A route
+  // that reused `:id` for something that is not one would still pass —
+  // nothing in a pattern distinguishes that, so it stays a review matter.
+  it('names every parameter in ADMIN_ROUTES, so a new one forces a decision', () => {
     const names = new Set(
       ADMIN_ROUTES.flatMap((route) => [...route.pattern.matchAll(/:(\w+)/gu)].map((m) => m[1])),
     );

@@ -61,3 +61,12 @@ describe('transportOptions, given an address the caller already checked', () => 
     expect(options.servername).toBeUndefined();
   });
 });
+
+describe('transportOptions, given a host that is already an address', () => {
+  it('sends no TLS server name, which RFC 6066 does not permit to be an IP', () => {
+    const options = transportOptions({ ...BASE, host: '203.0.113.10', address: '203.0.113.10' });
+
+    expect(options.host).toBe('203.0.113.10');
+    expect(options.servername).toBeUndefined();
+  });
+});

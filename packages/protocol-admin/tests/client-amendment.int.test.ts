@@ -1,4 +1,6 @@
 import { newId } from '@odudu/kernel';
+import { isWebOrigin } from '@odudu/protocol-oidc';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 
@@ -165,5 +167,47 @@ describe('PATCH clients, web_origins', () => {
     });
 
     expect(res.statusCode).toBe(200);
+  });
+});
+
+// The JS predicate exists so a caller learns which value was refused instead
+// of meeting the CHECK with the transaction already aborted. That only holds
+// while everything JS admits the CHECK admits too, and the two are written in
+// different regex dialects — JS's \s is not PostgreSQL's [:space:] — so the
+// containment is asserted here against the real function rather than reasoned
+// about.
+describe('the web_origins predicate against the CHECK it stands in front of', () => {
+  const CORPUS = [
+    'https://app.example.test',
+    'http://localhost:3000',
+    '+',
+    'https://app.example.test/callback',
+    'https://app.example.test?a=b',
+    'https://app.example.test#x',
+    'ftp://app.example.test',
+    'app.example.test',
+    '',
+    'https://a b',
+    'https://a b',
+    'https://a\u0085b',
+    'https://a\u001fb',
+    'https://a*b',
+  ];
+
+  it('admits nothing the database would refuse', async () => {
+    for (const origin of CORPUS) {
+      const rows = await fixture.owner.db.execute<{ ok: boolean | null }>(
+        sql`select web_origins_are_valid(array[${origin}]::text[]) as ok`,
+      );
+      const sqlAccepts = rows[0]?.ok === true;
+      const jsAccepts = isWebOrigin(origin);
+
+      expect(
+        `${JSON.stringify(origin)}: js=${String(jsAccepts)} sql=${String(sqlAccepts)}`,
+        'every value JS admits must be one the CHECK admits',
+      ).toBe(
+        `${JSON.stringify(origin)}: js=${String(jsAccepts)} sql=${String(jsAccepts && !sqlAccepts ? 'VIOLATION' : sqlAccepts)}`,
+      );
+    }
   });
 });

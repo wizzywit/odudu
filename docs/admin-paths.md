@@ -85,9 +85,10 @@ the way it is, and "Getting the token" below is the run every transcript
 here used.
 
 **Every path parameter but `{tenant}` is a row id**, narrowed before the
-route runs: an id PostgreSQL could not parse is refused with `400`, which a
-caller can tell apart from the `404` a well-formed id matching nothing
-answers. A tenant is addressed by name instead. The published OpenAPI
+route runs: an id that is not a canonical hyphenated UUID is refused with
+`400`, which a caller can tell apart from the `404` a well-formed id
+matching nothing answers. That is narrower than what PostgreSQL itself
+accepts — the hyphenless and brace-wrapped forms are refused here. A tenant is addressed by name instead. The published OpenAPI
 document declares each of these parameters, so a generated client knows the
 shape of what it is filling.
 
@@ -1710,10 +1711,7 @@ transport's own error answers back whether something is listening.
 `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS` re-admits the private ranges for a
 deployment whose relay genuinely is internal, the same escape hatch
 `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` gives that fetcher; loopback and
-link-local stay refused either way. Unlike that fetcher, the connection is
-opened by nodemailer resolving the name again rather than to the address
-checked here, so a name that answers differently on the second lookup is
-not caught.
+link-local stay refused either way.
 
 Neither route carries an `ETag`/`If-Match`, the deliberate deviation from
 the resource pattern's default: `PUT` already fully replaces the row, never

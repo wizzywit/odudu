@@ -208,6 +208,31 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
     expect(decode(access_token).roles).toEqual(['admin']);
   });
 
+  // The API refuses these at `PATCH /clients/{id}`; without the same check
+  // here the CHECK in 0015 is the only thing standing behind this door, and
+  // it answers with a driver stack trace rather than a reason.
+  it('refuses a web origin the database constraint would, naming it', async () => {
+    const tenantName = `demo-${newId()}`;
+    await seed(['tenant', '--name', tenantName]);
+
+    await expect(
+      seed([
+        'client',
+        '--tenant',
+        tenantName,
+        '--client-id',
+        'app',
+        '--public',
+        '--redirect-uri',
+        REDIRECT_URI,
+        '--web-origin',
+        'https://app.example/callback',
+      ]),
+    ).rejects.toThrow(
+      /--web-origin names https:\/\/app\.example\/callback, which is not an origin/u,
+    );
+  });
+
   it('qualifies a client role with its owning client', async () => {
     const tenantName = `demo-${newId()}`;
 

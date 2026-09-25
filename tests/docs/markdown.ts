@@ -186,8 +186,12 @@ export function sections(document: Document, atLeast: number): Section[] {
   let heading: { text: string; line: number } | null = null;
 
   const close = (): void => {
-    if (heading === null) return;
-    found.push({ heading: heading.text, headingLine: heading.line, body: body.join('\n') });
+    // Cleared either way: what precedes the first `## ` is the document's
+    // preamble, and leaving it in `body` would hand it to the first section
+    // as though the heading had covered it.
+    if (heading !== null) {
+      found.push({ heading: heading.text, headingLine: heading.line, body: body.join('\n') });
+    }
     body.length = 0;
   };
 

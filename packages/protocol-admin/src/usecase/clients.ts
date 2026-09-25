@@ -14,6 +14,7 @@ import {
 import {
   clientOidcConfig,
   clientOidcConfigRepository,
+  isWebOrigin,
   parseClientMetadata,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
@@ -593,15 +594,8 @@ function checkedStringArray(field: string, value: unknown): string[] | FieldErro
     : { field, description: `${field} must be an array of strings` };
 }
 
-// Mirrors `web_origins_are_valid` (0015_client_web_origins.sql): a bare
-// origin, or `+` for "every registered redirect URI's origin". Without a
-// mirror the CHECK is the only thing refusing, and a CHECK fires after the
-// statement has already aborted the transaction — so the caller is told
-// the server broke rather than which value it would not take.
-const WEB_ORIGIN = /^https?:\/\/[^/?#\s*]+$/u;
-
 function checkedWebOrigins(origins: readonly string[]): string[] | FieldError {
-  const bad = origins.find((origin) => origin !== '+' && !WEB_ORIGIN.test(origin));
+  const bad = origins.find((origin) => !isWebOrigin(origin));
   return bad === undefined
     ? [...origins]
     : {

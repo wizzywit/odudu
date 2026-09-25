@@ -808,6 +808,7 @@ export { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-co
 export {
   parseClientMetadata,
   GRANT_TYPES_PERMITTED,
+  isWebOrigin,
   type ClientMetadata,
   type ClientMetadataOutcome,
 } from '#/service/client-metadata';

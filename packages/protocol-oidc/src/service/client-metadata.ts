@@ -42,6 +42,18 @@ export const GRANT_TYPES_PERMITTED = new Set([
   'urn:ietf:params:oauth:grant-type:token-exchange',
 ]);
 
+// `web_origins_are_valid` (0015_client_web_origins.sql) in JS, so a caller
+// learns which value was refused rather than meeting the CHECK with its
+// transaction already aborted. Deliberately narrower, never identical: the
+// two regex dialects disagree about whitespace both ways, so this refuses
+// the C0 and C1 ranges too. `client-amendment.int.test.ts` holds the
+// containment against the real function.
+const WEB_ORIGIN = /^https?:\/\/[^/?#*\s\u0000-\u001f\u007f-\u009f]+$/u;
+
+export function isWebOrigin(value: string): boolean {
+  return value === '+' || WEB_ORIGIN.test(value);
+}
+
 // client_oidc_config_auth_method_check (migration 0045_client_registration_metadata.sql).
 const AUTH_METHODS_PERMITTED = new Set([
   'client_secret_basic',

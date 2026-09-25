@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import { createTransport } from 'nodemailer';
 import type { EmailMessage, EmailSender } from '#/service/sender';
 
@@ -50,7 +51,11 @@ export function transportOptions(config: SmtpConfig): SmtpTransportOptions {
   const carriesCredentials = config.username !== undefined || config.password !== undefined;
   return {
     host: config.address ?? config.host,
-    ...(config.address === undefined ? {} : { servername: config.host }),
+    // Only for a host that is a name: RFC 6066 does not permit an IP as the
+    // TLS server name, and Node warns then ignores one (DEP0123). A tenant
+    // that configured an address has nothing for a certificate to match
+    // anyway.
+    ...(config.address !== undefined && isIP(config.host) === 0 ? { servername: config.host } : {}),
     port: config.port,
     secure: false,
     requireTLS: carriesCredentials || (config.starttls ?? false),

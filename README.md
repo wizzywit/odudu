@@ -56,10 +56,10 @@ it.
 (a preflight from the tenant's union of every client's, since it carries no
 client identity to check against one) — see
 [the CORS section of docs/request-paths.md](docs/request-paths.md#cors-the-preflight-and-the-request-differ).
-`seed client --web-origin` registers them as it creates a client; changing
-one on a client that already exists means updating
-`client_oidc_config.web_origins` directly, because `seed client` refuses an
-existing client rather than widening a registered list on a re-run.
+`seed client --web-origin` registers them as it creates a client, and
+`PATCH /admin/tenants/{tenant}/clients/{id}` amends the list afterwards —
+`seed client` itself refuses an existing client rather than widening a
+registered list on a re-run.
 
 `seed client --grant-type` names the grants a client is registered for,
 repeatable, and validates each one against the same list the

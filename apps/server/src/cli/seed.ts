@@ -40,6 +40,7 @@ import { loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
   GRANT_TYPES_PERMITTED,
+  isWebOrigin,
   provisionAdminClient,
   tenantLookupRepository,
   type ClientOidcConfig,
@@ -1053,6 +1054,14 @@ async function runClientCommand(
   // RP-Initiated Logout §2 matches these exactly, the same way §3 matches a
   // redirect URI, so a relative one is as meaningless here as there.
   assertAbsoluteRedirectUris(postLogoutRedirectUris);
+  const badOrigins = webOrigins.filter((origin) => !isWebOrigin(origin));
+  if (badOrigins.length > 0) {
+    throw new OduduError(
+      'seed_invalid_options',
+      `--web-origin names ${badOrigins.join(', ')}, which is not an origin: ` +
+        'expected a scheme and host with no path, or "+" for every registered redirect URI\u2019s origin',
+    );
+  }
 
   const type: ClientRecord['type'] = values.public === true ? 'public' : 'confidential';
   const requestedGrantTypes = values['grant-type'];

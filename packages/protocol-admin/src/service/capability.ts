@@ -568,8 +568,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: listExecutionsResponseSchema,
     bodySchema: replaceExecutionsRequestSchema,
     description:
-      'Refused with 400 for an empty list, a list where every step is disabled, or an ' +
-      'authenticator name the registry does not resolve. ' +
+      'Refused with 400 for an empty list, a list where every step is disabled, an ' +
+      'authenticator name the registry does not resolve, or the same authenticator named twice. ' +
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
   },
   // Read-only: view-audit carries no manage- counterpart, since nothing
