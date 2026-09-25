@@ -42,6 +42,8 @@ export {
   type NewClientScope,
   type ClientScopePatch,
 } from '#/repository/client-scopes';
+export { clientScopeMappers } from '#/schema/client-scope-mappers';
+export { clientScopeMapperRepository } from '#/repository/client-scope-mappers';
 export {
   provisionClientDefaults,
   provisionTenantDefaults,

@@ -241,7 +241,7 @@ export async function resolveUserinfo(
     ...ctx,
     roles: narrowByScopeMappings(ctx.roles, reachableRoleIds, fullScopeAllowed),
   };
-  const assembled = await deps.claimMappers.assemble(scope, narrowedCtx);
+  const assembled = await deps.claimMappers.assemble(scope, narrowedCtx, narrowedCtx.bindings);
   // `sub` is kept regardless of what was requested — OIDC Core §5.3.2's own
   // response, not a claim `narrowToRequestedClaims` was ever meant to cut.
   const requested = requestedClaimsOf(payload.requested_userinfo_claims);

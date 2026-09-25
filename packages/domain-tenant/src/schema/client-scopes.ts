@@ -24,9 +24,11 @@ export const clientScopes = pgTable('client_scopes', {
 
 // Lives beside the table, not in the repository, so that `service` can
 // reference the shape of a scope without depending on the repository that
-// reads it. Deliberately carries no list of claim mappers: a mapper
+// reads it. Deliberately carries no list of claim mappers: a mapper still
 // declares the scopes it reads (packages/protocol-oidc/src/service/claims.ts),
-// not the other way around.
+// but a tenant may override which of them a scope actually reaches — see
+// `client_scope_mappers` (client-scope-mappers.ts), the per-tenant binding
+// table that carries the override, keyed by scope rather than by tenant.
 export interface ClientScopeRecord {
   id: string;
   tenantId: string;

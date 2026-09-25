@@ -29,15 +29,20 @@ import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
-import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-tenant';
-import { systemClock, type Clock } from '@odudu/kernel';
+import {
+  clientRepository,
+  clientScopeMapperRepository,
+  clientScopeRepository,
+  consentRepository,
+} from '@odudu/domain-tenant';
+import { systemClock, type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
 import { tenantLookupRepository } from '#/repository/tenant-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
-import { standardClaimMappers } from '#/service/claims';
+import { standardClaimMappers, type ClaimContext } from '#/service/claims';
 import { type LiveClientLookup } from '#/service/client-enabled';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import {
@@ -105,6 +110,12 @@ export interface OidcRoutesDeps {
   // (#/repository/client-keys.ts). `apps/server/src/app.ts` supplies the
   // real one, wired to `node:https` and `node:dns`.
   clientKeySet: ClientKeySet;
+  // Shared with @odudu/protocol-admin's scope-mapper routes so the two
+  // never list different mappers (`GET /scopes/:id/mappers` reads its
+  // available names from the same registry this plugin assembles claims
+  // from). Defaults to `standardClaimMappers()` for a caller — a test, most
+  // often — with no admin API to share it with.
+  claimMappers?: ClaimMapperRegistry<ClaimContext>;
   // Gates tls_client_auth client authentication at /token the same way it
   // already gates Fastify's own `X-Forwarded-*` trust
   // (apps/server/src/app.ts). Defaults off, the same as that trust does —
@@ -132,19 +143,23 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const clientSecretLimiter = deps.clientSecretLimiter;
     const clientKeySet = deps.clientKeySet;
     // One registry per process, shared by discovery (claimNames, for
-    // claims_supported), /userinfo, and token issuance's ID token claims —
-    // so a mapper registered once reaches every consumer the same way.
-    const claimMappers = standardClaimMappers();
+    // claims_supported), /userinfo, token issuance's ID token claims, and
+    // (via `deps.claimMappers`) @odudu/protocol-admin's scope-mapper
+    // routes — so a mapper registered once reaches every consumer the same
+    // way, and the admin API can never list a mapper this registry does
+    // not itself run.
+    const claimMappers = deps.claimMappers ?? standardClaimMappers();
     // Roles need a recursive CTE (effectiveRoles), which a claim mapper must
     // never run itself — resolved here, once per issuance, alongside the
-    // user row and the subject's direct group memberships, and handed to
-    // the mappers as data.
+    // user row, the subject's direct group memberships, and the tenant's
+    // own scope-mapper bindings, and handed to the mappers as data.
     const loadClaimContext = (tenantId: string, subjectId: string) =>
       withTenant(deps.database.db, tenantId, async (tx) => ({
         subjectId,
         user: await userRepository(tx).bySubjectId(subjectId),
         roles: await effectiveRoles(tx, subjectId),
         groups: await effectiveGroupPaths(tx, subjectId),
+        bindings: await clientScopeMapperRepository(tx).bindingsByScopeName(tenantId),
       }));
 
     // The keys /jwks publishes, and the ones an `id_token_hint` is checked
@@ -379,7 +394,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
     registerDiscoveryRoute(app, {
       findTenant,
-      claimNames: () => claimMappers.claimNames(),
+      claimNames: async (tenantId) => {
+        const scopes = await scopesForTenant(tenantId);
+        const bindings = await withTenant(deps.database.db, tenantId, (tx) =>
+          clientScopeMapperRepository(tx).bindingsByScopeName(tenantId),
+        );
+        return claimMappers.claimNamesForScopes(scopes, bindings);
+      },
       scopesForTenant,
       algorithmsAvailable,
       userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,
@@ -838,3 +859,4 @@ export {
   UNLIMITED_CLIENT_SECRET_LIMITER,
   type ClientSecretLimiter,
 } from '#/service/client-secret-throttle';
+export { standardClaimMappers, type ClaimContext } from '#/service/claims';

@@ -4,7 +4,7 @@ import { standardClaimMappers, type ClaimContext } from '#/service/claims';
 const subjectId = 'subject-1';
 
 function ctx(user: ClaimContext['user']): ClaimContext {
-  return { subjectId, user, roles: [], groups: [] };
+  return { subjectId, user, roles: [], groups: [], bindings: new Map() };
 }
 
 // Builds a context straight from profile-field overrides, for tests that
@@ -59,6 +59,7 @@ const roleGroupCtx: ClaimContext = {
     { roleId: 'r3', name: 'admin', clientKey: null },
   ],
   groups: ['/engineering/platform', '/engineering'],
+  bindings: new Map(),
 };
 
 describe('the standard OIDC claim mappers', () => {

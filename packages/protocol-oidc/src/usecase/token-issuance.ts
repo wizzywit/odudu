@@ -390,7 +390,11 @@ async function mintAccessToken(
       input.fullScopeAllowed,
     ),
   };
-  const mapped = await deps.claimMappers.assemble(input.accessTokenScope, narrowedContext);
+  const mapped = await deps.claimMappers.assemble(
+    input.accessTokenScope,
+    narrowedContext,
+    narrowedContext.bindings,
+  );
 
   const accessTokenClaims = withRegisteredClaimsWinning(mapped, {
     iss: deps.issuer,
@@ -508,7 +512,11 @@ async function issueAuthorizationCodeTokens(
     // arrives through it too, so there is exactly one place that decides
     // what a subject's `openid`/`profile`/`email` scopes produce, not one
     // for the ID token and a second for /userinfo.
-    const assembledClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    const assembledClaims = await deps.claimMappers.assemble(
+      idTokenScope,
+      narrowedContext,
+      narrowedContext.bindings,
+    );
     // `auth_time` never comes from `standardClaimMappers` (the envelope
     // sets it below), so it is excluded here — otherwise a `max_age`-only
     // request, naming nothing else, would narrow away every other claim.
@@ -1129,7 +1137,11 @@ async function issueExchangedTokens(
       ...claimContext,
       roles: narrowByScopeMappings(claimContext.roles, reachable, client.fullScopeAllowed),
     };
-    const mapped = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    const mapped = await deps.claimMappers.assemble(
+      idTokenScope,
+      narrowedContext,
+      narrowedContext.bindings,
+    );
     const iat = Math.floor(now.getTime() / 1000);
     const ttlExp = iat + config.accessTokenTtlSeconds;
     const ceiling = expCeiling === undefined ? ttlExp : Math.floor(expCeiling.getTime() / 1000);

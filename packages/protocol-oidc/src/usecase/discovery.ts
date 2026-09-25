@@ -4,10 +4,12 @@ import { tenantIssuer } from '#/service/issuer';
 
 export interface DiscoveryUsecaseDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
-  // The claim mapper registry's own `claimNames()`, and the tenant's own
-  // scope rows — never a parallel literal, so neither list can advertise
-  // something `/userinfo`, ID token issuance or `/authorize` disagree with.
-  claimNames(): readonly string[];
+  // The claim mapper registry's own `claimNamesForScopes`, applied to this
+  // tenant's own scope rows and binding overrides — never a parallel
+  // literal, so neither list can advertise something `/userinfo`, ID token
+  // issuance or `/authorize` disagree with. Per tenant, because a binding
+  // narrows what one tenant's scopes reach without touching another's.
+  claimNames(tenantId: string): Promise<readonly string[]>;
   scopesForTenant(tenantId: string): Promise<readonly string[]>;
   // Empty for a tenant provisioned before a key was generated for it.
   algorithmsAvailable(tenantId: string): Promise<readonly string[]>;
@@ -36,7 +38,7 @@ export async function resolveDiscoveryDocument(
   const algs = [...(await deps.algorithmsAvailable(tenant.id))].sort();
   return discoveryDocument({
     issuer: tenantIssuer(issuerBase, tenantName),
-    claimsSupported: deps.claimNames(),
+    claimsSupported: await deps.claimNames(tenant.id),
     scopesSupported,
     // `none` always belongs: it needs no key (OIDC Discovery §3).
     userinfoSigningAlgSupported: [...algs, 'none'],

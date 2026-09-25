@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolveDiscoveryDocument } from '#/usecase/discovery';
 
-const claimNames = () => ['sub', 'name', 'email', 'email_verified'];
+const claimNames = () => Promise.resolve(['sub', 'name', 'email', 'email_verified']);
 // Rows come back from client_scopes in no particular order, so this returns
 // them out of order deliberately.
 const scopesForTenant = () => Promise.resolve(['profile', 'openid', 'email']);

@@ -20,7 +20,7 @@ import {
 } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
-import { clientKeySet, oidcRoutes } from '@odudu/protocol-oidc';
+import { clientKeySet, oidcRoutes, standardClaimMappers } from '@odudu/protocol-oidc';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
@@ -191,6 +191,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     allowPrivate: deps.allowPrivateClientUrls ?? false,
   });
 
+  // One instance for the process, shared by `oidcRoutes` (issuance and
+  // discovery) and `adminRoutes` (`GET /scopes/:id/mappers`'s available
+  // names) — so the two can never disagree about which mappers exist.
+  const claimMappers = standardClaimMappers();
+
   // At onRequest, so a refusal costs neither the body parse nor anything
   // that touches the database. It is also what keeps the refusal from
   // being an oracle: nothing here has looked an account up, so a throttled
@@ -229,6 +234,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       kek: deps.kek,
       clientSecretLimiter,
       clientKeySet: privateKeyJwtKeySet,
+      claimMappers,
       ...(deps.publicBaseUrl === undefined ? {} : { publicBaseUrl: deps.publicBaseUrl }),
       trustProxy: deps.trustProxy ?? false,
       ...(deps.tlsClientCertHeader === undefined
