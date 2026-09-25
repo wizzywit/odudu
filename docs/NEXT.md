@@ -221,7 +221,7 @@ half present. Replacing request-derived issuers everywhere changes how
 `iss` is minted on every token, ID token and Logout Token, on the RFC 9207
 parameter and in discovery, which is why P4c did not do it in passing.
 
-- Trigger: **P11** or **P12**, whichever first reworks deployment configuration.
+- Trigger: **P12**, whose criterion now names it.
 
 **Neither of the server's two outbound DNS lookups carries a deadline.**
 `createLogoutDeliveryTransport`'s `defaultLookup`
