@@ -358,6 +358,24 @@ server's request and its answer.
   `/userinfo` needs a tighter timeout than `/token`'s shared default, since
   it sits on a resource server's request rather than a client's own.
 
+**A tenant's SMTP host is checked by address and then dialled by name.**
+`checkSmtpDestination` (`packages/protocol-admin/src/service/smtp-destination.ts`)
+resolves the host and refuses loopback, link-local, private and the other
+reserved ranges in the numeric domain, exactly as ADR 0028 bounds a
+client-supplied `jwks_uri`. Unlike that fetcher, nodemailer then resolves
+the name again itself, so a name answering differently on the second lookup
+reaches an address this check refused. The fix is the shape that fetcher
+already has: inject a `lookup` into the transport that answers only the
+addresses already checked, or connect to the checked address and carry the
+hostname as an SNI/`servername` override so certificate verification still
+names the host the tenant configured. Either keeps one resolution between
+the check and the connection.
+
+- Trigger: **P11** or **P12**, whichever reworks outbound transport
+  configuration — the same pass that bounds the two undeadlined lookups
+  above, since all three are the one question of how this server opens an
+  outbound connection.
+
 **One configured issuer base for the whole deployment.** The admin API
 verifies a token's `iss` by deriving it from the request, the same way
 `/token` mints it, because there is no configured issuer to compare against
