@@ -33,6 +33,8 @@ const UNDECLARED_TABLES = new Set(['__drizzle_migrations']);
 const EXPECTED_CHECKS: Record<string, string> = {
   'action_tokens.action_tokens_type_check':
     "CHECK ((type = ANY (ARRAY['verify_email'::text, 'reset_password'::text])))",
+  'tenants.tenants_audit_retention_days_range':
+    'CHECK (((audit_retention_days >= 1) AND (audit_retention_days <= 3650)))',
   'audit_events.audit_events_outcome':
     "CHECK ((outcome = ANY (ARRAY['allowed'::text, 'refused'::text, 'failed'::text])))",
   'authentication_executions.authentication_executions_requirement':

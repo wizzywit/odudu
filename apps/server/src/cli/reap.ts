@@ -27,7 +27,8 @@ export type TableName =
   | 'email_outbox'
   | 'backchannel_logout_deliveries'
   | 'client_assertion_jti'
-  | 'sessions';
+  | 'sessions'
+  | 'audit_events';
 
 /** Rows deleted per table, summed over every tenant the pass visited. */
 export type ReapReport = Record<TableName, number>;
@@ -327,6 +328,21 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
             WHERE g.tenant_id = s.tenant_id AND g.session_id = s.id)
     `,
   },
+
+  // Its own per-tenant window, like login_failures' reset — never one of
+  // the policy's own fields, since an audit trail's retention is a tenant
+  // decision, not a deployment one. Nothing references a row here, so it
+  // has no `after` and needs none.
+  audit_events: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM audit_events e
+       USING tenants r
+       WHERE r.id = e.tenant_id
+         AND e.occurred_at < ${now.toISOString()}::timestamptz
+             - make_interval(days => r.audit_retention_days)
+    `,
+  },
 };
 
 /**
@@ -347,6 +363,7 @@ export const REAP_ORDER: readonly TableName[] = [
   'backchannel_logout_deliveries',
   'client_assertion_jti',
   'sessions',
+  'audit_events',
 ];
 
 /**

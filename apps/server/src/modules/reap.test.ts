@@ -84,6 +84,7 @@ const SWEPT: ReapOutcome = {
     backchannel_logout_deliveries: 0,
     client_assertion_jti: 0,
     sessions: 1,
+    audit_events: 0,
   },
 };
 

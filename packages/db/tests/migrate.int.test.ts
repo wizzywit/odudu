@@ -40,6 +40,7 @@ describe('migrations', () => {
     `;
 
     expect(rows.map((row) => row.column_name)).toEqual([
+      'audit_retention_days',
       'brute_force_failure_reset_seconds',
       'brute_force_lockout_seconds',
       'brute_force_max_failures',

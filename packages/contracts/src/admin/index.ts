@@ -10,6 +10,14 @@ export {
   etagSchema,
 } from '#/admin/shared';
 export {
+  listAuditQuerySchema,
+  type ListAuditQuery,
+  auditEventSchema,
+  type AuditEvent,
+  listAuditResponseSchema,
+  type ListAuditResponse,
+} from '#/admin/audit';
+export {
   createTenantRequestSchema,
   type CreateTenantRequest,
   tenantSchema,

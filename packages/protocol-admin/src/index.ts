@@ -61,6 +61,7 @@ import {
   retireKeyHandler,
   type KeysRouteDeps,
 } from '#/view/routes/keys';
+import { listAuditHandler, type AuditRouteDeps } from '#/view/routes/audit';
 import { registerOpenApiRoute } from '#/view/routes/openapi';
 import {
   addRoleCompositeHandler,
@@ -285,6 +286,10 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       now: () => clock.now(),
       findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
     };
+    const auditDeps: AuditRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+    };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler,
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
@@ -342,6 +347,7 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       'POST /admin/tenants/:tenant/keys/:id/retire': retireKeyHandler(keysDeps),
       'GET /admin/tenants/:tenant/flow/executions': listFlowHandler(flowDeps),
       'PUT /admin/tenants/:tenant/flow/executions': replaceFlowHandler(flowDeps),
+      'GET /admin/tenants/:tenant/audit': listAuditHandler(auditDeps),
     };
 
     const authDeps: AuthenticateAdminDeps = {

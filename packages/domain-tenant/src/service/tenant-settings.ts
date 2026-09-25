@@ -37,6 +37,7 @@ const SETTINGS = {
   remember_me_allowed: { column: 'rememberMeAllowed', type: 'boolean' },
   remember_me_idle_seconds: { column: 'rememberMeIdleSeconds', type: 'integer' },
   remember_me_max_seconds: { column: 'rememberMeMaxSeconds', type: 'integer' },
+  audit_retention_days: { column: 'auditRetentionDays', type: 'integer' },
 } as const satisfies Record<string, { column: TenantColumn; type: 'boolean' | 'integer' | 'text' }>;
 
 export type TenantSettingName = keyof typeof SETTINGS;

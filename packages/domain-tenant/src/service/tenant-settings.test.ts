@@ -6,6 +6,7 @@ describe('the settings a tenant exposes for configuration', () => {
     expect(TENANT_SETTING_NAMES).toContain('otp_required');
     expect(TENANT_SETTING_NAMES).toContain('password_max_age_days');
     expect(TENANT_SETTING_NAMES).toContain('sso_session_idle_seconds');
+    expect(TENANT_SETTING_NAMES).toContain('audit_retention_days');
     // A tenant's identity is not a setting: renaming one breaks every issuer
     // URL already in a token, and its id is what row-level security keys on.
     expect(TENANT_SETTING_NAMES).not.toContain('id');
@@ -111,6 +112,14 @@ describe('coercing a value that arrived as a string', () => {
       kind: 'coerced',
       column: 'rememberMeMaxSeconds',
       value: 2_592_000,
+    });
+  });
+
+  it('coerces audit_retention_days', () => {
+    expect(coerceTenantSetting('audit_retention_days', '30')).toEqual({
+      kind: 'coerced',
+      column: 'auditRetentionDays',
+      value: 30,
     });
   });
 });

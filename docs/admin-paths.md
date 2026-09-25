@@ -120,6 +120,7 @@ document's.
 | `GET`    | `/admin/tenants/{tenant}/smtp`                                   | Read a tenant's own SMTP configuration    |
 | `PUT`    | `/admin/tenants/{tenant}/smtp`                                   | Replace a tenant's own SMTP configuration |
 | `POST`   | `/admin/tenants/{tenant}/smtp/test`                              | Send one test message                     |
+| `GET`    | `/admin/tenants/{tenant}/audit`                                  | List the tenant's audit trail             |
 | `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference                     |
 
 ## `GET /admin/tenants`
@@ -1098,6 +1099,66 @@ curl -sS -X POST \
   -H "Content-Type: application/json" \
   -d '{"to": "ops@demo.example"}' \
   http://localhost:3000/admin/tenants/demo/smtp/test
+```
+
+## `GET /audit`
+
+Requires `view-audit`, which carries no `manage-` counterpart: nothing ever
+amends a row here, only `reap` deletes one once it is older than the
+tenant's own `audit_retention_days` setting. Every admin mutation above
+writes exactly one row here, in the same transaction as the change itself —
+a client's `POST`, `PATCH`, `DELETE` and secret rotation; a tenant's
+`POST` and its own `PATCH /settings`; and the equivalent for subjects,
+roles, groups, scopes, scope mappers, sessions, signing keys, the flow and
+SMTP configuration. A row records the outcome even when the mutation was
+refused, not only when it succeeded — `outcome` is `allowed`, `refused` or
+`failed` — and `detail` is a redacted before/after diff: a secret, a
+password hash or a private key never appears in it, whichever of the two
+it would have been.
+
+`tenant_id` on a row is the tenant the change was made **to**, not the
+tenant of whoever made it — a system admin's change to this tenant is a row
+this tenant's own administrators can read, exactly because it is keyed this
+way.
+
+Paginated the same way every other list here is, over
+`(occurred_at, id)` descending rather than ascending `id`: newest first.
+Filters narrow the page rather than requiring one: `actor_subject_id`,
+`resource_type`, `action`, `outcome`, and a `from`/`to` range on
+`occurred_at` (ISO 8601, with an offset).
+
+```bash
+curl -sS -G \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "resource_type=client" \
+  --data-urlencode "action=client.create" \
+  --data-urlencode "limit=20" \
+  http://localhost:3000/admin/tenants/demo/audit
+```
+
+The response shape, not a captured run:
+
+```json
+{
+  "items": [
+    {
+      "id": "0199aa00-0000-7000-8000-000000000099",
+      "occurred_at": "2026-09-24T12:00:00.000Z",
+      "event_type": "admin_mutation",
+      "action": "client.create",
+      "outcome": "allowed",
+      "actor_tenant_id": "0199aa00-0000-7000-8000-000000000001",
+      "actor_subject_id": "0199aa00-0000-7000-8000-0000000000aa",
+      "actor_client_id": null,
+      "resource_type": "client",
+      "resource_id": "0199aa00-0000-7000-8000-0000000000bb",
+      "request_id": null,
+      "ip": null,
+      "detail": { "name": { "before": null, "after": "billing-app" } }
+    }
+  ],
+  "next": "eyJhZnRlciI6IjIwMjYtMDktMjRUMTE6NTk6MDAuMDAwWnwwMTk5YWEwMC0uLi4iLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6Ii4uLiJ9.…"
+}
 ```
 
 ## `GET /admin/openapi.json`

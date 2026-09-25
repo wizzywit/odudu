@@ -72,4 +72,8 @@ export const tenants = pgTable('tenants', {
   rememberMeAllowed: boolean('remember_me_allowed').notNull().default(false),
   rememberMeIdleSeconds: integer('remember_me_idle_seconds').notNull().default(604_800),
   rememberMeMaxSeconds: integer('remember_me_max_seconds').notNull().default(2_592_000),
+  // How long `reap` keeps this tenant's audit_events rows
+  // (packages/db/drizzle/0068_audit_retention.sql). 90 days by default, so
+  // an upgraded tenant is bounded rather than growing the table forever.
+  auditRetentionDays: integer('audit_retention_days').notNull().default(90),
 }).enableRLS();

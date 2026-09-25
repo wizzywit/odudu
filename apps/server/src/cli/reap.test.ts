@@ -43,6 +43,7 @@ describe('the order the retention pass runs in', () => {
         'backchannel_logout_deliveries',
         'client_assertion_jti',
         'sessions',
+        'audit_events',
       ]);
     }).toThrow(/token_grants before refresh_tokens/u);
   });

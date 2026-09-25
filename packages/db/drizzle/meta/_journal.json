@@ -477,6 +477,13 @@
       "when": 1789049381710,
       "tag": "0067_admin_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1789049381711,
+      "tag": "0068_audit_retention",
+      "breakpoints": true
     }
   ]
 }

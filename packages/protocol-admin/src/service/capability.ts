@@ -1,6 +1,8 @@
 import {
   addRoleCompositeRequestSchema,
   amendClientRequestSchema,
+  listAuditQuerySchema,
+  listAuditResponseSchema,
   amendGroupRequestSchema,
   amendRoleRequestSchema,
   amendScopeRequestSchema,
@@ -507,6 +509,16 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Refused with 400 for an empty list, a list where every step is disabled, or an ' +
       'authenticator name the registry does not resolve.',
+  },
+  // Read-only: view-audit carries no manage- counterpart, since nothing
+  // ever amends a row here — reap is the only other writer, and it deletes
+  // rather than amends.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/audit',
+    capability: 'view-audit',
+    responseSchema: listAuditResponseSchema,
+    querystringSchema: listAuditQuerySchema,
   },
 ];
 
