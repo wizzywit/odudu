@@ -369,7 +369,7 @@ ALTER TABLE token_grants ADD CONSTRAINT token_grants_session_fk
   ON DELETE SET NULL (session_id);
 ```
 
-(Confirm the constraint's current columns first: `psql -c "\d token_grants"` against a migrated test database, since `0057` renamed `realm_id` to `tenant_id`.)
+(Confirm the constraint's current columns first: `psql -c "\d token_grants"` against a migrated test database, since `0057` renamed the tenant column after `0026` created it.)
 
 Rows: `token.issue` for `authorization_code` and `client_credentials`
 (`detail.grant_type`, `detail.scope`, `resource_type: 'grant'`); `token.exchange`
