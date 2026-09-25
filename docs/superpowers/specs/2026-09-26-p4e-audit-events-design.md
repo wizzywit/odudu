@@ -62,7 +62,7 @@ Out of scope, and placed:
 6. **An attempted username is never recorded.**
 7. **A foreign-issuer admin token is verified before it is recorded.**
 8. **`requested_userinfo_claims` lives on the grant row**, and migration
-   `0069` fixes `token_grants_session_fk` in passing.
+   `0070` fixes `token_grants_session_fk` in passing.
 
 ## 4. The package
 
@@ -136,8 +136,14 @@ session view is complete whoever ended it, and the admin view is unchanged.
   `subject` for credential events.
 - `outcome` — `allowed`, or `refused` with `detail.reason`. `failed` stays
   reserved for a server fault, as P4c defined it.
-- `request_id`, `ip` — filled on every row this phase writes, and threaded
-  into `protocol-admin`'s writer, which has never filled them.
+- `request_id`, `ip` — filled on every row this phase writes, admin rows
+  included, which have never had them. They reach the row the way
+  `tenant_id` already does: `withTenant` takes an optional request context
+  and binds `app.request_id` and `app.client_ip` with `set_config(…, true)`,
+  and migration `0069_audit_request_context.sql` defaults both columns from
+  those settings. So a writer threads nothing but the context to the
+  transaction it opens, and `ip` comes from `request.ip` alone, which
+  `ODUDU_TRUST_PROXY` already governs.
 
 ## 6. What a row may carry
 
@@ -265,7 +271,8 @@ there is caught per §7.
 
 ## 10. `requested_userinfo_claims` on the grant
 
-Migration `0069_grant_userinfo_claims.sql`:
+Migration `0070_grant_userinfo_claims.sql` (`0069` is §5's request
+context, which lands first):
 
 - adds `token_grants.requested_userinfo_claims text[]`, nullable;
 - replaces `token_grants_session_fk`'s unrestricted `ON DELETE SET NULL`
@@ -300,8 +307,10 @@ Each rule below answers a failure shape `docs/phases/p4c.md` recorded.
 
 - **Every row is proven by driving the door a user reaches** — an HTTP
   login, `/token`, `/revoke`, `/logout`, an admin request — and reading the
-  row back through `GET /audit`. A test against `record` proves `record`
-  exists.
+  row back through `GET /audit` in `protocol-admin`'s tests, or through
+  `auditRepository.list`, the function `GET /audit` calls, where a
+  `protocol-oidc` test may not import the admin API. A test against
+  `record` proves `record` exists.
 - **Every action in the vocabulary has a production writer.** A lint-style
   test in `tests/lint/` greps non-test sources under `packages/` for each
   action literal and fails naming any that no production file writes.
@@ -345,7 +354,7 @@ Each is 2–6 hours, independently mergeable, and ends green.
    `protocol-admin`'s included; the `event_type` filter.
 3. Login and second-factor rows, lockout.
 4. Session rows: created, ended, evicted.
-5. Migration `0069` and `requested_userinfo_claims`; token success rows.
+5. Migration `0070` and `requested_userinfo_claims`; token success rows.
 6. Token refusal rows, the sibling-transaction catch, `auditRefusalBudget`.
 7. Admin access rows: `403`s and the foreign issuer.
 8. Credential lifecycle rows.
@@ -359,7 +368,7 @@ Every claim about this repository above was grepped before it was written.
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `admin_mutation` is the only `event_type` written                      | `grep -rn "eventType: '" packages` → `packages/protocol-admin/src/index.ts:214` only                                      |
 | Nothing fills `request_id` or `ip`                                     | `grep -rn "requestId" packages/protocol-admin/src` → the input type, the insert and the schema; no caller                 |
-| Migration `0069` is free                                               | `ls packages/db/drizzle \| grep 0069` → nothing                                                                           |
+| Migrations `0069`, `0070` are free                                     | `ls packages/db/drizzle \| grep 0069` → nothing                                                                           |
 | `token_grants_session_fk` is an unrestricted `SET NULL` on a composite | `sed -n 18,20p packages/db/drizzle/0026_token_grants_session.sql`                                                         |
 | `0059` is the column-list idiom                                        | `grep -n "SET NULL" packages/db/drizzle/0059_token_exchange.sql` → `ON DELETE SET NULL (actor_subject_id)`                |
 | The refresh mint omits `requestedUserinfoClaims`                       | `grep -n requestedUserinfoClaims packages/protocol-oidc/src/usecase/token-issuance.ts` → the code path only               |
