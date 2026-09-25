@@ -18,15 +18,21 @@ this document never starts a second one. An admin endpoint that does not do
 yet what its name suggests says so in its own section below, and points at
 that list rather than duplicating it.
 
-This document holds two kinds of section. One is captured against a live
-stack and follows the same transcript discipline as
-[docs/request-paths.md](request-paths.md): a fenced block holding a
+Every transcript below is captured output, and follows the same discipline
+as [docs/request-paths.md](request-paths.md): a fenced block holding a
 response carries no language tag, a section whose output depends on the
 state of the stack it ran against says which state, and a precondition a
-refusal depends on is shown rather than asserted. The other is not yet
-captured, and says so plainly — "the response shape, not a captured run" —
-rather than presenting invented bytes as if they were real. Every section
-below names which one it is.
+refusal depends on is shown rather than asserted.
+
+**The stack.** One run of `infra/docker/compose.yaml`, brought up from an
+empty volume, with `odudu seed admin --username ada` run against it and a
+tenant named `demo` created through `POST /admin/tenants` below. The
+sections are in the order they were executed, so the ids, secrets, `ETag`s
+and timestamps in them are one run's real ones and refer to each other:
+`demo` is `01a0d6fc-3626-7e23-94d7-3b1b666e278f`, `ada` in the `system`
+tenant is subject `01a0d6fb-0918-7846-b430-0a714b8bf7bf`. Secrets shown
+here are that stack's, and it was torn down with `docker compose down -v`
+when the capture finished.
 
 ## The shape of it
 
@@ -62,9 +68,10 @@ protocol surface does not authorize anything here — and the request is refused
 has been revoked, its session has ended, or its client has since been
 disabled. A `client_credentials` token has no session behind it, and is
 refused only on the other two counts. `docs/superpowers/specs/2026-09-24-p4c-admin-api-design.md`
-section 7 has the full authentication and authorization sequence; getting
-a token to test with is [README.md](../README.md)'s job, not this
-document's.
+section 7 has the full authentication and authorization sequence;
+[README.md](../README.md) explains why the built-in admin client is shaped
+the way it is, and "Getting the token" below is the run every transcript
+here used.
 
 | Method   | Path                                                             | What it is                                |
 | -------- | ---------------------------------------------------------------- | ----------------------------------------- |
@@ -123,6 +130,103 @@ document's.
 | `GET`    | `/admin/tenants/{tenant}/audit`                                  | List the tenant's audit trail             |
 | `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference                     |
 
+## Getting the token
+
+`odudu seed admin` creates the `system` tenant, its `odudu-admin` client
+and its signing key, and a subject holding `tenant-admin` there — which
+composites every capability plus `manage-tenants`, so this one subject
+reaches every route in the table above, in every tenant.
+
+```bash
+docker compose exec -T odudu node dist/main.js seed admin --username ada
+```
+
+```
+qVWBqjTLZBlCgwfqTnFD7hWEURGc8yQ6
+This password is shown once and cannot be retrieved again.
+{"command":"admin","tenantId":"0199aa00-0000-7000-8000-000000000001","username":"ada","subjectId":"01a0d6fb-0918-7846-b430-0a714b8bf7bf"}
+```
+
+The subject is created with an `update-password` required action, so the
+first `authorize`/login round trip does not end in a redirect. It ends on
+the change-password page, whose form carries the same `auth_session_id`
+the login form did:
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Change your password</title></head>
+<body>
+<h1>Change your password</h1>
+<p>This account needs a new password before you can continue.</p>
+<form method="post" action="/tenants/system/login-actions/required-action?action=update-password">
+  <input type="hidden" name="auth_session_id" value="01a0d6fb-45c9-750b-b189-c0f12cfed7b9">
+  <label>New password <input type="password" name="password" autocomplete="new-password"></label>
+  <button type="submit">Update password</button>
+</form>
+</body>
+</html>
+```
+
+Submitting it **returns the sign-in page, not the redirect** — clearing the
+action leaves the authentication session to be completed from the start,
+with the new password:
+
+```bash
+curl -sS -c jar -b jar \
+  --data-urlencode "auth_session_id=01a0d6fb-45c9-750b-b189-c0f12cfed7b9" \
+  --data-urlencode 'password=correct-horse-battery-staple-9' \
+  'http://localhost:3000/tenants/system/login-actions/required-action?action=update-password'
+
+curl -sS -D - -c jar -b jar \
+  --data-urlencode "auth_session_id=01a0d6fb-45c9-750b-b189-c0f12cfed7b9" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery-staple-9' \
+  'http://localhost:3000/tenants/system/login-actions/authenticate'
+```
+
+```
+HTTP/1.1 302 Found
+set-cookie: system-session=01a0d6fb-a6c4-778d-90fb-d682fa5b0b5a; HttpOnly; SameSite=Lax; Path=/
+location: http://127.0.0.1:8080/callback?code=bloWwM1eqh9sRGtzxgsJDgLoEHz3zAwz-Nu9zIM-zLA&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fsystem
+```
+
+The code redeems at `/token` the way any `authorization_code` does. The
+access token's `aud` carries `urn:odudu:params:admin-api` **without the
+request asking for it** — it comes from the client's own registered
+`audiences`, which `provisionAdminClient` sets, so no `resource` parameter
+is involved. The block below is that token's payload, base64url-decoded and
+indented — it is the one place here where what is shown is not the bytes on
+the wire, because the bytes on the wire are a signed JWT:
+
+```
+{
+  "iss": "http://localhost:3000/tenants/system",
+  "sub": "01a0d6fb-0918-7846-b430-0a714b8bf7bf",
+  "aud": ["urn:odudu:params:admin-api", "http://localhost:3000/tenants/system"],
+  "client_id": "odudu-admin",
+  "scope": "openid",
+  "iat": 1790313220,
+  "exp": 1790313520,
+  "jti": "01a0d6fb-c892-746e-9a30-903b33b02697",
+  "sid": "01a0d6fb-a6c4-778d-90fb-d682fa5b0b5a",
+  "grant_id": "01a0d6fb-c892-746e-9a30-903a020bafe9"
+}
+```
+
+`expires_in` is 300 seconds, so a capture session longer than five minutes
+refreshes with the `refresh_token` the same response carried. The probe
+that says the token works at all:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/system/whoami
+```
+
+```
+{"subjectId":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","issuerTenantId":"0199aa00-0000-7000-8000-000000000001"}
+```
+
 ## `GET /admin/tenants`
 
 Lists tenants — every one, the `system` tenant included: hiding it would
@@ -133,29 +237,18 @@ and `?cursor=`, ordered by `id`; a further page is announced by a
 `Link: rel="next"` header and a `next` member in the body, both absent once
 the collection fits in one page. The response carries no total.
 
-A request shape:
-
 ```bash
 curl -sS \
   -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN" \
   "http://localhost:3000/admin/tenants?limit=50"
 ```
 
-The response shape, not a captured run — a live stack replaces this with
-the real bytes, including real ids:
+Captured after `POST /admin/tenants` below had created `demo`, so both
+tenants this stack ever held are in it — the collection fits one page, and
+there is no `next`:
 
-```json
-{
-  "items": [
-    {
-      "id": "<tenant id>",
-      "name": "system",
-      "display_name": "System",
-      "enabled": true,
-      "created_at": "<timestamp>"
-    }
-  ]
-}
+```
+{"items":[{"id":"0199aa00-0000-7000-8000-000000000001","name":"system","display_name":"System","enabled":true,"created_at":"2026-09-25T05:12:51.138Z"},{"id":"01a0d6fc-3626-7e23-94d7-3b1b666e278f","name":"demo","display_name":"Demo","enabled":true,"created_at":"2026-09-25T05:14:08.294Z"}]}
 ```
 
 ## `POST /admin/tenants`
@@ -175,26 +268,27 @@ row-level security a tenant carrying it is not visible to this call, so the
 unique index is what answers, mapped to the same shape rather than left to
 surface as a `500`.
 
-A request shape:
-
 ```bash
-curl -sS -X POST \
+curl -sS -D - -X POST \
   -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name": "acme", "display_name": "Acme"}' \
+  -d '{"name": "demo", "display_name": "Demo"}' \
   http://localhost:3000/admin/tenants
 ```
 
-The response shape, not a captured run — `201` with the created tenant:
+```
+HTTP/1.1 201 Created
+content-type: application/json; charset=utf-8
 
-```json
-{
-  "id": "<tenant id>",
-  "name": "acme",
-  "display_name": "Acme",
-  "enabled": true,
-  "created_at": "<timestamp>"
-}
+{"id":"01a0d6fc-3626-7e23-94d7-3b1b666e278f","name":"demo","display_name":"Demo","enabled":true,"created_at":"2026-09-25T05:14:08.294Z"}
+```
+
+Both refusals, against that same stack — the reserved name, then the name
+the call above had just taken:
+
+```
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the name \"system\" is reserved","instance":"01a0d6ff-87ec-7a40-b65e-a2b6205f4428"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the name \"demo\" is already in use","instance":"01a0d6ff-87ff-7621-bf57-d9d1cdf24dfd"}
 ```
 
 ## `GET /settings` and `PATCH /settings`
@@ -220,68 +314,49 @@ so two `PATCH`es sent at once are serialised: the second reads what the
 first wrote and its `If-Match` is stale, rather than both matching the same
 pre-write row and the later write replacing the earlier one unseen.
 
-A request shape:
-
 ```bash
-curl -sS \
+curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3000/admin/tenants/demo/settings
 ```
 
-The response shape, not a captured run — `200`, an `ETag` header, and every
-setting by name:
+Captured against `demo` as `POST /admin/tenants` had just created it, so
+every value but `display_name` is the migration's own default:
 
-```json
-{
-  "display_name": null,
-  "enabled": true,
-  "registration_allowed": false,
-  "verify_email": false,
-  "reset_password_allowed": false,
-  "sso_session_idle_seconds": 1800,
-  "sso_session_max_seconds": 36000,
-  "password_min_length": 8,
-  "password_require_digit": false,
-  "password_require_uppercase": false,
-  "password_require_lowercase": false,
-  "password_require_special": false,
-  "password_not_username": true,
-  "password_not_email": true,
-  "password_history_depth": 0,
-  "password_max_age_days": 0,
-  "otp_required": false,
-  "brute_force_max_failures": 5,
-  "brute_force_lockout_seconds": 60,
-  "brute_force_max_lockout_seconds": 900,
-  "brute_force_failure_reset_seconds": 43200,
-  "client_registration_policy": "disabled",
-  "max_clients": 200,
-  "max_sessions_per_browser": 25,
-  "remember_me_allowed": false,
-  "remember_me_idle_seconds": 604800,
-  "remember_me_max_seconds": 2592000
-}
+```
+HTTP/1.1 200 OK
+etag: "6aa9aa25fbfe79b1d0b8a345d33642eab1ebd60ce5e3a3f4500a3c8002aa81b2"
+content-type: application/json; charset=utf-8
+
+{"display_name":"Demo","enabled":true,"registration_allowed":false,"verify_email":false,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":8,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90}
 ```
 
-Amending sends only the settings that change:
+Amending sends only the settings that change, and the response is the whole
+object as it now reads, with a fresh `ETag` for the next `If-Match`:
 
 ```bash
-curl -sS -X PATCH \
+curl -sS -D - -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"verify_email": true, "password_min_length": 14}' \
   http://localhost:3000/admin/tenants/demo/settings
 ```
 
-The response shape, not a captured run — `200` and the full settings object
-as it now reads, an `ETag` for the next `If-Match`:
+```
+HTTP/1.1 200 OK
+etag: "3f8b0bb2e9d80ce1a85d8ca2c4a24d29781110ff96090e5af2baa2a1be4f2f31"
+content-type: application/json; charset=utf-8
 
-```json
-{ "verify_email": true, "password_min_length": 14, "…every other setting…": "…" }
+{"display_name":"Demo","enabled":true,"registration_allowed":false,"verify_email":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":14,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90}
 ```
 
 A name this map does not know is refused with `400`, naming the settings it
-does. A value the map itself coerces but the database's `CHECK` still
+does — which is also the one place the whole vocabulary is listed by the
+server itself:
+
+````
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown tenant setting \"nonesuch\"; expected one of display_name, enabled, registration_allowed, verify_email, reset_password_allowed, sso_session_idle_seconds, sso_session_max_seconds, password_min_length, password_require_digit, password_require_uppercase, password_require_lowercase, password_require_special, password_not_username, password_not_email, password_history_depth, password_max_age_days, otp_required, brute_force_max_failures, brute_force_lockout_seconds, brute_force_max_lockout_seconds, brute_force_failure_reset_seconds, client_registration_policy, max_clients, max_sessions_per_browser, remember_me_allowed, remember_me_idle_seconds, remember_me_max_seconds, audit_retention_days","instance":"01a0d6fc-3690-7dd6-b489-cd6055a38719"}
+``` A value the map itself coerces but the database's `CHECK` still
 refuses — `password_min_length` outside `8..256`, for instance — is also
 `400`, naming the setting rather than the constraint that fired: the
 database stays the one authority for the range, and the caller still learns
@@ -334,40 +409,40 @@ given a generated secret, returned **exactly once, in the creation
 response**. Nothing reads it back afterward — `clients.secret_hash` is the
 only thing stored.
 
-A request shape:
-
 ```bash
-curl -sS -X POST \
+curl -sS -D - -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"client_id": "demo-backend", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_basic"}' \
   http://localhost:3000/admin/tenants/demo/clients
+````
+
+`201`, the whole client, the tenant's default scope assignments, and the
+one-time secret. The `scopes` ids are `demo`'s own, created with the tenant
+above:
+
+```
+HTTP/1.1 201 Created
+content-type: application/json; charset=utf-8
+
+{"id":"01a0d6fc-e5b4-73d4-9162-e2a9893d64b0","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-25T05:14:53.164Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0d6fc-3628-7829-8b29-5697c271d92e","name":"openid","assignment":"default"},{"id":"01a0d6fc-3629-7e64-a89c-2804355f56cf","name":"profile","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0ed3f11a86","name":"email","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0f8bb7530a","name":"address","assignment":"default"},{"id":"01a0d6fc-362b-7e0c-8a4d-4d3d27f20576","name":"phone","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af72e19f1886","name":"roles","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af737fd4358b","name":"groups","assignment":"default"},{"id":"01a0d6fc-362d-7533-bab9-7ea5ea57ba8d","name":"offline_access","assignment":"optional"}],"client_secret":"8ifZC73Id0zHBaQ05QgjVsKl7fTaMHPo6_M92X-Zp1A"}
 ```
 
-The response shape, not a captured run — `201`, the created client, and the
-one-time secret:
+`client_secret` is the only member of that object nothing reads back. Note
+what is **not** there: `builtin_admin`. The column the disable and delete
+guards below read is not part of a client's representation, so the psql
+listing under `PATCH /clients/{id}` is what shows it.
 
-```json
-{
-  "id": "<client id>",
-  "client_id": "demo-backend",
-  "name": "demo-backend",
-  "type": "confidential",
-  "enabled": true,
-  "full_scope_allowed": false,
-  "registration_origin": "operator",
-  "created_at": "<timestamp>",
-  "redirect_uris": [],
-  "grant_types": ["client_credentials"],
-  "token_endpoint_auth_method": "client_secret_basic",
-  "client_secret": "<returned once, here only>",
-  "…every other client field…": "…"
-}
+The reserved `client_id`, refused against the same tenant:
+
+```
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the client_id \"odudu-admin\" is reserved","instance":"01a0d6ff-8816-7f15-827d-118b7b6ee5ed"}
 ```
 
 Listing pages the same way `GET /admin/tenants` does — `?limit=`, `?cursor=`,
 ordered by `id`, a `Link: rel="next"` header and a `next` body member once a
-further page exists, no total:
+further page exists, no total. On this stack the page held two clients, the
+tenant's own `odudu-admin` and `demo-backend` above:
 
 ```bash
 curl -sS \
@@ -381,8 +456,18 @@ secret, whether or not one was ever generated:
 ```bash
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/clients/<client id>
+  http://localhost:3000/admin/tenants/demo/clients/01a0d6fc-e5b4-73d4-9162-e2a9893d64b0
 ```
+
+```
+HTTP/1.1 200 OK
+etag: "721f3544b87c2a93b0160b4b51e95eb0c5107d77fd31fa39a41d1b4afba7907c"
+content-type: application/json; charset=utf-8
+content-length: 1594
+```
+
+The create response above was 1656 bytes and this one is 1594: the
+difference is the secret, present there and absent here.
 
 ## `PATCH /clients/{id}`
 
@@ -441,22 +526,104 @@ not evade it. Every other field on the built-in client amends normally. An
 disabled even by the caller whose own token runs through it — the built-in
 client is the recovery path that makes that permissible.
 
-A request shape — amending only the fields that change:
+Amending a list field without `If-Match`, and amending a field the
+exclusion list names — the refusal carries the reason, not just the
+refusal:
+
+```
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to amend redirect_uris","instance":"01a0d703-3447-7e19-b584-95b550fd90b0"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"client_id: identity: changing it breaks every relying party and orphans the azp of every issued token","instance":"01a0d703-345c-74db-9618-d6bc257b82af"}
+```
+
+The revalidation is not a formality. `demo-backend` was created with
+`grant_types: ["client_credentials"]` and no `redirect_uris`; widening the
+grants alone, with a good `If-Match`, is refused, because the merged
+metadata no longer satisfies the rule that excused the empty list:
 
 ```bash
 curl -sS -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -H "If-Match: \"<etag from a GET>\"" \
-  -d '{"grant_types": ["client_credentials"]}' \
-  http://localhost:3000/admin/tenants/demo/clients/<client id>
+  -H 'If-Match: "721f3544b87c2a93b0160b4b51e95eb0c5107d77fd31fa39a41d1b4afba7907c"' \
+  -d '{"grant_types": ["client_credentials","refresh_token"]}' \
+  http://localhost:3000/admin/tenants/demo/clients/01a0d6fc-e5b4-73d4-9162-e2a9893d64b0
 ```
 
-The response shape, not a captured run — `200`, the amended client, and a
-fresh `ETag` for the next `If-Match`:
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris is required unless grant_types is exactly [\"client_credentials\"]","instance":"01a0d703-346f-7951-8f22-3840777b824f"}
+```
 
-```json
-{ "grant_types": ["client_credentials"], "…every other client field…": "…" }
+An amendment that does pass, with that same `ETag`, and the fresh one it
+returns:
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H 'If-Match: "721f3544b87c2a93b0160b4b51e95eb0c5107d77fd31fa39a41d1b4afba7907c"' \
+  -d '{"audiences": ["https://api.demo.example"]}' \
+  http://localhost:3000/admin/tenants/demo/clients/01a0d6fc-e5b4-73d4-9162-e2a9893d64b0
+```
+
+```
+HTTP/1.1 200 OK
+etag: "0d54739bab7b13288c3d6e04be6b179c7cb2303e5d720a864235a643f1e7ef3e"
+content-type: application/json; charset=utf-8
+content-length: 1620
+```
+
+Replaying the identical request — same `If-Match`, now one generation
+stale — is refused and changes nothing:
+
+```
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0d703-349d-786d-9fc1-ac4631a105f5"}
+```
+
+**The two `409`s that disabling produces are told apart by one column, and
+the admin API does not expose it**, so it is read from the database beside
+them rather than asserted. The three clients are `demo`'s own built-in one,
+`demo-backend` above, and `demo-app`, which the sessions section below
+creates:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select client_id, builtin_admin, enabled from clients
+     where tenant_id = '01a0d6fc-3626-7e23-94d7-3b1b666e278f' order by client_id;"
+```
+
+```
+  client_id   | builtin_admin | enabled
+--------------+---------------+---------
+ demo-app     | f             | t
+ demo-backend | f             | t
+ odudu-admin  | t             | t
+(3 rows)
+```
+
+`demo-backend`, `builtin_admin` false, disables — and the response is the
+whole client, so `enabled` can be read back from it:
+
+```bash
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"enabled": false}' \
+  http://localhost:3000/admin/tenants/demo/clients/01a0d6fc-e5b4-73d4-9162-e2a9893d64b0
+```
+
+```
+{"id":"01a0d6fc-e5b4-73d4-9162-e2a9893d64b0","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-25T05:14:53.164Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0d6fc-3628-7829-8b29-5697c271d92e","name":"openid","assignment":"default"},{"id":"01a0d6fc-3629-7e64-a89c-2804355f56cf","name":"profile","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0ed3f11a86","name":"email","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0f8bb7530a","name":"address","assignment":"default"},{"id":"01a0d6fc-362b-7e0c-8a4d-4d3d27f20576","name":"phone","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af72e19f1886","name":"roles","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af737fd4358b","name":"groups","assignment":"default"},{"id":"01a0d6fc-362d-7533-bab9-7ea5ea57ba8d","name":"offline_access","assignment":"optional"}]}
+```
+
+`odudu-admin`, `builtin_admin` true, the same request against the other id
+in that listing, does not:
+
+```bash
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"enabled": false}' \
+  http://localhost:3000/admin/tenants/demo/clients/01a0d6fc-3632-7d66-b7c1-71695bd9e71f
+```
+
+```
+{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be disabled","instance":"01a0d703-358b-7e86-8398-16a5d3936196"}
 ```
 
 ## `DELETE /clients/{id}`
@@ -468,10 +635,22 @@ here deletes the config row a second time. `204` with no body on success,
 guard `PATCH` uses: the built-in client cannot be deleted any more than it
 can be disabled.
 
+All three outcomes against `demo`, in that order: the built-in client, an
+id nothing holds, then `demo-backend`. A `404` carries no `detail` at all,
+only the status and the request id:
+
 ```bash
-curl -sS -X DELETE \
+curl -sS -D - -X DELETE \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/clients/<client id>
+  http://localhost:3000/admin/tenants/demo/clients/01a0d6fc-e5b4-73d4-9162-e2a9893d64b0
+```
+
+```
+{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be deleted","instance":"01a0d708-7b5e-7443-b462-7af170e24808"}
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0d708-7b71-7e3b-8a95-a58ed9456ef2"}
+
+HTTP/1.1 204 No Content
+x-request-id: 01a0d708-7b86-7dfe-9913-5ea326976017
 ```
 
 ## `POST /clients/{id}/secret`
@@ -487,14 +666,15 @@ has no secret to rotate, refused with `409`.
 ```bash
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/clients/<client id>/secret
+  http://localhost:3000/admin/tenants/demo/clients/01a0d6fc-e5b4-73d4-9162-e2a9893d64b0/secret
 ```
 
-The response shape, not a captured run — `200`, the client, and the new
-secret:
+Captured immediately after the disable above, which is why `enabled` reads
+`false` here: rotating a disabled client's secret is allowed, the guard
+being on the built-in client rather than on a disabled one.
 
-```json
-{ "client_secret": "<returned once, here only>", "…every other client field…": "…" }
+```
+{"id":"01a0d6fc-e5b4-73d4-9162-e2a9893d64b0","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-25T05:14:53.164Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0d6fc-3628-7829-8b29-5697c271d92e","name":"openid","assignment":"default"},{"id":"01a0d6fc-3629-7e64-a89c-2804355f56cf","name":"profile","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0ed3f11a86","name":"email","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0f8bb7530a","name":"address","assignment":"default"},{"id":"01a0d6fc-362b-7e0c-8a4d-4d3d27f20576","name":"phone","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af72e19f1886","name":"roles","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af737fd4358b","name":"groups","assignment":"default"},{"id":"01a0d6fc-362d-7533-bab9-7ea5ea57ba8d","name":"offline_access","assignment":"optional"}],"client_secret":"_0B83ooNdhzevzQk9fj_7VuvRSFhldgaE6kdDd8Zy4Y"}
 ```
 
 ## `GET /whoami`
@@ -505,7 +685,11 @@ debugging anything else. It requires an authenticated caller and no
 capability beyond that — any admin token good enough to reach this tenant's
 admin surface at all can call it.
 
-A request shape:
+It answers `subjectId` (the token's `sub`) and `issuerTenantId` — the
+tenant that **issued** the token, not the tenant named in the URL. The
+captured run is under "Getting the token" above, against
+`/admin/tenants/system/whoami`; the same token against `demo` answers the
+identical body, `issuerTenantId` still naming `system`:
 
 ```bash
 curl -sS \
@@ -513,15 +697,8 @@ curl -sS \
   http://localhost:3000/admin/tenants/demo/whoami
 ```
 
-The response shape, not a captured run. Running this against a live stack
-replaces it with the real bytes: the caller's own identity as
-the server resolved it, `subjectId` (the token's `sub`) and
-`issuerTenantId` (the tenant that issued the token, which for a system
-admin calling into another tenant is `system`, not the tenant named in the
-URL).
-
-```json
-{ "subjectId": "<subject id>", "issuerTenantId": "<tenant id>" }
+```
+{"subjectId":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","issuerTenantId":"0199aa00-0000-7000-8000-000000000001"}
 ```
 
 ## `GET /subjects`
@@ -537,29 +714,20 @@ follows. `?search=` filters by a username prefix; a subject with no `users`
 row (`type: "service"`, provisioned for a confidential client's service
 account) never matches one and is only ever reached by an unfiltered page.
 
-A request shape:
-
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   "http://localhost:3000/admin/tenants/demo/subjects?limit=50"
 ```
 
-The response shape, not a captured run:
+Three subjects by the time this ran, and the first is the point of the
+paragraph above: `demo-backend`'s service account, created with the client
+and carrying no `users` row, so `username` and `email` are `null` and
+`?search=` would never return it. `ada` is `POST /subjects` below; `bob` is
+the seeded user the sessions section needs:
 
-```json
-{
-  "items": [
-    {
-      "id": "<subject id>",
-      "type": "user",
-      "username": "ada",
-      "email": "ada@example.com",
-      "enabled": true,
-      "created_at": "<timestamp>"
-    }
-  ]
-}
+```
+{"items":[{"id":"01a0d6fc-e571-7685-b843-00be9303dd03","type":"service","username":null,"email":null,"enabled":true,"created_at":"2026-09-25T05:14:53.164Z"},{"id":"01a0d6fd-9453-7bf0-9823-a5fc6ea34836","type":"user","username":"ada","email":"ada@demo.example","enabled":true,"created_at":"2026-09-25T05:15:37.939Z"},{"id":"01a0d6fd-ede7-704b-8d83-fa3801d427a0","type":"user","username":"bob","email":"bob@demo.example","enabled":true,"created_at":"2026-09-25T05:16:00.867Z"}]}
 ```
 
 ## `POST /subjects`
@@ -577,30 +745,31 @@ complete a login until an out-of-band channel sets one. A body carrying
 `password` is refused with `400` before the usecase ever runs — Zod's
 generated schema already sets `additionalProperties: false`.
 
-A request shape:
-
 ```bash
-curl -sS -X POST \
+curl -sS -D - -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"username": "ada", "email": "ada@example.com"}' \
+  -d '{"username": "ada", "email": "ada@demo.example"}' \
   http://localhost:3000/admin/tenants/demo/subjects
 ```
 
-The response shape, not a captured run — `201`, the created subject:
+```
+HTTP/1.1 201 Created
+content-type: application/json; charset=utf-8
 
-```json
-{
-  "id": "<subject id>",
-  "type": "user",
-  "username": "ada",
-  "email": "ada@example.com",
-  "enabled": true,
-  "created_at": "<timestamp>"
-}
+{"id":"01a0d6fd-9453-7bf0-9823-a5fc6ea34836","type":"user","username":"ada","email":"ada@demo.example","enabled":true,"created_at":"2026-09-25T05:15:37.939Z"}
 ```
 
-A username already in use answers `409`.
+A body carrying `password` and a username already in use, in that order.
+The first refusal is the generated schema's, so its `title` is the
+framework's generic one rather than a `Bad Request` the usecase chose —
+that is what "refused before the usecase ever runs" looks like from
+outside:
+
+```
+{"type":"about:blank","title":"Error","status":400,"detail":"body must NOT have additional properties","instance":"01a0d6ff-882c-7a29-9f9d-84ab6c764a51"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the username \"ada\" is already in use","instance":"01a0d6ff-8837-7c5d-8b83-bc41dd9f6ced"}
+```
 
 ## `GET /subjects/:id`
 
@@ -609,9 +778,17 @@ Requires `view-users`, the same capability the listing does. Carries an
 single-resource read in this API follows; an unknown id answers `404`.
 
 ```bash
-curl -sS \
+curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/subjects/<subject id>
+  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-9453-7bf0-9823-a5fc6ea34836
+```
+
+```
+HTTP/1.1 200 OK
+etag: "da3eb48382f6ee2d1dba5ab0257b85618325684e6073d398d382992fd751164c"
+content-type: application/json; charset=utf-8
+
+{"id":"01a0d6fd-9453-7bf0-9823-a5fc6ea34836","type":"user","username":"ada","email":"ada@demo.example","enabled":true,"created_at":"2026-09-25T05:15:37.939Z"}
 ```
 
 ## `PATCH /subjects/:id`
@@ -625,12 +802,23 @@ the `ETag` is computed, so two concurrent amendments cannot both pass the
 precondition.
 
 ```bash
-curl -sS -X PATCH \
+curl -sS -D - -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"enabled": false}' \
-  http://localhost:3000/admin/tenants/demo/subjects/<subject id>
+  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-9453-7bf0-9823-a5fc6ea34836
 ```
+
+```
+HTTP/1.1 200 OK
+etag: "e0aa2da695d68cf78750779f56f4003957282bd6a88ddab5b3aa117e2efa7a19"
+content-type: application/json; charset=utf-8
+
+{"id":"01a0d6fd-9453-7bf0-9823-a5fc6ea34836","type":"user","username":"ada","email":"ada@demo.example","enabled":false,"created_at":"2026-09-25T05:15:37.939Z"}
+```
+
+The `ETag` is the one `GET /subjects/:id` above returned, recomputed — a
+caller that read before this write holds a stale one.
 
 ## `DELETE /subjects/:id`
 
@@ -658,19 +846,16 @@ credential a caller reads or deletes.
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/subjects/<subject id>/credentials
+  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-9453-7bf0-9823-a5fc6ea34836/credentials
 ```
 
-The response shape, not a captured run:
+Against `ada`, created through `POST /subjects` above, the list is empty —
+and that is the rule the section states, seen from outside: a subject this
+API creates has no password to list, only the `update-password` action
+waiting for one.
 
-```json
-{
-  "items": [
-    { "type": "password", "created_at": "<timestamp>", "expired": false },
-    { "type": "totp", "created_at": "<timestamp>" },
-    { "type": "recovery-code", "created_at": "<timestamp>", "recovery_code_count": 7 }
-  ]
-}
+```
+{"items":[]}
 ```
 
 ## `DELETE /subjects/:id/credentials/:credentialId`
@@ -692,7 +877,14 @@ curl -sS -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"actions": ["configure-totp"]}' \
-  http://localhost:3000/admin/tenants/demo/subjects/<subject id>/required-actions
+  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-9453-7bf0-9823-a5fc6ea34836/required-actions
+```
+
+The reply is the set as it now stands — and `ada` was created with
+`update-password`, which this request cleared by leaving it out:
+
+```
+{"actions":["configure-totp"]}
 ```
 
 ## `PUT /subjects/:id/roles`
@@ -711,12 +903,24 @@ wholesale, the same convention `required-actions` follows: a role left out
 is one the caller clears, and stops appearing in the subject's
 `effectiveRoles` immediately.
 
+The role came from `POST /roles` below:
+
+```
+{"id":"01a0d6fd-9471-7012-89c1-36ac3403705f","name":"billing-viewer","description":"read-only access to invoices","client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-25T05:15:37.968Z"}
+```
+
 ```bash
 curl -sS -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"role_ids": ["<role id>"]}' \
-  http://localhost:3000/admin/tenants/demo/subjects/<subject id>/roles
+  -d '{"role_ids": ["01a0d6fd-9471-7012-89c1-36ac3403705f"]}' \
+  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-9453-7bf0-9823-a5fc6ea34836/roles
+```
+
+The response is the set as it now stands, by id and name:
+
+```
+{"items":[{"id":"01a0d6fd-9471-7012-89c1-36ac3403705f","name":"billing-viewer"}]}
 ```
 
 ## `GET /subjects/:id/sessions` and `DELETE /subjects/:id/sessions/:sid`
@@ -755,30 +959,41 @@ moves `expires_at` earlier, and a repeat delivery for the same client is
 deduped by `backchannel_logout_deliveries_dedupe`. An unknown session id,
 or one belonging to a different subject, answers `404`.
 
+A session needs a login, and a subject this API created has no password, so
+this section runs against `bob` — seeded with
+`seed user --tenant demo --username bob --password …`, subject
+`01a0d6fd-ede7-704b-8d83-fa3801d427a0` — signing in through `demo-app`, a
+public `authorization_code` client created for it. **`verify_email` was set
+back to `false` first**: `PATCH /settings` above had turned it on, and with
+it on the login ends on "Can't sign in yet" rather than in a session.
+
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/subjects/<subject id>/sessions
-
-curl -sS -X DELETE \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/subjects/<subject id>/sessions/<session id>
+  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-ede7-704b-8d83-fa3801d427a0/sessions
 ```
 
-The list response shape, not a captured run:
+```
+{"items":[{"id":"01a0d6fe-9d8f-783b-b244-ea4a85ab9bfb","created_at":"2026-09-25T05:16:45.837Z","last_active_at":"2026-09-25T05:16:45.837Z","remembered":false,"client_ids":["demo-app"]}]}
+```
 
-```json
-{
-  "items": [
-    {
-      "id": "<session id>",
-      "created_at": "<timestamp>",
-      "last_active_at": "<timestamp>",
-      "remembered": false,
-      "client_ids": ["demo-backend"]
-    }
-  ]
-}
+`DELETE` twice over the same id, then the listing again — `204` both times,
+and nothing left:
+
+```bash
+curl -sS -D - -X DELETE \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-ede7-704b-8d83-fa3801d427a0/sessions/01a0d6fe-9d8f-783b-b244-ea4a85ab9bfb
+```
+
+```
+HTTP/1.1 204 No Content
+x-request-id: 01a0d6fe-9df1-760b-8e13-7763f4c28a3d
+
+HTTP/1.1 204 No Content
+x-request-id: 01a0d6fe-9e09-7004-9844-b3c1b3abb219
+
+{"items":[]}
 ```
 
 ## `GET /roles`, `POST /roles`, `GET /roles/:id`, `PATCH /roles/:id` and `DELETE /roles/:id`
@@ -803,6 +1018,10 @@ curl -sS -X POST \
   http://localhost:3000/admin/tenants/demo/roles
 ```
 
+```
+{"id":"01a0d6fd-9471-7012-89c1-36ac3403705f","name":"billing-viewer","description":"read-only access to invoices","client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-25T05:15:37.968Z"}
+```
+
 ## `POST /roles/:id/composites`
 
 Requires `manage-tenant`, and enforces the same capability ceiling
@@ -823,8 +1042,18 @@ never re-derived here.
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"child_role_id": "<role id>"}' \
-  http://localhost:3000/admin/tenants/demo/roles/<parent role id>/composites
+  -d '{"child_role_id": "01a0d6fd-9471-7012-89c1-36ac3403705f"}' \
+  http://localhost:3000/admin/tenants/demo/roles/01a0d708-2df9-74c8-ae36-b9181d5b5b11/composites
+```
+
+`billing-viewer` nested under a second role, `billing-admin`, then the
+reverse nesting attempted on the pair that now exists:
+
+```
+HTTP/1.1 204 No Content
+x-request-id: 01a0d708-2e22-71ab-8a25-e41d970f8e2d
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"would create a role composite cycle","instance":"01a0d708-2e41-73a0-be98-e03b41380809"}
 ```
 
 ## `GET /groups`, `POST /groups`, `GET /groups/:id`, `PATCH /groups/:id` and `DELETE /groups/:id`
@@ -844,8 +1073,19 @@ it.
 curl -sS -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"parent_id": "<new parent group id>"}' \
-  http://localhost:3000/admin/tenants/demo/groups/<group id>
+  -d '{"parent_id": "01a0d708-2e61-7569-8143-4d8ac66c4b6c"}' \
+  http://localhost:3000/admin/tenants/demo/groups/01a0d708-2e77-75f4-8458-1a6b6dedc8d7
+```
+
+Two roots, `engineering` and `platform`, then `platform` reparented under
+`engineering` — `path` is recomputed by the write, never sent — then the
+reverse, refused:
+
+```
+{"id":"01a0d708-2e61-7569-8143-4d8ac66c4b6c","name":"engineering","parent_id":null,"path":"/engineering","created_at":"2026-09-25T05:27:12.736Z"}
+{"id":"01a0d708-2e77-75f4-8458-1a6b6dedc8d7","name":"platform","parent_id":null,"path":"/platform","created_at":"2026-09-25T05:27:12.759Z"}
+{"id":"01a0d708-2e77-75f4-8458-1a6b6dedc8d7","name":"platform","parent_id":"01a0d708-2e61-7569-8143-4d8ac66c4b6c","path":"/engineering/platform","created_at":"2026-09-25T05:27:12.759Z"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"would create a group reparent cycle","instance":"01a0d708-2ed8-73c7-905f-bb2adf113b10"}
 ```
 
 ## `PUT /groups/:id/roles`
@@ -875,6 +1115,10 @@ curl -sS -X POST \
   http://localhost:3000/admin/tenants/demo/scopes
 ```
 
+```
+{"id":"01a0d708-2ef8-7963-8d7a-3df5dff7cdf6","name":"billing","description":null,"include_in_id_token":false,"include_in_access_token":true,"created_at":"2026-09-25T05:27:12.887Z"}
+```
+
 ## `PUT /scopes/:id/roles`
 
 Requires `manage-tenant`. Replaces the scope's role mapping wholesale, the
@@ -897,18 +1141,15 @@ curl -sS -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"assignment": "default"}' \
-  http://localhost:3000/admin/tenants/demo/scopes/<scope id>/clients/<client id>
+  http://localhost:3000/admin/tenants/demo/scopes/01a0d708-2ef8-7963-8d7a-3df5dff7cdf6/clients/01a0d6fd-ee42-78c0-ab32-9077b0fc3804
 ```
 
-The response shape, not a captured run — `scopes` is the field
-`GET /clients/:id` also carries:
+The whole client comes back, with `billing` appended to the eight scopes
+`demo-app` already carried — `scopes` is the field `GET /clients/:id` also
+carries:
 
-```json
-{
-  "id": "<client id>",
-  "client_id": "demo-backend",
-  "scopes": [{ "id": "<scope id>", "name": "billing", "assignment": "default" }]
-}
+```
+{"id":"01a0d6fd-ee42-78c0-ab32-9077b0fc3804","client_id":"demo-app","name":"demo-app","type":"public","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-25T05:16:00.960Z","redirect_uris":["http://localhost:3000/cb"],"grant_types":["authorization_code","refresh_token"],"token_endpoint_auth_method":"none","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0d6fc-3628-7829-8b29-5697c271d92e","name":"openid","assignment":"default"},{"id":"01a0d6fc-3629-7e64-a89c-2804355f56cf","name":"profile","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0ed3f11a86","name":"email","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0f8bb7530a","name":"address","assignment":"default"},{"id":"01a0d6fc-362b-7e0c-8a4d-4d3d27f20576","name":"phone","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af72e19f1886","name":"roles","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af737fd4358b","name":"groups","assignment":"default"},{"id":"01a0d6fc-362d-7533-bab9-7ea5ea57ba8d","name":"offline_access","assignment":"optional"},{"id":"01a0d708-2ef8-7963-8d7a-3df5dff7cdf6","name":"billing","assignment":"default"}]}
 ```
 
 ## `GET /scopes/:id/mappers` and `PUT /scopes/:id/mappers`
@@ -931,16 +1172,21 @@ curl -sS -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"mapper_names": ["sub"]}' \
-  http://localhost:3000/admin/tenants/demo/scopes/<scope id>/mappers
+  http://localhost:3000/admin/tenants/demo/scopes/01a0d6fc-3629-7e64-a89c-2804355f56cf/mappers
 ```
 
-The response shape, not a captured run:
+`demo`'s `profile` scope, read before and after the write above. The empty
+`bound` is the fallback case, not an error:
 
-```json
-{
-  "available": ["sub", "profile", "email", "roles", "groups", "address", "phone"],
-  "bound": ["sub"]
-}
+```
+{"available":["sub","profile","email","roles","groups","address","phone"],"bound":[]}
+{"available":["sub","profile","email","roles","groups","address","phone"],"bound":["sub"]}
+```
+
+A name the registry does not carry, refused with the names it does:
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown mapper name(s): nonesuch; known: sub, profile, email, roles, groups, address, phone","instance":"01a0d6fe-e63f-7986-9ffb-04987c0cf19c"}
 ```
 
 ## `GET /keys`, `POST /keys`, `POST /keys/:id/promote` and `POST /keys/:id/retire`
@@ -978,22 +1224,34 @@ makes the new key the tenant's own.
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"alg": "RS256"}' \
+  -d '{"alg": "ES256"}' \
   http://localhost:3000/admin/tenants/demo/keys
 ```
 
-The response shape, not a captured run:
+The whole rotation against `demo`, which was provisioned with one `ES256`
+key when the tenant was created. Listing, staging, promoting, listing
+again:
 
-```json
-{
-  "id": "<key id>",
-  "status": "rotating",
-  "kid": "<kid>",
-  "alg": "RS256",
-  "created_at": "2026-09-24T00:00:00.000Z",
-  "not_after": null
-}
 ```
+{"items":[{"id":"01a0d6fc-3654-7f93-817b-bd7f1bb2ff55","status":"active","kid":"01a0d6fc-3654-7f93-817b-bd7eb6490305","alg":"ES256","created_at":"2026-09-25T05:14:08.294Z","not_after":null}]}
+{"id":"01a0d6fe-e527-77e6-b71d-57ed1a903cc3","status":"rotating","kid":"01a0d6fe-e526-7caf-9184-e66cbfab9a4b","alg":"ES256","created_at":"2026-09-25T05:17:04.166Z","not_after":null}
+{"id":"01a0d6fe-e527-77e6-b71d-57ed1a903cc3","status":"active","kid":"01a0d6fe-e526-7caf-9184-e66cbfab9a4b","alg":"ES256","created_at":"2026-09-25T05:17:04.166Z","not_after":null}
+{"items":[{"id":"01a0d6fc-3654-7f93-817b-bd7f1bb2ff55","status":"rotating","kid":"01a0d6fc-3654-7f93-817b-bd7eb6490305","alg":"ES256","created_at":"2026-09-25T05:14:08.294Z","not_after":null},{"id":"01a0d6fe-e527-77e6-b71d-57ed1a903cc3","status":"active","kid":"01a0d6fe-e526-7caf-9184-e66cbfab9a4b","alg":"ES256","created_at":"2026-09-25T05:17:04.166Z","not_after":null}]}
+```
+
+The promotion demoted the old key in the same transaction, so the second
+listing has exactly one `active`. Retiring the newly promoted key is the
+first of the two `409`s; retiring the one it demoted succeeds:
+
+```
+{"type":"about:blank","title":"Conflict","status":409,"detail":"signing key 01a0d6fe-e527-77e6-b71d-57ed1a903cc3 is active; promote another key first","instance":"01a0d6fe-e576-778e-90bd-92480ca40cd3"}
+{"id":"01a0d6fc-3654-7f93-817b-bd7f1bb2ff55","status":"retired","kid":"01a0d6fc-3654-7f93-817b-bd7eb6490305","alg":"ES256","created_at":"2026-09-25T05:14:08.294Z","not_after":null}
+```
+
+The second `409` — a client registered with a
+`userinfo_signed_response_alg` no remaining key produces — was not
+captured: `demo` held no such client, and creating one to provoke it would
+have needed a key of an algorithm this tenant was then to lose.
 
 ## `GET /flow/executions` and `PUT /flow/executions`
 
@@ -1011,30 +1269,37 @@ logged into; a list where every step is `disabled`, the same reason; and an
 `authenticator` name the executor's own registry does not resolve, which
 lists the known names.
 
+`demo`'s flow as `provisionTenant` created it — the four steps every tenant
+starts with:
+
+```
+{"items":[{"index":0,"authenticator":"passkey","requirement":"alternative"},{"index":1,"authenticator":"password","requirement":"alternative"},{"index":2,"authenticator":"otp","requirement":"conditional"},{"index":3,"authenticator":"recovery-code","requirement":"conditional"}]}
+```
+
+Replacing it with a shorter, reordered one — three steps, password first,
+passkey off, and `recovery-code` dropped by being left out:
+
 ```bash
 curl -sS -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '[
-    {"authenticator": "passkey", "requirement": "alternative"},
-    {"authenticator": "password", "requirement": "alternative"},
+    {"authenticator": "password", "requirement": "required"},
     {"authenticator": "otp", "requirement": "conditional"},
-    {"authenticator": "recovery-code", "requirement": "conditional"}
+    {"authenticator": "passkey", "requirement": "disabled"}
   ]' \
   http://localhost:3000/admin/tenants/demo/flow/executions
 ```
 
-The response shape, not a captured run:
+```
+{"items":[{"index":0,"authenticator":"password","requirement":"required"},{"index":1,"authenticator":"otp","requirement":"conditional"},{"index":2,"authenticator":"passkey","requirement":"disabled"}]}
+```
 
-```json
-{
-  "items": [
-    { "index": 0, "authenticator": "passkey", "requirement": "alternative" },
-    { "index": 1, "authenticator": "password", "requirement": "alternative" },
-    { "index": 2, "authenticator": "otp", "requirement": "conditional" },
-    { "index": 3, "authenticator": "recovery-code", "requirement": "conditional" }
-  ]
-}
+`index` is the array's own order renumbered from zero, and the request
+carried none. The empty list, refused:
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"a flow needs at least one step; a tenant with no flow cannot be logged into","instance":"01a0d6fe-e5e6-760a-8700-7cb5066704cd"}
 ```
 
 The write reaches the executor immediately, not only the table: the very
@@ -1074,19 +1339,17 @@ curl -sS -X PUT \
   http://localhost:3000/admin/tenants/demo/smtp
 ```
 
-The response shape, not a captured run:
+`GET` before the `PUT`, then the `PUT`'s own answer, then `GET` again. The
+unconfigured read is `200` with every field `null`, not `404`:
 
-```json
-{
-  "configured": true,
-  "host": "smtp.example.test",
-  "port": 587,
-  "from_address": "noreply@demo.example",
-  "username": null,
-  "password_set": true,
-  "starttls": false
-}
 ```
+{"configured":false,"host":null,"port":null,"from_address":null,"username":null,"password_set":false,"starttls":null}
+{"configured":true,"host":"smtp.example.test","port":587,"from_address":"noreply@demo.example","username":null,"password_set":true,"starttls":false}
+{"configured":true,"host":"smtp.example.test","port":587,"from_address":"noreply@demo.example","username":null,"password_set":true,"starttls":false}
+```
+
+`password_set` is how the password is reported; the value itself is never
+in any of the three.
 
 `POST /smtp/test` sends one message to the given address synchronously and
 reports the transport's own failure as `502`, rather than an operator
@@ -1099,6 +1362,16 @@ curl -sS -X POST \
   -H "Content-Type: application/json" \
   -d '{"to": "ops@demo.example"}' \
   http://localhost:3000/admin/tenants/demo/smtp/test
+```
+
+The same request before and after the `PUT` above. This stack has no mail
+server and `smtp.example.test` does not resolve, so the second is the
+transport's own failure reported verbatim — which is the point of the
+endpoint:
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"this tenant has no SMTP configuration","instance":"01a0d6ff-1902-7de4-aa84-e594ee018d25"}
+{"type":"about:blank","title":"Bad Gateway","status":502,"detail":"getaddrinfo ENOTFOUND smtp.example.test","instance":"01a0d6ff-1949-7acc-a62b-2d8315592ea4"}
 ```
 
 ## `GET /audit`
@@ -1153,30 +1426,39 @@ curl -sS -G \
   http://localhost:3000/admin/tenants/demo/audit
 ```
 
-The response shape, not a captured run:
+**This listing prints whatever the sections above left behind**, so every
+query here is scoped. Both `client.create` rows on this stack —
+`demo-backend` from `POST /clients` and `demo-app` from the sessions
+section — newest first:
 
-```json
-{
-  "items": [
-    {
-      "id": "0199aa00-0000-7000-8000-000000000099",
-      "occurred_at": "2026-09-24T12:00:00.000Z",
-      "event_type": "admin_mutation",
-      "action": "client.create",
-      "outcome": "allowed",
-      "actor_tenant_id": "0199aa00-0000-7000-8000-000000000001",
-      "actor_subject_id": "0199aa00-0000-7000-8000-0000000000aa",
-      "actor_client_id": "0199aa00-0000-7000-8000-0000000000cc",
-      "resource_type": "client",
-      "resource_id": "0199aa00-0000-7000-8000-0000000000bb",
-      "request_id": null,
-      "ip": null,
-      "detail": { "name": { "after": "billing-app" } }
-    }
-  ],
-  "next": "eyJhZnRlciI6IjIwMjYtMDktMjRUMTE6NTk6MDAuMDAwWnwwMTk5YWEwMC0uLi4iLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6Ii4uLiJ9.…"
-}
 ```
+{"items":[{"id":"01a0d6fd-ee4b-7e24-94c4-8a1f089f7ff4","occurred_at":"2026-09-25T05:16:00.960Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"client","resource_id":"01a0d6fd-ee42-78c0-ab32-9077b0fc3804","request_id":null,"ip":null,"detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code","refresh_token"]},"web_origins":{"after":[]},"redirect_uris":{"after":["http://localhost:3000/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"none"}}},{"id":"01a0d6fc-e5c3-7d6b-bf08-007f2c7af08e","occurred_at":"2026-09-25T05:14:53.164Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"client","resource_id":"01a0d6fc-e5b4-73d4-9162-e2a9893d64b0","request_id":null,"ip":null,"detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
+```
+
+`actor_tenant_id` is `system` on both, and `tenant_id` is absent from the
+row's own representation — the tenant a row belongs to is the one in the
+path. Neither `detail` carries a secret: `demo-backend` was created with
+one, and the allowlist shows `jwks` as `{"changed": true}` rather than a
+value, which is the shape every redacted field takes.
+
+Three signing-key rows from the rotation above, narrowed by
+`resource_type` alone. Their `detail` is empty, a key having no allowlisted
+field to diff:
+
+```
+{"items":[{"id":"01a0d6fe-e5af-7e92-9a37-467c4486586e","occurred_at":"2026-09-25T05:17:04.301Z","event_type":"admin_mutation","action":"key.retire","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"signing_key","resource_id":"01a0d6fc-3654-7f93-817b-bd7f1bb2ff55","request_id":null,"ip":null,"detail":{}},{"id":"01a0d6fe-e558-781d-9400-1c2ec6563448","occurred_at":"2026-09-25T05:17:04.213Z","event_type":"admin_mutation","action":"key.promote","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"signing_key","resource_id":"01a0d6fe-e527-77e6-b71d-57ed1a903cc3","request_id":null,"ip":null,"detail":{}},{"id":"01a0d6fe-e527-77e6-b71d-57ee38478a8b","occurred_at":"2026-09-25T05:17:04.166Z","event_type":"admin_mutation","action":"key.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"signing_key","resource_id":"01a0d6fe-e527-77e6-b71d-57ed1a903cc3","request_id":null,"ip":null,"detail":{}}]}
+```
+
+And `?outcome=refused`, which is only ever non-empty for `POST /clients`.
+The row below is the reserved-`client_id` attempt shown under that section;
+`resource_id` is the `client_id` string, there being no row to name:
+
+```
+{"items":[{"id":"01a0d6ff-881f-763e-85bb-c7fc66a7e1ee","occurred_at":"2026-09-25T05:17:45.887Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"client","resource_id":"odudu-admin","request_id":null,"ip":null,"detail":{}}]}
+```
+
+No page above needed a `next`: the stack never had more than twenty rows of
+any one scope.
 
 ## `GET /admin/openapi.json`
 
@@ -1187,12 +1469,31 @@ rather than reaching into one — and is served without authentication, since
 a client that cannot read it cannot generate against it:
 
 ```bash
-curl -sS http://localhost:3000/admin/openapi.json
+curl -sS -D - -o openapi.json http://localhost:3000/admin/openapi.json
 ```
 
-Every other endpoint in it requires a bearer token whose `aud` names
-`urn:odudu:params:admin-api`, declared as this document's `bearerAuth`
-security scheme.
+```
+HTTP/1.1 200 OK
+content-type: application/json; charset=utf-8
+content-length: 91954
+```
+
+92 KB and 32 paths, which is the whole route table. Its first bytes, and
+the `bearerAuth` scheme it declares — `head -c 180 openapi.json` and the
+substring at `securitySchemes`:
+
+```
+{"openapi":"3.1.0","info":{"title":"Odudu admin API","version":"0.0.0"},"security":[{"bearerAuth":[]}],"paths":{"/admin/tenants/{tenant}/whoami":{"get":{"summary":"Requires an auth
+```
+
+```
+"securitySchemes":{"bearerAuth":{"type":"http","scheme":"bearer","bearerFormat":"JWT","description":"An access token whose \"aud\" claim names urn:odudu:params:admin-api. A token minted for another audience, including the protocol surface itself, is refused with 401."}}
+```
+
+`security` is declared once at the top level, so every path inherits it
+rather than repeating it. `/admin/openapi.json` is not among those 32
+paths: the document does not describe itself, which is why serving it
+unauthenticated does not contradict the blanket `security` above.
 
 ## What to do next, from wherever you are
 
