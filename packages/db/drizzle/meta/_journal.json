@@ -470,6 +470,13 @@
       "when": 1789049381709,
       "tag": "0066_tenant_smtp",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1789049381710,
+      "tag": "0067_admin_audit",
+      "breakpoints": true
     }
   ]
 }
