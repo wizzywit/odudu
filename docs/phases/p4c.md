@@ -320,3 +320,51 @@ could never have inserted. Public is also right on the merits — an
 administrator authenticates as a subject through the ordinary login flow,
 and an application that provisions users registers its own confidential
 client.
+
+## Found and left standing, with the reason
+
+Four defects this phase found and did not fix. Each is one line in
+[docs/NEXT.md](../NEXT.md) against the phase that owns it; the argument for
+leaving it is here, because that file orients the next phase rather than
+holding a backlog.
+
+**A tenant's SMTP host is checked by address and then dialled by name.**
+`checkSmtpDestination`
+(`packages/protocol-admin/src/service/smtp-destination.ts`) resolves the
+host and refuses loopback, link-local, private and the other reserved
+ranges in the numeric domain, exactly as ADR 0028 bounds a client-supplied
+`jwks_uri`. Unlike that fetcher, nodemailer then resolves the name again
+itself, so a name answering differently on the second lookup reaches an
+address this check refused. The fix is the shape the fetcher already has:
+inject a `lookup` into the transport that answers only the addresses
+already checked, or connect to the checked address and carry the hostname
+as an SNI `servername` override, so certificate verification still names
+the host the tenant configured. Either keeps one resolution between the
+check and the connection. It belongs with the two undeadlined outbound
+lookups that `NEXT.md` also records, because all three are one question:
+how this server opens an outbound connection.
+
+**A path parameter that is not a UUID answers `500`.** PostgreSQL's parse
+error surfaces unmapped, observed on `clients` and the same way on
+`subjects` and `roles`. The generated schemas validate the body, not the
+path, and nothing between the route and the repository narrows an id.
+Harmless — nothing is disclosed and the request changes nothing — but a
+caller with a typo is told the server broke. The distinction between "no
+such client" and "that is not an id" is worth making where ids arrive from
+links rather than by hand, which is a console's problem rather than this
+API's.
+
+**`PATCH /clients/{id}` translates no CHECK violation into a `400`.** Its
+two `update` calls (`clientRepository`, `clientOidcConfigRepository`) do
+not do what `createClient` now does for the unique index, so an amendment
+JS-side validation admits and `client_oidc_config`'s `web_origins_are_valid`
+CHECK still refuses surfaces as a generic `500`. Left standing because the
+exposure is one constraint wide: neither `update` touches a unique index,
+and everything else they write has already passed `parseClientMetadata` or
+the checked coercions beside it. `web_origins_are_valid` is the single
+CHECK with no JS-side mirror standing in front of it.
+
+**`validateFlowSteps` admits the same authenticator twice.** Nothing
+rejects the duplicate, and whichever one dispatch reaches first is not
+obviously the caller's intent. A script calling the API directly is
+unlikely to produce one; a form that appends rows is.

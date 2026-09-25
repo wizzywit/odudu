@@ -87,7 +87,9 @@ keeps.
 inherits, decisions that are still open, and what a final review deferred.
 Not what a finished phase discovered. If a section here is addressed to a
 phase that has closed, it is overdue for a decision or a move, not for
-another paragraph.
+another paragraph. `tests/docs/next-budget.test.ts` holds the file to 400
+lines and any one section to 130, so an entry that has somewhere better to
+live is pushed there rather than accumulating here.
 
 ## What P4e, P4d and P4b inherit
 
@@ -183,220 +185,91 @@ agent identity layer's own instance, budget and `max_depth` (design spec
 
 ## Decisions still open
 
-### The token surface
+Two kinds of entry, split by **where the argument lives**, because that is
+what governs how fast this file grows. An item whose argument is already in
+an ADR, a protocol note or a phase note keeps one row and a link — a second
+full copy here is what took this file to 1,873 lines once. An item with
+nowhere else to be carries its argument, at the length it needs.
 
-**No scope means anything in particular at an audience.** RFC 9068 §2.2.3
-requires a token's `scope` to be coherent with its `aud`. A client may ask
-for `reports:read` against `resource=https://api.example` and nothing
-objects. Recorded `accepted:` in `docs/protocols/rfc9068.md`. Closing it
-honestly needs a per-audience scope model. P4c declined it deliberately —
-it is not client management, it is a resource server as a first-class thing
-that owns scopes.
+A new entry belongs in the table if it possibly can. Writing one into the
+prose below means asserting there is no ADR, protocol note or phase note
+that should hold it, which is usually false.
 
-- Trigger: **P9**, whose criterion now names it together with the entry
-  below, so half the model is not built twice.
+### Argued elsewhere, and pointed at from here
 
-**`/introspect` answers every registered client the same way, regardless of
-which resource it names.** RFC 7662 §2.2's MAY to limit which scopes a
-protected resource sees, and §4's SHOULD that it be specifically authorized
-to call the endpoint at all, are the other half of that same missing
-abstraction: a "may introspect" entitlement is a property of a resource
-server, and there is no resource server here to hold one.
+| What is open                                                                                                            | Where it is argued                                                                       | Trigger                                                        |
+| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| No scope means anything in particular at an audience; RFC 9068 §2.2.3 wants `scope` coherent with `aud`                 | [rfc9068.md](protocols/rfc9068.md), "Why §2.2.3 is accepted, not held"                   | **P9**, with the row below                                     |
+| `/introspect` answers every registered client alike: no per-resource scope narrowing, no "may introspect"               | [rfc7662.md](protocols/rfc7662.md), "Two MAYs left `gap`"                                | **P9**, with the row above                                     |
+| `private_key_jwt` and `tls_client_auth` reach `/token` alone, never `/introspect` or `/revoke`                          | [rfc7662.md](protocols/rfc7662.md), "Only the two password methods reach this endpoint"  | **P13**                                                        |
+| RFC 7523 has no clause table, so the clauses of an implemented RFC are untracked by the system built for it             | [rfc7523.md](protocols/rfc7523.md)'s own header                                          | **P13**                                                        |
+| The session cap is per browser and admits `cap + (k - 1)` under `k` concurrent logins, orphaning one                    | [ADR 0033](adr/0033-admitting-a-session-locks-the-tenant-row.md)                         | **P4d**, wanting a session's device                            |
+| A non-UUID path parameter answers `500` rather than `400` or `404`                                                      | [p4c.md](phases/p4c.md), "Found and left standing"                                       | **P4d**, whose ids come from links                             |
+| `validateFlowSteps` admits the same authenticator twice                                                                 | [p4c.md](phases/p4c.md), "Found and left standing"                                       | **P4d**, whose form appends rows                               |
+| A tenant's SMTP host is checked by address and then dialled by name, so a second lookup can differ                      | [p4c.md](phases/p4c.md), "Found and left standing"                                       | **P11** or **P12**, with the lookups below                     |
+| `PATCH /clients/{id}` surfaces a `web_origins_are_valid` violation as `500`, not `400`                                  | [p4c.md](phases/p4c.md), "Found and left standing"                                       | that CHECK firing, or `web_origins` gaining its own validation |
+| An admin request refused for an issuer mismatch writes no audit row, and cannot safely write one yet                    | [p4c.md](phases/p4c.md), "Things that were reverted rather than shipped"                 | **P4e**, which decides what a refusal writes                   |
+| `token_grants_session_fk` has the unrestricted `ON DELETE SET NULL` defect P4a fixed in `0059`                          | [p4a.md](phases/p4a.md), "A migration idiom copied from precedent that was itself wrong" | the next migration touching `token_grants`                     |
+| `CLAUDE.md` states an untagged-fence rule that `tests/docs/markdown.ts` cannot see, so no JSON response is byte-checked | [p3b.md](phases/p3b.md), "`CLAUDE.md` states a rule its own tests forbid"                | its own change; it untags every JSON transcript at once        |
+| Committed development credentials                                                                                       | [ADR 0014](adr/0014-committed-development-credentials.md)                                | the conditions that ADR names                                  |
 
-- Trigger: **P9**, with the entry above. Deciding either alone would settle
-  what a resource server is by accident.
+### Argued here, because there is nowhere else
 
-**A `private_key_jwt` or `tls_client_auth` client can never call
-`/introspect` or `/revoke`.** Both authenticate through `authenticateClient`
-alone, which reads a Basic header or a body `client_secret`; neither
-assertion-based method is dispatched anywhere but `/token`. Recorded as an
-accepted limitation rather than a gap — no clause in either RFC requires a
-particular set of methods — at `docs/protocols/rfc7662.md`'s "Only the two
-password methods reach this endpoint".
+**One configured issuer base for the whole deployment.** The admin API
+derives a token's expected `iss` from the request, the same way `/token`
+mints it, because there is nothing configured to compare against — which
+also forced the admin audience to a fixed URN rather than `${iss}/admin`
+([p4c.md](phases/p4c.md) has that decision). `ODUDU_PUBLIC_BASE_URL` exists
+already for mail links and the WebAuthn relying-party id, so the value is
+half present. Replacing request-derived issuers everywhere changes how
+`iss` is minted on every token, ID token and Logout Token, on the RFC 9207
+parameter and in discovery, which is why P4c did not do it in passing.
 
-- Trigger: **P13**, which reworks client authentication for FAPI 2.0 and
-  whose criterion now names both methods at both endpoints. Extend
-  `token-issuance.ts`'s assertion and certificate dispatch to the two routes.
+- Trigger: **P11** or **P12**, whichever first reworks deployment configuration.
+
+**Neither of the server's two outbound DNS lookups carries a deadline.**
+`createLogoutDeliveryTransport`'s `defaultLookup`
+(`apps/server/src/logout-delivery-transport.ts`) and
+`defaultClientKeyLookup` (`apps/server/src/client-key-transport.ts`) both
+call `node:dns/promises`'s `lookup` with no timeout, and the first ignores
+the `AbortSignal` `sendLogouts` already started. The second sits on
+`/token`'s `private_key_jwt` authentication and, since encrypted UserInfo
+landed, on `/userinfo` — between a resource server's request and its
+answer. Bound the lookup, and decide whether the two transports share one
+answer and whether `/userinfo` needs a tighter timeout than `/token`'s.
+
+- Trigger: **P11**, whose criterion documents a p99 for both endpoints and
+  so cannot be met while either lookup is unbounded.
 
 **A signed UserInfo response's `typ` is a private value.** `userinfo+jwt`
-is not registered anywhere; it exists to stop a UserInfo response being
-accepted as an `id_token_hint`, which it was before. A registered value, if
-one ever appears, is what this should move to.
+is registered nowhere; it exists to stop a UserInfo response being accepted
+as an `id_token_hint`, which it was before.
 
 - Trigger: an IANA registration for the media type, or a conformance suite
   objecting to the private one.
 
-**The post-rotation `resolveAudience` check is exercised by no test.** It is
-load-bearing only for ADR 0019's revocation race — a revocation landing
-between the pre-flight and the authoritative read — which no test drives.
+**Two refusals on the refresh path are exercised by no test.** The
+post-rotation `resolveAudience` check is load-bearing only for ADR 0019's
+revocation race — a revocation landing between the pre-flight and the
+authoritative read — which no test drives. Separately, a refresh rotated
+past its `exp_ceiling` (P4a) is genuinely refused, by
+`refreshTokenRepository.consume`'s literal SQL `expires_at > now()`, but
+that reads PostgreSQL's clock rather than the injected `Clock`: a
+`FakeClock` moves every other time-dependent decision in the file and not
+this one, so nothing short of a real wait demonstrates it.
 
-- Trigger: whichever task next touches refresh rotation. A test that lands
-  a revocation in that window is what pins it.
-
-**No test proves a refresh rotated past its `exp_ceiling` is actually
-refused.** `rotateRefreshToken` (P4a) caps a replacement refresh token's
-`expiresAt` at the exchanged grant's ceiling, and the refusal itself is
-real: `refreshTokenRepository.consume` gates on a literal SQL
-`expires_at > now()` (`repository/refresh.ts`), so a capped, expired row is
-refused exactly like any other expired refresh token. But that check reads
-PostgreSQL's own clock, never the app's injected `Clock` — an integration
-test can advance a `FakeClock` to move every other time-dependent decision
-in this file, and it will not move this one. Nothing short of a real wait
-can currently demonstrate the refusal.
-
-- Trigger: whichever change next gives the refresh path a clock it can
-  control end to end (folding the SQL-level expiry check into an
-  application-level comparison against `deps.clock.now()`), or the phase
-  that introduces time-travel fixtures capable of moving the database's
-  own clock rather than only the app's.
-
-**`token_grants_session_fk` (0026_token_grants_session.sql) has the same
-unrestricted-`ON DELETE SET NULL` defect P4a's review caught in 0059:
-deleting a session would null `tenant_id` alongside `session_id`, and the
-delete would fail its NOT NULL constraint rather than detach the grant —
-the comment beside it, claiming the delete "would otherwise silently
-promote a session-bound grant to an offline one", describes behaviour
-PostgreSQL does not have. Nothing has hit this: `REAP_ORDER`
-(`apps/server/src/cli/reap.ts`) deletes `token_grants` before `sessions`,
-so reap never deletes a session a live grant references. The fix is the
-same column-list form: `ON DELETE SET NULL (session_id)`.
-
-- Trigger: the next migration that touches `token_grants` for an unrelated
-  reason.
-
-### The client endpoints
-
-**`deferred:`** `PATCH /admin/tenants/{tenant}/clients/{id}`'s two
-`update` calls (`clientRepository`, `clientOidcConfigRepository`) translate
-no CHECK-constraint violation into a caller-facing `400` the way
-`createClient` now does for the unique index (P4c's own fix) — an
-amendment JS-side validation lets through but `client_oidc_config`'s
-`web_origins_are_valid` CHECK still refuses would surface as a generic
-`500`. Not fixed in P4c: neither `update` touches a unique index, and
-everything else they write has already passed `parseClientMetadata` or the
-checked coercions beside it, so `web_origins_are_valid` is the one CHECK
-with no JS-side mirror standing behind it.
-
-- Trigger: `web_origins` getting its own shape validation ahead of the
-  write, or a report that the CHECK has actually fired.
-
-### The flow-replace routes
-
-**`deferred:`** `validateFlowSteps` admits a request naming the same
-authenticator twice; nothing rejects the duplicate, and whichever one
-dispatch reaches first is not obviously the caller's intent.
-
-- Trigger: `flow/executions` gaining a UI (P4d), whose users are likelier
-  to produce one than a script calling the admin API directly.
-
-### The session set
-
-**The cap is per browser, and admits `cap + (k - 1)` under `k` concurrent
-logins.** The candidate list is fixed before the tenant-row lock and
-identical across racers from one browser, so once the first evicts, the
-remaining `k - 1` insert unconditionally. Accepted: the cap is a size guard
-with 4.4x headroom, not a security boundary. The consequence that is not
-merely cosmetic is the orphan — `resolveSessions` supplies logout
-membership too, so a session omitted from the cookie cannot be logged out
-through the cookie path. ADR 0033 carries the derivation and the durable
-remedy: a stable browser identifier in its own cookie, stored on the session
-row, giving admission, logout and the admin session list one predicate.
-
-- Trigger: the remedy is the reversal of the spec's decision 1 (the cookie
-  holds a list; there is no browser row), so it waits until something else
-  wants that row. P4c's session list was the candidate and did not need it:
-  it reads sessions by subject, which reaches an orphan without knowing
-  which browser holds it. So the trigger is now an operator or an account
-  console (**P4d**) wanting to show _which device_ a session belongs to,
-  which no predicate here can answer.
-
-### The audit log
-
-**`deferred:`** An admin request refused for an issuer mismatch writes no
-audit row. The refusal is decided before signature verification, because a
-token naming an unrecognised issuer has no keys to verify against — so
-auditing there would let any unauthenticated caller append a row per
-request. Recording it safely means first resolving the named issuer to a
-tenant in this deployment and verifying the signature against that
-tenant's keys, then auditing only a token that is authentic but presented
-at a path it may not reach.
-
-- Trigger: **P4e**, whose criterion names it. It is the phase that decides
-  what a refused authentication writes, and this is the same question asked
-  of the admin surface: what may an unauthenticated caller cause to be
-  written.
-
-**`deferred:`** A path parameter that is not a UUID reaches PostgreSQL and
-surfaces its parse error as `500`, not `400` or `404` — observed on
-`GET /admin/tenants/{tenant}/clients/not-a-uuid`, and on the `subjects` and
-`roles` reads the same way. The generated schemas validate the body, not
-the path, and nothing between the route and the repository narrows an id.
-Harmless — no information is disclosed and the request changes nothing —
-but a caller with a typo is told the server broke.
-
-- Trigger: **P4d**, whose console will produce ids from links rather than
-  by hand and so wants the distinction between "no such client" and "that
-  is not an id" to be the caller's, not the log's.
-
-### Operational and infrastructural
-
-**Neither of the server's two outbound DNS lookups carries a deadline, and
-both run in production on three request paths.**
-`createLogoutDeliveryTransport`'s `defaultLookup`
-(`apps/server/src/logout-delivery-transport.ts`) and
-`defaultClientKeyLookup` (`apps/server/src/client-key-transport.ts`) both
-call `node:dns/promises`'s `lookup` with no timeout; the first also ignores
-the `AbortSignal` `sendLogouts` already started. The second is shared by
-`/token`'s `private_key_jwt` authentication and, since encrypted UserInfo
-responses landed, by `/userinfo` — now on a path between a resource
-server's request and its answer.
-
-- Trigger: **P11**, whose criterion documents a p99 for `/token` and
-  `/userinfo` and so cannot be met while either lookup is unbounded. Bound
-  the lookup itself, and decide whether the two
-  transports share one answer or each wires its own — and whether
-  `/userinfo` needs a tighter timeout than `/token`'s shared default, since
-  it sits on a resource server's request rather than a client's own.
-
-**A tenant's SMTP host is checked by address and then dialled by name.**
-`checkSmtpDestination` (`packages/protocol-admin/src/service/smtp-destination.ts`)
-resolves the host and refuses loopback, link-local, private and the other
-reserved ranges in the numeric domain, exactly as ADR 0028 bounds a
-client-supplied `jwks_uri`. Unlike that fetcher, nodemailer then resolves
-the name again itself, so a name answering differently on the second lookup
-reaches an address this check refused. The fix is the shape that fetcher
-already has: inject a `lookup` into the transport that answers only the
-addresses already checked, or connect to the checked address and carry the
-hostname as an SNI/`servername` override so certificate verification still
-names the host the tenant configured. Either keeps one resolution between
-the check and the connection.
-
-- Trigger: **P11** or **P12**, whichever reworks outbound transport
-  configuration — the same pass that bounds the two undeadlined lookups
-  above, since all three are the one question of how this server opens an
-  outbound connection.
-
-**One configured issuer base for the whole deployment.** The admin API
-verifies a token's `iss` by deriving it from the request, the same way
-`/token` mints it, because there is no configured issuer to compare against
-— which also forced the admin API's audience to be a fixed URN rather than
-`${iss}/admin`. `ODUDU_PUBLIC_BASE_URL` already exists and is used for mail
-links and the WebAuthn relying-party id, so the value is half present.
-Replacing request-derived issuers everywhere changes how `iss` is minted on
-every token, ID token and Logout Token, on the RFC 9207 parameter and in
-discovery, which is why P4c did not do it in passing.
-
-- Trigger: **P11** or **P12**, whichever first reworks deployment
-  configuration.
+- Trigger: whichever task next touches refresh rotation, for the first; for
+  the second, a clock the refresh path controls end to end, or fixtures
+  that can move the database's own.
 
 **`client_oidc_config_tls_client_auth_needs_subject_dn` enforces `NOT
 NULL`, not non-blank.** A row with `tls_client_auth_subject_dn = ''` passes
-the CHECK, and `tlsClientSubject` only refuses a zero-length header. No code
-path can produce such a row — `parseClientMetadata` trims and rejects a
-blank value — so it is reachable only by a hand-written `INSERT`, the same
-class the `jwks`/`jwks_uri` mutual-exclusion constraint already accepts.
+the CHECK, and `tlsClientSubject` only refuses a zero-length header. No
+code path produces such a row — `parseClientMetadata` trims and rejects a
+blank — so it is reachable only by a hand-written `INSERT`, the class the
+`jwks`/`jwks_uri` mutual-exclusion constraint already accepts.
 
-- Trigger: the next migration that touches `client_oidc_config` for an
+- Trigger: the next migration touching `client_oidc_config` for an
   unrelated reason is where the tightened CHECK belongs.
 
 **Affected-package-only CI.** Turborepo and pnpm both support
@@ -409,61 +282,25 @@ win without "we did not run those tests" semantics. Keep typecheck, lint,
 boundaries and unit tests always-full, and set `globalDependencies` at the
 same time.
 
-- Trigger for caching: CI exceeds roughly 5 minutes (likely P4d, when
+- Trigger for caching: CI exceeds roughly 5 minutes (likely **P4d**, when
   Playwright arrives).
-- Trigger for filtering: slow suites dominate — P8 SAML interop, P9 policy
-  evaluation, or the nightly conformance suite.
+- Trigger for filtering: slow suites dominate — **P8** SAML interop, **P9**
+  policy evaluation, or the nightly conformance suite.
 
-**Committed development credentials.** Kept inline deliberately; ADR 0014
-has the reasoning, the three controls that make it acceptable, and the
-conditions under which to revisit.
+**Three clause-table judgements, none of them a fix.**
+`docs/protocols/rfc6750.md`'s row "`scope` appears at most once" is
+vacuous: it is cited to a name-agnostic grammar test and the server emits no
+`scope` auth-param, so the row is true and holds nothing. Fifteen tests
+share one clause id, `[RFC8705-2.1-03]`, while pinning different
+requirements — a disabled client, a public client, the one-method rule, the
+duplicate header, tenant isolation — and several are not §2.1 at all; the
+undifferentiated id is the defect, and the missing table that surfaced it
+is already fixed. `docs/protocols/rfc7662.md` points at a plan file for
+when a class of rows was decided, where the durable pointer is this file or
+a phase note.
 
-### The traceability machinery itself
-
-**`CLAUDE.md` states a rule the repository's own tests forbid.** A fenced
-block holding a response is supposed to carry no language tag, because
-Prettier reformats a tagged one — verified true. But
-`tests/docs/markdown.ts`'s `blockAfter(document, marker, language)` selects
-a block **by** language and its callers pass `'json'`, so an untagged JSON
-response is invisible to every check built on it. Every JSON response in
-`docs/request-paths.md` therefore shows Prettier's formatting rather than
-the server's bytes: content intact, byte-level promise not.
-
-- Trigger: do it as its own change. Teach the locator to match an
-  empty-language block — the parser beneath it already accepts one — then
-  untag the responses. It touches every JSON transcript at once, which is
-  why it does not ride along with anything else.
-
-**RFC 7523 has no clause table, and its clauses are absent from the
-matrix.** `docs/protocols/rfc7523.md` is the one file in `docs/protocols/`
-without a clause table, so Odudu has implemented an RFC whose every clause
-is untracked in the system built to make that visible — and `pnpm trace`
-does not fail on it, because a file with no table contributes zero rows
-rather than an error. This entry asked for it "before P3b closes"; P3b
-closed without it, so it is now **P13**'s, named in that phase's criterion,
-on the grounds that P13 is the next phase to rework client authentication.
-
-- What it takes: §2.2's two request parameters and §3's claim requirements.
-  §5 stays prose, per `rfc7523.md`'s own header. Test IDs are mostly
-  fillable from `[ODUDU-PRIVATE-KEY-JWT-01]`
-  (`packages/protocol-oidc/tests/private-key-jwt.int.test.ts`) and
-  `service/client-assertion.test.ts`.
-
-**`docs/protocols/rfc6750.md`'s row "`scope` appears at most once" is
-vacuous.** It is cited to a name-agnostic grammar test, and the server emits
-no `scope` auth-param anywhere, so the row is true and holds nothing.
-Choosing between rewording it and emitting a `scope` is a coverage
-judgement, not a fix.
-
-**Fifteen tests share one clause id, `[RFC8705-2.1-03]`, while pinning
-different requirements** — a disabled client, a public client, the
-one-method rule, the duplicate header, tenant isolation, several of them not
-§2.1 at all. The undifferentiated id is the real defect; the missing table
-that surfaced it was fixed.
-
-**`docs/protocols/rfc7662.md` points at a plan file** for when a class of
-rows was decided. A plan is archived scaffolding; the durable pointer is
-this file or the phase note.
+- Trigger: whichever pass next reworks the traceability documents. Each is
+  a coverage judgement rather than a defect, so none of them blocks a phase.
 
 ## Deferred from the final review
 

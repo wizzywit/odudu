@@ -400,3 +400,22 @@ So: **a section in `NEXT.md` addressed to a phase that has closed is overdue
 for a decision or a move, not for another paragraph.** That is the check to
 run on this file — it cannot be automated, and it takes one reading of the
 headings.
+
+Two things do not need a reader, and so are checked.
+`tests/docs/next-budget.test.ts` fails the build when the file passes 400
+lines or any one section passes 130, naming the section and the overage.
+The first split — moving the phase notes out on 2026-09-17 — took the file
+from 1,873 lines to 319, and three phases later it was at 525 again through
+a different leak: an item placed against a phase five phases away, kept here
+at the length of its own argument rather than as a line pointing at the ADR,
+protocol note or phase note that already held it. A per-section ceiling sits
+beside the total because the total alone can be met by squeezing "Start
+here", which is the inversion that produced the 1,873-line file in the first
+place.
+
+So an entry goes in "Decisions still open" under its argument's address, not
+its subject: one row in the table where an ADR, a protocol note or a phase
+note argues it, and prose only where nothing else can hold it. Writing prose
+there asserts that no such document should exist, which is usually false —
+and where it is true, the phase note of the phase that found the thing is
+almost always the answer.
