@@ -34,6 +34,17 @@ tenant is subject `01a0d6fb-0918-7846-b430-0a714b8bf7bf`. Secrets shown
 here are that stack's, and it was torn down with `docker compose down -v`
 when the capture finished.
 
+**The second stack.** The sections that turn on `If-Match` being
+mandatory, and the tenant and SMTP sections that describe endpoints added
+after the first capture, ran against a second stack brought up the same
+way from an empty volume: `seed admin --username ada`, then `demo` created
+through `POST /admin/tenants`, then a subject `grace`, a role
+`billing-viewer`, a group `engineering` and a scope `billing` created
+through the endpoints below. Its `demo` is
+`01a0d7ee-b611-71a0-b223-5a57ecbe83d8` — a different run, so its ids,
+`ETag`s and timestamps refer to each other and to nothing in the sections
+above. Each such section says so. It was torn down the same way.
+
 ## The shape of it
 
 Most of the admin endpoint lives under `/admin/tenants/{tenant}/`, mirroring
@@ -323,6 +334,53 @@ tenant it is refused with `409` — every cross-tenant administrator
 authenticates there, so disabling it would lock the whole deployment's
 administration out with `psql` the only way back, the same reasoning that
 guards the built-in admin client.
+
+Captured against the second stack, whose `demo` was created with
+`display_name: "Demo"`. The read, then an amendment, then the two
+refusals:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0d7ee-d299-79b7-9ab5-cd6648e1d99c
+etag: "cf5d154ca41d107fb966ae7e17efdccd41fd93c9da58b8f8ba29543bf9c1d8da"
+content-type: application/json; charset=utf-8
+content-length: 136
+
+{"id":"01a0d7ee-b611-71a0-b223-5a57ecbe83d8","name":"demo","display_name":"Demo","enabled":true,"created_at":"2026-09-25T09:39:00.754Z"}
+```
+
+```bash
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"display_name": "Demo Holdings"}' \
+  http://localhost:3000/admin/tenants/demo
+
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"name": "demo-2"}' \
+  http://localhost:3000/admin/tenants/demo
+
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"enabled": false}' \
+  http://localhost:3000/admin/tenants/system
+```
+
+```
+{"id":"01a0d7ee-b611-71a0-b223-5a57ecbe83d8","name":"demo","display_name":"Demo Holdings","enabled":true,"created_at":"2026-09-25T09:39:00.754Z"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: name is already in the issuer URL of every token this tenant has minted, and in the path of every admin and protocol request addressed to it; renaming it needs its own operation, not a general amendment","instance":"01a0d7ee-d2ca-7bd6-a42d-34908215a08e"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"system is the tenant every cross-tenant administrator authenticates against and cannot be disabled","instance":"01a0d7ee-d2dd-7389-8e92-3c9457c79199"}
+```
+
+Replaying the `ETag` from the read above — one generation stale after the
+amendment — is refused and changes nothing:
+
+```
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0d7ef-0287-7c9d-a24c-9fdbc8b1f5d6"}
+```
 
 ## `GET /settings` and `PATCH /settings`
 
@@ -925,24 +983,62 @@ with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 
-The transcript below was captured before the precondition became
-mandatory, so the request it shows is now refused with `428`; it has not
-been re-run against a live stack. The response is what a request carrying
-the header answers.
+Captured against the second stack, on `grace`, who was created through
+`POST /subjects` and so carries `update-password` and nothing else. The
+read first, for the `ETag` the write needs:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/subjects/01a0d7ef-2be7-7a2e-bbc5-4646e22c3169/required-actions
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0d7ef-47de-7e63-b9e4-f21b023efd84
+etag: "b6a877586a3e8e6eec8a74fd3ec35d6463a777d4a4f379aa095140acd8edcc10"
+content-type: application/json; charset=utf-8
+content-length: 31
+
+{"actions":["update-password"]}
+```
+
+The same write twice: without the header, then with it.
 
 ```bash
 curl -sS -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"actions": ["configure-totp"]}' \
-  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-9453-7bf0-9823-a5fc6ea34836/required-actions
+  http://localhost:3000/admin/tenants/demo/subjects/01a0d7ef-2be7-7a2e-bbc5-4646e22c3169/required-actions
+
+curl -sS -D - -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H 'If-Match: "b6a877586a3e8e6eec8a74fd3ec35d6463a777d4a4f379aa095140acd8edcc10"' \
+  -d '{"actions": ["configure-totp"]}' \
+  http://localhost:3000/admin/tenants/demo/subjects/01a0d7ef-2be7-7a2e-bbc5-4646e22c3169/required-actions
 ```
 
-The reply is the set as it now stands — and `ada` was created with
-`update-password`, which this request cleared by leaving it out:
+The reply to the second is the set as it now stands — `update-password` is
+gone, cleared by being left out — and a fresh `ETag` for the next write:
 
 ```
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a subject’s required actions","instance":"01a0d7ef-47f4-770e-84d7-b7570de8508e"}
+
+HTTP/1.1 200 OK
+x-request-id: 01a0d7ef-62d6-749d-815d-05486997038e
+etag: "eef964de74a02f6ce5f1ed1b1aa5e6a4f65aee68bfd955a4db04374af8ec513b"
+content-type: application/json; charset=utf-8
+content-length: 30
+
 {"actions":["configure-totp"]}
+```
+
+Replaying the first `ETag`, now one generation stale, changes nothing:
+
+```
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0d7ef-62f8-7819-a402-6a7987acd136"}
 ```
 
 ## `GET /subjects/:id/roles` and `PUT /subjects/:id/roles`
@@ -971,30 +1067,40 @@ with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 
-The transcript below was captured before the precondition became
-mandatory, so the request it shows is now refused with `428`; it has not
-been re-run against a live stack. The response is what a request carrying
-the header answers.
-
-The role came from `POST /roles` below:
-
-```
-{"id":"01a0d6fd-9471-7012-89c1-36ac3403705f","name":"billing-viewer","description":"read-only access to invoices","client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-25T05:15:37.968Z"}
-```
+Captured against the second stack, on `grace` and its `billing-viewer`
+role. The read, then the write carrying what the read answered:
 
 ```bash
-curl -sS -X PUT \
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/subjects/01a0d7ef-2be7-7a2e-bbc5-4646e22c3169/roles
+
+curl -sS -D - -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"role_ids": ["01a0d6fd-9471-7012-89c1-36ac3403705f"]}' \
-  http://localhost:3000/admin/tenants/demo/subjects/01a0d6fd-9453-7bf0-9823-a5fc6ea34836/roles
+  -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
+  -d '{"role_ids": ["01a0d7ef-2c44-7f99-9fbb-e9f05075340c"]}' \
+  http://localhost:3000/admin/tenants/demo/subjects/01a0d7ef-2be7-7a2e-bbc5-4646e22c3169/roles
 ```
 
-The response is the set as it now stands, by id and name:
+```
+etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
+{"items":[]}
 
+HTTP/1.1 200 OK
+x-request-id: 01a0d7ef-81b5-7dd3-9d62-c8567db4dcf0
+etag: "d7978c210e861d05f88ea7ba801911708de321021641d1ef93b1a21b3e888003"
+content-type: application/json; charset=utf-8
+content-length: 81
+
+{"items":[{"id":"01a0d7ef-2c44-7f99-9fbb-e9f05075340c","name":"billing-viewer"}]}
 ```
-{"items":[{"id":"01a0d6fd-9471-7012-89c1-36ac3403705f","name":"billing-viewer"}]}
-```
+
+**The tag is over the list, not over the resource.** An empty assignment
+hashes to `"eef46741…"` whichever subject, group or scope it belongs to —
+the three sections that follow show the same value — so a tag is not an
+identifier and carries no authority to write anywhere. It still does its
+one job: a write only lands when the list is what its holder last read.
 
 ## `GET /subjects/:id/sessions` and `DELETE /subjects/:id/sessions/:sid`
 
@@ -1202,6 +1308,35 @@ with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 
+Captured against the second stack, on its `engineering` group and
+`billing-viewer` role:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/groups/01a0d7ef-2c6b-7447-a9c6-7e710ddf1637/roles
+
+curl -sS -D - -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
+  -d '{"role_ids": ["01a0d7ef-2c44-7f99-9fbb-e9f05075340c"]}' \
+  http://localhost:3000/admin/tenants/demo/groups/01a0d7ef-2c6b-7447-a9c6-7e710ddf1637/roles
+```
+
+```
+etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
+{"items":[]}
+
+HTTP/1.1 200 OK
+x-request-id: 01a0d7ef-81f6-7254-a39d-0876a4f93205
+etag: "d7978c210e861d05f88ea7ba801911708de321021641d1ef93b1a21b3e888003"
+content-type: application/json; charset=utf-8
+content-length: 81
+
+{"items":[{"id":"01a0d7ef-2c44-7f99-9fbb-e9f05075340c","name":"billing-viewer"}]}
+```
+
 ## `GET /scopes`, `POST /scopes`, `GET /scopes/:id`, `PATCH /scopes/:id` and `DELETE /scopes/:id`
 
 All five require `manage-tenant`. `include_in_id_token` and
@@ -1240,6 +1375,36 @@ refused with `428 Precondition Required` and nothing is changed; stale,
 with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
+
+Captured against the second stack, on its `billing` scope and the same
+role — the empty list's tag is the one the two sections above answered,
+for the reason `PUT /subjects/:id/roles` states:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/scopes/01a0d7ef-2ca0-724f-9815-81273d5ce936/roles
+
+curl -sS -D - -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
+  -d '{"role_ids": ["01a0d7ef-2c44-7f99-9fbb-e9f05075340c"]}' \
+  http://localhost:3000/admin/tenants/demo/scopes/01a0d7ef-2ca0-724f-9815-81273d5ce936/roles
+```
+
+```
+etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
+{"items":[]}
+
+HTTP/1.1 200 OK
+x-request-id: 01a0d7ef-822e-795b-bd8e-6b9a311cc659
+etag: "d7978c210e861d05f88ea7ba801911708de321021641d1ef93b1a21b3e888003"
+content-type: application/json; charset=utf-8
+content-length: 81
+
+{"items":[{"id":"01a0d7ef-2c44-7f99-9fbb-e9f05075340c","name":"billing-viewer"}]}
+```
 
 ## `PUT /scopes/:id/clients/:clientId`
 
@@ -1294,28 +1459,48 @@ with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 
-The transcripts below were captured before the precondition became
-mandatory, so the `PUT`s they show are now refused with `428`; they have
-not been re-run against a live stack. The responses are what a request
-carrying the header answers.
+A scope with no bindings is unaffected by another scope's: binding `sub`
+to one scope narrows only that scope's own claims, never `email`'s or any
+other scope's in the same tenant.
 
-A scope with no bindings is unaffected by another scope's: binding
-`profile` to `sub` alone narrows only `profile`'s own claims, never
-`email`'s or any other scope's in the same tenant.
+Captured against the second stack, on its `billing` scope. The read, then
+the same write twice — without the header, then with it:
 
 ```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/scopes/01a0d7ef-2ca0-724f-9815-81273d5ce936/mappers
+
 curl -sS -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"mapper_names": ["sub"]}' \
-  http://localhost:3000/admin/tenants/demo/scopes/01a0d6fc-3629-7e64-a89c-2804355f56cf/mappers
+  http://localhost:3000/admin/tenants/demo/scopes/01a0d7ef-2ca0-724f-9815-81273d5ce936/mappers
+
+curl -sS -D - -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H 'If-Match: "59c1141bb2da82132d257ffa8b417c0a7c4e9985057f06388c4d62534ecb2183"' \
+  -d '{"mapper_names": ["sub"]}' \
+  http://localhost:3000/admin/tenants/demo/scopes/01a0d7ef-2ca0-724f-9815-81273d5ce936/mappers
 ```
 
-`demo`'s `profile` scope, read before and after the write above. The empty
-`bound` is the fallback case, not an error:
+The empty `bound` on the read is the fallback case, not an error. The
+`ETag` covers `bound` alone — `available` is the registry's, and no part
+of what a caller is replacing:
 
 ```
+etag: "59c1141bb2da82132d257ffa8b417c0a7c4e9985057f06388c4d62534ecb2183"
 {"available":["sub","profile","email","roles","groups","address","phone"],"bound":[]}
+
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a scope’s claim mapper bindings","instance":"01a0d7ef-b3c3-72dc-ac54-75e8a608dd7c"}
+
+HTTP/1.1 200 OK
+x-request-id: 01a0d7ef-b3de-760a-9640-23ffa5bde2a4
+etag: "e853268082f466e074aba6be62bd16b45ac4a0037e40335ae4eaf476c9defcb4"
+content-type: application/json; charset=utf-8
+content-length: 90
+
 {"available":["sub","profile","email","roles","groups","address","phone"],"bound":["sub"]}
 ```
 
@@ -1414,15 +1599,22 @@ with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 
-The transcripts below were captured before the precondition became
-mandatory, so the `PUT`s they show are now refused with `428`; they have
-not been re-run against a live stack. The responses are what a request
-carrying the header answers.
+A flow has no row to lock when it is empty, so the advisory lock
+`replaceForTenant` takes is what serialises two replacements, and this
+route takes it before the read rather than after — otherwise two callers
+holding the same fresh tag would both pass.
 
-`demo`'s flow as `provisionTenant` created it — the four steps every tenant
-starts with:
+Captured against the second stack. `demo`'s flow as `provisionTenant`
+created it — the four steps every tenant starts with — and its `ETag`:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/flow/executions
+```
 
 ```
+etag: "2e028692eeb04a65ef6a06be482c11d71247d243b5929007716ee0f4eb2324db"
 {"items":[{"index":0,"authenticator":"passkey","requirement":"alternative"},{"index":1,"authenticator":"password","requirement":"alternative"},{"index":2,"authenticator":"otp","requirement":"conditional"},{"index":3,"authenticator":"recovery-code","requirement":"conditional"}]}
 ```
 
@@ -1430,9 +1622,10 @@ Replacing it with a shorter, reordered one — three steps, password first,
 passkey off, and `recovery-code` dropped by being left out:
 
 ```bash
-curl -sS -X PUT \
+curl -sS -D - -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
+  -H 'If-Match: "2e028692eeb04a65ef6a06be482c11d71247d243b5929007716ee0f4eb2324db"' \
   -d '[
     {"authenticator": "password", "requirement": "required"},
     {"authenticator": "otp", "requirement": "conditional"},
@@ -1442,14 +1635,28 @@ curl -sS -X PUT \
 ```
 
 ```
+HTTP/1.1 200 OK
+x-request-id: 01a0d7ef-b40f-72df-bac4-b001431af1ff
+etag: "c46d3990450c6fdda560192fb31bb5c43d939d3ec27ba6861173ef4c2992e589"
+content-type: application/json; charset=utf-8
+content-length: 200
+
 {"items":[{"index":0,"authenticator":"password","requirement":"required"},{"index":1,"authenticator":"otp","requirement":"conditional"},{"index":2,"authenticator":"passkey","requirement":"disabled"}]}
 ```
 
-`index` is the array's own order renumbered from zero, and the request
-carried none. The empty list, refused:
+A second `PUT` carrying that same, now stale, header changes nothing:
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"a flow needs at least one step; a tenant with no flow cannot be logged into","instance":"01a0d6fe-e5e6-760a-8700-7cb5066704cd"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0d7ef-b429-7b76-83e4-b185216a422e"}
+```
+
+`index` is the array's own order renumbered from zero, and the request
+carried none. The empty list is refused ahead of the precondition, so it
+answers `400` rather than `428` even with no `If-Match` sent — the shape of
+the request is wrong whatever generation it is against:
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"a flow needs at least one step; a tenant with no flow cannot be logged into","instance":"01a0d7f1-b0d0-7b73-945b-9e81ad26e17b"}
 ```
 
 The write reaches the executor immediately, not only the table: the very
@@ -1570,6 +1777,41 @@ was re-`PUT` as `127.0.0.1` — the probe this endpoint would otherwise be:
 
 No `502` is shown: this stack has no mail server and no host it is willing
 to dial, so nothing here reaches a transport for one to be reported from.
+
+`DELETE` was captured on the second stack, against a `demo` with no row,
+then after a `PUT` had stored one. `404` first, `204` second, and a `GET`
+afterwards showing the tenant back on the deployment's own sender:
+
+```bash
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/smtp
+
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"host": "smtp.example.test", "port": 587, "from_address": "noreply@demo.example"}' \
+  http://localhost:3000/admin/tenants/demo/smtp
+
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/smtp
+
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/smtp
+```
+
+```
+HTTP/1.1 404 Not Found
+x-request-id: 01a0d7ef-02cb-780c-ad5a-3738cc84f2dc
+content-type: application/problem+json; charset=utf-8
+content-length: 154
+
+{"type":"about:blank","title":"Not Found","status":404,"detail":"this tenant has no SMTP configuration","instance":"01a0d7ef-02cb-780c-ad5a-3738cc84f2dc"}
+{"configured":true,"host":"smtp.example.test","port":587,"from_address":"noreply@demo.example","username":null,"password_set":false,"starttls":false}
+
+HTTP/1.1 204 No Content
+x-request-id: 01a0d7ef-030e-7e73-85f7-75a347bd86c7
+
+{"configured":false,"host":null,"port":null,"from_address":null,"username":null,"password_set":false,"starttls":null}
+```
 
 ## `GET /audit`
 
