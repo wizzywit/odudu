@@ -1,7 +1,8 @@
 // The fixed vocabulary of audit actions this server writes, grouped by the
-// event type they belong under. `admin_mutation` is not here: P4c's
-// action strings are free-form (one per resource mutation) and its own
-// `detail` allowlist lives in @odudu/protocol-admin's audit-detail.ts.
+// event type they belong under. `admin_mutation` is not here: admin
+// mutations' action strings are free-form, one per resource mutation, and
+// their own `detail` allowlist lives in @odudu/protocol-admin's
+// audit-detail.ts.
 export const AUDIT_ACTIONS = {
   admin_access: ['capability.refused', 'token.foreign_issuer'],
   authentication: [
