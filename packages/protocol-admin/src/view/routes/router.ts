@@ -3,6 +3,7 @@ import { type Clock } from '@odudu/kernel';
 import { tenantIssuerFor } from '@odudu/protocol-oidc';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
+import { paramsSchemaFor } from '#/service/path-params';
 import {
   authenticateAdmin,
   type AdminPrincipal,
@@ -119,10 +120,12 @@ export function registerAdminRoutes(
     }
     unclaimed.delete(key);
 
+    const paramsSchema = paramsSchemaFor(route.pattern);
     app.route<{ Params: AdminRouteParams }>({
       method: route.method,
       url: route.pattern,
       schema: {
+        ...(paramsSchema === undefined ? {} : { params: paramsSchema }),
         ...(route.querystringSchema !== undefined ? { querystring: route.querystringSchema } : {}),
         ...(route.bodySchema !== undefined ? { body: route.bodySchema } : {}),
       },

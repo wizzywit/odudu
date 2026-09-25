@@ -3,12 +3,19 @@ import { ADMIN_API_AUDIENCE } from '@odudu/domain-tenant';
 import { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
+import { pathParameterNames, rowIdSchema } from '#/service/path-params';
 
 type JsonSchema = z.core.JSONSchema.BaseSchema;
 
-interface OpenApiParameterRef {
-  readonly $ref: string;
+interface OpenApiParameter {
+  readonly name: string;
+  readonly in: 'path';
+  readonly required: true;
+  readonly description: string;
+  readonly schema: JsonSchema;
 }
+
+type OpenApiParameterOrRef = { readonly $ref: string } | OpenApiParameter;
 
 interface OpenApiResponse {
   readonly description: string;
@@ -18,7 +25,7 @@ interface OpenApiResponse {
 interface OpenApiOperation {
   readonly summary: string;
   readonly description?: string;
-  readonly parameters: readonly OpenApiParameterRef[];
+  readonly parameters: readonly OpenApiParameterOrRef[];
   readonly responses: Readonly<Record<string, OpenApiResponse>>;
 }
 
@@ -63,6 +70,25 @@ const PROBLEM_DETAILS_RESPONSE: OpenApiResponse = {
   content: { 'application/problem+json': { schema: jsonSchemaFor(problemDetailsSchema) } },
 };
 
+// Every template variable in the path, because OpenAPI requires each one to
+// be declared and a generated client cannot fill one it was not told about.
+// Derived from the same pattern `paramsSchemaFor` narrows, so the document
+// and the check cannot describe different ids. A route with no `:tenant`
+// segment administers the collection itself and carries none.
+function pathParametersFor(pattern: string): OpenApiParameterOrRef[] {
+  return pathParameterNames(pattern).map((name) =>
+    name === 'tenant'
+      ? { $ref: '#/components/parameters/tenant' }
+      : {
+          name,
+          in: 'path' as const,
+          required: true as const,
+          description: 'A row id.',
+          schema: jsonSchemaFor(rowIdSchema),
+        },
+  );
+}
+
 function operationFor(route: AdminRoute): OpenApiOperation {
   const status = String(route.successStatus ?? 200);
   const responses: Record<string, OpenApiResponse> = {
@@ -82,11 +108,7 @@ function operationFor(route: AdminRoute): OpenApiOperation {
         ? 'Requires an authenticated admin caller.'
         : `Requires the "${route.capability}" capability.`,
     ...(route.description === undefined ? {} : { description: route.description }),
-    // A route with no `:tenant` segment administers the collection itself,
-    // not one tenant's data, so it carries no tenant path parameter.
-    parameters: route.pattern.includes(':tenant')
-      ? [{ $ref: '#/components/parameters/tenant' }]
-      : [],
+    parameters: pathParametersFor(route.pattern),
     responses,
   };
 }

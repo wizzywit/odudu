@@ -146,8 +146,14 @@ function bodyFor(route: AdminRoute): unknown {
   return SAMPLE_BODIES[routeKey(route)] ?? {};
 }
 
+// Well-formed but matching nothing. The id has to parse: every route's
+// params are narrowed to a uuid (`paramsSchemaFor`), and a stand-in that
+// did not parse would be refused with 400 before authorization ran — which
+// is the one thing this matrix exists to observe.
+const ABSENT_ID = '0199aa00-0000-7000-8000-0000000000ff';
+
 function urlFor(route: AdminRoute, tenantName: string): string {
-  return route.pattern.replace(':tenant', tenantName).replace(/:(\w+)/gu, 'placeholder');
+  return route.pattern.replace(':tenant', tenantName).replace(/:(\w+)/gu, ABSENT_ID);
 }
 
 async function callWith(

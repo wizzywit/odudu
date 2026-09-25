@@ -69,23 +69,44 @@ describe('the published OpenAPI document', () => {
     expect(operation?.description).toContain('No Front-Channel Logout');
   });
 
-  it('describes the tenant path parameter once, as a shared component', async () => {
+  it('declares every template variable in every path, in path order', async () => {
     const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
     const doc = res.json<{
-      paths: Record<string, Record<string, { parameters?: unknown[] }>>;
+      paths: Record<
+        string,
+        Record<string, { parameters: ({ name?: string } & { $ref?: string })[] }>
+      >;
       components: { parameters: Record<string, { name: string; in: string }> };
     }>();
     expect(doc.components.parameters.tenant).toMatchObject({ name: 'tenant', in: 'path' });
+
+    // An undeclared variable leaves a generated client unable to fill the
+    // path it was given, so the check is the path's own text against what
+    // the operation declares — not a list of routes kept beside it.
     for (const [path, methods] of Object.entries(doc.paths)) {
-      // `/admin/tenants` administers the collection itself and carries no
-      // `{tenant}` segment, so it declares no tenant parameter either —
-      // only paths that actually template `{tenant}` reference it.
-      const expected = path.includes('{tenant}')
-        ? [{ $ref: '#/components/parameters/tenant' }]
-        : [];
+      const templated = [...path.matchAll(/\{(\w+)\}/gu)].map((match) => match[1]);
       for (const operation of Object.values(methods)) {
-        expect(operation.parameters).toEqual(expected);
+        const declared = operation.parameters.map((parameter) =>
+          parameter.$ref === '#/components/parameters/tenant' ? 'tenant' : parameter.name,
+        );
+        expect(declared, path).toEqual(templated);
       }
     }
+  });
+
+  it('constrains an id parameter to a uuid, the same shape the router refuses past', async () => {
+    const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
+    const doc = res.json<{
+      paths: Record<
+        string,
+        Record<string, { parameters: { name?: string; schema?: { pattern?: string } }[] }>
+      >;
+    }>();
+    const idParameter = Object.values(doc.paths)
+      .flatMap((methods) => Object.values(methods))
+      .flatMap((operation) => operation.parameters)
+      .find((parameter) => parameter.name === 'id');
+
+    expect(idParameter?.schema?.pattern).toContain('[0-9a-fA-F]{8}');
   });
 });
