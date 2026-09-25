@@ -26,6 +26,11 @@ describe('boundary rules', () => {
     expect(found.some((v) => v.from.includes('domain-authz'))).toBe(true);
   });
 
+  it('rejects @odudu/domain-audit importing a protocol package', async () => {
+    const found = await violations('no-domain-to-protocol');
+    expect(found.some((v) => v.from.includes('domain-audit'))).toBe(true);
+  });
+
   it('rejects @odudu/account importing a protocol package', async () => {
     const found = await violations('no-domain-to-protocol');
     expect(found.some((v) => v.from.includes('/account/'))).toBe(true);

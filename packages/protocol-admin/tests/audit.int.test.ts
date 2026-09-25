@@ -1,8 +1,8 @@
 import { withTenant } from '@odudu/db';
+import { auditEvents } from '@odudu/domain-audit';
 import { clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { auditEvents } from '#/schema/audit-events';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 
 let fixtureHandle: AdminFixture | undefined;

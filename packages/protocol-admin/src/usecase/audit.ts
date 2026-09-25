@@ -1,8 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { type AuditEvent } from '@odudu/contracts/admin';
+import { auditRepository, type AuditEventRecord } from '@odudu/domain-audit';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
-import { auditRepository } from '#/repository/audit';
-import { type AuditEventRecord } from '#/schema/audit-events';
 
 const COLLECTION = 'audit';
 

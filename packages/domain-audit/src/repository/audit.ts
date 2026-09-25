@@ -2,20 +2,11 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { auditEvents, type AuditEventRecord } from '#/schema/audit-events';
-
-export interface AuditEventInput {
-  readonly eventType: string;
-  readonly action: string;
-  readonly outcome: 'allowed' | 'refused' | 'failed';
-  readonly actorTenantId?: string | null;
-  readonly actorSubjectId?: string | null;
-  readonly actorClientId?: string | null;
-  readonly resourceType?: string | null;
-  readonly resourceId?: string | null;
-  readonly requestId?: string | null;
-  readonly ip?: string | null;
-  readonly detail?: Record<string, unknown> | undefined;
-}
+import {
+  assertDetailAllowed,
+  type AuditEventInput,
+  type AuditEventType,
+} from '#/service/vocabulary';
 
 /** A page's last row, so the next page's query resumes strictly after it. */
 export interface AuditCursorPosition {
@@ -24,6 +15,7 @@ export interface AuditCursorPosition {
 }
 
 export interface AuditEventFilter {
+  readonly eventType?: AuditEventType | undefined;
   readonly actorSubjectId?: string | undefined;
   readonly resourceType?: string | undefined;
   readonly action?: string | undefined;
@@ -42,6 +34,9 @@ export function auditRepository(tx: TenantScopedDatabase) {
     // transaction to, which is the mutation's target rather than
     // whichever tenant issued the caller's own token.
     async record(event: AuditEventInput): Promise<void> {
+      const detail = event.detail ?? {};
+      assertDetailAllowed(event.action, detail);
+
       await tx.insert(auditEvents).values({
         id: newId(),
         eventType: event.eventType,
@@ -52,9 +47,7 @@ export function auditRepository(tx: TenantScopedDatabase) {
         actorClientId: event.actorClientId ?? null,
         resourceType: event.resourceType ?? null,
         resourceId: event.resourceId ?? null,
-        requestId: event.requestId ?? null,
-        ip: event.ip ?? null,
-        detail: event.detail ?? {},
+        detail,
       });
     },
 
@@ -65,6 +58,9 @@ export function auditRepository(tx: TenantScopedDatabase) {
     // previous page" without a second OR-of-conditions branch.
     async list(filter: AuditEventFilter): Promise<AuditEventRecord[]> {
       const conditions: SQL[] = [];
+      if (filter.eventType !== undefined) {
+        conditions.push(eq(auditEvents.eventType, filter.eventType));
+      }
       if (filter.actorSubjectId !== undefined) {
         conditions.push(eq(auditEvents.actorSubjectId, filter.actorSubjectId));
       }

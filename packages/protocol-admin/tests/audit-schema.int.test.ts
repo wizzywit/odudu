@@ -6,10 +6,10 @@ import {
   withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
+import { auditEvents } from '@odudu/domain-audit';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { auditEvents } from '#/schema/audit-events';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
