@@ -151,9 +151,14 @@ describe('GET /admin/tenants/{t}/audit', () => {
     const res = await getAudit(localToken, u.name, '?action=tenant.amend_settings');
 
     expect(res.statusCode).toBe(200);
-    const body = res.json<{ items: { action: string }[] }>();
+    const body = res.json<{ items: { action: string; actor_tenant_id: string | null }[] }>();
     expect(body.items).toHaveLength(1);
     expect(body.items[0]?.action).toBe('tenant.amend_settings');
+    // The row is visible under U's own tenant_id, but the actor is named as
+    // the system tenant, not U — this is the whole reason tenant_id is kept
+    // as the target rather than the actor's own.
+    expect(body.items[0]?.actor_tenant_id).toBe(fixture.systemTenantId);
+    expect(body.items[0]?.actor_tenant_id).not.toBe(u.id);
   });
 
   it('is refused for every capability but view-audit', async () => {

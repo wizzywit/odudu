@@ -142,14 +142,30 @@ export interface AdminRoutesDeps {
   // (#/usecase/scope-mappers.ts) for why this package types it that way
   // instead of importing protocol-oidc's own `ClaimContext`.
   claimMappers: MapperCatalogue;
-  // Runs immediately after every audit row this plugin records; a
-  // rejection propagates into the mutation's own transaction and rolls it
-  // back with the row just written. Exists for a test to prove the audit
-  // write is transactional — no production caller sets it.
-  afterAuditWrite?: () => Promise<void>;
 }
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
+  return buildAdminRoutes(deps, undefined);
+}
+
+/**
+ * Identical to `adminRoutes`, plus a hook run immediately after every audit
+ * row this plugin records; a rejection propagates into the mutation's own
+ * transaction and rolls it back with the row just written. Not part of
+ * `AdminRoutesDeps` — no production caller of `adminRoutes` can reach it —
+ * because its only use is a test proving that write is transactional.
+ */
+export function adminRoutesForTesting(
+  deps: AdminRoutesDeps,
+  afterAuditWrite: () => Promise<void>,
+): FastifyPluginAsync {
+  return buildAdminRoutes(deps, afterAuditWrite);
+}
+
+function buildAdminRoutes(
+  deps: AdminRoutesDeps,
+  afterAuditWrite: (() => Promise<void>) | undefined,
+): FastifyPluginAsync {
   return (app) => {
     installAdminValidator(app);
     installProblemDetailsHandler(app);
@@ -169,6 +185,8 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
         readonly resourceType: string;
         readonly resourceId: string;
         readonly actorSubjectId: string;
+        readonly actorTenantId: string;
+        readonly actorClientId: string;
         readonly outcome: 'allowed' | 'refused' | 'failed';
         readonly detail?: Record<string, unknown>;
       },
@@ -180,12 +198,14 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
         resourceType: event.resourceType,
         resourceId: event.resourceId,
         actorSubjectId: event.actorSubjectId,
+        actorTenantId: event.actorTenantId,
+        actorClientId: event.actorClientId,
         detail: event.detail,
       });
       // Lets an integration test prove the write above is inside the
       // mutating transaction: its rejection rolls the whole thing back
       // with it. Unset in production.
-      if (deps.afterAuditWrite !== undefined) await deps.afterAuditWrite();
+      if (afterAuditWrite !== undefined) await afterAuditWrite();
     }
     const tenantAudit: Audit = recordAudit;
     const clientAudit: ClientAudit = recordAudit;
@@ -374,7 +394,17 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     };
 
     registerOpenApiRoute(app);
-    registerAdminRoutes(app, handlers, authDeps, authzDeps, clock);
+    registerAdminRoutes(app, handlers, authDeps, authzDeps, clock, (targetTenantId) =>
+      withTenant(deps.database.db, targetTenantId, (tx) =>
+        auditRepository(tx).record({
+          eventType: 'admin_mutation',
+          action: 'admin.cross_tenant_refused',
+          outcome: 'refused',
+          resourceType: 'tenant',
+          resourceId: targetTenantId,
+        }),
+      ),
+    );
 
     deps.logger.debug({}, 'protocol-admin registered its admin routes');
     return Promise.resolve();

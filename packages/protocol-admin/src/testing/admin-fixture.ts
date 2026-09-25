@@ -43,7 +43,7 @@ import {
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
-import { adminRoutes } from '#/index';
+import { adminRoutesForTesting } from '#/index';
 
 // Encrypts every signing key this fixture generates, and decrypts every one
 // it signs with — a fixed value is fine because nothing outside this
@@ -202,20 +202,22 @@ export async function startAdminFixture(): Promise<AdminFixture> {
   );
   let failNextAuditWrite = false;
   await http.register(
-    adminRoutes({
-      database: app,
-      ownerDatabase: owner,
-      logger: NO_OP_LOGGER,
-      clock,
-      cursorKey: KEK,
-      kek: KEK,
-      claimMappers,
-      afterAuditWrite: () => {
+    adminRoutesForTesting(
+      {
+        database: app,
+        ownerDatabase: owner,
+        logger: NO_OP_LOGGER,
+        clock,
+        cursorKey: KEK,
+        kek: KEK,
+        claimMappers,
+      },
+      () => {
         if (!failNextAuditWrite) return Promise.resolve();
         failNextAuditWrite = false;
         return Promise.reject(new Error('fixture: forced failure after an audit write'));
       },
-    }),
+    ),
   );
   await http.ready();
 

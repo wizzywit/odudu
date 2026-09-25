@@ -24,6 +24,13 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     jwks_uri: 'value',
     frontchannel_logout_uri: 'value',
     backchannel_logout_uri: 'value',
+    // `jwks` reaches here through `clientWireShape` and can really change
+    // on an amend. `secret_hash` and `password_encrypted` cannot: neither
+    // is ever part of a client's wire shape, and `rotateClientSecret`
+    // records its own detail without calling this function at all. Both
+    // stay marked sensitive anyway, on the same reasoning as omit-by-default
+    // — a wire shape that starts including one later must not start
+    // leaking it just because nobody updated an allowlist.
     secret_hash: 'sensitive',
     password_encrypted: 'sensitive',
     jwks: 'sensitive',

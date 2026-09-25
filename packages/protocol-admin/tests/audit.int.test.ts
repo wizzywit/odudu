@@ -1,4 +1,5 @@
 import { withTenant } from '@odudu/db';
+import { clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { auditEvents } from '#/schema/audit-events';
@@ -38,6 +39,12 @@ describe('audit', () => {
     const rows = await withTenant(fixture.app.db, t.id, (tx) => tx.select().from(auditEvents));
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ outcome: 'allowed', action: 'client.create' });
+    // The caller's own tenant and client, not the target's — a tenant-local
+    // admin's own tenant happens to equal the target here, so this alone
+    // does not prove the two are kept apart; audit-list.int.test.ts's
+    // cross-tenant case does that.
+    expect(rows[0]?.actorTenantId).toBe(t.id);
+    expect(rows[0]?.actorClientId).not.toBeNull();
   });
 
   it('writes no row when the mutation rolls back', async () => {
@@ -49,8 +56,9 @@ describe('audit', () => {
     const token = await fixture.adminToken(t.name, ['manage-clients']);
     await fixture.failNextWriteAfterAudit();
 
+    const clientId = `doomed-${newId()}`;
     const res = await createClientRequest(token, t.name, {
-      client_id: `doomed-${newId()}`,
+      client_id: clientId,
       redirect_uris: ['https://app.example/cb'],
       token_endpoint_auth_method: 'none',
     });
@@ -58,6 +66,13 @@ describe('audit', () => {
     expect(res.statusCode).toBe(500);
     const rows = await withTenant(fixture.app.db, t.id, (tx) => tx.select().from(auditEvents));
     expect(rows).toHaveLength(0);
+    // The other direction: the rollback took the mutation itself with it,
+    // not only the audit row — a client that persisted here would be a
+    // worse bug than a missing audit row, a mutation nobody can see.
+    const persisted = await withTenant(fixture.app.db, t.id, (tx) =>
+      clientRepository(tx).byClientId(clientId),
+    );
+    expect(persisted).toBeNull();
   });
 
   it('records a refusal as well as a success', async () => {
@@ -103,6 +118,10 @@ describe('audit', () => {
     const rows = await withTenant(fixture.app.db, t.id, (tx) => tx.select().from(auditEvents));
     const rotated = rows.find((row) => row.action === 'client.rotate_secret');
     expect(rotated).toBeDefined();
+    // The detail names that the hash changed without ever holding it — a
+    // detail of `{}` would also pass `not.toContain`, so the row is pinned
+    // to what it actually records, not merely to what it omits.
+    expect(rotated?.detail).toEqual({ secret_hash: { changed: true } });
     expect(JSON.stringify(rotated?.detail ?? {})).not.toContain(secret);
   });
 });
