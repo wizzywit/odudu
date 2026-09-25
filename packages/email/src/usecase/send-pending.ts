@@ -28,7 +28,11 @@ export interface SendPendingDeps {
    * find out whose mail is in it (ADR 0009's amendment of 2026-09-13).
    */
   readonly ownerDatabase: DatabaseHandle;
-  readonly sender: EmailSender;
+  // Resolved once per tenant per pass, only for a tenant with something
+  // claimed — never once per message. A tenant's own sender matters only
+  // at the point of sending, never while a row is claimed or written back,
+  // so `deliver` below never holds a tenant transaction open across it.
+  readonly resolveSender: (tenantId: string) => Promise<EmailSender>;
   readonly log?: Logger;
 }
 
@@ -94,6 +98,7 @@ type Delivery = 'sent' | 'failed' | 'duplicate';
 
 async function deliver(
   deps: SendPendingDeps,
+  sender: EmailSender,
   tenantId: string,
   message: OutboxMessage,
   now: Date,
@@ -103,7 +108,7 @@ async function deliver(
     withTenant(deps.database.db, tenantId, fn);
 
   try {
-    await deps.sender.send({
+    await sender.send({
       to: message.to,
       subject: message.subject,
       text: message.text,
@@ -160,13 +165,19 @@ export async function sendPending(
         leaseSeconds: OUTBOX_CLAIM_LEASE_SECONDS,
       }),
     );
+    if (claimed.length === 0) continue;
+
+    // Resolved once for the whole batch, not once per message — the read
+    // itself is a brief, separate transaction (see resolveSender's own
+    // implementation), never held open across any of the sends below.
+    const sender = await deps.resolveSender(tenantId);
 
     for (const message of claimed) {
       // Per message, so one address the transport chokes on does not
       // abandon the rest of the batch. A claimed message left unresolved
       // by a throw here is offered again once its lease elapses.
       try {
-        const delivery = await deliver(deps, tenantId, message, now, options);
+        const delivery = await deliver(deps, sender, tenantId, message, now, options);
         if (delivery === 'sent') sent += 1;
         else if (delivery === 'failed') failed += 1;
       } catch (err) {

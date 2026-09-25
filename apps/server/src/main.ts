@@ -14,7 +14,7 @@ import {
   assertProductionTls,
   warnIfTlsDisabled,
 } from '#/config-guard';
-import { buildEmailSender } from '#/email';
+import { resolveSender } from '#/email';
 import { createLogger } from '#/logger';
 import { createLogoutDeliveryTransport } from '#/logout-delivery-transport';
 import { databaseModule } from '#/modules/database';
@@ -93,8 +93,6 @@ if (runtime === owner) {
   );
 }
 
-const sender = buildEmailSender(config, logger);
-
 const app = buildApp({
   database: runtime,
   ownerDatabase: owner,
@@ -115,7 +113,14 @@ const app = buildApp({
 const registry = new ModuleRegistry()
   .register(databaseModule(owner, runtime))
   .register(reapModule({ database: runtime, ownerDatabase: owner }))
-  .register(outboxModule({ database: runtime, ownerDatabase: owner, sender }))
+  .register(
+    outboxModule({
+      database: runtime,
+      ownerDatabase: owner,
+      resolveSender: (tenantId) =>
+        resolveSender({ database: runtime.db, kek: config.ODUDU_KEK, config, logger }, tenantId),
+    }),
+  )
   .register(
     logoutSenderModule({
       database: runtime,

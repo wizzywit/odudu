@@ -43,7 +43,7 @@ export function outboxSchedule(config: Config): OutboxScheduleDecision {
 export interface OutboxModuleDeps {
   readonly database: DatabaseHandle;
   readonly ownerDatabase: DatabaseHandle;
-  readonly sender: EmailSender;
+  readonly resolveSender: (tenantId: string) => Promise<EmailSender>;
 }
 
 /**

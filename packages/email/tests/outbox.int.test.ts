@@ -82,6 +82,12 @@ function refusing(reason = 'mail transport unavailable'): EmailSender {
   return { send: () => Promise.reject(new Error(reason)) };
 }
 
+// Every test in this file but the multi-tenant-routing one below has no
+// opinion on which tenant asks — the same sender answers regardless.
+function resolveTo(sender: EmailSender): (tenantId: string) => Promise<EmailSender> {
+  return () => Promise.resolve(sender);
+}
+
 let tenantId: string;
 
 async function seedTenant(): Promise<string> {
@@ -371,7 +377,7 @@ describe('the sending pass', () => {
     const sender = capturing();
 
     const outcome = await sendPending(
-      { database: app, ownerDatabase: owner, sender },
+      { database: app, ownerDatabase: owner, resolveSender: resolveTo(sender) },
       NOW,
       OPTIONS,
     );
@@ -395,7 +401,7 @@ describe('the sending pass', () => {
     const sender = capturing();
 
     const outcome = await sendPending(
-      { database: app, ownerDatabase: owner, sender },
+      { database: app, ownerDatabase: owner, resolveSender: resolveTo(sender) },
       NOW,
       OPTIONS,
     );
@@ -403,11 +409,44 @@ describe('the sending pass', () => {
     expect(outcome).toEqual({ ran: true, sent: 2, failed: 0 });
   });
 
+  // The one behaviour this whole file exists to prove: resolveSender is
+  // asked per tenant, and a tenant's message reaches only the sender
+  // resolved for its own tenant id — not a single process-wide sender
+  // every tenant shares.
+  it('resolves a distinct sender per tenant, and routes each message to its own', async () => {
+    const first = tenantId;
+    const second = await seedTenant();
+    await enqueue(first, { to: 'first@example.test' });
+    await enqueue(second, { to: 'second@example.test' });
+    const sendersByTenant = new Map([
+      [first, capturing()],
+      [second, capturing()],
+    ]);
+
+    const outcome = await sendPending(
+      {
+        database: app,
+        ownerDatabase: owner,
+        resolveSender: (askedTenantId) => {
+          const sender = sendersByTenant.get(askedTenantId);
+          if (sender === undefined) throw new Error(`unexpected tenant ${askedTenantId}`);
+          return Promise.resolve(sender);
+        },
+      },
+      NOW,
+      OPTIONS,
+    );
+
+    expect(outcome).toEqual({ ran: true, sent: 2, failed: 0 });
+    expect(sendersByTenant.get(first)?.sent.map((m) => m.to)).toEqual(['first@example.test']);
+    expect(sendersByTenant.get(second)?.sent.map((m) => m.to)).toEqual(['second@example.test']);
+  });
+
   it('backs a refused message off and keeps the reason, without sending it again', async () => {
     const id = await enqueue();
 
     const first = await sendPending(
-      { database: app, ownerDatabase: owner, sender: refusing() },
+      { database: app, ownerDatabase: owner, resolveSender: resolveTo(refusing()) },
       NOW,
       OPTIONS,
     );
@@ -424,7 +463,7 @@ describe('the sending pass', () => {
     // again would be retrying inside the backoff it just set.
     const sender = capturing();
     const immediately = await sendPending(
-      { database: app, ownerDatabase: owner, sender },
+      { database: app, ownerDatabase: owner, resolveSender: resolveTo(sender) },
       NOW,
       OPTIONS,
     );
@@ -438,7 +477,7 @@ describe('the sending pass', () => {
 
     for (let attempt = 1; attempt <= OPTIONS.maxAttempts; attempt += 1) {
       const outcome = await sendPending(
-        { database: app, ownerDatabase: owner, sender: refusing() },
+        { database: app, ownerDatabase: owner, resolveSender: resolveTo(refusing()) },
         at,
         OPTIONS,
       );
@@ -451,7 +490,11 @@ describe('the sending pass', () => {
     // Past the ceiling the message is not attempted again — and it is
     // still here, with its error, for an operator to read.
     const sender = capturing();
-    const after = await sendPending({ database: app, ownerDatabase: owner, sender }, at, OPTIONS);
+    const after = await sendPending(
+      { database: app, ownerDatabase: owner, resolveSender: resolveTo(sender) },
+      at,
+      OPTIONS,
+    );
     expect(after).toEqual({ ran: true, sent: 0, failed: 0 });
     expect(sender.sent).toEqual([]);
     const row = await rowById(id);
@@ -471,7 +514,7 @@ describe('the sending pass', () => {
     };
 
     const outcome = await sendPending(
-      { database: app, ownerDatabase: owner, sender: racing },
+      { database: app, ownerDatabase: owner, resolveSender: resolveTo(racing) },
       NOW,
       OPTIONS,
     );
@@ -491,7 +534,7 @@ describe('the sending pass', () => {
     };
 
     const outcome = await sendPending(
-      { database: app, ownerDatabase: owner, sender },
+      { database: app, ownerDatabase: owner, resolveSender: resolveTo(sender) },
       NOW,
       OPTIONS,
     );
@@ -517,7 +560,11 @@ describe('the sending pass', () => {
     try {
       await runMigrations(emptyOwner.db, MIGRATIONS_DIR);
       const outcome = await sendPending(
-        { database: emptyServing, ownerDatabase: emptyOwner, sender: capturing() },
+        {
+          database: emptyServing,
+          ownerDatabase: emptyOwner,
+          resolveSender: resolveTo(capturing()),
+        },
         NOW,
         OPTIONS,
       );
@@ -530,13 +577,21 @@ describe('the sending pass', () => {
 
   it('refuses to run on a connection that cannot enumerate tenants', async () => {
     await expect(
-      sendPending({ database: app, ownerDatabase: app, sender: capturing() }, NOW, OPTIONS),
+      sendPending(
+        { database: app, ownerDatabase: app, resolveSender: resolveTo(capturing()) },
+        NOW,
+        OPTIONS,
+      ),
     ).rejects.toThrow(/bypasses row-level security/u);
   });
 
   it('refuses to claim on a connection that escapes the tenant policy', async () => {
     await expect(
-      sendPending({ database: owner, ownerDatabase: owner, sender: capturing() }, NOW, OPTIONS),
+      sendPending(
+        { database: owner, ownerDatabase: owner, resolveSender: resolveTo(capturing()) },
+        NOW,
+        OPTIONS,
+      ),
     ).rejects.toThrow(/must be subject to it/u);
   });
 });
