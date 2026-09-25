@@ -15,6 +15,7 @@ import { type Audit as GroupAudit } from '#/usecase/groups';
 import { type Audit as KeyAudit } from '#/usecase/keys';
 import { type Audit as RoleAudit } from '#/usecase/roles';
 import { type Audit as ScopeAudit } from '#/usecase/scopes';
+import { type Audit as ScopeMapperAudit, type MapperCatalogue } from '#/usecase/scope-mappers';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
 import { type Audit as SubjectAudit } from '#/usecase/subjects';
 import { type Audit } from '#/usecase/tenants';
@@ -39,6 +40,11 @@ import {
   type GroupsRouteDeps,
 } from '#/view/routes/groups';
 import { listFlowHandler, replaceFlowHandler, type FlowRouteDeps } from '#/view/routes/flow';
+import {
+  readScopeMappersHandler,
+  setScopeMappersHandler,
+  type ScopeMappersRouteDeps,
+} from '#/view/routes/scope-mappers';
 import {
   createKeyHandler,
   listKeysHandler,
@@ -119,6 +125,11 @@ export interface AdminRoutesDeps {
   // @odudu/protocol-oidc) — off by default, since a `tls_client_auth`
   // client is unauthenticatable with no proxy in front of this server.
   trustProxy?: boolean;
+  // The same `ClaimMapperRegistry` @odudu/protocol-oidc assembles claims
+  // from, shared rather than re-instantiated — see `MapperCatalogue`
+  // (#/usecase/scope-mappers.ts) for why this package types it that way
+  // instead of importing protocol-oidc's own `ClaimContext`.
+  claimMappers: MapperCatalogue;
 }
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
@@ -140,6 +151,7 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     const noopScopeAudit: ScopeAudit = () => Promise.resolve();
     const noopKeyAudit: KeyAudit = () => Promise.resolve();
     const noopFlowAudit: FlowAudit = () => Promise.resolve();
+    const noopScopeMapperAudit: ScopeMapperAudit = () => Promise.resolve();
     // Same call `authzDeps.effectiveRoles` makes below, scoped to whichever
     // tenant the caller's own token was issued from — never the target
     // tenant a cross-tenant system admin is reaching into. Shared by
@@ -190,6 +202,11 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     const flowDeps: FlowRouteDeps = {
       database: deps.database.db,
       audit: noopFlowAudit,
+    };
+    const scopeMappersDeps: ScopeMappersRouteDeps = {
+      database: deps.database.db,
+      claimMappers: deps.claimMappers,
+      audit: noopScopeMapperAudit,
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,
@@ -263,6 +280,8 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       'PUT /admin/tenants/:tenant/scopes/:id/roles': setScopeRolesHandler(scopesDeps),
       'PUT /admin/tenants/:tenant/scopes/:id/clients/:clientId':
         assignScopeToClientHandler(scopesDeps),
+      'GET /admin/tenants/:tenant/scopes/:id/mappers': readScopeMappersHandler(scopeMappersDeps),
+      'PUT /admin/tenants/:tenant/scopes/:id/mappers': setScopeMappersHandler(scopeMappersDeps),
       'GET /admin/tenants/:tenant/keys': listKeysHandler(keysDeps),
       'POST /admin/tenants/:tenant/keys': createKeyHandler(keysDeps),
       'POST /admin/tenants/:tenant/keys/:id/promote': promoteKeyHandler(keysDeps),

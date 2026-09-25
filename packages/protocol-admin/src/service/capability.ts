@@ -32,12 +32,14 @@ import {
   listTenantsResponseSchema,
   roleSchema,
   rotateClientSecretResponseSchema,
+  scopeMappersSchema,
   setGroupRolesRequestSchema,
   setGroupRolesResponseSchema,
   setRequiredActionsRequestSchema,
   setRequiredActionsResponseSchema,
   setRolesRequestSchema,
   setRolesResponseSchema,
+  setScopeMappersRequestSchema,
   setScopeRolesRequestSchema,
   setScopeRolesResponseSchema,
   settingsSchema,
@@ -382,6 +384,24 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: setScopeRolesResponseSchema,
     bodySchema: setScopeRolesRequestSchema,
+  },
+  // The registry names come from the same ClaimMapperRegistry the issuance
+  // path assembles claims from — see ScopeMappersRouteDeps.claimMappers.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/scopes/:id/mappers',
+    capability: 'manage-tenant',
+    responseSchema: scopeMappersSchema,
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/scopes/:id/mappers',
+    capability: 'manage-tenant',
+    responseSchema: scopeMappersSchema,
+    bodySchema: setScopeMappersRequestSchema,
+    description:
+      'Replaces the whole binding set for the scope. Binding an unregistered mapper name is ' +
+      'refused with 400, listing the registry’s own known names.',
   },
   {
     method: 'PUT',

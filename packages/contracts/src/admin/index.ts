@@ -124,6 +124,12 @@ export {
   type AssignScopeToClientRequest,
 } from '#/admin/scopes';
 export {
+  scopeMappersSchema,
+  type ScopeMappers,
+  setScopeMappersRequestSchema,
+  type SetScopeMappersRequest,
+} from '#/admin/scope-mappers';
+export {
   signingKeyAlgSchema,
   type SigningKeyAlg,
   signingKeyStatusSchema,

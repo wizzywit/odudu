@@ -35,6 +35,7 @@ import {
   NO_CLIENT_KEY_FETCHER,
   oidcRoutes,
   provisionAdminClient,
+  standardClaimMappers,
   tenantIssuerFor,
   tokenGrantRepository,
   UNLIMITED_CLIENT_SECRET_LIMITER,
@@ -181,6 +182,11 @@ export async function startAdminFixture(): Promise<AdminFixture> {
   const app = createDatabase(appUrl, { max: 5 });
 
   const clock = new FakeClock(new Date(Math.floor(Date.now() / 1000) * 1000));
+  // Shared with adminRoutes below — the same instance, so a test can bind a
+  // mapper through the admin API and see it reach issuance, and so
+  // GET /scopes/:id/mappers can never list a name issuance itself would not
+  // recognise.
+  const claimMappers = standardClaimMappers();
   const http = Fastify();
   await http.register(formbody);
   await http.register(
@@ -191,6 +197,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
       clock,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
+      claimMappers,
     }),
   );
   await http.register(
@@ -201,6 +208,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
       clock,
       cursorKey: KEK,
       kek: KEK,
+      claimMappers,
     }),
   );
   await http.ready();
