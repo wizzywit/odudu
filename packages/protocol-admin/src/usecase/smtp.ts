@@ -1,6 +1,6 @@
 import { unwrapSecret, wrapSecret } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { smtpSender, type EmailSender } from '@odudu/email';
+import { smtpSender, type EmailSender, type SmtpConfig as SmtpTransportConfig } from '@odudu/email';
 import { type SmtpConfig } from '@odudu/contracts/admin';
 import { checkSmtpDestination, type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
@@ -149,16 +149,30 @@ export async function smtpSenderFromRecord(
 
   return {
     kind: 'ok',
-    sender: smtpSender({
-      host: record.host,
-      port: record.port,
-      from: record.fromAddress,
-      ...(record.username !== null ? { username: record.username } : {}),
-      ...(record.passwordEncrypted !== null
-        ? { password: unwrapSecret(record.passwordEncrypted, kek) }
-        : {}),
-      starttls: record.starttls,
-    }),
+    sender: smtpSender(smtpConfigFromRecord(record, kek, destination.address)),
+  };
+}
+
+/**
+ * Exported so the pin is assertable without a mail server: `address` is
+ * what `checkSmtpDestination` admitted, and carrying it is what stops
+ * nodemailer resolving the tenant's host a second time.
+ */
+export function smtpConfigFromRecord(
+  record: TenantSmtpRecord,
+  kek: Uint8Array,
+  address: string,
+): SmtpTransportConfig {
+  return {
+    host: record.host,
+    address,
+    port: record.port,
+    from: record.fromAddress,
+    ...(record.username !== null ? { username: record.username } : {}),
+    ...(record.passwordEncrypted !== null
+      ? { password: unwrapSecret(record.passwordEncrypted, kek) }
+      : {}),
+    starttls: record.starttls,
   };
 }
 

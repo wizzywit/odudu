@@ -23,16 +23,20 @@ describe('sendTestMessage', () => {
   // route reads inside withTenant and calls this only once that has
   // returned, so a slow or unreachable host can never hold a pooled tenant
   // connection open for the length of the attempt.
+  // Runs to the transport's own connectionTimeout rather than to a DNS
+  // failure, because the host is pinned to the address the policy admitted
+  // and nodemailer no longer resolves it a second time. Deterministic, and
+  // bounded by that timeout rather than by a network.
   it('reports the transport failure without needing a transaction at all', async () => {
     const outcome = await sendTestMessage(
       RECORD,
       KEK,
-      admitting('93.184.216.34'),
+      admitting('203.0.113.10'),
       'ops@example.test',
     );
 
     expect(outcome.kind).toBe('send_failed');
-  });
+  }, 20_000);
 
   it('refuses a loopback host before any transport exists to report on', async () => {
     const outcome = await sendTestMessage(

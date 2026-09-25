@@ -14,21 +14,24 @@ export interface SmtpDestinationPolicy {
   readonly resolve: ResolveHost;
 }
 
-export type SmtpDestinationOutcome = { kind: 'allowed' } | { kind: 'refused'; reason: string };
+export type SmtpDestinationOutcome =
+  /** `address` is the one the check passed; connect to it, never to `host` again. */
+  { kind: 'allowed'; address: string } | { kind: 'refused'; reason: string };
 
-/**
- * A tenant's `host` is administrator-supplied and this server connects to
- * it from inside its own perimeter, so it is bounded by exactly the rule
- * ADR 0028 puts on a client-supplied `jwks_uri`: resolved addresses,
- * checked in the numeric domain. Narrower than that fetcher in one way the
- * SMTP client makes unavoidable — nodemailer resolves the hostname itself
- * rather than connecting to a checked address, so a name that answers
- * differently on the second lookup is not caught here.
- */
 function unresolvable(host: string): string {
   return `this server will not connect to ${host}: it resolves to no address`;
 }
 
+/**
+ * A tenant's `host` is administrator-supplied and this server connects to
+ * it from inside its own perimeter, so it is bounded by exactly the rule
+ * ADR 0028 puts on a client-supplied `jwks_uri`: every resolved address
+ * checked in the numeric domain, and the connection then made to an
+ * address that passed rather than to the name that produced it. The
+ * returned `address` is that second half; a caller that reconnects by name
+ * reopens the gap, so `smtpConfigFromRecord` is the only thing that reads
+ * it.
+ */
 export async function checkSmtpDestination(
   host: string,
   policy: SmtpDestinationPolicy,
@@ -47,6 +50,9 @@ export async function checkSmtpDestination(
     }
   }
 
+  const address = addresses[0];
+  if (address === undefined) return { kind: 'refused', reason: unresolvable(host) };
+
   try {
     assertPublicAddresses(addresses, { allowPrivate: policy.allowPrivate });
   } catch (error) {
@@ -58,5 +64,5 @@ export async function checkSmtpDestination(
     }
     throw error;
   }
-  return { kind: 'allowed' };
+  return { kind: 'allowed', address };
 }

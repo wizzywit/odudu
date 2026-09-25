@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import { describe, expect, it } from 'vitest';
 import { transportOptions } from '#/adapter/smtp';
 import { OUTBOX_CLAIM_LEASE_SECONDS } from '#/usecase/send-pending';
@@ -37,5 +38,26 @@ describe('transportOptions', () => {
     expect(options.socketTimeout).toBeGreaterThan(0);
     const worstCase = options.connectionTimeout + options.greetingTimeout + options.socketTimeout;
     expect(worstCase).toBeLessThan(OUTBOX_CLAIM_LEASE_SECONDS * 1000);
+  });
+});
+
+describe('transportOptions, given an address the caller already checked', () => {
+  it('connects to that address and carries the hostname only as the TLS name', () => {
+    const options = transportOptions({ ...BASE, address: '203.0.113.10' });
+
+    // nodemailer resolves `host` itself unless it is already an IP
+    // (`lib/shared/index.js`, `resolveHostname`), and verifies the
+    // certificate against `servername` when one is set. Handing it the
+    // checked address is what makes a second lookup impossible.
+    expect(options.host).toBe('203.0.113.10');
+    expect(isIP(options.host)).not.toBe(0);
+    expect(options.servername).toBe('smtp.example.test');
+  });
+
+  it('leaves an operator-configured relay to resolve its own host', () => {
+    const options = transportOptions(BASE);
+
+    expect(options.host).toBe('smtp.example.test');
+    expect(options.servername).toBeUndefined();
   });
 });

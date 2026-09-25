@@ -55,7 +55,7 @@ describe('checkSmtpDestination', () => {
       resolve: resolvingTo('10.0.0.5'),
     });
 
-    expect(outcome).toEqual({ kind: 'allowed' });
+    expect(outcome.kind).toBe('allowed');
   });
 
   it('checks every resolved address, not the first', async () => {
@@ -85,6 +85,27 @@ describe('checkSmtpDestination', () => {
       resolve: resolvingTo('93.184.216.34'),
     });
 
-    expect(outcome).toEqual({ kind: 'allowed' });
+    expect(outcome.kind).toBe('allowed');
+  });
+
+  // ADR 0028's second half: the caller connects to the address that was
+  // checked, so nothing between here and the socket can resolve the name a
+  // second time and reach an address this refused.
+  it('carries the address it checked, so a caller need not resolve again', async () => {
+    const outcome = await checkSmtpDestination('relay.example.test', {
+      allowPrivate: false,
+      resolve: resolvingTo('203.0.113.10', '203.0.113.11'),
+    });
+
+    expect(outcome).toEqual({ kind: 'allowed', address: '203.0.113.10' });
+  });
+
+  it('carries a literal host through as its own address', async () => {
+    const outcome = await checkSmtpDestination('203.0.113.10', {
+      allowPrivate: false,
+      resolve: never,
+    });
+
+    expect(outcome).toEqual({ kind: 'allowed', address: '203.0.113.10' });
   });
 });

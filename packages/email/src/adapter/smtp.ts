@@ -3,6 +3,13 @@ import type { EmailMessage, EmailSender } from '#/service/sender';
 
 export interface SmtpConfig {
   readonly host: string;
+  /**
+   * The address a destination check already admitted, where the host was
+   * supplied rather than configured by the operator. Set it and nodemailer
+   * connects there instead of resolving `host` a second time, which is the
+   * half of ADR 0028 a relay reached by name would otherwise lose.
+   */
+  readonly address?: string;
   readonly port: number;
   readonly from: string;
   readonly username?: string;
@@ -21,6 +28,8 @@ const SOCKET_TIMEOUT_MS = 30_000;
 
 export interface SmtpTransportOptions {
   readonly host: string;
+  /** Present only when `host` is a pinned address: the name TLS verifies against. */
+  readonly servername?: string;
   readonly port: number;
   readonly secure: boolean;
   readonly requireTLS: boolean;
@@ -40,7 +49,8 @@ export interface SmtpTransportOptions {
 export function transportOptions(config: SmtpConfig): SmtpTransportOptions {
   const carriesCredentials = config.username !== undefined || config.password !== undefined;
   return {
-    host: config.host,
+    host: config.address ?? config.host,
+    ...(config.address === undefined ? {} : { servername: config.host }),
     port: config.port,
     secure: false,
     requireTLS: carriesCredentials || (config.starttls ?? false),
