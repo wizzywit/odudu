@@ -1,9 +1,20 @@
-import { createTenantRequestSchema, cursorQuerySchema, type Tenant } from '@odudu/contracts/admin';
-import { type Database } from '@odudu/db';
+import {
+  amendTenantRequestSchema,
+  createTenantRequestSchema,
+  cursorQuerySchema,
+} from '@odudu/contracts/admin';
+import { withTenant, type Database } from '@odudu/db';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
-import { createTenant, listTenants, type Audit, type TenantRecord } from '#/usecase/tenants';
+import {
+  amendTenant,
+  createTenant,
+  listTenants,
+  readTenant,
+  tenantWireShape,
+  type Audit,
+} from '#/usecase/tenants';
 import { problem, sendProblem } from '#/view/problem';
-import { type AdminRouteHandler } from '#/view/routes/router';
+import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface TenantsRouteDeps {
   readonly database: Database;
@@ -13,13 +24,70 @@ export interface TenantsRouteDeps {
   readonly audit: Audit;
 }
 
-function toWireTenant(record: TenantRecord): Tenant {
-  return {
-    id: record.id,
-    name: record.name,
-    display_name: record.displayName,
-    enabled: record.enabled,
-    created_at: record.createdAt.toISOString(),
+function ifMatchHeader(request: AdminRequest): string | undefined {
+  const value = request.headers['if-match'];
+  return typeof value === 'string' ? value : undefined;
+}
+
+export function readTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      readTenant(tx, targetTenantId),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+    }
+    reply.header('etag', outcome.etag);
+    return reply.code(200).send(outcome.tenant);
+  };
+}
+
+export function amendTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const values = amendTenantRequestSchema.parse(request.body);
+
+    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      amendTenant(
+        tx,
+        { audit: deps.audit },
+        {
+          tenantId: targetTenantId,
+          values,
+          ifMatch: ifMatchHeader(request),
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'not_found':
+        return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'refused_field':
+        return sendProblem(
+          reply,
+          request,
+          problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+        );
+      case 'invalid_value':
+        return sendProblem(
+          reply,
+          request,
+          problem(400, 'about:blank', 'Bad Request', outcome.description),
+        );
+      case 'system_tenant_guarded':
+        return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'precondition_failed':
+        return sendProblem(
+          reply,
+          request,
+          problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches'),
+        );
+      case 'ok':
+        reply.header('etag', outcome.etag);
+        return reply.code(200).send(outcome.tenant);
+    }
   };
 }
 
@@ -67,7 +135,7 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
       );
     }
 
-    return reply.code(201).send(toWireTenant(outcome.tenant));
+    return reply.code(201).send(tenantWireShape(outcome.tenant));
   };
 }
 
@@ -100,7 +168,7 @@ export function listTenantsHandler(deps: TenantsRouteDeps): AdminRouteHandler {
       );
     }
 
-    const items = outcome.items.map(toWireTenant);
+    const items = outcome.items.map(tenantWireShape);
     if (outcome.next === null) {
       return reply.code(200).send({ items });
     }

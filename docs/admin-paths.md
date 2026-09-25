@@ -77,6 +77,8 @@ here used.
 | -------- | ---------------------------------------------------------------- | ----------------------------------------- |
 | `GET`    | `/admin/tenants`                                                 | List tenants                              |
 | `POST`   | `/admin/tenants`                                                 | Create a tenant                           |
+| `GET`    | `/admin/tenants/{tenant}`                                        | Read one tenant                           |
+| `PATCH`  | `/admin/tenants/{tenant}`                                        | Amend one tenant                          |
 | `GET`    | `/admin/tenants/{tenant}/whoami`                                 | Identity probe                            |
 | `GET`    | `/admin/tenants/{tenant}/subjects`                               | List subjects                             |
 | `POST`   | `/admin/tenants/{tenant}/subjects`                               | Create a subject                          |
@@ -130,6 +132,7 @@ here used.
 | `PUT`    | `/admin/tenants/{tenant}/flow/executions`                        | Replace a tenant's authentication flow    |
 | `GET`    | `/admin/tenants/{tenant}/smtp`                                   | Read a tenant's own SMTP configuration    |
 | `PUT`    | `/admin/tenants/{tenant}/smtp`                                   | Replace a tenant's own SMTP configuration |
+| `DELETE` | `/admin/tenants/{tenant}/smtp`                                   | Remove a tenant's own SMTP configuration  |
 | `POST`   | `/admin/tenants/{tenant}/smtp/test`                              | Send one test message                     |
 | `GET`    | `/admin/tenants/{tenant}/audit`                                  | List the tenant's audit trail             |
 | `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference                     |
@@ -294,6 +297,32 @@ the call above had just taken:
 {"type":"about:blank","title":"Conflict","status":409,"detail":"the name \"system\" is reserved","instance":"01a0d6ff-87ec-7a40-b65e-a2b6205f4428"}
 {"type":"about:blank","title":"Conflict","status":409,"detail":"the name \"demo\" is already in use","instance":"01a0d6ff-87ff-7621-bf57-d9d1cdf24dfd"}
 ```
+
+## `GET /admin/tenants/{tenant}` and `PATCH /admin/tenants/{tenant}`
+
+Both require `manage-tenant` on the tenant named in the path — the tenant
+itself, not the collection, so a tenant-local admin reaches its own and a
+system admin reaches any tenant's by holding `manage-tenant` there too.
+The `GET` answers the same shape `GET /admin/tenants` lists, with an
+`ETag` over it; the `PATCH` accepts `If-Match` and answers `412` on a
+mismatch, the same optional concurrency control `PATCH /settings` uses.
+
+Two fields amend: `display_name` and `enabled`. Everything else is refused
+with `400` carrying its reason, `name` most of all — it is already in the
+issuer URL of every token this tenant has minted and in the path of every
+request addressed to it, so renaming through a general amendment would
+orphan both. That is a decision rather than a gap: a rename that reissued
+nothing would leave every relying party's configured issuer pointing at a
+tenant that no longer answers, so it belongs to an operation that migrates
+those too, not to a general amendment.
+
+`enabled: false` is how a tenant is taken out of service without deleting
+it: its own administrators stop authenticating, so the flag is not one to
+set from a token issued by the tenant being disabled. On the **system**
+tenant it is refused with `409` — every cross-tenant administrator
+authenticates there, so disabling it would lock the whole deployment's
+administration out with `psql` the only way back, the same reasoning that
+guards the built-in admin client.
 
 ## `GET /settings` and `PATCH /settings`
 
@@ -1423,9 +1452,12 @@ next login dispatches against the order this `PUT` wrote, since
 `initialChallenge`/`advance` read a tenant's executions fresh on every
 attempt rather than caching them.
 
-## `GET /smtp`, `PUT /smtp` and `POST /smtp/test`
+## `GET /smtp`, `PUT /smtp`, `DELETE /smtp` and `POST /smtp/test`
 
-All three require `manage-tenant`. `GET` reports `configured: false` and
+All four require `manage-tenant`. `DELETE` removes the tenant's own row,
+so its mail falls back to the deployment's `ODUDU_SMTP_*` sender and then
+the log-only adapter — the one way back from a configuration `PUT` can
+only replace. `204` on success, `404` when there was nothing to remove. `GET` reports `configured: false` and
 `password_set: false` for a tenant with no row, rather than 404 — the
 endpoint always exists, it is the configuration that may not. `PUT`
 replaces the whole configuration; omitting `password` clears it, since

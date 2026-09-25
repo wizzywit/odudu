@@ -344,3 +344,77 @@ describe('repository, probed with a foreign tenant_id', () => {
     expect(row).toBeNull();
   });
 });
+
+describe('DELETE /admin/tenants/{t}/smtp', () => {
+  function deleteSmtp(token: string, tenantName: string) {
+    return fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${tenantName}/smtp`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  it('removes the row, so the tenant falls back to the deployment sender', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    expect(
+      (await putSmtp(token, t.name, { host: 'smtp.example', port: 587, from_address: 'a@b.test' }))
+        .statusCode,
+    ).toBe(200);
+
+    const res = await deleteSmtp(token, t.name);
+    expect(res.statusCode).toBe(204);
+
+    const read = await getSmtp(token, t.name);
+    expect(read.json<{ configured: boolean }>().configured).toBe(false);
+    const row = await withTenant(fixture.app.db, t.id, (tx) =>
+      tenantSmtpRepository(tx).byTenantId(t.id),
+    );
+    expect(row).toBeNull();
+  });
+
+  it('404s when the tenant has no configuration to remove', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await deleteSmtp(token, t.name);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('cannot reach another tenant, which keeps its own row', async () => {
+    const owner = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    const ownerToken = await fixture.adminToken(owner.name, ['manage-tenant']);
+    const otherToken = await fixture.adminToken(other.name, ['manage-tenant']);
+    await putSmtp(ownerToken, owner.name, {
+      host: 'smtp.example',
+      port: 587,
+      from_address: 'a@b.test',
+    });
+
+    expect((await deleteSmtp(otherToken, other.name)).statusCode).toBe(404);
+    const row = await withTenant(fixture.app.db, owner.id, (tx) =>
+      tenantSmtpRepository(tx).byTenantId(owner.id),
+    );
+    expect(row).not.toBeNull();
+  });
+
+  it('records one audit row for the removal and none for the 404', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-audit']);
+
+    expect((await deleteSmtp(token, t.name)).statusCode).toBe(404);
+    await putSmtp(token, t.name, { host: 'smtp.example', port: 587, from_address: 'a@b.test' });
+    expect((await deleteSmtp(token, t.name)).statusCode).toBe(204);
+
+    const audit = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const removals = audit
+      .json<{ items: { action: string }[] }>()
+      .items.filter((item) => item.action === 'tenant.smtp_delete');
+    expect(removals).toHaveLength(1);
+  });
+});

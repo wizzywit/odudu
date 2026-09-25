@@ -20,6 +20,8 @@ export {
 export {
   createTenantRequestSchema,
   type CreateTenantRequest,
+  amendTenantRequestSchema,
+  type AmendTenantRequest,
   tenantSchema,
   type Tenant,
   listTenantsResponseSchema,

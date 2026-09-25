@@ -17,6 +17,7 @@ import {
   createScopeRequestSchema,
   createSubjectRequestSchema,
   createTenantRequestSchema,
+  amendTenantRequestSchema,
   cursorQuerySchema,
   createKeyRequestSchema,
   groupSchema,
@@ -217,6 +218,23 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: tenantSchema,
     successStatus: 201,
     bodySchema: createTenantRequestSchema,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant',
+    capability: 'manage-tenant',
+    responseSchema: tenantSchema,
+  },
+  {
+    method: 'PATCH',
+    pattern: '/admin/tenants/:tenant',
+    capability: 'manage-tenant',
+    responseSchema: tenantSchema,
+    bodySchema: amendTenantRequestSchema,
+    description:
+      'Amends display_name and enabled. `name` is refused with 400: it is already in the ' +
+      'issuer URL of every token this tenant has minted. Disabling the system tenant is ' +
+      'refused with 409, since every cross-tenant administrator authenticates against it.',
   },
   {
     method: 'GET',
@@ -511,6 +529,16 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'replaces the row rather than partially amending it, and the password being ' +
       'write-only removes the one case a race would matter for — a caller can never read ' +
       'the current value to decide whether its own write should still apply.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/smtp',
+    capability: 'manage-tenant',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Removes the tenant’s own relay, sending its mail back to the deployment’s own ' +
+      'sender. 404 when the tenant has no SMTP configuration.',
   },
   {
     method: 'POST',

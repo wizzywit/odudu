@@ -51,6 +51,7 @@ import {
   type ScopeMappersRouteDeps,
 } from '#/view/routes/scope-mappers';
 import {
+  deleteSmtpHandler,
   putSmtpHandler,
   readSmtpHandler,
   testSmtpHandler,
@@ -111,8 +112,10 @@ import {
   type SubjectsRouteDeps,
 } from '#/view/routes/subjects';
 import {
+  amendTenantHandler,
   createTenantHandler,
   listTenantsHandler,
+  readTenantHandler,
   type TenantsRouteDeps,
 } from '#/view/routes/tenants';
 import { whoamiHandler } from '#/view/routes/whoami';
@@ -351,6 +354,8 @@ function buildAdminRoutes(
         deleteSessionHandler(sessionsDeps),
       'GET /admin/tenants': listTenantsHandler(tenantsDeps),
       'POST /admin/tenants': createTenantHandler(tenantsDeps),
+      'GET /admin/tenants/:tenant': readTenantHandler(tenantsDeps),
+      'PATCH /admin/tenants/:tenant': amendTenantHandler(tenantsDeps),
       'GET /admin/tenants/:tenant/settings': getSettingsHandler(settingsDeps),
       'PATCH /admin/tenants/:tenant/settings': amendSettingsHandler(settingsDeps),
       'GET /admin/tenants/:tenant/clients': listClientsHandler(clientsDeps),
@@ -385,6 +390,7 @@ function buildAdminRoutes(
       'PUT /admin/tenants/:tenant/scopes/:id/mappers': setScopeMappersHandler(scopeMappersDeps),
       'GET /admin/tenants/:tenant/smtp': readSmtpHandler(smtpDeps),
       'PUT /admin/tenants/:tenant/smtp': putSmtpHandler(smtpDeps),
+      'DELETE /admin/tenants/:tenant/smtp': deleteSmtpHandler(smtpDeps),
       'POST /admin/tenants/:tenant/smtp/test': testSmtpHandler(smtpDeps),
       'GET /admin/tenants/:tenant/keys': listKeysHandler(keysDeps),
       'POST /admin/tenants/:tenant/keys': createKeyHandler(keysDeps),

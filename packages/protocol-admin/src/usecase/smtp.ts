@@ -6,7 +6,7 @@ import { checkSmtpDestination, type SmtpDestinationPolicy } from '#/service/smtp
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 
 export interface SmtpAuditEvent {
-  readonly action: 'tenant.smtp_set';
+  readonly action: 'tenant.smtp_set' | 'tenant.smtp_delete';
   readonly resourceType: 'tenant';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -44,6 +44,45 @@ function toWireShape(record: TenantSmtpRecord | null): SmtpConfig {
 
 export async function readSmtp(tx: TenantScopedDatabase, tenantId: string): Promise<SmtpConfig> {
   return toWireShape(await tenantSmtpRepository(tx).byTenantId(tenantId));
+}
+
+export interface DeleteSmtpInput {
+  readonly tenantId: string;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface DeleteSmtpDeps {
+  readonly audit: Audit;
+}
+
+export type DeleteSmtpOutcome = { kind: 'not_configured' } | { kind: 'deleted' };
+
+/**
+ * Removes the tenant's own relay, which sends its mail back to the
+ * deployment's `ODUDU_SMTP_*` sender and then the log-only adapter
+ * (`resolveSender`, apps/server/src/email.ts) — the one way back from a
+ * configuration `PUT` can only replace.
+ */
+export async function deleteSmtp(
+  tx: TenantScopedDatabase,
+  deps: DeleteSmtpDeps,
+  input: DeleteSmtpInput,
+): Promise<DeleteSmtpOutcome> {
+  const deleted = await tenantSmtpRepository(tx).delete(input.tenantId);
+  if (!deleted) return { kind: 'not_configured' };
+
+  await deps.audit(tx, {
+    action: 'tenant.smtp_delete',
+    resourceType: 'tenant',
+    resourceId: input.tenantId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+  });
+  return { kind: 'deleted' };
 }
 
 export interface PutSmtpInput {

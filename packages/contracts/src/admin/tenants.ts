@@ -16,6 +16,12 @@ export const tenantSchema = z.object({
 });
 export type Tenant = z.infer<typeof tenantSchema>;
 
+// A caller may name any field it believes is a tenant field, amendable or
+// not — the usecase, not this shape, is what tells the two apart and gives
+// the excluded one its reason (tenant-patch.ts's `refusalFor`).
+export const amendTenantRequestSchema = z.record(z.string(), z.unknown());
+export type AmendTenantRequest = z.infer<typeof amendTenantRequestSchema>;
+
 export const listTenantsResponseSchema = z.object({
   items: z.array(tenantSchema),
   next: z.string().optional(),

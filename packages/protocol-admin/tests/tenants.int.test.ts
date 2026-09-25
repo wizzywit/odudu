@@ -1,9 +1,10 @@
 import { executionRepository } from '@odudu/authn-flows';
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { signingKeyRepository } from '@odudu/crypto';
-import { withTenant } from '@odudu/db';
+import { tenants, withTenant } from '@odudu/db';
 import { clientRepository, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { createTenant } from '#/usecase/tenants';
@@ -262,5 +263,156 @@ describe('createTenant', () => {
     await withTenant(fixture.app.db, outcome.tenant.id, async (tx) => {
       expect(await signingKeyRepository(tx).listPublishable()).not.toHaveLength(0);
     });
+  });
+});
+
+describe('GET /admin/tenants/{t} and PATCH /admin/tenants/{t}', () => {
+  it('reads the tenant singly, with an ETag over the same shape the list carries', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers.etag).toEqual(expect.any(String));
+    expect(res.json<{ id: string; name: string; enabled: boolean }>()).toMatchObject({
+      id: t.id,
+      name: t.name,
+      enabled: true,
+    });
+  });
+
+  it('renames the display name and disables the tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { display_name: 'Acme Holdings', enabled: false },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ display_name: string; enabled: boolean }>()).toMatchObject({
+      display_name: 'Acme Holdings',
+      enabled: false,
+    });
+
+    // Read back from the row, not through the API: a disabled tenant is
+    // one its own administrators can no longer authenticate against, which
+    // is the whole point of the flag.
+    const rows = await withTenant(fixture.app.db, t.id, (tx) =>
+      tx.select({ enabled: tenants.enabled }).from(tenants).where(eq(tenants.id, t.id)),
+    );
+    expect(rows[0]?.enabled).toBe(false);
+  });
+
+  it('refuses a rename, naming the issuer URLs already minted as the reason', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { name: `renamed-${newId()}` },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('issuer URL');
+  });
+
+  it('refuses disabling the system tenant, which every cross-tenant admin needs', async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants', 'manage-tenant']);
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: '/admin/tenants/system',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { enabled: false },
+    });
+    expect(res.statusCode).toBe(409);
+
+    const after = await fixture.http.inject({
+      method: 'GET',
+      url: '/admin/tenants/system',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(after.json<{ enabled: boolean }>().enabled).toBe(true);
+  });
+
+  it('answers 412 for a stale If-Match and changes nothing', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const read = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const etag = String(read.headers.etag);
+
+    const first = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}`,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        'if-match': etag,
+      },
+      payload: { display_name: 'First' },
+    });
+    expect(first.statusCode).toBe(200);
+
+    const second = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}`,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        'if-match': etag,
+      },
+      payload: { display_name: 'Second' },
+    });
+    expect(second.statusCode).toBe(412);
+
+    const after = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(after.json<{ display_name: string }>().display_name).toBe('First');
+  });
+
+  it('records one audit row for an amendment and none for a refusal', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-audit']);
+
+    const refused = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { name: 'nope' },
+    });
+    expect(refused.statusCode).toBe(400);
+
+    const amended = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { display_name: 'Acme' },
+    });
+    expect(amended.statusCode).toBe(200);
+
+    const audit = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const actions = audit
+      .json<{ items: { action: string }[] }>()
+      .items.filter((item) => item.action === 'tenant.amend');
+    expect(actions).toHaveLength(1);
   });
 });

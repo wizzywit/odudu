@@ -2,7 +2,14 @@ import { putSmtpRequestSchema, testSmtpRequestSchema } from '@odudu/contracts/ad
 import { withTenant, type Database } from '@odudu/db';
 import { readPasswordField } from '@odudu/kernel';
 import { type SmtpDestinationPolicy } from '#/service/smtp-destination';
-import { putSmtp, readSmtp, readSmtpForTest, sendTestMessage, type Audit } from '#/usecase/smtp';
+import {
+  deleteSmtp,
+  putSmtp,
+  readSmtp,
+  readSmtpForTest,
+  sendTestMessage,
+  type Audit,
+} from '#/usecase/smtp';
 import { problem, sendProblem } from '#/view/problem';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
@@ -78,6 +85,34 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
     );
 
     return reply.code(200).send(config);
+  };
+}
+
+export function deleteSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      deleteSmtp(
+        tx,
+        { audit: deps.audit },
+        {
+          tenantId: targetTenantId,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+
+    // 404 rather than a silent 204: the caller asked for a configuration
+    // to be removed and there was none, which is worth being told.
+    if (outcome.kind === 'not_configured') {
+      return sendProblem(
+        reply,
+        request,
+        problem(404, 'about:blank', 'Not Found', 'this tenant has no SMTP configuration'),
+      );
+    }
+    return reply.code(204).send();
   };
 }
 

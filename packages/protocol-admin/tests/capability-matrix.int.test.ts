@@ -122,6 +122,9 @@ const TENANT_PATH_PREFIX = '/admin/tenants/:tenant/';
 // segment (`credentials`, `roles`, `composites`, `mappers`, `secret`,
 // `promote`, `retire`, `test`, `clients`) is one.
 function resourceFamilyOf(route: AdminRoute): string {
+  // The tenant resource itself carries no segment after `:tenant`, so it
+  // is its own family rather than a sub-resource of one.
+  if (route.pattern === '/admin/tenants/:tenant') return 'tenant';
   if (!route.pattern.startsWith(TENANT_PATH_PREFIX)) {
     throw new Error(`capability-matrix: ${routeKey(route)} is not tenant-scoped`);
   }

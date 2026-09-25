@@ -1,4 +1,5 @@
 import { provisionTenant } from '@odudu/authn-flows';
+import { type Tenant } from '@odudu/contracts/admin';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import {
   isUniqueViolation,
@@ -7,11 +8,13 @@ import {
   type Database,
   type TenantScopedDatabase,
 } from '@odudu/db';
-import { isSystemTenantName } from '@odudu/domain-tenant';
+import { isSystemTenantName, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { provisionAdminClient } from '@odudu/protocol-oidc';
-import { asc, gt } from 'drizzle-orm';
+import { asc, eq, gt } from 'drizzle-orm';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { etagOf, matches } from '#/service/etag';
+import { AMENDABLE_TENANT_FIELDS, refusalFor } from '#/service/tenant-patch';
 
 const COLLECTION = 'tenants';
 
@@ -32,7 +35,7 @@ export interface TenantRecord {
 }
 
 export interface TenantAuditEvent {
-  readonly action: 'tenant.create';
+  readonly action: 'tenant.create' | 'tenant.amend' | 'tenant.smtp_delete';
   readonly resourceType: 'tenant';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -202,4 +205,143 @@ export async function listTenants(
       : null;
 
   return { kind: 'ok', items, next };
+}
+
+export function tenantWireShape(record: TenantRecord): Tenant {
+  return {
+    id: record.id,
+    name: record.name,
+    display_name: record.displayName,
+    enabled: record.enabled,
+    created_at: record.createdAt.toISOString(),
+  };
+}
+
+export type ReadTenantOutcome =
+  { kind: 'not_found' } | { kind: 'ok'; tenant: Tenant; etag: string };
+
+export async function readTenant(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+): Promise<ReadTenantOutcome> {
+  const rows = await tx.select(TENANT_COLUMNS).from(tenants).where(eq(tenants.id, tenantId));
+  const row = rows[0];
+  if (row === undefined) return { kind: 'not_found' };
+  const tenant = tenantWireShape(row);
+  return { kind: 'ok', tenant, etag: etagOf(tenant) };
+}
+
+export interface AmendTenantInput {
+  readonly tenantId: string;
+  readonly values: Readonly<Record<string, unknown>>;
+  readonly ifMatch: string | undefined;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface AmendTenantDeps {
+  readonly audit: Audit;
+}
+
+export type AmendTenantOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'refused_field'; field: string; reason: string }
+  | { kind: 'invalid_value'; field: string; description: string }
+  | { kind: 'system_tenant_guarded'; reason: string }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; tenant: Tenant; etag: string };
+
+/**
+ * `display_name` and `enabled` — `name` is refused, since it is already in
+ * the issuer URL of every token this tenant has minted. The row is locked
+ * before its `ETag` is computed, the same order `amendSettings` uses, so
+ * two amendments cannot both match the same pre-write state.
+ */
+export async function amendTenant(
+  tx: TenantScopedDatabase,
+  deps: AmendTenantDeps,
+  input: AmendTenantInput,
+): Promise<AmendTenantOutcome> {
+  for (const field of Object.keys(input.values)) {
+    if (!AMENDABLE_TENANT_FIELDS.includes(field)) {
+      return {
+        kind: 'refused_field',
+        field,
+        reason: refusalFor(field) ?? `${field} is not a tenant field`,
+      };
+    }
+  }
+
+  const locked = await tx
+    .select(TENANT_COLUMNS)
+    .from(tenants)
+    .where(eq(tenants.id, input.tenantId))
+    .for('update');
+  const current = locked[0];
+  if (current === undefined) return { kind: 'not_found' };
+
+  // The same lockout the built-in admin client's own guard refuses
+  // (`amendClient`, #/usecase/clients.ts), one level up: every
+  // cross-tenant administrator authenticates against the system tenant,
+  // so disabling it locks every tenant's administration out at once, with
+  // `psql` the only way back.
+  if (input.values.enabled === false && current.name === SYSTEM_TENANT_NAME) {
+    return {
+      kind: 'system_tenant_guarded',
+      reason: `${SYSTEM_TENANT_NAME} is the tenant every cross-tenant administrator authenticates against and cannot be disabled`,
+    };
+  }
+
+  if (matches(input.ifMatch, etagOf(tenantWireShape(current))) === 'mismatch') {
+    return { kind: 'precondition_failed' };
+  }
+
+  const patch: Partial<Pick<typeof tenants.$inferInsert, 'displayName' | 'enabled'>> = {};
+  if ('display_name' in input.values) {
+    const value = input.values.display_name;
+    if (value !== null && typeof value !== 'string') {
+      return {
+        kind: 'invalid_value',
+        field: 'display_name',
+        description: 'display_name must be a string or null',
+      };
+    }
+    patch.displayName = value;
+  }
+  if ('enabled' in input.values) {
+    const value = input.values.enabled;
+    if (typeof value !== 'boolean') {
+      return {
+        kind: 'invalid_value',
+        field: 'enabled',
+        description: 'enabled must be a boolean',
+      };
+    }
+    patch.enabled = value;
+  }
+
+  const after =
+    Object.keys(patch).length === 0
+      ? current
+      : ((
+          await tx
+            .update(tenants)
+            .set(patch)
+            .where(eq(tenants.id, input.tenantId))
+            .returning(TENANT_COLUMNS)
+        )[0] ?? current);
+
+  await deps.audit(tx, {
+    action: 'tenant.amend',
+    resourceType: 'tenant',
+    resourceId: input.tenantId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+  });
+
+  const tenant = tenantWireShape(after);
+  return { kind: 'ok', tenant, etag: etagOf(tenant) };
 }

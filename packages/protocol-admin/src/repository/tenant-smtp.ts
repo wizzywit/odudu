@@ -60,5 +60,13 @@ export function tenantSmtpRepository(tx: TenantScopedDatabase) {
       }
       return toRecord(row);
     },
+
+    async delete(tenantId: string): Promise<boolean> {
+      const rows = await tx
+        .delete(tenantSmtp)
+        .where(eq(tenantSmtp.tenantId, tenantId))
+        .returning({ tenantId: tenantSmtp.tenantId });
+      return rows.length > 0;
+    },
   };
 }
