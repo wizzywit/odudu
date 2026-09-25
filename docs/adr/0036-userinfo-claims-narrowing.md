@@ -63,8 +63,8 @@ the original one did. That work is not this task's: `docs/superpowers/
 specs/2026-09-24-p4c-admin-api-design.md` §2 has already decided to split
 an authentication-and-token-audit-events phase, P4e, out of this one, and
 names this exact follow-up as something P4e inherits. Section 11 of the
-umbrella spec does not carry a P4e row yet; the split increment that adds
-one is where this follows up, not a roadmap edit made in passing here.
+umbrella spec carries a P4e row as of 2026-09-25, and its criterion names
+this follow-up.
 
 ## Consequences
 

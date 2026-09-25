@@ -2,50 +2,54 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a, P3b and P4a are complete, and the tenant rename is
-done. P4 has been split four ways.** Phases are section 11 of
+**P0, P1, P2a, P2b, P3a, P3b, P4a and P4c are complete, and the tenant
+rename is done. P4 has been split five ways.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
-"P4 became four phases" subsection has the reasoning.
+"P4 became four phases, then five" subsection has the reasoning.
 
-The order is **P4a → P4c → P4d → P4b**, and the letters deliberately do not
-read in execution order, because `P4b` was spent on theming before P4 split
-and an accepted ADR cites it. P4a was token exchange
-([spec](superpowers/specs/2026-09-23-p4a-token-exchange-design.md)); P4c is
-the admin API, next; P4d is the consoles; P4b stays theming and stays last.
+The order is **P4a → P4c → P4e → P4d → P4b**, and the letters deliberately
+do not read in execution order, because `P4b` was spent on theming before P4
+split and an accepted ADR cites it. P4a was token exchange
+([spec](superpowers/specs/2026-09-23-p4a-token-exchange-design.md)); P4c was
+the admin API
+([spec](superpowers/specs/2026-09-24-p4c-admin-api-design.md)); **P4e is
+next** — authentication and token audit events; P4d is the consoles; P4b
+stays theming and stays last.
 
-P4a added `/token`'s fourth grant, RFC 8693 token exchange
-(`urn:ietf:params:oauth:grant-type:token-exchange`), and closed a standing
-gap beside it: `config.grantTypes` now gates every grant, not only whether
-a refresh token is issued, so a client registered for `authorization_code`
-alone can no longer redeem `client_credentials`. A delegation nests an
-`act` claim naming the actor; an impersonation, gated per client by
-`token_exchange_impersonation_allowed`, names none. Every issued shape —
-access token, ID token or refresh token — is capped at the subject token's
-own expiry, scope only ever narrows, and the target audience is
-single-valued, inheriting RFC 8707's decision. `docs/protocols/rfc8693.md`
-has the clause table.
+**P4c shipped the admin API**, at `/admin/tenants/{tenant}/` with
+`/admin/tenants` above it, authenticated by an ordinary access token whose
+`aud` names `urn:odudu:params:admin-api` and authorized per request by a
+capability role on the tenant's built-in `odudu-admin` client. Tenants,
+their settings, clients, subjects, credentials, required actions, roles,
+groups, scopes, scope-mapper bindings, signing keys, the authentication
+flow, per-tenant SMTP and an audit trail are all reachable through it; a
+subject's sessions are listed by subject and ended individually, which is
+the first read of a session that does not start from a cookie.
+`odudu seed admin` bootstraps the `system` tenant and the first
+administrator with a single-use password and a forced change. The narrative
+is [docs/admin-paths.md](admin-paths.md), every transcript in it executed;
+the reference is the OpenAPI document at `/admin/openapi.json`.
 
 What turned out to be **wrong** while building it is in
-[docs/phases/p4a.md](phases/p4a.md), not here.
+[docs/phases/p4c.md](phases/p4c.md), not here. Three of its themes are
+worth reading before P4e starts: a mechanism built with no caller, a test
+that passes by construction, and — again, as in P3b — a comment whose
+conclusion is right and whose stated reason is false.
 
-**P4a left ADR 0007's unresolved status and the `client.enabled` question
-exactly as it found them.** Both predate P4a and neither was this phase's
-to answer: `parseStructure` stayed the real authority for the token
-request shape instead of a Zod contract, the same choice every other grant
-already made, and `resolveExchangeToken`'s access-token and refresh-token
-branches check grant revocation and session liveness exactly the way
-`/userinfo` and `/introspect` do; its id_token branch names no grant
-(`resolveIdToken` returns `grantId: null`) and checks session liveness via
-`sid` alone. All three share the same blind spot for a client disabled
-after a token was issued to it. Both triggers, recorded below under "The
-token surface", now name P4a's own files alongside the ones that already
-carried them.
+**What P4c decided that other phases were waiting on.** ADR 0007 is amended
+and executed: the admin API is its first JSON surface, and the form-encoded
+protocol endpoints keep `parseStructure` on a recorded rationale. The
+`client.enabled` question is answered — `/userinfo`, `/introspect` and all
+three exchange branches read it through one shared predicate. ADR 0036
+decides that `/userinfo`'s claims narrowing is the right reading of OIDC
+Core §5.5 and that losing `requested_userinfo_claims` on refresh is the
+defect; closing it is P4e's.
 
-**A bare `P4` below means P4c** unless it concerns token exchange, the grant
-allowlist, theming or client branding — the same disambiguation the P2 split
-used, and for the same reason: a citation renumbered wrongly is invisible for
-good. Nothing below is a plan for any of the four, only what they inherit and
-what is still open.
+**A bare `P4` below means P4e** unless it concerns token exchange, the grant
+allowlist, the admin API, the consoles, theming or client branding — the
+same disambiguation the P2 split used, and for the same reason: a citation
+renumbered wrongly is invisible for good. Nothing below is a plan for any of
+them, only what they inherit and what is still open.
 
 **The tenant rename changed the wire.** What was called a `realm` is a
 tenant everywhere: the path is `/tenants/{tenant}/…`, so the issuer — and
@@ -61,33 +65,12 @@ deployed, so there is no transition to describe — a hard cutover is the only
 reason this was simple, and a deployed system would need two issuers per
 tenant for a published window instead.
 
-P3b shipped the session set — a browser's cookie holds a list of session
-ids rather than one, bounded per browser by `max_sessions_per_browser`
-(ADR 0033), with `prompt=select_account` rendering a chooser over it and a
-tenant's "remember me" selecting a second pair of idle and maximum
-lifespans. Ending a session now reaches the relying parties that hold it:
-front-channel through iframes the logout page declares (ADR 0034), and
-back-channel through a queue, a signed Logout Token per registered client
-and an `odudu send-logouts` command with its own retention window. The
-token surface gained RFC 7662 introspection scoped by audience and
-consulting session liveness, RFC 7009 revocation, RFC 8707 `resource`
-indicators making `aud` derived rather than asserted, signed and encrypted
-UserInfo responses selected by registration — this repository's first JWE —
-the OIDC Core §5.5 `claims` parameter, and `private_key_jwt` and
-proxy-header mTLS client authentication.
-
-What turned out to be **wrong** while building it is in
-[docs/phases/p3b.md](phases/p3b.md), not here. Two things from it are worth
-reading before P4c is brainstormed: the recurring defect of a rule applied at
-one door out of several, and the finding that this repository's most
-frequent defect is a comment whose conclusion is right and whose stated
-reason is false.
-
 ### What each phase found while building it
 
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
+- [P4c — the admin API](phases/p4c.md)
 - [P4a — token exchange](phases/p4a.md)
 - [Renaming the tenant concept](phases/tenant-rename.md) — not a phase; a
   cross-cutting rename between P3b and P4, kept here for the same reason
@@ -106,58 +89,33 @@ Not what a finished phase discovered. If a section here is addressed to a
 phase that has closed, it is overdue for a decision or a move, not for
 another paragraph.
 
-## What P4c, P4d and P4b inherit
+## What P4e, P4d and P4b inherit
 
-**A session set to list and to end.** `sessionRepository.liveByIds`
-(`packages/authn-flows/src/repository/sessions.ts`) measures each session
-against its own lifespan pair, and the cookie is the only place a browser's
-membership is recorded. P4c's "list a subject's sessions and end one" is the
-first surface that reads sessions by **subject** rather than by cookie —
-and it is also the operator's only reach for the orphan case ADR 0033
-records, where two genuinely concurrent logins in one browser can leave a
-session the browser's own cookie no longer names. A **remembered** orphan
-idles for `remember_me_idle_seconds`, seven days by default, which is the
-sharp case.
+**A table built for the events P4e writes.** `audit_events`
+(`0067_admin_audit.sql`) carries `event_type`, a **nullable**
+`actor_subject_id` and a nullable `actor_client_id` precisely so an
+authentication event — which has a subject it happened to, and often no
+administrator at all — fits the same table as an admin mutation, without a
+migration. `admin_mutation` is the only `event_type` written today.
+Retention is the tenant's own `audit_retention_days` setting, already last
+in `REAP_ORDER`, so P4e inherits the window rather than adding a second one
+to keep in step. `GET /admin/tenants/{tenant}/audit` already filters by
+`resource_type`, `action`, `outcome`, `actor_subject_id` and an
+`occurred_at` range; `event_type` is the filter it will need.
 
-**Client metadata that only two doors can write.** Dynamic client
-registration (P3a) validates and stores the full metadata set; `seed client`
-takes `--redirect-uri`, `--post-logout-redirect-uri`, `--web-origin`,
-`--client-secret` and `--token-endpoint-auth-method` and nothing else, and
-refuses a client that already exists rather than amending one. So every
-per-client value P3b reads — `audiences`, the logout URIs, the UserInfo
-algorithms, `tls_client_auth_subject_dn` — is settable at creation by one
-door and by `psql` otherwise. `docs/request-paths.md` says so at each site
-that reaches for SQL, and aggregates it under "Any admin API". P4a added a
-fifth such column, `token_exchange_impersonation_allowed`: no seed flag and
-no registration field, so a tenant that wants a client to impersonate
-rather than only delegate reaches for `psql` the same way.
+**`requested_userinfo_claims` is lost on refresh, and ADR 0036 says so.**
+The narrowing itself is decided — OIDC Core §5.5's `claims` parameter
+narrows what `/userinfo` returns, which is the stricter of two readings and
+now a written one. The defect the ADR leaves open is that a rotated grant
+does not carry the request forward, so a refresh widens the response.
+Closing it means threading the value onto the grant row, on the same
+rotation path P4e's token events instrument.
 
-**Tenant settings already have a command, and its validation is reusable.**
-`odudu seed tenant --name <tenant> --set <name>=<value>` applies any of the
-tenant settings by column name. The name-to-column map and the coercion live
-in `packages/domain-tenant/src/service/tenant-settings.ts` rather than in the
-CLI, so P4c's admin API inherits them rather than growing a second copy.
-Ranges are deliberately not there — they are CHECK constraints, and a policy
-no writer may bypass belongs at the database.
-
-**An asymmetry worth deciding about rather than inheriting by accident.**
-`seed tenant --set` changes an existing tenant; `seed client` will not change
-an existing client, because a re-run that quietly widened a registered
-redirect list is how an allowlist grows by accident. An admin API that
-treats both the same way would be wrong in one of the two directions.
-P4c's criterion now poses that question rather than leaving it to be
-answered by whichever surface is written first.
-
-**Signing-key rotation now has a consistency obligation it did not have
-before.** A tenant holds exactly one active signing key
-(`signing_keys_one_active`), and P3b made two things depend on that:
-discovery advertises `userinfo_signing_alg_values_supported` as that
-tenant's own `[key.alg, "none"]`, and registration refuses a
-`userinfo_signed_response_alg` the active key cannot produce. Rotating a
-tenant to a key with a different algorithm therefore strands every client
-registered against the old one — `/userinfo` answers 500 for them, with a
-log line naming client, registered algorithm and active key. P4c owns
-rotation, and its criterion now names that case.
+**Only `POST /clients` records a refusal.** `outcome` has three values, and
+every other admin mutation writes a row only when it succeeds, so
+`?outcome=refused` against any other resource type answers nothing — not
+because nothing was refused. Whether that generalises is P4e's to decide,
+since it is the phase that decides what a refused **authentication** writes.
 
 **Two recovery-code gaps that need the account console.** A subject cannot
 ask for a fresh set before running out, and nothing warns as the list gets
@@ -228,20 +186,22 @@ agent identity layer's own instance, budget and `max_depth` (design spec
 requires a token's `scope` to be coherent with its `aud`. A client may ask
 for `reports:read` against `resource=https://api.example` and nothing
 objects. Recorded `accepted:` in `docs/protocols/rfc9068.md`. Closing it
-honestly needs a per-audience scope model, which belongs to client
-management rather than to the token surface.
+honestly needs a per-audience scope model. P4c declined it deliberately —
+it is not client management, it is a resource server as a first-class thing
+that owns scopes.
 
-- Trigger: whichever phase gives scopes an audience of their own.
+- Trigger: **P9**, whose criterion now names it together with the entry
+  below, so half the model is not built twice.
 
 **`/introspect` answers every registered client the same way, regardless of
 which resource it names.** RFC 7662 §2.2's MAY to limit which scopes a
 protected resource sees, and §4's SHOULD that it be specifically authorized
-to call the endpoint at all, are both `gap` rather than `deferred:` — no
-phase has committed to either.
+to call the endpoint at all, are the other half of that same missing
+abstraction: a "may introspect" entitlement is a property of a resource
+server, and there is no resource server here to hold one.
 
-- Trigger: a phase that gives a client a "may introspect" capability
-  distinct from ordinary client authentication, or the per-resource scope
-  model the entry above needs.
+- Trigger: **P9**, with the entry above. Deciding either alone would settle
+  what a resource server is by accident.
 
 **A `private_key_jwt` or `tls_client_auth` client can never call
 `/introspect` or `/revoke`.** Both authenticate through `authenticateClient`
@@ -343,11 +303,15 @@ merely cosmetic is the orphan — `resolveSessions` supplies logout
 membership too, so a session omitted from the cookie cannot be logged out
 through the cookie path. ADR 0033 carries the derivation and the durable
 remedy: a stable browser identifier in its own cookie, stored on the session
-row, giving admission, logout and P4's session list one predicate.
+row, giving admission, logout and the admin session list one predicate.
 
 - Trigger: the remedy is the reversal of the spec's decision 1 (the cookie
   holds a list; there is no browser row), so it waits until something else
-  wants that row — most likely P4's session surface.
+  wants that row. P4c's session list was the candidate and did not need it:
+  it reads sessions by subject, which reaches an orphan without knowing
+  which browser holds it. So the trigger is now an operator or an account
+  console (**P4d**) wanting to show _which device_ a session belongs to,
+  which no predicate here can answer.
 
 ### The audit log
 
@@ -360,8 +324,22 @@ tenant in this deployment and verifying the signature against that
 tenant's keys, then auditing only a token that is authentic but presented
 at a path it may not reach.
 
-- Trigger: whichever phase gives the admin surface rate limiting, or an
-  operator asking why a refused cross-tenant attempt left no trace.
+- Trigger: **P4e**, whose criterion names it. It is the phase that decides
+  what a refused authentication writes, and this is the same question asked
+  of the admin surface: what may an unauthenticated caller cause to be
+  written.
+
+**`deferred:`** A path parameter that is not a UUID reaches PostgreSQL and
+surfaces its parse error as `500`, not `400` or `404` — observed on
+`GET /admin/tenants/{tenant}/clients/not-a-uuid`, and on the `subjects` and
+`roles` reads the same way. The generated schemas validate the body, not
+the path, and nothing between the route and the repository narrows an id.
+Harmless — no information is disclosed and the request changes nothing —
+but a caller with a typo is told the server broke.
+
+- Trigger: **P4d**, whose console will produce ids from links rather than
+  by hand and so wants the distinction between "no such client" and "that
+  is not an id" to be the caller's, not the log's.
 
 ### Operational and infrastructural
 
@@ -382,6 +360,19 @@ server's request and its answer.
   transports share one answer or each wires its own — and whether
   `/userinfo` needs a tighter timeout than `/token`'s shared default, since
   it sits on a resource server's request rather than a client's own.
+
+**One configured issuer base for the whole deployment.** The admin API
+verifies a token's `iss` by deriving it from the request, the same way
+`/token` mints it, because there is no configured issuer to compare against
+— which also forced the admin API's audience to be a fixed URN rather than
+`${iss}/admin`. `ODUDU_PUBLIC_BASE_URL` already exists and is used for mail
+links and the WebAuthn relying-party id, so the value is half present.
+Replacing request-derived issuers everywhere changes how `iss` is minted on
+every token, ID token and Logout Token, on the RFC 9207 parameter and in
+discovery, which is why P4c did not do it in passing.
+
+- Trigger: **P11** or **P12**, whichever first reworks deployment
+  configuration.
 
 **`client_oidc_config_tls_client_auth_needs_subject_dn` enforces `NOT
 NULL`, not non-blank.** A row with `tls_client_auth_subject_dn = ''` passes
