@@ -33,6 +33,10 @@ const UNDECLARED_TABLES = new Set(['__drizzle_migrations']);
 const EXPECTED_CHECKS: Record<string, string> = {
   'action_tokens.action_tokens_type_check':
     "CHECK ((type = ANY (ARRAY['verify_email'::text, 'reset_password'::text])))",
+  'tenants.tenants_audit_retention_days_range':
+    'CHECK (((audit_retention_days >= 1) AND (audit_retention_days <= 3650)))',
+  'audit_events.audit_events_outcome':
+    "CHECK ((outcome = ANY (ARRAY['allowed'::text, 'refused'::text, 'failed'::text])))",
   'authentication_executions.authentication_executions_requirement':
     "CHECK ((requirement = ANY (ARRAY['required'::text, 'alternative'::text, 'conditional'::text, 'disabled'::text])))",
   'authorization_codes.authorization_codes_method_check':
@@ -64,7 +68,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'groups.groups_name_has_no_slash': "CHECK (((name !~ '/'::text) AND (name <> ''::text)))",
   'groups.groups_path_is_absolute': "CHECK ((path ~~ '/%'::text))",
   'clients.clients_registration_origin_check':
-    "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text])))",
+    "CHECK ((registration_origin = ANY (ARRAY['seeded'::text, 'anonymous'::text, 'token'::text, 'operator'::text])))",
   'clients.clients_secret_matches_type':
     "CHECK ((((type = 'confidential'::text) AND (secret_hash IS NOT NULL)) OR ((type = 'public'::text) AND (secret_hash IS NULL))))",
   'clients.clients_type_check':

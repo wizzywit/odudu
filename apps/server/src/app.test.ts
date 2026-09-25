@@ -16,6 +16,17 @@ const database: DatabaseHandle = {
   close: () => Promise.resolve(),
 };
 
+// Answers every `select().from().where()` chain with no rows, so a route
+// that resolves `{tenant}` from the path before doing anything else finds
+// no tenant rather than throwing on a db that answers nothing at all.
+const noSuchTenantDatabase: DatabaseHandle = {
+  db: {
+    select: () => ({ from: () => ({ where: () => Promise.resolve([]) }) }),
+  } as unknown as DatabaseHandle['db'],
+  sql: (() => Promise.resolve([{ ok: 1 }])) as unknown as DatabaseHandle['sql'],
+  close: () => Promise.resolve(),
+};
+
 function appWithIpProbe(trustProxy?: boolean) {
   const app = buildApp({
     database,
@@ -60,5 +71,25 @@ describe('trustProxy', () => {
     });
 
     expect(response.json<{ ip: string }>().ip).toBe('203.0.113.9');
+  });
+});
+
+describe('admin routes', () => {
+  it('serves the admin API and leaves the OIDC routes alone', async () => {
+    const app = buildApp({
+      database: noSuchTenantDatabase,
+      ownerDatabase: noSuchTenantDatabase,
+      kek: config.ODUDU_KEK,
+      logger: createLogger(config),
+    });
+
+    const res = await app.inject({ method: 'GET', url: '/admin/tenants/acme/subjects' });
+    expect(res.statusCode).toBe(401);
+
+    const discovery = await app.inject({
+      method: 'GET',
+      url: '/tenants/acme/.well-known/openid-configuration',
+    });
+    expect(discovery.statusCode).not.toBe(401);
   });
 });

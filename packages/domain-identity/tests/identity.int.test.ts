@@ -110,6 +110,48 @@ describe('subjectRepository', () => {
       },
     });
   });
+
+  it('leaves disabled_at unchanged on a repeated disable', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+
+      const first = await subjectRepository(tx).setEnabled(subject.id, false);
+      expect(first.disabledAt).not.toBeNull();
+
+      const second = await subjectRepository(tx).setEnabled(subject.id, false);
+      expect(second.disabledAt?.getTime()).toBe(first.disabledAt?.getTime());
+    });
+  });
+
+  it('cannot disable a subject under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return subjectRepository(tx).create({ tenantId, type: 'user' });
+      },
+      verifySeeded: async (tx, subject) => {
+        const found = await subjectRepository(tx).byId(subject.id);
+        expect(found?.disabledAt).toBeNull();
+      },
+      attempt: async (tx, subject) => {
+        try {
+          await subjectRepository(tx).setEnabled(subject.id, false);
+          return 'succeeded';
+        } catch {
+          return 'blocked';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyTenantAUnaffected: async (tx, subject) => {
+        const found = await subjectRepository(tx).byId(subject.id);
+        expect(found?.disabledAt).toBeNull();
+      },
+    });
+  });
 });
 
 describe('userRepository', () => {
@@ -383,6 +425,36 @@ describe('userRepository', () => {
     const cause = (error as Error).cause;
     expect(cause).toBeInstanceOf(Error);
     expect((cause as Error).message).toContain('users_subject_tenant_fk');
+  });
+
+  it('cannot change an email under a different tenant context', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        await insertUserRow(tx, subject.id, tenantId, { email: 'carol@example.com' });
+        return subject.id;
+      },
+      verifySeeded: async (tx, subjectId) => {
+        const found = await userRepository(tx).bySubjectId(subjectId);
+        expect(found?.email).toBe('carol@example.com');
+      },
+      attempt: async (tx, subjectId) => {
+        try {
+          await userRepository(tx).updateEmail(subjectId, 'attacker@example.com');
+          return 'succeeded';
+        } catch {
+          return 'blocked';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyTenantAUnaffected: async (tx, subjectId) => {
+        const found = await userRepository(tx).bySubjectId(subjectId);
+        expect(found?.email).toBe('carol@example.com');
+      },
+    });
   });
 });
 

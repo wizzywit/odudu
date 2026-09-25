@@ -1,4 +1,4 @@
-export { unwrapPrivateJwk, wrapPrivateJwk } from '#/service/kek';
+export { unwrapPrivateJwk, unwrapSecret, wrapPrivateJwk, wrapSecret } from '#/service/kek';
 export { assembleJwks, toPublicJwk, PRIVATE_JWK_MEMBERS } from '#/service/jwks';
 export { generateSigningKey, type GeneratedSigningKey } from '#/service/generate';
 export { signingKeys } from '#/schema/signing-keys';

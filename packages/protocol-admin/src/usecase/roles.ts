@@ -1,0 +1,416 @@
+import { type Role } from '@odudu/contracts/admin';
+import { type TenantScopedDatabase } from '@odudu/db';
+import { roleRepository, roles } from '@odudu/domain-authz';
+import { clients } from '@odudu/domain-tenant';
+import { isUuid, OduduError } from '@odudu/kernel';
+import { asc, eq, gt, inArray } from 'drizzle-orm';
+import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
+import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { etagOf, matches } from '#/service/etag';
+import { AMENDABLE_ROLE_FIELDS, refusalFor } from '#/service/role-patch';
+
+const COLLECTION = 'roles';
+
+export interface RoleAuditEvent {
+  readonly action: 'role.create' | 'role.amend' | 'role.delete' | 'role.composite_add';
+  readonly resourceType: 'role';
+  readonly resourceId: string;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
+}
+
+/** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
+export type Audit = (tx: TenantScopedDatabase, event: RoleAuditEvent) => Promise<void>;
+
+export function roleWireShape(role: {
+  id: string;
+  name: string;
+  description: string | null;
+  clientId: string | null;
+  defaultForNewSubjects: boolean;
+  createdAt: Date;
+}): Role {
+  return {
+    id: role.id,
+    name: role.name,
+    description: role.description,
+    client_id: role.clientId,
+    default_for_new_subjects: role.defaultForNewSubjects,
+    created_at: role.createdAt.toISOString(),
+  };
+}
+
+export interface ListRolesInput {
+  readonly limit: number;
+  readonly cursor: string | undefined;
+  readonly cursorKey: Uint8Array;
+  readonly tenantId: string;
+}
+
+export type ListRolesOutcome =
+  { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly Role[]; next: string | null };
+
+export async function listRoles(
+  tx: TenantScopedDatabase,
+  input: ListRolesInput,
+): Promise<ListRolesOutcome> {
+  let after: string | undefined;
+  if (input.cursor !== undefined) {
+    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
+    after = decoded.after;
+  }
+
+  const rows = await tx
+    .select()
+    .from(roles)
+    .where(after === undefined ? undefined : gt(roles.id, after))
+    .orderBy(asc(roles.id))
+    .limit(input.limit + 1);
+
+  const hasMore = rows.length > input.limit;
+  const items = (hasMore ? rows.slice(0, input.limit) : rows).map(roleWireShape);
+  const last = items[items.length - 1];
+  const next =
+    hasMore && last !== undefined
+      ? encodeCursor(input.cursorKey, {
+          after: last.id,
+          collection: COLLECTION,
+          tenantId: input.tenantId,
+        })
+      : null;
+
+  return { kind: 'ok', items, next };
+}
+
+export type ReadRoleOutcome = { kind: 'not_found' } | { kind: 'ok'; role: Role };
+
+export async function readRole(tx: TenantScopedDatabase, roleId: string): Promise<ReadRoleOutcome> {
+  const role = await roleRepository(tx).byId(roleId);
+  return role === null ? { kind: 'not_found' } : { kind: 'ok', role: roleWireShape(role) };
+}
+
+export interface CreateRoleInput {
+  readonly tenantId: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly clientId: string | null;
+  readonly defaultForNewSubjects: boolean;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface CreateRoleDeps {
+  readonly audit: Audit;
+}
+
+export type CreateRoleOutcome = { kind: 'unknown_client' } | { kind: 'ok'; role: Role };
+
+export async function createRole(
+  tx: TenantScopedDatabase,
+  deps: CreateRoleDeps,
+  input: CreateRoleInput,
+): Promise<CreateRoleOutcome> {
+  // `roles_client_fk` would refuse this too, but as a foreign-key
+  // violation rather than the unique violation the route knows how to turn
+  // into a 409 — and a `client_id` that is not a uuid at all fails in the
+  // driver before any constraint is consulted.
+  if (input.clientId !== null) {
+    if (!isUuid(input.clientId)) return { kind: 'unknown_client' };
+    const owner = await tx
+      .select({ id: clients.id })
+      .from(clients)
+      .where(eq(clients.id, input.clientId));
+    if (owner.length === 0) return { kind: 'unknown_client' };
+  }
+
+  const created = await roleRepository(tx).create({
+    tenantId: input.tenantId,
+    name: input.name,
+    description: input.description,
+    clientId: input.clientId,
+    defaultForNewSubjects: input.defaultForNewSubjects,
+  });
+
+  await deps.audit(tx, {
+    action: 'role.create',
+    resourceType: 'role',
+    resourceId: created.id,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+  });
+
+  return { kind: 'ok', role: roleWireShape(created) };
+}
+
+export interface AmendRoleInput {
+  readonly roleId: string;
+  readonly values: Readonly<Record<string, unknown>>;
+  readonly ifMatch: string | undefined;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface AmendRoleDeps {
+  readonly audit: Audit;
+}
+
+export type AmendRoleOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'refused_field'; field: string; reason: string }
+  | { kind: 'invalid_value'; field: string; description: string }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; role: Role; etag: string };
+
+// Wrapped in `{ value }` rather than the bare type — see `SubjectPatch`
+// (#/usecase/subjects.ts) for why: it tells "cleared to null" apart from
+// "untouched" with no second `in` check needed at the write site.
+interface RolePatchInput {
+  description?: { value: string | null };
+}
+
+// Locks the role for the rest of the transaction, the same reasoning
+// `lockSubjectForAmend` (#/usecase/subjects.ts) locks its subject for: the
+// `If-Match` comparison and the write that follows it must be the only
+// ones running against this role.
+async function lockRoleForAmend(
+  tx: TenantScopedDatabase,
+  roleId: string,
+): Promise<typeof roles.$inferSelect | null> {
+  const rows = await tx.select().from(roles).where(eq(roles.id, roleId)).for('update');
+  return rows[0] ?? null;
+}
+
+export async function amendRole(
+  tx: TenantScopedDatabase,
+  deps: AmendRoleDeps,
+  input: AmendRoleInput,
+): Promise<AmendRoleOutcome> {
+  for (const field of Object.keys(input.values)) {
+    if (!AMENDABLE_ROLE_FIELDS.includes(field)) {
+      return {
+        kind: 'refused_field',
+        field,
+        reason: refusalFor(field) ?? `${field} is not a role field`,
+      };
+    }
+  }
+
+  const locked = await lockRoleForAmend(tx, input.roleId);
+  if (locked === null) return { kind: 'not_found' };
+
+  const currentEtag = etagOf(roleWireShape(locked));
+  if (matches(input.ifMatch, currentEtag) === 'mismatch') {
+    return { kind: 'precondition_failed' };
+  }
+
+  // Every field is validated before any of them is written into `patch` —
+  // see `amendSubject` (#/usecase/subjects.ts) for why a refusal must
+  // never leave a partial write behind, and why phase two reads only
+  // `patch`, never `input.values` again.
+  const patch: RolePatchInput = {};
+  if ('description' in input.values) {
+    const value = input.values.description;
+    if (value !== null && typeof value !== 'string') {
+      return {
+        kind: 'invalid_value',
+        field: 'description',
+        description: 'description must be a string or null',
+      };
+    }
+    patch.description = { value };
+  }
+
+  if (patch.description !== undefined) {
+    await roleRepository(tx).amend(input.roleId, { description: patch.description.value });
+  }
+
+  await deps.audit(tx, {
+    action: 'role.amend',
+    resourceType: 'role',
+    resourceId: input.roleId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+  });
+
+  const after = await readRole(tx, input.roleId);
+  if (after.kind !== 'ok') {
+    throw new Error(`role ${input.roleId} not found immediately after its own amendment`);
+  }
+  return { kind: 'ok', role: after.role, etag: etagOf(after.role) };
+}
+
+export interface DeleteRoleInput {
+  readonly roleId: string;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface DeleteRoleDeps {
+  readonly audit: Audit;
+}
+
+export type DeleteRoleOutcome =
+  { kind: 'not_found' } | { kind: 'builtin_admin_guarded'; reason: string } | { kind: 'deleted' };
+
+// `subject_roles_role_fk` cascades, so deleting a capability role strips it
+// from every administrator holding it — `tenant-admin` deleted by a caller
+// who only holds `manage-tenant` locks the tenant out of its own admin API,
+// and `manage-tenant` can delete itself. `amendClient` (#/usecase/clients.ts)
+// guards the client for the same reason; this is the same door on the roles
+// that client owns. Reads `builtinAdmin`, never the `client_id` string, so a
+// rename in the database cannot slip past it.
+async function guardsAdministrators(
+  tx: TenantScopedDatabase,
+  role: { clientId: string | null; name: string },
+): Promise<string | null> {
+  if (role.clientId === null) return null;
+  const rows = await tx
+    .select({ clientId: clients.clientId, builtinAdmin: clients.builtinAdmin })
+    .from(clients)
+    .where(eq(clients.id, role.clientId));
+  const owner = rows[0];
+  if (owner?.builtinAdmin !== true) return null;
+  return (
+    `${role.name} is a capability of ${owner.clientId}, this tenant's built-in ` +
+    'admin client, and deleting it would strip it from every administrator holding it'
+  );
+}
+
+export async function deleteRole(
+  tx: TenantScopedDatabase,
+  deps: DeleteRoleDeps,
+  input: DeleteRoleInput,
+): Promise<DeleteRoleOutcome> {
+  const role = await roleRepository(tx).byId(input.roleId);
+  if (role === null) return { kind: 'not_found' };
+  const guarded = await guardsAdministrators(tx, role);
+  if (guarded !== null) return { kind: 'builtin_admin_guarded', reason: guarded };
+
+  const deleted = await roleRepository(tx).delete(input.roleId);
+  if (!deleted) return { kind: 'not_found' };
+
+  await deps.audit(tx, {
+    action: 'role.delete',
+    resourceType: 'role',
+    resourceId: input.roleId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+  });
+  return { kind: 'deleted' };
+}
+
+export interface AddRoleCompositeInput {
+  readonly parentRoleId: string;
+  readonly childRoleId: string;
+  /**
+   * The caller's own admin-client capability names, expanded through
+   * `role_composites` — the same ceiling `setRoles` (#/usecase/subjects.ts)
+   * enforces. Nesting a role subgraph into a composite must never hand the
+   * parent a capability the caller does not itself hold.
+   */
+  readonly callerCapabilities: ReadonlySet<string>;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface AddRoleCompositeDeps {
+  readonly audit: Audit;
+}
+
+export type AddRoleCompositeOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'unknown_child_role' }
+  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'cycle' }
+  | { kind: 'ok' };
+
+// Locks both endpoints of the edge about to be written, so two concurrent
+// `addComposite` calls that together would close a cycle (A→B and, at the
+// same time, B→A) cannot each pass `closureFrom`'s check before either
+// commits. Deadlock-freedom comes from both calls issuing the identical
+// `inArray(...).for('update')` — one unordered-set predicate, scanned in
+// the same plan order — not from the `.sort()` below, which buys nothing
+// today and is kept only against a future rewrite into separate per-id
+// statements, where a consistent order would start to matter.
+async function lockRolesForComposite(
+  tx: TenantScopedDatabase,
+  parentRoleId: string,
+  childRoleId: string,
+): Promise<void> {
+  const ids = [...new Set([parentRoleId, childRoleId])].sort();
+  await tx.select({ id: roles.id }).from(roles).where(inArray(roles.id, ids)).for('update');
+}
+
+// The capability ceiling (CWE-269), applied to a composite edge instead of
+// a subject's role set: everything `child_role_id` reaches — itself
+// included — must already be within the caller's own capabilities, or the
+// caller could grant itself one it does not hold by nesting it under a
+// role it may already assign.
+export async function addRoleComposite(
+  tx: TenantScopedDatabase,
+  deps: AddRoleCompositeDeps,
+  input: AddRoleCompositeInput,
+): Promise<AddRoleCompositeOutcome> {
+  // `roles.id` is a `uuid` column: a non-uuid `child_role_id` would fail in
+  // `lockRolesForComposite`'s own lookup before `byId` ever answers
+  // `unknown_child_role`, so it is refused the same way here, before that
+  // lock is taken.
+  if (!isUuid(input.childRoleId)) return { kind: 'unknown_child_role' };
+
+  await lockRolesForComposite(tx, input.parentRoleId, input.childRoleId);
+
+  const parent = await roleRepository(tx).byId(input.parentRoleId);
+  if (parent === null) return { kind: 'not_found' };
+  const child = await roleRepository(tx).byId(input.childRoleId);
+  if (child === null) return { kind: 'unknown_child_role' };
+
+  const requestedCapabilities = await capabilitiesReachableFrom(tx, [input.childRoleId]);
+  const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'role.composite_add',
+      resourceType: 'role',
+      resourceId: input.parentRoleId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
+    return { kind: 'capability_ceiling', requested: denied };
+  }
+
+  try {
+    await roleRepository(tx).addComposite(input.parentRoleId, input.childRoleId);
+  } catch (error) {
+    if (error instanceof OduduError && error.code === 'role_composite_cycle') {
+      return { kind: 'cycle' };
+    }
+    throw error;
+  }
+
+  await deps.audit(tx, {
+    action: 'role.composite_add',
+    resourceType: 'role',
+    resourceId: input.parentRoleId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+  });
+  return { kind: 'ok' };
+}

@@ -35,9 +35,28 @@ module.exports = {
     {
       name: 'no-protocol-to-protocol',
       severity: 'error',
-      comment: 'Protocols stay independently testable and independently deletable.',
-      from: { path: '(^|/)packages/protocol-([^/]+)/' },
+      comment:
+        'Protocols stay independently deletable. protocol-admin is exempt as a source — it is ' +
+        'downstream of the protocol surface by definition (ADR 0035); the reverse edge below ' +
+        'forbids it becoming a two-way door.',
+      from: { path: '(^|/)packages/protocol-([^/]+)/', pathNot: '(^|/)packages/protocol-admin/' },
       to: { path: '(^|/)packages/protocol-(?!$2/)[^/]+/' },
+    },
+    {
+      name: 'no-protocol-to-admin',
+      severity: 'error',
+      comment: 'The admin API may import a protocol package; the reverse is never allowed.',
+      from: { path: '(^|/)packages/protocol-(?!admin/)[^/]+/' },
+      to: { path: '(^|/)packages/protocol-admin/' },
+    },
+    {
+      name: 'no-admin-to-other-protocol',
+      severity: 'error',
+      comment:
+        'The admin API is downstream of OIDC only (ADR 0035), not protocols generally — reaching ' +
+        'another one is a decision to make deliberately.',
+      from: { path: '(^|/)packages/protocol-admin/' },
+      to: { path: '(^|/)packages/protocol-(?!oidc/|admin/)[^/]+/' },
     },
     // `/src/(.+/)?view/` fails dependency-cruiser's safe-regex check (star
     // height > 1: the optional group wraps a quantifier). The alternation

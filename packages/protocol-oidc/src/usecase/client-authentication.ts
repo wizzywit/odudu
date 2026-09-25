@@ -12,7 +12,7 @@ import { invalidClient, TokenError, TokenRateLimited } from '#/service/errors';
 // authenticates a registered OAuth client the same way, against the same
 // ADR 0023 budget, so this is the one place either endpoint needs.
 export interface ClientAuthenticationDeps {
-  tenantId: string;
+  readonly tenantId: string;
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // ADR 0023's client half: a per-`client_id` budget on failed
   // client_secret_basic/client_secret_post attempts, consulted by

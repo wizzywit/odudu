@@ -2,18 +2,50 @@ export { verifyClientSecret } from '#/service/client';
 export {
   coerceTenantSetting,
   TENANT_SETTING_NAMES,
+  TENANT_SETTING_COLUMNS,
   type CoerceOutcome,
   type TenantSettingName,
+  type TenantSettingColumn,
 } from '#/service/tenant-settings';
+export {
+  tenantSettingsRepository,
+  TenantSettingCheckViolationError,
+  type TenantSettingsRecord,
+} from '#/repository/tenant-settings';
+export {
+  ADMIN_API_AUDIENCE,
+  ADMIN_CLIENT_ID,
+  isSystemTenantName,
+  isSystemTenantId,
+  SYSTEM_TENANT_DISABLE_REFUSED,
+  MANAGE_TENANTS,
+  SYSTEM_TENANT_ID,
+  SYSTEM_TENANT_NAME,
+  TENANT_ADMIN,
+  TENANT_CAPABILITIES,
+  viewCounterpart,
+  type TenantCapability,
+} from '#/service/admin-capabilities';
 export { clients, type ClientRecord } from '#/schema/clients';
-export { clientRepository, type ClientCapacity, type NewClient } from '#/repository/clients';
+export {
+  clientRepository,
+  ClientIdConflictError,
+  type ClientCapacity,
+  type NewClient,
+} from '#/repository/clients';
 export {
   clientScopes,
   clientScopeAssignments,
   type ClientScopeAssignment,
   type ClientScopeRecord,
 } from '#/schema/client-scopes';
-export { clientScopeRepository, type NewClientScope } from '#/repository/client-scopes';
+export {
+  clientScopeRepository,
+  type NewClientScope,
+  type ClientScopePatch,
+} from '#/repository/client-scopes';
+export { clientScopeMappers } from '#/schema/client-scope-mappers';
+export { clientScopeMapperRepository } from '#/repository/client-scope-mappers';
 export {
   provisionClientDefaults,
   provisionTenantDefaults,
@@ -34,3 +66,8 @@ export {
   clientRegistrationTokenRepository,
   type MintClientRegistrationToken,
 } from '#/repository/client-registration-tokens';
+export {
+  provisionAdminClient,
+  type ProvisionAdminClientOptions,
+  type ProvisionedAdminClient,
+} from '#/usecase/provision-admin-client';

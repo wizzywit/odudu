@@ -138,7 +138,7 @@ const OUTBOX_OPTIONS: SendPendingOptions = {
 
 async function drainOutbox(into: EmailSender = sender): Promise<void> {
   await sendPending(
-    { database: app, ownerDatabase: owner, sender: into },
+    { database: app, ownerDatabase: owner, resolveSender: () => Promise.resolve(into) },
     new Date(),
     OUTBOX_OPTIONS,
   );

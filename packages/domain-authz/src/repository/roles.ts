@@ -71,8 +71,47 @@ async function closureFrom(tx: TenantScopedDatabase, startId: string): Promise<S
   return new Set(closureRowsSchema.parse(result).map((row) => row.role_id));
 }
 
+export interface RolePatch {
+  description?: string | null;
+}
+
 export function roleRepository(tx: TenantScopedDatabase) {
   return {
+    async byId(id: string): Promise<RoleRecord | null> {
+      const rows = await tx.select().from(roles).where(eq(roles.id, id));
+      const row = rows[0];
+      return row === undefined ? null : toRecord(row);
+    },
+
+    async amend(id: string, patch: RolePatch): Promise<RoleRecord> {
+      const rows = await tx.update(roles).set(patch).where(eq(roles.id, id)).returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('role_not_found', `no role with id ${id}`);
+      }
+      return toRecord(row);
+    },
+
+    // `roles_client_fk`/`role_composites_*_fk`/`subject_roles_role_fk`/
+    // `client_scope_roles_role_fk` (0017_roles.sql) all cascade: deleting a
+    // role also removes every composite edge, subject assignment and
+    // client-scope mapping naming it.
+    async delete(id: string): Promise<boolean> {
+      const rows = await tx.delete(roles).where(eq(roles.id, id)).returning({ id: roles.id });
+      return rows.length > 0;
+    },
+
+    // The scope-side counterpart of `assignToSubject`'s replace-all
+    // (`setRoles`, packages/protocol-admin/src/usecase/subjects.ts):
+    // delete-then-insert under the caller's own row lock, never a diff.
+    async setClientScopeRoles(clientScopeId: string, roleIds: readonly string[]): Promise<void> {
+      await tx.delete(clientScopeRoles).where(eq(clientScopeRoles.clientScopeId, clientScopeId));
+      for (const roleId of roleIds) {
+        const tenantId = await tenantOfRole(tx, roleId);
+        await tx.insert(clientScopeRoles).values({ tenantId, clientScopeId, roleId });
+      }
+    },
+
     async create(input: NewRole): Promise<RoleRecord> {
       const rows = await tx
         .insert(roles)
@@ -113,7 +152,10 @@ export function roleRepository(tx: TenantScopedDatabase) {
         throw new OduduError('role_composite_cycle', 'would create a cycle');
       }
       const tenantId = await tenantOfRole(tx, parentRoleId);
-      await tx.insert(roleComposites).values({ tenantId, parentRoleId, childRoleId });
+      await tx
+        .insert(roleComposites)
+        .values({ tenantId, parentRoleId, childRoleId })
+        .onConflictDoNothing();
     },
 
     // tenant_id is not a caller-supplied argument: it is read back from the

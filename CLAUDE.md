@@ -27,6 +27,37 @@ The sequence, in order:
 Work happens on a branch; `main` is protected and requires `verify`,
 `container` and `commit-messages` to pass.
 
+### What a phase owes before it closes
+
+A phase finishes everything inside its own topic. Work outside that topic
+is named against the phase whose topic does cover it. For anything a
+complete OIDC platform needs there is no third outcome: "recorded, and left
+standing" is the second outcome with its second half missing.
+
+**Topic decides ownership, not the brief.** An increment that builds a
+feature owns the defects in that feature, including the ones nobody
+anticipated when the plan was written. A brief that does not mention a
+defect is a brief written before anyone knew about it, which is the normal
+case and no kind of exemption.
+
+**Topic decides, not severity.** Severity says whether a defect blocks a
+release; it never says whether the phase owes it. P4c recorded four of its
+own defects as placed work. Three were argued down on severity — nothing
+disclosed, nothing written, no bypass — and all three arguments were true
+and beside the point; between them the fixes came to one derived schema,
+one predicate mirroring a CHECK, and one `Set`. The fourth was half of an
+accepted ADR whose other half this repository already implemented twice,
+held open by a comment about a library that had never been run. An
+automated reviewer read the paragraph justifying that deferral and raised
+it as a Major finding with external reachability.
+
+**A paragraph explaining why a defect is not being fixed is the thing to
+distrust.** It reads as judgement, it costs less than the fix, and each of
+those four was shorter to fix than to justify. Where the argument really is
+sound the entry is short, because it only has to name the phase that will
+do it and why that phase is the one — the long form is what a missing
+reason looks like when it is written up rather than admitted.
+
 ### The pass that closes a phase, before the branch is finished
 
 An increment keeps the documents current for what it changed. A phase is the
@@ -120,7 +151,9 @@ Four outcomes, and each ends in a reply on the thread:
   requested.
 - **Out of scope** — a real issue this increment does not own becomes a
   `deferred:` row or a `docs/NEXT.md` entry, and the reply says where it
-  went. It is never silently dropped.
+  went. It is never silently dropped. **Ownership is decided by the phase's
+  topic, not by the increment's brief** — see "What a phase owes before it
+  closes" above. A brief describes the work; it does not bound it.
 
 Resolve a thread only when you have acted on it or refuted it. Never resolve
 one by asserting a fix that is not pushed.
@@ -400,3 +433,22 @@ So: **a section in `NEXT.md` addressed to a phase that has closed is overdue
 for a decision or a move, not for another paragraph.** That is the check to
 run on this file — it cannot be automated, and it takes one reading of the
 headings.
+
+Two things do not need a reader, and so are checked.
+`tests/docs/next-budget.test.ts` fails the build when the file passes 400
+lines or any one section passes 130, naming the section and the overage.
+The first split — moving the phase notes out on 2026-09-17 — took the file
+from 1,873 lines to 319, and three phases later it was at 525 again through
+a different leak: an item placed against a phase five phases away, kept here
+at the length of its own argument rather than as a line pointing at the ADR,
+protocol note or phase note that already held it. A per-section ceiling sits
+beside the total because the total alone can be met by squeezing "Start
+here", which is the inversion that produced the 1,873-line file in the first
+place.
+
+So an entry goes in "Decisions still open" under its argument's address, not
+its subject: one row in the table where an ADR, a protocol note or a phase
+note argues it, and prose only where nothing else can hold it. Writing prose
+there asserts that no such document should exist, which is usually false —
+and where it is true, the phase note of the phase that found the thing is
+almost always the answer.

@@ -63,4 +63,61 @@ describe('ClaimMapperRegistry', () => {
 
     expect([...registry.claimNames()].sort()).toEqual(['a', 'b', 'c']);
   });
+
+  it('lists every registered mapper name, for a caller binding one to a scope', () => {
+    const registry = new ClaimMapperRegistry<TestContext>()
+      .register(mapper('a', ['scope-a'], { a: 1 }))
+      .register(mapper('b', ['scope-b'], { b: 2 }));
+
+    expect([...registry.mapperNames()].sort()).toEqual(['a', 'b']);
+  });
+
+  describe('a binding override for one scope', () => {
+    it('replaces the mappers a bound scope reaches, leaving an unbound scope on its declared mappers', async () => {
+      const registry = new ClaimMapperRegistry<TestContext>()
+        .register(mapper('a', ['scope-a'], { a: 1 }))
+        .register(mapper('b', ['scope-b'], { b: 2 }));
+      const bindings = new Map([['scope-a', ['b']]]);
+
+      const claims = await registry.assemble(['scope-a', 'scope-b'], { value: 'x' }, bindings);
+
+      // scope-a is bound to mapper "b" only, so mapper "a" never fires even
+      // though scope-a is granted; scope-b carries no binding, so mapper
+      // "b" still fires for it on its own declared scope.
+      expect(claims).toEqual({ b: 2 });
+    });
+
+    it('leaves every scope on its declared mappers when no binding names it', async () => {
+      const registry = new ClaimMapperRegistry<TestContext>()
+        .register(mapper('a', ['scope-a'], { a: 1 }))
+        .register(mapper('b', ['scope-b'], { b: 2 }));
+
+      const claims = await registry.assemble(['scope-a', 'scope-b'], { value: 'x' }, new Map());
+
+      expect(claims).toEqual({ a: 1, b: 2 });
+    });
+
+    it('narrows claimNamesForScopes to a bound scope mapper set', () => {
+      const registry = new ClaimMapperRegistry<TestContext>()
+        .register(mapper('a', ['scope-a'], { a: 1 }))
+        .register(mapper('b', ['scope-b'], { b: 2 }));
+      const bindings = new Map([['scope-a', ['b']]]);
+
+      const names = registry.claimNamesForScopes(['scope-a', 'scope-b'], bindings);
+
+      // scope-a's binding excludes mapper "a", and nothing else declares
+      // or is bound to scope-a, so "a" never appears.
+      expect([...names].sort()).toEqual(['b']);
+    });
+
+    it('excludes a claim name from claimNamesForScopes when its scope is not in the supplied list', () => {
+      const registry = new ClaimMapperRegistry<TestContext>()
+        .register(mapper('a', ['scope-a'], { a: 1 }))
+        .register(mapper('b', ['scope-b'], { b: 2 }));
+
+      const names = registry.claimNamesForScopes(['scope-a'], new Map());
+
+      expect(names).toEqual(['a']);
+    });
+  });
 });

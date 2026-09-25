@@ -331,3 +331,88 @@ describe('the live session set', () => {
     });
   });
 });
+
+describe('liveBySubject', () => {
+  // The genuine orphan ADR 0033 describes: a session live in the database
+  // but absent from the id list a browser's own cookie would present.
+  // `liveByIds`, given only the cookie's list, cannot see it — `liveBySubject`
+  // is the one reader that does not need the list to find it.
+  it('sees a live session that a browser cookie omits, unlike liveByIds', async () => {
+    const tenantId = newId();
+    const now = new Date();
+    const far = new Date(now.getTime() + 3_600_000);
+
+    const { subjectId, cookieId, orphanId } = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      const cookieId = await createSession(tx, tenantId, subject.id, far);
+      const orphanId = await createSession(tx, tenantId, subject.id, far);
+      return { subjectId: subject.id, cookieId, orphanId };
+    });
+
+    await withTenant(app.db, tenantId, async (tx) => {
+      const repo = sessionRepository(tx);
+      const cookieView = await repo.liveByIds([cookieId], TENANT_LIFESPANS, now);
+      expect(cookieView.map((s) => s.id)).toEqual([cookieId]);
+
+      const subjectView = await repo.liveBySubject(subjectId, TENANT_LIFESPANS, now);
+      expect(subjectView.map((s) => s.id).sort()).toEqual([cookieId, orphanId].sort());
+    });
+  });
+
+  it('measures each session against its own lifespan pair', async () => {
+    const tenantId = newId();
+    const now = new Date();
+    // Idle for two days: dead under sso_session_idle_seconds (1800s), live
+    // under the remembered pair (604800s).
+    const idledSince = new Date(now.getTime() - 2 * 24 * 3_600_000);
+    const far = new Date(now.getTime() + 30 * 24 * 3_600_000);
+
+    const { subjectId, rememberedId, ordinaryId } = await withTenant(
+      app.db,
+      tenantId,
+      async (tx) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        const rememberedId = newId();
+        await tx.insert(sessions).values({
+          id: rememberedId,
+          tenantId,
+          subjectId: subject.id,
+          expiresAt: far,
+          authenticators: [],
+          remembered: true,
+        });
+        await sessionRepository(tx).touch(rememberedId, idledSince);
+        const ordinaryId = await createSession(tx, tenantId, subject.id, far);
+        await sessionRepository(tx).touch(ordinaryId, idledSince);
+        return { subjectId: subject.id, rememberedId, ordinaryId };
+      },
+    );
+
+    await withTenant(app.db, tenantId, async (tx) => {
+      const live = await sessionRepository(tx).liveBySubject(subjectId, TENANT_LIFESPANS, now);
+      expect(live.map((s) => s.id)).toEqual([rememberedId]);
+      expect(live.map((s) => s.id)).not.toContain(ordinaryId);
+    });
+  });
+
+  it('returns nothing for a subject in another tenant', async () => {
+    const tenantId = newId();
+    const otherTenantId = newId();
+    const now = new Date();
+
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      await createSession(tx, tenantId, subject.id, new Date(now.getTime() + 3_600_000));
+      return subject.id;
+    });
+
+    await withTenant(app.db, otherTenantId, async (tx) => {
+      await seedTenant(tx, otherTenantId);
+      const live = await sessionRepository(tx).liveBySubject(subjectId, TENANT_LIFESPANS, now);
+      expect(live).toEqual([]);
+    });
+  });
+});

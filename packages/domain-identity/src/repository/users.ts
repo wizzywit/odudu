@@ -186,6 +186,31 @@ export function userRepository(tx: TenantScopedDatabase) {
       return toUser(row);
     },
 
+    // Deliberately not part of updateProfile, whose own comment excludes
+    // email for the same reason this exists on its own: changing the
+    // address is not a profile edit, it is a new claim to verify.
+    // `emailVerified` resets to false on any change — the tenant's own
+    // `verify_email` action token is what earns it back, not this write.
+    async updateEmail(subjectId: string, email: string | null): Promise<UserRecord> {
+      if (email !== null && !isEmailAddress(email)) {
+        throw new OduduError(
+          'invalid_email',
+          `the email given for subject ${subjectId} is not an address the email claim may carry ` +
+            '— see packages/domain-identity/src/service/email.ts for the accepted form.',
+        );
+      }
+      const rows = await tx
+        .update(users)
+        .set({ email, emailVerified: false })
+        .where(eq(users.subjectId, subjectId))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
+      }
+      return toUser(row);
+    },
+
     // Deliberately not folded into updateProfile: emailVerified is a claim
     // about the current value of email, set only by consuming a matching
     // verify_email action token (packages/account/src/usecase/verify-email.ts),

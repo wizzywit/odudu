@@ -29,14 +29,14 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
           maxSessionsPerBrowser: 25,
           clientRegistrationPolicy: 'disabled',
         }),
-      claimNames: () => claimMappers.claimNames(),
+      claimNames: () => Promise.resolve(claimMappers.claimNames()),
       // What `seed tenant` puts in a tenant, so the document is checked against
       // the vocabulary a freshly seeded stack actually serves.
       scopesForTenant: () => Promise.resolve(TENANT_DEFAULT_SCOPE_NAMES),
       // `seed bootstrap` generates a tenant's first signing key as RS256
       // (apps/server/src/cli/seed.ts) — the same key a freshly seeded
       // stack's `/userinfo` would sign with.
-      activeSigningKeyAlg: () => Promise.resolve('RS256'),
+      algorithmsAvailable: () => Promise.resolve(['RS256']),
       // Fixed by the installed jose, not by anything `seed` writes — the
       // same two call sites `usecase/discovery.ts`'s own reading note names.
       userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,

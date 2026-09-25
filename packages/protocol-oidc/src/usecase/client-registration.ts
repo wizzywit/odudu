@@ -75,23 +75,21 @@ async function performRegistration(
     return { kind: 'at_capacity' };
   }
 
-  // Checked in the same transaction the tenant's key lives in, so discovery
-  // and registration cannot disagree; `null` (no active key) is a mismatch too.
+  // Checked against every algorithm a non-retired key produces, not only
+  // the active one: a key staged as `rotating` (the admin API's `POST
+  // /keys`, packages/protocol-admin/src/usecase/keys.ts) must let a client
+  // register against its algorithm before that key is promoted, or no
+  // client could ever move first and rotation could never begin.
   if (
     metadata.userinfoSignedResponseAlg !== null &&
     metadata.userinfoSignedResponseAlg !== 'none'
   ) {
-    const activeAlg: string | null = await signingKeyRepository(tx)
-      .active()
-      .then(
-        (key) => key.alg,
-        () => null,
-      );
-    if (activeAlg !== metadata.userinfoSignedResponseAlg) {
+    const available = await signingKeyRepository(tx).algorithmsAvailable();
+    if (!available.includes(metadata.userinfoSignedResponseAlg)) {
       return {
         kind: 'invalid_metadata',
         error: 'invalid_client_metadata',
-        description: `userinfo_signed_response_alg ${metadata.userinfoSignedResponseAlg} does not match this tenant's active signing key (${activeAlg ?? 'none'})`,
+        description: `userinfo_signed_response_alg ${metadata.userinfoSignedResponseAlg} is not produced by any of this tenant's signing keys (${available.join(', ') || 'none'})`,
       };
     }
   }

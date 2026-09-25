@@ -14,7 +14,13 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { type PendingRequest } from '#/schema/authentication-sessions';
-import { advance, initialChallenge, startAuthentication } from '#/usecase/executor';
+import { executionRepository } from '#/repository/executions';
+import {
+  advance,
+  initialChallenge,
+  registeredAuthenticatorNames,
+  startAuthentication,
+} from '#/usecase/executor';
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
 
 let containerHandle: TestDatabase | undefined;
@@ -212,4 +218,30 @@ describe('[ODUDU-AUTHN-SESSION-EXPIRY-UNCHANGED-01] expiry is checked before the
     );
     expect(result).toEqual({ kind: 'failure', reason: 'authentication_session_expired' });
   });
+});
+
+// `startsALogin` (#/service/flow-start.ts) refuses a tenant flow that would
+// render nothing at login start, and it decides that by mirroring one fact
+// this file's `isApplicable` owns: with no subject bound and nothing
+// submitted, `password` is the only authenticator that applies. The layer
+// rule keeps that copy from calling this one, so the invariant is pinned
+// here instead — where a change to `isApplicable` is made.
+describe('[ODUDU-AUTHN-FLOW-ORDER-01] at login start, password is the only applicable step', () => {
+  it.each(registeredAuthenticatorNames())(
+    'a flow of %s alone renders only when it is password',
+    async (authenticator) => {
+      const tenantId = newId();
+      await withTenant(app.db, tenantId, async (tx) => {
+        await tx.insert(tenants).values({ id: tenantId, name: `tenant-${tenantId}` });
+        await executionRepository(tx).replaceForTenant(tenantId, [
+          { authenticator, requirement: 'required' },
+        ]);
+      });
+
+      const challenge = await withTenant(app.db, tenantId, (tx) => initialChallenge(tx, tenantId));
+      expect(challenge.kind, authenticator).toBe(
+        authenticator === 'password' ? 'challenge' : 'failure',
+      );
+    },
+  );
 });

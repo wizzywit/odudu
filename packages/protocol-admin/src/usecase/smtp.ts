@@ -1,0 +1,224 @@
+import { unwrapSecret, wrapSecret } from '@odudu/crypto';
+import { type TenantScopedDatabase } from '@odudu/db';
+import { smtpSender, type EmailSender, type SmtpConfig as SmtpTransportConfig } from '@odudu/email';
+import { type SmtpConfig } from '@odudu/contracts/admin';
+import { checkSmtpDestination, type SmtpDestinationPolicy } from '#/service/smtp-destination';
+import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
+
+export interface SmtpAuditEvent {
+  readonly action: 'tenant.smtp_set' | 'tenant.smtp_delete';
+  readonly resourceType: 'tenant';
+  readonly resourceId: string;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
+}
+
+/** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
+export type Audit = (tx: TenantScopedDatabase, event: SmtpAuditEvent) => Promise<void>;
+
+function toWireShape(record: TenantSmtpRecord | null): SmtpConfig {
+  if (record === null) {
+    return {
+      configured: false,
+      host: null,
+      port: null,
+      from_address: null,
+      username: null,
+      password_set: false,
+      starttls: null,
+    };
+  }
+  return {
+    configured: true,
+    host: record.host,
+    port: record.port,
+    from_address: record.fromAddress,
+    username: record.username,
+    password_set: record.passwordEncrypted !== null,
+    starttls: record.starttls,
+  };
+}
+
+export async function readSmtp(tx: TenantScopedDatabase, tenantId: string): Promise<SmtpConfig> {
+  return toWireShape(await tenantSmtpRepository(tx).byTenantId(tenantId));
+}
+
+export interface DeleteSmtpInput {
+  readonly tenantId: string;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface DeleteSmtpDeps {
+  readonly audit: Audit;
+}
+
+export type DeleteSmtpOutcome = { kind: 'not_configured' } | { kind: 'deleted' };
+
+/**
+ * Removes the tenant's own relay, which sends its mail back to the
+ * deployment's `ODUDU_SMTP_*` sender and then the log-only adapter
+ * (`resolveSender`, apps/server/src/email.ts) — the one way back from a
+ * configuration `PUT` can only replace.
+ */
+export async function deleteSmtp(
+  tx: TenantScopedDatabase,
+  deps: DeleteSmtpDeps,
+  input: DeleteSmtpInput,
+): Promise<DeleteSmtpOutcome> {
+  const deleted = await tenantSmtpRepository(tx).delete(input.tenantId);
+  if (!deleted) return { kind: 'not_configured' };
+
+  await deps.audit(tx, {
+    action: 'tenant.smtp_delete',
+    resourceType: 'tenant',
+    resourceId: input.tenantId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+  });
+  return { kind: 'deleted' };
+}
+
+export interface PutSmtpInput {
+  readonly tenantId: string;
+  readonly host: string;
+  readonly port: number;
+  readonly fromAddress: string;
+  readonly username: string | null;
+  readonly password: string | null;
+  readonly starttls: boolean;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface PutSmtpDeps {
+  readonly audit: Audit;
+  readonly kek: Uint8Array;
+}
+
+export async function putSmtp(
+  tx: TenantScopedDatabase,
+  deps: PutSmtpDeps,
+  input: PutSmtpInput,
+): Promise<SmtpConfig> {
+  const record = await tenantSmtpRepository(tx).upsert(input.tenantId, {
+    host: input.host,
+    port: input.port,
+    fromAddress: input.fromAddress,
+    username: input.username,
+    passwordEncrypted: input.password === null ? null : wrapSecret(input.password, deps.kek),
+    starttls: input.starttls,
+  });
+
+  await deps.audit(tx, {
+    action: 'tenant.smtp_set',
+    resourceType: 'tenant',
+    resourceId: input.tenantId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+  });
+
+  return toWireShape(record);
+}
+
+export type SenderFromRecordOutcome =
+  { kind: 'refused_destination'; reason: string } | { kind: 'ok'; sender: EmailSender };
+
+// The one place a tenant's own row becomes a live transport — shared by
+// `sendTestMessage` below and by apps/server's own sender resolution
+// (email.ts's `resolveSender`), so a test send and a real one build the
+// transport the same way and are bounded by the same destination policy.
+export async function smtpSenderFromRecord(
+  record: TenantSmtpRecord,
+  kek: Uint8Array,
+  policy: SmtpDestinationPolicy,
+): Promise<SenderFromRecordOutcome> {
+  const destination = await checkSmtpDestination(record.host, policy);
+  if (destination.kind === 'refused') {
+    return { kind: 'refused_destination', reason: destination.reason };
+  }
+
+  return {
+    kind: 'ok',
+    sender: smtpSender(smtpConfigFromRecord(record, kek, destination.address)),
+  };
+}
+
+/**
+ * Exported so the pin is assertable without a mail server: `address` is
+ * what `checkSmtpDestination` admitted, and carrying it is what stops
+ * nodemailer resolving the tenant's host a second time.
+ */
+export function smtpConfigFromRecord(
+  record: TenantSmtpRecord,
+  kek: Uint8Array,
+  address: string,
+): SmtpTransportConfig {
+  return {
+    host: record.host,
+    address,
+    port: record.port,
+    from: record.fromAddress,
+    ...(record.username !== null ? { username: record.username } : {}),
+    ...(record.passwordEncrypted !== null
+      ? { password: unwrapSecret(record.passwordEncrypted, kek) }
+      : {}),
+    starttls: record.starttls,
+  };
+}
+
+export type ReadSmtpForTestOutcome =
+  { kind: 'not_configured' } | { kind: 'ok'; record: TenantSmtpRecord };
+
+export async function readSmtpForTest(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+): Promise<ReadSmtpForTestOutcome> {
+  const record = await tenantSmtpRepository(tx).byTenantId(tenantId);
+  return record === null ? { kind: 'not_configured' } : { kind: 'ok', record };
+}
+
+export type SendTestMessageOutcome =
+  | { kind: 'sent' }
+  | { kind: 'refused_destination'; reason: string }
+  | { kind: 'send_failed'; detail: string };
+
+// Takes the record already read, never a transaction: the caller reads
+// inside withTenant (readSmtpForTest above) and calls this only after that
+// transaction has returned, so an unreachable or slow host never holds a
+// pooled tenant connection for the length of the attempt. The transport's
+// own failure is reported back once the destination has been admitted,
+// because the whole value of this route is telling an operator now rather
+// than letting them discover a bad configuration when a user's
+// verification mail silently fails later.
+export async function sendTestMessage(
+  record: TenantSmtpRecord,
+  kek: Uint8Array,
+  policy: SmtpDestinationPolicy,
+  to: string,
+): Promise<SendTestMessageOutcome> {
+  const built = await smtpSenderFromRecord(record, kek, policy);
+  if (built.kind === 'refused_destination') return built;
+
+  try {
+    await built.sender.send({
+      to,
+      subject: 'Odudu SMTP test',
+      text: 'This is a test message from Odudu.',
+      html: '<p>This is a test message from Odudu.</p>',
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return { kind: 'send_failed', detail };
+  }
+  return { kind: 'sent' };
+}

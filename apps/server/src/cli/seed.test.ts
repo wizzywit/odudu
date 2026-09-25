@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { seed } from '#/cli/seed';
+import { refuseSystemTenantName, seed } from '#/cli/seed';
 
 // These assertions all happen before the seed command opens a database
 // connection, so they need no Postgres — packages/db's Testcontainers
@@ -14,6 +14,19 @@ describe('seed option validation', () => {
         redirectUris: ['/callback'],
       }),
     ).rejects.toThrow(/absolute/);
+  });
+
+  it('refuses the reserved system tenant name, the same as seed tenant', async () => {
+    // `resolveTenantId` would otherwise create `system` under a random id,
+    // and `seed admin` — which keys that tenant on a fixed id — then
+    // refuses to run at all.
+    await expect(
+      seed({
+        tenant: 'system',
+        clientId: 'web-app',
+        redirectUris: ['https://app.example/callback'],
+      }),
+    ).rejects.toThrow(/reserved/);
   });
 
   it('refuses a username given without a password', async () => {
@@ -60,5 +73,16 @@ describe('seed option validation', () => {
         sendVerificationEmail: true,
       }),
     ).rejects.toThrow(/sendVerificationEmail/);
+  });
+});
+
+describe('seed tenant', () => {
+  it('refuses the reserved system tenant name, the same as the admin API', () => {
+    expect(() => {
+      refuseSystemTenantName('system');
+    }).toThrow(/reserved/);
+    expect(() => {
+      refuseSystemTenantName('acme');
+    }).not.toThrow();
   });
 });

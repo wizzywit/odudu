@@ -38,5 +38,20 @@ export function requiredActionRepository(tx: TenantScopedDatabase) {
           and(eq(userRequiredActions.subjectId, subjectId), eq(userRequiredActions.action, action)),
         );
     },
+
+    // The admin API's `PUT .../required-actions`: a wholesale replacement,
+    // not an add — an action left out of `actions` is one the operator
+    // means to clear, the same way a client amendment replaces a list field
+    // wholesale rather than appending to it.
+    async replaceAll(
+      tenantId: string,
+      subjectId: string,
+      actions: readonly RequiredAction[],
+    ): Promise<void> {
+      await tx.delete(userRequiredActions).where(eq(userRequiredActions.subjectId, subjectId));
+      for (const action of new Set(actions)) {
+        await tx.insert(userRequiredActions).values({ tenantId, subjectId, action });
+      }
+    },
   };
 }

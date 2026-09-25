@@ -939,7 +939,7 @@ remembering: an access token carries roles and groups unless told not to,
 and carries no profile claims unless told to. `include_in_id_token` gates
 `roles`/`groups` off the ID token the same way, unconditionally — a full
 role list has no place going to a browser. `/userinfo` reads the access
-token's gate, not the ID token's. See [docs/request-paths.md](request-paths.md#roles-once-a-scope-reaches-it)
+token's gate, not the ID token's. See [docs/request-paths.md](../request-paths.md#roles-once-a-scope-reaches-it)
 for the walkthrough — its "I created a role and it is not in my token"
 paragraph, and [README.md](../README.md)'s "Give ada a role" section, are
 the two places this order-of-checks is written down for a reader.

@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { loadDocument, tableWithHeadings, type Document } from './markdown.js';
+import { loadDocument, scanFences, tableWithHeadings, type Document } from './markdown.js';
 
 // The roadmap table is the only place a phase is defined. `docs/request-paths.md`
 // and `README.md` cite phases in prose, and prose drifts silently: P2 became
 // P2a and P2b on 2026-09-13 and both documents went on naming a phase that had
 // stopped existing, for a day, with every test green.
+//
+// The suffix is any letter, not `a` or `b`. Narrower, this saw neither `P4c`
+// nor `P4e` in prose — `\bP\d+[ab]?\b` matches nothing in "P4c", so those
+// citations were unchecked for as long as they existed.
 const ROADMAP = 'docs/superpowers/specs/2026-09-10-odudu-design.md';
 
 const CITING_DOCUMENTS: readonly (readonly [name: string, atLeast: number])[] = [
@@ -19,7 +23,7 @@ function roadmapPhases(): Set<string> {
     'Effort',
     'Exit criterion',
   ]);
-  const phases = table.rows.map((row) => row[0] ?? '').filter((cell) => /^P\d+[ab]?$/u.test(cell));
+  const phases = table.rows.map((row) => row[0] ?? '').filter((cell) => /^P\d+[a-z]?$/u.test(cell));
 
   if (phases.length < 12) {
     throw new Error(
@@ -40,15 +44,11 @@ interface Citation {
 // a key fingerprint is not a claim about the roadmap.
 function phaseCitations(document: Document): Citation[] {
   const found: Citation[] = [];
-  let inFence = false;
 
+  const { fenced } = scanFences(document);
   document.lines.forEach((line, index) => {
-    if (line.startsWith('```')) {
-      inFence = !inFence;
-      return;
-    }
-    if (inFence) return;
-    for (const match of line.matchAll(/\bP\d+[ab]?\b/gu)) {
+    if (fenced[index] === true) return;
+    for (const match of line.matchAll(/\bP\d+[a-z]?\b/gu)) {
       found.push({ phase: match[0], line: index + 1 });
     }
   });

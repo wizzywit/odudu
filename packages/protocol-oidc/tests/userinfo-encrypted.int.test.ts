@@ -419,12 +419,17 @@ describe('[OIDC-CORE-5.3.2-03] a client asking for encryption never receives cle
   });
 
   // A disabled registrant's token is live for its own TTL, so this is
-  // reachable with a live token, not only a dead one.
+  // reachable with a live token, not only a dead one. Before the
+  // client-enabled check landed (packages/protocol-oidc/src/service/
+  // client-enabled.ts) this fell through to the encryption-unavailable
+  // path (500); now the token is refused before encryption is even
+  // considered, the same `invalid_token` every other disabled client's
+  // token gets.
   it('refuses rather than answering in clear text once its client is disabled', async () => {
     const accessToken = await issueAccessToken(disablableClient);
     await disableClient(disablableClient);
     const response = await userinfoWithToken(accessToken);
-    expect(response.statusCode).toBe(500);
+    expect(response.statusCode).toBe(401);
     expect(response.body).toBe('');
   });
 });

@@ -1,11 +1,14 @@
+import { type tenants } from '@odudu/db';
+
+type TenantColumn = keyof typeof tenants.$inferSelect;
+
 // What a tenant exposes for configuration, keyed by the column name a reader
 // sees in the schema and in `docs/request-paths.md` rather than by Drizzle's
 // camel case. Identity is absent on purpose: `name` is in every issuer URL
-// already minted, and `id` is what row-level security keys on.
-//
-// Ranges are not here. They are CHECK constraints (migrations 0028, 0035,
-// 0041 and 0049), which is the repository's idiom for a rule no writer may
-// bypass — restating them would give a second authority to disagree with.
+// already minted, and `id` is what row-level security keys on. `column` is
+// typed against the real row, so a typo is a compile error, not a silent
+// miss. Ranges are not here — they are CHECK constraints (migrations 0028,
+// 0035, 0041 and 0049), the idiom for a rule no writer may bypass.
 const SETTINGS = {
   display_name: { column: 'displayName', type: 'text' },
   enabled: { column: 'enabled', type: 'boolean' },
@@ -34,14 +37,28 @@ const SETTINGS = {
   remember_me_allowed: { column: 'rememberMeAllowed', type: 'boolean' },
   remember_me_idle_seconds: { column: 'rememberMeIdleSeconds', type: 'integer' },
   remember_me_max_seconds: { column: 'rememberMeMaxSeconds', type: 'integer' },
-} as const satisfies Record<string, { column: string; type: 'boolean' | 'integer' | 'text' }>;
+  audit_retention_days: { column: 'auditRetentionDays', type: 'integer' },
+} as const satisfies Record<string, { column: TenantColumn; type: 'boolean' | 'integer' | 'text' }>;
 
 export type TenantSettingName = keyof typeof SETTINGS;
 
 export const TENANT_SETTING_NAMES: readonly string[] = Object.keys(SETTINGS);
 
+export interface TenantSettingColumn {
+  readonly name: TenantSettingName;
+  readonly column: TenantColumn;
+}
+
+// A reader's view of the same map a writer coerces through
+// (`coerceTenantSetting`), so a repository listing every setting's current
+// value walks the identical name-to-column pairs a write would have used —
+// never a second list a future setting could be added to only one of.
+export const TENANT_SETTING_COLUMNS: readonly TenantSettingColumn[] = Object.entries(SETTINGS).map(
+  ([name, setting]) => ({ name: name as TenantSettingName, column: setting.column }),
+);
+
 export type CoerceOutcome =
-  | { kind: 'coerced'; column: string; value: boolean | number | string }
+  | { kind: 'coerced'; column: TenantColumn; value: boolean | number | string }
   | { kind: 'unknown_setting'; known: readonly string[] }
   | { kind: 'invalid_value'; expected: 'boolean' | 'integer' | 'text' };
 

@@ -1,5 +1,6 @@
 import { actionTokens } from '@odudu/account';
-import { signingKeys } from '@odudu/crypto';
+import { requiredActionRepository } from '@odudu/authn-flows';
+import { signingKeyRepository, signingKeys } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
@@ -8,11 +9,15 @@ import {
   withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
+import { effectiveRoles } from '@odudu/domain-authz';
 import { subjects, users } from '@odudu/domain-identity';
 import {
+  ADMIN_CLIENT_ID,
   clientRegistrationTokenRepository,
   clients,
   clientScopeRepository,
+  SYSTEM_TENANT_ID,
+  SYSTEM_TENANT_NAME,
   TENANT_DEFAULT_SCOPE_NAMES,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
@@ -20,7 +25,7 @@ import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { seed, type SeedOptions } from '#/cli/seed';
+import { seed, seedAdmin, type SeedOptions } from '#/cli/seed';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -764,5 +769,73 @@ describe('seed registration-token', () => {
     await expect(
       seed(['registration-token', '--tenant', `no-such-${newId()}`, '--uses', '1', '--ttl', '600']),
     ).rejects.toThrow(/no tenant named/u);
+  });
+});
+
+async function countAdminClients(tenantId: string): Promise<number> {
+  const rows = await owner.db
+    .select()
+    .from(clients)
+    .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, ADMIN_CLIENT_ID)));
+  return rows.length;
+}
+
+describe('seed admin', () => {
+  it('refuses a username that already administers', async () => {
+    const username = `root-${newId()}`;
+    await seedAdmin({ username });
+    await expect(seedAdmin({ username })).rejects.toMatchObject({ code: 'seed_admin_exists' });
+  });
+
+  it('creates the subject with manage-tenants and a forced password change', async () => {
+    const result = await seedAdmin({ username: `ada-${newId()}` });
+
+    expect(result.password).toHaveLength(32);
+    await withTenant(owner.db, result.tenantId, async (tx) => {
+      const actions = await requiredActionRepository(tx).pendingFor(result.subjectId);
+      expect(actions).toContain('update-password');
+      const reach = await effectiveRoles(tx, result.subjectId);
+      expect(reach.map((r) => r.name)).toContain('manage-tenants');
+    });
+  });
+
+  it('gives the system tenant a signing key, so it can issue admin tokens', async () => {
+    const result = await seedAdmin({ username: `kai-${newId()}` });
+
+    await withTenant(owner.db, result.tenantId, async (tx) => {
+      await expect(signingKeyRepository(tx).active()).resolves.toMatchObject({
+        status: 'active',
+      });
+    });
+  });
+
+  it(
+    'creates the system tenant when none exists, and a second run with a ' +
+      'different username reuses it',
+    async () => {
+      const first = await seedAdmin({ username: `first-${newId()}` });
+      expect(first.tenantId).toBe(SYSTEM_TENANT_ID);
+
+      const tenantRow = (
+        await owner.db.select().from(tenants).where(eq(tenants.name, SYSTEM_TENANT_NAME))
+      )[0];
+      expect(tenantRow?.id).toBe(SYSTEM_TENANT_ID);
+
+      const second = await seedAdmin({ username: `second-${newId()}` });
+      expect(second.tenantId).toBe(first.tenantId);
+      expect(await countAdminClients(first.tenantId)).toBe(1);
+    },
+  );
+
+  // The CLI dispatch path (`odudu seed admin --username …`), as opposed to
+  // calling seedAdmin directly: the result main.ts logs as JSON carries no
+  // password, since that is printed once, separately, by runAdminCommand.
+  it('reports the admin command result with no password in it', async () => {
+    const username = `via-cli-${newId()}`;
+
+    const result = await seed(['admin', '--username', username]);
+
+    expect(result).toMatchObject({ command: 'admin', username, tenantId: SYSTEM_TENANT_ID });
+    expect(result).not.toHaveProperty('password');
   });
 });

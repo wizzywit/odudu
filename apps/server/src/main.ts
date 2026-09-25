@@ -14,7 +14,7 @@ import {
   assertProductionTls,
   warnIfTlsDisabled,
 } from '#/config-guard';
-import { buildEmailSender } from '#/email';
+import { buildEmailSender, resolveSender, smtpDestinationPolicyFor } from '#/email';
 import { createLogger } from '#/logger';
 import { createLogoutDeliveryTransport } from '#/logout-delivery-transport';
 import { databaseModule } from '#/modules/database';
@@ -93,8 +93,6 @@ if (runtime === owner) {
   );
 }
 
-const sender = buildEmailSender(config, logger);
-
 const app = buildApp({
   database: runtime,
   ownerDatabase: owner,
@@ -110,12 +108,31 @@ const app = buildApp({
     windowSeconds: config.ODUDU_THROTTLE_WINDOW_SECONDS,
   },
   allowPrivateClientUrls: config.ODUDU_ALLOW_PRIVATE_CLIENT_URLS,
+  allowPrivateSmtpHosts: config.ODUDU_ALLOW_PRIVATE_SMTP_HOSTS,
 });
+
+const emailFallback = buildEmailSender(config, logger);
+const smtpDestination = smtpDestinationPolicyFor(config);
 
 const registry = new ModuleRegistry()
   .register(databaseModule(owner, runtime))
   .register(reapModule({ database: runtime, ownerDatabase: owner }))
-  .register(outboxModule({ database: runtime, ownerDatabase: owner, sender }))
+  .register(
+    outboxModule({
+      database: runtime,
+      ownerDatabase: owner,
+      resolveSender: (tenantId) =>
+        resolveSender(
+          {
+            database: runtime.db,
+            kek: config.ODUDU_KEK,
+            fallback: emailFallback,
+            smtpDestination,
+          },
+          tenantId,
+        ),
+    }),
+  )
   .register(
     logoutSenderModule({
       database: runtime,

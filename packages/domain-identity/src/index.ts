@@ -1,4 +1,5 @@
 export { hashPassword, verifyPassword } from '#/service/password';
+export { isEmailAddress } from '#/service/email';
 export { subjects, type SubjectRecord } from '#/schema/subjects';
 export { users, type UserRecord } from '#/schema/users';
 export {

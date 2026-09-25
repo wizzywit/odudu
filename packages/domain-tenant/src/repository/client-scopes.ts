@@ -1,5 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { newId } from '@odudu/kernel';
+import { newId, OduduError } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import {
   clientScopeAssignments,
@@ -31,6 +31,12 @@ export interface NewClientScope {
   includeInAccessToken?: boolean;
 }
 
+export interface ClientScopePatch {
+  description?: string | null;
+  includeInIdToken?: boolean;
+  includeInAccessToken?: boolean;
+}
+
 export function clientScopeRepository(tx: TenantScopedDatabase) {
   return {
     async allForTenant(): Promise<ClientScopeRecord[]> {
@@ -38,10 +44,40 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
       return rows.map(toRecord);
     },
 
+    async byId(id: string): Promise<ClientScopeRecord | null> {
+      const rows = await tx.select().from(clientScopes).where(eq(clientScopes.id, id));
+      const row = rows[0];
+      return row === undefined ? null : toRecord(row);
+    },
+
     async byName(name: string): Promise<ClientScopeRecord | null> {
       const rows = await tx.select().from(clientScopes).where(eq(clientScopes.name, name));
       const row = rows[0];
       return row === undefined ? null : toRecord(row);
+    },
+
+    async amend(id: string, patch: ClientScopePatch): Promise<ClientScopeRecord> {
+      const rows = await tx
+        .update(clientScopes)
+        .set(patch)
+        .where(eq(clientScopes.id, id))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('client_scope_not_found', `no client scope with id ${id}`);
+      }
+      return toRecord(row);
+    },
+
+    // `client_scope_assignments_scope_fk` and `client_scope_roles_scope_fk`
+    // (0016_client_scopes.sql, 0017_roles.sql) both cascade: deleting a
+    // scope removes every client assignment and role mapping naming it.
+    async delete(id: string): Promise<boolean> {
+      const rows = await tx
+        .delete(clientScopes)
+        .where(eq(clientScopes.id, id))
+        .returning({ id: clientScopes.id });
+      return rows.length > 0;
     },
 
     async forClient(clientId: string): Promise<ClientScopeRecord[]> {

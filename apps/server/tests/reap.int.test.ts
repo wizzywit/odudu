@@ -299,6 +299,7 @@ const RELATIONS: Record<TableName, SQL> = {
   backchannel_logout_deliveries: sql.raw('backchannel_logout_deliveries'),
   client_assertion_jti: sql.raw('client_assertion_jti'),
   sessions: sql.raw('sessions'),
+  audit_events: sql.raw('audit_events'),
 };
 
 async function countRows(tenantId: string, table: TableName): Promise<number> {
@@ -349,6 +350,31 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
+describe('audit_events retention', () => {
+  it('deletes a row older than the tenant own audit_retention_days, and keeps a younger one', async () => {
+    const tenantId = newId();
+    await owner.db.execute(sql`
+      INSERT INTO tenants (id, name, audit_retention_days) VALUES (${tenantId}, ${`reap-${tenantId}`}, 30)
+    `);
+    const staleId = newId();
+    const freshId = newId();
+    await owner.db.execute(sql`
+      INSERT INTO audit_events (id, tenant_id, occurred_at, event_type, action, outcome)
+      VALUES
+        (${staleId}, ${tenantId}, ${at(-40 * DAY)}::timestamptz, 'admin_mutation', 'client.create', 'allowed'),
+        (${freshId}, ${tenantId}, ${at(-1 * DAY)}::timestamptz, 'admin_mutation', 'client.create', 'allowed')
+    `);
+
+    const outcome = ran(await runPass());
+    expect(outcome.audit_events).toBe(1);
+
+    const remaining = await owner.db.execute<{ id: string }>(sql`
+      SELECT id FROM audit_events WHERE tenant_id = ${tenantId}
+    `);
+    expect(remaining.map((row) => row.id)).toEqual([freshId]);
+  });
+});
+
 describe('odudu reap', () => {
   // First, and deliberately: the report is summed over every tenant in the
   // database, so this is the only point at which it can be compared to an
@@ -368,6 +394,7 @@ describe('odudu reap', () => {
       backchannel_logout_deliveries: 2,
       client_assertion_jti: 1,
       sessions: 1,
+      audit_events: 0,
     });
 
     // Reported by this pass, not by the ON DELETE CASCADE from
@@ -385,6 +412,7 @@ describe('odudu reap', () => {
       backchannel_logout_deliveries: 3,
       client_assertion_jti: 1,
       sessions: 1,
+      audit_events: 0,
     });
 
     expect(ran(await runPass())).toEqual({
@@ -399,6 +427,7 @@ describe('odudu reap', () => {
       backchannel_logout_deliveries: 0,
       client_assertion_jti: 0,
       sessions: 0,
+      audit_events: 0,
     });
   });
 

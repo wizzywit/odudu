@@ -17,6 +17,7 @@ import {
   establishSession,
   isRegisteredAuthenticator,
   loadPendingRequest,
+  sessionIsLive,
   startAuthentication,
   type AuthenticatorFn,
 } from '#/usecase/executor';
@@ -270,5 +271,41 @@ describe('isRegisteredAuthenticator', () => {
 
   it('rejects a name nothing registers', () => {
     expect(isRegisteredAuthenticator('bogus')).toBe(false);
+  });
+});
+
+describe('sessionIsLive', () => {
+  const now = new Date('2026-09-15T12:00:00.000Z');
+  const live = { expiresAt: new Date('2026-09-15T20:00:00.000Z'), consumedAt: null };
+
+  it('applies one liveness rule to both the pending and the authenticated shape', () => {
+    // pendingSession and authenticatedSession each checked expiresAt and
+    // consumedAt inline, identically, before this predicate was extracted —
+    // the duplication bought nothing but a chance to drift. The two records
+    // below differ exactly as the two call sites' records do (a pending
+    // session binds neither subject nor authenticatedAt yet); both are dead
+    // for the one reason sessionIsLive checks, regardless of that shape.
+    const expiredPending = { expiresAt: new Date('2026-09-15T11:00:00.000Z'), consumedAt: null };
+    const expiredAuthenticated = {
+      expiresAt: new Date('2026-09-15T11:00:00.000Z'),
+      consumedAt: null,
+      authenticatedAt: new Date('2026-09-15T10:00:00.000Z'),
+      subjectId: 'subject-1',
+    };
+    for (const session of [expiredPending, expiredAuthenticated]) {
+      expect(sessionIsLive(session, now)).toBe(false);
+    }
+  });
+
+  it('is live inside its ceiling and unconsumed', () => {
+    expect(sessionIsLive(live, now)).toBe(true);
+  });
+
+  it('is dead once consumed, however far from its ceiling', () => {
+    expect(sessionIsLive({ ...live, consumedAt: now }, now)).toBe(false);
+  });
+
+  it('treats the exact ceiling as dead', () => {
+    expect(sessionIsLive({ ...live, expiresAt: now }, now)).toBe(false);
   });
 });

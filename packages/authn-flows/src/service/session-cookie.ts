@@ -1,3 +1,5 @@
+import { isUuid } from '@odudu/kernel';
+
 export const PERSISTENT_SUFFIX = '-persistent';
 
 const SEPARATOR = '.';
@@ -36,8 +38,6 @@ export interface SessionCookieInput {
   readonly persistent: readonly string[];
   readonly persistentMaxAgeSeconds: number;
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 function persistentName(tenant: string, tls: boolean): string {
   return `${sessionCookieName(tenant, tls)}${PERSISTENT_SUFFIX}`;
@@ -96,7 +96,7 @@ function valuesOf(header: string, name: string): readonly string[] {
       .slice(index + 1)
       .trim()
       .split(SEPARATOR)
-      .filter((value) => UUID.test(value));
+      .filter((value) => isUuid(value));
   }
   return [];
 }

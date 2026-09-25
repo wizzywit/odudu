@@ -21,7 +21,11 @@ import { acrFor, amrFor } from '#/service/acr';
 import { hashAuthorizationCode } from '#/service/authorization-code';
 import { evaluateAuthorizationCodeGrant } from '#/service/authorization-code-grant';
 import { parseClientAssertion, type AssertionOutcome } from '#/service/client-assertion';
-import { type ClaimContext, narrowToRequestedClaims } from '#/service/claims';
+import {
+  type ClaimContext,
+  type LoadedClaimContext,
+  narrowToRequestedClaims,
+} from '#/service/claims';
 import { evaluateClientCredentialsGrant } from '#/service/client-credentials-grant';
 import {
   invalidClient,
@@ -83,7 +87,7 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // registry, so a claim present in one can never be missing from the
   // other for the same subject and scope.
   claimMappers: ClaimMapperRegistry<ClaimContext>;
-  loadClaimContext(tenantId: string, subjectId: string): Promise<ClaimContext>;
+  loadClaimContext(tenantId: string, subjectId: string): Promise<LoadedClaimContext>;
   // RFC 7523 §2.2's fetcher for a client's jwks_uri — the dereference
   // `usecase/client-registration.ts` deliberately never performs (P3a
   // reverted that). private_key_jwt authentication is the one caller.
@@ -343,7 +347,7 @@ async function mintAccessToken(
     audience: readonly string[];
     // Resolved once per issuance by the caller — see loadClaimContext's own
     // doc comment for why a claim mapper never resolves this itself.
-    claimContext: ClaimContext;
+    claimContext: LoadedClaimContext;
     reachableRoleIds: ReadonlySet<string>;
     fullScopeAllowed: boolean;
     // The subset of `scope` that `client_scopes.include_in_access_token`
@@ -383,14 +387,18 @@ async function mintAccessToken(
     : [...input.audience, deps.issuer];
 
   const narrowedContext: ClaimContext = {
-    ...input.claimContext,
+    ...input.claimContext.context,
     roles: narrowByScopeMappings(
-      input.claimContext.roles,
+      input.claimContext.context.roles,
       input.reachableRoleIds,
       input.fullScopeAllowed,
     ),
   };
-  const mapped = await deps.claimMappers.assemble(input.accessTokenScope, narrowedContext);
+  const mapped = await deps.claimMappers.assemble(
+    input.accessTokenScope,
+    narrowedContext,
+    input.claimContext.bindings,
+  );
 
   const accessTokenClaims = withRegisteredClaimsWinning(mapped, {
     iss: deps.issuer,
@@ -501,14 +509,18 @@ async function issueAuthorizationCodeTokens(
       .filter((clientScope) => scope.includes(clientScope.name) && clientScope.includeInIdToken)
       .map((clientScope) => clientScope.name);
     const narrowedContext: ClaimContext = {
-      ...claimContext,
-      roles: narrowByScopeMappings(claimContext.roles, reachable, client.fullScopeAllowed),
+      ...claimContext.context,
+      roles: narrowByScopeMappings(claimContext.context.roles, reachable, client.fullScopeAllowed),
     };
     // The same claim mapper registry /userinfo assembles from — `sub`
     // arrives through it too, so there is exactly one place that decides
     // what a subject's `openid`/`profile`/`email` scopes produce, not one
     // for the ID token and a second for /userinfo.
-    const assembledClaims = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    const assembledClaims = await deps.claimMappers.assemble(
+      idTokenScope,
+      narrowedContext,
+      claimContext.bindings,
+    );
     // `auth_time` never comes from `standardClaimMappers` (the envelope
     // sets it below), so it is excluded here — otherwise a `max_age`-only
     // request, naming nothing else, would narrow away every other claim.
@@ -1126,10 +1138,14 @@ async function issueExchangedTokens(
       .filter((clientScope) => scope.includes(clientScope.name) && clientScope.includeInIdToken)
       .map((clientScope) => clientScope.name);
     const narrowedContext: ClaimContext = {
-      ...claimContext,
-      roles: narrowByScopeMappings(claimContext.roles, reachable, client.fullScopeAllowed),
+      ...claimContext.context,
+      roles: narrowByScopeMappings(claimContext.context.roles, reachable, client.fullScopeAllowed),
     };
-    const mapped = await deps.claimMappers.assemble(idTokenScope, narrowedContext);
+    const mapped = await deps.claimMappers.assemble(
+      idTokenScope,
+      narrowedContext,
+      claimContext.bindings,
+    );
     const iat = Math.floor(now.getTime() / 1000);
     const ttlExp = iat + config.accessTokenTtlSeconds;
     const ceiling = expCeiling === undefined ? ttlExp : Math.floor(expCeiling.getTime() / 1000);

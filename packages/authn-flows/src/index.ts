@@ -21,6 +21,8 @@ export {
   consumeAuthenticationSession,
   resetAuthenticationProgress,
   recordRememberMe,
+  isRegisteredAuthenticator,
+  registeredAuthenticatorNames,
   type AdvanceInput,
   type AdvanceOptions,
   type AdvanceOutcome,
@@ -103,7 +105,11 @@ export { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
 export { admitSession, type AdmitSessionInput } from '#/usecase/session-admission';
 export { chooseEvictions, type EvictionCandidate } from '#/service/session-set';
 export { type AuthenticatorResult } from '#/schema/authenticator';
-export { executionRepository, type NewAuthenticationExecution } from '#/repository/executions';
+export {
+  executionRepository,
+  type NewAuthenticationExecution,
+  type ExecutionInput,
+} from '#/repository/executions';
 export {
   authenticationExecutions,
   type AuthenticationExecutionRecord,
@@ -114,6 +120,7 @@ export {
   provisionTenant,
   BROWSER_FLOW_DEFAULT,
 } from '#/usecase/provision-flow';
+export { startsALogin, type OrderedStep } from '#/service/flow-start';
 export { nextRequiredAction } from '#/usecase/required-actions';
 export { requiredActionRepository } from '#/repository/required-actions';
 export { userRequiredActions, type RequiredAction } from '#/schema/required-action';

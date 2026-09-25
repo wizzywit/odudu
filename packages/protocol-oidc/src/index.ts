@@ -25,26 +25,30 @@ import {
   startAuthentication,
   type SessionLifespans,
 } from '@odudu/authn-flows';
-import { JWE_ALGS_PERMITTED, signingKeyRepository, signJwt } from '@odudu/crypto';
+import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
-import { clientRepository, clientScopeRepository, consentRepository } from '@odudu/domain-tenant';
-import { newId, systemClock, type Clock } from '@odudu/kernel';
+import {
+  clientRepository,
+  clientScopeMapperRepository,
+  clientScopeRepository,
+  consentRepository,
+} from '@odudu/domain-tenant';
+import { systemClock, type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
-import { tokenGrantRepository, type ClientLogoutTarget } from '#/repository/grants';
-import { logoutDeliveryRepository } from '#/repository/logout-deliveries';
+import { tokenGrantRepository } from '#/repository/grants';
 import { tenantLookupRepository } from '#/repository/tenant-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
-import { standardClaimMappers } from '#/service/claims';
+import { standardClaimMappers, type ClaimContext, type LoadedClaimContext } from '#/service/claims';
+import { type LiveClientLookup } from '#/service/client-enabled';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import {
   USERINFO_ENCRYPTION_ENC_DEFAULT,
   USERINFO_ENCRYPTION_ENCS_PERMITTED,
 } from '#/service/client-metadata';
-import { logoutTokenClaims, LOGOUT_TOKEN_TYP } from '#/service/logout-token';
 import { DEFAULT_TLS_CLIENT_SUBJECT_HEADER } from '#/service/tls-client-auth';
 import { expandWebOrigins } from '#/service/web-origin';
 import {
@@ -53,6 +57,7 @@ import {
   type CompleteLoginOutcome,
 } from '#/usecase/login-submission';
 import { type ResolvedClient } from '#/usecase/authorization-request';
+import { endSession } from '#/usecase/end-session';
 import { registerAuthorizeRoute } from '#/view/routes/authorize';
 import { registerClientRegistrationRoute } from '#/view/routes/client-registration';
 import { registerConsentRoute } from '#/view/routes/consent';
@@ -105,6 +110,12 @@ export interface OidcRoutesDeps {
   // (#/repository/client-keys.ts). `apps/server/src/app.ts` supplies the
   // real one, wired to `node:https` and `node:dns`.
   clientKeySet: ClientKeySet;
+  // Shared with @odudu/protocol-admin's scope-mapper routes so the two
+  // never list different mappers (`GET /scopes/:id/mappers` reads its
+  // available names from the same registry this plugin assembles claims
+  // from). Defaults to `standardClaimMappers()` for a caller — a test, most
+  // often — with no admin API to share it with.
+  claimMappers?: ClaimMapperRegistry<ClaimContext>;
   // Gates tls_client_auth client authentication at /token the same way it
   // already gates Fastify's own `X-Forwarded-*` trust
   // (apps/server/src/app.ts). Defaults off, the same as that trust does —
@@ -120,12 +131,6 @@ export interface OidcRoutesDeps {
   tlsClientCertHeader?: string;
 }
 
-function hasBackchannelLogoutUri(
-  target: ClientLogoutTarget,
-): target is ClientLogoutTarget & { backchannelLogoutUri: string } {
-  return target.backchannelLogoutUri !== null;
-}
-
 // The plugin apps/server registers. Discovery and JWKS both read the
 // resolved tenant's own tenant data — its scope vocabulary and its
 // publishable keys — once tenant context is established for the resolved
@@ -138,19 +143,26 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     const clientSecretLimiter = deps.clientSecretLimiter;
     const clientKeySet = deps.clientKeySet;
     // One registry per process, shared by discovery (claimNames, for
-    // claims_supported), /userinfo, and token issuance's ID token claims —
-    // so a mapper registered once reaches every consumer the same way.
-    const claimMappers = standardClaimMappers();
+    // claims_supported), /userinfo, token issuance's ID token claims, and
+    // (via `deps.claimMappers`) @odudu/protocol-admin's scope-mapper
+    // routes — so a mapper registered once reaches every consumer the same
+    // way, and the admin API can never list a mapper this registry does
+    // not itself run.
+    const claimMappers = deps.claimMappers ?? standardClaimMappers();
     // Roles need a recursive CTE (effectiveRoles), which a claim mapper must
     // never run itself — resolved here, once per issuance, alongside the
-    // user row and the subject's direct group memberships, and handed to
-    // the mappers as data.
-    const loadClaimContext = (tenantId: string, subjectId: string) =>
+    // user row, the subject's direct group memberships, and the tenant's
+    // own scope-mapper bindings. `bindings` travels beside `context`, never
+    // inside it, so nothing a mapper receives can read it.
+    const loadClaimContext = (tenantId: string, subjectId: string): Promise<LoadedClaimContext> =>
       withTenant(deps.database.db, tenantId, async (tx) => ({
-        subjectId,
-        user: await userRepository(tx).bySubjectId(subjectId),
-        roles: await effectiveRoles(tx, subjectId),
-        groups: await effectiveGroupPaths(tx, subjectId),
+        context: {
+          subjectId,
+          user: await userRepository(tx).bySubjectId(subjectId),
+          roles: await effectiveRoles(tx, subjectId),
+          groups: await effectiveGroupPaths(tx, subjectId),
+        },
+        bindings: await clientScopeMapperRepository(tx).bindingsByScopeName(tenantId),
       }));
 
     // The keys /jwks publishes, and the ones an `id_token_hint` is checked
@@ -191,30 +203,30 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       });
 
     // /userinfo's own answer to "should this response be a JWT": an unknown
-    // or disabled client, or one that never registered
-    // `userinfo_signed_response_alg`, all read as `null` — the response
-    // format's default, JSON — the same way an unrecognised `client_id`
-    // reads as no CORS origins above rather than an error.
+    // client, or one that never registered `userinfo_signed_response_alg`,
+    // both read as `null` — the response format's default, JSON — the same
+    // way an unrecognised `client_id` reads as no CORS origins above rather
+    // than an error. A disabled client never reaches here at all:
+    // `resolveUserinfo`'s own `liveClientLookup` check already refused it.
     const userinfoSignedResponseAlg = (tenantId: string, oauthClientId: string) =>
       withTenant(deps.database.db, tenantId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
-        if (!client?.enabled) return null;
+        if (client === null) return null;
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
         return config?.userinfoSignedResponseAlg ?? null;
       });
 
     // /userinfo's answer to "should this response be encrypted" — see
     // `UserinfoDeps.userinfoEncryptionTarget` (usecase/userinfo.ts) for
-    // what `'none'` versus `'unavailable'` means. Registration is checked
-    // before `enabled`, so a disabled client that did register reaches
-    // `'unavailable'` rather than `'none'`.
+    // what `'none'` versus `'unavailable'` means. A disabled client never
+    // reaches here, the same way it never reaches
+    // `userinfoSignedResponseAlg` above.
     const userinfoEncryptionTarget = (tenantId: string, oauthClientId: string) =>
       withTenant(deps.database.db, tenantId, async (tx) => {
         const client = await clientRepository(tx).byClientId(oauthClientId);
         if (client === null) return { kind: 'none' } as const;
         const config = await clientOidcConfigRepository(tx).byClientId(client.id);
         if (config?.userinfoEncryptedResponseAlg == null) return { kind: 'none' } as const;
-        if (!client.enabled) return { kind: 'unavailable' } as const;
         return {
           kind: 'target',
           target: {
@@ -226,21 +238,12 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         } as const;
       });
 
-    // The same key /token signs an access token or ID Token with —
-    // `signingKeyRepository(tx).active()`, not a second selection rule.
-    const activeSigningKey = (tenantId: string) =>
-      withTenant(deps.database.db, tenantId, (tx) => signingKeyRepository(tx).active());
-
-    // `null` rather than thrown: a tenant provisioned before its first
+    // Empty rather than thrown: a tenant provisioned before its first
     // signing key still gets a discovery document.
-    const activeSigningKeyAlg = (tenantId: string) =>
-      withTenant(deps.database.db, tenantId, async (tx) => {
-        try {
-          return (await signingKeyRepository(tx).active()).alg;
-        } catch {
-          return null;
-        }
-      });
+    const algorithmsAvailable = (tenantId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) =>
+        signingKeyRepository(tx).algorithmsAvailable(),
+      );
 
     // One definition, read by discovery for scopes_supported and by
     // /authorize for what it will accept, so the advertised list and the
@@ -394,9 +397,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
     registerDiscoveryRoute(app, {
       findTenant,
-      claimNames: () => claimMappers.claimNames(),
+      claimNames: async (tenantId) => {
+        const scopes = await scopesForTenant(tenantId);
+        const bindings = await withTenant(deps.database.db, tenantId, (tx) =>
+          clientScopeMapperRepository(tx).bindingsByScopeName(tenantId),
+        );
+        return claimMappers.claimNamesForScopes(scopes, bindings);
+      },
       scopesForTenant,
-      activeSigningKeyAlg,
+      algorithmsAvailable,
       userinfoEncryptionAlgSupported: JWE_ALGS_PERMITTED,
       userinfoEncryptionEncSupported: USERINFO_ENCRYPTION_ENCS_PERMITTED,
       trustProxy: deps.trustProxy ?? false,
@@ -422,6 +431,16 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         tenantId,
         async (tx) => (await sessionRepository(tx).liveById(sessionId, lifespans, now)) !== null,
       );
+    // Shared by /introspect, /userinfo and /token's exchange grant: whether
+    // the token's own `client_id` claim still names an enabled client — the
+    // one fact a self-contained access token cannot carry about itself.
+    const liveClientLookup: LiveClientLookup = {
+      findLiveClient: (tenantId, oauthClientId) =>
+        withTenant(deps.database.db, tenantId, async (tx) => {
+          const client = await clientRepository(tx).byClientId(oauthClientId);
+          return client === null ? null : { enabled: client.enabled };
+        }),
+    };
     // No CORS scope: unlike /userinfo, a resource server calls this with
     // its own client credentials, never a browser holding a bearer token,
     // so there is no Origin this endpoint owes a header to.
@@ -433,6 +452,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       clientSecretLimiter,
       loadGrant: loadIntrospectionGrant,
       isSessionLive: isIntrospectionSessionLive,
+      liveClientLookup,
       clock,
     });
     // Same no-CORS reasoning as /introspect above: a client revokes its own
@@ -707,50 +727,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           return clientOidcConfigRepository(tx).postLogoutRedirectUris(client.id);
         }),
       resolveSessions,
-      // One transaction, per Back-Channel Logout §2.7: end the session,
-      // revoke every grant whose session_id is that session, then mint and
-      // enqueue one delivery per client that used the session and
-      // registered a back-channel URI. A failure anywhere rolls all of it
-      // back — see the JSDoc on LogoutUsecaseDeps.endSession for why. Two
-      // concurrent logouts on the same session both reach here and both
-      // attempt to enqueue; logoutDeliveryRepository.enqueue's own comment
-      // is why that yields one delivery, not two.
+      // Two concurrent logouts on the same session both reach this and both
+      // attempt to enqueue a delivery; logoutDeliveryRepository.enqueue's
+      // own comment is why that yields one delivery, not two.
       endSession: (tenantId, sessionId, subjectId, now, issuer) =>
-        withTenant(deps.database.db, tenantId, async (tx) => {
-          await sessionRepository(tx).end(sessionId, now);
-          await tokenGrantRepository(tx).revokeForSession(sessionId, now);
-
-          const targets = await tokenGrantRepository(tx).clientsForSession(sessionId);
-          const backchannelTargets = targets.filter(hasBackchannelLogoutUri);
-          if (backchannelTargets.length === 0) return;
-
-          const key = await signingKeyRepository(tx).active();
-          const deliveries = await Promise.all(
-            backchannelTargets.map(async (target) => {
-              const claims = logoutTokenClaims({
-                issuer,
-                audience: target.oauthClientId,
-                subject: subjectId,
-                sessionId,
-                now,
-              });
-              const logoutToken = await signJwt(
-                { ...claims },
-                { key, kek: deps.kek, typ: LOGOUT_TOKEN_TYP },
-              );
-              return {
-                id: newId(),
-                tenantId,
-                clientId: target.clientId,
-                sessionId,
-                endpoint: target.backchannelLogoutUri,
-                logoutToken,
-                nextAttemptAt: now,
-              };
-            }),
-          );
-          await logoutDeliveryRepository(tx).enqueue(deliveries);
-        }),
+        withTenant(deps.database.db, tenantId, (tx) =>
+          endSession(tx, { kek: deps.kek }, { tenantId, sessionId, subjectId, now, issuer }),
+        ),
       // Front-Channel Logout 1.0 §3's "set of logged-in RPs" — read after
       // endSession above has already revoked the session's grants, since
       // revoking one only stamps revoked_at rather than removing it.
@@ -798,12 +781,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         resolveRoleReach,
         resolveClientWebOrigins,
         userinfoSignedResponseAlg,
-        activeSigningKey,
+        signingKeyForAlg: (tenantId, alg) =>
+          withTenant(deps.database.db, tenantId, (tx) => signingKeyRepository(tx).forAlg(alg)),
+        algorithmsAvailable,
         userinfoEncryptionTarget,
         clientKeySet,
         kek: deps.kek,
         loadGrant: loadIntrospectionGrant,
         isSessionLive: isIntrospectionSessionLive,
+        liveClientLookup,
         clock,
       });
     });
@@ -812,10 +798,20 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
   };
 }
 
+// The admin API verifies a bearer token's `iss` the same way /userinfo
+// does (packages/protocol-admin/src/usecase/authenticate-admin.ts).
+export { tenantIssuerFor } from '#/view/issuer';
 export { assertionJtiRepository } from '#/repository/assertion-jti';
+export { isWellFormedWebOrigin } from '#/service/web-origin';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
-export { type ClientOidcConfig } from '#/schema/client-oidc-config';
-export { GRANT_TYPES_PERMITTED } from '#/service/client-metadata';
+export { provisionAdminClient, ADMIN_CLIENT_REDIRECT_URI } from '#/usecase/provision-admin-client';
+export { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
+export {
+  parseClientMetadata,
+  GRANT_TYPES_PERMITTED,
+  type ClientMetadata,
+  type ClientMetadataOutcome,
+} from '#/service/client-metadata';
 export {
   tenantLookupRepository,
   type NewTenant,
@@ -847,7 +843,24 @@ export {
   type SendLogoutsOutcome,
 } from '#/usecase/send-logouts';
 export {
+  resolveExchangeToken,
+  type ResolveDeps,
+  type ResolvedExchangeToken,
+  type ResolveOutcome,
+} from '#/usecase/token-exchange-subject';
+export { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
+export {
   assertFetchableUrl,
   assertPublicAddresses,
   RemoteAddressRefused,
 } from '#/service/remote-address';
+// The admin API's grant and session liveness checks read these directly
+// (packages/protocol-admin/src/testing/admin-fixture.ts and the
+// authentication chain it exists to test).
+export { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
+export { endSession, type EndSessionDeps, type EndSessionInput } from '#/usecase/end-session';
+export {
+  UNLIMITED_CLIENT_SECRET_LIMITER,
+  type ClientSecretLimiter,
+} from '#/service/client-secret-throttle';
+export { standardClaimMappers, type ClaimContext, type LoadedClaimContext } from '#/service/claims';

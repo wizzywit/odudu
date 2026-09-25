@@ -27,10 +27,19 @@ export const clients = pgTable('clients', {
   // one runs.
   fullScopeAllowed: boolean('full_scope_allowed').notNull().default(false),
   // How this client came to exist (clients_registration_origin_check):
-  // 'seeded' by an operator, 'token' by a registration token, 'anonymous'
-  // by RFC 7591 open registration. Defaults 'seeded' so an existing client
-  // is unchanged.
+  // 'seeded' by the CLI, 'operator' through the admin API's own create
+  // door, 'token' by a registration token, 'anonymous' by RFC 7591 open
+  // registration. Defaults 'seeded' so an existing client is unchanged.
   registrationOrigin: text('registration_origin').notNull().default('seeded'),
+  // Marks the client a tenant's administration roles hang from. The guard
+  // that refuses to disable or delete it reads this, not the client_id, so
+  // a renamed client cannot slip past it. At most one true per tenant
+  // (clients_one_builtin_admin). Renaming `client_id` itself, unreachable
+  // through the API (refused by client-patch.ts's `refusalFor`; only a
+  // direct write can do it), breaks every tenant-local admin's own
+  // authorization here too — `authorizeAdmin` matches a role's client
+  // against `ADMIN_CLIENT_ID` by that same string.
+  builtinAdmin: boolean('builtin_admin').notNull().default(false),
 }).enableRLS();
 
 // Lives beside the table, not in the repository, so that `service` (which
@@ -49,5 +58,6 @@ export interface ClientRecord {
   createdAt: Date;
   serviceSubjectId: string | null;
   fullScopeAllowed: boolean;
-  registrationOrigin: 'seeded' | 'anonymous' | 'token';
+  registrationOrigin: 'seeded' | 'anonymous' | 'token' | 'operator';
+  builtinAdmin: boolean;
 }

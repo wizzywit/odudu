@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clients } from '@odudu/domain-tenant';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { tokenGrants, type TokenGrantRecord } from '#/schema/token-grants';
 
@@ -109,12 +109,17 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
 
     // Logout's whole write. Returns the number revoked so a caller can tell
     // "ended a session that had grants" from "ended one that had none"
-    // without a second query; an already-revoked grant is matched again and
-    // simply re-stamped, which keeps this idempotent.
+    // without a second query.
+    //
+    // `coalesce` keeps the first revocation's timestamp: re-stamping an
+    // already-revoked grant at a later `now` would move its reaping window
+    // forward every time logout ran again.
     async revokeForSession(sessionId: string, revokedAt: Date): Promise<number> {
       const rows = await tx
         .update(tokenGrants)
-        .set({ revokedAt })
+        .set({
+          revokedAt: sql`coalesce(${tokenGrants.revokedAt}, ${revokedAt.toISOString()}::timestamptz)`,
+        })
         .where(eq(tokenGrants.sessionId, sessionId))
         .returning({ id: tokenGrants.id });
       return rows.length;
@@ -146,6 +151,37 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
         .innerJoin(clients, eq(clients.id, tokenGrants.clientId))
         .where(and(eq(tokenGrants.sessionId, sessionId), eq(clients.enabled, true)));
       return rows;
+    },
+
+    // The batched form of `clientsForSession`, one round trip for a whole
+    // page of sessions rather than one per session — what an admin session
+    // listing folds its `client_ids` column through, keyed back to the
+    // session each row came from.
+    async clientsForSessions(
+      sessionIds: readonly string[],
+    ): Promise<(ClientLogoutTarget & { sessionId: string })[]> {
+      if (sessionIds.length === 0) return [];
+      const rows = await tx
+        .selectDistinct({
+          sessionId: tokenGrants.sessionId,
+          clientId: clientOidcConfig.clientId,
+          oauthClientId: clients.clientId,
+          frontchannelLogoutUri: clientOidcConfig.frontchannelLogoutUri,
+          frontchannelLogoutSessionRequired: clientOidcConfig.frontchannelLogoutSessionRequired,
+          backchannelLogoutUri: clientOidcConfig.backchannelLogoutUri,
+          backchannelLogoutSessionRequired: clientOidcConfig.backchannelLogoutSessionRequired,
+        })
+        .from(tokenGrants)
+        .innerJoin(clientOidcConfig, eq(clientOidcConfig.clientId, tokenGrants.clientId))
+        .innerJoin(clients, eq(clients.id, tokenGrants.clientId))
+        .where(and(inArray(tokenGrants.sessionId, [...sessionIds]), eq(clients.enabled, true)));
+      // `sessionId` is nullable on the column (a client_credentials grant
+      // has none) — never on a row that matched the `inArray` above, since
+      // every id it was built from is a real session's, but the filter
+      // still narrows the type honestly rather than asserting it.
+      return rows.filter(
+        (row): row is typeof row & { sessionId: string } => row.sessionId !== null,
+      );
     },
   };
 }

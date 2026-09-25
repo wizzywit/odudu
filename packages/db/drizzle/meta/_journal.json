@@ -428,6 +428,62 @@
       "when": 1789049381703,
       "tag": "0060_token_grants_act_chain",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1789049381704,
+      "tag": "0061_system_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1789049381705,
+      "tag": "0062_client_registration_origin_operator",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1789049381706,
+      "tag": "0063_service_subject_fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1789049381707,
+      "tag": "0064_default_flow_conditional",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1789049381708,
+      "tag": "0065_client_scope_mappers",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1789049381709,
+      "tag": "0066_tenant_smtp",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1789049381710,
+      "tag": "0067_admin_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1789049381711,
+      "tag": "0068_audit_retention",
+      "breakpoints": true
     }
   ]
 }

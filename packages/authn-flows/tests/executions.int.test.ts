@@ -156,6 +156,79 @@ describe('executionRepository', () => {
     expect((cause as Error).message).toContain('authentication_executions_order');
   });
 
+  it('replaces a tenant flow wholesale, renumbering from array order', async () => {
+    const tenantId = newId();
+    await seedTenant(tenantId);
+
+    const replaced = await withTenant(app.db, tenantId, async (tx) => {
+      await provisionBrowserFlow(tx, tenantId);
+      return executionRepository(tx).replaceForTenant(tenantId, [
+        { authenticator: 'password', requirement: 'required' },
+        { authenticator: 'otp', requirement: 'conditional' },
+      ]);
+    });
+
+    expect(replaced.map((row) => [row.index, row.authenticator, row.requirement])).toEqual([
+      [0, 'password', 'required'],
+      [1, 'otp', 'conditional'],
+    ]);
+
+    const after = await withTenant(app.db, tenantId, (tx) =>
+      executionRepository(tx).forTenant(tenantId),
+    );
+    expect(after.map((row) => [row.index, row.authenticator])).toEqual([
+      [0, 'password'],
+      [1, 'otp'],
+    ]);
+  });
+
+  it('replacing with an empty list leaves a tenant with no executions at all', async () => {
+    const tenantId = newId();
+    await seedTenant(tenantId);
+
+    const after = await withTenant(app.db, tenantId, async (tx) => {
+      await provisionBrowserFlow(tx, tenantId);
+      await executionRepository(tx).replaceForTenant(tenantId, []);
+      return executionRepository(tx).forTenant(tenantId);
+    });
+    expect(after).toEqual([]);
+  });
+
+  // Unlike `forTenant` (a plain SELECT, silently empty across tenants),
+  // `replaceForTenant` writes: the isolation policy's USING doubles as its
+  // WITH CHECK with none declared (expectTenantIsolation's own doc comment,
+  // @odudu/db), so an INSERT carrying a foreign tenant_id is rejected
+  // outright rather than silently inserting nothing.
+  it('cannot replace a foreign tenant flow through replaceForTenant, and leaves it unaffected', async () => {
+    const tenantA = newId();
+    await seedTenant(tenantA);
+    await withTenant(app.db, tenantA, (tx) => provisionBrowserFlow(tx, tenantA));
+
+    const tenantB = newId();
+    await seedTenant(tenantB);
+
+    let error: unknown;
+    try {
+      await withTenant(app.db, tenantB, (tx) =>
+        executionRepository(tx).replaceForTenant(tenantA, [
+          { authenticator: 'password', requirement: 'required' },
+        ]),
+      );
+      expect.unreachable('expected the cross-tenant insert to be rejected');
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(Error);
+    const cause = (error as Error).cause;
+    expect(cause).toBeInstanceOf(Error);
+    expect((cause as Error).message).toContain('row-level security');
+
+    const after = await withTenant(app.db, tenantA, (tx) =>
+      executionRepository(tx).forTenant(tenantA),
+    );
+    expect(after).toHaveLength(BROWSER_FLOW_DEFAULT.length);
+  });
+
   it('refuses a requirement outside required/alternative/conditional/disabled', async () => {
     const tenantId = newId();
     await seedTenant(tenantId);

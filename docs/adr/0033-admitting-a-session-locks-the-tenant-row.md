@@ -226,3 +226,13 @@ and so does an operator's `odudu reap`.
   the conflict, but as a commit-time serialization failure the caller must
   retry — an explicit lock blocks up front instead and needs no retry
   loop, at the same cost of serialising the tenant's admissions.
+
+## Amendment — 2026-09-25
+
+The session-list surface the consequences above wait on exists:
+`GET`/`DELETE /admin/tenants/{tenant}/subjects/{id}/sessions`
+([docs/admin-paths.md](../admin-paths.md#get-subjectsidsessions-and-delete-subjectsidsessionssid))
+reads live sessions by subject and ends one. An operator can therefore
+reach an orphan, and the trigger condition for a stable browser identifier
+— an orphan's absence being visible rather than theoretical — is now
+observable rather than pending. The identifier itself is still not built.

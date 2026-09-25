@@ -88,9 +88,9 @@ async function respondToUserinfoRequest(
         {
           client_id: outcome.clientId,
           userinfo_signed_response_alg: outcome.registeredAlg,
-          active_signing_key_alg: outcome.activeAlg,
+          signing_keys_available: outcome.availableAlgs,
         },
-        'userinfo: registered signing algorithm does not match the active signing key',
+        'userinfo: no signing key produces the registered algorithm',
       );
       return reply.headers(corsHeaders).code(500).send();
     // Same shape as signing_unavailable, for the same reason (see

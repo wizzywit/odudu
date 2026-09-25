@@ -18,6 +18,7 @@ const client: ClientRecord = {
   serviceSubjectId: null,
   fullScopeAllowed: false,
   registrationOrigin: 'seeded',
+  builtinAdmin: false,
 };
 
 const record: AuthorizationCodeRecord = {

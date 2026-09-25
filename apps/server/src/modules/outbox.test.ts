@@ -24,7 +24,8 @@ const ONE_TICK_MS = INTERVAL_MS * (1 + OUTBOX_JITTER_FRACTION);
 
 const handle = {} as unknown as DatabaseHandle;
 const sender: EmailSender = { send: () => Promise.resolve() };
-const DEPS = { database: handle, ownerDatabase: handle, sender };
+const resolveSender = () => Promise.resolve(sender);
+const DEPS = { database: handle, ownerDatabase: handle, resolveSender };
 
 interface Line {
   readonly level: 'info' | 'warn' | 'error';
@@ -134,7 +135,7 @@ describe('outboxModule', () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0]?.deps.database).toBe(handle);
-    expect(calls[0]?.deps.sender).toBe(sender);
+    expect(calls[0]?.deps.resolveSender).toBe(resolveSender);
     // The context's clock, not the wall clock a timer fired against.
     expect(calls[0]?.now).toEqual(NOW);
     expect(calls[0]?.options).toEqual(outboxOptionsFromConfig(ctx.config));

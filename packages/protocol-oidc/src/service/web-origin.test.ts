@@ -21,6 +21,12 @@ describe('web origin grammar', () => {
     ['app.example'],
     ['ftp://app.example'],
     [''],
+    // Origin-shaped but unparseable, so `normalizeOrigin` would answer null
+    // and the entry would sit in the row contributing no origin at all. The
+    // grammar alone admits these; only the normalisation behind it does not.
+    ['https://:bad'],
+    ['https://host:80:90'],
+    ['https://a\u0085b'],
   ])('refuses %s', (value) => {
     expect(isWellFormedWebOrigin(value)).toBe(false);
   });

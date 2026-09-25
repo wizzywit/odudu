@@ -270,13 +270,14 @@ beforeAll(async () => {
   plainClient = tenant.client;
   signingClient = await registerClient('signing-client', 'RS256');
   noneClient = await registerClient('none-client', 'none');
-  // A permitted value (client-metadata.ts's own enum admits it) the
-  // tenant's one active key — generated RS256 above — cannot honour. Written
-  // straight to the repository: the registration endpoint's own narrowing
-  // is asserted separately in client-registration.int.test.ts, and a tenant
-  // can only ever hold one active key (`signing_keys_one_active`), so this
-  // is not a contrived shape — it is what a key rotation to a different
-  // algorithm leaves behind for a client that registered under the old one.
+  // A permitted value (client-metadata.ts's own enum admits it) no key of
+  // this tenant produces — only RS256, generated above, exists at all.
+  // Written straight to the repository: the registration endpoint's own
+  // narrowing is asserted separately in client-registration.int.test.ts, and
+  // the admin API's own `retireKey` (packages/protocol-admin/src/usecase/keys.ts)
+  // refuses to retire a key a client still needs, so this is not a shape
+  // rotation through that door leaves behind — it is what a row changed
+  // outside it (a migration, a script, `psql`) can still produce.
   mismatchClient = await registerClient('mismatch-client', 'ES256');
 }, 120_000);
 
@@ -366,11 +367,11 @@ describe('the UserInfo response format follows client registration', () => {
   });
 
   // The narrowed enum (client-metadata.ts) only closes the registration
-  // side; a tenant's active key can still not match a value that was valid
-  // when it was registered. Silently answering with the key's own algorithm
-  // under the client's chosen name is the defect this closes — refusing is
-  // the honest minimum (docs/protocols/oidc-core.md's reading note).
-  it('refuses to answer when the active key cannot produce the registered algorithm, in its own shape', async () => {
+  // side; a row written directly can still carry a value no non-retired key
+  // produces. Silently answering with some other algorithm under the
+  // client's chosen name is the defect this closes — refusing is the
+  // honest minimum (docs/protocols/oidc-core.md's reading note).
+  it('refuses to answer when no signing key produces the registered algorithm, in its own shape', async () => {
     loggedLines.length = 0;
     const response = await userinfo(mismatchClient);
     expect(response.statusCode).toBe(500);
@@ -378,13 +379,12 @@ describe('the UserInfo response format follows client registration', () => {
     expect(response.headers['www-authenticate']).toBeUndefined();
 
     const warning = loggedLines.find(
-      (line) =>
-        line.msg === 'userinfo: registered signing algorithm does not match the active signing key',
+      (line) => line.msg === 'userinfo: no signing key produces the registered algorithm',
     );
     expect(warning).toMatchObject({
       client_id: mismatchClient.clientId,
       userinfo_signed_response_alg: 'ES256',
-      active_signing_key_alg: 'RS256',
+      signing_keys_available: ['RS256'],
     });
   });
 });

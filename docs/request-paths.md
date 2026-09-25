@@ -82,12 +82,15 @@ anything grant-specific runs.
 
 ## Bootstrap
 
-There is no admin API yet, so a tenant, its first user and its signing key
-are created by the server's seed command — the only way to create the
-first of anything. A client is the one exception once a tenant opens
-registration to it: `seed client` still works, but
-[dynamic client registration](#dynamic-client-registration) is a second
-door, open to whoever the tenant's `client_registration_policy` admits.
+A tenant, its first user and its signing key are created by the server's
+seed command — the only way to create the first of anything, since the
+[admin API](admin-paths.md) needs an administrator who needs a tenant.
+Everything after that first row has two more doors: the admin API, and, for
+a client on a tenant that opens registration to it,
+[dynamic client registration](#dynamic-client-registration). This document
+seeds, because a seed command is reproducible from a shell with no token in
+it; [docs/admin-paths.md](admin-paths.md) walks the same ground through the
+API.
 
 ### Pick how you are running it
 
@@ -1827,11 +1830,11 @@ curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
 
 Nothing here crosses the consented scope — the narrowing was never a
 confidentiality boundary, only the client asking for less than scope would
-give — so this is a consistency gap, not a security one; recorded in
-`docs/NEXT.md` rather than fixed here, alongside the question the gap
-actually depends on: whether narrowing scope-granted claims away is the
-right reading of §5.5 at all (`docs/protocols/oidc-core.md`'s own §5.5 rows
-have that argument).
+give — so this is a consistency gap, not a security one. ADR 0036 decides
+the narrowing itself is the right reading and this gap is the defect: the
+fix is threading `requested_userinfo_claims` onto the rotated grant, tracked
+against **P4e**, the authentication-and-token-audit-events phase split out
+of P4c (`docs/superpowers/specs/2026-09-24-p4c-admin-api-design.md` §2).
 
 ### Encrypted and nested UserInfo responses
 
@@ -2231,13 +2234,15 @@ sending the other is `invalid_client` even with the right secret — the matrix
 is in
 [Client authentication is by the registered method and no other](#client-authentication-is-by-the-registered-method-and-no-other).
 
-A third method, `private_key_jwt`, is also registered by no client on this
-stack — `seed client` cannot produce one, and the clients this document
-registers dynamically all leave `token_endpoint_auth_method` at its default
-— so no transcript for it appears here; see
-[What is not implemented](#what-is-not-implemented)'s "Any admin API" row
-for why, and the [`/token`](#token) refusal table for the bytes each of
-its failures answers with.
+A third method, `private_key_jwt`, is registered by no client on this stack
+— `seed client` cannot produce one, and the clients this document registers
+dynamically all leave `token_endpoint_auth_method` at its default — so no
+transcript for it appears here. `POST /admin/tenants/{tenant}/clients`
+([Admin paths](admin-paths.md#get-clients-post-clients-and-get-clientsid))
+can produce one, and dynamic registration always could; see
+[What is not implemented](#what-is-not-implemented)'s `seed client` row for
+why this document does not, and the [`/token`](#token) refusal table for
+the bytes each of its failures answers with.
 
 Presenting no secret at all is refused the same way. A confidential client
 cannot redeem a code as though it were public, however good the code and the
@@ -2305,9 +2310,9 @@ The stack's own mail pass picks it up within
 so the capture below appears in `docker compose logs odudu` a moment later
 rather than in the seed command's own output. And with `ODUDU_SMTP_HOST`
 unset — true of the compose stack and of every way this document runs the
-server — nothing is actually delivered either: `capturingSender` logs the
-message it would have sent, which is how a reader without a mail server
-gets the link:
+server — nothing is actually delivered either: `loggingSender` writes the
+message it would have sent to the log and keeps nothing, which is how a
+reader without a mail server gets the link:
 
 ```json
 {
@@ -4650,7 +4655,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0,"audit_events":0}}
 ```
 
 Those zeros are the point. By this stage the database holds a consumed
@@ -4687,6 +4692,16 @@ and a replayed spent one are refused identically — so
 `ODUDU_RETENTION_ACTION_TOKEN_SECONDS`) is a courtesy window for an operator
 to read, not a bound ADR 0021's detection-window argument requires.
 
+`audit_events` reports `0` in every count below, in both passes. That is
+not this section's own capture — it was re-verified on a separate, minimal
+stack (seed a tenant, run `odudu reap`, confirm `audit_events` is `0` and
+last in `REAP_ORDER`'s order) rather than by re-walking the whole of
+[Path A](#path-a-authorization-code-with-pkce) — but it holds by
+construction regardless: nothing in this walkthrough calls the admin API,
+which is the only thing that writes to `audit_events`, so its own retention
+rule (`audit_retention_days`, unrelated to any window above) has nothing to
+delete either way.
+
 What makes a row deletable is the **grant family** being past retention,
 which is seven days for a session-bound family and thirty for an offline
 one. Backdating the stack by forty days is the fastest way to see a pass
@@ -4704,7 +4719,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":1}}
+{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":1,"audit_events":0}}
 ```
 
 Both refresh tokens of the family, the code that produced it, the grant
@@ -4723,7 +4738,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0,"audit_events":0}}
 ```
 
 ### When the pass refuses, or finds nothing to look at
@@ -4987,8 +5002,9 @@ client, and refuses a client that already exists — deliberately, because a
 re-run that quietly widened a registered redirect list is how an allowlist
 grows by accident. `demo-spa` was seeded back in
 [Bootstrap](#bootstrap), so this walkthrough sets the column directly;
-changing a registered client is client-management work, which is P3a's
-pending its RFC 7592 spike and P4c's otherwise:
+`PATCH /admin/tenants/{tenant}/clients/{id}` amends the list with
+`If-Match`, and RFC 7592's own client-configuration endpoint — a client
+amending itself with its registration token — is **P13**'s:
 
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \
@@ -5081,10 +5097,13 @@ below use a freshly seeded tenant and confidential client of their own,
 `revokedoc`/`revoke-doc-client`, so a resource server that wants to see a
 revocation before `exp` has something to call. `seed client` has no
 `--audience` flag (see [What is not
-implemented](#what-is-not-implemented)'s "Any admin API" row), so the
+implemented](#what-is-not-implemented)'s `seed client` row), so the
 client's own `client_oidc_config.audiences` is set directly, the same way
 [the section above](#rp-initiated-logout) sets `post_logout_redirect_uris`
-directly:
+directly. `PATCH /admin/tenants/{tenant}/clients/{id}` sets it too, with
+`If-Match` — `audiences` is one of the six list fields that require one
+([Admin paths](admin-paths.md#patch-clientsid)) — and a walkthrough driven
+from a shell with no admin token in it reaches for SQL instead:
 
 ```bash
 docker compose -f infra/docker/compose.yaml exec -T postgres \
@@ -5423,10 +5442,13 @@ a grant under that session. [Back-Channel Logout 1.0](protocols/oidc-backchannel
 asks it to also `POST` a signed Logout Token to every client that
 registered a `backchannel_logout_uri` and held a grant under that session.
 `seed client` has no flag for either URI (see
-[What is not implemented](#what-is-not-implemented)'s "Any admin API"
-row), so a second client is seeded and given both directly, the same way
-`post_logout_redirect_uris`
-was set above:
+[What is not implemented](#what-is-not-implemented)'s `seed client` row),
+so a second client is seeded and given both directly, the same way
+`post_logout_redirect_uris` was set above.
+`PATCH /admin/tenants/{tenant}/clients/{id}` sets both, revalidating them
+the way registration does — a `frontchannel_logout_uri` that shares no
+registered redirect URI's origin is refused `400` there
+([Admin paths](admin-paths.md#patch-clientsid)):
 
 ```bash
 odudu seed client \
@@ -5678,8 +5700,10 @@ consent screen ([below](#the-consent-screen)) tell it apart from a scope
 pre-approved the moment a client is assigned it (it maps no claims either
 way — see [Discovery](#1-discovery) above). `demo-spa`'s own
 `consent_required` is `false` — `seed client` names no way to set it (see
-[What is not implemented](#what-is-not-implemented)'s "Any admin API" row)
-— so every seeded client keeps the column's own default — so the transcript
+[What is not implemented](#what-is-not-implemented)'s `seed client` row;
+`PATCH /admin/tenants/{tenant}/clients/{id}` does, without `If-Match`,
+being no list field) — so every seeded client keeps the column's own
+default — so the transcript
 below reuses without ever seeing that screen; the consent section
 demonstrates asking, against an anonymously self-registered client, whose
 `consent_required` defaults `true` (ADR 0027, and the registration section
@@ -6437,6 +6461,275 @@ Byte-identical to the impersonation refusal above — both are
 `unauthorized_client` with nothing else to tell them apart, which is why
 each transcript above shows the column its own refusal turns on rather
 than asserting which check fired.
+
+### A client disabled after a token was issued to it
+
+Disabling a client is an admin API operation
+([docs/admin-paths.md](admin-paths.md)), not something this document's
+`odudu seed` walks through, but its effect on a token that is already live
+is a fact about `/userinfo`, `/introspect` and this grant, so it belongs
+here rather than there. A tenant of its own, `disableddoc`, with a public
+client that can both sign a user in and be disabled, and a confidential
+`disableddoc-reader` registered for the exchange grant — the resource
+server that introspects and exchanges the public client's tokens, kept
+enabled throughout so a refusal below can only be the disabled client's own
+doing:
+
+```bash
+odudu seed \
+  --tenant disableddoc --client disableddoc-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+
+odudu seed client \
+  --tenant disableddoc --client-id disableddoc-reader --client-secret disableddoc-reader-secret \
+  --redirect-uri http://localhost:8080/callback \
+  --grant-type authorization_code --grant-type urn:ietf:params:oauth:grant-type:token-exchange
+```
+
+The top-level `odudu seed` has no `--grant-type`, `--audience` or
+impersonation flag at all (see [What is not implemented](#what-is-not-implemented)),
+so `disableddoc-spa` — created through it, not through `seed client` — gets
+the exchange grant and `https://api.disableddoc.example` named in its own
+`audiences` directly, the same way an id_token self-exchange needs
+`token_exchange_impersonation_allowed` on directly, too, since with no
+`actor_token` it is impersonating itself. `disableddoc-reader` gets the
+identical `audiences` entry, so it is entitled to introspect and exchange
+what `disableddoc-spa` mints, and impersonation on for the same reason, the
+way [the section above](#impersonation-gated-by-a-column-no-flag-sets) turns
+it on for `exdoc-exchange`:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config
+    SET audiences = ARRAY['https://api.disableddoc.example'],
+        grant_types = array_append(grant_types, 'urn:ietf:params:oauth:grant-type:token-exchange'),
+        token_exchange_impersonation_allowed = true
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'disableddoc-spa'
+      AND client_oidc_config.tenant_id = (SELECT id FROM tenants WHERE name = 'disableddoc');
+
+    UPDATE client_oidc_config
+    SET audiences = ARRAY['https://api.disableddoc.example'],
+        token_exchange_impersonation_allowed = true
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'disableddoc-reader'
+      AND client_oidc_config.tenant_id = (SELECT id FROM tenants WHERE name = 'disableddoc');
+  "
+```
+
+Signing in as `ada` — [Path A](#path-a-authorization-code-with-pkce)'s own
+flow, against `disableddoc-spa` in `disableddoc`, `scope=openid
+offline_access` and `resource=https://api.disableddoc.example` so the
+minted `aud` includes what `disableddoc-reader` is registered under — gives
+`$ACCESS_TOKEN`, `$REFRESH_TOKEN` and `$ID_TOKEN` from one grant and one
+session. While the client is still enabled, all five calls this section is
+about succeed. `/userinfo`:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ACCESS_TOKEN" \
+  "http://localhost:3000/tenants/disableddoc/protocol/openid-connect/userinfo"
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+content-type: application/json; charset=utf-8
+
+{"sub":"01a0d45f-9986-77b6-835a-3913b7fc63b1"}
+```
+
+`/introspect`, called by `disableddoc-reader` rather than by
+`disableddoc-spa` itself — a caller distinct from the client under test, the
+same way the access-token and refresh-token exchanges below need one:
+
+```bash
+curl -sS -u disableddoc-reader:disableddoc-reader-secret \
+  -X POST "http://localhost:3000/tenants/disableddoc/protocol/openid-connect/token/introspect" \
+  --data-urlencode "token=$ACCESS_TOKEN"
+```
+
+```
+{"active":true,"scope":"openid offline_access","client_id":"disableddoc-spa","sub":"01a0d45f-9986-77b6-835a-3913b7fc63b1","aud":["https://api.disableddoc.example","http://localhost:3000/tenants/disableddoc"],"token_type":"Bearer","exp":1790269746,"iat":1790269446}
+```
+
+The access token exchanged by `disableddoc-reader`:
+
+```bash
+curl -sS -D - -u disableddoc-reader:disableddoc-reader-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$ACCESS_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  --data-urlencode 'resource=https://api.disableddoc.example' \
+  'http://localhost:3000/tenants/disableddoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"access_token":"eyJhbGciOiJSUzI1NiIs…","token_type":"Bearer","expires_in":290,"scope":"openid offline_access","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+```
+
+The refresh token exchanged the same way:
+
+```bash
+curl -sS -D - -u disableddoc-reader:disableddoc-reader-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$REFRESH_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:refresh_token' \
+  --data-urlencode 'resource=https://api.disableddoc.example' \
+  'http://localhost:3000/tenants/disableddoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"access_token":"eyJhbGciOiJSUzI1NiIs…","token_type":"Bearer","expires_in":300,"scope":"openid offline_access","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+```
+
+And, since an `id_token`'s audience must name the requesting client (OIDC
+Core §3.1.2.2), a self-exchange of `$ID_TOKEN` — `disableddoc-spa` is
+public, so this reaches `/token` with no credential at all, naming only
+`client_id` in the body, the way [Path A](#path-a-authorization-code-with-pkce)
+redeems a code:
+
+```bash
+curl -sS -D - \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode 'client_id=disableddoc-spa' \
+  --data-urlencode "subject_token=$ID_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:id_token' \
+  'http://localhost:3000/tenants/disableddoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 200 OK
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"access_token":"eyJhbGciOiJSUzI1NiIs…","token_type":"Bearer","expires_in":290,"scope":"","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+```
+
+Disabling `disableddoc-spa` — the precondition every refusal below depends
+on, shown rather than asserted, since an unrelated refusal (a dead session,
+a revoked grant) would read no differently:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE clients SET enabled = false WHERE client_id = 'disableddoc-spa'
+      AND tenant_id = (SELECT id FROM tenants WHERE name = 'disableddoc');
+    SELECT client_id, enabled FROM clients WHERE client_id = 'disableddoc-spa';
+  "
+```
+
+```
+    client_id    | enabled
+-----------------+---------
+ disableddoc-spa | f
+(1 row)
+```
+
+None of `$ACCESS_TOKEN`, `$REFRESH_TOKEN`, `$ID_TOKEN` or the session
+behind them changed — every grant is still live and the session is still
+live. The identical five requests, unchanged, now all refuse. `/userinfo`:
+
+```
+HTTP/1.1 401 Unauthorized
+vary: Origin
+www-authenticate: Bearer realm="userinfo", error="invalid_token"
+content-length: 0
+```
+
+`/introspect`:
+
+```
+{"active":false}
+```
+
+The access token exchange:
+
+```
+HTTP/1.1 400 Bad Request
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"error":"invalid_request"}
+```
+
+the refresh token exchange, identically:
+
+```bash
+curl -sS -D - -u disableddoc-reader:disableddoc-reader-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$REFRESH_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:refresh_token' \
+  --data-urlencode 'resource=https://api.disableddoc.example' \
+  'http://localhost:3000/tenants/disableddoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 400 Bad Request
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"error":"invalid_request"}
+```
+
+and the `id_token` self-exchange:
+
+```bash
+curl -sS -D - \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode 'client_id=disableddoc-spa' \
+  --data-urlencode "subject_token=$ID_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:id_token' \
+  'http://localhost:3000/tenants/disableddoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 401 Unauthorized
+vary: Origin
+www-authenticate: Basic realm="token"
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+
+{"error":"invalid_client"}
+```
+
+An `id_token` names no grant to revoke — `resolveIdToken`
+(`packages/protocol-oidc/src/usecase/token-exchange-subject.ts`) returns
+`grantId: null` — so exchanging one reads `clients.enabled` directly rather
+than through a grant, the one branch a revoked-grant check could never have
+reached. This transcript's last refusal cannot prove that read fired,
+though: an id_token's audience must name the requesting client, which makes
+this necessarily a self-exchange, and a disabled client can no longer
+authenticate at `/token` for **any** grant —
+`verifyClientSecret` (`packages/domain-tenant/src/service/client.ts`)
+already refuses a disabled client's own client_secret, private_key_jwt or
+tls_client_auth attempt, the same way [The branches](#the-branches) below
+documents for every other grant, and `invalid_client` above is that refusal,
+not `resolveIdToken`'s. `packages/protocol-admin/tests/disabled-client.int.test.ts`
+covers the id_token branch's own read directly, the way [the impersonation
+refusal above](#impersonation-gated-by-a-column-no-flag-sets) covers
+`unauthorized_client`'s own oracle: by calling `resolveExchangeToken`
+itself rather than through the client-authentication gate in front of it.
 
 ## CORS: the preflight and the request differ
 
@@ -7838,6 +8131,11 @@ as a bearer token; `/userinfo` refuses it. Verify it, read `sub`, `name` and
 registered for. Presenting the right secret the wrong way is refused exactly
 like the wrong secret.
 
+**From here, to administer a tenant rather than act as a client of one.**
+[docs/admin-paths.md](admin-paths.md) documents the admin API — the
+endpoints under `/admin/tenants/{tenant}/` — separately from this document,
+because it serves an operator rather than an application integrator.
+
 ## What is not implemented
 
 Every item below is in one of two states, and says which: **planned**, with
@@ -7908,8 +8206,12 @@ session lifecycle. A citation of either half here means that half.
   refusal or a second value; only two genuinely distinct values are a
   repeat. Omitting it resolves to the client's whole registered list, and
   a client
-  with no registered audience — every client in this repository, today —
-  still succeeds with an empty one rather than being refused. `[]` on the
+  with no registered audience — every client this document seeds, and every
+  one `seed client` can produce, since it has no `--audience` flag — still
+  succeeds with an empty one rather than being refused.
+  `PATCH /admin/tenants/{tenant}/clients/{id}` registers the list, and the
+  built-in admin client is provisioned with one, so "no client has an
+  audience" stopped being true of the server when the admin API landed. `[]` on the
   stored column has exactly one meaning: the resolved audience is empty,
   never "not carried" — every door that mints a code resolves and stores
   the same value: immediate session-reuse at `/authorize`, an ordinary
@@ -7943,11 +8245,12 @@ session lifecycle. A citation of either half here means that half.
   `recovery-code` is applicable on the same terms — only to a submission
   carrying one — which is how it substitutes for the OTP step instead of
   competing with it ([Recovery codes](#recovery-codes)).
-  What is not there: any way to **change** a tenant's flow.
-  `authentication_executions` has an insert and nothing else, so the rows
-  `provisionBrowserFlow` writes are what a tenant has for good unless somebody
-  edits the table. Giving the rows a write surface is **P4c**; the editor
-  that drives it is **P4d**.
+  `GET`/`PUT /admin/tenants/{tenant}/flow/executions`
+  ([Admin paths](admin-paths.md#get-flowexecutions-and-put-flowexecutions))
+  now reads and replaces the ordered list wholesale — `authentication_executions`
+  is no longer insert-only, so the rows `provisionBrowserFlow` writes are a
+  starting point rather than what a tenant has for good. What is not there:
+  a UI to drive it, which is **P4d**'s.
 - **Recovery codes are issued once and shown once.** Ten per subject, each
   Argon2id-hashed in its own credential row, offered by the
   `generate-recovery-codes` required action that enrolling either second
@@ -7979,12 +8282,15 @@ session lifecycle. A citation of either half here means that half.
   verified — no authorization code, not just a page saying so. Each queues
   its mail in `email_outbox` and answers; a pass of its own sends it
   ([Sending queued mail](#sending-queued-mail-odudu-send-mail)), which is
-  what closed the reset endpoint's timing oracle. What is not there yet:
-  per-tenant SMTP configuration — the transport is one set of
-  `ODUDU_SMTP_*` variables for the whole server. That is **P4c**: it is tenant
-  configuration carrying a credential, and the per-tenant secret it needs
-  already has a home in the key-encryption interface §5 puts the signing key
-  behind.
+  what closed the reset endpoint's timing oracle. Per-tenant SMTP is no
+  longer missing: `GET`/`PUT /admin/tenants/{tenant}/smtp` configures a
+  tenant's own transport and `POST /admin/tenants/{tenant}/smtp/test` sends
+  one message through it
+  ([Admin paths](admin-paths.md#get-smtp-put-smtp-and-post-smtptest)), with
+  the password behind the same key-encryption interface §5 puts a signing
+  key behind, and `resolveSender` falling back to the deployment's own
+  `ODUDU_SMTP_*` where a tenant configures none. What is not there yet: a UI
+  to configure it, which is **P4d**'s.
 
 - **Every page this server renders is hardcoded HTML**, dependency-free with
   every interpolated value escaped: twelve `*-html.ts` renderers across the
@@ -8003,12 +8309,12 @@ session lifecycle. A citation of either half here means that half.
 
 **`/token`**
 
-- **`token_exchange_impersonation_allowed` is settable only by `psql`.**
-  `seed client` has no flag for it — [Path D](#path-d-token-exchange) sets
-  it directly, the same way it sets `audiences` — and there is no
-  registration field either, so a tenant that wants a client to impersonate
-  rather than only delegate has no door but SQL. **P4c**, alongside every
-  other client column only `psql` reaches today.
+- **`token_exchange_impersonation_allowed` has no `seed client` flag and no
+  registration field.** `PATCH /admin/tenants/{tenant}/clients/{id}` sets
+  it, which is the door it did not have; [Path D](#path-d-token-exchange)
+  still sets it with SQL, because that walkthrough holds no admin token.
+  What remains is the CLI gap alone, and that is a decision — see the
+  `seed client` row below for it.
 - **No CIBA.** **P5**, whose exit criterion is CIBA approvals end to end.
 - **No device authorization grant.** **P13**, whose criterion names a
   device-code client completing a login on a second device. It shares that
@@ -8043,24 +8349,21 @@ session lifecycle. A citation of either half here means that half.
   is explicit: §5.6.2 says "Normal Claims MUST be supported. Support for
   Aggregated Claims and Distributed Claims is OPTIONAL." No phase is owed
   one.
-- **No admin-configurable protocol mappers.** The claim registry
-  (`standardClaimMappers`, the 22 names in `claims_supported`) and the
-  role/group claims alongside it are fixed by the server, not by anything a
-  tenant operator can add or change. Reconfiguring what a scope maps to —
-  Keycloak's protocol mapper concept — is **P4c**'s, alongside the rest of
-  the admin surface. `entitlements`, in particular, is deliberately never
+- **A tenant can rebind a scope's mappers but cannot add one.**
+  `PUT /admin/tenants/{tenant}/scopes/{id}/mappers`
+  ([Admin paths](admin-paths.md#get-scopesidmappers-and-put-scopesidmappers))
+  chooses which of the process's registered mappers a scope carries, which
+  is the reconfiguration P4c owed. The registry itself —
+  `standardClaimMappers`, the 22 names in `claims_supported`, and the
+  role/group claims alongside them — is still fixed by the server: a mapper
+  that computes a claim nothing in the registry computes cannot be defined
+  by an operator. **P10**, whose criterion names it: a mapper an operator
+  writes is code the server did not ship, which is the same problem as
+  loading a provider without a rebuild, not a missing admin endpoint.
+  `entitlements`, in particular, is deliberately never
   advertised: there is no notion of one in this identity model yet, and
   `packages/protocol-oidc/tests/claims-supported.int.test.ts` fails the
   build if it appears in a live discovery response.
-- **A client disabled after a token was issued to it does not lose that
-  token's `/userinfo` claims.** `resolveUserinfo` now refuses a token whose
-  grant this server revoked or whose session has ended, but neither of
-  those is stamped when an operator disables the client itself — the
-  grant is untouched. **P4c**, which is where disabling
-  a client becomes an operation at all, and whose criterion now asks it to
-  decide whether `/userinfo` and `/introspect` read `client.enabled` the way
-  `resolveRoleReach` and `resolveClientWebOrigins` do rather than inheriting
-  the answer.
 
 **`/logout`**
 
@@ -8078,17 +8381,44 @@ session lifecycle. A citation of either half here means that half.
   which gives that branch the page it does not have today, and P4b is the
   phase whose criterion covers every page the server renders.
 
+**The admin API**
+
+- **The audit log records administrative mutations and nothing else.**
+  Every row `GET /admin/tenants/{tenant}/audit` returns carries
+  `event_type: "admin_mutation"`, so a login, a second factor answered, a
+  token minted or refreshed or revoked, and a session ending leave no trace
+  there — the log answers "who changed this tenant's configuration", not
+  "what happened in this tenant". The table was built for both: `event_type`
+  exists, `actor_subject_id` is nullable because an authentication event has
+  a subject it happened to rather than an administrator who did it, and the
+  retention window is already the tenant's own `audit_retention_days`.
+  **P4e**, whose criterion names the events and the `event_type` filter the
+  listing will need.
+- **Only `POST /clients` records a refused attempt.** `outcome` has three
+  values and every other mutation writes a row only when it succeeds, so
+  `?outcome=refused` against any other `resource_type` returns nothing —
+  which reads as "nothing was refused" and is not. **P4e**: what a refused
+  request writes is one question, and that phase is where it is asked for
+  authentication, which is the larger half of it.
+- **A request refused for a cross-tenant issuer mismatch writes no row.** A
+  bearer token naming an issuer that is neither this tenant nor the system
+  tenant is refused before its signature can be checked, since an
+  unrecognised issuer names no keys to check it against; auditing at that
+  point would let an unauthenticated caller append a row per request, which
+  is a worse defect than the missing one. Recording it safely means
+  resolving the named issuer to a tenant in this deployment and verifying
+  against that tenant's keys first. **P4e**, whose criterion names it, and
+  `docs/NEXT.md` carries the same entry with its trigger.
+
 **Endpoints that do not exist at all**
 
-- **No administrative way to end somebody else's session.** Listing a
-  subject's sessions and ending one is **P4c**, with the rest of the admin
-  surface, because until there is an admin API there is nowhere to put it.
-- **Any admin API.** **P4c.** The seed command and
-  [dynamic client registration](#dynamic-client-registration) are the only
-  administrative surfaces — the former for a tenant's first user, client and
-  signing key, the latter for a client a tenant has opened itself to — and
-  neither can add a user to an existing client, disable anything, rotate a
-  key, or delete anything. `seed client` takes `--redirect-uri`,
+- **`seed client` sets a fraction of what a client carries, and only at
+  creation.** The [admin API](admin-paths.md) closed the surface this row
+  used to aggregate — a client is created, amended, disabled, deleted and
+  re-credentialled through it, a key rotated, a session ended, a flow
+  reordered — so what is left here is the CLI's own reach, which matters
+  because every walkthrough in this document runs from a shell holding no
+  admin token. `seed client` takes `--redirect-uri`,
   `--post-logout-redirect-uri`, `--web-origin`, `--client-secret`,
   `--token-endpoint-auth-method` and `--grant-type` (repeatable, validated
   against the same list `client_oidc_config_grant_types_check` enforces;
@@ -8102,22 +8432,26 @@ session lifecycle. A citation of either half here means that half.
   `--tls-client-auth-subject-dn` flag either, so `seed client` cannot
   produce a `private_key_jwt` or `tls_client_auth` client at all; the only
   route to either is dynamic client registration, on a tenant whose
-  `clientRegistrationPolicy` allows it. The demo tenant's does not, which is
-  why no transcript below exercises `private_key_jwt` or `tls_client_auth`
-  the way [Redeeming the code with
+  `clientRegistrationPolicy` allows it, or the admin API. The demo tenant
+  opens neither to this document, which is why no transcript below
+  exercises `private_key_jwt` or `tls_client_auth` the way [Redeeming the
+  code with
   `client_secret_basic`](#redeeming-the-code-with-client_secret_basic) and
-  its `client_secret_post` sibling exercise theirs — there is no command to
-  run that would produce one, per this document's own rule for a command
-  that cannot be run. A second, different gap sits beside it: metadata a
-  flag does set is only settable at creation, so a client already seeded is
-  amended with SQL too.
-  Each site in this document that reaches for SQL instead says so at the
-  point it does it — [Front-channel
-  and back-channel logout](#front-channel-and-back-channel-logout), [Token
-  introspection and revocation](#token-introspection-and-revocation), and
-  [Offline access](#offline-access) — and this is the one row that
-  aggregates all three, rather than each staying an individually honest but
-  uncollected admission.
+  its `client_secret_post` sibling exercise theirs — there is no seed
+  command to run that would produce one, per this document's own rule for a
+  command that cannot be run. A second gap sits beside it: metadata a flag
+  does set is only settable at creation, so a client already seeded is
+  amended elsewhere. The three sites here that reach for SQL —
+  [Front-channel and back-channel
+  logout](#front-channel-and-back-channel-logout), [Token introspection and
+  revocation](#token-introspection-and-revocation) and [Offline
+  access](#offline-access) — each name the admin endpoint that now sets the
+  same column, and reach for SQL anyway because a walkthrough that has to
+  mint an admin token first is a different walkthrough.
+  A decision, now that the admin API exists: `seed` is the bootstrap tool
+  that creates the first of everything with no token in hand, and amendment
+  belongs to the API. Widening the CLI to a second amendment surface would
+  give every client column two doors to keep in step.
 - **SAML, LDAP federation, identity brokering, authorization services.**
   P6–P9.
 
@@ -8148,16 +8482,6 @@ session lifecycle. A citation of either half here means that half.
   Operational readiness, appended on 2026-09-14 because none of it had a
   phase. Its position in the table is not a dependency: publishing an image
   waits on nothing, and `README.md` says what can be pulled forward.
-- **Key rotation is not implemented.** A tenant has one active signing key,
-  created when it is seeded; the shape supports more than one, and the
-  operation that would create a second does not exist. **P4c**, whose exit
-  criterion now names promoting a new key and retiring the one it replaces
-  on the overlap window the design specification states. It landed there
-  rather than in P3a or P3b because no relying party's request triggers a
-  rotation:
-  it is an operator action, and it needs the authenticated administrator,
-  the audit event and the surface to trigger it from that P4c is the phase
-  for.
 - **Expired state is deleted, on a window per table, by one pass** —
   `odudu reap`, on the server's own schedule or as a command
   ([Retention](#retention-what-odudu-reap-removes)). What is not there yet:

@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import {
@@ -26,6 +26,12 @@ export interface NewAuthenticationExecution {
   requirement: Requirement;
 }
 
+/** An execution with no `index`: `replaceForTenant` assigns it from array order. */
+export interface ExecutionInput {
+  authenticator: string;
+  requirement: Requirement;
+}
+
 // All persistence for a tenant's flat authentication flow. Evaluating it
 // into a decision for a given subject is a later task; this is only the
 // ordered read `forTenant` gives and the write that seeds it.
@@ -48,6 +54,60 @@ export function executionRepository(tx: TenantScopedDatabase) {
         authenticator: input.authenticator,
         requirement: input.requirement,
       });
+    },
+
+    // For a caller that reads the flow before deciding whether to replace
+    // it: an `If-Match` comparison means nothing unless nothing else can
+    // write between the read and the write. Re-taking it below costs
+    // nothing, pg_advisory_xact_lock being reentrant within a transaction.
+    async lockForTenant(tenantId: string): Promise<void> {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext('authentication_executions'), hashtext(${tenantId}))`,
+      );
+    },
+
+    // Deletes and re-inserts in the caller's own transaction, never
+    // partially: a flow's meaning is in its order.
+    //
+    // The advisory lock, not the row lock, is what serialises two
+    // concurrent replacements: a tenant whose flow is empty has no rows to
+    // lock, so both would reach the insert and
+    // `authentication_executions_order` would fail one.
+    async replaceForTenant(
+      tenantId: string,
+      steps: readonly ExecutionInput[],
+    ): Promise<AuthenticationExecutionRecord[]> {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext('authentication_executions'), hashtext(${tenantId}))`,
+      );
+
+      await tx
+        .select({ id: authenticationExecutions.id })
+        .from(authenticationExecutions)
+        .where(eq(authenticationExecutions.tenantId, tenantId))
+        .for('update');
+
+      await tx
+        .delete(authenticationExecutions)
+        .where(eq(authenticationExecutions.tenantId, tenantId));
+
+      const rows = steps.map((step, index) => ({
+        id: newId(),
+        tenantId,
+        index,
+        authenticator: step.authenticator,
+        requirement: step.requirement,
+      }));
+      if (rows.length > 0) {
+        await tx.insert(authenticationExecutions).values(rows);
+      }
+      return rows.map((row) => ({
+        id: row.id,
+        tenantId: row.tenantId,
+        index: row.index,
+        authenticator: row.authenticator,
+        requirement: row.requirement,
+      }));
     },
   };
 }

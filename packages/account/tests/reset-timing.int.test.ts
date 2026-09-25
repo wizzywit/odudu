@@ -140,7 +140,11 @@ const OUTBOX_OPTIONS: SendPendingOptions = {
 };
 
 async function drainOutbox(): Promise<void> {
-  await sendPending({ database: app, ownerDatabase: owner, sender }, new Date(), OUTBOX_OPTIONS);
+  await sendPending(
+    { database: app, ownerDatabase: owner, resolveSender: () => Promise.resolve(sender) },
+    new Date(),
+    OUTBOX_OPTIONS,
+  );
 }
 
 async function outboxRows() {

@@ -1,8 +1,16 @@
-import { eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray, sql } from 'drizzle-orm';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { sessions, type SessionRecord } from '#/schema/sessions';
 import { isSessionLive } from '#/service/session-liveness';
 import { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
+
+// The liveness arithmetic every reader of more than one session shares:
+// each record measured against the idle window its own `remembered`
+// column picks, never a single window applied to the whole set.
+function stillLive(record: SessionRecord, tenant: SessionLifespans, now: Date): boolean {
+  const { idleSeconds } = lifespanFor(tenant, record.remembered);
+  return isSessionLive(record, idleSeconds, now);
+}
 
 function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
   return {
@@ -54,22 +62,25 @@ export function sessionRepository(tx: TenantScopedDatabase) {
     async liveById(id: string, tenant: SessionLifespans, now: Date): Promise<SessionRecord | null> {
       const record = await this.byId(id);
       if (record === null) return null;
-      const { idleSeconds } = lifespanFor(tenant, record.remembered);
-      return isSessionLive(record, idleSeconds, now) ? record : null;
+      return stillLive(record, tenant, now) ? record : null;
     },
 
     async touch(id: string, now: Date): Promise<void> {
       await tx.update(sessions).set({ lastActiveAt: now }).where(eq(sessions.id, id));
     },
 
-    // Logout ends a session by moving its own ceiling to now, rather than
-    // deleting the row or adding a second "ended" state: `isSessionLive`'s
-    // exclusive `now >= expiresAt` check already treats that as dead from
-    // this instant, and the reaping pass a later increment adds removes the
-    // row itself. Idempotent — ending an already-dead session only ever
-    // moves `expires_at` earlier or leaves it where it was.
+    // Logout moves the session's own ceiling to now rather than deleting
+    // the row: `isSessionLive`'s exclusive `now >= expiresAt` treats that
+    // as dead from this instant, and the reaping pass removes the row.
+    //
+    // `least`, not a bare assignment: a second end at a later `now` would
+    // push `expires_at` forward, delaying the reaping the first one
+    // started instead of being the no-op callers rely on.
     async end(id: string, now: Date): Promise<void> {
-      await tx.update(sessions).set({ expiresAt: now }).where(eq(sessions.id, id));
+      await tx
+        .update(sessions)
+        .set({ expiresAt: sql`least(${sessions.expiresAt}, ${now.toISOString()}::timestamptz)` })
+        .where(eq(sessions.id, id));
     },
 
     // The set read every session consumer uses now that a browser may hold
@@ -88,10 +99,24 @@ export function sessionRepository(tx: TenantScopedDatabase) {
         .select()
         .from(sessions)
         .where(inArray(sessions.id, [...ids]));
-      return rows.map(toRecord).filter((record) => {
-        const { idleSeconds } = lifespanFor(tenant, record.remembered);
-        return isSessionLive(record, idleSeconds, now);
-      });
+      return rows.map(toRecord).filter((record) => stillLive(record, tenant, now));
+    },
+
+    // The only read keyed on who a session belongs to rather than what a
+    // browser's cookie names — so it is the one place an operator can see
+    // a session a lost or overwritten cookie orphaned (ADR 0033), remembered
+    // ones included, for as long as its own idle window keeps it alive.
+    async liveBySubject(
+      subjectId: string,
+      tenant: SessionLifespans,
+      now: Date,
+    ): Promise<SessionRecord[]> {
+      const rows = await tx
+        .select()
+        .from(sessions)
+        .where(eq(sessions.subjectId, subjectId))
+        .orderBy(asc(sessions.id));
+      return rows.map(toRecord).filter((record) => stillLive(record, tenant, now));
     },
 
     async endMany(ids: readonly string[], now: Date): Promise<void> {

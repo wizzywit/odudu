@@ -37,8 +37,11 @@ nothing, by design (`.github/workflows/verify.yml`).
 **P3a** adds clients, dynamic registration (RFC 7591) and a consent screen.
 **P4a** adds `/token`'s fourth grant, RFC 8693 token exchange, and the
 `config.grantTypes` allowlist that gates which grant a client may use at
-all. There is still no admin API — that is P4c. The
-roadmap's second and third phases are each two. **P2a** is the
+all. **P4c** adds the admin API — tenants, clients, subjects, roles,
+groups, scopes, signing keys, the authentication flow, per-tenant SMTP and
+an audit trail, under `/admin/tenants/{tenant}/`, described in
+[docs/admin-paths.md](docs/admin-paths.md) and published as OpenAPI at
+`/admin/openapi.json`. The roadmap's second and third phases are each two. **P2a** is the
 identity model — roles, groups, client scopes, per-client web origins,
 email — and **P2b** is credentials, MFA and the session lifecycle. **P3a**
 is clients, registration and consent, and **P3b** is sessions, logout and
@@ -53,10 +56,10 @@ it.
 (a preflight from the tenant's union of every client's, since it carries no
 client identity to check against one) — see
 [the CORS section of docs/request-paths.md](docs/request-paths.md#cors-the-preflight-and-the-request-differ).
-`seed client --web-origin` registers them as it creates a client; changing
-one on a client that already exists means updating
-`client_oidc_config.web_origins` directly, because `seed client` refuses an
-existing client rather than widening a registered list on a re-run.
+`seed client --web-origin` registers them as it creates a client, and
+`PATCH /admin/tenants/{tenant}/clients/{id}` amends the list afterwards —
+`seed client` itself refuses an existing client rather than widening a
+registered list on a re-run.
 
 `seed client --grant-type` names the grants a client is registered for,
 repeatable, and validates each one against the same list the
@@ -73,13 +76,22 @@ begins — `registration_allowed`, `verify_email` and `reset_password_allowed`
 registration or mailed verification. `odudu seed tenant --set` changes them,
 and every other tenant setting, by the column name the schema uses:
 `odudu seed tenant --name demo --set registration_allowed=true`, repeatable.
-There is no admin **API** for them yet — that is P4c — and the ranges the
-numeric ones accept are CHECK constraints, so the CLI has no way past a
-policy the database enforces. Outgoing mail goes through `ODUDU_SMTP_HOST`,
+`GET`/`PATCH /admin/tenants/{tenant}/settings` changes the same set through
+the admin API, by the same column names; the ranges the numeric ones accept
+are CHECK constraints either way, so neither door has a way past a policy
+the database enforces. Outgoing mail goes through `ODUDU_SMTP_HOST`,
 `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`, `ODUDU_SMTP_USERNAME`,
 `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`; leave `ODUDU_SMTP_HOST`
 unset and the server logs every message instead of sending it, which is what
-the compose stack does. See
+the compose stack does. A tenant can override all of it with its own
+transport — `PUT /admin/tenants/{tenant}/smtp`, whose password is stored
+under the same key-encryption envelope a signing key's private half uses —
+and `POST /admin/tenants/{tenant}/smtp/test` sends one message through it
+before a user's verification mail depends on it. A tenant's configuration
+that carries a username or a password is refused unless `starttls` is on,
+and its `host` is held to ADR 0028's address rules before any connection —
+`ODUDU_ALLOW_PRIVATE_SMTP_HOSTS` re-admits the private ranges where a
+relay genuinely is internal, and loopback stays refused regardless. See
 [the address verification section of docs/request-paths.md](docs/request-paths.md#address-verification)
 for that walkthrough, captured message included.
 
@@ -233,9 +245,9 @@ timing distinguishes a locked account from a wrong password or from a
 username nobody holds. An attempt made during a lockout still counts, which
 is what keeps those costs equal — and means retrying extends the wait. A
 correct password accepted by an unlocked account deletes the row — which,
-with waiting the window out, is the whole of how a lockout ends: there is no
-operator unlock and no admin surface to clear one, since there is no admin
-API yet.
+with waiting the window out, is the whole of how a lockout ends: the admin
+API has no route that clears a `login_failures` row, so an operator still
+waits the window out or reaches for SQL.
 See [the brute-force section of docs/request-paths.md](docs/request-paths.md#brute-force-lockout)
 for the walkthrough.
 
@@ -392,11 +404,12 @@ registration module does, without production doing the same.
 
 **Operational trap:** turning `verify_email` on locks out every existing
 user with no email address on file — including one seeded without
-`--email` — since there is no address for them to verify and, for now, no
-way to add one after the fact. The login page tells them so rather than
-claiming a mail it never sent, but there is no recovery path yet; give
-every user an address before enabling `verify_email` on a tenant that
-already has some.
+`--email` — since there is no address for them to verify. The login page
+tells them so rather than claiming a mail it never sent, and the way out is
+`PATCH /admin/tenants/{tenant}/subjects/{id}`, which amends `email`: the
+recovery path is an administrator's, not the locked-out user's. Give every
+user an address before enabling `verify_email` on a tenant that already has
+some.
 
 **The SSO session is read as well as written, and it has two clocks.** The
 `{tenant}-session` cookie the login POST sets is now what lets a second
@@ -504,7 +517,7 @@ Token per client that registered a `backchannel_logout_uri`, and the
 [the logout section of
 docs/request-paths.md](docs/request-paths.md#rp-initiated-logout) for the
 walkthrough, and [its front-channel logout
-section](docs/request-paths.md#front-channel-logout) for a real transcript
+section](docs/request-paths.md#front-channel-and-back-channel-logout) for a real transcript
 of the framed page.
 
 > ### → [docs/request-paths.md](docs/request-paths.md)
@@ -645,9 +658,10 @@ container — seed a tenant and client, request `/authorize`, submit the login
 form the way a browser would, redeem the code at `/token` — and then tears
 the stack down, volumes included.
 
-**Sign somebody in yourself.** There is no admin API yet, so the first tenant,
-client, user and signing key come from the server's seed command. The run
-below is the all-Docker one:
+**Sign somebody in yourself.** The first tenant, client, user and signing
+key come from the server's seed command — the admin API needs an
+administrator, who needs a tenant, so something has to create the first row
+without a token. The run below is the all-Docker one:
 
 ```bash
 cd infra/docker && docker compose up -d --build
@@ -807,8 +821,11 @@ walks through all of it, including a client-scoped role qualified as
 exist.** `POST /tenants/{tenant}/clients-registrations/openid-connect` is
 RFC 7591 dynamic client registration — open to every tenant whose
 `client_registration_policy` is `open` or `token`, and refused outright
-while it is the default, `disabled` — `seed client` is then the only way to
-create a client in that tenant. A tenant whose policy is `token` needs a way to mint the
+while it is the default, `disabled` — `seed client` and
+`POST /admin/tenants/{tenant}/clients` are then the two ways to create a
+client in that tenant, neither of which the policy governs, since both
+require an operator already.
+A tenant whose policy is `token` needs a way to mint the
 credential a registering client presents, and `seed registration-token`
 is that command: `--tenant`, `--uses` (a token is good for that many
 registrations, never zero) and `--ttl` in seconds.
@@ -846,6 +863,44 @@ twin already was — `https`, absolute, no fragment — because the logout page
 renders it into an iframe, and a `javascript:` or bare-`http:` value would
 reach that sink unchecked otherwise.
 
+**Bootstrap the first administrator.** `odudu seed admin` creates the
+`system` tenant the first time it runs — idempotently, so a second run with
+a different username reuses the same tenant, client and roles rather than
+duplicating them — provisions its `odudu-admin` client and signing key, and
+grants the subject it creates `tenant-admin`, the composite that carries
+every capability role plus `manage-tenants`, which is what reaches every
+tenant rather than just this one. Like every other seed subcommand it talks to the
+database directly and needs no running server, only migrations already
+applied:
+
+```bash
+node --env-file=.env apps/server/src/main.ts seed admin --username ada
+```
+
+The generated password is printed once, on its own line, followed by a
+sentence saying so:
+
+```
+Kx3f…redacted…9Q
+This password is shown once and cannot be retrieved again.
+```
+
+There is nowhere it is stored in the clear and nothing that mails it, so a
+lost password means seeding a new administrator, not recovering the old
+one. The account's first login is forced through a password change —
+`update-password` is queued as a required action the moment the subject is
+created.
+
+The `odudu-admin` client is provisioned as a public client authorised with
+`authorization_code` and `refresh_token`, carrying the tenant's default
+scopes, the admin API's resource identifier `urn:odudu:params:admin-api` as
+its registered audience, and one redirect URI, `http://127.0.0.1:8080/callback`. There is no
+administration console yet, so that loopback address (RFC 8252 §7.3) is
+the only place a code can be delivered: an administrator obtains a token by
+running a listener on that exact port and completing the flow with PKCE.
+Redirect matching is exact, and no command or endpoint can add a second
+URI to this client yet, so a console will need one before it can log in.
+
 **One pass deletes everything that expires.** Every login writes an
 `authentication_sessions` row, every redemption an `authorization_codes`
 row, and every refresh rotation a `refresh_tokens` row; no repository in the
@@ -862,7 +917,7 @@ node --env-file=.env apps/server/src/main.ts reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0,"audit_events":0}}
 ```
 
 Those zeros on a freshly used stack are the design, not a bug. A row is
@@ -1091,8 +1146,7 @@ Every row says where it stands, and every row has a phase:
 | ------------------------------------------------------------------------------------------------------ | --------------- |
 | A consent screen — `consent_required` is recorded per client, nothing reads it yet                     | P3a             |
 | An account console for self-service credential management, and an operator unlock for a locked account | P4d             |
-| An admin API — seeding is the only administrative surface                                              | P4c             |
-| Signing-key rotation — the shape exists, the operation does not                                        | P4c             |
+| An admin **console** — the admin API exists, nothing drives it but `curl`                              | P4d             |
 | Published images and a release process                                                                 | P12             |
 | Secret management beyond environment variables                                                         | P12             |
 | Backup and restore guidance                                                                            | P12             |

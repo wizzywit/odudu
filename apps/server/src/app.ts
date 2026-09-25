@@ -9,19 +9,18 @@ import {
   type NewAccountInput,
 } from '@odudu/account';
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
-import { roleRepository } from '@odudu/domain-authz';
 import { requiredActionRepository } from '@odudu/authn-flows';
 import {
   credentialRepository,
   evaluatePassword,
   hashPassword,
   REUSED_PASSWORD,
-  subjectRepository,
   userRepository,
   verifyPassword,
 } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
-import { clientKeySet, oidcRoutes } from '@odudu/protocol-oidc';
+import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
+import { clientKeySet, oidcRoutes, standardClaimMappers } from '@odudu/protocol-oidc';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
@@ -97,6 +96,13 @@ export interface AppDeps {
    * it explicitly rather than getting it silently.
    */
   readonly allowPrivateClientUrls?: boolean;
+  /**
+   * The same escape hatch for the relay a tenant configures through
+   * `PUT /smtp`. Separate from `allowPrivateClientUrls` because an
+   * internal mail relay is an ordinary production shape, where a private
+   * `jwks_uri` is not. Defaults `false`; loopback stays refused either way.
+   */
+  readonly allowPrivateSmtpHosts?: boolean;
 }
 
 export interface ThrottleSettings {
@@ -133,29 +139,26 @@ const THROTTLED_POSTS: ReadonlySet<string> = new Set([
 // @odudu/domain-authz (roles), so the actual writes are wired here, inside
 // the one transaction packages/account/src/usecase/register.ts already
 // opened around this call and the verify_email token issued alongside it.
+// `composeUserSubject` (@odudu/protocol-admin) is the subject/user/default-roles
+// half shared with administrative subject creation — this adds only the
+// password credential self-registration owns and the admin door does not.
 async function createAccount(
   tx: TenantScopedDatabase,
   tenantId: string,
   input: NewAccountInput,
 ): Promise<CreateAccountResult> {
-  const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
-  await userRepository(tx).create({
-    subjectId: subject.id,
+  const { subjectId } = await composeUserSubject(tx, {
     tenantId,
     username: input.username,
     email: input.email,
   });
   await credentialRepository(tx).insert({
     tenantId,
-    subjectId: subject.id,
+    subjectId,
     type: 'password',
     secret: { kind: 'password', hash: await hashPassword(input.password) },
   });
-  const defaults = await roleRepository(tx).defaultsForTenant();
-  for (const role of defaults) {
-    await roleRepository(tx).assignToSubject(subject.id, role.id);
-  }
-  return { subjectId: subject.id };
+  return { subjectId };
 }
 
 export function buildApp(deps: AppDeps): FastifyInstance {
@@ -195,6 +198,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     allowPrivate: deps.allowPrivateClientUrls ?? false,
   });
 
+  // One instance for the process, shared by `oidcRoutes` (issuance and
+  // discovery) and `adminRoutes` (`GET /scopes/:id/mappers`'s available
+  // names) — so the two can never disagree about which mappers exist.
+  const claimMappers = standardClaimMappers();
+
   // At onRequest, so a refusal costs neither the body parse nor anything
   // that touches the database. It is also what keeps the refusal from
   // being an oracle: nothing here has looked an account up, so a throttled
@@ -217,12 +225,25 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   registerHealth(app, deps);
   app.register(
+    adminRoutes({
+      database: deps.database,
+      ownerDatabase: deps.ownerDatabase,
+      logger: deps.logger,
+      cursorKey: deps.kek,
+      kek: deps.kek,
+      trustProxy: deps.trustProxy ?? false,
+      claimMappers,
+      allowPrivateSmtpHosts: deps.allowPrivateSmtpHosts ?? false,
+    }),
+  );
+  app.register(
     oidcRoutes({
       database: deps.database,
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
       clientSecretLimiter,
       clientKeySet: privateKeyJwtKeySet,
+      claimMappers,
       ...(deps.publicBaseUrl === undefined ? {} : { publicBaseUrl: deps.publicBaseUrl }),
       trustProxy: deps.trustProxy ?? false,
       ...(deps.tlsClientCertHeader === undefined

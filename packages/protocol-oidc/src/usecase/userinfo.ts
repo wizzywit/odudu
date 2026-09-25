@@ -9,7 +9,12 @@ import {
 } from '@odudu/crypto';
 import { type ClaimMapperRegistry } from '@odudu/kernel';
 import { presentedBearerToken } from '#/service/bearer-token';
-import { type ClaimContext, narrowToRequestedClaims } from '#/service/claims';
+import {
+  type ClaimContext,
+  type LoadedClaimContext,
+  narrowToRequestedClaims,
+} from '#/service/claims';
+import { clientIsLive, type LiveClientLookup } from '#/service/client-enabled';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { type TenantLookup } from '#/repository/tenant-lookup';
@@ -21,7 +26,7 @@ export interface UserinfoGrant {
 export interface UserinfoDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
   listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
-  loadClaimContext(tenantId: string, subjectId: string): Promise<ClaimContext>;
+  loadClaimContext(tenantId: string, subjectId: string): Promise<LoadedClaimContext>;
   claimMappers: ClaimMapperRegistry<ClaimContext>;
   // The same two reads `/introspect` makes (usecase/introspection.ts) —
   // a grant this server revoked, or a session that has since ended, makes
@@ -35,6 +40,10 @@ export interface UserinfoDeps {
     lifespans: SessionLifespans,
     now: Date,
   ): Promise<boolean>;
+  // The third read `/introspect` and token exchange both make: a disabled
+  // client's tokens read no differently than a dead grant or a dead
+  // session, past this check.
+  liveClientLookup: LiveClientLookup;
   // The role set a granted scope reaches, and whether the token's client
   // bypasses that intersection — the same gate token issuance applies, so
   // a role withheld from a token cannot resurface here.
@@ -51,9 +60,13 @@ export interface UserinfoDeps {
   // all, or has none by the time this runs (unknown or disabled client) —
   // both read as "answer in JSON," the response format's default.
   userinfoSignedResponseAlg(tenantId: string, oauthClientId: string): Promise<string | null>;
-  // The tenant's active signing key — the same one `/token` signs an access
-  // token or ID Token with, and the only one this server can sign with.
-  activeSigningKey(tenantId: string): Promise<SigningKeyRecord>;
+  // `forAlg` (@odudu/crypto), not the tenant's active key: a client may be
+  // registered against an algorithm a *staged* key produces, ahead of that
+  // key's own promotion.
+  signingKeyForAlg(tenantId: string, alg: 'RS256' | 'ES256'): Promise<SigningKeyRecord | null>;
+  // Diagnostic only, read on the mismatch path below to say what a tenant's
+  // keys could produce instead.
+  algorithmsAvailable(tenantId: string): Promise<readonly string[]>;
   // `'none'` and `'unavailable'` are deliberately not the same value: a
   // client that never registered `userinfo_encrypted_response_alg` reads
   // `'none'` — answer plainly, same as `userinfoSignedResponseAlg`'s
@@ -109,14 +122,14 @@ export type UserinfoOutcome =
   // token verifies — it names the client CORS checks the response's origin
   // against; every earlier outcome never got that far.
   | { kind: 'insufficient_scope'; clientId: string | undefined }
-  // A client registered `userinfo_signed_response_alg` for an algorithm
-  // this tenant's active key no longer carries — see `view/routes/userinfo.ts`
+  // A client registered `userinfo_signed_response_alg` for an algorithm no
+  // non-retired key of this tenant produces — see `view/routes/userinfo.ts`
   // for how this is answered and logged.
   | {
       kind: 'signing_unavailable';
       clientId: string | undefined;
       registeredAlg: string;
-      activeAlg: string;
+      availableAlgs: readonly string[];
     }
   // A client registered `userinfo_encrypted_response_alg` and this response
   // could not be encrypted for it — an unreachable jwks_uri, or a JWKS that
@@ -193,6 +206,16 @@ export async function resolveUserinfo(
   const grant = await deps.loadGrant(tenant.id, grantId);
   if (grant?.revokedAt !== null) return { kind: 'invalid_token', clientId };
 
+  // A disabled client's tokens are read as un-owned, never partially
+  // valid — the same failure mode as a revoked grant, checked the same
+  // way `/introspect` and token exchange check it.
+  if (
+    clientId === undefined ||
+    !clientIsLive(await deps.liveClientLookup.findLiveClient(tenant.id, clientId))
+  ) {
+    return { kind: 'invalid_token', clientId };
+  }
+
   // Session liveness is what makes revocation real inside an access
   // token's hour (design spec §8.2) — the same check `/introspect` and
   // refresh rotation make. An `offline_access` grant carries no session
@@ -211,17 +234,18 @@ export async function resolveUserinfo(
   }
 
   const ctx = await deps.loadClaimContext(tenant.id, payload.sub);
-  // A token with no readable client_id reaches no role: the gate fails
-  // closed rather than falling back to the subject's full role set.
-  const { reachableRoleIds, fullScopeAllowed } =
-    clientId === undefined
-      ? { reachableRoleIds: new Set<string>(), fullScopeAllowed: false }
-      : await deps.resolveRoleReach(tenant.id, clientId, scope);
+  // `clientId` is defined from here on: the live-client check above
+  // already returned for a token with no readable client_id.
+  const { reachableRoleIds, fullScopeAllowed } = await deps.resolveRoleReach(
+    tenant.id,
+    clientId,
+    scope,
+  );
   const narrowedCtx: ClaimContext = {
-    ...ctx,
-    roles: narrowByScopeMappings(ctx.roles, reachableRoleIds, fullScopeAllowed),
+    ...ctx.context,
+    roles: narrowByScopeMappings(ctx.context.roles, reachableRoleIds, fullScopeAllowed),
   };
-  const assembled = await deps.claimMappers.assemble(scope, narrowedCtx);
+  const assembled = await deps.claimMappers.assemble(scope, narrowedCtx, ctx.bindings);
   // `sub` is kept regardless of what was requested — OIDC Core §5.3.2's own
   // response, not a claim `narrowToRequestedClaims` was ever meant to cut.
   const requested = requestedClaimsOf(payload.requested_userinfo_claims);
@@ -235,7 +259,7 @@ export async function resolveUserinfo(
       kind: 'signing_unavailable',
       clientId,
       registeredAlg: signed.registeredAlg,
-      activeAlg: signed.activeAlg,
+      availableAlgs: signed.availableAlgs,
     };
   }
 
@@ -248,7 +272,7 @@ export async function resolveUserinfo(
 
 type SignedBodyResult =
   | { kind: 'body'; body: UserinfoBody }
-  | { kind: 'mismatch'; registeredAlg: string; activeAlg: string };
+  | { kind: 'mismatch'; registeredAlg: string; availableAlgs: readonly string[] };
 
 // OIDC Core §5.3.2; see "A signed UserInfo response" in
 // docs/protocols/oidc-core.md before changing this.
@@ -269,8 +293,27 @@ async function signedBody(
     return { kind: 'body', body: { kind: 'jwt', token: encodeUnsecuredJwt(signedClaims) } };
   }
 
-  const key = await deps.activeSigningKey(tenantId);
-  if (key.alg !== alg) return { kind: 'mismatch', registeredAlg: alg, activeAlg: key.alg };
+  // `parseClientMetadata` (service/client-metadata.ts) never stores
+  // anything but 'RS256', 'ES256' or 'none' here, and 'none' is handled
+  // above — this is unreachable through the registration door, only
+  // through a row written directly (userinfo-signed.int.test.ts's own
+  // mismatch fixture).
+  if (alg !== 'RS256' && alg !== 'ES256') {
+    return {
+      kind: 'mismatch',
+      registeredAlg: alg,
+      availableAlgs: await deps.algorithmsAvailable(tenantId),
+    };
+  }
+
+  const key = await deps.signingKeyForAlg(tenantId, alg);
+  if (key === null) {
+    return {
+      kind: 'mismatch',
+      registeredAlg: alg,
+      availableAlgs: await deps.algorithmsAvailable(tenantId),
+    };
+  }
   const token = await signJwt(signedClaims, { key, kek: deps.kek, typ: USERINFO_JWT_TYP });
   return { kind: 'body', body: { kind: 'jwt', token } };
 }

@@ -42,8 +42,8 @@ services:
       ODUDU_LOG_LEVEL: info
       ODUDU_KEK: ${ODUDU_KEK:?see infra/docker/.env.example}
       # No ODUDU_SMTP_HOST: this stack has no mail server, and @odudu/email
-      # selects its capturing adapter — which logs each message rather than
-      # delivering it — whenever one is unconfigured.
+      # selects its log-only adapter — which writes each message out rather
+      # than delivering or keeping it — whenever one is unconfigured.
       # Where a mailed verification link points, and the host every passkey
       # is registered against. Never derived from a request's Host header
       # (packages/account/src/view/routes/registration.ts) — published on
@@ -73,6 +73,9 @@ services:
       # backchannel_logout_uri resolve to a private address, which this
       # stack's own containers are to each other and to the host.
       ODUDU_ALLOW_PRIVATE_CLIENT_URLS: ${ODUDU_ALLOW_PRIVATE_CLIENT_URLS:-false}
+      # The same hatch for a tenant's own SMTP host, which in this stack
+      # would be another container on a private address.
+      ODUDU_ALLOW_PRIVATE_SMTP_HOSTS: ${ODUDU_ALLOW_PRIVATE_SMTP_HOSTS:-false}
     depends_on:
       postgres:
         condition: service_healthy
