@@ -1110,16 +1110,32 @@ writes exactly one row here, in the same transaction as the change itself —
 a client's `POST`, `PATCH`, `DELETE` and secret rotation; a tenant's
 `POST` and its own `PATCH /settings`; and the equivalent for subjects,
 roles, groups, scopes, scope mappers, sessions, signing keys, the flow and
-SMTP configuration. A row records the outcome even when the mutation was
-refused, not only when it succeeded — `outcome` is `allowed`, `refused` or
-`failed` — and `detail` is a redacted before/after diff: a secret, a
-password hash or a private key never appears in it, whichever of the two
-it would have been.
+SMTP configuration. `detail` is a redacted before/after diff, allowlisted
+per resource type: a secret, a password hash or a private key never
+appears in it, whichever of the two it would have been, and a field on
+neither list is absent rather than shown.
+
+`outcome` is `allowed`, `refused` or `failed`, but **only `POST /clients`
+records a refused attempt today** — a reserved `client_id`, metadata
+`parseClientMetadata` rejects, or a tenant at its client capacity each
+write a row with `outcome: "refused"` and no other change. Every other
+mutation above writes a row only when it succeeds; `?outcome=refused`
+against any other resource type returns nothing yet, not because nothing
+was refused.
 
 `tenant_id` on a row is the tenant the change was made **to**, not the
-tenant of whoever made it — a system admin's change to this tenant is a row
-this tenant's own administrators can read, exactly because it is keyed this
-way.
+tenant of whoever made it. `actor_tenant_id` and `actor_client_id` name the
+caller instead — the tenant that issued the caller's own token and the
+admin client it authenticated as — so a system admin's change to this
+tenant is a row this tenant's own administrators can read, and can see was
+made by someone outside it.
+
+One row is written with no mutation at all: a bearer token whose issuer
+names neither this tenant nor the system tenant is refused with `401`
+before its signature is even checked (the cross-tenant boundary this API's
+whole authentication step exists to enforce), and that refusal writes an
+`admin.cross_tenant_refused` row against **this** tenant naming no actor —
+nothing about the caller is known yet at that point.
 
 Paginated the same way every other list here is, over
 `(occurred_at, id)` descending rather than ascending `id`: newest first.
@@ -1149,12 +1165,12 @@ The response shape, not a captured run:
       "outcome": "allowed",
       "actor_tenant_id": "0199aa00-0000-7000-8000-000000000001",
       "actor_subject_id": "0199aa00-0000-7000-8000-0000000000aa",
-      "actor_client_id": null,
+      "actor_client_id": "0199aa00-0000-7000-8000-0000000000cc",
       "resource_type": "client",
       "resource_id": "0199aa00-0000-7000-8000-0000000000bb",
       "request_id": null,
       "ip": null,
-      "detail": { "name": { "before": null, "after": "billing-app" } }
+      "detail": { "name": { "after": "billing-app" } }
     }
   ],
   "next": "eyJhZnRlciI6IjIwMjYtMDktMjRUMTE6NTk6MDAuMDAwWnwwMTk5YWEwMC0uLi4iLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6Ii4uLiJ9.…"

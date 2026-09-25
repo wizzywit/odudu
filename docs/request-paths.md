@@ -4687,6 +4687,16 @@ and a replayed spent one are refused identically — so
 `ODUDU_RETENTION_ACTION_TOKEN_SECONDS`) is a courtesy window for an operator
 to read, not a bound ADR 0021's detection-window argument requires.
 
+`audit_events` reports `0` in every count below, in both passes. That is
+not this section's own capture — it was re-verified on a separate, minimal
+stack (seed a tenant, run `odudu reap`, confirm `audit_events` is `0` and
+last in `REAP_ORDER`'s order) rather than by re-walking the whole of
+[Path A](#path-a-authorization-code-with-pkce) — but it holds by
+construction regardless: nothing in this walkthrough calls the admin API,
+which is the only thing that writes to `audit_events`, so its own retention
+rule (`audit_retention_days`, unrelated to any window above) has nothing to
+delete either way.
+
 What makes a row deletable is the **grant family** being past retention,
 which is seven days for a session-bound family and thirty for an offline
 one. Backdating the stack by forty days is the fastest way to see a pass
