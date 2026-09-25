@@ -1,6 +1,7 @@
 import { type Role } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository, roles } from '@odudu/domain-authz';
+import { clients } from '@odudu/domain-tenant';
 import { OduduError } from '@odudu/kernel';
 import { asc, eq, gt, inArray } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
@@ -244,13 +245,43 @@ export interface DeleteRoleDeps {
   readonly audit: Audit;
 }
 
-export type DeleteRoleOutcome = { kind: 'not_found' } | { kind: 'deleted' };
+export type DeleteRoleOutcome =
+  { kind: 'not_found' } | { kind: 'builtin_admin_guarded'; reason: string } | { kind: 'deleted' };
+
+// `subject_roles_role_fk` cascades, so deleting a capability role strips it
+// from every administrator holding it — `tenant-admin` deleted by a caller
+// who only holds `manage-tenant` locks the tenant out of its own admin API,
+// and `manage-tenant` can delete itself. `amendClient` (#/usecase/clients.ts)
+// guards the client for the same reason; this is the same door on the roles
+// that client owns. Reads `builtinAdmin`, never the `client_id` string, so a
+// rename in the database cannot slip past it.
+async function guardsAdministrators(
+  tx: TenantScopedDatabase,
+  role: { clientId: string | null; name: string },
+): Promise<string | null> {
+  if (role.clientId === null) return null;
+  const rows = await tx
+    .select({ clientId: clients.clientId, builtinAdmin: clients.builtinAdmin })
+    .from(clients)
+    .where(eq(clients.id, role.clientId));
+  const owner = rows[0];
+  if (owner?.builtinAdmin !== true) return null;
+  return (
+    `${role.name} is a capability of ${owner.clientId}, this tenant's built-in ` +
+    'admin client, and deleting it would strip it from every administrator holding it'
+  );
+}
 
 export async function deleteRole(
   tx: TenantScopedDatabase,
   deps: DeleteRoleDeps,
   input: DeleteRoleInput,
 ): Promise<DeleteRoleOutcome> {
+  const role = await roleRepository(tx).byId(input.roleId);
+  if (role === null) return { kind: 'not_found' };
+  const guarded = await guardsAdministrators(tx, role);
+  if (guarded !== null) return { kind: 'builtin_admin_guarded', reason: guarded };
+
   const deleted = await roleRepository(tx).delete(input.roleId);
   if (!deleted) return { kind: 'not_found' };
 

@@ -332,7 +332,7 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
           problem(404, 'about:blank', 'Not Found', `no client ${clientId}`),
         );
       case 'ok':
-        return reply.code(200).send(outcome.client);
+        return reply.code(200).send(outcome.assignments);
     }
   };
 }

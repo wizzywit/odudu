@@ -47,7 +47,25 @@ export type SetScopeRolesResponse = z.infer<typeof setScopeRolesResponseSchema>;
 
 export const clientScopeAssignmentSchema = z.enum(['default', 'optional']);
 
+/** One scope as a client carries it — shared by the client shape and the assignment answer. */
+export const clientScopeAssignmentViewSchema = z.object({
+  id: idSchema,
+  name: z.string(),
+  assignment: clientScopeAssignmentSchema,
+});
+
 export const assignScopeToClientRequestSchema = z.object({
   assignment: clientScopeAssignmentSchema,
 });
 export type AssignScopeToClientRequest = z.infer<typeof assignScopeToClientRequestSchema>;
+
+// The client's scope assignments alone, not the client. `manage-tenant` is
+// the right capability for arranging scopes, and it is deliberately weaker
+// than the `manage-clients` that `GET /clients/:id` requires — answering
+// with the whole client here would hand the weaker holder `redirect_uris`,
+// `jwks`, `audiences` and every grant setting through a side door.
+export const assignScopeToClientResponseSchema = z.object({
+  client_id: idSchema,
+  scopes: z.array(clientScopeAssignmentViewSchema),
+});
+export type AssignScopeToClientResponse = z.infer<typeof assignScopeToClientResponseSchema>;

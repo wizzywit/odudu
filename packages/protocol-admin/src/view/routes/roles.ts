@@ -224,6 +224,8 @@ export function deleteRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
     switch (outcome.kind) {
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'builtin_admin_guarded':
+        return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
       case 'deleted':
         return reply.code(204).send();
     }

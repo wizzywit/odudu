@@ -293,6 +293,34 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/clients/{clientId}', () => {
     expect(matching[0]?.assignment).toBe('optional');
   });
 
+  // The route asks only for manage-tenant; GET /clients/:id asks for
+  // manage-clients. Answering with the client's own representation here
+  // would hand the weaker holder everything the stricter route guards.
+  it('answers with the scope assignments alone, never the client configuration', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const { id } = (await createScopeHttp(token, t.name, { name: `s-${newId()}` })).json<{
+      id: string;
+    }>();
+    const client = await fixture.createConfidentialClient(t.name, {
+      redirectUris: ['https://rp.example/cb'],
+    });
+
+    const res = await fixture.http.inject({
+      method: 'PUT',
+      url: `/admin/tenants/${t.name}/scopes/${id}/clients/${client.id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { assignment: 'default' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(Object.keys(res.json<Record<string, unknown>>()).sort()).toEqual([
+      'client_id',
+      'scopes',
+    ]);
+    expect(res.payload).not.toContain('rp.example');
+  });
+
   it('404s a scope id no scope holds', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);

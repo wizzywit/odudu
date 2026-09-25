@@ -36,7 +36,6 @@ export {
   registrationOriginSchema,
   clientSchema,
   type Client,
-  clientScopeAssignmentViewSchema,
   createClientResponseSchema,
   type CreateClientResponse,
   createClientRequestSchema,
@@ -128,8 +127,11 @@ export {
   setScopeRolesResponseSchema,
   type SetScopeRolesResponse,
   clientScopeAssignmentSchema,
+  clientScopeAssignmentViewSchema,
   assignScopeToClientRequestSchema,
   type AssignScopeToClientRequest,
+  assignScopeToClientResponseSchema,
+  type AssignScopeToClientResponse,
 } from '#/admin/scopes';
 export {
   scopeMappersSchema,

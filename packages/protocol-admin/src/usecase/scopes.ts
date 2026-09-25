@@ -1,7 +1,8 @@
-import { type Client, type ClientScope } from '@odudu/contracts/admin';
+import { type AssignScopeToClientResponse, type ClientScope } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository, roles } from '@odudu/domain-authz';
 import {
+  clientScopeAssignments,
   clientScopeRepository,
   clientScopes,
   clients,
@@ -12,7 +13,6 @@ import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceili
 import { decodeCursor, encodeCursor } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
-import { clientWireShape, readClient } from '#/usecase/clients';
 import { type RoleAssignment } from '#/usecase/subjects';
 
 const COLLECTION = 'scopes';
@@ -442,7 +442,9 @@ export interface AssignScopeToClientDeps {
 }
 
 export type AssignScopeToClientOutcome =
-  { kind: 'scope_not_found' } | { kind: 'client_not_found' } | { kind: 'ok'; client: Client };
+  | { kind: 'scope_not_found' }
+  | { kind: 'client_not_found' }
+  | { kind: 'ok'; assignments: AssignScopeToClientResponse };
 
 /**
  * Assigns or re-assigns a scope's `default`/`optional` split on a client —
@@ -476,11 +478,29 @@ export async function assignScopeToClient(
     outcome: 'allowed',
   });
 
-  const outcome = await readClient(tx, input.clientId);
-  if (outcome.kind !== 'ok') {
-    throw new Error(
-      `client ${input.clientId} not found immediately after its own scope assignment`,
-    );
-  }
-  return { kind: 'ok', client: clientWireShape(outcome.client) };
+  // The client's scope assignments, never the client: this route asks only
+  // for `manage-tenant`, where reading a client asks for `manage-clients`,
+  // so answering with the whole representation would hand the weaker
+  // holder `redirect_uris`, `jwks`, `audiences` and every grant setting.
+  const rows = await tx
+    .select({
+      id: clientScopes.id,
+      name: clientScopes.name,
+      assignment: clientScopeAssignments.assignment,
+    })
+    .from(clientScopeAssignments)
+    .innerJoin(clientScopes, eq(clientScopeAssignments.clientScopeId, clientScopes.id))
+    .where(eq(clientScopeAssignments.clientId, input.clientId));
+
+  return {
+    kind: 'ok',
+    assignments: {
+      client_id: input.clientId,
+      scopes: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        assignment: row.assignment,
+      })),
+    },
+  };
 }

@@ -1014,6 +1014,16 @@ a client-scoped one — answers `409`. `DELETE` cascades: every
 `role_composites` edge, `subject_roles` assignment and `client_scope_roles`
 mapping naming the role goes with it.
 
+That cascade is why **a role belonging to the tenant's built-in admin
+client cannot be deleted at all** — `409`, naming the role and the client.
+The capability roles live on that client, and `subject_roles_role_fk` would
+strip a deleted one from every administrator holding it: a caller with
+`manage-tenant` and nothing else could delete `tenant-admin`, or
+`manage-tenant` itself, and lock the tenant out of its own admin API. It is
+the same guard `PATCH /clients/{id}` puts on that client's own lockout
+fields, on the roles the client owns. The check reads the `builtin_admin`
+column, so renaming the client in the database does not evade it.
+
 ```bash
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -1136,24 +1146,31 @@ Requires `manage-tenant`. Assigns the scope to the client as `default` or
 colliding with it (`clientScopeRepository.assignOrUpdate`,
 `packages/domain-tenant/src/repository/client-scopes.ts`) — the same
 behaviour the seed CLI's own assign-scope command depends on. Answers with
-the client's own representation, `scopes` included, so the assignment is
-visible immediately without a second `GET /clients/:id`. An unknown scope
+the client's scope assignments — `client_id` and `scopes` — so the result
+is visible immediately without a second `GET /clients/:id`, and **nothing
+else**: this route asks for `manage-tenant`, where reading a client asks
+for the stricter `manage-clients`, so answering with the client's own
+representation would hand the weaker holder `redirect_uris`, `jwks`,
+`audiences` and every grant setting through a side door. An unknown scope
 or client id answers `404`.
+
+Re-captured against the same later stack the SMTP section names, so the
+ids below are that run's rather than the ones the sections above show.
 
 ```bash
 curl -sS -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"assignment": "default"}' \
-  http://localhost:3000/admin/tenants/demo/scopes/01a0d708-2ef8-7963-8d7a-3df5dff7cdf6/clients/01a0d6fd-ee42-78c0-ab32-9077b0fc3804
+  http://localhost:3000/admin/tenants/demo/scopes/01a0d767-b5e6-74f8-89a0-f3afa7e2f6c0/clients/01a0d767-a054-7a00-b96d-eea9492c4e4d
 ```
 
-The whole client comes back, with `billing` appended to the eight scopes
-`demo-app` already carried — `scopes` is the field `GET /clients/:id` also
-carries:
+The assignments come back, with `billing` appended to the eight scopes
+`demo-app` already carried — the same `scopes` shape `GET /clients/:id`
+carries, and nothing besides:
 
 ```
-{"id":"01a0d6fd-ee42-78c0-ab32-9077b0fc3804","client_id":"demo-app","name":"demo-app","type":"public","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-25T05:16:00.960Z","redirect_uris":["http://localhost:3000/cb"],"grant_types":["authorization_code","refresh_token"],"token_endpoint_auth_method":"none","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0d6fc-3628-7829-8b29-5697c271d92e","name":"openid","assignment":"default"},{"id":"01a0d6fc-3629-7e64-a89c-2804355f56cf","name":"profile","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0ed3f11a86","name":"email","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0f8bb7530a","name":"address","assignment":"default"},{"id":"01a0d6fc-362b-7e0c-8a4d-4d3d27f20576","name":"phone","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af72e19f1886","name":"roles","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af737fd4358b","name":"groups","assignment":"default"},{"id":"01a0d6fc-362d-7533-bab9-7ea5ea57ba8d","name":"offline_access","assignment":"optional"},{"id":"01a0d708-2ef8-7963-8d7a-3df5dff7cdf6","name":"billing","assignment":"default"}]}
+{"client_id":"01a0d767-a054-7a00-b96d-eea9492c4e4d","scopes":[{"id":"01a0d764-e837-75cb-b5eb-bf56c1193e85","name":"openid","assignment":"default"},{"id":"01a0d764-e83b-7c1c-84cc-624bbbe5947d","name":"profile","assignment":"default"},{"id":"01a0d764-e83c-76ee-976a-14b79a5f8c8b","name":"email","assignment":"default"},{"id":"01a0d764-e83d-74c0-a341-bfc8dc17ece7","name":"address","assignment":"default"},{"id":"01a0d764-e83d-74c0-a341-bfc97cd8d0bd","name":"phone","assignment":"default"},{"id":"01a0d764-e83e-778c-8fe8-0b8122e3d178","name":"roles","assignment":"default"},{"id":"01a0d764-e83f-7e65-bb51-c62daaadd27d","name":"groups","assignment":"default"},{"id":"01a0d764-e83f-7e65-bb51-c62e4d176cc8","name":"offline_access","assignment":"optional"},{"id":"01a0d767-b5e6-74f8-89a0-f3afa7e2f6c0","name":"billing","assignment":"default"}]}
 ```
 
 ## `GET /scopes/:id/mappers` and `PUT /scopes/:id/mappers`

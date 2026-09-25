@@ -1,5 +1,5 @@
 import { withTenant, type TenantScopedDatabase } from '@odudu/db';
-import { roleComposites, roleRepository } from '@odudu/domain-authz';
+import { roleComposites, roleRepository, subjectRoles } from '@odudu/domain-authz';
 import {
   ADMIN_CLIENT_ID,
   clientRepository,
@@ -238,6 +238,69 @@ describe('DELETE /admin/tenants/{t}/roles/{id}', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  // subject_roles_role_fk cascades, so deleting one of these would strip it
+  // from every administrator holding it — including from the caller, and
+  // including tenant-admin itself, which manage-tenant alone must not be
+  // able to reach.
+  it('refuses to delete tenant-admin, and leaves every holder with it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const id = await capabilityRoleId(t.id, TENANT_ADMIN);
+    // Minting the token is what puts a holder on the role, so the cascade
+    // this refusal prevents has something to have stripped.
+    await fixture.adminToken(t.name, [TENANT_ADMIN]);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/roles/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toMatch(/built-in/u);
+
+    const holders = await withTenant(fixture.app.db, t.id, (tx) =>
+      tx.select().from(subjectRoles).where(eq(subjectRoles.roleId, id)),
+    );
+    expect(holders.length).toBeGreaterThan(0);
+  });
+
+  it('refuses to delete manage-tenant, the capability the caller is using', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const id = await capabilityRoleId(t.id, 'manage-tenant');
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/roles/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(409);
+  });
+
+  it('still deletes a role an ordinary client owns', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {});
+    const id = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const role = await roleRepository(tx).create({
+        tenantId: t.id,
+        name: `client-role-${newId()}`,
+        clientId: client.id,
+      });
+      return role.id;
+    });
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/roles/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(204);
   });
 });
 
