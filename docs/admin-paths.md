@@ -354,9 +354,11 @@ A name this map does not know is refused with `400`, naming the settings it
 does — which is also the one place the whole vocabulary is listed by the
 server itself:
 
-````
+```
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown tenant setting \"nonesuch\"; expected one of display_name, enabled, registration_allowed, verify_email, reset_password_allowed, sso_session_idle_seconds, sso_session_max_seconds, password_min_length, password_require_digit, password_require_uppercase, password_require_lowercase, password_require_special, password_not_username, password_not_email, password_history_depth, password_max_age_days, otp_required, brute_force_max_failures, brute_force_lockout_seconds, brute_force_max_lockout_seconds, brute_force_failure_reset_seconds, client_registration_policy, max_clients, max_sessions_per_browser, remember_me_allowed, remember_me_idle_seconds, remember_me_max_seconds, audit_retention_days","instance":"01a0d6fc-3690-7dd6-b489-cd6055a38719"}
-``` A value the map itself coerces but the database's `CHECK` still
+```
+
+A value the map itself coerces but the database's `CHECK` still
 refuses — `password_min_length` outside `8..256`, for instance — is also
 `400`, naming the setting rather than the constraint that fired: the
 database stays the one authority for the range, and the caller still learns
@@ -415,7 +417,7 @@ curl -sS -D - -X POST \
   -H "Content-Type: application/json" \
   -d '{"client_id": "demo-backend", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_basic"}' \
   http://localhost:3000/admin/tenants/demo/clients
-````
+```
 
 `201`, the whole client, the tenant's default scope assignments, and the
 one-time secret. The `scopes` ids are `demo`'s own, created with the tenant
@@ -471,7 +473,8 @@ difference is the secret, present there and absent here.
 
 ## `PATCH /clients/{id}`
 
-Amends the fields a general-purpose amendment can safely touch — every
+Requires `manage-clients`, as every client route does. Amends the fields a
+general-purpose amendment can safely touch — every
 column of `clients` and `client_oidc_config` except identity (`id`,
 `client_id`, `tenant_id`), history (`created_at`), provenance
 (`registration_origin`), the security-model switch (`type`), the secret
@@ -628,7 +631,8 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ## `DELETE /clients/{id}`
 
-Deletes the client and its OIDC configuration in one statement — the
+Requires `manage-clients`. Deletes the client and its OIDC configuration in
+one statement — the
 foreign key from `client_oidc_config` to `clients` cascades, so nothing
 here deletes the config row a second time. `204` with no body on success,
 `404` for an id that does not exist, and the same `409` built-in-admin
@@ -655,7 +659,7 @@ x-request-id: 01a0d708-7b86-7dfe-9913-5ea326976017
 
 ## `POST /clients/{id}/secret`
 
-Rotates a confidential client's secret: generates a fresh one, stores only
+Requires `manage-clients`. Rotates a confidential client's secret: generates a fresh one, stores only
 its hash, and returns the plaintext **exactly once, in this response** —
 the same guarantee `POST /clients` makes for a client's first secret.
 Nothing reads it back afterward, and the previous secret stops

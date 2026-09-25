@@ -513,7 +513,7 @@ Token per client that registered a `backchannel_logout_uri`, and the
 [the logout section of
 docs/request-paths.md](docs/request-paths.md#rp-initiated-logout) for the
 walkthrough, and [its front-channel logout
-section](docs/request-paths.md#front-channel-logout) for a real transcript
+section](docs/request-paths.md#front-channel-and-back-channel-logout) for a real transcript
 of the framed page.
 
 > ### → [docs/request-paths.md](docs/request-paths.md)

@@ -8381,6 +8381,35 @@ session lifecycle. A citation of either half here means that half.
   which gives that branch the page it does not have today, and P4b is the
   phase whose criterion covers every page the server renders.
 
+**The admin API**
+
+- **The audit log records administrative mutations and nothing else.**
+  Every row `GET /admin/tenants/{tenant}/audit` returns carries
+  `event_type: "admin_mutation"`, so a login, a second factor answered, a
+  token minted or refreshed or revoked, and a session ending leave no trace
+  there — the log answers "who changed this tenant's configuration", not
+  "what happened in this tenant". The table was built for both: `event_type`
+  exists, `actor_subject_id` is nullable because an authentication event has
+  a subject it happened to rather than an administrator who did it, and the
+  retention window is already the tenant's own `audit_retention_days`.
+  **P4e**, whose criterion names the events and the `event_type` filter the
+  listing will need.
+- **Only `POST /clients` records a refused attempt.** `outcome` has three
+  values and every other mutation writes a row only when it succeeds, so
+  `?outcome=refused` against any other `resource_type` returns nothing —
+  which reads as "nothing was refused" and is not. **P4e**: what a refused
+  request writes is one question, and that phase is where it is asked for
+  authentication, which is the larger half of it.
+- **A request refused for a cross-tenant issuer mismatch writes no row.** A
+  bearer token naming an issuer that is neither this tenant nor the system
+  tenant is refused before its signature can be checked, since an
+  unrecognised issuer names no keys to check it against; auditing at that
+  point would let an unauthenticated caller append a row per request, which
+  is a worse defect than the missing one. Recording it safely means
+  resolving the named issuer to a tenant in this deployment and verifying
+  against that tenant's keys first. **P4e**, whose criterion names it, and
+  `docs/NEXT.md` carries the same entry with its trigger.
+
 **Endpoints that do not exist at all**
 
 - **`seed client` sets a fraction of what a client carries, and only at
