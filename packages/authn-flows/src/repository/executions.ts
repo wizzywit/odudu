@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import {
@@ -56,15 +56,21 @@ export function executionRepository(tx: TenantScopedDatabase) {
       });
     },
 
-    // Deletes and re-inserts in the caller's own transaction (withTenant's),
-    // never partially: a flow's meaning is in its order, so there is no
-    // partial edit to offer. Existing rows are locked first — the delete
-    // that follows would otherwise be a read-then-write with nothing
-    // serialising it against a concurrent replaceForTenant.
+    // Deletes and re-inserts in the caller's own transaction, never
+    // partially: a flow's meaning is in its order.
+    //
+    // The advisory lock, not the row lock, is what serialises two
+    // concurrent replacements: a tenant whose flow is empty has no rows to
+    // lock, so both would reach the insert and
+    // `authentication_executions_order` would fail one.
     async replaceForTenant(
       tenantId: string,
       steps: readonly ExecutionInput[],
     ): Promise<AuthenticationExecutionRecord[]> {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext('authentication_executions'), hashtext(${tenantId}))`,
+      );
+
       await tx
         .select({ id: authenticationExecutions.id })
         .from(authenticationExecutions)

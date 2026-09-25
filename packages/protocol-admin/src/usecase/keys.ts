@@ -207,10 +207,30 @@ export type RetireKeyOutcome =
   | { kind: 'algorithm_needed'; alg: string; clientIds: readonly string[] }
   | { kind: 'ok'; key: SigningKey };
 
+// Every non-retired key of the target's algorithm, not just the target:
+// locking one row alone lets two concurrent retirements each read the other
+// key as a survivor and both commit, leaving the tenant with no key
+// producing an algorithm a client needs. The set is locked in `id` order —
+// the same order for both callers, which is what stops two requests holding
+// different target rows from deadlocking on each other.
 async function lockKeyForRetire(
   tx: TenantScopedDatabase,
   keyId: string,
 ): Promise<typeof signingKeys.$inferSelect | null> {
+  const targets = await tx
+    .select({ alg: signingKeys.alg })
+    .from(signingKeys)
+    .where(eq(signingKeys.id, keyId));
+  const alg = targets[0]?.alg;
+  if (alg === undefined) return null;
+
+  await tx
+    .select({ id: signingKeys.id })
+    .from(signingKeys)
+    .where(and(eq(signingKeys.alg, alg), ne(signingKeys.status, 'retired')))
+    .orderBy(asc(signingKeys.id))
+    .for('update');
+
   const rows = await tx.select().from(signingKeys).where(eq(signingKeys.id, keyId)).for('update');
   return rows[0] ?? null;
 }
