@@ -217,12 +217,10 @@ describe('audit', () => {
     expect(events[0]?.action).toBe('tenant.smtp_set');
   });
 
-  // putSmtp calls audit only after a successful upsert (see the source
-  // above), so a refusal that never reaches the usecase at all — the
-  // over-long password, refused at the route before any repository call —
-  // is proven to call it zero times by proving it changes nothing: the
-  // tenant is still unconfigured afterward.
-  it('reaches the reachable refusal and calls audit zero times, not just the success path', async () => {
+  // The over-long password is refused at the route, before putSmtp's own
+  // usecase — and its audit call — ever runs. This asserts only the visible
+  // consequence: the tenant is left exactly as unconfigured as before.
+  it('leaves the tenant unconfigured when the refusal never reaches the usecase', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);
 

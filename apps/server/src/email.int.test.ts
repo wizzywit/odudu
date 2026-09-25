@@ -11,7 +11,7 @@ import { tenantSmtpRepository } from '@odudu/protocol-admin';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { pino } from 'pino';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { resolveSender } from '#/email';
+import { buildEmailSender, resolveSender } from '#/email';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -71,8 +71,9 @@ describe('resolveSender', () => {
       ODUDU_SMTP_HOST: 'env.smtp.example',
       ODUDU_SMTP_FROM: 'noreply@env.example',
     });
+    const fallback = buildEmailSender(config, logger);
 
-    const sender = await resolveSender({ database: app.db, kek: KEK, config, logger }, tenantId);
+    const sender = await resolveSender({ database: app.db, kek: KEK, fallback }, tenantId);
 
     expect(sender.kind).toBe('smtp');
     expect(sender).toMatchObject({ host: 'tenant.smtp.example' });
@@ -85,8 +86,9 @@ describe('resolveSender', () => {
       ODUDU_SMTP_HOST: 'env.smtp.example',
       ODUDU_SMTP_FROM: 'noreply@env.example',
     });
+    const fallback = buildEmailSender(config, logger);
 
-    const sender = await resolveSender({ database: app.db, kek: KEK, config, logger }, tenantId);
+    const sender = await resolveSender({ database: app.db, kek: KEK, fallback }, tenantId);
 
     expect(sender.kind).toBe('smtp');
     expect(sender).toMatchObject({ host: 'env.smtp.example' });
@@ -95,9 +97,23 @@ describe('resolveSender', () => {
   it('falls back to capturing when neither the tenant nor the environment has a sender', async () => {
     const tenantId = await seedTenant();
     const config = loadConfig(baseConfig);
+    const fallback = buildEmailSender(config, logger);
 
-    const sender = await resolveSender({ database: app.db, kek: KEK, config, logger }, tenantId);
+    const sender = await resolveSender({ database: app.db, kek: KEK, fallback }, tenantId);
 
     expect(sender.kind).toBe('capturing');
+  });
+
+  it('decides the deployment fallback once at boot, not per resolution', async () => {
+    // buildEmailSender is the boot-time decision (CLAUDE.md's "Decide at
+    // boot what cannot change per tick"); resolveSender must use exactly
+    // the fallback instance it is handed rather than re-deriving one.
+    const tenantId = await seedTenant();
+    const config = loadConfig(baseConfig);
+    const fallback = buildEmailSender(config, logger);
+
+    const sender = await resolveSender({ database: app.db, kek: KEK, fallback }, tenantId);
+
+    expect(sender).toBe(fallback);
   });
 });

@@ -1,7 +1,7 @@
 import { createDatabase } from '@odudu/db';
 import { sendPending, type SendPendingOptions, type SendPendingOutcome } from '@odudu/email';
 import { loadConfig, OduduError, type Config } from '@odudu/kernel';
-import { resolveSender } from '#/email';
+import { buildEmailSender, resolveSender } from '#/email';
 import { createLogger } from '#/logger';
 
 export function outboxOptionsFromConfig(config: Config): SendPendingOptions {
@@ -33,6 +33,7 @@ export async function sendMailCommand(): Promise<SendPendingOutcome> {
   const logger = createLogger(config);
   const owner = createDatabase(config.ODUDU_DATABASE_URL);
   const runtime = createDatabase(appUrl);
+  const fallback = buildEmailSender(config, logger);
 
   try {
     return await sendPending(
@@ -40,7 +41,7 @@ export async function sendMailCommand(): Promise<SendPendingOutcome> {
         database: runtime,
         ownerDatabase: owner,
         resolveSender: (tenantId) =>
-          resolveSender({ database: runtime.db, kek: config.ODUDU_KEK, config, logger }, tenantId),
+          resolveSender({ database: runtime.db, kek: config.ODUDU_KEK, fallback }, tenantId),
         log: logger,
       },
       new Date(),

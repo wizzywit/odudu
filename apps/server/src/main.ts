@@ -14,7 +14,7 @@ import {
   assertProductionTls,
   warnIfTlsDisabled,
 } from '#/config-guard';
-import { resolveSender } from '#/email';
+import { buildEmailSender, resolveSender } from '#/email';
 import { createLogger } from '#/logger';
 import { createLogoutDeliveryTransport } from '#/logout-delivery-transport';
 import { databaseModule } from '#/modules/database';
@@ -110,6 +110,8 @@ const app = buildApp({
   allowPrivateClientUrls: config.ODUDU_ALLOW_PRIVATE_CLIENT_URLS,
 });
 
+const emailFallback = buildEmailSender(config, logger);
+
 const registry = new ModuleRegistry()
   .register(databaseModule(owner, runtime))
   .register(reapModule({ database: runtime, ownerDatabase: owner }))
@@ -118,7 +120,10 @@ const registry = new ModuleRegistry()
       database: runtime,
       ownerDatabase: owner,
       resolveSender: (tenantId) =>
-        resolveSender({ database: runtime.db, kek: config.ODUDU_KEK, config, logger }, tenantId),
+        resolveSender(
+          { database: runtime.db, kek: config.ODUDU_KEK, fallback: emailFallback },
+          tenantId,
+        ),
     }),
   )
   .register(
