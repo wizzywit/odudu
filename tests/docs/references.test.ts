@@ -1,21 +1,21 @@
 import { existsSync, globSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadDocument, REPO_ROOT, type Document } from './markdown.js';
+import { loadDocument, REPO_ROOT, scanFences, type Document } from './markdown.js';
 
 // How many of each kind of reference each document carried when these checks
 // were written — a floor, not a count to keep current. `docs/request-paths.md`
-// names no pnpm command and links only within itself; the checks still run
-// over it so that the first one added is covered.
+// names no pnpm command; the check still runs over it so that the first one
+// added is covered. Links are not here: every document is held to those,
+// below, because a link is navigation and is broken whenever it was written.
 interface Floors {
   readonly pnpm: number;
   readonly paths: number;
-  readonly links: number;
 }
 
 const DOCUMENTS: readonly (readonly [name: string, floors: Floors])[] = [
-  ['README.md', { pnpm: 4, paths: 6, links: 6 }],
-  ['docs/request-paths.md', { pnpm: 0, paths: 5, links: 0 }],
+  ['README.md', { pnpm: 4, paths: 6 }],
+  ['docs/request-paths.md', { pnpm: 0, paths: 5 }],
 ];
 
 function scriptsOf(packageJson: string): Set<string> {
@@ -49,17 +49,10 @@ interface Invocation {
 // Commands are read from fenced blocks and from inline code, because the
 // guide names some in prose and shows others as something to paste.
 function commandText(document: Document): string[] {
-  const fragments: string[] = [];
-  let inFence = false;
-  for (const line of document.lines) {
-    if (line.startsWith('```')) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) fragments.push(line);
-    else fragments.push(...[...line.matchAll(/`([^`]+)`/gu)].map((match) => match[1] ?? ''));
-  }
-  return fragments;
+  const { fenced } = scanFences(document);
+  return document.lines.flatMap((line, index) =>
+    fenced[index] === true ? [line] : [...line.matchAll(/`([^`]+)`/gu)].map((m) => m[1] ?? ''),
+  );
 }
 
 function pnpmInvocations(document: Document): Invocation[] {
@@ -108,9 +101,13 @@ function repoPaths(document: Document): string[] {
   return [...found];
 }
 
+// Prose only: `](path)` inside a fenced block is code a reader copies, not a
+// link anything renders.
 function linkTargets(document: Document): string[] {
+  const { fenced } = scanFences(document);
   const targets = new Set<string>();
-  for (const line of document.lines) {
+  for (const [index, line] of document.lines.entries()) {
+    if (fenced[index] === true) continue;
     for (const match of line.matchAll(/\]\((?<target>[^)\s]+)\)/gu)) {
       const target = match.groups?.target ?? '';
       if (/^[a-z]+:/u.test(target) || target.startsWith('#')) continue;
@@ -181,14 +178,42 @@ describe('what the documents tell a newcomer to run still exists', () => {
 
       expect(missing, `${name} names files that are not in this repository`).toEqual([]);
     });
-
-    it(`every link ${name} makes resolves`, () => {
-      const from = path.dirname(path.join(REPO_ROOT, name));
-      const broken = foundIn(document, 'links', floors.links, linkTargets(document)).filter(
-        (target) => !existsSync(path.resolve(from, target)),
-      );
-
-      expect(broken, `${name} links to files that are not in this repository`).toEqual([]);
-    });
   }
+});
+
+// Every Markdown document in the repository, found rather than listed: the
+// phase notes were split out of `docs/NEXT.md` into `docs/phases/` one level
+// deeper, and four links broke silently because a list of documents to check
+// is exactly as current as whoever last remembered to extend it.
+const NOT_OURS = new Set(['node_modules', 'dist', 'coverage', '.git', '.superpowers', '.turbo']);
+
+function everyDocument(): string[] {
+  return globSync('**/*.md', {
+    cwd: REPO_ROOT,
+    exclude: (entry) => NOT_OURS.has(path.basename(entry)),
+  }).sort();
+}
+
+describe('every link in every document resolves', () => {
+  const documents = everyDocument();
+
+  it('finds the documents, so a broken glob fails rather than checking nothing', () => {
+    expect(documents.length).toBeGreaterThan(80);
+  });
+
+  it('resolves each relative link against the file that makes it', () => {
+    let links = 0;
+    const broken: string[] = [];
+    for (const name of documents) {
+      const document = loadDocument(name);
+      const from = path.dirname(path.join(REPO_ROOT, name));
+      for (const target of linkTargets(document)) {
+        links += 1;
+        if (!existsSync(path.resolve(from, target))) broken.push(`${name} -> ${target}`);
+      }
+    }
+
+    expect(links, 'the link extractor has stopped recognising links').toBeGreaterThan(50);
+    expect(broken, 'links to files that are not in this repository').toEqual([]);
+  });
 });
