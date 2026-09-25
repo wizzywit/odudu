@@ -5,7 +5,7 @@ import {
   TENANT_CAPABILITIES,
 } from '../../packages/domain-tenant/src/index.js';
 import { ADMIN_ROUTES } from '../../packages/protocol-admin/src/index.js';
-import { backticked, loadDocument, type Document } from './markdown.js';
+import { backticked, loadDocument, sections, type Section } from './markdown.js';
 
 const GUIDE = 'docs/admin-paths.md';
 
@@ -23,8 +23,10 @@ const REAL_CAPABILITIES = new Set<string>([...TENANT_CAPABILITIES, MANAGE_TENANT
 const DENIED_BY_THE_DOCUMENT = ['view-clients', 'view-sessions'];
 
 // Every `type` value `packages/protocol-admin/src/view/problem.ts` and its
-// callers construct. A transcript showing anything else is showing bytes this
-// server cannot produce.
+// callers construct. Written out rather than read from those call sites,
+// deliberately: a check that derives its expectation from the code it checks
+// agrees by construction and can no longer fail. Extending this by hand when
+// a fifth type is added is the point, not an omission to tidy away.
 const EMITTABLE_PROBLEM_TYPES = new Set([
   'about:blank',
   'about:blank#unauthorized',
@@ -33,59 +35,6 @@ const EMITTABLE_PROBLEM_TYPES = new Set([
 ]);
 
 const CAPABILITY_SHAPED = /^(?:view|manage)-[a-z]+(?:-[a-z]+)*$/u;
-
-interface Section {
-  readonly heading: string;
-  readonly headingLine: number;
-  readonly body: string;
-}
-
-// CommonMark's rule, not a lenient approximation of it: an opening fence may
-// carry an info string, a **closing** fence may carry nothing but its own
-// backticks. A line like "``` and then some prose" therefore closes nothing,
-// and everything after it — headings included — is swallowed into the block.
-// This document shipped exactly that, hiding a heading and killing three
-// anchors, past a clean `pnpm format:check`.
-function sections(document: Document): Section[] {
-  const found: Section[] = [];
-  const body: string[] = [];
-  let heading: { text: string; line: number } | null = null;
-  let fence = '';
-
-  const close = (): void => {
-    if (heading === null) return;
-    found.push({ heading: heading.text, headingLine: heading.line, body: body.join('\n') });
-    body.length = 0;
-  };
-
-  for (const [index, line] of document.lines.entries()) {
-    const ticks = /^(?<ticks>`{3,})(?<rest>.*)$/u.exec(line);
-    if (ticks !== null) {
-      const run = ticks.groups?.ticks ?? '';
-      const rest = ticks.groups?.rest ?? '';
-      if (fence === '') fence = run;
-      else if (run.length >= fence.length && rest.trim() === '') fence = '';
-    }
-    if (fence === '' && line.startsWith('## ')) {
-      close();
-      heading = { text: line.slice(3), line: index + 1 };
-      continue;
-    }
-    body.push(line);
-  }
-  close();
-
-  if (fence !== '') {
-    throw new Error(`${document.name} has a fenced block that is never closed`);
-  }
-  if (found.length < 20) {
-    throw new Error(
-      `${document.name} yielded ${String(found.length)} sections; there were 34 when this ` +
-        `check was written, so the headings moved or this extractor stopped seeing them.`,
-    );
-  }
-  return found;
-}
 
 // `PATCH /clients/{id}` in one heading and `PATCH /subjects/:id` in another
 // name the same kind of thing; the route table spells both `:id`.
@@ -117,21 +66,10 @@ function sectionFor(
 
 describe('docs/admin-paths.md says what the admin API actually requires', () => {
   const document = loadDocument(GUIDE);
-  const all = sections(document);
-
-  it('hides no heading inside a fenced block', () => {
-    const written = document.lines.flatMap((line, index) =>
-      line.startsWith('## ') ? [{ heading: line.slice(3), line: index + 1 }] : [],
-    );
-    const rendered = new Set(all.map((section) => section.headingLine));
-
-    expect(
-      written
-        .filter((candidate) => !rendered.has(candidate.line))
-        .map((candidate) => `${GUIDE}:${String(candidate.line)} ${candidate.heading}`),
-      'these look like headings in the source and render as code, so their anchors are dead',
-    ).toEqual([]);
-  });
+  // 34 headings when this was written; the floor guards against an extractor
+  // that silently stops finding them. `tests/docs/structure.test.ts` is what
+  // holds a heading to rendering as a heading.
+  const all = sections(document, 20);
 
   it('names only capabilities that exist', () => {
     const named = new Set(

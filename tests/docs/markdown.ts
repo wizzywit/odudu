@@ -33,25 +33,181 @@ export interface FencedBlock {
   readonly startLine: number;
 }
 
-export function fencedBlocks(document: Document): FencedBlock[] {
-  const blocks: FencedBlock[] = [];
-  let open: { language: string; startLine: number; body: string[] } | null = null;
+// CommonMark §4.5, which these documents live or die by: an **opening** fence
+// may carry an info string, a **closing** fence may carry nothing but its own
+// backticks and whitespace. So "``` and then a sentence" closes nothing, and
+// every line after it — headings included — is swallowed into the block.
+// `structuralProblems` below is the check that says so; every walker here
+// reads fences the same way so that none of them disagrees about where a
+// block ends.
+const FENCE = /^(?<ticks>`{3,})(?<info>.*)$/u;
 
+export interface FenceSpan {
+  readonly language: string;
+  /** 1-based line of the opening fence. */
+  readonly startLine: number;
+  /** 1-based line of the closing fence, or null where the block never closes. */
+  readonly endLine: number | null;
+  readonly body: readonly string[];
+  /** Lines that look like a closing fence but carry trailing prose, so close nothing. */
+  readonly swallowedFences: readonly number[];
+}
+
+export interface DocumentScan {
+  readonly spans: readonly FenceSpan[];
+  /** True for a line that sits inside a fenced block, indexed from 0. */
+  readonly fenced: readonly boolean[];
+}
+
+export function scanFences(document: Document): DocumentScan {
+  const spans: FenceSpan[] = [];
+  const fenced: boolean[] = [];
+  let open: {
+    ticks: string;
+    language: string;
+    startLine: number;
+    body: string[];
+    swallowed: number[];
+  } | null = null;
+
+  for (const [index, line] of document.lines.entries()) {
+    const match = FENCE.exec(line);
+    const info = match?.groups?.info ?? '';
+    const ticks = match?.groups?.ticks ?? '';
+
+    if (match !== null && open === null) {
+      open = { ticks, language: info.trim(), startLine: index + 1, body: [], swallowed: [] };
+      fenced.push(false);
+      continue;
+    }
+    if (match !== null && open !== null && ticks.length >= open.ticks.length) {
+      if (info.trim() === '') {
+        spans.push({
+          language: open.language,
+          startLine: open.startLine,
+          endLine: index + 1,
+          body: open.body,
+          swallowedFences: open.swallowed,
+        });
+        open = null;
+        fenced.push(false);
+        continue;
+      }
+      open.swallowed.push(index + 1);
+    }
+    open?.body.push(line);
+    fenced.push(open !== null);
+  }
+
+  if (open !== null) {
+    spans.push({
+      language: open.language,
+      startLine: open.startLine,
+      endLine: null,
+      body: open.body,
+      swallowedFences: open.swallowed,
+    });
+  }
+
+  return { spans, fenced };
+}
+
+export function fencedBlocks(document: Document): FencedBlock[] {
+  return scanFences(document).spans.map((span) => ({
+    language: span.language,
+    body: span.body.join('\n'),
+    startLine: span.startLine,
+  }));
+}
+
+export interface StructuralProblem {
+  /** 1-based. */
+  readonly line: number;
+  readonly what: string;
+}
+
+/**
+ * The ways a fence can silently change what a document says. Each one shipped
+ * here or was one edit away from shipping, and a formatter catches none of
+ * them: it reformats around a malformed fence rather than refusing it.
+ */
+export function structuralProblems(document: Document): StructuralProblem[] {
+  const { spans, fenced } = scanFences(document);
+  const problems: StructuralProblem[] = [];
+
+  for (const span of spans) {
+    if (span.endLine === null) {
+      problems.push({ line: span.startLine, what: 'a fenced block that is never closed' });
+    }
+    if (span.language.includes('`')) {
+      problems.push({
+        line: span.startLine,
+        what: `an opening fence whose info string holds a backtick: \`${span.language}\``,
+      });
+    }
+    for (const line of span.swallowedFences) {
+      problems.push({
+        line,
+        what:
+          'a fence line carrying trailing prose, which closes nothing — everything ' +
+          `below it is swallowed into the block opened at line ${String(span.startLine)}`,
+      });
+    }
+  }
+
+  // A `#` line inside a fence is ordinarily a shell comment. `##` and deeper
+  // are not: no command in these documents starts one, so a level-2 heading
+  // reading as code means the surrounding fence has taken it, and every
+  // anchor pointing at it is dead.
   document.lines.forEach((line, index) => {
-    const fence = /^```(?<language>[a-z]*)\s*$/u.exec(line);
-    if (fence === null) {
-      open?.body.push(line);
-      return;
+    if (fenced[index] === true && /^#{2,6} /u.test(line)) {
+      problems.push({
+        line: index + 1,
+        what: `a heading that renders as code, so its anchor is dead: ${line.trim()}`,
+      });
     }
-    if (open === null) {
-      open = { language: fence.groups?.language ?? '', startLine: index + 1, body: [] };
-      return;
-    }
-    blocks.push({ language: open.language, body: open.body.join('\n'), startLine: open.startLine });
-    open = null;
   });
 
-  return blocks;
+  return problems.sort((a, b) => a.line - b.line);
+}
+
+export interface Section {
+  readonly heading: string;
+  /** 1-based. */
+  readonly headingLine: number;
+  readonly body: string;
+}
+
+/** The `##` sections a reader sees, which is not every line that starts `## `. */
+export function sections(document: Document, atLeast: number): Section[] {
+  const { fenced } = scanFences(document);
+  const found: Section[] = [];
+  const body: string[] = [];
+  let heading: { text: string; line: number } | null = null;
+
+  const close = (): void => {
+    if (heading === null) return;
+    found.push({ heading: heading.text, headingLine: heading.line, body: body.join('\n') });
+    body.length = 0;
+  };
+
+  for (const [index, line] of document.lines.entries()) {
+    if (fenced[index] !== true && line.startsWith('## ')) {
+      close();
+      heading = { text: line.slice(3), line: index + 1 };
+      continue;
+    }
+    body.push(line);
+  }
+  close();
+
+  if (found.length < atLeast) {
+    notFound(
+      document,
+      `at least ${String(atLeast)} \`##\` sections (found ${String(found.length)})`,
+    );
+  }
+  return found;
 }
 
 // The block a reader would take as the output of `marker`: the first fence in
