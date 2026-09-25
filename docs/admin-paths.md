@@ -84,6 +84,13 @@ section 7 has the full authentication and authorization sequence;
 the way it is, and "Getting the token" below is the run every transcript
 here used.
 
+**Every path parameter but `{tenant}` is a row id**, narrowed before the
+route runs: an id PostgreSQL could not parse is refused with `400`, which a
+caller can tell apart from the `404` a well-formed id matching nothing
+answers. A tenant is addressed by name instead. The published OpenAPI
+document declares each of these parameters, so a generated client knows the
+shape of what it is filling.
+
 | Method   | Path                                                             | What it is                                |
 | -------- | ---------------------------------------------------------------- | ----------------------------------------- |
 | `GET`    | `/admin/tenants`                                                 | List tenants                              |
@@ -1694,7 +1701,10 @@ password and the network.
 0028 puts on a client-supplied `jwks_uri`: the addresses `host` resolves to
 are checked in the numeric domain, and loopback, link-local, private,
 unspecified, multicast, broadcast and the reserved ranges are refused with
-`400` naming the address and why. Without it, `POST /smtp/test` is a port
+`400` naming the address and why. The connection is then opened to an
+address that passed, never by resolving `host` a second time; the tenant's
+hostname travels as the TLS server name, so certificate verification still
+names the host they configured. Without it, `POST /smtp/test` is a port
 scanner — a `manage-tenant` admin stores any host and port, and the
 transport's own error answers back whether something is listening.
 `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS` re-admits the private ranges for a
