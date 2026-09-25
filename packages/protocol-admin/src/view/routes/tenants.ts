@@ -4,6 +4,7 @@ import {
   cursorQuerySchema,
 } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
+import { requestContextFrom } from '@odudu/domain-audit';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import {
   amendTenant,
@@ -108,6 +109,7 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
         actorTenantId: principal.issuerTenantId,
         actorClientId: principal.clientDbId,
       },
+      requestContextFrom(request),
     );
 
     if (outcome.kind === 'name_refused') {

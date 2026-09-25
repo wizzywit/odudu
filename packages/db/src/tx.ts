@@ -44,8 +44,7 @@ export async function withTenant<T>(
   return db.transaction(async (tx) => {
     // set_config(..., true) is the bindable form of SET LOCAL; SET LOCAL itself
     // takes no parameters, and interpolating tenantId into DDL would be injectable.
-    // All three bind in one statement so a caller cannot observe tenant_id set
-    // without request_id/ip having caught up to it.
+    // All three bind in one statement rather than three round trips.
     if (context === undefined) {
       await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
     } else {

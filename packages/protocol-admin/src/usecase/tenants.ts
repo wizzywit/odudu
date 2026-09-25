@@ -6,6 +6,7 @@ import {
   tenants,
   withTenant,
   type Database,
+  type RequestContext,
   type TenantScopedDatabase,
 } from '@odudu/db';
 import {
@@ -110,6 +111,7 @@ async function mintSigningKey(
 export async function createTenant(
   deps: CreateTenantDeps,
   input: CreateTenantInput,
+  context: RequestContext,
 ): Promise<CreateTenantOutcome> {
   // Left to the unique index, this would surface as a constraint violation
   // with no reason attached. `apps/server/src/cli/seed.ts`'s
@@ -120,34 +122,39 @@ export async function createTenant(
   const id = newId();
   let tenant: TenantRecord;
   try {
-    tenant = await withTenant(deps.database, id, async (tx) => {
-      const rows = await tx
-        .insert(tenants)
-        .values({ id, name: input.name, displayName: input.displayName ?? null })
-        .returning(TENANT_COLUMNS);
-      const created = rows[0];
-      if (created === undefined) {
-        throw new Error('insert into tenants returned no row');
-      }
+    tenant = await withTenant(
+      deps.database,
+      id,
+      async (tx) => {
+        const rows = await tx
+          .insert(tenants)
+          .values({ id, name: input.name, displayName: input.displayName ?? null })
+          .returning(TENANT_COLUMNS);
+        const created = rows[0];
+        if (created === undefined) {
+          throw new Error('insert into tenants returned no row');
+        }
 
-      await provisionTenant(tx, id);
-      await provisionAdminClient(tx, id);
-      await mintSigningKey(tx, id, deps.kek);
+        await provisionTenant(tx, id);
+        await provisionAdminClient(tx, id);
+        await mintSigningKey(tx, id, deps.kek);
 
-      // Written inside the same transaction as the row it describes: a
-      // rollback below leaves no audit row for a tenant that never existed.
-      await deps.audit(tx, {
-        action: 'tenant.create',
-        resourceType: 'tenant',
-        resourceId: id,
-        actorSubjectId: input.actorSubjectId,
-        actorTenantId: input.actorTenantId,
-        actorClientId: input.actorClientId,
-        outcome: 'allowed',
-      });
+        // Written inside the same transaction as the row it describes: a
+        // rollback below leaves no audit row for a tenant that never existed.
+        await deps.audit(tx, {
+          action: 'tenant.create',
+          resourceType: 'tenant',
+          resourceId: id,
+          actorSubjectId: input.actorSubjectId,
+          actorTenantId: input.actorTenantId,
+          actorClientId: input.actorClientId,
+          outcome: 'allowed',
+        });
 
-      return created;
-    });
+        return created;
+      },
+      context,
+    );
   } catch (error) {
     // Caught outside the transaction, which the violation has already
     // aborted and `withTenant` has already rolled back — the same shape

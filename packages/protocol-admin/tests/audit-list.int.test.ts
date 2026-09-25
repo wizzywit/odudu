@@ -1,3 +1,5 @@
+import { withTenant } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -247,12 +249,27 @@ describe('GET /admin/tenants/{t}/audit', () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-clients', 'view-audit']);
     await createClients(token, t.name, 1);
+    // A row of another event type, so `?event_type=admin_mutation` narrowing
+    // to only `admin_mutation` rows is not vacuously true of every row here.
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      auditRepository(tx).record({
+        eventType: 'session',
+        action: 'session.created',
+        outcome: 'allowed',
+      }),
+    );
 
     const mutations = await getAudit(token, t.name, '?event_type=admin_mutation');
     expect(mutations.statusCode).toBe(200);
     const mutationsBody = mutations.json<{ items: { event_type: string }[] }>();
     expect(mutationsBody.items.length).toBeGreaterThan(0);
     expect(mutationsBody.items.every((row) => row.event_type === 'admin_mutation')).toBe(true);
+
+    const sessions = await getAudit(token, t.name, '?event_type=session');
+    expect(sessions.statusCode).toBe(200);
+    const sessionsBody = sessions.json<{ items: { action: string }[] }>();
+    expect(sessionsBody.items).toHaveLength(1);
+    expect(sessionsBody.items[0]?.action).toBe('session.created');
 
     const tokens = await getAudit(token, t.name, '?event_type=token');
     expect(tokens.statusCode).toBe(200);

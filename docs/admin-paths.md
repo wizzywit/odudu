@@ -1897,9 +1897,10 @@ curl -sS -G \
   http://localhost:3000/admin/tenants/demo/audit
 ```
 
-Both `client.create` rows on this stack — `demo-backend` and `demo-app`,
-both created directly through `POST /clients` — newest first, then the
-reserved-`client_id` refusal further down:
+All three `client.create` rows on this stack, newest first: the
+reserved-`client_id` refusal, attempted last, then `demo-app` and
+`demo-backend` below it — both created directly through `POST /clients`,
+oldest last:
 
 ```
 {"items":[{"id":"01a0daef-c428-73d7-86f7-15d31e7ec3e0","occurred_at":"2026-09-25T23:39:01.543Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0daef-c41f-70ad-ac7a-45d82523ca89","ip":"172.20.0.1","detail":{}},{"id":"01a0daef-c414-763a-ac6e-28e568659122","occurred_at":"2026-09-25T23:39:01.514Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"01a0daef-c40c-7dac-8d24-bf63c93db1b2","request_id":"01a0daef-c402-7a09-9c9c-4e2d0672b648","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code","refresh_token"]},"web_origins":{"after":[]},"redirect_uris":{"after":["http://localhost:3000/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"none"}}},{"id":"01a0daef-c3f6-7eac-8f6f-908fe252c948","occurred_at":"2026-09-25T23:39:01.441Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"01a0daef-c3ea-727a-a8d1-57245d276f1c","request_id":"01a0daef-c3b3-73bc-bef7-8350110f08f7","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
@@ -1907,11 +1908,12 @@ reserved-`client_id` refusal further down:
 
 `actor_tenant_id` is `system` on all three, and `tenant_id` is absent from
 the row's own representation — the tenant a row belongs to is the one in
-the path. Neither `detail` carries a secret: `demo-backend` was created
-with one, and the allowlist shows `jwks` as `{"changed": true}` rather than
-a value, which is the shape every redacted field takes. Every `request_id`
-is a real request id and every `ip` the container's view of the caller,
-rather than the `null`s an admin mutation left before this change.
+the path. None of the three `detail`s carries a secret: the refusal's is
+empty, there being no row to diff, and `demo-backend` was created with
+one — the allowlist shows `jwks` as `{"changed": true}` rather than a
+value, which is the shape every redacted field takes. Every `request_id`
+is a real request id and every `ip` the container's own view of the
+caller.
 
 Three signing-key rows from a stage/promote/retire rotation on this same
 stack, narrowed by `resource_type` alone. Their `detail` is empty, a key

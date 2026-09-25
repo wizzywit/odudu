@@ -8388,12 +8388,13 @@ session lifecycle. A citation of either half here means that half.
   `event_type: "admin_mutation"`, so a login, a second factor answered, a
   token minted or refreshed or revoked, and a session ending leave no trace
   there — the log answers "who changed this tenant's configuration", not
-  "what happened in this tenant". The table was built for both: `event_type`
-  exists, `actor_subject_id` is nullable because an authentication event has
-  a subject it happened to rather than an administrator who did it, and the
-  retention window is already the tenant's own `audit_retention_days`.
-  **P4e**, whose criterion names the events and the `event_type` filter the
-  listing will need.
+  "what happened in this tenant". The table and the listing were built for
+  both: `actor_subject_id` is nullable because an authentication event has a
+  subject it happened to rather than an administrator who did it, the
+  retention window is already the tenant's own `audit_retention_days`, and
+  `?event_type=` already narrows to any of the vocabulary's six values —
+  nothing yet writes the other five. **P4e**, whose criterion names the
+  authentication, token, session and credential events themselves.
 - **Only `POST /clients` records a refused attempt.** `outcome` has three
   values and every other mutation writes a row only when it succeeds, so
   `?outcome=refused` against any other `resource_type` returns nothing —

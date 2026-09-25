@@ -1,27 +1,55 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const ROUTES_DIR = fileURLToPath(new URL('.', import.meta.url));
-const BARE_WITH_TENANT = /\bwithTenant\(/u;
+const VIEW_DIR = join(import.meta.dirname, '..');
 
-function routeFiles(): string[] {
-  return readdirSync(ROUTES_DIR)
-    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
-    .filter((name) => name !== 'admin-tx.ts');
+async function sourcesUnder(dir: string): Promise<{ path: string; text: string }[]> {
+  const found: { path: string; text: string }[] = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...(await sourcesUnder(path)));
+      continue;
+    }
+    if (!entry.name.endsWith('.ts') || entry.name.endsWith('.test.ts')) continue;
+    found.push({ path, text: await readFile(path, 'utf8') });
+  }
+  return found;
 }
 
-describe('view/routes never calls withTenant directly', () => {
-  it('every route goes through adminTx, so a request always carries its context', () => {
-    const offenders = routeFiles().flatMap((name) => {
-      const filePath = path.join(ROUTES_DIR, name);
-      const lines = readFileSync(filePath, 'utf8').split('\n');
-      return lines.flatMap((line, index) =>
-        BARE_WITH_TENANT.test(line) ? [`${name}:${String(index + 1)}`] : [],
-      );
-    });
+// Reads only the named-import list of an `@odudu/db` import, so a file that
+// merely mentions the word `withTenant` in a comment or a string is not an
+// offender — only one that actually imports the binding is.
+function importsWithTenant(text: string): boolean {
+  for (const match of text.matchAll(/import\s*\{([\s\S]*?)\}\s*from\s*['"]@odudu\/db['"]/gu)) {
+    const specifiers = (match[1] ?? '').split(',').map((s) => s.trim().replace(/^type\s+/u, ''));
+    if (specifiers.some((s) => s.split(/\s+as\s+/u)[0] === 'withTenant')) return true;
+  }
+  return false;
+}
 
-    expect(offenders, 'a route under view/routes/ calls withTenant instead of adminTx').toEqual([]);
+describe('importsWithTenant', () => {
+  it('flags a file that imports withTenant from @odudu/db', () => {
+    expect(importsWithTenant("import { withTenant } from '@odudu/db';")).toBe(true);
+    expect(
+      importsWithTenant("import {\n  isUniqueViolation,\n  withTenant,\n} from '@odudu/db';"),
+    ).toBe(true);
+  });
+
+  it('does not flag a file that imports something else from @odudu/db', () => {
+    expect(importsWithTenant("import { type Database } from '@odudu/db';")).toBe(false);
+    expect(importsWithTenant('// withTenant is mentioned here, not imported')).toBe(false);
+  });
+});
+
+describe('the view layer never imports withTenant except through adminTx', () => {
+  it('is the one place under src/view/ that imports withTenant from @odudu/db', async () => {
+    const offenders = (await sourcesUnder(VIEW_DIR))
+      .filter((f) => !f.path.endsWith('/routes/admin-tx.ts'))
+      .filter((f) => importsWithTenant(f.text))
+      .map((f) => f.path.slice(VIEW_DIR.length + 1));
+
+    expect(offenders, 'a file under src/view/ imports withTenant instead of adminTx').toEqual([]);
   });
 });
