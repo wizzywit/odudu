@@ -14,7 +14,7 @@ import {
 import {
   clientOidcConfig,
   clientOidcConfigRepository,
-  isWebOrigin,
+  isWellFormedWebOrigin,
   parseClientMetadata,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
@@ -595,7 +595,7 @@ function checkedStringArray(field: string, value: unknown): string[] | FieldErro
 }
 
 function checkedWebOrigins(origins: readonly string[]): string[] | FieldError {
-  const bad = origins.find((origin) => !isWebOrigin(origin));
+  const bad = origins.find((origin) => !isWellFormedWebOrigin(origin));
   return bad === undefined
     ? [...origins]
     : {

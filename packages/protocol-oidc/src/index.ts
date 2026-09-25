@@ -802,13 +802,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 // does (packages/protocol-admin/src/usecase/authenticate-admin.ts).
 export { tenantIssuerFor } from '#/view/issuer';
 export { assertionJtiRepository } from '#/repository/assertion-jti';
+export { isWellFormedWebOrigin } from '#/service/web-origin';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 export { provisionAdminClient, ADMIN_CLIENT_REDIRECT_URI } from '#/usecase/provision-admin-client';
 export { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
 export {
   parseClientMetadata,
   GRANT_TYPES_PERMITTED,
-  isWebOrigin,
   type ClientMetadata,
   type ClientMetadataOutcome,
 } from '#/service/client-metadata';

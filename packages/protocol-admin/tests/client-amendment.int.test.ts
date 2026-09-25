@@ -1,5 +1,5 @@
 import { newId } from '@odudu/kernel';
-import { isWebOrigin } from '@odudu/protocol-oidc';
+import { isWellFormedWebOrigin } from '@odudu/protocol-oidc';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -192,6 +192,8 @@ describe('the web_origins predicate against the CHECK it stands in front of', ()
     'https://a\u0085b',
     'https://a\u001fb',
     'https://a*b',
+    'https://:bad',
+    'https://host:80:90',
   ];
 
   it('admits nothing the database would refuse', async () => {
@@ -200,7 +202,7 @@ describe('the web_origins predicate against the CHECK it stands in front of', ()
         sql`select web_origins_are_valid(array[${origin}]::text[]) as ok`,
       );
       const sqlAccepts = rows[0]?.ok === true;
-      const jsAccepts = isWebOrigin(origin);
+      const jsAccepts = isWellFormedWebOrigin(origin);
 
       expect(
         `${JSON.stringify(origin)}: js=${String(jsAccepts)} sql=${String(sqlAccepts)}`,

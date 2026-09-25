@@ -40,7 +40,7 @@ import { loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
   GRANT_TYPES_PERMITTED,
-  isWebOrigin,
+  isWellFormedWebOrigin,
   provisionAdminClient,
   tenantLookupRepository,
   type ClientOidcConfig,
@@ -1054,7 +1054,7 @@ async function runClientCommand(
   // RP-Initiated Logout §2 matches these exactly, the same way §3 matches a
   // redirect URI, so a relative one is as meaningless here as there.
   assertAbsoluteRedirectUris(postLogoutRedirectUris);
-  const badOrigins = webOrigins.filter((origin) => !isWebOrigin(origin));
+  const badOrigins = webOrigins.filter((origin) => !isWellFormedWebOrigin(origin));
   if (badOrigins.length > 0) {
     throw new OduduError(
       'seed_invalid_options',
