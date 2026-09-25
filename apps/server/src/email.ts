@@ -1,7 +1,12 @@
 import { withTenant, type Database } from '@odudu/db';
 import { capturingSender, smtpSender, type EmailMessage, type EmailSender } from '@odudu/email';
-import { type Config } from '@odudu/kernel';
-import { smtpSenderFromRecord, tenantSmtpRepository } from '@odudu/protocol-admin';
+import { OduduError, type Config } from '@odudu/kernel';
+import {
+  resolveHostAddresses,
+  smtpSenderFromRecord,
+  tenantSmtpRepository,
+  type SmtpDestinationPolicy,
+} from '@odudu/protocol-admin';
 import { type Logger as PinoLogger } from 'pino';
 
 // A tenant with verify_email off needs no mail at all, and the compose
@@ -47,6 +52,14 @@ export interface ResolveSenderDeps {
   // re-derives it, so an unset ODUDU_SMTP_HOST is discovered once rather
   // than on every message.
   readonly fallback: ResolvedSender;
+  readonly smtpDestination: SmtpDestinationPolicy;
+}
+
+export function smtpDestinationPolicyFor(config: Config): SmtpDestinationPolicy {
+  return {
+    allowPrivate: config.ODUDU_ALLOW_PRIVATE_SMTP_HOSTS,
+    resolve: resolveHostAddresses,
+  };
 }
 
 // The resolution order a tenant's own outgoing mail follows: its own
@@ -65,6 +78,17 @@ export async function resolveSender(
     return deps.fallback;
   }
 
-  const sender = smtpSenderFromRecord(record, deps.kek);
-  return { kind: 'smtp', host: record.host, send: (message: EmailMessage) => sender.send(message) };
+  // A refused destination is not a reason to send this tenant's mail from
+  // the deployment's own relay: that would deliver it from somewhere the
+  // tenant never configured. The pass counts this tenant's batch failed
+  // and moves on (`sendPending`, @odudu/email).
+  const built = await smtpSenderFromRecord(record, deps.kek, deps.smtpDestination);
+  if (built.kind === 'refused_destination') {
+    throw new OduduError('smtp_destination_refused', built.reason);
+  }
+  return {
+    kind: 'smtp',
+    host: record.host,
+    send: (message: EmailMessage) => built.sender.send(message),
+  };
 }

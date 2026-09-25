@@ -64,6 +64,7 @@ describe('GET /admin/tenants/{t}/smtp', () => {
       port: 587,
       from_address: 'noreply@example.test',
       password: 'hunter2',
+      starttls: true,
     });
 
     const res = await getSmtp(token, t.name);
@@ -83,6 +84,7 @@ describe('PUT /admin/tenants/{t}/smtp', () => {
       port: 587,
       from_address: 'noreply@example.test',
       password: 'hunter2',
+      starttls: true,
     });
 
     const row = await withTenant(fixture.app.db, t.id, (tx) =>
@@ -104,6 +106,7 @@ describe('PUT /admin/tenants/{t}/smtp', () => {
       port: 587,
       from_address: 'noreply@example.test',
       password: 'hunter2',
+      starttls: true,
     });
 
     await putSmtp(token, t.name, {
@@ -117,8 +120,88 @@ describe('PUT /admin/tenants/{t}/smtp', () => {
   });
 });
 
+describe('PUT /admin/tenants/{t}/smtp requires TLS wherever it authenticates', () => {
+  it('refuses a username with starttls off, rather than putting it on the wire', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await putSmtp(token, t.name, {
+      host: 'smtp.example.test',
+      port: 587,
+      from_address: 'noreply@example.test',
+      username: 'ada',
+      password: 'hunter2',
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toMatch(/starttls/u);
+  });
+
+  it('refuses a password with starttls off for the same reason', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await putSmtp(token, t.name, {
+      host: 'smtp.example.test',
+      port: 587,
+      from_address: 'noreply@example.test',
+      password: 'hunter2',
+      starttls: false,
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('accepts the same configuration once starttls is on', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await putSmtp(token, t.name, {
+      host: 'smtp.example.test',
+      port: 587,
+      from_address: 'noreply@example.test',
+      username: 'ada',
+      password: 'hunter2',
+      starttls: true,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ starttls: true, password_set: true });
+  });
+});
+
 describe('POST /admin/tenants/{t}/smtp/test', () => {
-  it('reports the transport failure as a 502 rather than swallowing it', async () => {
+  it('will not connect to a loopback host, so it cannot probe this server', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    await putSmtp(token, t.name, {
+      host: '127.0.0.1',
+      port: 5432,
+      from_address: 'noreply@example.test',
+    });
+
+    const res = await testSmtp(token, t.name, 'ops@example.test');
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toMatch(/loopback/u);
+  });
+
+  it('will not connect to the link-local metadata address', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    await putSmtp(token, t.name, {
+      host: '169.254.169.254',
+      port: 80,
+      from_address: 'noreply@example.test',
+    });
+
+    const res = await testSmtp(token, t.name, 'ops@example.test');
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toMatch(/link-local/u);
+  });
+
+  it('refuses a host that does not resolve rather than reporting the resolver error', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);
     await putSmtp(token, t.name, {
@@ -129,8 +212,8 @@ describe('POST /admin/tenants/{t}/smtp/test', () => {
 
     const res = await testSmtp(token, t.name, 'ops@example.test');
 
-    expect(res.statusCode).toBe(502);
-    expect(res.json<{ detail: string }>().detail).toMatch(/unreachable\.invalid/u);
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toMatch(/resolves to no address/u);
   });
 
   it('refuses with 400 for a tenant with no SMTP configuration', async () => {

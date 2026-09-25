@@ -37,6 +37,7 @@ export type ErrorCode =
   | 'reap_cannot_enumerate_tenants'
   | 'reap_requires_app_database_url'
   | 'reap_serving_role_bypasses_rls'
+  | 'smtp_destination_refused'
   | 'outbox_cannot_enumerate_tenants'
   | 'outbox_requires_app_database_url'
   | 'outbox_serving_role_bypasses_rls'

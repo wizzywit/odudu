@@ -1,6 +1,7 @@
 import { putSmtpRequestSchema, testSmtpRequestSchema } from '@odudu/contracts/admin';
 import { withTenant, type Database } from '@odudu/db';
 import { readPasswordField } from '@odudu/kernel';
+import { type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import { putSmtp, readSmtp, readSmtpForTest, sendTestMessage, type Audit } from '#/usecase/smtp';
 import { problem, sendProblem } from '#/view/problem';
 import { type AdminRouteHandler } from '#/view/routes/router';
@@ -9,6 +10,8 @@ export interface SmtpRouteDeps {
   readonly database: Database;
   readonly kek: Uint8Array;
   readonly audit: Audit;
+  /** Where this server is willing to open an SMTP connection — see `#/service/smtp-destination.ts`. */
+  readonly smtpDestination: SmtpDestinationPolicy;
 }
 
 export function readSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
@@ -34,6 +37,24 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
         reply,
         request,
         problem(400, 'about:blank', 'Bad Request', 'password exceeds the maximum length'),
+      );
+    }
+
+    // A configuration that authenticates and does not require TLS puts the
+    // username and password on the wire in cleartext (CWE-319). Refused
+    // here rather than silently upgraded, so the stored row says what the
+    // transport will actually do.
+    const authenticates = (body.username ?? null) !== null || passwordField.kind === 'present';
+    if (authenticates && body.starttls !== true) {
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          400,
+          'about:blank',
+          'Bad Request',
+          'starttls must be true when a username or password is configured',
+        ),
       );
     }
 
@@ -78,8 +99,19 @@ export function testSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
       );
     }
 
-    const sendOutcome = await sendTestMessage(readOutcome.record, deps.kek, body.to);
+    const sendOutcome = await sendTestMessage(
+      readOutcome.record,
+      deps.kek,
+      deps.smtpDestination,
+      body.to,
+    );
     switch (sendOutcome.kind) {
+      case 'refused_destination':
+        return sendProblem(
+          reply,
+          request,
+          problem(400, 'about:blank', 'Bad Request', sendOutcome.reason),
+        );
       case 'send_failed':
         return sendProblem(
           reply,

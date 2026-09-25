@@ -13,6 +13,14 @@ import { pino } from 'pino';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildEmailSender, resolveSender } from '#/email';
 
+// Every host these tests name is fictional, so the policy resolves them
+// rather than asking DNS; the guard itself is unit-tested in
+// packages/protocol-admin/src/service/smtp-destination.test.ts.
+const PUBLIC_DESTINATION = {
+  allowPrivate: false,
+  resolve: () => Promise.resolve(['93.184.216.34']),
+};
+
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
@@ -73,7 +81,10 @@ describe('resolveSender', () => {
     });
     const fallback = buildEmailSender(config, logger);
 
-    const sender = await resolveSender({ database: app.db, kek: KEK, fallback }, tenantId);
+    const sender = await resolveSender(
+      { database: app.db, kek: KEK, fallback, smtpDestination: PUBLIC_DESTINATION },
+      tenantId,
+    );
 
     expect(sender.kind).toBe('smtp');
     expect(sender).toMatchObject({ host: 'tenant.smtp.example' });
@@ -88,7 +99,10 @@ describe('resolveSender', () => {
     });
     const fallback = buildEmailSender(config, logger);
 
-    const sender = await resolveSender({ database: app.db, kek: KEK, fallback }, tenantId);
+    const sender = await resolveSender(
+      { database: app.db, kek: KEK, fallback, smtpDestination: PUBLIC_DESTINATION },
+      tenantId,
+    );
 
     expect(sender.kind).toBe('smtp');
     expect(sender).toMatchObject({ host: 'env.smtp.example' });
@@ -99,9 +113,39 @@ describe('resolveSender', () => {
     const config = loadConfig(baseConfig);
     const fallback = buildEmailSender(config, logger);
 
-    const sender = await resolveSender({ database: app.db, kek: KEK, fallback }, tenantId);
+    const sender = await resolveSender(
+      { database: app.db, kek: KEK, fallback, smtpDestination: PUBLIC_DESTINATION },
+      tenantId,
+    );
 
     expect(sender.kind).toBe('capturing');
+  });
+
+  it('refuses a tenant row pointing inside the perimeter, rather than falling back', async () => {
+    const tenantId = await seedTenant();
+    await withTenant(app.db, tenantId, (tx) =>
+      tenantSmtpRepository(tx).upsert(tenantId, {
+        host: '169.254.169.254',
+        port: 25,
+        fromAddress: 'noreply@tenant.example',
+        username: null,
+        passwordEncrypted: null,
+        starttls: false,
+      }),
+    );
+    const config = loadConfig({
+      ...baseConfig,
+      ODUDU_SMTP_HOST: 'env.smtp.example',
+      ODUDU_SMTP_FROM: 'noreply@env.example',
+    });
+    const fallback = buildEmailSender(config, logger);
+
+    await expect(
+      resolveSender(
+        { database: app.db, kek: KEK, fallback, smtpDestination: PUBLIC_DESTINATION },
+        tenantId,
+      ),
+    ).rejects.toThrow(/link-local/u);
   });
 
   it('decides the deployment fallback once at boot, not per resolution', async () => {
@@ -112,7 +156,10 @@ describe('resolveSender', () => {
     const config = loadConfig(baseConfig);
     const fallback = buildEmailSender(config, logger);
 
-    const sender = await resolveSender({ database: app.db, kek: KEK, fallback }, tenantId);
+    const sender = await resolveSender(
+      { database: app.db, kek: KEK, fallback, smtpDestination: PUBLIC_DESTINATION },
+      tenantId,
+    );
 
     expect(sender).toBe(fallback);
   });

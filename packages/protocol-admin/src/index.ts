@@ -22,6 +22,7 @@ import { type Audit as SmtpAudit } from '#/usecase/smtp';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
 import { type Audit as SubjectAudit } from '#/usecase/subjects';
 import { type Audit } from '#/usecase/tenants';
+import { resolveHostAddresses } from '#/adapter/host-addresses';
 import { installAdminValidator } from '#/adapter/validation';
 import { installProblemDetailsHandler } from '#/view/problem';
 import {
@@ -115,7 +116,14 @@ import { whoamiHandler } from '#/view/routes/whoami';
 export { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 export { composeUserSubject, type ComposeUserSubjectInput } from '#/usecase/subjects';
 export { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
-export { smtpSenderFromRecord } from '#/usecase/smtp';
+export { resolveHostAddresses } from '#/adapter/host-addresses';
+export { smtpSenderFromRecord, type SenderFromRecordOutcome } from '#/usecase/smtp';
+export {
+  checkSmtpDestination,
+  type ResolveHost,
+  type SmtpDestinationOutcome,
+  type SmtpDestinationPolicy,
+} from '#/service/smtp-destination';
 
 export interface AdminRoutesDeps {
   database: DatabaseHandle;
@@ -142,6 +150,10 @@ export interface AdminRoutesDeps {
   // (#/usecase/scope-mappers.ts) for why this package types it that way
   // instead of importing protocol-oidc's own `ClaimContext`.
   claimMappers: MapperCatalogue;
+  // Whether a tenant may point its own SMTP host at a private address —
+  // ADR 0028's escape hatch, applied to the relay a tenant configures for
+  // itself. Off by default; loopback stays refused either way.
+  allowPrivateSmtpHosts?: boolean;
 }
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
@@ -279,6 +291,10 @@ function buildAdminRoutes(
       database: deps.database.db,
       kek: deps.kek,
       audit: smtpAudit,
+      smtpDestination: {
+        allowPrivate: deps.allowPrivateSmtpHosts ?? false,
+        resolve: resolveHostAddresses,
+      },
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,

@@ -259,6 +259,13 @@ const schema = z.object({
   // refuses to boot with it on (apps/server/src/config-guard.ts). Neither
   // fetch admits a loopback address regardless of this flag.
   ODUDU_ALLOW_PRIVATE_CLIENT_URLS: booleanEnvVar,
+  // The same escape hatch for the relay a tenant configures for itself
+  // (`PUT /smtp`): an administrator's `host` is checked against ADR 0028's
+  // address rules before any connection, and an internal relay is a
+  // legitimate production shape in a way a private `jwks_uri` is not — so
+  // this one is not refused under NODE_ENV=production. Loopback,
+  // link-local and multicast stay refused regardless.
+  ODUDU_ALLOW_PRIVATE_SMTP_HOSTS: booleanEnvVar,
 });
 
 export type Config = Readonly<z.infer<typeof schema>>;

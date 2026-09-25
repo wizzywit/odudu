@@ -1322,6 +1322,31 @@ password wraps through the same envelope a signing key's private half does
 (`wrapSecret`/`unwrapSecret`, `@odudu/crypto`) — the column never carries
 plaintext.
 
+Two refusals bound what may be stored and what may be dialled.
+
+**A configuration that authenticates requires TLS.** A `username` or a
+`password` with `starttls` anything but `true` is `400`: `secure: false`
+with STARTTLS unenforced puts those credentials on the wire in cleartext
+(CWE-319). The transport requires TLS whenever credentials are present
+whatever the row says, so this refusal is what keeps the stored row honest
+about what will happen, rather than being the only thing between a
+password and the network.
+
+**The host is bounded before any connection is opened**, by the rules ADR
+0028 puts on a client-supplied `jwks_uri`: the addresses `host` resolves to
+are checked in the numeric domain, and loopback, link-local, private,
+unspecified, multicast, broadcast and the reserved ranges are refused with
+`400` naming the address and why. Without it, `POST /smtp/test` is a port
+scanner — a `manage-tenant` admin stores any host and port, and the
+transport's own error answers back whether something is listening.
+`ODUDU_ALLOW_PRIVATE_SMTP_HOSTS` re-admits the private ranges for a
+deployment whose relay genuinely is internal, the same escape hatch
+`ODUDU_ALLOW_PRIVATE_CLIENT_URLS` gives that fetcher; loopback and
+link-local stay refused either way. Unlike that fetcher, the connection is
+opened by nodemailer resolving the name again rather than to the address
+checked here, so a name that answers differently on the second lookup is
+not caught.
+
 Neither route carries an `ETag`/`If-Match`, the deliberate deviation from
 the resource pattern's default: `PUT` already fully replaces the row, never
 a partial amend a concurrent writer could interleave with, and the
@@ -1335,6 +1360,10 @@ deployment's own `ODUDU_SMTP_*` sender, then the capturing adapter. ADR
 0015 is unaffected — it governs where a deployment's own credentials live,
 and this is a credential the deployment itself never holds.
 
+The four transcripts below were captured against a later stack than the
+sections above — `seed admin`, then `seed tenant --name demo` and nothing
+else — so the tenant they run against starts with no SMTP row at all.
+
 ```bash
 curl -sS -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -1343,22 +1372,34 @@ curl -sS -X PUT \
   http://localhost:3000/admin/tenants/demo/smtp
 ```
 
-`GET` before the `PUT`, then the `PUT`'s own answer, then `GET` again. The
-unconfigured read is `200` with every field `null`, not `404`:
+`GET` before that `PUT`, then the `PUT`'s own answer. The unconfigured read
+is `200` with every field `null`, not `404`; the `PUT` is refused, because
+it carries a password and does not ask for TLS:
 
 ```
 {"configured":false,"host":null,"port":null,"from_address":null,"username":null,"password_set":false,"starttls":null}
-{"configured":true,"host":"smtp.example.test","port":587,"from_address":"noreply@demo.example","username":null,"password_set":true,"starttls":false}
-{"configured":true,"host":"smtp.example.test","port":587,"from_address":"noreply@demo.example","username":null,"password_set":true,"starttls":false}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"starttls must be true when a username or password is configured","instance":"01a0d767-0819-7b73-b7ae-cf7b170108d3"}
+```
+
+The same body with `"starttls": true`, then `GET` again:
+
+```
+{"configured":true,"host":"smtp.example.test","port":587,"from_address":"noreply@demo.example","username":null,"password_set":true,"starttls":true}
+{"configured":true,"host":"smtp.example.test","port":587,"from_address":"noreply@demo.example","username":null,"password_set":true,"starttls":true}
 ```
 
 `password_set` is how the password is reported; the value itself is never
-in any of the three.
+in any of these.
 
 `POST /smtp/test` sends one message to the given address synchronously and
 reports the transport's own failure as `502`, rather than an operator
 discovering a bad configuration only when a user's verification mail
-silently fails. `400` for a tenant with no SMTP configuration at all.
+silently fails. That detail is still returned verbatim, now that the
+destination check above has taken away what it was an oracle for: with only
+public addresses reachable, the failure tells an operator about their own
+relay rather than about this server's neighbourhood. `400` for a tenant
+with no SMTP configuration at all, and `400` for a host this server will
+not connect to.
 
 ```bash
 curl -sS -X POST \
@@ -1368,15 +1409,18 @@ curl -sS -X POST \
   http://localhost:3000/admin/tenants/demo/smtp/test
 ```
 
-The same request before and after the `PUT` above. This stack has no mail
-server and `smtp.example.test` does not resolve, so the second is the
-transport's own failure reported verbatim — which is the point of the
-endpoint:
+Against a tenant with no row at all, then against the `smtp.example.test`
+row the `PUT` above stored, then against the same tenant after its `host`
+was re-`PUT` as `127.0.0.1` — the probe this endpoint would otherwise be:
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"this tenant has no SMTP configuration","instance":"01a0d6ff-1902-7de4-aa84-e594ee018d25"}
-{"type":"about:blank","title":"Bad Gateway","status":502,"detail":"getaddrinfo ENOTFOUND smtp.example.test","instance":"01a0d6ff-1949-7acc-a62b-2d8315592ea4"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"this tenant has no SMTP configuration","instance":"01a0d767-0802-7f87-8b85-ff1276001dde"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"this server will not connect to smtp.example.test: it resolves to no address","instance":"01a0d767-0856-7051-b6d1-ef5da413fd73"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"this server will not connect to 127.0.0.1: address 127.0.0.1 is a loopback address","instance":"01a0d767-0887-7e7b-88b3-c1ecf3df5f9a"}
 ```
+
+No `502` is shown: this stack has no mail server and no host it is willing
+to dial, so nothing here reaches a transport for one to be reported from.
 
 ## `GET /audit`
 

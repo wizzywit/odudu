@@ -2,6 +2,7 @@ import { unwrapSecret, wrapSecret } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { smtpSender, type EmailSender } from '@odudu/email';
 import { type SmtpConfig } from '@odudu/contracts/admin';
+import { checkSmtpDestination, type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 
 export interface SmtpAuditEvent {
@@ -90,21 +91,36 @@ export async function putSmtp(
   return toWireShape(record);
 }
 
+export type SenderFromRecordOutcome =
+  { kind: 'refused_destination'; reason: string } | { kind: 'ok'; sender: EmailSender };
+
 // The one place a tenant's own row becomes a live transport — shared by
 // `sendTestMessage` below and by apps/server's own sender resolution
 // (email.ts's `resolveSender`), so a test send and a real one build the
-// transport the same way.
-export function smtpSenderFromRecord(record: TenantSmtpRecord, kek: Uint8Array): EmailSender {
-  return smtpSender({
-    host: record.host,
-    port: record.port,
-    from: record.fromAddress,
-    ...(record.username !== null ? { username: record.username } : {}),
-    ...(record.passwordEncrypted !== null
-      ? { password: unwrapSecret(record.passwordEncrypted, kek) }
-      : {}),
-    starttls: record.starttls,
-  });
+// transport the same way and are bounded by the same destination policy.
+export async function smtpSenderFromRecord(
+  record: TenantSmtpRecord,
+  kek: Uint8Array,
+  policy: SmtpDestinationPolicy,
+): Promise<SenderFromRecordOutcome> {
+  const destination = await checkSmtpDestination(record.host, policy);
+  if (destination.kind === 'refused') {
+    return { kind: 'refused_destination', reason: destination.reason };
+  }
+
+  return {
+    kind: 'ok',
+    sender: smtpSender({
+      host: record.host,
+      port: record.port,
+      from: record.fromAddress,
+      ...(record.username !== null ? { username: record.username } : {}),
+      ...(record.passwordEncrypted !== null
+        ? { password: unwrapSecret(record.passwordEncrypted, kek) }
+        : {}),
+      starttls: record.starttls,
+    }),
+  };
 }
 
 export type ReadSmtpForTestOutcome =
@@ -118,24 +134,30 @@ export async function readSmtpForTest(
   return record === null ? { kind: 'not_configured' } : { kind: 'ok', record };
 }
 
-export type SendTestMessageOutcome = { kind: 'sent' } | { kind: 'send_failed'; detail: string };
+export type SendTestMessageOutcome =
+  | { kind: 'sent' }
+  | { kind: 'refused_destination'; reason: string }
+  | { kind: 'send_failed'; detail: string };
 
 // Takes the record already read, never a transaction: the caller reads
 // inside withTenant (readSmtpForTest above) and calls this only after that
 // transaction has returned, so an unreachable or slow host never holds a
-// pooled tenant connection for the length of the attempt. Sends
-// synchronously and reports the transport's own failure, because the whole
-// value of this route is telling an operator now rather than letting them
-// discover a bad configuration when a user's verification mail silently
-// fails later.
+// pooled tenant connection for the length of the attempt. The transport's
+// own failure is reported back once the destination has been admitted,
+// because the whole value of this route is telling an operator now rather
+// than letting them discover a bad configuration when a user's
+// verification mail silently fails later.
 export async function sendTestMessage(
   record: TenantSmtpRecord,
   kek: Uint8Array,
+  policy: SmtpDestinationPolicy,
   to: string,
 ): Promise<SendTestMessageOutcome> {
-  const sender = smtpSenderFromRecord(record, kek);
+  const built = await smtpSenderFromRecord(record, kek, policy);
+  if (built.kind === 'refused_destination') return built;
+
   try {
-    await sender.send({
+    await built.sender.send({
       to,
       subject: 'Odudu SMTP test',
       text: 'This is a test message from Odudu.',

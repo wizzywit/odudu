@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import { sendTestMessage } from '#/usecase/smtp';
 
 const RECORD = {
@@ -11,14 +12,50 @@ const RECORD = {
   starttls: false,
 };
 
+const KEK = new Uint8Array(32);
+
+function admitting(...addresses: string[]): SmtpDestinationPolicy {
+  return { allowPrivate: false, resolve: () => Promise.resolve(addresses) };
+}
+
 describe('sendTestMessage', () => {
   // Takes the record itself, never a database handle or transaction — the
   // route reads inside withTenant and calls this only once that has
   // returned, so a slow or unreachable host can never hold a pooled tenant
   // connection open for the length of the attempt.
   it('reports the transport failure without needing a transaction at all', async () => {
-    const outcome = await sendTestMessage(RECORD, new Uint8Array(32), 'ops@example.test');
+    const outcome = await sendTestMessage(
+      RECORD,
+      KEK,
+      admitting('93.184.216.34'),
+      'ops@example.test',
+    );
 
     expect(outcome.kind).toBe('send_failed');
+  });
+
+  it('refuses a loopback host before any transport exists to report on', async () => {
+    const outcome = await sendTestMessage(
+      { ...RECORD, host: '127.0.0.1' },
+      KEK,
+      admitting(),
+      'ops@example.test',
+    );
+
+    expect(outcome).toEqual({
+      kind: 'refused_destination',
+      reason: 'this server will not connect to 127.0.0.1: address 127.0.0.1 is a loopback address',
+    });
+  });
+
+  it('refuses a name that resolves inside the perimeter', async () => {
+    const outcome = await sendTestMessage(
+      { ...RECORD, host: 'metadata.internal' },
+      KEK,
+      admitting('169.254.169.254'),
+      'ops@example.test',
+    );
+
+    expect(outcome.kind).toBe('refused_destination');
   });
 });

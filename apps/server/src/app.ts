@@ -96,6 +96,13 @@ export interface AppDeps {
    * it explicitly rather than getting it silently.
    */
   readonly allowPrivateClientUrls?: boolean;
+  /**
+   * The same escape hatch for the relay a tenant configures through
+   * `PUT /smtp`. Separate from `allowPrivateClientUrls` because an
+   * internal mail relay is an ordinary production shape, where a private
+   * `jwks_uri` is not. Defaults `false`; loopback stays refused either way.
+   */
+  readonly allowPrivateSmtpHosts?: boolean;
 }
 
 export interface ThrottleSettings {
@@ -226,6 +233,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       kek: deps.kek,
       trustProxy: deps.trustProxy ?? false,
       claimMappers,
+      allowPrivateSmtpHosts: deps.allowPrivateSmtpHosts ?? false,
     }),
   );
   app.register(
