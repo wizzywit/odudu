@@ -1,21 +1,14 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { clientIsLive, type LiveClientLookup } from '#/service/client-enabled';
+import {
+  audienceOf,
+  callerIsAddressed,
+  type IntrospectionCaller,
+} from '#/service/introspection-audience';
 
 export interface IntrospectionGrant {
   readonly revokedAt: Date | null;
-}
-
-// RFC 7662 §2.2 leaves "the caller" undefined beyond "a protected
-// resource". A `/introspect` caller authenticates with a `client_id`, but a
-// token's `aud` is built from RFC 8707 resource URIs
-// (`client_oidc_config.audiences`) — a different namespace. Either
-// identity entitles the caller to a description; see
-// docs/protocols/rfc7662.md's reading note "The caller's identity" for
-// why, and why this is its own type rather than a bare string.
-export interface IntrospectionCaller {
-  readonly clientId: string;
-  readonly audiences: readonly string[];
 }
 
 export interface IntrospectionInput {
@@ -50,23 +43,6 @@ export interface IntrospectionDeps {
 
 const INACTIVE: IntrospectionResponse = { active: false };
 
-function audienceOf(aud: unknown): string[] {
-  if (typeof aud === 'string') return [aud];
-  if (Array.isArray(aud) && aud.every((entry): entry is string => typeof entry === 'string')) {
-    return aud;
-  }
-  return [];
-}
-
-// True when the caller is entitled to a description of this token: its own
-// `client_id`, or any resource URI it is registered under, is named in the
-// token's `aud`. See `IntrospectionCaller`'s doc comment for why the two
-// identities are checked together.
-function callerIsAddressed(caller: IntrospectionCaller, aud: readonly string[]): boolean {
-  const identities = [caller.clientId, ...caller.audiences];
-  return identities.some((identity) => aud.includes(identity));
-}
-
 // RFC 7662 §2.2/§2.3: every reason a token is not described — a signature
 // that does not verify, a grant this server has revoked or never minted a
 // `grant_id` for, a session that has ended before the token's own `exp`,
@@ -84,11 +60,11 @@ export async function introspect(
       keys: [...deps.keys],
       issuer: deps.issuer,
       // The caller's entitlement is an intersection against its own
-      // registered identities (`callerIsAddressed`, below) — a rule
-      // verification itself cannot express, since it depends on who is
-      // asking rather than on the token alone. This declares that
-      // deliberately, per AUDIENCE_UNCHECKED's own contract
-      // (packages/crypto/src/service/sign.ts).
+      // registered identities (`callerIsAddressed`,
+      // `#/service/introspection-audience.ts`) — a rule verification
+      // itself cannot express, since it depends on who is asking rather
+      // than on the token alone. This declares that deliberately, per
+      // AUDIENCE_UNCHECKED's own contract (packages/crypto/src/service/sign.ts).
       audience: AUDIENCE_UNCHECKED,
       typ: 'at+jwt',
     });

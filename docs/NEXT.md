@@ -281,17 +281,6 @@ one ever appears, is what this should move to.
 - Trigger: an IANA registration for the media type, or a conformance suite
   objecting to the private one.
 
-**`/introspect`'s entitlement check sits in a `usecase`, not a `service`.**
-`callerIsAddressed` and `audienceOf`
-(`packages/protocol-oidc/src/usecase/introspection.ts`) are pure domain
-decisions with no orchestration, which this package's convention puts in
-`service/`. The trigger this entry carried — "the task that wires
-`/introspect`'s HTTP route" — has fired; the route shipped and the move did
-not happen.
-
-- Trigger: any task that next touches `introspection.ts`. It is two
-  functions and their tests.
-
 **The post-rotation `resolveAudience` check is exercised by no test.** It is
 load-bearing only for ADR 0019's revocation race — a revocation landing
 between the pre-flight and the authoritative read — which no test drives.
