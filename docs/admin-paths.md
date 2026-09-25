@@ -921,7 +921,7 @@ authorization-bearing list whole, so a stale write reinstates exactly what
 another administrator has just removed; the header comes from the matching
 `GET`, which answers an `ETag` over the same list. Absent, the request is
 refused with `428 Precondition Required` and nothing is changed; stale,
-with `412`. The list is read under the same row lock the replacement runs
+with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 
@@ -967,7 +967,7 @@ authorization-bearing list whole, so a stale write reinstates exactly what
 another administrator has just removed; the header comes from the matching
 `GET`, which answers an `ETag` over the same list. Absent, the request is
 refused with `428 Precondition Required` and nothing is changed; stale,
-with `412`. The list is read under the same row lock the replacement runs
+with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 
@@ -1198,7 +1198,7 @@ authorization-bearing list whole, so a stale write reinstates exactly what
 another administrator has just removed; the header comes from the matching
 `GET`, which answers an `ETag` over the same list. Absent, the request is
 refused with `428 Precondition Required` and nothing is changed; stale,
-with `412`. The list is read under the same row lock the replacement runs
+with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 
@@ -1237,7 +1237,7 @@ authorization-bearing list whole, so a stale write reinstates exactly what
 another administrator has just removed; the header comes from the matching
 `GET`, which answers an `ETag` over the same list. Absent, the request is
 refused with `428 Precondition Required` and nothing is changed; stale,
-with `412`. The list is read under the same row lock the replacement runs
+with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 
@@ -1290,7 +1290,7 @@ authorization-bearing list whole, so a stale write reinstates exactly what
 another administrator has just removed; the header comes from the matching
 `GET`, which answers an `ETag` over the same list. Absent, the request is
 refused with `428 Precondition Required` and nothing is changed; stale,
-with `412`. The list is read under the same row lock the replacement runs
+with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 
@@ -1410,7 +1410,7 @@ authorization-bearing list whole, so a stale write reinstates exactly what
 another administrator has just removed; the header comes from the matching
 `GET`, which answers an `ETag` over the same list. Absent, the request is
 refused with `428 Precondition Required` and nothing is changed; stale,
-with `412`. The list is read under the same row lock the replacement runs
+with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 

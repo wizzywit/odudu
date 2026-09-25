@@ -79,6 +79,10 @@ export async function replaceFlow(
   // first challenge.
   if (!startsALogin(input.steps)) return { kind: 'no_step_runnable_at_start' };
 
+  // Before the read, never after: the lock is what makes the comparison
+  // below describe the flow this write overwrites, the same order
+  // `amendSettings` and `amendClient` take theirs in.
+  await executionRepository(tx).lockForTenant(input.tenantId);
   const before = await listFlow(tx, input.tenantId);
   const precondition = requiredPrecondition(input.ifMatch, before.etag);
   if (precondition !== 'ok') {

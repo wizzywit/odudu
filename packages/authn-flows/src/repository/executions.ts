@@ -56,6 +56,16 @@ export function executionRepository(tx: TenantScopedDatabase) {
       });
     },
 
+    // For a caller that reads the flow before deciding whether to replace
+    // it: an `If-Match` comparison means nothing unless nothing else can
+    // write between the read and the write. Re-taking it below costs
+    // nothing, pg_advisory_xact_lock being reentrant within a transaction.
+    async lockForTenant(tenantId: string): Promise<void> {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext('authentication_executions'), hashtext(${tenantId}))`,
+      );
+    },
+
     // Deletes and re-inserts in the caller's own transaction, never
     // partially: a flow's meaning is in its order.
     //

@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { amendClient, clientWireShape, readClient } from '#/usecase/clients';
+import { listFlow, replaceFlow } from '#/usecase/flow';
 import { amendSettings, readSettings } from '#/usecase/settings';
 import { setRequiredActions, setRoles } from '#/usecase/subjects';
 
@@ -296,5 +297,62 @@ describe('two concurrent replacements whose If-Match matches whatever it finds',
     expect(secondOutcome.kind === 'ok' ? secondOutcome.actions : null).toEqual([
       'generate-recovery-codes',
     ]);
+  });
+});
+
+// The flow has no row to lock — a tenant whose flow is empty has none at
+// all — so `replaceForTenant`'s advisory lock is the only mutex, and the
+// `If-Match` comparison has to sit inside it. Taken after the read
+// instead, two callers holding the same fresh tag would both pass.
+describe('two concurrent flow replacements carrying the same If-Match', () => {
+  it('lets the first win and refuses the second', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const before = await withTenant(fixture.app.db, t.id, (tx) => listFlow(tx, t.id));
+    const held = gate();
+
+    const first = withTenant(fixture.app.db, t.id, async (tx) => {
+      const outcome = await replaceFlow(
+        tx,
+        { audit: AUDIT },
+        {
+          tenantId: t.id,
+          steps: [{ authenticator: 'password', requirement: 'required' }],
+          ifMatch: before.etag,
+          actorSubjectId: 'first',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      );
+      held.arrive();
+      await held.open;
+      return outcome;
+    });
+
+    await held.reached;
+    const second = withTenant(fixture.app.db, t.id, (tx) =>
+      replaceFlow(
+        tx,
+        { audit: AUDIT },
+        {
+          tenantId: t.id,
+          steps: [
+            { authenticator: 'password', requirement: 'required' },
+            { authenticator: 'otp', requirement: 'conditional' },
+          ],
+          ifMatch: before.etag,
+          actorSubjectId: 'second',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
+    );
+
+    await awaitBlockedTransaction();
+    held.release();
+
+    expect((await first).kind).toBe('ok');
+    expect((await second).kind).toBe('precondition_failed');
+    const after = await withTenant(fixture.app.db, t.id, (tx) => listFlow(tx, t.id));
+    expect(after.items.map((step) => step.authenticator)).toEqual(['password']);
   });
 });
