@@ -6,6 +6,7 @@ import {
   TENANT_ADMIN,
   TENANT_CAPABILITIES,
 } from '@odudu/domain-tenant';
+import { type Group } from '@odudu/contracts/admin';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
@@ -631,7 +632,74 @@ describe('PATCH /admin/tenants/{t}/groups/{id} — the reparent capability ceili
     });
     expect(res.statusCode).toBe(200);
   });
+
+  it('refuses creating a group under a parent whose roles reach tenant-admin', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const tenantAdmin = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+    const adminGroup = (
+      await createGroupHttp(tenantAdmin, t.name, { name: `admin-group-${newId()}` })
+    ).json<{ id: string }>();
+    const tenantAdminId = await capabilityRoleId(t.id, TENANT_ADMIN);
+    await fixture.http.inject({
+      method: 'PUT',
+      url: `/admin/tenants/${t.name}/groups/${adminGroup.id}/roles`,
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${tenantAdmin}`,
+        'content-type': 'application/json',
+      },
+      payload: { role_ids: [tenantAdminId] },
+    });
+
+    // The ceiling `PATCH`'s reparent already enforced, at the door that
+    // chooses a parent when the group is first written.
+    const weaker = await fixture.adminToken(t.name, ['manage-tenant']);
+    const res = await createGroupHttp(weaker, t.name, {
+      name: `child-${newId()}`,
+      parent_id: adminGroup.id,
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json<{ detail: string }>().detail).toContain(TENANT_ADMIN);
+  });
+
+  it('still creates a group under a parent mapping nothing the caller lacks', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const parent = (await createGroupHttp(token, t.name, { name: `parent-${newId()}` })).json<{
+      id: string;
+    }>();
+
+    const res = await createGroupHttp(token, t.name, {
+      name: `child-${newId()}`,
+      parent_id: parent.id,
+    });
+    expect(res.statusCode).toBe(201);
+  });
 });
+
+async function makeGroup(
+  tenantId: string,
+  name: string,
+  audit: (tx: TenantScopedDatabase, e: GroupAuditEvent) => Promise<void> = () => Promise.resolve(),
+): Promise<Group> {
+  const outcome = await withTenant(fixture.app.db, tenantId, (tx) =>
+    createGroup(
+      tx,
+      { audit },
+      {
+        tenantId,
+        name,
+        parentId: null,
+        callerCapabilities: new Set(),
+        actorSubjectId: 'test',
+        actorTenantId: 'test-tenant',
+        actorClientId: 'test-client',
+      },
+    ),
+  );
+  if (outcome.kind !== 'ok') throw new Error(`createGroup refused: ${outcome.kind}`);
+  return outcome.group;
+}
 
 // Every usecase in this file takes `audit` as a dependency rather than
 // calling a sink directly — the same seam #/usecase/subjects.ts uses —
@@ -655,40 +723,14 @@ describe('audit', () => {
   it('calls audit exactly once when it creates a group', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const { events, audit } = collector();
-    await withTenant(fixture.app.db, t.id, (tx) =>
-      createGroup(
-        tx,
-        { audit },
-        {
-          tenantId: t.id,
-          name: `audited-${newId()}`,
-          parentId: null,
-          actorSubjectId: 'test',
-          actorTenantId: 'test-tenant',
-          actorClientId: 'test-client',
-        },
-      ),
-    );
+    await makeGroup(t.id, `audited-${newId()}`, audit);
     expect(events).toHaveLength(1);
     expect(events[0]?.action).toBe('group.create');
   });
 
   it('calls audit exactly once on a successful amendment, and not on a refusal', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
-    const group = await withTenant(fixture.app.db, t.id, (tx) =>
-      createGroup(
-        tx,
-        { audit: () => Promise.resolve() },
-        {
-          tenantId: t.id,
-          name: `g-${newId()}`,
-          parentId: null,
-          actorSubjectId: 'test',
-          actorTenantId: 'test-tenant',
-          actorClientId: 'test-client',
-        },
-      ),
-    );
+    const group = await makeGroup(t.id, `g-${newId()}`);
 
     const ok = collector();
     const amended = await withTenant(fixture.app.db, t.id, (tx) =>
@@ -731,32 +773,8 @@ describe('audit', () => {
 
   it('does not call audit on a reparent refused by the capability ceiling', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
-    const [group, adminGroup] = await withTenant(fixture.app.db, t.id, async (tx) => [
-      await createGroup(
-        tx,
-        { audit: () => Promise.resolve() },
-        {
-          tenantId: t.id,
-          name: `g-${newId()}`,
-          parentId: null,
-          actorSubjectId: 'test',
-          actorTenantId: 'test-tenant',
-          actorClientId: 'test-client',
-        },
-      ),
-      await createGroup(
-        tx,
-        { audit: () => Promise.resolve() },
-        {
-          tenantId: t.id,
-          name: `admin-${newId()}`,
-          parentId: null,
-          actorSubjectId: 'test',
-          actorTenantId: 'test-tenant',
-          actorClientId: 'test-client',
-        },
-      ),
-    ]);
+    const group = await makeGroup(t.id, `g-${newId()}`);
+    const adminGroup = await makeGroup(t.id, `admin-${newId()}`);
     const tenantAdminId = await capabilityRoleId(t.id, TENANT_ADMIN);
     // A real tenant-admin holder's `callerCapabilities` is already expanded
     // through role_composites by the composition root (effectiveRoles) —
@@ -796,25 +814,14 @@ describe('audit', () => {
       ),
     );
     expect(outcome.kind).toBe('capability_ceiling');
-    expect(refused.events).toHaveLength(0);
+    // An attempted privilege escalation is the one refusal this phase
+    // records, so the row is the assertion rather than its absence.
+    expect(refused.events.map((event) => event.outcome)).toEqual(['refused']);
   });
 
   it('calls audit exactly once on a successful delete, and not on not_found', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
-    const group = await withTenant(fixture.app.db, t.id, (tx) =>
-      createGroup(
-        tx,
-        { audit: () => Promise.resolve() },
-        {
-          tenantId: t.id,
-          name: `g-${newId()}`,
-          parentId: null,
-          actorSubjectId: 'test',
-          actorTenantId: 'test-tenant',
-          actorClientId: 'test-client',
-        },
-      ),
-    );
+    const group = await makeGroup(t.id, `g-${newId()}`);
 
     const ok = collector();
     const deleted = await withTenant(fixture.app.db, t.id, (tx) =>
@@ -851,20 +858,7 @@ describe('audit', () => {
 
   it('calls audit exactly once replacing roles, and not on a capability-ceiling refusal', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
-    const group = await withTenant(fixture.app.db, t.id, (tx) =>
-      createGroup(
-        tx,
-        { audit: () => Promise.resolve() },
-        {
-          tenantId: t.id,
-          name: `g-${newId()}`,
-          parentId: null,
-          actorSubjectId: 'test',
-          actorTenantId: 'test-tenant',
-          actorClientId: 'test-client',
-        },
-      ),
-    );
+    const group = await makeGroup(t.id, `g-${newId()}`);
     const plain = await plainRole(t.id);
     const tenantAdminId = await capabilityRoleId(t.id, TENANT_ADMIN);
 
@@ -904,6 +898,8 @@ describe('audit', () => {
       ),
     );
     expect(outcome.kind).toBe('capability_ceiling');
-    expect(refused.events).toHaveLength(0);
+    // An attempted privilege escalation is the one refusal this phase
+    // records, so the row is the assertion rather than its absence.
+    expect(refused.events.map((event) => event.outcome)).toEqual(['refused']);
   });
 });

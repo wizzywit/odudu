@@ -375,6 +375,16 @@ export async function addRoleComposite(
   const requestedCapabilities = await capabilitiesReachableFrom(tx, [input.childRoleId]);
   const denied = overreach(requestedCapabilities, input.callerCapabilities);
   if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'role.composite_add',
+      resourceType: 'role',
+      resourceId: input.parentRoleId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
     return { kind: 'capability_ceiling', requested: denied };
   }
 

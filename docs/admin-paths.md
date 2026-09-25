@@ -1155,6 +1155,10 @@ is refused with a reason. A `parent_id` naming no group answers `400`, the
 same refusal `POST /groups` gives for the same input. Reparenting into the
 group's own subtree answers `409` (`group_reparent_cycle`), the same way a
 role composite's cycle does.
+Both doors that choose a parent carry the same capability ceiling: naming
+a parent whose own roles — or any ancestor's — reach a capability the
+caller does not hold answers `403`, on `POST /groups` as on `PATCH`, since
+every subject later placed in the group would inherit it.
 `DELETE` **deletes the whole subtree**, not one group: `groups_parent_fk`
 cascades on the parent, so every descendant is deleted with it, and each
 of those takes its own `group_roles` mappings and `subject_groups`
@@ -1186,7 +1190,8 @@ reverse, refused:
 Both require `manage-tenant`. The write replaces the group's role mapping
 wholesale — a role left out of the list is one the caller clears, not one
 left alone — the same replace-all shape `PUT /subjects/:id/roles` uses for
-a subject's own assignments. An unknown role id answers `400`.
+a subject's own assignments. An unknown role id answers `400`, and a role
+set reaching past the caller's own capabilities `403`.
 
 **`If-Match` is mandatory here, not optional.** This route replaces an
 authorization-bearing list whole, so a stale write reinstates exactly what
@@ -1580,13 +1585,17 @@ per resource type: a secret, a password hash or a private key never
 appears in it, whichever of the two it would have been, and a field on
 neither list is absent rather than shown.
 
-`outcome` is `allowed`, `refused` or `failed`, but **only `POST /clients`
-records a refused attempt today** — a reserved `client_id`, metadata
-`parseClientMetadata` rejects, or a tenant at its client capacity each
-write a row with `outcome: "refused"` and no other change. Every other
-mutation above writes a row only when it succeeds; `?outcome=refused`
-against any other resource type returns nothing yet, not because nothing
-was refused.
+`outcome` is `allowed`, `refused` or `failed`. Two kinds of refusal record
+one. **`POST /clients`** does — a reserved `client_id`, metadata
+`parseClientMetadata` rejects, or a tenant at its client capacity — and so
+does **every capability ceiling**: `POST /groups` and `PATCH /groups/{id}`
+choosing a parent, `PUT /subjects/{id}/roles`, `PUT /groups/{id}/roles`,
+`PUT /scopes/{id}/roles` and `POST /roles/{id}/composites`, each writing a
+row whose `detail` names the capabilities the caller does not hold. An
+attempted privilege escalation is the refusal worth recording even while
+refusals in general are not. Every other mutation above writes a row only
+when it succeeds; `?outcome=refused` against a resource type with neither
+of those doors returns nothing yet, not because nothing was refused.
 
 `tenant_id` on a row is the tenant the change was made **to**, not the
 tenant of whoever made it. `actor_tenant_id` and `actor_client_id` name the
@@ -1643,8 +1652,9 @@ field to diff:
 {"items":[{"id":"01a0d6fe-e5af-7e92-9a37-467c4486586e","occurred_at":"2026-09-25T05:17:04.301Z","event_type":"admin_mutation","action":"key.retire","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"signing_key","resource_id":"01a0d6fc-3654-7f93-817b-bd7f1bb2ff55","request_id":null,"ip":null,"detail":{}},{"id":"01a0d6fe-e558-781d-9400-1c2ec6563448","occurred_at":"2026-09-25T05:17:04.213Z","event_type":"admin_mutation","action":"key.promote","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"signing_key","resource_id":"01a0d6fe-e527-77e6-b71d-57ed1a903cc3","request_id":null,"ip":null,"detail":{}},{"id":"01a0d6fe-e527-77e6-b71d-57ee38478a8b","occurred_at":"2026-09-25T05:17:04.166Z","event_type":"admin_mutation","action":"key.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"signing_key","resource_id":"01a0d6fe-e527-77e6-b71d-57ed1a903cc3","request_id":null,"ip":null,"detail":{}}]}
 ```
 
-And `?outcome=refused`, which is only ever non-empty for `POST /clients`.
-The row below is the reserved-`client_id` attempt shown under that section;
+And `?outcome=refused`, non-empty for `POST /clients` and for a capability
+ceiling. The row below is the reserved-`client_id` attempt shown under that
+section, captured on a stack where no ceiling had yet been tripped;
 `resource_id` is the `client_id` string, there being no row to name:
 
 ```

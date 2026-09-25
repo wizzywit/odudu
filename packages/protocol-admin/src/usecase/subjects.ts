@@ -785,6 +785,19 @@ export async function setRoles(
   const requestedCapabilities = await capabilitiesReachableFrom(tx, uniqueRoleIds);
   const denied = overreach(requestedCapabilities, input.callerCapabilities);
   if (denied.length > 0) {
+    // General refusal auditing is not in this phase, but an attempted
+    // privilege escalation is the one refusal worth a row of its own: it
+    // is the whole reason this ceiling exists (CWE-269).
+    await deps.audit(tx, {
+      action: 'subject.roles_set',
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
     return { kind: 'capability_ceiling', requested: denied };
   }
 

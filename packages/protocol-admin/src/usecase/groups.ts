@@ -119,6 +119,8 @@ export interface CreateGroupInput {
   readonly tenantId: string;
   readonly name: string;
   readonly parentId: string | null;
+  /** The caller's own admin-client capability names — see `AmendGroupInput`'s for the same ceiling. */
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -127,6 +129,9 @@ export interface CreateGroupInput {
 export interface CreateGroupDeps {
   readonly audit: Audit;
 }
+
+export type CreateGroupOutcome =
+  { kind: 'capability_ceiling'; requested: readonly string[] } | { kind: 'ok'; group: Group };
 
 // `OduduError('group_not_found')` from `groupRepository.create` (a
 // `parent_id` naming no group) propagates out of this function instead of
@@ -137,7 +142,31 @@ export async function createGroup(
   tx: TenantScopedDatabase,
   deps: CreateGroupDeps,
   input: CreateGroupInput,
-): Promise<Group> {
+): Promise<CreateGroupOutcome> {
+  // The ceiling `amendGroup`'s reparent enforces, at the other door that
+  // chooses a parent: creating a group under one whose roles reach a
+  // capability the caller does not hold would place every subject added to
+  // it above the caller. `ancestorsOf` answers the empty set for an id no
+  // group holds, so an unknown parent still falls through to `create`'s
+  // own `group_not_found`.
+  if (input.parentId !== null) {
+    const requestedCapabilities = await capabilitiesOfGroupAndAncestors(tx, input.parentId);
+    const denied = overreach(requestedCapabilities, input.callerCapabilities);
+    if (denied.length > 0) {
+      await deps.audit(tx, {
+        action: 'group.create',
+        resourceType: 'group',
+        resourceId: input.parentId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { denied },
+      });
+      return { kind: 'capability_ceiling', requested: denied };
+    }
+  }
+
   const created = await groupRepository(tx).create({
     tenantId: input.tenantId,
     name: input.name,
@@ -154,7 +183,7 @@ export async function createGroup(
     outcome: 'allowed',
   });
 
-  return groupWireShape(created);
+  return { kind: 'ok', group: groupWireShape(created) };
 }
 
 export interface AmendGroupInput {
@@ -243,6 +272,16 @@ export async function amendGroup(
     const requestedCapabilities = await capabilitiesOfGroupAndAncestors(tx, parentId);
     const denied = overreach(requestedCapabilities, input.callerCapabilities);
     if (denied.length > 0) {
+      await deps.audit(tx, {
+        action: 'group.amend',
+        resourceType: 'group',
+        resourceId: input.groupId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { denied },
+      });
       return { kind: 'capability_ceiling', requested: denied };
     }
   }
@@ -411,6 +450,16 @@ export async function setGroupRoles(
   const requestedCapabilities = await capabilitiesReachableFrom(tx, uniqueRoleIds);
   const denied = overreach(requestedCapabilities, input.callerCapabilities);
   if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'group.roles_set',
+      resourceType: 'group',
+      resourceId: input.groupId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
     return { kind: 'capability_ceiling', requested: denied };
   }
 

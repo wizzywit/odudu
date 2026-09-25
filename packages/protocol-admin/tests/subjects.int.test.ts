@@ -362,6 +362,26 @@ describe('PUT /admin/tenants/{t}/subjects/{id}/roles — the capability ceiling'
     expect(res.statusCode).toBe(403);
   });
 
+  it('leaves a row in the audit trail naming what the caller did not hold', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users', 'view-audit']);
+    const tenantAdminId = await capabilityRoleId(t.id, TENANT_ADMIN);
+
+    expect((await putRoles(t.name, targetId, token, [tenantAdminId])).statusCode).toBe(403);
+
+    const audit = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const rows = audit
+      .json<{ items: { action: string; outcome: string; resource_id: string }[] }>()
+      .items.filter((item) => item.action === 'subject.roles_set');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ outcome: 'refused', resource_id: targetId });
+  });
+
   it('refuses the same escalation in the system tenant, for manage-tenants', async () => {
     const { id: targetId } = await fixture.createSubject(SYSTEM_TENANT_NAME, `target-${newId()}`);
     const token = await fixture.systemAdminToken(['manage-users']);
@@ -1154,6 +1174,8 @@ describe('audit', () => {
       ),
     );
     expect(outcome.kind).toBe('capability_ceiling');
-    expect(refused.events).toHaveLength(0);
+    // An attempted privilege escalation is the one refusal this phase
+    // records, so the row is the assertion rather than its absence.
+    expect(refused.events.map((event) => event.outcome)).toEqual(['refused']);
   });
 });

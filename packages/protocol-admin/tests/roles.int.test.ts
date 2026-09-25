@@ -696,6 +696,8 @@ describe('audit', () => {
       ),
     );
     expect(outcome.kind).toBe('capability_ceiling');
-    expect(refused.events).toHaveLength(0);
+    // An attempted privilege escalation is the one refusal this phase
+    // records, so the row is the assertion rather than its absence.
+    expect(refused.events.map((event) => event.outcome)).toEqual(['refused']);
   });
 });

@@ -3,7 +3,6 @@ import {
   createGroupRequestSchema,
   listGroupsQuerySchema,
   setGroupRolesRequestSchema,
-  type Group,
   type SetGroupRolesResponse,
 } from '@odudu/contracts/admin';
 import { isUniqueViolation, withTenant, type Database } from '@odudu/db';
@@ -21,6 +20,7 @@ import {
   setGroupRoles,
   type AmendGroupOutcome,
   type Audit,
+  type CreateGroupOutcome,
 } from '#/usecase/groups';
 import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
@@ -107,10 +107,14 @@ function isParentNotFoundError(err: unknown): boolean {
 export function createGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const body = createGroupRequestSchema.parse(request.body);
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
-    let group: Group;
+    let outcome: CreateGroupOutcome;
     try {
-      group = await withTenant(deps.database, targetTenantId, (tx) =>
+      outcome = await withTenant(deps.database, targetTenantId, (tx) =>
         createGroup(
           tx,
           { audit: deps.audit },
@@ -118,6 +122,7 @@ export function createGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
             tenantId: targetTenantId,
             name: body.name,
             parentId: body.parent_id ?? null,
+            callerCapabilities,
             actorSubjectId: principal.subjectId,
             actorTenantId: principal.issuerTenantId,
             actorClientId: principal.clientDbId,
@@ -151,7 +156,19 @@ export function createGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
       throw error;
     }
 
-    return reply.code(201).send(group);
+    if (outcome.kind === 'capability_ceiling') {
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          403,
+          'about:blank',
+          'Forbidden',
+          `the caller does not hold: ${outcome.requested.join(', ')}`,
+        ),
+      );
+    }
+    return reply.code(201).send(outcome.group);
   };
 }
 

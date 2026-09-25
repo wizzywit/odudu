@@ -111,11 +111,14 @@ does not carry the request forward, so a refresh widens the response.
 Closing it means threading the value onto the grant row, on the same
 rotation path P4e's token events instrument.
 
-**Only `POST /clients` records a refusal.** `outcome` has three values, and
-every other admin mutation writes a row only when it succeeds, so
-`?outcome=refused` against any other resource type answers nothing — not
-because nothing was refused. Whether that generalises is P4e's to decide,
-since it is the phase that decides what a refused **authentication** writes.
+**Only `POST /clients` and the capability ceilings record a refusal.**
+`outcome` has three values; a ceiling refusal writes a row naming what the
+caller does not hold, because an attempted privilege escalation is worth
+recording whatever is decided about refusals in general. Every other admin
+mutation writes a row only when it succeeds, so `?outcome=refused` against
+a resource type with neither door answers nothing — not because nothing was
+refused. Whether that generalises is P4e's to decide, since it is the phase
+that decides what a refused **authentication** writes.
 
 **Two recovery-code gaps that need the account console.** A subject cannot
 ask for a fresh set before running out, and nothing warns as the list gets

@@ -452,6 +452,16 @@ export async function setScopeRoles(
   const requestedCapabilities = await capabilitiesReachableFrom(tx, uniqueRoleIds);
   const denied = overreach(requestedCapabilities, input.callerCapabilities);
   if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'scope.roles_set',
+      resourceType: 'scope',
+      resourceId: input.scopeId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
     return { kind: 'capability_ceiling', requested: denied };
   }
 
