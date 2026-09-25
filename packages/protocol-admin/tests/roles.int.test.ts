@@ -369,6 +369,20 @@ describe('POST /admin/tenants/{t}/roles/{id}/composites', () => {
     expect(res.statusCode).toBe(204);
   });
 
+  it('400s a child_role_id that is not an id at all, not 500', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const parentId = await plainRole(t.id);
+    const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/roles/${parentId}/composites`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { child_role_id: 'not-a-uuid' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('refuses a cycle with 409', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);

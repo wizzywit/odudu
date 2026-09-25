@@ -150,6 +150,12 @@ export async function createGroup(
   // group holds, so an unknown parent still falls through to `create`'s
   // own `group_not_found`.
   if (input.parentId !== null) {
+    // `groups.id` is a `uuid` column: a non-uuid `parent_id` would fail in
+    // `ancestorsOf` before `create`'s own `group_not_found` ever gets a
+    // chance to run, so it is refused the same way here, before that query.
+    if (!isUuid(input.parentId)) {
+      throw new OduduError('group_not_found', `no group with id ${input.parentId}`);
+    }
     const requestedCapabilities = await capabilitiesOfGroupAndAncestors(tx, input.parentId);
     const denied = overreach(requestedCapabilities, input.callerCapabilities);
     if (denied.length > 0) {
@@ -431,13 +437,17 @@ export async function setGroupRoles(
   }
 
   const uniqueRoleIds = [...new Set(input.roleIds)];
+  // `roles.id` is a `uuid` column: a non-uuid entry is left out of the
+  // query rather than sent to it, and falls out as missing below the same
+  // way a well-formed but nonexistent id does.
+  const queryableRoleIds = uniqueRoleIds.filter(isUuid);
   const found =
-    uniqueRoleIds.length === 0
+    queryableRoleIds.length === 0
       ? []
       : await tx
           .select({ id: roles.id, name: roles.name })
           .from(roles)
-          .where(inArray(roles.id, uniqueRoleIds));
+          .where(inArray(roles.id, queryableRoleIds));
   const foundIds = new Set(found.map((role) => role.id));
   const missing = uniqueRoleIds.filter((id) => !foundIds.has(id));
   if (missing.length > 0) {

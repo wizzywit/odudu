@@ -249,6 +249,26 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/roles', () => {
     });
     expect(res.statusCode).toBe(400);
   });
+
+  it('400s a role id that is not an id at all, not 500', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const { id } = (await createScopeHttp(token, t.name, { name: `s-${newId()}` })).json<{
+      id: string;
+    }>();
+
+    const res = await fixture.http.inject({
+      method: 'PUT',
+      url: `/admin/tenants/${t.name}/scopes/${id}/roles`,
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      payload: { role_ids: ['not-a-uuid'] },
+    });
+    expect(res.statusCode).toBe(400);
+  });
 });
 
 describe('PUT /admin/tenants/{t}/scopes/{id}/clients/{clientId}', () => {

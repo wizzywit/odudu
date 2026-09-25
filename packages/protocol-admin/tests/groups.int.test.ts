@@ -129,6 +129,13 @@ describe('POST /admin/tenants/{t}/groups', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('refuses a parent_id that is not an id at all with 400, not 500', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const res = await createGroupHttp(token, t.name, { name: 'x', parent_id: 'not-a-uuid' });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('is refused for every capability but manage-tenant', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     for (const capability of ['view-users', 'manage-users', 'manage-clients']) {
@@ -406,6 +413,26 @@ describe('PUT /admin/tenants/{t}/groups/{id}/roles', () => {
         'content-type': 'application/json',
       },
       payload: { role_ids: [newId()] },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('400s a role id that is not an id at all, not 500', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const { id } = (await createGroupHttp(token, t.name, { name: `g-${newId()}` })).json<{
+      id: string;
+    }>();
+
+    const res = await fixture.http.inject({
+      method: 'PUT',
+      url: `/admin/tenants/${t.name}/groups/${id}/roles`,
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      payload: { role_ids: ['not-a-uuid'] },
     });
     expect(res.statusCode).toBe(400);
   });

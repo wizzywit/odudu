@@ -440,6 +440,15 @@ describe('PUT /admin/tenants/{t}/subjects/{id}/roles', () => {
     const res = await putRoles(t.name, targetId, token, [viewUsersId]);
     expect(res.statusCode).toBe(403);
   });
+
+  it('400s a role id that is not an id at all, not 500', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+
+    const res = await putRoles(t.name, targetId, token, ['not-a-uuid']);
+    expect(res.statusCode).toBe(400);
+  });
 });
 
 describe('PATCH /admin/tenants/{t}/subjects/{id}', () => {

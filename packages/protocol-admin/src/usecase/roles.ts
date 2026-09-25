@@ -365,6 +365,12 @@ export async function addRoleComposite(
   deps: AddRoleCompositeDeps,
   input: AddRoleCompositeInput,
 ): Promise<AddRoleCompositeOutcome> {
+  // `roles.id` is a `uuid` column: a non-uuid `child_role_id` would fail in
+  // `lockRolesForComposite`'s own lookup before `byId` ever answers
+  // `unknown_child_role`, so it is refused the same way here, before that
+  // lock is taken.
+  if (!isUuid(input.childRoleId)) return { kind: 'unknown_child_role' };
+
   await lockRolesForComposite(tx, input.parentRoleId, input.childRoleId);
 
   const parent = await roleRepository(tx).byId(input.parentRoleId);
