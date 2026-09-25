@@ -960,7 +960,11 @@ admin-initiated end has no browser to render one in, so only the
 back-channel delivery is attempted. A second `DELETE` of the same session
 is idempotent and answers `204`: ending an already-ended session only
 moves `expires_at` earlier, and a repeat delivery for the same client is
-deduped by `backchannel_logout_deliveries_dedupe`. An unknown session id,
+deduped by `backchannel_logout_deliveries_dedupe`. "Only moves earlier" is
+what `least(expires_at, now)` and `coalesce(revoked_at, now)` make true — a
+bare assignment would push both stamps forward on every repeat, so a second
+`DELETE` at a later moment would delay the reaping the first one started
+rather than changing nothing. An unknown session id,
 or one belonging to a different subject, answers `404`.
 
 A session needs a login, and a subject this API created has no password, so
@@ -1082,9 +1086,12 @@ is refused with a reason. A `parent_id` naming no group answers `400`, the
 same refusal `POST /groups` gives for the same input. Reparenting into the
 group's own subtree answers `409` (`group_reparent_cycle`), the same way a
 role composite's cycle does.
-`DELETE` cascades: a descendant's `parent_id` edge, every `group_roles`
-mapping and every `subject_groups` membership naming the group goes with
-it.
+`DELETE` **deletes the whole subtree**, not one group: `groups_parent_fk`
+cascades on the parent, so every descendant is deleted with it, and each
+of those takes its own `group_roles` mappings and `subject_groups`
+memberships along. A child does not survive as a new root, and there is no
+confirmation step — a `DELETE` of a group near the top of a tree removes
+everything under it.
 
 ```bash
 curl -sS -X PATCH \

@@ -41,6 +41,14 @@ function replaceFlowProblem(outcome: Exclude<ReplaceFlowOutcome, { kind: 'ok' }>
         'Bad Request',
         'every step is disabled; a tenant with no enabled step cannot be logged into',
       );
+    case 'no_step_runnable_at_start':
+      return problem(
+        400,
+        'about:blank',
+        'Bad Request',
+        'no step would run at the start of a login, when no subject is bound yet; ' +
+          'a tenant whose flow begins this way cannot be logged into',
+      );
   }
 }
 

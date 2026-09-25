@@ -108,10 +108,12 @@ export function groupRepository(tx: TenantScopedDatabase) {
       return findById(tx, groupId);
     },
 
-    // `groups_parent_fk`/`group_roles_group_fk`/`subject_groups_group_fk`
-    // (0018_groups.sql) all cascade: deleting a group removes its
-    // descendants' `parent_id` edge along with every role mapping and
-    // subject membership naming it directly.
+    // Deletes the whole subtree, not one group: `groups_parent_fk`
+    // (0018_groups.sql) cascades on the parent, so every descendant row is
+    // deleted too, and `group_roles_group_fk`/`subject_groups_group_fk`
+    // cascade from each of those in turn — so every role mapping and every
+    // membership anywhere beneath `groupId` goes with it. There is no
+    // reparent-to-root behaviour here: a child does not survive its parent.
     async delete(groupId: string): Promise<boolean> {
       const rows = await tx.delete(groups).where(eq(groups.id, groupId)).returning({
         id: groups.id,

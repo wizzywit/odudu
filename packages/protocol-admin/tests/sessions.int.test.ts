@@ -291,6 +291,37 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/sessions/{sid}', () => {
     expect(second.statusCode).toBe(204);
   });
 
+  // Idempotent has to mean the state does not move either. A bare
+  // assignment would push `expires_at` and `revoked_at` forward on every
+  // repeat, delaying the reaping the first call started.
+  it('moves neither expires_at nor revoked_at forward on a later second DELETE', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `gwen-${newId()}`);
+    const { sessionId } = await seedSessionWithGrant(t.id, subjectId);
+
+    const token = await fixture.adminToken(t.name, ['manage-sessions']);
+    const url = `/admin/tenants/${t.name}/subjects/${subjectId}/sessions/${sessionId}`;
+    const headers = { authorization: `Bearer ${token}` };
+
+    await fixture.http.inject({ method: 'DELETE', url, headers });
+    const after = await withTenant(fixture.app.db, t.id, async (tx) => ({
+      session: await sessionRepository(tx).byId(sessionId),
+      grants: await tokenGrantRepository(tx).bySession(sessionId),
+    }));
+
+    fixture.clock.advance(60_000);
+    await fixture.http.inject({ method: 'DELETE', url, headers });
+
+    const later = await withTenant(fixture.app.db, t.id, async (tx) => ({
+      session: await sessionRepository(tx).byId(sessionId),
+      grants: await tokenGrantRepository(tx).bySession(sessionId),
+    }));
+    expect(later.session?.expiresAt).toEqual(after.session?.expiresAt);
+    expect(later.grants.map((grant) => grant.revokedAt)).toEqual(
+      after.grants.map((grant) => grant.revokedAt),
+    );
+  });
+
   it('refuses an unknown session id with 404', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const { id: subjectId } = await fixture.createSubject(t.name, `frank-${newId()}`);

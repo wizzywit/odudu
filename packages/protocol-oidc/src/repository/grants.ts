@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clients } from '@odudu/domain-tenant';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { tokenGrants, type TokenGrantRecord } from '#/schema/token-grants';
 
@@ -109,12 +109,17 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
 
     // Logout's whole write. Returns the number revoked so a caller can tell
     // "ended a session that had grants" from "ended one that had none"
-    // without a second query; an already-revoked grant is matched again and
-    // simply re-stamped, which keeps this idempotent.
+    // without a second query.
+    //
+    // `coalesce` keeps the first revocation's timestamp: re-stamping an
+    // already-revoked grant at a later `now` would move its reaping window
+    // forward every time logout ran again.
     async revokeForSession(sessionId: string, revokedAt: Date): Promise<number> {
       const rows = await tx
         .update(tokenGrants)
-        .set({ revokedAt })
+        .set({
+          revokedAt: sql`coalesce(${tokenGrants.revokedAt}, ${revokedAt.toISOString()}::timestamptz)`,
+        })
         .where(eq(tokenGrants.sessionId, sessionId))
         .returning({ id: tokenGrants.id });
       return rows.length;

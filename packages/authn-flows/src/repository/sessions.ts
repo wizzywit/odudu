@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray, sql } from 'drizzle-orm';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { sessions, type SessionRecord } from '#/schema/sessions';
 import { isSessionLive } from '#/service/session-liveness';
@@ -69,14 +69,18 @@ export function sessionRepository(tx: TenantScopedDatabase) {
       await tx.update(sessions).set({ lastActiveAt: now }).where(eq(sessions.id, id));
     },
 
-    // Logout ends a session by moving its own ceiling to now, rather than
-    // deleting the row or adding a second "ended" state: `isSessionLive`'s
-    // exclusive `now >= expiresAt` check already treats that as dead from
-    // this instant, and the reaping pass a later increment adds removes the
-    // row itself. Idempotent — ending an already-dead session only ever
-    // moves `expires_at` earlier or leaves it where it was.
+    // Logout moves the session's own ceiling to now rather than deleting
+    // the row: `isSessionLive`'s exclusive `now >= expiresAt` treats that
+    // as dead from this instant, and the reaping pass removes the row.
+    //
+    // `least`, not a bare assignment: a second end at a later `now` would
+    // push `expires_at` forward, delaying the reaping the first one
+    // started instead of being the no-op callers rely on.
     async end(id: string, now: Date): Promise<void> {
-      await tx.update(sessions).set({ expiresAt: now }).where(eq(sessions.id, id));
+      await tx
+        .update(sessions)
+        .set({ expiresAt: sql`least(${sessions.expiresAt}, ${now.toISOString()}::timestamptz)` })
+        .where(eq(sessions.id, id));
     },
 
     // The set read every session consumer uses now that a browser may hold

@@ -307,6 +307,39 @@ describe('DELETE /admin/tenants/{t}/groups/{id}', () => {
     expect(after.statusCode).toBe(404);
   });
 
+  // groups_parent_fk cascades on the parent, so this removes the subtree.
+  // A reader who expects a child to survive as a new root is reading the
+  // opposite of what happens.
+  it('takes every descendant with it, rather than orphaning them as roots', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const root = (await createGroupHttp(token, t.name, { name: `root-${newId()}` })).json<{
+      id: string;
+    }>();
+    const child = (
+      await createGroupHttp(token, t.name, { name: `child-${newId()}`, parent_id: root.id })
+    ).json<{ id: string }>();
+    const grandchild = (
+      await createGroupHttp(token, t.name, { name: `gc-${newId()}`, parent_id: child.id })
+    ).json<{ id: string }>();
+
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/groups/${root.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(204);
+
+    for (const gone of [root.id, child.id, grandchild.id]) {
+      const after = await fixture.http.inject({
+        method: 'GET',
+        url: `/admin/tenants/${t.name}/groups/${gone}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(after.statusCode, gone).toBe(404);
+    }
+  });
+
   it('404s an id no group holds', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);

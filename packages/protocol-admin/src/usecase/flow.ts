@@ -1,6 +1,7 @@
 import {
   executionRepository,
   registeredAuthenticatorNames,
+  startsALogin,
   type AuthenticationExecutionRecord,
   type ExecutionInput,
 } from '@odudu/authn-flows';
@@ -54,6 +55,7 @@ export type ReplaceFlowOutcome =
   | { kind: 'empty' }
   | { kind: 'unresolvable_authenticator'; name: string; known: readonly string[] }
   | { kind: 'no_enabled_step' }
+  | { kind: 'no_step_runnable_at_start' }
   | { kind: 'ok'; items: readonly ExecutionStep[] };
 
 /** Replaces a tenant's whole flow — no partial edit is offered, since a flow's meaning is in its order. */
@@ -64,6 +66,10 @@ export async function replaceFlow(
 ): Promise<ReplaceFlowOutcome> {
   const validated = validateFlowSteps(input.steps, registeredAuthenticatorNames());
   if (validated.kind !== 'ok') return validated;
+  // Shape is not enough: a flow every step of which stands down before any
+  // subject is bound passes every check above and still cannot render a
+  // first challenge.
+  if (!startsALogin(input.steps)) return { kind: 'no_step_runnable_at_start' };
 
   const rows = await executionRepository(tx).replaceForTenant(input.tenantId, input.steps);
 

@@ -159,13 +159,13 @@ async function lockOwnedSession(
   return row?.subjectId === subjectId ? row : null;
 }
 
-// Reuses P3b's own `endSession` unchanged — the same call the RP-Initiated
-// Logout usecase makes (`@odudu/protocol-oidc`) — so there is one path
-// that ends a session, not two. No front-channel delivery: see
-// docs/admin-paths.md's sessions section for why none is attempted here.
-// Ending an already-ended session is a no-op: `endOidcSession` only ever
-// moves `expires_at` earlier, and a repeat delivery for the same client
-// is deduped by `backchannel_logout_deliveries_dedupe`.
+// The same `endSession` the RP-Initiated Logout usecase calls
+// (`@odudu/protocol-oidc`), so there is one path that ends a session, not
+// two. No front-channel delivery: see docs/admin-paths.md's sessions
+// section. A second end changes nothing — `sessionRepository.end` clamps
+// with `least`, `revokeForSession` keeps the first stamp with `coalesce`,
+// and a repeat delivery is deduped by
+// `backchannel_logout_deliveries_dedupe`.
 export async function endSession(
   tx: TenantScopedDatabase,
   deps: EndSessionDeps,

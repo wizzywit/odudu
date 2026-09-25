@@ -128,6 +128,47 @@ describe('GET /admin/tenants/{t}/flow/executions', () => {
     ]);
   });
 
+  // At login start no subject is bound, so a conditional otp step stands
+  // down and a conditional recovery-code step is inapplicable — every group
+  // counts as satisfied and `initialChallenge` answers
+  // no_applicable_execution. Shape validation alone lets this through.
+  it('400s a flow whose every step stands down before a subject is bound', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await putFlow(token, t.name, [
+      { authenticator: 'otp', requirement: 'conditional' },
+      { authenticator: 'recovery-code', requirement: 'conditional' },
+    ]);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toMatch(/start of a login/u);
+  });
+
+  it('400s a flow that begins with a step no first request could answer', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await putFlow(token, t.name, [
+      { authenticator: 'otp', requirement: 'required' },
+      { authenticator: 'password', requirement: 'required' },
+    ]);
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('accepts a conditional step once something runnable precedes it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await putFlow(token, t.name, [
+      { authenticator: 'password', requirement: 'required' },
+      { authenticator: 'otp', requirement: 'conditional' },
+    ]);
+
+    expect(res.statusCode).toBe(200);
+  });
+
   it('is refused for every capability but manage-tenant', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     for (const capability of TENANT_CAPABILITIES) {
