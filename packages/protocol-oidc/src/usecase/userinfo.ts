@@ -9,7 +9,11 @@ import {
 } from '@odudu/crypto';
 import { type ClaimMapperRegistry } from '@odudu/kernel';
 import { presentedBearerToken } from '#/service/bearer-token';
-import { type ClaimContext, narrowToRequestedClaims } from '#/service/claims';
+import {
+  type ClaimContext,
+  type LoadedClaimContext,
+  narrowToRequestedClaims,
+} from '#/service/claims';
 import { clientIsLive, type LiveClientLookup } from '#/service/client-enabled';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
 import { type ClientKeySet } from '#/repository/client-keys';
@@ -22,7 +26,7 @@ export interface UserinfoGrant {
 export interface UserinfoDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
   listPublishableKeys(tenantId: string): Promise<SigningKeyRecord[]>;
-  loadClaimContext(tenantId: string, subjectId: string): Promise<ClaimContext>;
+  loadClaimContext(tenantId: string, subjectId: string): Promise<LoadedClaimContext>;
   claimMappers: ClaimMapperRegistry<ClaimContext>;
   // The same two reads `/introspect` makes (usecase/introspection.ts) —
   // a grant this server revoked, or a session that has since ended, makes
@@ -238,10 +242,10 @@ export async function resolveUserinfo(
     scope,
   );
   const narrowedCtx: ClaimContext = {
-    ...ctx,
-    roles: narrowByScopeMappings(ctx.roles, reachableRoleIds, fullScopeAllowed),
+    ...ctx.context,
+    roles: narrowByScopeMappings(ctx.context.roles, reachableRoleIds, fullScopeAllowed),
   };
-  const assembled = await deps.claimMappers.assemble(scope, narrowedCtx, narrowedCtx.bindings);
+  const assembled = await deps.claimMappers.assemble(scope, narrowedCtx, ctx.bindings);
   // `sub` is kept regardless of what was requested — OIDC Core §5.3.2's own
   // response, not a claim `narrowToRequestedClaims` was ever meant to cut.
   const requested = requestedClaimsOf(payload.requested_userinfo_claims);

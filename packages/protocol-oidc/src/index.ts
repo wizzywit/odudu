@@ -42,7 +42,7 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
 import { tenantLookupRepository } from '#/repository/tenant-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
-import { standardClaimMappers, type ClaimContext } from '#/service/claims';
+import { standardClaimMappers, type ClaimContext, type LoadedClaimContext } from '#/service/claims';
 import { type LiveClientLookup } from '#/service/client-enabled';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import {
@@ -152,13 +152,16 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // Roles need a recursive CTE (effectiveRoles), which a claim mapper must
     // never run itself — resolved here, once per issuance, alongside the
     // user row, the subject's direct group memberships, and the tenant's
-    // own scope-mapper bindings, and handed to the mappers as data.
-    const loadClaimContext = (tenantId: string, subjectId: string) =>
+    // own scope-mapper bindings. `bindings` travels beside `context`, never
+    // inside it, so nothing a mapper receives can read it.
+    const loadClaimContext = (tenantId: string, subjectId: string): Promise<LoadedClaimContext> =>
       withTenant(deps.database.db, tenantId, async (tx) => ({
-        subjectId,
-        user: await userRepository(tx).bySubjectId(subjectId),
-        roles: await effectiveRoles(tx, subjectId),
-        groups: await effectiveGroupPaths(tx, subjectId),
+        context: {
+          subjectId,
+          user: await userRepository(tx).bySubjectId(subjectId),
+          roles: await effectiveRoles(tx, subjectId),
+          groups: await effectiveGroupPaths(tx, subjectId),
+        },
         bindings: await clientScopeMapperRepository(tx).bindingsByScopeName(tenantId),
       }));
 
@@ -859,4 +862,4 @@ export {
   UNLIMITED_CLIENT_SECRET_LIMITER,
   type ClientSecretLimiter,
 } from '#/service/client-secret-throttle';
-export { standardClaimMappers, type ClaimContext } from '#/service/claims';
+export { standardClaimMappers, type ClaimContext, type LoadedClaimContext } from '#/service/claims';

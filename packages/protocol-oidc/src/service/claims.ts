@@ -6,14 +6,21 @@ import { ClaimMapperRegistry, type ClaimMapper } from '@odudu/kernel';
 // for a subject the identity domain has no users row for — every mapper
 // below treats that as "nothing to add", not an error, since a claim mapper
 // never runs a query of its own (service is a leaf): the usecase that calls
-// `assemble` already did the one lookup this needs. `roles`, `groups` and
-// `bindings` are resolved the same way, once per issuance; no mapper reads
-// `bindings` itself, it is only carried for `assemble` to read beside the rest.
+// `assemble` already did the one lookup this needs. `roles` and `groups`
+// are resolved the same way, once per issuance.
 export interface ClaimContext {
   readonly subjectId: string;
   readonly user: UserRecord | null;
   readonly roles: readonly EffectiveRole[];
   readonly groups: readonly string[];
+}
+
+// A tenant's scope-mapper bindings, resolved once per issuance the same way
+// `ClaimContext`'s own fields are — kept out of `ClaimContext` itself so a
+// mapper's `map(ctx: ClaimContext)` has no property to read it from at all.
+// `assemble` takes this as its own third argument instead.
+export interface LoadedClaimContext {
+  readonly context: ClaimContext;
   readonly bindings: ReadonlyMap<string, readonly string[]>;
 }
 

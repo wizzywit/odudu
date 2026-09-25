@@ -3,7 +3,7 @@ import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { corsHeadersForRequest } from '#/service/cors';
-import { type ClaimContext } from '#/service/claims';
+import { type ClaimContext, type LoadedClaimContext } from '#/service/claims';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import { issueTokens, type ClientKeySet, type TokenResponse } from '#/usecase/token-issuance';
@@ -31,7 +31,7 @@ export interface TokenRouteDeps {
   // for the same subject and scope come from the same registry, so one can
   // never carry a claim the other omits.
   claimMappers: ClaimMapperRegistry<ClaimContext>;
-  loadClaimContext(tenantId: string, subjectId: string): Promise<ClaimContext>;
+  loadClaimContext(tenantId: string, subjectId: string): Promise<LoadedClaimContext>;
   // The real request's CORS decision, unlike the preflight's, is checked
   // against this one client's own expanded origins — resolved to an empty
   // set for a client_id this tenant does not have, so the header is simply
