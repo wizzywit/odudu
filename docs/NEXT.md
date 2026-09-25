@@ -101,9 +101,9 @@ administrator at all — fits the same table as an admin mutation, without a
 migration. `admin_mutation` is the only `event_type` written today.
 Retention is the tenant's own `audit_retention_days` setting, already last
 in `REAP_ORDER`, so P4e inherits the window rather than adding a second one
-to keep in step. `GET /admin/tenants/{tenant}/audit` already filters by
-`resource_type`, `action`, `outcome`, `actor_subject_id` and an
-`occurred_at` range; `event_type` is the filter it will need.
+to keep in step. `GET /admin/tenants/{tenant}/audit` filters by
+`event_type`, `resource_type`, `action`, `outcome`, `actor_subject_id` and
+an `occurred_at` range.
 
 **`requested_userinfo_claims` is lost on refresh, and ADR 0036 says so.**
 The narrowing itself is decided — OIDC Core §5.5's `claims` parameter
