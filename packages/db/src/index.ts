@@ -5,6 +5,7 @@ export { isUniqueViolation, isCheckViolation } from '#/sqlstate';
 export * from '#/schema/index';
 export {
   type ExclusiveTenantPass,
+  type RequestContext,
   type TenantScopedDatabase,
   withEachTenantExclusive,
   withTenant,

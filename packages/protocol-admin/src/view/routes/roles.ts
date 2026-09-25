@@ -4,7 +4,7 @@ import {
   createRoleRequestSchema,
   listRolesQuerySchema,
 } from '@odudu/contracts/admin';
-import { isUniqueViolation, withTenant, type Database } from '@odudu/db';
+import { isUniqueViolation, type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
@@ -21,6 +21,7 @@ import {
   type CreateRoleOutcome,
 } from '#/usecase/roles';
 import { problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface RolesRouteDeps {
@@ -48,7 +49,7 @@ export function listRolesHandler(deps: RolesRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: roles route received no :tenant');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listRoles(tx, {
         limit,
         cursor: query.cursor,
@@ -84,7 +85,7 @@ export function readRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: GET role route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) => readRole(tx, id));
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) => readRole(tx, id));
     if (outcome.kind === 'not_found') {
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found', `no role ${id}`));
     }
@@ -100,7 +101,7 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
 
     let outcome: CreateRoleOutcome;
     try {
-      outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
         createRole(
           tx,
           { audit: deps.audit },
@@ -185,7 +186,7 @@ export function amendRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
     }
     const values = amendRoleRequestSchema.parse(request.body);
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       amendRole(
         tx,
         { audit: deps.audit },
@@ -215,7 +216,7 @@ export function deleteRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: DELETE role route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteRole(
         tx,
         { audit: deps.audit },
@@ -286,7 +287,7 @@ export function addRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHandler
       principal.subjectId,
     );
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       addRoleComposite(
         tx,
         { audit: deps.audit },

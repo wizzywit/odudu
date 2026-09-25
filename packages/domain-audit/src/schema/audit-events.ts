@@ -23,8 +23,8 @@ export const auditEvents = pgTable('audit_events', {
   actorClientId: uuid('actor_client_id'),
   resourceType: text('resource_type'),
   resourceId: text('resource_id'),
-  requestId: text('request_id'),
-  ip: text('ip'),
+  requestId: text('request_id').default(sql`nullif(current_setting('app.request_id', true), '')`),
+  ip: text('ip').default(sql`nullif(current_setting('app.client_ip', true), '')`),
   detail: jsonb('detail').notNull().default({}),
 }).enableRLS();
 

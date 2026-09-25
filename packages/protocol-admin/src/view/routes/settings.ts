@@ -1,5 +1,5 @@
 import { amendSettingsRequestSchema } from '@odudu/contracts/admin';
-import { withTenant, type Database } from '@odudu/db';
+import { type Database } from '@odudu/db';
 import {
   amendSettings,
   AmendSettingsRefusedError,
@@ -8,6 +8,7 @@ import {
   type Audit,
 } from '#/usecase/settings';
 import { problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface SettingsRouteDeps {
@@ -21,8 +22,8 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
 }
 
 export function getSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler {
-  return async (_request, reply, _principal, targetTenantId) => {
-    const { settings, etag } = await withTenant(deps.database, targetTenantId, (tx) =>
+  return async (request, reply, _principal, targetTenantId) => {
+    const { settings, etag } = await adminTx(deps.database, request, targetTenantId, (tx) =>
       readSettings(tx, targetTenantId),
     );
     reply.header('etag', etag);
@@ -39,7 +40,7 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
 
     let outcome: AmendSettingsOutcome;
     try {
-      outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
         amendSettings(
           tx,
           { audit: deps.audit },

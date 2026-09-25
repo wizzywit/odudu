@@ -8,7 +8,7 @@ import {
   type SetRolesResponse,
   type Subject,
 } from '@odudu/contracts/admin';
-import { isUniqueViolation, withTenant, type Database } from '@odudu/db';
+import { isUniqueViolation, type Database } from '@odudu/db';
 import { OduduError } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
@@ -32,6 +32,7 @@ import {
   type SubjectView,
 } from '#/usecase/subjects';
 import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface SubjectsRouteDeps {
@@ -82,7 +83,7 @@ export function listSubjectsHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
       throw new Error('protocol-admin: subjects route received no :tenant');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listSubjects(tx, {
         limit,
         cursor: query.cursor,
@@ -121,7 +122,9 @@ export function readSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: GET subject route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) => readSubject(tx, id));
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      readSubject(tx, id),
+    );
     if (outcome.kind === 'not_found') {
       return sendProblem(
         reply,
@@ -142,7 +145,7 @@ export function createSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
 
     let view: SubjectView;
     try {
-      view = await withTenant(deps.database, targetTenantId, (tx) =>
+      view = await adminTx(deps.database, request, targetTenantId, (tx) =>
         createSubject(
           tx,
           { audit: deps.audit },
@@ -236,7 +239,7 @@ export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
     }
     const values = amendSubjectRequestSchema.parse(request.body);
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       amendSubject(
         tx,
         { audit: deps.audit },
@@ -266,7 +269,7 @@ export function deleteSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
       throw new Error('protocol-admin: DELETE subject route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteSubject(
         tx,
         { audit: deps.audit },
@@ -295,7 +298,7 @@ export function listCredentialsHandler(deps: SubjectsRouteDeps): AdminRouteHandl
       throw new Error('protocol-admin: GET credentials route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listCredentials(tx, { tenantId: targetTenantId, subjectId: id, now: deps.now() }),
     );
     if (outcome.kind === 'not_found') {
@@ -318,7 +321,7 @@ export function deleteCredentialHandler(deps: SubjectsRouteDeps): AdminRouteHand
       throw new Error('protocol-admin: DELETE credential route received no :id/:credentialId');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteCredential(
         tx,
         { audit: deps.audit },
@@ -350,7 +353,7 @@ export function readRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteH
       throw new Error('protocol-admin: GET required-actions route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       readRequiredActions(tx, id),
     );
     if (outcome.kind === 'not_found') {
@@ -374,7 +377,7 @@ export function readSubjectRolesHandler(deps: SubjectsRouteDeps): AdminRouteHand
       throw new Error('protocol-admin: GET roles route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       readSubjectRoles(tx, id),
     );
     if (outcome.kind === 'not_found') {
@@ -399,7 +402,7 @@ export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHa
     }
     const body = setRequiredActionsRequestSchema.parse(request.body);
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       setRequiredActions(
         tx,
         { audit: deps.audit },
@@ -447,7 +450,7 @@ export function setRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
       principal.subjectId,
     );
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       setRoles(
         tx,
         { audit: deps.audit },

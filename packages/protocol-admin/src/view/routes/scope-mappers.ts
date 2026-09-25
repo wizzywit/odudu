@@ -1,5 +1,5 @@
 import { setScopeMappersRequestSchema } from '@odudu/contracts/admin';
-import { withTenant, type Database } from '@odudu/db';
+import { type Database } from '@odudu/db';
 import {
   readScopeMappers,
   setScopeMappers,
@@ -7,6 +7,7 @@ import {
   type MapperCatalogue,
 } from '#/usecase/scope-mappers';
 import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface ScopeMappersRouteDeps {
@@ -27,7 +28,7 @@ export function readScopeMappersHandler(deps: ScopeMappersRouteDeps): AdminRoute
       throw new Error('protocol-admin: GET scope mappers route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       readScopeMappers(tx, deps.claimMappers, id),
     );
     if (outcome.kind === 'not_found') {
@@ -50,7 +51,7 @@ export function setScopeMappersHandler(deps: ScopeMappersRouteDeps): AdminRouteH
     }
     const body = setScopeMappersRequestSchema.parse(request.body);
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       setScopeMappers(
         tx,
         deps.claimMappers,

@@ -7,7 +7,7 @@ import {
   type ClientScope,
   type SetScopeRolesResponse,
 } from '@odudu/contracts/admin';
-import { isUniqueViolation, withTenant, type Database } from '@odudu/db';
+import { isUniqueViolation, type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
@@ -24,6 +24,7 @@ import {
   type Audit,
 } from '#/usecase/scopes';
 import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface ScopesRouteDeps {
@@ -51,7 +52,7 @@ export function listScopesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: scopes route received no :tenant');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listScopes(tx, {
         limit,
         cursor: query.cursor,
@@ -87,7 +88,9 @@ export function readScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: GET scope route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) => readScope(tx, id));
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      readScope(tx, id),
+    );
     if (outcome.kind === 'not_found') {
       return sendProblem(
         reply,
@@ -107,7 +110,7 @@ export function createScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
 
     let scope: ClientScope;
     try {
-      scope = await withTenant(deps.database, targetTenantId, (tx) =>
+      scope = await adminTx(deps.database, request, targetTenantId, (tx) =>
         createScope(
           tx,
           { audit: deps.audit },
@@ -183,7 +186,7 @@ export function amendScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
     }
     const values = amendScopeRequestSchema.parse(request.body);
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       amendScope(
         tx,
         { audit: deps.audit },
@@ -213,7 +216,7 @@ export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: DELETE scope route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteScope(
         tx,
         { audit: deps.audit },
@@ -242,7 +245,9 @@ export function readScopeRolesHandler(deps: ScopesRouteDeps): AdminRouteHandler 
       throw new Error('protocol-admin: GET scope roles route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) => readScopeRoles(tx, id));
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      readScopeRoles(tx, id),
+    );
     if (outcome.kind === 'not_found') {
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
     }
@@ -265,7 +270,7 @@ export function setScopeRolesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
       principal.subjectId,
     );
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       setScopeRoles(
         tx,
         { audit: deps.audit },
@@ -328,7 +333,7 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
     }
     const body = assignScopeToClientRequestSchema.parse(request.body);
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       assignScopeToClient(
         tx,
         { audit: deps.audit },

@@ -18,3 +18,4 @@ export {
   type VocabularyEventInput,
   type VocabularyEventType,
 } from '#/service/vocabulary';
+export { requestContextFrom, type RequestContext } from '#/service/request-context';

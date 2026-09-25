@@ -35,6 +35,27 @@ async function createClients(token: string, tenantName: string, count: number): 
   }
 }
 
+function createClient(
+  token: string,
+  tenantName: string,
+  headers: Record<string, string> = {},
+): Promise<{ statusCode: number }> {
+  return fixture.http.inject({
+    method: 'POST',
+    url: `/admin/tenants/${tenantName}/clients`,
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+      ...headers,
+    },
+    payload: {
+      client_id: `ctx-${newId()}`,
+      redirect_uris: ['https://app.example/cb'],
+      token_endpoint_auth_method: 'none',
+    },
+  });
+}
+
 describe('GET /admin/tenants/{t}/audit', () => {
   it('pages by cursor over (occurred_at DESC, id DESC), newest first', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
@@ -179,5 +200,65 @@ describe('GET /admin/tenants/{t}/audit', () => {
     const res = await getAudit(nonAuditToken, t.name);
 
     expect(res.statusCode).toBe(403);
+  });
+
+  it('records the caller’s request id and address on the row', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients', 'view-audit']);
+
+    const created = await createClient(token, t.name, { 'x-request-id': 'probe-123' });
+    expect(created.statusCode).toBe(201);
+
+    const res = await getAudit(token, t.name, '?action=client.create');
+    const body = res.json<{ items: { request_id: string | null; ip: string | null }[] }>();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]?.request_id).toBe('probe-123');
+    expect(body.items[0]?.ip).toBe('127.0.0.1');
+  });
+
+  it('ignores x-forwarded-for while trust-proxy is off', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients', 'view-audit']);
+
+    const created = await createClient(token, t.name, { 'x-forwarded-for': '203.0.113.9' });
+    expect(created.statusCode).toBe(201);
+
+    const res = await getAudit(token, t.name, '?action=client.create');
+    const body = res.json<{ items: { ip: string | null }[] }>();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]?.ip).toBe('127.0.0.1');
+  });
+
+  it('truncates a request id longer than 128 characters', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients', 'view-audit']);
+    const longRequestId = 'x'.repeat(500);
+
+    const created = await createClient(token, t.name, { 'x-request-id': longRequestId });
+    expect(created.statusCode).toBe(201);
+
+    const res = await getAudit(token, t.name, '?action=client.create');
+    const body = res.json<{ items: { request_id: string | null }[] }>();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]?.request_id).toBe(longRequestId.slice(0, 128));
+  });
+
+  it('narrows on event_type and refuses one the vocabulary does not name', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients', 'view-audit']);
+    await createClients(token, t.name, 1);
+
+    const mutations = await getAudit(token, t.name, '?event_type=admin_mutation');
+    expect(mutations.statusCode).toBe(200);
+    const mutationsBody = mutations.json<{ items: { event_type: string }[] }>();
+    expect(mutationsBody.items.length).toBeGreaterThan(0);
+    expect(mutationsBody.items.every((row) => row.event_type === 'admin_mutation')).toBe(true);
+
+    const tokens = await getAudit(token, t.name, '?event_type=token');
+    expect(tokens.statusCode).toBe(200);
+    expect(tokens.json<{ items: unknown[] }>().items).toEqual([]);
+
+    const bogus = await getAudit(token, t.name, '?event_type=bogus');
+    expect(bogus.statusCode).toBe(400);
   });
 });

@@ -1,7 +1,8 @@
 import { replaceExecutionsRequestSchema } from '@odudu/contracts/admin';
-import { withTenant, type Database } from '@odudu/db';
+import { type Database } from '@odudu/db';
 import { listFlow, replaceFlow, type Audit, type ReplaceFlowOutcome } from '#/usecase/flow';
 import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface FlowRouteDeps {
@@ -15,8 +16,8 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
 }
 
 export function listFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
-  return async (_request, reply, _principal, targetTenantId) => {
-    const flow = await withTenant(deps.database, targetTenantId, (tx) =>
+  return async (request, reply, _principal, targetTenantId) => {
+    const flow = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listFlow(tx, targetTenantId),
     );
     reply.header('etag', flow.etag);
@@ -73,7 +74,7 @@ export function replaceFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const steps = replaceExecutionsRequestSchema.parse(request.body);
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       replaceFlow(
         tx,
         { audit: deps.audit },

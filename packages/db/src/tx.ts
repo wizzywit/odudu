@@ -17,10 +17,22 @@ export type TenantScopedDatabase = Omit<Database, 'transaction'> & {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * The request an audit row's `request_id`/`ip` columns default from
+ * (`packages/domain-audit/src/schema/audit-events.ts`), bound for the life
+ * of one `withTenant` transaction. Declared here, not in `@odudu/domain-audit`,
+ * because `withTenant` is what binds it.
+ */
+export interface RequestContext {
+  readonly requestId: string | null;
+  readonly ip: string | null;
+}
+
 export async function withTenant<T>(
   db: Database,
   tenantId: string,
   fn: (tx: TenantScopedDatabase) => Promise<T>,
+  context?: RequestContext,
 ): Promise<T> {
   if (!UUID_PATTERN.test(tenantId)) {
     throw new OduduError(
@@ -32,7 +44,18 @@ export async function withTenant<T>(
   return db.transaction(async (tx) => {
     // set_config(..., true) is the bindable form of SET LOCAL; SET LOCAL itself
     // takes no parameters, and interpolating tenantId into DDL would be injectable.
-    await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+    // All three bind in one statement so a caller cannot observe tenant_id set
+    // without request_id/ip having caught up to it.
+    if (context === undefined) {
+      await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+    } else {
+      await tx.execute(sql`
+        select
+          set_config('app.tenant_id', ${tenantId}, true),
+          set_config('app.request_id', ${context.requestId ?? ''}, true),
+          set_config('app.client_ip', ${context.ip ?? ''}, true)
+      `);
+    }
     return fn(tx as unknown as TenantScopedDatabase);
   });
 }

@@ -5,7 +5,7 @@ import {
   setGroupRolesRequestSchema,
   type SetGroupRolesResponse,
 } from '@odudu/contracts/admin';
-import { isUniqueViolation, withTenant, type Database } from '@odudu/db';
+import { isUniqueViolation, type Database } from '@odudu/db';
 import { OduduError } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
@@ -23,6 +23,7 @@ import {
   type CreateGroupOutcome,
 } from '#/usecase/groups';
 import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface GroupsRouteDeps {
@@ -50,7 +51,7 @@ export function listGroupsHandler(deps: GroupsRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: groups route received no :tenant');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listGroups(tx, {
         limit,
         cursor: query.cursor,
@@ -86,7 +87,9 @@ export function readGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: GET group route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) => readGroup(tx, id));
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      readGroup(tx, id),
+    );
     if (outcome.kind === 'not_found') {
       return sendProblem(
         reply,
@@ -114,7 +117,7 @@ export function createGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
 
     let outcome: CreateGroupOutcome;
     try {
-      outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
         createGroup(
           tx,
           { audit: deps.audit },
@@ -236,7 +239,7 @@ export function amendGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
       principal.subjectId,
     );
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       amendGroup(
         tx,
         { audit: deps.audit },
@@ -267,7 +270,7 @@ export function deleteGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: DELETE group route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteGroup(
         tx,
         { audit: deps.audit },
@@ -296,7 +299,9 @@ export function readGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler 
       throw new Error('protocol-admin: GET group roles route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) => readGroupRoles(tx, id));
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      readGroupRoles(tx, id),
+    );
     if (outcome.kind === 'not_found') {
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
     }
@@ -319,7 +324,7 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
       principal.subjectId,
     );
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       setGroupRoles(
         tx,
         { audit: deps.audit },

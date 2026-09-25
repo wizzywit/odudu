@@ -1,6 +1,6 @@
 import { newId, OduduError } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseHandle } from '#/client';
 import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
@@ -136,6 +136,47 @@ describe('withTenant', () => {
     }
 
     expect(nestedWithTenantMustNotCompile).toBeTypeOf('function');
+  });
+});
+
+describe('withTenant with a RequestContext', () => {
+  interface GucRow {
+    request_id: string | null;
+    ip: string | null;
+  }
+
+  async function readGucs(tx: TenantScopedDatabase): Promise<GucRow> {
+    const rows = await tx.execute(
+      sql`select current_setting('app.request_id', true) as request_id, current_setting('app.client_ip', true) as ip`,
+    );
+    return (rows as unknown as GucRow[])[0] ?? { request_id: null, ip: null };
+  }
+
+  it('binds app.request_id and app.client_ip for the life of the transaction', async () => {
+    const seen = await withTenant(app.db, TENANT_A, (tx) => readGucs(tx), {
+      requestId: 'r-1',
+      ip: '192.0.2.7',
+    });
+
+    expect(seen.request_id).toBe('r-1');
+    expect(seen.ip).toBe('192.0.2.7');
+  });
+
+  it('does not carry app.request_id into the next transaction on the same pooled connection', async () => {
+    await withTenant(app.db, TENANT_A, (tx) => readGucs(tx), {
+      requestId: 'r-1',
+      ip: '192.0.2.7',
+    });
+
+    // app.db is a max:1 pool: the next call reuses the same backend
+    // connection. set_config(..., true) is transaction-local, so a value
+    // bound in the prior transaction is gone once it commits — reverted to
+    // '', the same touched-then-reverted state withTenant's own tenant_id
+    // leaves behind (see the "does not leak tenant context" test above).
+    const after = await withTenant(app.db, TENANT_A, (tx) => readGucs(tx));
+
+    expect(after.request_id).toBe('');
+    expect(after.ip).toBe('');
   });
 });
 

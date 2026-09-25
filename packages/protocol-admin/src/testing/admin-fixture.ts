@@ -187,7 +187,10 @@ export async function startAdminFixture(): Promise<AdminFixture> {
   // GET /scopes/:id/mappers can never list a name issuance itself would not
   // recognise.
   const claimMappers = standardClaimMappers();
-  const http = Fastify();
+  // Same request-id wiring as apps/server/src/app.ts, so an audit row's
+  // request_id/ip can be tested here against a header this fixture actually
+  // honours rather than against light-my-request's own random id.
+  const http = Fastify({ genReqId: () => newId(), requestIdHeader: 'x-request-id' });
   await http.register(formbody);
   await http.register(
     oidcRoutes({
