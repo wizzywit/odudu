@@ -16,6 +16,7 @@ import { type Audit as KeyAudit } from '#/usecase/keys';
 import { type Audit as RoleAudit } from '#/usecase/roles';
 import { type Audit as ScopeAudit } from '#/usecase/scopes';
 import { type Audit as ScopeMapperAudit, type MapperCatalogue } from '#/usecase/scope-mappers';
+import { type Audit as SmtpAudit } from '#/usecase/smtp';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
 import { type Audit as SubjectAudit } from '#/usecase/subjects';
 import { type Audit } from '#/usecase/tenants';
@@ -45,6 +46,12 @@ import {
   setScopeMappersHandler,
   type ScopeMappersRouteDeps,
 } from '#/view/routes/scope-mappers';
+import {
+  putSmtpHandler,
+  readSmtpHandler,
+  testSmtpHandler,
+  type SmtpRouteDeps,
+} from '#/view/routes/smtp';
 import {
   createKeyHandler,
   listKeysHandler,
@@ -104,6 +111,8 @@ import { whoamiHandler } from '#/view/routes/whoami';
 
 export { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 export { composeUserSubject, type ComposeUserSubjectInput } from '#/usecase/subjects';
+export { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
+export { smtpSenderFromRecord } from '#/usecase/smtp';
 
 export interface AdminRoutesDeps {
   database: DatabaseHandle;
@@ -152,6 +161,7 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     const noopKeyAudit: KeyAudit = () => Promise.resolve();
     const noopFlowAudit: FlowAudit = () => Promise.resolve();
     const noopScopeMapperAudit: ScopeMapperAudit = () => Promise.resolve();
+    const noopSmtpAudit: SmtpAudit = () => Promise.resolve();
     // Same call `authzDeps.effectiveRoles` makes below, scoped to whichever
     // tenant the caller's own token was issued from — never the target
     // tenant a cross-tenant system admin is reaching into. Shared by
@@ -207,6 +217,11 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
       database: deps.database.db,
       claimMappers: deps.claimMappers,
       audit: noopScopeMapperAudit,
+    };
+    const smtpDeps: SmtpRouteDeps = {
+      database: deps.database.db,
+      kek: deps.kek,
+      audit: noopSmtpAudit,
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,
@@ -282,6 +297,9 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
         assignScopeToClientHandler(scopesDeps),
       'GET /admin/tenants/:tenant/scopes/:id/mappers': readScopeMappersHandler(scopeMappersDeps),
       'PUT /admin/tenants/:tenant/scopes/:id/mappers': setScopeMappersHandler(scopeMappersDeps),
+      'GET /admin/tenants/:tenant/smtp': readSmtpHandler(smtpDeps),
+      'PUT /admin/tenants/:tenant/smtp': putSmtpHandler(smtpDeps),
+      'POST /admin/tenants/:tenant/smtp/test': testSmtpHandler(smtpDeps),
       'GET /admin/tenants/:tenant/keys': listKeysHandler(keysDeps),
       'POST /admin/tenants/:tenant/keys': createKeyHandler(keysDeps),
       'POST /admin/tenants/:tenant/keys/:id/promote': promoteKeyHandler(keysDeps),

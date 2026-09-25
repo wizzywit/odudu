@@ -458,6 +458,9 @@ importers:
       '@odudu/domain-tenant':
         specifier: workspace:*
         version: link:../domain-tenant
+      '@odudu/email':
+        specifier: workspace:*
+        version: link:../email
       '@odudu/kernel':
         specifier: workspace:*
         version: link:../kernel

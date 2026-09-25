@@ -29,7 +29,7 @@ async function serverDiscoveryDocument(): Promise<Record<string, unknown>> {
           maxSessionsPerBrowser: 25,
           clientRegistrationPolicy: 'disabled',
         }),
-      claimNames: () => claimMappers.claimNames(),
+      claimNames: () => Promise.resolve(claimMappers.claimNames()),
       // What `seed tenant` puts in a tenant, so the document is checked against
       // the vocabulary a freshly seeded stack actually serves.
       scopesForTenant: () => Promise.resolve(TENANT_DEFAULT_SCOPE_NAMES),

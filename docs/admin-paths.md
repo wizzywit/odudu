@@ -66,58 +66,61 @@ section 7 has the full authentication and authorization sequence; getting
 a token to test with is [README.md](../README.md)'s job, not this
 document's.
 
-| Method   | Path                                                             | What it is                              |
-| -------- | ---------------------------------------------------------------- | --------------------------------------- |
-| `GET`    | `/admin/tenants`                                                 | List tenants                            |
-| `POST`   | `/admin/tenants`                                                 | Create a tenant                         |
-| `GET`    | `/admin/tenants/{tenant}/whoami`                                 | Identity probe                          |
-| `GET`    | `/admin/tenants/{tenant}/subjects`                               | List subjects                           |
-| `POST`   | `/admin/tenants/{tenant}/subjects`                               | Create a subject                        |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id`                           | Read a subject                          |
-| `PATCH`  | `/admin/tenants/{tenant}/subjects/:id`                           | Amend a subject                         |
-| `DELETE` | `/admin/tenants/{tenant}/subjects/:id`                           | Delete a subject                        |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id/credentials`               | List a subject's credentials            |
-| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/credentials/:credentialId` | Remove a credential                     |
-| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Set a subject's required actions        |
-| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Replace a subject's roles               |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id/sessions`                  | List a subject's live sessions          |
-| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/sessions/:sid`             | End one session                         |
-| `GET`    | `/admin/tenants/{tenant}/settings`                               | Read a tenant's settings                |
-| `PATCH`  | `/admin/tenants/{tenant}/settings`                               | Amend a tenant's settings               |
-| `GET`    | `/admin/tenants/{tenant}/clients`                                | List clients                            |
-| `POST`   | `/admin/tenants/{tenant}/clients`                                | Create a client                         |
-| `GET`    | `/admin/tenants/{tenant}/clients/:id`                            | Read a client                           |
-| `PATCH`  | `/admin/tenants/{tenant}/clients/:id`                            | Amend a client                          |
-| `DELETE` | `/admin/tenants/{tenant}/clients/:id`                            | Delete a client                         |
-| `POST`   | `/admin/tenants/{tenant}/clients/:id/secret`                     | Rotate a client's secret                |
-| `GET`    | `/admin/tenants/{tenant}/roles`                                  | List roles                              |
-| `POST`   | `/admin/tenants/{tenant}/roles`                                  | Create a role                           |
-| `GET`    | `/admin/tenants/{tenant}/roles/:id`                              | Read a role                             |
-| `PATCH`  | `/admin/tenants/{tenant}/roles/:id`                              | Amend a role                            |
-| `DELETE` | `/admin/tenants/{tenant}/roles/:id`                              | Delete a role                           |
-| `POST`   | `/admin/tenants/{tenant}/roles/:id/composites`                   | Add a role composite                    |
-| `GET`    | `/admin/tenants/{tenant}/groups`                                 | List groups                             |
-| `POST`   | `/admin/tenants/{tenant}/groups`                                 | Create a group                          |
-| `GET`    | `/admin/tenants/{tenant}/groups/:id`                             | Read a group                            |
-| `PATCH`  | `/admin/tenants/{tenant}/groups/:id`                             | Amend a group (reparent)                |
-| `DELETE` | `/admin/tenants/{tenant}/groups/:id`                             | Delete a group                          |
-| `PUT`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Replace a group's roles                 |
-| `GET`    | `/admin/tenants/{tenant}/scopes`                                 | List client scopes                      |
-| `POST`   | `/admin/tenants/{tenant}/scopes`                                 | Create a client scope                   |
-| `GET`    | `/admin/tenants/{tenant}/scopes/:id`                             | Read a client scope                     |
-| `PATCH`  | `/admin/tenants/{tenant}/scopes/:id`                             | Amend a client scope                    |
-| `DELETE` | `/admin/tenants/{tenant}/scopes/:id`                             | Delete a client scope                   |
-| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/roles`                       | Replace a scope's roles                 |
-| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/clients/:clientId`           | Assign a scope to a client              |
-| `GET`    | `/admin/tenants/{tenant}/scopes/:id/mappers`                     | Read a scope's claim mapper bindings    |
-| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/mappers`                     | Replace a scope's claim mapper bindings |
-| `GET`    | `/admin/tenants/{tenant}/keys`                                   | List signing keys                       |
-| `POST`   | `/admin/tenants/{tenant}/keys`                                   | Stage a signing key                     |
-| `POST`   | `/admin/tenants/{tenant}/keys/:id/promote`                       | Promote a signing key                   |
-| `POST`   | `/admin/tenants/{tenant}/keys/:id/retire`                        | Retire a signing key                    |
-| `GET`    | `/admin/tenants/{tenant}/flow/executions`                        | Read a tenant's authentication flow     |
-| `PUT`    | `/admin/tenants/{tenant}/flow/executions`                        | Replace a tenant's authentication flow  |
-| `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference                   |
+| Method   | Path                                                             | What it is                                |
+| -------- | ---------------------------------------------------------------- | ----------------------------------------- |
+| `GET`    | `/admin/tenants`                                                 | List tenants                              |
+| `POST`   | `/admin/tenants`                                                 | Create a tenant                           |
+| `GET`    | `/admin/tenants/{tenant}/whoami`                                 | Identity probe                            |
+| `GET`    | `/admin/tenants/{tenant}/subjects`                               | List subjects                             |
+| `POST`   | `/admin/tenants/{tenant}/subjects`                               | Create a subject                          |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id`                           | Read a subject                            |
+| `PATCH`  | `/admin/tenants/{tenant}/subjects/:id`                           | Amend a subject                           |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id`                           | Delete a subject                          |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/credentials`               | List a subject's credentials              |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/credentials/:credentialId` | Remove a credential                       |
+| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Set a subject's required actions          |
+| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Replace a subject's roles                 |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/sessions`                  | List a subject's live sessions            |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/sessions/:sid`             | End one session                           |
+| `GET`    | `/admin/tenants/{tenant}/settings`                               | Read a tenant's settings                  |
+| `PATCH`  | `/admin/tenants/{tenant}/settings`                               | Amend a tenant's settings                 |
+| `GET`    | `/admin/tenants/{tenant}/clients`                                | List clients                              |
+| `POST`   | `/admin/tenants/{tenant}/clients`                                | Create a client                           |
+| `GET`    | `/admin/tenants/{tenant}/clients/:id`                            | Read a client                             |
+| `PATCH`  | `/admin/tenants/{tenant}/clients/:id`                            | Amend a client                            |
+| `DELETE` | `/admin/tenants/{tenant}/clients/:id`                            | Delete a client                           |
+| `POST`   | `/admin/tenants/{tenant}/clients/:id/secret`                     | Rotate a client's secret                  |
+| `GET`    | `/admin/tenants/{tenant}/roles`                                  | List roles                                |
+| `POST`   | `/admin/tenants/{tenant}/roles`                                  | Create a role                             |
+| `GET`    | `/admin/tenants/{tenant}/roles/:id`                              | Read a role                               |
+| `PATCH`  | `/admin/tenants/{tenant}/roles/:id`                              | Amend a role                              |
+| `DELETE` | `/admin/tenants/{tenant}/roles/:id`                              | Delete a role                             |
+| `POST`   | `/admin/tenants/{tenant}/roles/:id/composites`                   | Add a role composite                      |
+| `GET`    | `/admin/tenants/{tenant}/groups`                                 | List groups                               |
+| `POST`   | `/admin/tenants/{tenant}/groups`                                 | Create a group                            |
+| `GET`    | `/admin/tenants/{tenant}/groups/:id`                             | Read a group                              |
+| `PATCH`  | `/admin/tenants/{tenant}/groups/:id`                             | Amend a group (reparent)                  |
+| `DELETE` | `/admin/tenants/{tenant}/groups/:id`                             | Delete a group                            |
+| `PUT`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Replace a group's roles                   |
+| `GET`    | `/admin/tenants/{tenant}/scopes`                                 | List client scopes                        |
+| `POST`   | `/admin/tenants/{tenant}/scopes`                                 | Create a client scope                     |
+| `GET`    | `/admin/tenants/{tenant}/scopes/:id`                             | Read a client scope                       |
+| `PATCH`  | `/admin/tenants/{tenant}/scopes/:id`                             | Amend a client scope                      |
+| `DELETE` | `/admin/tenants/{tenant}/scopes/:id`                             | Delete a client scope                     |
+| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/roles`                       | Replace a scope's roles                   |
+| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/clients/:clientId`           | Assign a scope to a client                |
+| `GET`    | `/admin/tenants/{tenant}/scopes/:id/mappers`                     | Read a scope's claim mapper bindings      |
+| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/mappers`                     | Replace a scope's claim mapper bindings   |
+| `GET`    | `/admin/tenants/{tenant}/keys`                                   | List signing keys                         |
+| `POST`   | `/admin/tenants/{tenant}/keys`                                   | Stage a signing key                       |
+| `POST`   | `/admin/tenants/{tenant}/keys/:id/promote`                       | Promote a signing key                     |
+| `POST`   | `/admin/tenants/{tenant}/keys/:id/retire`                        | Retire a signing key                      |
+| `GET`    | `/admin/tenants/{tenant}/flow/executions`                        | Read a tenant's authentication flow       |
+| `PUT`    | `/admin/tenants/{tenant}/flow/executions`                        | Replace a tenant's authentication flow    |
+| `GET`    | `/admin/tenants/{tenant}/smtp`                                   | Read a tenant's own SMTP configuration    |
+| `PUT`    | `/admin/tenants/{tenant}/smtp`                                   | Replace a tenant's own SMTP configuration |
+| `POST`   | `/admin/tenants/{tenant}/smtp/test`                              | Send one test message                     |
+| `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference                     |
 
 ## `GET /admin/tenants`
 
@@ -1037,6 +1040,58 @@ The write reaches the executor immediately, not only the table: the very
 next login dispatches against the order this `PUT` wrote, since
 `initialChallenge`/`advance` read a tenant's executions fresh on every
 attempt rather than caching them.
+
+## `GET /smtp`, `PUT /smtp` and `POST /smtp/test`
+
+All three require `manage-tenant`. `GET` reports `configured: false` and
+`password_set: false` for a tenant with no row, rather than 404 — the
+endpoint always exists, it is the configuration that may not. `PUT`
+replaces the whole configuration; omitting `password` clears it, since
+`GET` never hands one back for a caller to resend unchanged. The stored
+password wraps through the same envelope a signing key's private half does
+(`wrapSecret`/`unwrapSecret`, `@odudu/crypto`) — the column never carries
+plaintext.
+
+Resolution order when this tenant's mail is actually sent
+(`apps/server/src/email.ts`'s `resolveSender`): this row first, then the
+deployment's own `ODUDU_SMTP_*` sender, then the capturing adapter. ADR
+0015 is unaffected — it governs where a deployment's own credentials live,
+and this is a credential the deployment itself never holds.
+
+```bash
+curl -sS -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"host": "smtp.example.test", "port": 587, "from_address": "noreply@demo.example", "password": "hunter2"}' \
+  http://localhost:3000/admin/tenants/demo/smtp
+```
+
+The response shape, not a captured run:
+
+```json
+{
+  "configured": true,
+  "host": "smtp.example.test",
+  "port": 587,
+  "from_address": "noreply@demo.example",
+  "username": null,
+  "password_set": true,
+  "starttls": false
+}
+```
+
+`POST /smtp/test` sends one message to the given address synchronously and
+reports the transport's own failure as `502`, rather than an operator
+discovering a bad configuration only when a user's verification mail
+silently fails. `400` for a tenant with no SMTP configuration at all.
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"to": "ops@demo.example"}' \
+  http://localhost:3000/admin/tenants/demo/smtp/test
+```
 
 ## `GET /admin/openapi.json`
 

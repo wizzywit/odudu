@@ -463,6 +463,13 @@
       "when": 1789049381708,
       "tag": "0065_client_scope_mappers",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1789049381709,
+      "tag": "0066_tenant_smtp",
+      "breakpoints": true
     }
   ]
 }

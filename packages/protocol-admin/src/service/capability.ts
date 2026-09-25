@@ -44,6 +44,10 @@ import {
   setScopeRolesResponseSchema,
   settingsSchema,
   clientScopeSchema,
+  smtpConfigSchema,
+  putSmtpRequestSchema,
+  testSmtpRequestSchema,
+  testSmtpResponseSchema,
   signingKeySchema,
   subjectSchema,
   tenantSchema,
@@ -448,6 +452,36 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Refused with 409 while the key is active, or while a client is registered against ' +
       'an algorithm no remaining key would produce.',
+  },
+  // A tenant's own SMTP credential: manage-tenant, the same capability
+  // `/settings` and `/flow` use. GET never carries a password; `configured`
+  // is false and every other field null for a tenant with no row.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/smtp',
+    capability: 'manage-tenant',
+    responseSchema: smtpConfigSchema,
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/smtp',
+    capability: 'manage-tenant',
+    responseSchema: smtpConfigSchema,
+    bodySchema: putSmtpRequestSchema,
+    description:
+      'Replaces the whole configuration. Omitting `password` clears it, since GET never ' +
+      'hands one back to resend unchanged.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/smtp/test',
+    capability: 'manage-tenant',
+    responseSchema: testSmtpResponseSchema,
+    bodySchema: testSmtpRequestSchema,
+    description:
+      'Sends one message synchronously and reports the transport’s own failure as a ' +
+      '502, rather than the tenant discovering a bad configuration only when a user’s ' +
+      'verification mail silently fails. 400 when the tenant has no SMTP configuration.',
   },
   // A tenant's authentication flow: manage-tenant, the same capability as
   // roles, groups and scopes above. No partial edit — PUT replaces the

@@ -130,6 +130,16 @@ export {
   type SetScopeMappersRequest,
 } from '#/admin/scope-mappers';
 export {
+  smtpConfigSchema,
+  type SmtpConfig,
+  putSmtpRequestSchema,
+  type PutSmtpRequest,
+  testSmtpRequestSchema,
+  type TestSmtpRequest,
+  testSmtpResponseSchema,
+  type TestSmtpResponse,
+} from '#/admin/smtp';
+export {
   signingKeyAlgSchema,
   type SigningKeyAlg,
   signingKeyStatusSchema,
