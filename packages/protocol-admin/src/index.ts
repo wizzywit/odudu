@@ -40,6 +40,7 @@ import {
   deleteGroupHandler,
   listGroupsHandler,
   readGroupHandler,
+  readGroupRolesHandler,
   setGroupRolesHandler,
   type GroupsRouteDeps,
 } from '#/view/routes/groups';
@@ -81,6 +82,7 @@ import {
   deleteScopeHandler,
   listScopesHandler,
   readScopeHandler,
+  readScopeRolesHandler,
   setScopeRolesHandler,
   type ScopesRouteDeps,
 } from '#/view/routes/scopes';
@@ -101,7 +103,9 @@ import {
   deleteSubjectHandler,
   listCredentialsHandler,
   listSubjectsHandler,
+  readRequiredActionsHandler,
   readSubjectHandler,
+  readSubjectRolesHandler,
   setRequiredActionsHandler,
   setRolesHandler,
   type SubjectsRouteDeps,
@@ -336,8 +340,11 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/subjects/:id/credentials': listCredentialsHandler(subjectsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/credentials/:credentialId':
         deleteCredentialHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/required-actions':
+        readRequiredActionsHandler(subjectsDeps),
       'PUT /admin/tenants/:tenant/subjects/:id/required-actions':
         setRequiredActionsHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/roles': readSubjectRolesHandler(subjectsDeps),
       'PUT /admin/tenants/:tenant/subjects/:id/roles': setRolesHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/sessions': listSessionsHandler(sessionsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/sessions/:sid':
@@ -363,12 +370,14 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/groups/:id': readGroupHandler(groupsDeps),
       'PATCH /admin/tenants/:tenant/groups/:id': amendGroupHandler(groupsDeps),
       'DELETE /admin/tenants/:tenant/groups/:id': deleteGroupHandler(groupsDeps),
+      'GET /admin/tenants/:tenant/groups/:id/roles': readGroupRolesHandler(groupsDeps),
       'PUT /admin/tenants/:tenant/groups/:id/roles': setGroupRolesHandler(groupsDeps),
       'GET /admin/tenants/:tenant/scopes': listScopesHandler(scopesDeps),
       'POST /admin/tenants/:tenant/scopes': createScopeHandler(scopesDeps),
       'GET /admin/tenants/:tenant/scopes/:id': readScopeHandler(scopesDeps),
       'PATCH /admin/tenants/:tenant/scopes/:id': amendScopeHandler(scopesDeps),
       'DELETE /admin/tenants/:tenant/scopes/:id': deleteScopeHandler(scopesDeps),
+      'GET /admin/tenants/:tenant/scopes/:id/roles': readScopeRolesHandler(scopesDeps),
       'PUT /admin/tenants/:tenant/scopes/:id/roles': setScopeRolesHandler(scopesDeps),
       'PUT /admin/tenants/:tenant/scopes/:id/clients/:clientId':
         assignScopeToClientHandler(scopesDeps),

@@ -170,13 +170,13 @@ async function capabilityRoleId(tenantId: string, name: string): Promise<string>
   });
 }
 
-// setRoles and setRequiredActions carry no If-Match — they replace a
-// sub-resource wholesale rather than amending the subject itself — but
-// still lock their subject row as a mutex: without it, two concurrent
-// replacements under READ COMMITTED each delete a snapshot the other's
-// insert is invisible to, and both commit, leaving the union of the two
-// requests rather than either one alone.
-describe('two concurrent replacements with no If-Match', () => {
+// `*` rather than a captured tag, so what these two prove is the lock
+// alone: without it, two concurrent replacements under READ COMMITTED each
+// delete a snapshot the other's insert is invisible to, and both commit,
+// leaving the union of the two requests rather than either one alone.
+// `list-preconditions.int.test.ts` is where a real tag is spent and
+// replayed.
+describe('two concurrent replacements whose If-Match matches whatever it finds', () => {
   it('serialises two concurrent role replacements instead of unioning them', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const { id: subjectId } = await fixture.createSubject(t.name, `target-${newId()}`);
@@ -193,6 +193,7 @@ describe('two concurrent replacements with no If-Match', () => {
           subjectId,
           roleIds: [viewUsersId],
           callerCapabilities,
+          ifMatch: '*',
           actorSubjectId: 'first',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -212,6 +213,7 @@ describe('two concurrent replacements with no If-Match', () => {
           subjectId,
           roleIds: [manageClientsId],
           callerCapabilities,
+          ifMatch: '*',
           actorSubjectId: 'second',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -252,6 +254,7 @@ describe('two concurrent replacements with no If-Match', () => {
           tenantId: t.id,
           subjectId,
           actions: ['configure-totp'],
+          ifMatch: '*',
           actorSubjectId: 'first',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -273,6 +276,7 @@ describe('two concurrent replacements with no If-Match', () => {
           tenantId: t.id,
           subjectId,
           actions: ['generate-recovery-codes'],
+          ifMatch: '*',
           actorSubjectId: 'second',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',

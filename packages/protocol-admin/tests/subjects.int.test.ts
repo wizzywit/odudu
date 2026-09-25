@@ -342,7 +342,11 @@ function putRoles(
   return fixture.http.inject({
     method: 'PUT',
     url: `/admin/tenants/${tenantName}/subjects/${subjectId}/roles`,
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    headers: {
+      'if-match': '*',
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
     payload: { role_ids: roleIds },
   });
 }
@@ -618,7 +622,11 @@ describe('PUT /admin/tenants/{t}/subjects/{id}/required-actions', () => {
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/subjects/${id}/required-actions`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { actions: ['configure-totp', 'generate-recovery-codes'] },
     });
     expect(res.statusCode).toBe(200);
@@ -630,7 +638,11 @@ describe('PUT /admin/tenants/{t}/subjects/{id}/required-actions', () => {
     const replaced = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/subjects/${id}/required-actions`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { actions: ['configure-totp'] },
     });
     expect(replaced.statusCode).toBe(200);
@@ -645,7 +657,11 @@ describe('PUT /admin/tenants/{t}/subjects/{id}/required-actions', () => {
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/subjects/${id}/required-actions`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { actions: ['configure-totp'] },
     });
     expect(res.statusCode).toBe(403);
@@ -1066,6 +1082,7 @@ describe('audit', () => {
           tenantId: t.id,
           subjectId: id,
           actions: ['configure-totp'],
+          ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1084,6 +1101,7 @@ describe('audit', () => {
           tenantId: t.id,
           subjectId: newId(),
           actions: [],
+          ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1109,6 +1127,7 @@ describe('audit', () => {
           subjectId: id,
           roleIds: [viewUsersId],
           callerCapabilities: new Set(['manage-users', 'view-users']),
+          ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1127,6 +1146,7 @@ describe('audit', () => {
           subjectId: id,
           roleIds: [tenantAdminId],
           callerCapabilities: new Set(['manage-users']),
+          ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',

@@ -1,6 +1,6 @@
 import { type AssignScopeToClientResponse, type ClientScope } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { roleRepository, roles } from '@odudu/domain-authz';
+import { clientScopeRoles, roleRepository, roles } from '@odudu/domain-authz';
 import {
   clientScopeAssignments,
   clientScopeRepository,
@@ -11,7 +11,7 @@ import {
 import { asc, eq, gt, inArray } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
-import { etagOf, matches } from '#/service/etag';
+import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
 import { type RoleAssignment } from '#/usecase/subjects';
 
@@ -352,6 +352,7 @@ export interface SetScopeRolesInput {
    * client that previously could not reach it.
    */
   readonly callerCapabilities: ReadonlySet<string>;
+  readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -365,7 +366,36 @@ export type SetScopeRolesOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_role'; roleIds: readonly string[] }
   | { kind: 'capability_ceiling'; requested: readonly string[] }
-  | { kind: 'ok'; roles: readonly RoleAssignment[] };
+  | { kind: 'precondition_required' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
+
+export type ReadScopeRolesOutcome =
+  { kind: 'not_found' } | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
+
+// Ordered by id so the list, and the `ETag` over it, are the same on every
+// read of an unchanged mapping.
+async function mappedRoles(
+  tx: TenantScopedDatabase,
+  scopeId: string,
+): Promise<readonly RoleAssignment[]> {
+  return tx
+    .select({ id: roles.id, name: roles.name })
+    .from(clientScopeRoles)
+    .innerJoin(roles, eq(clientScopeRoles.roleId, roles.id))
+    .where(eq(clientScopeRoles.clientScopeId, scopeId))
+    .orderBy(asc(roles.id));
+}
+
+export async function readScopeRoles(
+  tx: TenantScopedDatabase,
+  scopeId: string,
+): Promise<ReadScopeRolesOutcome> {
+  const scope = await clientScopeRepository(tx).byId(scopeId);
+  if (scope === null) return { kind: 'not_found' };
+  const mapped = await mappedRoles(tx, scopeId);
+  return { kind: 'ok', roles: mapped, etag: etagOf({ items: mapped }) };
+}
 
 // Locked for the same reason `setRoles` (#/usecase/subjects.ts) locks its
 // subject: a mutex around the delete-then-insert
@@ -392,6 +422,18 @@ export async function setScopeRoles(
 ): Promise<SetScopeRolesOutcome> {
   const scope = await lockScopeForRoles(tx, input.scopeId);
   if (scope === null) return { kind: 'not_found' };
+
+  // Under the same lock the replacement runs under, so the mapping this
+  // hashes is the mapping being overwritten.
+  const precondition = requiredPrecondition(
+    input.ifMatch,
+    etagOf({ items: await mappedRoles(tx, input.scopeId) }),
+  );
+  if (precondition !== 'ok') {
+    return precondition === 'required'
+      ? { kind: 'precondition_required' }
+      : { kind: 'precondition_failed' };
+  }
 
   const uniqueRoleIds = [...new Set(input.roleIds)];
   const found =
@@ -425,7 +467,8 @@ export async function setScopeRoles(
     outcome: 'allowed',
   });
 
-  return { kind: 'ok', roles: found };
+  const mapped = await mappedRoles(tx, input.scopeId);
+  return { kind: 'ok', roles: mapped, etag: etagOf({ items: mapped }) };
 }
 
 export interface AssignScopeToClientInput {

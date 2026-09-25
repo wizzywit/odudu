@@ -45,7 +45,11 @@ function putFlow(
   return fixture.http.inject({
     method: 'PUT',
     url: `/admin/tenants/${tenantName}/flow/executions`,
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    headers: {
+      'if-match': '*',
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
     payload: JSON.stringify(steps),
   });
 }
@@ -306,6 +310,7 @@ describe('audit', () => {
         {
           tenantId: t.id,
           steps: [{ authenticator: 'password', requirement: 'required' }],
+          ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -324,6 +329,7 @@ describe('audit', () => {
         {
           tenantId: t.id,
           steps: [],
+          ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',

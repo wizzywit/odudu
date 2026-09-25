@@ -85,7 +85,9 @@ here used.
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id`                           | Delete a subject                          |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/credentials`               | List a subject's credentials              |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/credentials/:credentialId` | Remove a credential                       |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Read a subject's required actions         |
 | `PUT`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Set a subject's required actions          |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Read a subject's roles                    |
 | `PUT`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Replace a subject's roles                 |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/sessions`                  | List a subject's live sessions            |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/sessions/:sid`             | End one session                           |
@@ -108,12 +110,14 @@ here used.
 | `GET`    | `/admin/tenants/{tenant}/groups/:id`                             | Read a group                              |
 | `PATCH`  | `/admin/tenants/{tenant}/groups/:id`                             | Amend a group (reparent)                  |
 | `DELETE` | `/admin/tenants/{tenant}/groups/:id`                             | Delete a group                            |
+| `GET`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Read a group's roles                      |
 | `PUT`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Replace a group's roles                   |
 | `GET`    | `/admin/tenants/{tenant}/scopes`                                 | List client scopes                        |
 | `POST`   | `/admin/tenants/{tenant}/scopes`                                 | Create a client scope                     |
 | `GET`    | `/admin/tenants/{tenant}/scopes/:id`                             | Read a client scope                       |
 | `PATCH`  | `/admin/tenants/{tenant}/scopes/:id`                             | Amend a client scope                      |
 | `DELETE` | `/admin/tenants/{tenant}/scopes/:id`                             | Delete a client scope                     |
+| `GET`    | `/admin/tenants/{tenant}/scopes/:id/roles`                       | Read a scope's roles                      |
 | `PUT`    | `/admin/tenants/{tenant}/scopes/:id/roles`                       | Replace a scope's roles                   |
 | `PUT`    | `/admin/tenants/{tenant}/scopes/:id/clients/:clientId`           | Assign a scope to a client                |
 | `GET`    | `/admin/tenants/{tenant}/scopes/:id/mappers`                     | Read a scope's claim mapper bindings      |
@@ -877,10 +881,25 @@ row with `409`: a password has its own rotation surface, never a bare
 delete, and history is not a credential this door exposes at all. An
 unknown id, or one belonging to a different subject, answers `404`.
 
-## `PUT /subjects/:id/required-actions`
+## `GET /subjects/:id/required-actions` and `PUT /subjects/:id/required-actions`
 
-Requires `manage-users`. Sets a subject's required actions wholesale — an
-action left out of the list is one the caller clears, not one left alone.
+The read requires `view-users`, the write `manage-users`. Sets a subject's
+required actions wholesale — an action left out of the list is one the
+caller clears, not one left alone.
+
+**`If-Match` is mandatory here, not optional.** This route replaces an
+authorization-bearing list whole, so a stale write reinstates exactly what
+another administrator has just removed; the header comes from the matching
+`GET`, which answers an `ETag` over the same list. Absent, the request is
+refused with `428 Precondition Required` and nothing is changed; stale,
+with `412`. The list is read under the same row lock the replacement runs
+under, so two callers sent at once are serialised — the second sees what
+the first wrote rather than matching the same pre-write state.
+
+The transcript below was captured before the precondition became
+mandatory, so the request it shows is now refused with `428`; it has not
+been re-run against a live stack. The response is what a request carrying
+the header answers.
 
 ```bash
 curl -sS -X PUT \
@@ -897,9 +916,10 @@ The reply is the set as it now stands — and `ada` was created with
 {"actions":["configure-totp"]}
 ```
 
-## `PUT /subjects/:id/roles`
+## `GET /subjects/:id/roles` and `PUT /subjects/:id/roles`
 
-Requires `manage-users`, and enforces a capability ceiling beyond it: a
+The read requires `view-users`. The write requires `manage-users`, and
+enforces a capability ceiling beyond it: a
 caller may never assign authority it does not itself hold. The requested
 role set and the caller's own are each expanded through `role_composites`
 to the admin-client capability names they actually grant — not merely the
@@ -912,6 +932,20 @@ itself included (CWE-269). Replaces the subject's role assignments
 wholesale, the same convention `required-actions` follows: a role left out
 is one the caller clears, and stops appearing in the subject's
 `effectiveRoles` immediately.
+
+**`If-Match` is mandatory here, not optional.** This route replaces an
+authorization-bearing list whole, so a stale write reinstates exactly what
+another administrator has just removed; the header comes from the matching
+`GET`, which answers an `ETag` over the same list. Absent, the request is
+refused with `428 Precondition Required` and nothing is changed; stale,
+with `412`. The list is read under the same row lock the replacement runs
+under, so two callers sent at once are serialised — the second sees what
+the first wrote rather than matching the same pre-write state.
+
+The transcript below was captured before the precondition became
+mandatory, so the request it shows is now refused with `428`; it has not
+been re-run against a live stack. The response is what a request carrying
+the header answers.
 
 The role came from `POST /roles` below:
 
@@ -1118,12 +1152,21 @@ reverse, refused:
 {"type":"about:blank","title":"Conflict","status":409,"detail":"would create a group reparent cycle","instance":"01a0d708-2ed8-73c7-905f-bb2adf113b10"}
 ```
 
-## `PUT /groups/:id/roles`
+## `GET /groups/:id/roles` and `PUT /groups/:id/roles`
 
-Requires `manage-tenant`. Replaces the group's role mapping wholesale — a
-role left out of the list is one the caller clears, not one left alone —
-the same replace-all shape `PUT /subjects/:id/roles` uses for a subject's
-own assignments. An unknown role id answers `400`.
+Both require `manage-tenant`. The write replaces the group's role mapping
+wholesale — a role left out of the list is one the caller clears, not one
+left alone — the same replace-all shape `PUT /subjects/:id/roles` uses for
+a subject's own assignments. An unknown role id answers `400`.
+
+**`If-Match` is mandatory here, not optional.** This route replaces an
+authorization-bearing list whole, so a stale write reinstates exactly what
+another administrator has just removed; the header comes from the matching
+`GET`, which answers an `ETag` over the same list. Absent, the request is
+refused with `428 Precondition Required` and nothing is changed; stale,
+with `412`. The list is read under the same row lock the replacement runs
+under, so two callers sent at once are serialised — the second sees what
+the first wrote rather than matching the same pre-write state.
 
 ## `GET /scopes`, `POST /scopes`, `GET /scopes/:id`, `PATCH /scopes/:id` and `DELETE /scopes/:id`
 
@@ -1149,11 +1192,20 @@ curl -sS -X POST \
 {"id":"01a0d708-2ef8-7963-8d7a-3df5dff7cdf6","name":"billing","description":null,"include_in_id_token":false,"include_in_access_token":true,"created_at":"2026-09-25T05:27:12.887Z"}
 ```
 
-## `PUT /scopes/:id/roles`
+## `GET /scopes/:id/roles` and `PUT /scopes/:id/roles`
 
-Requires `manage-tenant`. Replaces the scope's role mapping wholesale, the
-same replace-all shape `PUT /groups/:id/roles` uses. An unknown role id
-answers `400`.
+Both require `manage-tenant`. The write replaces the scope's role mapping
+wholesale, the same replace-all shape `PUT /groups/:id/roles` uses. An
+unknown role id answers `400`.
+
+**`If-Match` is mandatory here, not optional.** This route replaces an
+authorization-bearing list whole, so a stale write reinstates exactly what
+another administrator has just removed; the header comes from the matching
+`GET`, which answers an `ETag` over the same list. Absent, the request is
+refused with `428 Precondition Required` and nothing is changed; stale,
+with `412`. The list is read under the same row lock the replacement runs
+under, so two callers sent at once are serialised — the second sees what
+the first wrote rather than matching the same pre-write state.
 
 ## `PUT /scopes/:id/clients/:clientId`
 
@@ -1197,8 +1249,21 @@ the process's `ClaimMapperRegistry` carries, the same registry ID token and
 tenant bound to this scope, empty when the scope has no binding rows and
 falls back to whichever mappers declare it. `PUT` replaces the whole binding
 set; binding a name the registry does not carry answers `400`, listing the
-known names. Neither route carries an `ETag`, the same as `PUT
-/scopes/:id/roles`.
+known names.
+
+**`If-Match` is mandatory here, not optional.** This route replaces an
+authorization-bearing list whole, so a stale write reinstates exactly what
+another administrator has just removed; the header comes from the matching
+`GET`, which answers an `ETag` over the same list. Absent, the request is
+refused with `428 Precondition Required` and nothing is changed; stale,
+with `412`. The list is read under the same row lock the replacement runs
+under, so two callers sent at once are serialised — the second sees what
+the first wrote rather than matching the same pre-write state.
+
+The transcripts below were captured before the precondition became
+mandatory, so the `PUT`s they show are now refused with `428`; they have
+not been re-run against a live stack. The responses are what a request
+carrying the header answers.
 
 A scope with no bindings is unaffected by another scope's: binding
 `profile` to `sub` alone narrows only `profile`'s own claims, never
@@ -1305,6 +1370,20 @@ reason in `detail`: an empty list, since a tenant with no flow cannot be
 logged into; a list where every step is `disabled`, the same reason; and an
 `authenticator` name the executor's own registry does not resolve, which
 lists the known names.
+
+**`If-Match` is mandatory here, not optional.** This route replaces an
+authorization-bearing list whole, so a stale write reinstates exactly what
+another administrator has just removed; the header comes from the matching
+`GET`, which answers an `ETag` over the same list. Absent, the request is
+refused with `428 Precondition Required` and nothing is changed; stale,
+with `412`. The list is read under the same row lock the replacement runs
+under, so two callers sent at once are serialised — the second sees what
+the first wrote rather than matching the same pre-write state.
+
+The transcripts below were captured before the precondition became
+mandatory, so the `PUT`s they show are now refused with `428`; they have
+not been re-run against a live stack. The responses are what a request
+carrying the header answers.
 
 `demo`'s flow as `provisionTenant` created it — the four steps every tenant
 starts with:

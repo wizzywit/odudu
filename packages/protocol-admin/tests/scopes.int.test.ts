@@ -206,7 +206,11 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/roles', () => {
     const first = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/scopes/${id}/roles`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [roleA] },
     });
     expect(first.statusCode).toBe(200);
@@ -215,7 +219,11 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/roles', () => {
     const second = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/scopes/${id}/roles`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [roleB] },
     });
     expect(second.statusCode).toBe(200);
@@ -232,7 +240,11 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/roles', () => {
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/scopes/${id}/roles`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [newId()] },
     });
     expect(res.statusCode).toBe(400);
@@ -253,7 +265,11 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/clients/{clientId}', () => {
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/scopes/${id}/clients/${client.id}`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { assignment: 'default' },
     });
     expect(res.statusCode).toBe(200);
@@ -309,7 +325,11 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/clients/{clientId}', () => {
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/scopes/${id}/clients/${client.id}`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { assignment: 'default' },
     });
 
@@ -329,7 +349,11 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/clients/{clientId}', () => {
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/scopes/${newId()}/clients/${client.id}`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { assignment: 'default' },
     });
     expect(res.statusCode).toBe(404);
@@ -345,7 +369,11 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/clients/{clientId}', () => {
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/scopes/${id}/clients/${newId()}`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { assignment: 'default' },
     });
     expect(res.statusCode).toBe(404);
@@ -384,7 +412,7 @@ describe('DELETE /admin/tenants/{t}/scopes/{id} — cascades to its assignment a
     const res = await fixture.http.inject({
       method: 'DELETE',
       url: `/admin/tenants/${t.name}/scopes/${id}`,
-      headers: { authorization: `Bearer ${token}` },
+      headers: { 'if-match': '*', authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(204);
 
@@ -421,7 +449,11 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/roles — the capability ceiling', 
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/scopes/${id}/roles`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [tenantAdminId] },
     });
     expect(res.statusCode).toBe(403);
@@ -438,7 +470,11 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/roles — the capability ceiling', 
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/scopes/${id}/roles`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [tenantAdminId] },
     });
     expect(res.statusCode).toBe(200);
@@ -501,7 +537,7 @@ describe('is refused for every capability but manage-tenant, on every route', ()
       const del = await fixture.http.inject({
         method: 'DELETE',
         url: `/admin/tenants/${t.name}/scopes/${id}`,
-        headers: { authorization: `Bearer ${token}` },
+        headers: { 'if-match': '*', authorization: `Bearer ${token}` },
       });
       expect(del.statusCode, `DELETE /scopes/:id as ${capability}`).toBe(403);
     }
@@ -688,6 +724,7 @@ describe('audit', () => {
           scopeId: scope.id,
           roleIds: [plain],
           callerCapabilities: new Set(['manage-tenant']),
+          ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -706,6 +743,7 @@ describe('audit', () => {
           scopeId: scope.id,
           roleIds: [tenantAdminId],
           callerCapabilities: new Set(['manage-tenant']),
+          ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',

@@ -5,7 +5,7 @@ import { isUuid, OduduError } from '@odudu/kernel';
 import { asc, eq, gt, inArray } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
-import { etagOf, matches } from '#/service/etag';
+import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
 import { type RoleAssignment } from '#/usecase/subjects';
 
@@ -313,6 +313,7 @@ export interface SetGroupRolesInput {
   readonly roleIds: readonly string[];
   /** The caller's own admin-client capability names — see `AmendGroupInput`'s for the same ceiling. */
   readonly callerCapabilities: ReadonlySet<string>;
+  readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -326,7 +327,36 @@ export type SetGroupRolesOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_role'; roleIds: readonly string[] }
   | { kind: 'capability_ceiling'; requested: readonly string[] }
-  | { kind: 'ok'; roles: readonly RoleAssignment[] };
+  | { kind: 'precondition_required' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
+
+export type ReadGroupRolesOutcome =
+  { kind: 'not_found' } | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
+
+// Ordered by id so the list, and the `ETag` over it, are the same on every
+// read of an unchanged mapping.
+async function mappedRoles(
+  tx: TenantScopedDatabase,
+  groupId: string,
+): Promise<readonly RoleAssignment[]> {
+  return tx
+    .select({ id: roles.id, name: roles.name })
+    .from(groupRoles)
+    .innerJoin(roles, eq(groupRoles.roleId, roles.id))
+    .where(eq(groupRoles.groupId, groupId))
+    .orderBy(asc(roles.id));
+}
+
+export async function readGroupRoles(
+  tx: TenantScopedDatabase,
+  groupId: string,
+): Promise<ReadGroupRolesOutcome> {
+  const group = await groupRepository(tx).byId(groupId);
+  if (group === null) return { kind: 'not_found' };
+  const mapped = await mappedRoles(tx, groupId);
+  return { kind: 'ok', roles: mapped, etag: etagOf({ items: mapped }) };
+}
 
 // Locked for the same reason `setRoles` (#/usecase/subjects.ts) locks its
 // subject: a mutex around the delete-then-insert `groupRepository.setRoles`
@@ -348,6 +378,18 @@ export async function setGroupRoles(
 ): Promise<SetGroupRolesOutcome> {
   const group = await lockGroupForRoles(tx, input.groupId);
   if (group === null) return { kind: 'not_found' };
+
+  // Under the same lock the replacement runs under, so the mapping this
+  // hashes is the mapping being overwritten.
+  const precondition = requiredPrecondition(
+    input.ifMatch,
+    etagOf({ items: await mappedRoles(tx, input.groupId) }),
+  );
+  if (precondition !== 'ok') {
+    return precondition === 'required'
+      ? { kind: 'precondition_required' }
+      : { kind: 'precondition_failed' };
+  }
 
   const uniqueRoleIds = [...new Set(input.roleIds)];
   const found =
@@ -384,5 +426,6 @@ export async function setGroupRoles(
     outcome: 'allowed',
   });
 
-  return { kind: 'ok', roles: found };
+  const mapped = await mappedRoles(tx, input.groupId);
+  return { kind: 'ok', roles: mapped, etag: etagOf({ items: mapped }) };
 }

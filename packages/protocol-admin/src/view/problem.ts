@@ -12,6 +12,25 @@ export function problem(status: number, type: string, title: string, detail?: st
   return detail === undefined ? { type, title, status } : { type, title, status, detail };
 }
 
+/**
+ * The two refusals a mandatory `If-Match` produces, worded once for every
+ * route that replaces an authorization-bearing list whole. `resource`
+ * names what the caller has to read first, since the header is the only
+ * thing missing from an otherwise valid request.
+ */
+export function ifMatchRequired(resource: string): Problem {
+  return problem(
+    428,
+    'about:blank',
+    'Precondition Required',
+    `If-Match is required to replace ${resource}`,
+  );
+}
+
+export function ifMatchStale(): Problem {
+  return problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches');
+}
+
 export function sendProblem(
   reply: FastifyReply,
   request: FastifyRequest,

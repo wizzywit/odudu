@@ -18,11 +18,12 @@ import {
   deleteScope,
   listScopes,
   readScope,
+  readScopeRoles,
   setScopeRoles,
   type AmendScopeOutcome,
   type Audit,
 } from '#/usecase/scopes';
-import { problem, sendProblem } from '#/view/problem';
+import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface ScopesRouteDeps {
@@ -234,6 +235,24 @@ export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
   };
 }
 
+export function readScopeRolesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET scope roles route received no :id');
+    }
+
+    const outcome = await withTenant(deps.database, targetTenantId, (tx) => readScopeRoles(tx, id));
+    if (outcome.kind === 'not_found') {
+      return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+    }
+
+    reply.header('etag', outcome.etag);
+    const wire: SetScopeRolesResponse = { items: [...outcome.roles] };
+    return reply.code(200).send(wire);
+  };
+}
+
 export function setScopeRolesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const id = request.params.id;
@@ -254,6 +273,7 @@ export function setScopeRolesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
           scopeId: id,
           roleIds: body.role_ids,
           callerCapabilities,
+          ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -286,7 +306,12 @@ export function setScopeRolesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
             `the caller does not hold: ${outcome.requested.join(', ')}`,
           ),
         );
+      case 'precondition_required':
+        return sendProblem(reply, request, ifMatchRequired('a scope\u2019s roles'));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
       case 'ok': {
+        reply.header('etag', outcome.etag);
         const wire: SetScopeRolesResponse = { items: [...outcome.roles] };
         return reply.code(200).send(wire);
       }

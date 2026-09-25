@@ -6,13 +6,18 @@ import {
   type Audit,
   type MapperCatalogue,
 } from '#/usecase/scope-mappers';
-import { problem, sendProblem } from '#/view/problem';
-import { type AdminRouteHandler } from '#/view/routes/router';
+import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface ScopeMappersRouteDeps {
   readonly database: Database;
   readonly claimMappers: MapperCatalogue;
   readonly audit: Audit;
+}
+
+function ifMatchHeader(request: AdminRequest): string | undefined {
+  const value = request.headers['if-match'];
+  return typeof value === 'string' ? value : undefined;
 }
 
 export function readScopeMappersHandler(deps: ScopeMappersRouteDeps): AdminRouteHandler {
@@ -32,6 +37,7 @@ export function readScopeMappersHandler(deps: ScopeMappersRouteDeps): AdminRoute
         problem(404, 'about:blank', 'Not Found', `no scope ${id}`),
       );
     }
+    reply.header('etag', outcome.etag);
     return reply.code(200).send(outcome.mappers);
   };
 }
@@ -52,6 +58,7 @@ export function setScopeMappersHandler(deps: ScopeMappersRouteDeps): AdminRouteH
         {
           scopeId: id,
           mapperNames: body.mapper_names,
+          ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -77,7 +84,12 @@ export function setScopeMappersHandler(deps: ScopeMappersRouteDeps): AdminRouteH
             `unknown mapper name(s): ${outcome.names.join(', ')}; known: ${outcome.known.join(', ')}`,
           ),
         );
+      case 'precondition_required':
+        return sendProblem(reply, request, ifMatchRequired('a scope\u2019s claim mapper bindings'));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
       case 'ok':
+        reply.header('etag', outcome.etag);
         return reply.code(200).send(outcome.mappers);
     }
   };

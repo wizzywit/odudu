@@ -86,6 +86,7 @@ describe('two concurrent flow replacements against a tenant with no flow', () =>
         {
           tenantId: t.id,
           steps: [{ authenticator: 'password', requirement: 'required' }],
+          ifMatch: '*',
           ...ACTOR,
         },
       );
@@ -105,6 +106,7 @@ describe('two concurrent flow replacements against a tenant with no flow', () =>
             { authenticator: 'password', requirement: 'required' },
             { authenticator: 'otp', requirement: 'conditional' },
           ],
+          ifMatch: '*',
           ...ACTOR,
         },
       ),

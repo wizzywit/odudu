@@ -25,6 +25,21 @@ export function etagOf(record: unknown): string {
   return `"${digest}"`;
 }
 
+/**
+ * The precondition the design spec makes mandatory on a write that
+ * replaces an authorization-bearing list whole: an absent `If-Match` is
+ * `428`, not a silent last-write-wins that reinstates exactly what another
+ * administrator has just removed.
+ */
+export function requiredPrecondition(
+  ifMatch: string | undefined,
+  current: string,
+): 'required' | 'failed' | 'ok' {
+  const result = matches(ifMatch, current);
+  if (result === 'absent') return 'required';
+  return result === 'mismatch' ? 'failed' : 'ok';
+}
+
 export function matches(
   ifMatch: string | undefined,
   current: string,

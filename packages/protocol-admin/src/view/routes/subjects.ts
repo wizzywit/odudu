@@ -21,7 +21,9 @@ import {
   deleteSubject,
   listCredentials,
   listSubjects,
+  readRequiredActions,
   readSubject,
+  readSubjectRoles,
   setRequiredActions,
   setRoles,
   subjectWireShape,
@@ -29,7 +31,7 @@ import {
   type Audit,
   type SubjectView,
 } from '#/usecase/subjects';
-import { problem, sendProblem } from '#/view/problem';
+import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface SubjectsRouteDeps {
@@ -341,6 +343,54 @@ export function deleteCredentialHandler(deps: SubjectsRouteDeps): AdminRouteHand
   };
 }
 
+export function readRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET required-actions route received no :id');
+    }
+
+    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      readRequiredActions(tx, id),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(
+        reply,
+        request,
+        problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+      );
+    }
+
+    reply.header('etag', outcome.etag);
+    const wire: SetRequiredActionsResponse = { actions: [...outcome.actions] };
+    return reply.code(200).send(wire);
+  };
+}
+
+export function readSubjectRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET roles route received no :id');
+    }
+
+    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      readSubjectRoles(tx, id),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(
+        reply,
+        request,
+        problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+      );
+    }
+
+    reply.header('etag', outcome.etag);
+    const wire: SetRolesResponse = { items: [...outcome.roles] };
+    return reply.code(200).send(wire);
+  };
+}
+
 export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const id = request.params.id;
@@ -357,22 +407,30 @@ export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHa
           tenantId: targetTenantId,
           subjectId: id,
           actions: body.actions,
+          ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
         },
       ),
     );
-    if (outcome.kind === 'not_found') {
-      return sendProblem(
-        reply,
-        request,
-        problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
-      );
+    switch (outcome.kind) {
+      case 'not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+        );
+      case 'precondition_required':
+        return sendProblem(reply, request, ifMatchRequired('a subject\u2019s required actions'));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
+      case 'ok': {
+        reply.header('etag', outcome.etag);
+        const wire: SetRequiredActionsResponse = { actions: [...outcome.actions] };
+        return reply.code(200).send(wire);
+      }
     }
-
-    const wire: SetRequiredActionsResponse = { actions: [...outcome.actions] };
-    return reply.code(200).send(wire);
   };
 }
 
@@ -397,6 +455,7 @@ export function setRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
           subjectId: id,
           roleIds: body.role_ids,
           callerCapabilities,
+          ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -429,7 +488,12 @@ export function setRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
             `the caller does not hold: ${outcome.requested.join(', ')}`,
           ),
         );
+      case 'precondition_required':
+        return sendProblem(reply, request, ifMatchRequired('a subject\u2019s roles'));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
       case 'ok': {
+        reply.header('etag', outcome.etag);
         const wire: SetRolesResponse = { items: [...outcome.roles] };
         return reply.code(200).send(wire);
       }

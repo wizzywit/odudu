@@ -39,7 +39,11 @@ function putMappers(token: string, tenantName: string, scopeId: string, mapperNa
   return fixture.http.inject({
     method: 'PUT',
     url: `/admin/tenants/${tenantName}/scopes/${scopeId}/mappers`,
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    headers: {
+      'if-match': '*',
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
     payload: { mapper_names: mapperNames },
   });
 }
@@ -189,6 +193,7 @@ describe('audit', () => {
         { audit: ok.audit },
         {
           scopeId,
+          ifMatch: '*',
           mapperNames: ['sub'],
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -207,6 +212,7 @@ describe('audit', () => {
         { audit: refused.audit },
         {
           scopeId,
+          ifMatch: '*',
           mapperNames: ['not-a-real-mapper'],
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -236,6 +242,7 @@ describe('audit', () => {
         { audit: () => Promise.resolve() },
         {
           scopeId,
+          ifMatch: '*',
           mapperNames: ['sub'],
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',

@@ -17,11 +17,12 @@ import {
   deleteGroup,
   listGroups,
   readGroup,
+  readGroupRoles,
   setGroupRoles,
   type AmendGroupOutcome,
   type Audit,
 } from '#/usecase/groups';
-import { problem, sendProblem } from '#/view/problem';
+import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface GroupsRouteDeps {
@@ -271,6 +272,24 @@ export function deleteGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
   };
 }
 
+export function readGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET group roles route received no :id');
+    }
+
+    const outcome = await withTenant(deps.database, targetTenantId, (tx) => readGroupRoles(tx, id));
+    if (outcome.kind === 'not_found') {
+      return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+    }
+
+    reply.header('etag', outcome.etag);
+    const wire: SetGroupRolesResponse = { items: [...outcome.roles] };
+    return reply.code(200).send(wire);
+  };
+}
+
 export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const id = request.params.id;
@@ -291,6 +310,7 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
           groupId: id,
           roleIds: body.role_ids,
           callerCapabilities,
+          ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -323,7 +343,12 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
             `the caller does not hold: ${outcome.requested.join(', ')}`,
           ),
         );
+      case 'precondition_required':
+        return sendProblem(reply, request, ifMatchRequired('a group\u2019s roles'));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
       case 'ok': {
+        reply.header('etag', outcome.etag);
         const wire: SetGroupRolesResponse = { items: [...outcome.roles] };
         return reply.code(200).send(wire);
       }

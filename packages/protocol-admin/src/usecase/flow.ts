@@ -7,6 +7,7 @@ import {
 } from '@odudu/authn-flows';
 import { type ExecutionStep } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { etagOf, requiredPrecondition } from '#/service/etag';
 import { validateFlowSteps } from '#/service/flow-validation';
 
 export interface FlowAuditEvent {
@@ -31,17 +32,22 @@ function toWireShape(record: AuthenticationExecutionRecord): ExecutionStep {
   };
 }
 
-export async function listFlow(
-  tx: TenantScopedDatabase,
-  tenantId: string,
-): Promise<readonly ExecutionStep[]> {
+export interface FlowView {
+  readonly items: readonly ExecutionStep[];
+  readonly etag: string;
+}
+
+/** `forTenant` reads in `index` order, which is the flow's meaning, so the `ETag` needs no sort. */
+export async function listFlow(tx: TenantScopedDatabase, tenantId: string): Promise<FlowView> {
   const rows = await executionRepository(tx).forTenant(tenantId);
-  return rows.map(toWireShape);
+  const items = rows.map(toWireShape);
+  return { items, etag: etagOf({ items }) };
 }
 
 export interface ReplaceFlowInput {
   readonly tenantId: string;
   readonly steps: ExecutionInput[];
+  readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -56,7 +62,9 @@ export type ReplaceFlowOutcome =
   | { kind: 'unresolvable_authenticator'; name: string; known: readonly string[] }
   | { kind: 'no_enabled_step' }
   | { kind: 'no_step_runnable_at_start' }
-  | { kind: 'ok'; items: readonly ExecutionStep[] };
+  | { kind: 'precondition_required' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; items: readonly ExecutionStep[]; etag: string };
 
 /** Replaces a tenant's whole flow — no partial edit is offered, since a flow's meaning is in its order. */
 export async function replaceFlow(
@@ -71,6 +79,14 @@ export async function replaceFlow(
   // first challenge.
   if (!startsALogin(input.steps)) return { kind: 'no_step_runnable_at_start' };
 
+  const before = await listFlow(tx, input.tenantId);
+  const precondition = requiredPrecondition(input.ifMatch, before.etag);
+  if (precondition !== 'ok') {
+    return precondition === 'required'
+      ? { kind: 'precondition_required' }
+      : { kind: 'precondition_failed' };
+  }
+
   const rows = await executionRepository(tx).replaceForTenant(input.tenantId, input.steps);
 
   await deps.audit(tx, {
@@ -83,5 +99,6 @@ export async function replaceFlow(
     outcome: 'allowed',
   });
 
-  return { kind: 'ok', items: rows.map(toWireShape) };
+  const items = rows.map(toWireShape);
+  return { kind: 'ok', items, etag: etagOf({ items }) };
 }

@@ -365,7 +365,11 @@ describe('PUT /admin/tenants/{t}/groups/{id}/roles', () => {
     const first = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/groups/${id}/roles`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [roleA] },
     });
     expect(first.statusCode).toBe(200);
@@ -374,7 +378,11 @@ describe('PUT /admin/tenants/{t}/groups/{id}/roles', () => {
     const second = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/groups/${id}/roles`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [roleB] },
     });
     expect(second.statusCode).toBe(200);
@@ -391,7 +399,11 @@ describe('PUT /admin/tenants/{t}/groups/{id}/roles', () => {
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/groups/${id}/roles`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [newId()] },
     });
     expect(res.statusCode).toBe(400);
@@ -445,7 +457,7 @@ describe('is refused for every capability but manage-tenant, on every route', ()
       const del = await fixture.http.inject({
         method: 'DELETE',
         url: `/admin/tenants/${t.name}/groups/${id}`,
-        headers: { authorization: `Bearer ${token}` },
+        headers: { 'if-match': '*', authorization: `Bearer ${token}` },
       });
       expect(del.statusCode, `DELETE /groups/:id as ${capability}`).toBe(403);
     }
@@ -464,7 +476,11 @@ describe('PUT /admin/tenants/{t}/groups/{id}/roles — the capability ceiling', 
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/groups/${id}/roles`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [tenantAdminId] },
     });
     expect(res.statusCode).toBe(403);
@@ -481,7 +497,11 @@ describe('PUT /admin/tenants/{t}/groups/{id}/roles — the capability ceiling', 
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/groups/${id}/roles`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [nestedRoleId] },
     });
     expect(res.statusCode).toBe(403);
@@ -498,7 +518,11 @@ describe('PUT /admin/tenants/{t}/groups/{id}/roles — the capability ceiling', 
     const res = await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/groups/${id}/roles`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [tenantAdminId] },
     });
     expect(res.statusCode).toBe(200);
@@ -519,7 +543,11 @@ describe('PATCH /admin/tenants/{t}/groups/{id} — the reparent capability ceili
     await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/groups/${adminGroup.id}/roles`,
-      headers: { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${adminToken}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [tenantAdminId] },
     });
 
@@ -556,7 +584,11 @@ describe('PATCH /admin/tenants/{t}/groups/{id} — the reparent capability ceili
     await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/groups/${adminAncestor.id}/roles`,
-      headers: { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${adminToken}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [nestedRoleId] },
     });
 
@@ -583,7 +615,11 @@ describe('PATCH /admin/tenants/{t}/groups/{id} — the reparent capability ceili
     await fixture.http.inject({
       method: 'PUT',
       url: `/admin/tenants/${t.name}/groups/${adminGroup.id}/roles`,
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: {
+        'if-match': '*',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
       payload: { role_ids: [tenantAdminId] },
     });
 
@@ -734,6 +770,7 @@ describe('audit', () => {
           groupId: adminGroup.id,
           roleIds: [tenantAdminId],
           callerCapabilities: new Set([TENANT_ADMIN, ...TENANT_CAPABILITIES]),
+          ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -840,6 +877,7 @@ describe('audit', () => {
           groupId: group.id,
           roleIds: [plain],
           callerCapabilities: new Set(['manage-tenant']),
+          ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -858,6 +896,7 @@ describe('audit', () => {
           groupId: group.id,
           roleIds: [tenantAdminId],
           callerCapabilities: new Set(['manage-tenant']),
+          ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',

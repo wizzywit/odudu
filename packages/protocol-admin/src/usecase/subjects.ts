@@ -18,7 +18,7 @@ import { tenantSettingsRepository } from '@odudu/domain-tenant';
 import { and, asc, eq, gt, inArray, like, ne } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
-import { etagOf, matches } from '#/service/etag';
+import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SUBJECT_FIELDS, refusalFor } from '#/service/subjects-patch';
 
 const COLLECTION = 'subjects';
@@ -593,6 +593,7 @@ export interface SetRequiredActionsInput {
   readonly tenantId: string;
   readonly subjectId: string;
   readonly actions: readonly RequiredAction[];
+  readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -603,7 +604,30 @@ export interface SetRequiredActionsDeps {
 }
 
 export type SetRequiredActionsOutcome =
-  { kind: 'not_found' } | { kind: 'ok'; actions: readonly RequiredAction[] };
+  | { kind: 'not_found' }
+  | { kind: 'precondition_required' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; actions: readonly RequiredAction[]; etag: string };
+
+// Sorted before it is hashed, never as it is sent: `pendingFor` imposes no
+// order, so two reads of an unchanged set would otherwise disagree about
+// the `ETag` they answer.
+function requiredActionsEtag(actions: readonly RequiredAction[]): string {
+  return etagOf({ actions: [...actions].sort() });
+}
+
+export type ReadRequiredActionsOutcome =
+  { kind: 'not_found' } | { kind: 'ok'; actions: readonly RequiredAction[]; etag: string };
+
+export async function readRequiredActions(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+): Promise<ReadRequiredActionsOutcome> {
+  const subject = await subjectRepository(tx).byId(subjectId);
+  if (subject === null) return { kind: 'not_found' };
+  const actions = await requiredActionRepository(tx).pendingFor(subjectId);
+  return { kind: 'ok', actions, etag: requiredActionsEtag(actions) };
+}
 
 /** Replaces a subject's required actions wholesale — an action left out is one the caller clears. */
 export async function setRequiredActions(
@@ -622,6 +646,16 @@ export async function setRequiredActions(
     .for('update');
   if (subjectRows.length === 0) return { kind: 'not_found' };
 
+  // Compared under the lock taken above, so the set it hashes is the set
+  // the replacement below overwrites.
+  const current = await requiredActionRepository(tx).pendingFor(input.subjectId);
+  const precondition = requiredPrecondition(input.ifMatch, requiredActionsEtag(current));
+  if (precondition !== 'ok') {
+    return precondition === 'required'
+      ? { kind: 'precondition_required' }
+      : { kind: 'precondition_failed' };
+  }
+
   await requiredActionRepository(tx).replaceAll(input.tenantId, input.subjectId, input.actions);
 
   await deps.audit(tx, {
@@ -634,7 +668,8 @@ export async function setRequiredActions(
     outcome: 'allowed',
   });
 
-  return { kind: 'ok', actions: await requiredActionRepository(tx).pendingFor(input.subjectId) };
+  const actions = await requiredActionRepository(tx).pendingFor(input.subjectId);
+  return { kind: 'ok', actions, etag: requiredActionsEtag(actions) };
 }
 
 export interface RoleAssignment {
@@ -654,6 +689,7 @@ export interface SetRolesInput {
    * the target tenant and cannot resolve a different one.
    */
   readonly callerCapabilities: ReadonlySet<string>;
+  readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -667,7 +703,36 @@ export type SetRolesOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_role'; roleIds: readonly string[] }
   | { kind: 'capability_ceiling'; requested: readonly string[] }
-  | { kind: 'ok'; roles: readonly RoleAssignment[] };
+  | { kind: 'precondition_required' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
+
+export type ReadSubjectRolesOutcome =
+  { kind: 'not_found' } | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
+
+// Ordered by id so the list, and the `ETag` over it, are the same on every
+// read of an unchanged assignment.
+async function assignedRoles(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+): Promise<readonly RoleAssignment[]> {
+  return tx
+    .select({ id: roles.id, name: roles.name })
+    .from(subjectRoles)
+    .innerJoin(roles, eq(subjectRoles.roleId, roles.id))
+    .where(eq(subjectRoles.subjectId, subjectId))
+    .orderBy(asc(roles.id));
+}
+
+export async function readSubjectRoles(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+): Promise<ReadSubjectRolesOutcome> {
+  const subject = await subjectRepository(tx).byId(subjectId);
+  if (subject === null) return { kind: 'not_found' };
+  const assigned = await assignedRoles(tx, subjectId);
+  return { kind: 'ok', roles: assigned, etag: etagOf({ items: assigned }) };
+}
 
 // The capability ceiling (CWE-269): a caller may never hand out authority
 // it does not itself hold. `roleIds` is expanded through `role_composites`
@@ -690,6 +755,18 @@ export async function setRoles(
     .where(eq(subjects.id, input.subjectId))
     .for('update');
   if (subjectRows.length === 0) return { kind: 'not_found' };
+
+  // Under the same lock the replacement runs under, so the assignment this
+  // hashes is the assignment being overwritten.
+  const precondition = requiredPrecondition(
+    input.ifMatch,
+    etagOf({ items: await assignedRoles(tx, input.subjectId) }),
+  );
+  if (precondition !== 'ok') {
+    return precondition === 'required'
+      ? { kind: 'precondition_required' }
+      : { kind: 'precondition_failed' };
+  }
 
   const uniqueRoleIds = [...new Set(input.roleIds)];
   const found =
@@ -726,5 +803,6 @@ export async function setRoles(
     outcome: 'allowed',
   });
 
-  return { kind: 'ok', roles: found };
+  const assigned = await assignedRoles(tx, input.subjectId);
+  return { kind: 'ok', roles: assigned, etag: etagOf({ items: assigned }) };
 }

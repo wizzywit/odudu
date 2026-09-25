@@ -149,11 +149,19 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     successStatus: 204,
   },
   {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/required-actions',
+    capability: 'view-users',
+    responseSchema: setRequiredActionsResponseSchema,
+  },
+  {
     method: 'PUT',
     pattern: '/admin/tenants/:tenant/subjects/:id/required-actions',
     capability: 'manage-users',
     responseSchema: setRequiredActionsResponseSchema,
     bodySchema: setRequiredActionsRequestSchema,
+    description:
+      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
   },
   // The capability ceiling this route enforces — a caller may never assign
   // authority it does not itself hold — is checked in the usecase
@@ -161,11 +169,19 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   // whether a caller may reach the route at all, never what it may do with
   // a specific body.
   {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/roles',
+    capability: 'view-users',
+    responseSchema: setRolesResponseSchema,
+  },
+  {
     method: 'PUT',
     pattern: '/admin/tenants/:tenant/subjects/:id/roles',
     capability: 'manage-users',
     responseSchema: setRolesResponseSchema,
     bodySchema: setRolesRequestSchema,
+    description:
+      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
   },
   // No `view-sessions`: reached only by an operator who can also end one,
   // the same reasoning that leaves clients with no `view-clients`.
@@ -343,11 +359,19 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     successStatus: 204,
   },
   {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/groups/:id/roles',
+    capability: 'manage-tenant',
+    responseSchema: setGroupRolesResponseSchema,
+  },
+  {
     method: 'PUT',
     pattern: '/admin/tenants/:tenant/groups/:id/roles',
     capability: 'manage-tenant',
     responseSchema: setGroupRolesResponseSchema,
     bodySchema: setGroupRolesRequestSchema,
+    description:
+      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
   },
   {
     method: 'GET',
@@ -385,11 +409,19 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     successStatus: 204,
   },
   {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/scopes/:id/roles',
+    capability: 'manage-tenant',
+    responseSchema: setScopeRolesResponseSchema,
+  },
+  {
     method: 'PUT',
     pattern: '/admin/tenants/:tenant/scopes/:id/roles',
     capability: 'manage-tenant',
     responseSchema: setScopeRolesResponseSchema,
     bodySchema: setScopeRolesRequestSchema,
+    description:
+      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
   },
   // The registry names come from the same ClaimMapperRegistry the issuance
   // path assembles claims from — see ScopeMappersRouteDeps.claimMappers.
@@ -407,7 +439,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: setScopeMappersRequestSchema,
     description:
       'Replaces the whole binding set for the scope. Binding an unregistered mapper name is ' +
-      'refused with 400, listing the registry’s own known names.',
+      'refused with 400, listing the registry’s own known names. ' +
+      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
   },
   {
     method: 'PUT',
@@ -508,7 +541,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: replaceExecutionsRequestSchema,
     description:
       'Refused with 400 for an empty list, a list where every step is disabled, or an ' +
-      'authenticator name the registry does not resolve.',
+      'authenticator name the registry does not resolve. ' +
+      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
   },
   // Read-only: view-audit carries no manage- counterpart, since nothing
   // ever amends a row here — reap is the only other writer, and it deletes

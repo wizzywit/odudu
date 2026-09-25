@@ -1,6 +1,12 @@
 import { type ScopeMappers } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { clientScopeMapperRepository, clientScopeRepository } from '@odudu/domain-tenant';
+import {
+  clientScopeMapperRepository,
+  clientScopeRepository,
+  clientScopes,
+} from '@odudu/domain-tenant';
+import { eq } from 'drizzle-orm';
+import { etagOf, requiredPrecondition } from '#/service/etag';
 
 // The one fragment of `ClaimMapperRegistry<Ctx>` (@odudu/kernel) this
 // package needs — a name lookup with no claim context in it — so this
@@ -27,7 +33,16 @@ export interface ScopeMapperAuditEvent {
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: ScopeMapperAuditEvent) => Promise<void>;
 
-export type ReadScopeMappersOutcome = { kind: 'not_found' } | { kind: 'ok'; mappers: ScopeMappers };
+export type ReadScopeMappersOutcome =
+  { kind: 'not_found' } | { kind: 'ok'; mappers: ScopeMappers; etag: string };
+
+// Sorted before it is hashed, never as it is sent: `namesForScope` imposes
+// no order, so two reads of an unchanged binding set would otherwise
+// disagree about the `ETag` they answer. `available` is the registry's
+// own list and no part of what a caller is replacing.
+function mappersEtag(mappers: ScopeMappers): string {
+  return etagOf({ bound: [...mappers.bound].sort() });
+}
 
 export async function readScopeMappers(
   tx: TenantScopedDatabase,
@@ -37,19 +52,17 @@ export async function readScopeMappers(
   const scope = await clientScopeRepository(tx).byId(scopeId);
   if (scope === null) return { kind: 'not_found' };
 
-  const bound = await clientScopeMapperRepository(tx).namesForScope(scopeId);
-  return {
-    kind: 'ok',
-    mappers: {
-      available: [...claimMappers.mapperNames()],
-      bound: bound === null ? [] : [...bound],
-    },
+  const mappers: ScopeMappers = {
+    available: [...claimMappers.mapperNames()],
+    bound: [...((await clientScopeMapperRepository(tx).namesForScope(scopeId)) ?? [])],
   };
+  return { kind: 'ok', mappers, etag: mappersEtag(mappers) };
 }
 
 export interface SetScopeMappersInput {
   readonly scopeId: string;
   readonly mapperNames: readonly string[];
+  readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -62,7 +75,9 @@ export interface SetScopeMappersDeps {
 export type SetScopeMappersOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_mapper'; names: readonly string[]; known: readonly string[] }
-  | { kind: 'ok'; mappers: ScopeMappers };
+  | { kind: 'precondition_required' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; mappers: ScopeMappers; etag: string };
 
 export async function setScopeMappers(
   tx: TenantScopedDatabase,
@@ -70,8 +85,26 @@ export async function setScopeMappers(
   deps: SetScopeMappersDeps,
   input: SetScopeMappersInput,
 ): Promise<SetScopeMappersOutcome> {
-  const scope = await clientScopeRepository(tx).byId(input.scopeId);
-  if (scope === null) return { kind: 'not_found' };
+  // Locked for the same reason `setGroupRoles` (#/usecase/groups.ts) locks
+  // its group: a mutex around `replaceForScope`'s delete-then-insert, and
+  // what makes the `If-Match` comparison below describe the state this
+  // write actually overwrites.
+  const locked = await tx
+    .select({ tenantId: clientScopes.tenantId })
+    .from(clientScopes)
+    .where(eq(clientScopes.id, input.scopeId))
+    .for('update');
+  const scope = locked[0];
+  if (scope === undefined) return { kind: 'not_found' };
+
+  const before = await readScopeMappers(tx, claimMappers, input.scopeId);
+  if (before.kind !== 'ok') return { kind: 'not_found' };
+  const precondition = requiredPrecondition(input.ifMatch, before.etag);
+  if (precondition !== 'ok') {
+    return precondition === 'required'
+      ? { kind: 'precondition_required' }
+      : { kind: 'precondition_failed' };
+  }
 
   const known = new Set(claimMappers.mapperNames());
   // Deduplicated once, then used for both the validation and the insert
@@ -96,12 +129,9 @@ export async function setScopeMappers(
     outcome: 'allowed',
   });
 
-  const bound = await clientScopeMapperRepository(tx).namesForScope(input.scopeId);
-  return {
-    kind: 'ok',
-    mappers: {
-      available: [...claimMappers.mapperNames()],
-      bound: bound === null ? [] : [...bound],
-    },
-  };
+  const after = await readScopeMappers(tx, claimMappers, input.scopeId);
+  if (after.kind !== 'ok') {
+    throw new Error(`scope ${input.scopeId} not found immediately after its own mapper write`);
+  }
+  return { kind: 'ok', mappers: after.mappers, etag: after.etag };
 }

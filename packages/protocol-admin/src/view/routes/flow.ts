@@ -1,25 +1,35 @@
 import { replaceExecutionsRequestSchema } from '@odudu/contracts/admin';
 import { withTenant, type Database } from '@odudu/db';
 import { listFlow, replaceFlow, type Audit, type ReplaceFlowOutcome } from '#/usecase/flow';
-import { problem, sendProblem } from '#/view/problem';
-import { type AdminRouteHandler } from '#/view/routes/router';
+import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface FlowRouteDeps {
   readonly database: Database;
   readonly audit: Audit;
 }
 
+function ifMatchHeader(request: AdminRequest): string | undefined {
+  const value = request.headers['if-match'];
+  return typeof value === 'string' ? value : undefined;
+}
+
 export function listFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
   return async (_request, reply, _principal, targetTenantId) => {
-    const items = await withTenant(deps.database, targetTenantId, (tx) =>
+    const flow = await withTenant(deps.database, targetTenantId, (tx) =>
       listFlow(tx, targetTenantId),
     );
-    return reply.code(200).send({ items });
+    reply.header('etag', flow.etag);
+    return reply.code(200).send({ items: flow.items });
   };
 }
 
 function replaceFlowProblem(outcome: Exclude<ReplaceFlowOutcome, { kind: 'ok' }>) {
   switch (outcome.kind) {
+    case 'precondition_required':
+      return ifMatchRequired('a tenant\u2019s authentication flow');
+    case 'precondition_failed':
+      return ifMatchStale();
     case 'empty':
       return problem(
         400,
@@ -63,6 +73,7 @@ export function replaceFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
         {
           tenantId: targetTenantId,
           steps,
+          ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -73,6 +84,7 @@ export function replaceFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
     if (outcome.kind !== 'ok') {
       return sendProblem(reply, request, replaceFlowProblem(outcome));
     }
+    reply.header('etag', outcome.etag);
     return reply.code(200).send({ items: outcome.items });
   };
 }
