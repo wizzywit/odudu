@@ -117,6 +117,8 @@ export function createScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
             includeInIdToken: body.include_in_id_token,
             includeInAccessToken: body.include_in_access_token,
             actorSubjectId: principal.subjectId,
+            actorTenantId: principal.issuerTenantId,
+            actorClientId: principal.clientDbId,
           },
         ),
       );
@@ -189,6 +191,8 @@ export function amendScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
           values,
           ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
         },
       ),
     );
@@ -209,7 +213,16 @@ export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
     }
 
     const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
-      deleteScope(tx, { audit: deps.audit }, { scopeId: id, actorSubjectId: principal.subjectId }),
+      deleteScope(
+        tx,
+        { audit: deps.audit },
+        {
+          scopeId: id,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
     );
 
     switch (outcome.kind) {
@@ -242,6 +255,8 @@ export function setScopeRolesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
           roleIds: body.role_ids,
           callerCapabilities,
           actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
         },
       ),
     );
@@ -292,7 +307,14 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
       assignScopeToClient(
         tx,
         { audit: deps.audit },
-        { scopeId: id, clientId, assignment: body.assignment, actorSubjectId: principal.subjectId },
+        {
+          scopeId: id,
+          clientId,
+          assignment: body.assignment,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
       ),
     );
 

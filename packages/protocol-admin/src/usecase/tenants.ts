@@ -36,14 +36,17 @@ export interface TenantAuditEvent {
   readonly resourceType: 'tenant';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
 
 /**
- * The write an `audit_events` sink gives a real implementation of: until
- * one exists, the composition root supplies a function that does nothing,
- * and this is the only seam a test has to prove a mutation still calls it.
+ * Writes one row to `audit_events`, in the same transaction as the mutation
+ * — the composition root wires this to `auditRepository(tx).record` (see
+ * `#/index.ts`'s `recordAudit`). `tx` is the seam a test uses to prove a
+ * mutation's audit write shares its own transaction.
  */
 export type Audit = (tx: TenantScopedDatabase, event: TenantAuditEvent) => Promise<void>;
 
@@ -51,6 +54,8 @@ export interface CreateTenantInput {
   readonly name: string;
   readonly displayName?: string | undefined;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface CreateTenantDeps {
@@ -129,6 +134,8 @@ export async function createTenant(
         resourceType: 'tenant',
         resourceId: id,
         actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
         outcome: 'allowed',
       });
 

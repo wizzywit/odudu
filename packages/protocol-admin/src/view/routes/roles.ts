@@ -111,6 +111,8 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
             clientId: body.client_id ?? null,
             defaultForNewSubjects: body.default_for_new_subjects ?? false,
             actorSubjectId: principal.subjectId,
+            actorTenantId: principal.issuerTenantId,
+            actorClientId: principal.clientDbId,
           },
         ),
       );
@@ -185,6 +187,8 @@ export function amendRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
           values,
           ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
         },
       ),
     );
@@ -205,7 +209,16 @@ export function deleteRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
     }
 
     const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
-      deleteRole(tx, { audit: deps.audit }, { roleId: id, actorSubjectId: principal.subjectId }),
+      deleteRole(
+        tx,
+        { audit: deps.audit },
+        {
+          roleId: id,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
     );
 
     switch (outcome.kind) {
@@ -273,6 +286,8 @@ export function addRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHandler
           childRoleId: body.child_role_id,
           callerCapabilities,
           actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
         },
       ),
     );

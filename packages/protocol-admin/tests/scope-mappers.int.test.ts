@@ -187,7 +187,13 @@ describe('audit', () => {
         tx,
         claimMappers,
         { audit: ok.audit },
-        { scopeId, mapperNames: ['sub'], actorSubjectId: 'test' },
+        {
+          scopeId,
+          mapperNames: ['sub'],
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(ok.events).toHaveLength(1);
@@ -199,7 +205,13 @@ describe('audit', () => {
         tx,
         claimMappers,
         { audit: refused.audit },
-        { scopeId, mapperNames: ['not-a-real-mapper'], actorSubjectId: 'test' },
+        {
+          scopeId,
+          mapperNames: ['not-a-real-mapper'],
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(outcome.kind).toBe('unknown_mapper');
@@ -222,7 +234,13 @@ describe('audit', () => {
         tx,
         standardClaimMappers(),
         { audit: () => Promise.resolve() },
-        { scopeId, mapperNames: ['sub'], actorSubjectId: 'test' },
+        {
+          scopeId,
+          mapperNames: ['sub'],
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(outcome.kind).toBe('not_found');

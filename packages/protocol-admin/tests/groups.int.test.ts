@@ -552,7 +552,14 @@ describe('audit', () => {
       createGroup(
         tx,
         { audit },
-        { tenantId: t.id, name: `audited-${newId()}`, parentId: null, actorSubjectId: 'test' },
+        {
+          tenantId: t.id,
+          name: `audited-${newId()}`,
+          parentId: null,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(events).toHaveLength(1);
@@ -565,7 +572,14 @@ describe('audit', () => {
       createGroup(
         tx,
         { audit: () => Promise.resolve() },
-        { tenantId: t.id, name: `g-${newId()}`, parentId: null, actorSubjectId: 'test' },
+        {
+          tenantId: t.id,
+          name: `g-${newId()}`,
+          parentId: null,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
 
@@ -580,6 +594,8 @@ describe('audit', () => {
           ifMatch: undefined,
           callerCapabilities: new Set(),
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -597,6 +613,8 @@ describe('audit', () => {
           ifMatch: undefined,
           callerCapabilities: new Set(),
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -610,12 +628,26 @@ describe('audit', () => {
       await createGroup(
         tx,
         { audit: () => Promise.resolve() },
-        { tenantId: t.id, name: `g-${newId()}`, parentId: null, actorSubjectId: 'test' },
+        {
+          tenantId: t.id,
+          name: `g-${newId()}`,
+          parentId: null,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
       await createGroup(
         tx,
         { audit: () => Promise.resolve() },
-        { tenantId: t.id, name: `admin-${newId()}`, parentId: null, actorSubjectId: 'test' },
+        {
+          tenantId: t.id,
+          name: `admin-${newId()}`,
+          parentId: null,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     ]);
     const tenantAdminId = await capabilityRoleId(t.id, TENANT_ADMIN);
@@ -632,6 +664,8 @@ describe('audit', () => {
           roleIds: [tenantAdminId],
           callerCapabilities: new Set([TENANT_ADMIN, ...TENANT_CAPABILITIES]),
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -648,6 +682,8 @@ describe('audit', () => {
           ifMatch: undefined,
           callerCapabilities: new Set(['manage-tenant']),
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -661,20 +697,45 @@ describe('audit', () => {
       createGroup(
         tx,
         { audit: () => Promise.resolve() },
-        { tenantId: t.id, name: `g-${newId()}`, parentId: null, actorSubjectId: 'test' },
+        {
+          tenantId: t.id,
+          name: `g-${newId()}`,
+          parentId: null,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
 
     const ok = collector();
     const deleted = await withTenant(fixture.app.db, t.id, (tx) =>
-      deleteGroup(tx, { audit: ok.audit }, { groupId: group.id, actorSubjectId: 'test' }),
+      deleteGroup(
+        tx,
+        { audit: ok.audit },
+        {
+          groupId: group.id,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
     );
     expect(deleted.kind).toBe('deleted');
     expect(ok.events).toHaveLength(1);
 
     const refused = collector();
     const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
-      deleteGroup(tx, { audit: refused.audit }, { groupId: newId(), actorSubjectId: 'test' }),
+      deleteGroup(
+        tx,
+        { audit: refused.audit },
+        {
+          groupId: newId(),
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
     );
     expect(outcome.kind).toBe('not_found');
     expect(refused.events).toHaveLength(0);
@@ -686,7 +747,14 @@ describe('audit', () => {
       createGroup(
         tx,
         { audit: () => Promise.resolve() },
-        { tenantId: t.id, name: `g-${newId()}`, parentId: null, actorSubjectId: 'test' },
+        {
+          tenantId: t.id,
+          name: `g-${newId()}`,
+          parentId: null,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     const plain = await plainRole(t.id);
@@ -702,6 +770,8 @@ describe('audit', () => {
           roleIds: [plain],
           callerCapabilities: new Set(['manage-tenant']),
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -718,6 +788,8 @@ describe('audit', () => {
           roleIds: [tenantAdminId],
           callerCapabilities: new Set(['manage-tenant']),
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );

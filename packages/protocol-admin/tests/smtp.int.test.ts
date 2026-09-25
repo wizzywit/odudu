@@ -210,6 +210,8 @@ describe('audit', () => {
           password: null,
           starttls: false,
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );

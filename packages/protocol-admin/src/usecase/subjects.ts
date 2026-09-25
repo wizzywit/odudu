@@ -73,11 +73,13 @@ export interface SubjectAuditEvent {
   readonly resourceType: 'subject';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
 
-/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
+/** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: SubjectAuditEvent) => Promise<void>;
 
 export interface ListSubjectsInput {
@@ -178,6 +180,8 @@ export interface CreateSubjectInput {
   readonly username: string;
   readonly email: string | null;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface CreateSubjectDeps {
@@ -209,6 +213,8 @@ export async function createSubject(
     resourceType: 'subject',
     resourceId: subjectId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 
@@ -238,6 +244,8 @@ export interface AmendSubjectInput {
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface AmendSubjectDeps {
@@ -379,6 +387,8 @@ export async function amendSubject(
     resourceType: 'subject',
     resourceId: input.subjectId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 
@@ -392,6 +402,8 @@ export async function amendSubject(
 export interface DeleteSubjectInput {
   readonly subjectId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface DeleteSubjectDeps {
@@ -419,6 +431,8 @@ export async function deleteSubject(
     resourceType: 'subject',
     resourceId: input.subjectId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
   return { kind: 'deleted' };
@@ -523,6 +537,8 @@ export interface DeleteCredentialInput {
   readonly subjectId: string;
   readonly credentialId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface DeleteCredentialDeps {
@@ -566,6 +582,8 @@ export async function deleteCredential(
     resourceType: 'subject',
     resourceId: input.subjectId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
   return { kind: 'deleted' };
@@ -576,6 +594,8 @@ export interface SetRequiredActionsInput {
   readonly subjectId: string;
   readonly actions: readonly RequiredAction[];
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface SetRequiredActionsDeps {
@@ -609,6 +629,8 @@ export async function setRequiredActions(
     resourceType: 'subject',
     resourceId: input.subjectId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 
@@ -633,6 +655,8 @@ export interface SetRolesInput {
    */
   readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface SetRolesDeps {
@@ -697,6 +721,8 @@ export async function setRoles(
     resourceType: 'subject',
     resourceId: input.subjectId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 

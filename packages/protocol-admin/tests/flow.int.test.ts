@@ -266,6 +266,8 @@ describe('audit', () => {
           tenantId: t.id,
           steps: [{ authenticator: 'password', requirement: 'required' }],
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -278,7 +280,13 @@ describe('audit', () => {
       replaceFlow(
         tx,
         { audit: refused.audit },
-        { tenantId: t.id, steps: [], actorSubjectId: 'test' },
+        {
+          tenantId: t.id,
+          steps: [],
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(outcome.kind).toBe('empty');

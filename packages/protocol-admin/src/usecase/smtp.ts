@@ -9,11 +9,13 @@ export interface SmtpAuditEvent {
   readonly resourceType: 'tenant';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
 
-/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
+/** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: SmtpAuditEvent) => Promise<void>;
 
 function toWireShape(record: TenantSmtpRecord | null): SmtpConfig {
@@ -52,6 +54,8 @@ export interface PutSmtpInput {
   readonly password: string | null;
   readonly starttls: boolean;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface PutSmtpDeps {
@@ -78,6 +82,8 @@ export async function putSmtp(
     resourceType: 'tenant',
     resourceId: input.tenantId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 

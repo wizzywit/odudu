@@ -37,11 +37,13 @@ export interface GroupAuditEvent {
   readonly resourceType: 'group';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
 
-/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
+/** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: GroupAuditEvent) => Promise<void>;
 
 export function groupWireShape(group: {
@@ -118,6 +120,8 @@ export interface CreateGroupInput {
   readonly name: string;
   readonly parentId: string | null;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface CreateGroupDeps {
@@ -145,6 +149,8 @@ export async function createGroup(
     resourceType: 'group',
     resourceId: created.id,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 
@@ -164,6 +170,8 @@ export interface AmendGroupInput {
    */
   readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface AmendGroupDeps {
@@ -248,6 +256,8 @@ export async function amendGroup(
     resourceType: 'group',
     resourceId: input.groupId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 
@@ -261,6 +271,8 @@ export async function amendGroup(
 export interface DeleteGroupInput {
   readonly groupId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface DeleteGroupDeps {
@@ -282,6 +294,8 @@ export async function deleteGroup(
     resourceType: 'group',
     resourceId: input.groupId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
   return { kind: 'deleted' };
@@ -293,6 +307,8 @@ export interface SetGroupRolesInput {
   /** The caller's own admin-client capability names — see `AmendGroupInput`'s for the same ceiling. */
   readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface SetGroupRolesDeps {
@@ -356,6 +372,8 @@ export async function setGroupRoles(
     resourceType: 'group',
     resourceId: input.groupId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 

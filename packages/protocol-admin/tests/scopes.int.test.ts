@@ -513,6 +513,8 @@ describe('audit', () => {
           includeInIdToken: undefined,
           includeInAccessToken: undefined,
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -533,6 +535,8 @@ describe('audit', () => {
           includeInIdToken: undefined,
           includeInAccessToken: undefined,
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -547,6 +551,8 @@ describe('audit', () => {
           values: { description: 'x' },
           ifMatch: undefined,
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -563,6 +569,8 @@ describe('audit', () => {
           values: { name: 'renamed' },
           ifMatch: undefined,
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -583,20 +591,40 @@ describe('audit', () => {
           includeInIdToken: undefined,
           includeInAccessToken: undefined,
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
 
     const ok = collector();
     const deleted = await withTenant(fixture.app.db, t.id, (tx) =>
-      deleteScope(tx, { audit: ok.audit }, { scopeId: scope.id, actorSubjectId: 'test' }),
+      deleteScope(
+        tx,
+        { audit: ok.audit },
+        {
+          scopeId: scope.id,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
     );
     expect(deleted.kind).toBe('deleted');
     expect(ok.events).toHaveLength(1);
 
     const refused = collector();
     const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
-      deleteScope(tx, { audit: refused.audit }, { scopeId: newId(), actorSubjectId: 'test' }),
+      deleteScope(
+        tx,
+        { audit: refused.audit },
+        {
+          scopeId: newId(),
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
     );
     expect(outcome.kind).toBe('not_found');
     expect(refused.events).toHaveLength(0);
@@ -615,6 +643,8 @@ describe('audit', () => {
           includeInIdToken: undefined,
           includeInAccessToken: undefined,
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -631,6 +661,8 @@ describe('audit', () => {
           roleIds: [plain],
           callerCapabilities: new Set(['manage-tenant']),
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -647,6 +679,8 @@ describe('audit', () => {
           roleIds: [tenantAdminId],
           callerCapabilities: new Set(['manage-tenant']),
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );

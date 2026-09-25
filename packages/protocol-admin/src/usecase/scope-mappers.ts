@@ -18,11 +18,13 @@ export interface ScopeMapperAuditEvent {
   readonly resourceType: 'scope';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
 
-/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
+/** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: ScopeMapperAuditEvent) => Promise<void>;
 
 export type ReadScopeMappersOutcome = { kind: 'not_found' } | { kind: 'ok'; mappers: ScopeMappers };
@@ -49,6 +51,8 @@ export interface SetScopeMappersInput {
   readonly scopeId: string;
   readonly mapperNames: readonly string[];
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface SetScopeMappersDeps {
@@ -87,6 +91,8 @@ export async function setScopeMappers(
     resourceType: 'scope',
     resourceId: input.scopeId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 

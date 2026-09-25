@@ -23,11 +23,13 @@ export interface ScopeAuditEvent {
   readonly resourceType: 'scope';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
 
-/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
+/** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: ScopeAuditEvent) => Promise<void>;
 
 export function scopeWireShape(scope: {
@@ -117,6 +119,8 @@ export interface CreateScopeInput {
   readonly includeInIdToken: boolean | undefined;
   readonly includeInAccessToken: boolean | undefined;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface CreateScopeDeps {
@@ -151,6 +155,8 @@ export async function createScope(
     resourceType: 'scope',
     resourceId: created.id,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 
@@ -162,6 +168,8 @@ export interface AmendScopeInput {
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface AmendScopeDeps {
@@ -283,6 +291,8 @@ export async function amendScope(
     resourceType: 'scope',
     resourceId: input.scopeId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 
@@ -296,6 +306,8 @@ export async function amendScope(
 export interface DeleteScopeInput {
   readonly scopeId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface DeleteScopeDeps {
@@ -321,6 +333,8 @@ export async function deleteScope(
     resourceType: 'scope',
     resourceId: input.scopeId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
   return { kind: 'deleted' };
@@ -339,6 +353,8 @@ export interface SetScopeRolesInput {
    */
   readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface SetScopeRolesDeps {
@@ -404,6 +420,8 @@ export async function setScopeRoles(
     resourceType: 'scope',
     resourceId: input.scopeId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 
@@ -415,6 +433,8 @@ export interface AssignScopeToClientInput {
   readonly clientId: string;
   readonly assignment: ClientScopeAssignment;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface AssignScopeToClientDeps {
@@ -451,6 +471,8 @@ export async function assignScopeToClient(
     resourceType: 'scope',
     resourceId: input.scopeId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 

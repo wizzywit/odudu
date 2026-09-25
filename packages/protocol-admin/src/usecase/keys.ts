@@ -19,11 +19,13 @@ export interface KeyAuditEvent {
   readonly resourceType: 'signing_key';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
 
-/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
+/** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: KeyAuditEvent) => Promise<void>;
 
 // Never `publicJwk` or `privateJwkEncrypted` — a signing key's admin
@@ -105,6 +107,8 @@ export interface CreateKeyInput {
   readonly tenantId: string;
   readonly alg: SigningKeyAlg;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface CreateKeyDeps {
@@ -139,6 +143,8 @@ export async function createKey(
     resourceType: 'signing_key',
     resourceId: created.id,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 
@@ -148,6 +154,8 @@ export async function createKey(
 export interface PromoteKeyInput {
   readonly keyId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface PromoteKeyDeps {
@@ -174,6 +182,8 @@ export async function promoteKey(
     resourceType: 'signing_key',
     resourceId: promoted.id,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 
@@ -183,6 +193,8 @@ export async function promoteKey(
 export interface RetireKeyInput {
   readonly keyId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface RetireKeyDeps {
@@ -225,6 +237,8 @@ export async function retireKey(
       resourceType: 'signing_key',
       resourceId: locked.id,
       actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
       outcome: 'allowed',
     });
     return { kind: 'ok', key: keyWireShape(toSigningKeyRecord(locked)) };
@@ -261,6 +275,8 @@ export async function retireKey(
     resourceType: 'signing_key',
     resourceId: retired.id,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 

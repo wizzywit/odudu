@@ -174,7 +174,16 @@ describe('POST /admin/tenants/{t}/keys/{id}/promote', () => {
 
     const promote = (keyId: string, audit: () => Promise<void>) =>
       withTenant(fixture.app.db, t.id, (tx) =>
-        promoteKeyUsecase(tx, { audit }, { keyId, actorSubjectId: newId() }),
+        promoteKeyUsecase(
+          tx,
+          { audit },
+          {
+            keyId,
+            actorSubjectId: newId(),
+            actorTenantId: 'test-tenant',
+            actorClientId: 'test-client',
+          },
+        ),
       );
 
     let releaseGate: () => void = () => undefined;
@@ -417,7 +426,13 @@ describe('audit', () => {
       createKey(
         tx,
         { audit, kek: TEST_KEK },
-        { tenantId: t.id, alg: 'RS256', actorSubjectId: 'test' },
+        {
+          tenantId: t.id,
+          alg: 'RS256',
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
 
@@ -431,13 +446,28 @@ describe('audit', () => {
       createKey(
         tx,
         { audit: () => Promise.resolve(), kek: TEST_KEK },
-        { tenantId: t.id, alg: 'RS256', actorSubjectId: 'test' },
+        {
+          tenantId: t.id,
+          alg: 'RS256',
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
 
     const ok = collector();
     const promoted = await withTenant(fixture.app.db, t.id, (tx) =>
-      promoteKeyUsecase(tx, { audit: ok.audit }, { keyId: staged.id, actorSubjectId: 'test' }),
+      promoteKeyUsecase(
+        tx,
+        { audit: ok.audit },
+        {
+          keyId: staged.id,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
     );
     expect(promoted.kind).toBe('ok');
     expect(ok.events).toHaveLength(1);
@@ -445,7 +475,16 @@ describe('audit', () => {
 
     const refused = collector();
     const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
-      promoteKeyUsecase(tx, { audit: refused.audit }, { keyId: newId(), actorSubjectId: 'test' }),
+      promoteKeyUsecase(
+        tx,
+        { audit: refused.audit },
+        {
+          keyId: newId(),
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
     );
     expect(outcome.kind).toBe('not_found');
     expect(refused.events).toHaveLength(0);
@@ -458,7 +497,13 @@ describe('audit', () => {
       createKey(
         tx,
         { audit: () => Promise.resolve(), kek: TEST_KEK },
-        { tenantId: t.id, alg: 'RS256', actorSubjectId: 'test' },
+        {
+          tenantId: t.id,
+          alg: 'RS256',
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
 
@@ -467,7 +512,12 @@ describe('audit', () => {
       retireKeyUsecase(
         tx,
         { audit: refusedActive.audit },
-        { keyId: active.id, actorSubjectId: 'test' },
+        {
+          keyId: active.id,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(activeOutcome.kind).toBe('active');
@@ -478,7 +528,12 @@ describe('audit', () => {
       retireKeyUsecase(
         tx,
         { audit: refusedNotFound.audit },
-        { keyId: newId(), actorSubjectId: 'test' },
+        {
+          keyId: newId(),
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(notFoundOutcome.kind).toBe('not_found');
@@ -486,7 +541,16 @@ describe('audit', () => {
 
     const ok = collector();
     const retired = await withTenant(fixture.app.db, t.id, (tx) =>
-      retireKeyUsecase(tx, { audit: ok.audit }, { keyId: staged.id, actorSubjectId: 'test' }),
+      retireKeyUsecase(
+        tx,
+        { audit: ok.audit },
+        {
+          keyId: staged.id,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
     );
     expect(retired.kind).toBe('ok');
     expect(ok.events).toHaveLength(1);

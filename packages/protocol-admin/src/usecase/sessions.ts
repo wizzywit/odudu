@@ -24,11 +24,13 @@ export interface SessionAuditEvent {
   readonly resourceType: 'session';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
 
-/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
+/** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: SessionAuditEvent) => Promise<void>;
 
 // One round trip for a whole page of sessions, keyed back to the session
@@ -129,6 +131,8 @@ export interface EndSessionInput {
   readonly subjectId: string;
   readonly sessionId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
   readonly issuer: string;
   readonly now: Date;
 }
@@ -187,6 +191,8 @@ export async function endSession(
     resourceType: 'session',
     resourceId: input.sessionId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 

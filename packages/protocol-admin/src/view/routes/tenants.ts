@@ -36,6 +36,8 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
         name: body.name,
         displayName: body.display_name,
         actorSubjectId: principal.subjectId,
+        actorTenantId: principal.issuerTenantId,
+        actorClientId: principal.clientDbId,
       },
     );
 

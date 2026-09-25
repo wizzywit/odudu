@@ -50,6 +50,8 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
           password: passwordField.kind === 'present' ? passwordField.password : null,
           starttls: body.starttls ?? false,
           actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
         },
       ),
     );

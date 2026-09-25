@@ -452,6 +452,8 @@ describe('audit', () => {
           clientId: null,
           defaultForNewSubjects: false,
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -468,7 +470,14 @@ describe('audit', () => {
       amendRole(
         tx,
         { audit: ok.audit },
-        { roleId: id, values: { description: 'x' }, ifMatch: undefined, actorSubjectId: 'test' },
+        {
+          roleId: id,
+          values: { description: 'x' },
+          ifMatch: undefined,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(amended.kind).toBe('ok');
@@ -479,7 +488,14 @@ describe('audit', () => {
       amendRole(
         tx,
         { audit: refused.audit },
-        { roleId: id, values: { name: 'renamed' }, ifMatch: undefined, actorSubjectId: 'test' },
+        {
+          roleId: id,
+          values: { name: 'renamed' },
+          ifMatch: undefined,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(outcome.kind).toBe('refused_field');
@@ -492,14 +508,32 @@ describe('audit', () => {
 
     const ok = collector();
     const deleted = await withTenant(fixture.app.db, t.id, (tx) =>
-      deleteRole(tx, { audit: ok.audit }, { roleId: id, actorSubjectId: 'test' }),
+      deleteRole(
+        tx,
+        { audit: ok.audit },
+        {
+          roleId: id,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
     );
     expect(deleted.kind).toBe('deleted');
     expect(ok.events).toHaveLength(1);
 
     const refused = collector();
     const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
-      deleteRole(tx, { audit: refused.audit }, { roleId: newId(), actorSubjectId: 'test' }),
+      deleteRole(
+        tx,
+        { audit: refused.audit },
+        {
+          roleId: newId(),
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
     );
     expect(outcome.kind).toBe('not_found');
     expect(refused.events).toHaveLength(0);
@@ -525,6 +559,8 @@ describe('audit', () => {
           // groups.int.test.ts's ceiling setup hands a fully expanded set.
           callerCapabilities: new Set(['manage-users', 'view-users']),
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -542,6 +578,8 @@ describe('audit', () => {
           childRoleId: tenantAdminId,
           callerCapabilities: new Set(['manage-users']),
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );

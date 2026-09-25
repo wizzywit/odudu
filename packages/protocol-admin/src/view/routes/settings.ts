@@ -48,6 +48,8 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
             values: body,
             ifMatch: ifMatchHeader(request),
             actorSubjectId: principal.subjectId,
+            actorTenantId: principal.issuerTenantId,
+            actorClientId: principal.clientDbId,
           },
         ),
       );

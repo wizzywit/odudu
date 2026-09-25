@@ -367,6 +367,8 @@ describe('createClient', () => {
           },
           tenantId: t.id,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -393,6 +395,8 @@ describe('createClient', () => {
           metadata: { token_endpoint_auth_method: 'none', grant_types: ['client_credentials'] },
           tenantId: t.id,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -425,6 +429,8 @@ describe('createClient', () => {
           },
           tenantId: t.id,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -455,6 +461,8 @@ describe('createClient', () => {
         metadata,
         tenantId: t.id,
         actorSubjectId: 'test-subject',
+        actorTenantId: 'test-tenant',
+        actorClientId: 'test-client',
       }),
     );
     events.length = 0;
@@ -469,6 +477,8 @@ describe('createClient', () => {
           metadata,
           tenantId: t.id,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         }),
       ),
     ).rejects.toThrow(ClientIdConflictError);
@@ -570,6 +580,8 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           values: { name: 'Audited rename' },
           ifMatch: undefined,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -596,6 +608,8 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           values: { client_id: 'evasion-attempt' },
           ifMatch: undefined,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -622,6 +636,8 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           values: { grant_types: ['client_credentials'] },
           ifMatch: undefined,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -648,6 +664,8 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           values: { enabled: false },
           ifMatch: undefined,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -699,6 +717,8 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
         },
         tenantId: t.id,
         actorSubjectId: 'test-subject',
+        actorTenantId: 'test-tenant',
+        actorClientId: 'test-client',
       }),
     );
     if (created.kind !== 'ok') throw new Error(`fixture setup failed: ${created.kind}`);
@@ -719,6 +739,8 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           values: { token_endpoint_auth_method: 'client_secret_basic' },
           ifMatch: undefined,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -745,6 +767,8 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           values: { token_endpoint_auth_method: 'none' },
           ifMatch: undefined,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -813,7 +837,12 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
             return Promise.resolve();
           },
         },
-        { clientDbId: created.id, actorSubjectId: 'test-subject' },
+        {
+          clientDbId: created.id,
+          actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(outcome.kind).toBe('deleted');
@@ -833,7 +862,12 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
             return Promise.resolve();
           },
         },
-        { clientDbId: admin.id, actorSubjectId: 'test-subject' },
+        {
+          clientDbId: admin.id,
+          actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(outcome.kind).toBe('builtin_admin_guarded');
@@ -911,7 +945,12 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
             return Promise.resolve();
           },
         },
-        { clientDbId: created.id, actorSubjectId: 'test-subject' },
+        {
+          clientDbId: created.id,
+          actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(outcome.kind).toBe('ok');
@@ -943,7 +982,12 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
             return Promise.resolve();
           },
         },
-        { clientDbId: id, actorSubjectId: 'test-subject' },
+        {
+          clientDbId: id,
+          actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(outcome.kind).toBe('not_confidential');

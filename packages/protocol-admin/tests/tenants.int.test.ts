@@ -215,7 +215,12 @@ describe('createTenant', () => {
           return Promise.resolve();
         },
       },
-      { name: `audited-${newId()}`, actorSubjectId: 'test-subject' },
+      {
+        name: `audited-${newId()}`,
+        actorSubjectId: 'test-subject',
+        actorTenantId: 'test-tenant',
+        actorClientId: 'test-client',
+      },
     );
     expect(outcome.kind).toBe('created');
     expect(events).toHaveLength(1);
@@ -232,7 +237,12 @@ describe('createTenant', () => {
           return Promise.resolve();
         },
       },
-      { name: 'system', actorSubjectId: 'test-subject' },
+      {
+        name: 'system',
+        actorSubjectId: 'test-subject',
+        actorTenantId: 'test-tenant',
+        actorClientId: 'test-client',
+      },
     );
     expect(outcome.kind).toBe('name_refused');
     expect(events).toHaveLength(0);
@@ -241,7 +251,12 @@ describe('createTenant', () => {
   it('mints a signing key in the same transaction as the row', async () => {
     const outcome = await createTenant(
       { database: fixture.app.db, kek: KEK, audit: () => Promise.resolve() },
-      { name: `keyed-${newId()}`, actorSubjectId: 'test-subject' },
+      {
+        name: `keyed-${newId()}`,
+        actorSubjectId: 'test-subject',
+        actorTenantId: 'test-tenant',
+        actorClientId: 'test-client',
+      },
     );
     if (outcome.kind !== 'created') throw new Error('expected the tenant to be created');
     await withTenant(fixture.app.db, outcome.tenant.id, async (tx) => {

@@ -52,7 +52,13 @@ export function replaceFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
       replaceFlow(
         tx,
         { audit: deps.audit },
-        { tenantId: targetTenantId, steps, actorSubjectId: principal.subjectId },
+        {
+          tenantId: targetTenantId,
+          steps,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
       ),
     );
 

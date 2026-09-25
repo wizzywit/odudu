@@ -79,6 +79,8 @@ describe('two concurrent writes carrying the same If-Match', () => {
           values: { password_min_length: 12 },
           ifMatch: before.etag,
           actorSubjectId: 'first',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       );
       held.arrive();
@@ -96,6 +98,8 @@ describe('two concurrent writes carrying the same If-Match', () => {
           values: { password_min_length: 13 },
           ifMatch: before.etag,
           actorSubjectId: 'second',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -126,6 +130,8 @@ describe('two concurrent writes carrying the same If-Match', () => {
         values: { name: 'first' },
         ifMatch: etag,
         actorSubjectId: 'first',
+        actorTenantId: 'test-tenant',
+        actorClientId: 'test-client',
       });
       held.arrive();
       await held.open;
@@ -139,6 +145,8 @@ describe('two concurrent writes carrying the same If-Match', () => {
         values: { name: 'second' },
         ifMatch: etag,
         actorSubjectId: 'second',
+        actorTenantId: 'test-tenant',
+        actorClientId: 'test-client',
       }),
     );
 
@@ -181,7 +189,14 @@ describe('two concurrent replacements with no If-Match', () => {
       const outcome = await setRoles(
         tx,
         { audit: AUDIT },
-        { subjectId, roleIds: [viewUsersId], callerCapabilities, actorSubjectId: 'first' },
+        {
+          subjectId,
+          roleIds: [viewUsersId],
+          callerCapabilities,
+          actorSubjectId: 'first',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       );
       held.arrive();
       await held.open;
@@ -193,7 +208,14 @@ describe('two concurrent replacements with no If-Match', () => {
       setRoles(
         tx,
         { audit: AUDIT },
-        { subjectId, roleIds: [manageClientsId], callerCapabilities, actorSubjectId: 'second' },
+        {
+          subjectId,
+          roleIds: [manageClientsId],
+          callerCapabilities,
+          actorSubjectId: 'second',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
 
@@ -226,7 +248,14 @@ describe('two concurrent replacements with no If-Match', () => {
       const outcome = await setRequiredActions(
         tx,
         { audit: AUDIT },
-        { tenantId: t.id, subjectId, actions: ['configure-totp'], actorSubjectId: 'first' },
+        {
+          tenantId: t.id,
+          subjectId,
+          actions: ['configure-totp'],
+          actorSubjectId: 'first',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       );
       held.arrive();
       await held.open;
@@ -245,6 +274,8 @@ describe('two concurrent replacements with no If-Match', () => {
           subjectId,
           actions: ['generate-recovery-codes'],
           actorSubjectId: 'second',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );

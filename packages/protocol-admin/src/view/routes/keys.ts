@@ -70,7 +70,13 @@ export function createKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
       createKey(
         tx,
         { audit: deps.audit, kek: deps.kek },
-        { tenantId: targetTenantId, alg: body.alg, actorSubjectId: principal.subjectId },
+        {
+          tenantId: targetTenantId,
+          alg: body.alg,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
       ),
     );
 
@@ -86,7 +92,16 @@ export function promoteKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
     }
 
     const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
-      promoteKey(tx, { audit: deps.audit }, { keyId: id, actorSubjectId: principal.subjectId }),
+      promoteKey(
+        tx,
+        { audit: deps.audit },
+        {
+          keyId: id,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
     );
 
     switch (outcome.kind) {
@@ -149,7 +164,16 @@ export function retireKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
     }
 
     const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
-      retireKey(tx, { audit: deps.audit }, { keyId: id, actorSubjectId: principal.subjectId }),
+      retireKey(
+        tx,
+        { audit: deps.audit },
+        {
+          keyId: id,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
     );
 
     if (outcome.kind !== 'ok') {

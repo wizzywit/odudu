@@ -149,6 +149,8 @@ export function createSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
             username: body.username,
             email: body.email ?? null,
             actorSubjectId: principal.subjectId,
+            actorTenantId: principal.issuerTenantId,
+            actorClientId: principal.clientDbId,
           },
         ),
       );
@@ -241,6 +243,8 @@ export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
           values,
           ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
         },
       ),
     );
@@ -264,7 +268,12 @@ export function deleteSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
       deleteSubject(
         tx,
         { audit: deps.audit },
-        { subjectId: id, actorSubjectId: principal.subjectId },
+        {
+          subjectId: id,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
       ),
     );
 
@@ -311,7 +320,13 @@ export function deleteCredentialHandler(deps: SubjectsRouteDeps): AdminRouteHand
       deleteCredential(
         tx,
         { audit: deps.audit },
-        { subjectId: id, credentialId, actorSubjectId: principal.subjectId },
+        {
+          subjectId: id,
+          credentialId,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
       ),
     );
 
@@ -343,6 +358,8 @@ export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHa
           subjectId: id,
           actions: body.actions,
           actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
         },
       ),
     );
@@ -381,6 +398,8 @@ export function setRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
           roleIds: body.role_ids,
           callerCapabilities,
           actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
         },
       ),
     );

@@ -118,6 +118,8 @@ export function createGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
             name: body.name,
             parentId: body.parent_id ?? null,
             actorSubjectId: principal.subjectId,
+            actorTenantId: principal.issuerTenantId,
+            actorClientId: principal.clientDbId,
           },
         ),
       );
@@ -220,6 +222,8 @@ export function amendGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
           ifMatch: ifMatchHeader(request),
           callerCapabilities,
           actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
         },
       ),
     );
@@ -240,7 +244,16 @@ export function deleteGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
     }
 
     const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
-      deleteGroup(tx, { audit: deps.audit }, { groupId: id, actorSubjectId: principal.subjectId }),
+      deleteGroup(
+        tx,
+        { audit: deps.audit },
+        {
+          groupId: id,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
     );
 
     switch (outcome.kind) {
@@ -273,6 +286,8 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
           roleIds: body.role_ids,
           callerCapabilities,
           actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
         },
       ),
     );

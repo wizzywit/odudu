@@ -15,11 +15,13 @@ export interface RoleAuditEvent {
   readonly resourceType: 'role';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
 
-/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
+/** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: RoleAuditEvent) => Promise<void>;
 
 export function roleWireShape(role: {
@@ -97,6 +99,8 @@ export interface CreateRoleInput {
   readonly clientId: string | null;
   readonly defaultForNewSubjects: boolean;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface CreateRoleDeps {
@@ -121,6 +125,8 @@ export async function createRole(
     resourceType: 'role',
     resourceId: created.id,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 
@@ -132,6 +138,8 @@ export interface AmendRoleInput {
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface AmendRoleDeps {
@@ -213,6 +221,8 @@ export async function amendRole(
     resourceType: 'role',
     resourceId: input.roleId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 
@@ -226,6 +236,8 @@ export async function amendRole(
 export interface DeleteRoleInput {
   readonly roleId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface DeleteRoleDeps {
@@ -247,6 +259,8 @@ export async function deleteRole(
     resourceType: 'role',
     resourceId: input.roleId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
   return { kind: 'deleted' };
@@ -263,6 +277,8 @@ export interface AddRoleCompositeInput {
    */
   readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface AddRoleCompositeDeps {
@@ -330,6 +346,8 @@ export async function addRoleComposite(
     resourceType: 'role',
     resourceId: input.parentRoleId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
   return { kind: 'ok' };

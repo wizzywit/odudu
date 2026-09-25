@@ -102,6 +102,8 @@ export function deleteSessionHandler(deps: SessionsRouteDeps): AdminRouteHandler
           subjectId: id,
           sessionId,
           actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
           issuer: tenantIssuerFor(request, tenantName),
           now: deps.now(),
         },

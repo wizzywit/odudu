@@ -145,6 +145,8 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
           values: { verify_email: true },
           ifMatch: undefined,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -169,6 +171,8 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
           values: { not_a_setting: true },
           ifMatch: undefined,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );

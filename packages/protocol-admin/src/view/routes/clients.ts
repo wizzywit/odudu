@@ -134,6 +134,8 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
             metadata,
             tenantId: targetTenantId,
             actorSubjectId: principal.subjectId,
+            actorTenantId: principal.issuerTenantId,
+            actorClientId: principal.clientDbId,
           },
         ),
       );
@@ -263,6 +265,8 @@ export function amendClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
           values,
           ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
         },
       ),
     );
@@ -286,7 +290,12 @@ export function deleteClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
       deleteClient(
         tx,
         { audit: deps.audit },
-        { clientDbId: id, actorSubjectId: principal.subjectId },
+        {
+          clientDbId: id,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
       ),
     );
 
@@ -312,7 +321,12 @@ export function rotateClientSecretHandler(deps: ClientsRouteDeps): AdminRouteHan
       rotateClientSecret(
         tx,
         { hashClientSecret: deps.hashClientSecret, audit: deps.audit },
-        { clientDbId: id, actorSubjectId: principal.subjectId },
+        {
+          clientDbId: id,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
       ),
     );
 

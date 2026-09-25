@@ -916,6 +916,8 @@ describe('audit', () => {
           username: `audited-${newId()}`,
           email: null,
           actorSubjectId: 'test-subject',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -932,7 +934,14 @@ describe('audit', () => {
       amendSubject(
         tx,
         { audit: ok.audit },
-        { subjectId: id, values: { enabled: false }, ifMatch: undefined, actorSubjectId: 'test' },
+        {
+          subjectId: id,
+          values: { enabled: false },
+          ifMatch: undefined,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(amended.kind).toBe('ok');
@@ -948,6 +957,8 @@ describe('audit', () => {
           values: { not_a_field: true },
           ifMatch: undefined,
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -961,14 +972,32 @@ describe('audit', () => {
 
     const ok = collector();
     const deleted = await withTenant(fixture.app.db, t.id, (tx) =>
-      deleteSubject(tx, { audit: ok.audit }, { subjectId: id, actorSubjectId: 'test' }),
+      deleteSubject(
+        tx,
+        { audit: ok.audit },
+        {
+          subjectId: id,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
     );
     expect(deleted.kind).toBe('deleted');
     expect(ok.events).toHaveLength(1);
 
     const refused = collector();
     const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
-      deleteSubject(tx, { audit: refused.audit }, { subjectId: newId(), actorSubjectId: 'test' }),
+      deleteSubject(
+        tx,
+        { audit: refused.audit },
+        {
+          subjectId: newId(),
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
     );
     expect(outcome.kind).toBe('not_found');
     expect(refused.events).toHaveLength(0);
@@ -994,7 +1023,13 @@ describe('audit', () => {
       deleteCredential(
         tx,
         { audit: ok.audit },
-        { subjectId: id, credentialId, actorSubjectId: 'test' },
+        {
+          subjectId: id,
+          credentialId,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(deleted.kind).toBe('deleted');
@@ -1005,7 +1040,13 @@ describe('audit', () => {
       deleteCredential(
         tx,
         { audit: refused.audit },
-        { subjectId: id, credentialId: newId(), actorSubjectId: 'test' },
+        {
+          subjectId: id,
+          credentialId: newId(),
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(outcome.kind).toBe('not_found');
@@ -1021,7 +1062,14 @@ describe('audit', () => {
       setRequiredActions(
         tx,
         { audit: ok.audit },
-        { tenantId: t.id, subjectId: id, actions: ['configure-totp'], actorSubjectId: 'test' },
+        {
+          tenantId: t.id,
+          subjectId: id,
+          actions: ['configure-totp'],
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(set.kind).toBe('ok');
@@ -1032,7 +1080,14 @@ describe('audit', () => {
       setRequiredActions(
         tx,
         { audit: refused.audit },
-        { tenantId: t.id, subjectId: newId(), actions: [], actorSubjectId: 'test' },
+        {
+          tenantId: t.id,
+          subjectId: newId(),
+          actions: [],
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
       ),
     );
     expect(outcome.kind).toBe('not_found');
@@ -1055,6 +1110,8 @@ describe('audit', () => {
           roleIds: [viewUsersId],
           callerCapabilities: new Set(['manage-users', 'view-users']),
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );
@@ -1071,6 +1128,8 @@ describe('audit', () => {
           roleIds: [tenantAdminId],
           callerCapabilities: new Set(['manage-users']),
           actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
         },
       ),
     );

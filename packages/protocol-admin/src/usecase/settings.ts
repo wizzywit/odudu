@@ -13,11 +13,13 @@ export interface SettingsAuditEvent {
   readonly resourceType: 'tenant';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
 
-/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
+/** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: SettingsAuditEvent) => Promise<void>;
 
 export interface ReadSettingsResult {
@@ -44,6 +46,8 @@ export interface AmendSettingsInput {
   readonly values: Readonly<Record<string, boolean | number | string>>;
   readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface AmendSettingsDeps {
@@ -139,6 +143,8 @@ export async function amendSettings(
     resourceType: 'tenant',
     resourceId: input.tenantId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 

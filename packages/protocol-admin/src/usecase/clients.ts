@@ -177,11 +177,13 @@ export interface ClientAuditEvent {
   readonly resourceType: 'client';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
 
-/** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
+/** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: ClientAuditEvent) => Promise<void>;
 
 export interface ListClientsInput {
@@ -247,6 +249,8 @@ export interface CreateClientInput {
   readonly metadata: unknown;
   readonly tenantId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface CreateClientDeps {
@@ -333,6 +337,8 @@ export async function createClient(
       resourceType: 'client',
       resourceId: input.clientId,
       actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
       outcome: 'refused',
     });
     return { kind: 'reserved_client_id' };
@@ -347,6 +353,8 @@ export async function createClient(
       resourceType: 'client',
       resourceId: input.clientId,
       actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
       outcome: 'refused',
       detail: { error: parsed.error },
     });
@@ -367,6 +375,8 @@ export async function createClient(
       resourceType: 'client',
       resourceId: input.clientId,
       actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
       outcome: 'refused',
     });
     return { kind: 'at_capacity' };
@@ -436,6 +446,8 @@ export async function createClient(
     resourceType: 'client',
     resourceId: client.id,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
     detail: redactedDiff('client', null, clientWireShape(view)),
   });
@@ -491,6 +503,8 @@ export interface AmendClientInput {
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface AmendClientDeps {
@@ -816,6 +830,8 @@ export async function amendClient(
     resourceType: 'client',
     resourceId: input.clientDbId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
     detail: redactedDiff('client', clientWireShape(currentView), clientWireShape(view)),
   });
@@ -826,6 +842,8 @@ export async function amendClient(
 export interface RotateClientSecretInput {
   readonly clientDbId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface RotateClientSecretDeps {
@@ -857,7 +875,13 @@ export async function rotateClientSecret(
     resourceType: 'client',
     resourceId: input.clientDbId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
+    // Named rather than diffed: secretHash never appears in a wire shape
+    // for redactedDiff to read, so this states the one fact worth
+    // recording without ever holding the hash, old or new.
+    detail: { secret_hash: { changed: true } },
   });
 
   const configRow = await clientOidcConfigRepository(tx).byClientId(input.clientDbId);
@@ -874,6 +898,8 @@ export async function rotateClientSecret(
 export interface DeleteClientInput {
   readonly clientDbId: string;
   readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
 }
 
 export interface DeleteClientDeps {
@@ -904,6 +930,8 @@ export async function deleteClient(
     resourceType: 'client',
     resourceId: input.clientDbId,
     actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
 

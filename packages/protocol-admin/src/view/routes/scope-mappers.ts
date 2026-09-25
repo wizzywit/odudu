@@ -49,7 +49,13 @@ export function setScopeMappersHandler(deps: ScopeMappersRouteDeps): AdminRouteH
         tx,
         deps.claimMappers,
         { audit: deps.audit },
-        { scopeId: id, mapperNames: body.mapper_names, actorSubjectId: principal.subjectId },
+        {
+          scopeId: id,
+          mapperNames: body.mapper_names,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
       ),
     );
 
