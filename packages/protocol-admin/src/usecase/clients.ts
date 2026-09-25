@@ -19,6 +19,7 @@ import {
 } from '@odudu/protocol-oidc';
 import { asc, eq, gt, inArray } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
+import { redactedDiff } from '#/service/audit-detail';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
 import { AMENDABLE_CLIENT_FIELDS, refusalFor } from '#/service/client-patch';
 import { etagOf, matches } from '#/service/etag';
@@ -176,10 +177,12 @@ export interface ClientAuditEvent {
   readonly resourceType: 'client';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
 }
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
-export type Audit = (event: ClientAuditEvent) => Promise<void>;
+export type Audit = (tx: TenantScopedDatabase, event: ClientAuditEvent) => Promise<void>;
 
 export interface ListClientsInput {
   readonly limit: number;
@@ -325,6 +328,13 @@ export async function createClient(
   input: CreateClientInput,
 ): Promise<CreateClientOutcome> {
   if (input.clientId === ADMIN_CLIENT_ID) {
+    await deps.audit(tx, {
+      action: 'client.create',
+      resourceType: 'client',
+      resourceId: input.clientId,
+      actorSubjectId: input.actorSubjectId,
+      outcome: 'refused',
+    });
     return { kind: 'reserved_client_id' };
   }
 
@@ -332,6 +342,14 @@ export async function createClient(
     tlsClientAuthEnabled: deps.tlsClientAuthEnabled,
   });
   if (parsed.kind === 'invalid') {
+    await deps.audit(tx, {
+      action: 'client.create',
+      resourceType: 'client',
+      resourceId: input.clientId,
+      actorSubjectId: input.actorSubjectId,
+      outcome: 'refused',
+      detail: { error: parsed.error },
+    });
     return { kind: 'invalid_metadata', error: parsed.error, description: parsed.description };
   }
   const metadata = parsed.metadata;
@@ -344,6 +362,13 @@ export async function createClient(
   // rather than trusting the two capabilities to be held together.
   const capacity = await clientRepository(tx).lockCapacity(input.tenantId);
   if (capacity.count >= capacity.maxClients) {
+    await deps.audit(tx, {
+      action: 'client.create',
+      resourceType: 'client',
+      resourceId: input.clientId,
+      actorSubjectId: input.actorSubjectId,
+      outcome: 'refused',
+    });
     return { kind: 'at_capacity' };
   }
 
@@ -404,14 +429,18 @@ export async function createClient(
     tlsClientAuthSubjectDn: metadata.tlsClientAuthSubjectDn,
   });
 
-  await deps.audit({
+  const view = await attachScopes(tx, toClientView(client, config));
+
+  await deps.audit(tx, {
     action: 'client.create',
     resourceType: 'client',
     resourceId: client.id,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
+    detail: redactedDiff('client', null, clientWireShape(view)),
   });
 
-  return { kind: 'ok', client: await attachScopes(tx, toClientView(client, config)), secret };
+  return { kind: 'ok', client: view, secret };
 }
 
 // The wire shape a caller reads back, and what an `ETag` is hashed over —
@@ -780,14 +809,17 @@ export async function amendClient(
       ? configRow
       : await clientOidcConfigRepository(tx).update(input.clientDbId, configPatch);
 
-  await deps.audit({
+  const view = await attachScopes(tx, toClientView(updatedClientRow, updatedConfigRow));
+
+  await deps.audit(tx, {
     action: 'client.amend',
     resourceType: 'client',
     resourceId: input.clientDbId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
+    detail: redactedDiff('client', clientWireShape(currentView), clientWireShape(view)),
   });
 
-  const view = await attachScopes(tx, toClientView(updatedClientRow, updatedConfigRow));
   return { kind: 'ok', client: view, etag: etagOf(clientWireShape(view)) };
 }
 
@@ -820,11 +852,12 @@ export async function rotateClientSecret(
   const secretHash = await deps.hashClientSecret(secret);
   const updatedClientRow = await clientRepository(tx).rotateSecret(input.clientDbId, secretHash);
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'client.rotate_secret',
     resourceType: 'client',
     resourceId: input.clientDbId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   const configRow = await clientOidcConfigRepository(tx).byClientId(input.clientDbId);
@@ -866,11 +899,12 @@ export async function deleteClient(
 
   await clientRepository(tx).delete(input.clientDbId);
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'client.delete',
     resourceType: 'client',
     resourceId: input.clientDbId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return { kind: 'deleted' };

@@ -1,12 +1,13 @@
 import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
-import { type DatabaseHandle, withTenant } from '@odudu/db';
+import { type DatabaseHandle, type TenantScopedDatabase, withTenant } from '@odudu/db';
 import { effectiveRoles } from '@odudu/domain-authz';
 import { hashPassword } from '@odudu/domain-identity';
 import { ADMIN_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
 import { type Clock, type Logger, systemClock } from '@odudu/kernel';
 import { tenantLookupRepository, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { type FastifyPluginAsync } from 'fastify';
+import { auditRepository } from '#/repository/audit';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
 import { type Audit as ClientAudit } from '#/usecase/clients';
@@ -16,6 +17,7 @@ import { type Audit as KeyAudit } from '#/usecase/keys';
 import { type Audit as RoleAudit } from '#/usecase/roles';
 import { type Audit as ScopeAudit } from '#/usecase/scopes';
 import { type Audit as ScopeMapperAudit, type MapperCatalogue } from '#/usecase/scope-mappers';
+import { type Audit as SettingsAudit } from '#/usecase/settings';
 import { type Audit as SmtpAudit } from '#/usecase/smtp';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
 import { type Audit as SubjectAudit } from '#/usecase/subjects';
@@ -139,6 +141,11 @@ export interface AdminRoutesDeps {
   // (#/usecase/scope-mappers.ts) for why this package types it that way
   // instead of importing protocol-oidc's own `ClaimContext`.
   claimMappers: MapperCatalogue;
+  // Runs immediately after every audit row this plugin records; a
+  // rejection propagates into the mutation's own transaction and rolls it
+  // back with the row just written. Exists for a test to prove the audit
+  // write is transactional — no production caller sets it.
+  afterAuditWrite?: () => Promise<void>;
 }
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
@@ -148,20 +155,49 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
 
     const clock = deps.clock ?? systemClock;
 
-    // Wired for real once an `audit_events` sink exists; until then every
-    // mutation still calls `audit`, so nothing here needs rewriting when
-    // it does.
-    const noopAudit: Audit = () => Promise.resolve();
-    const noopClientAudit: ClientAudit = () => Promise.resolve();
-    const noopSubjectAudit: SubjectAudit = () => Promise.resolve();
-    const noopSessionAudit: SessionAudit = () => Promise.resolve();
-    const noopRoleAudit: RoleAudit = () => Promise.resolve();
-    const noopGroupAudit: GroupAudit = () => Promise.resolve();
-    const noopScopeAudit: ScopeAudit = () => Promise.resolve();
-    const noopKeyAudit: KeyAudit = () => Promise.resolve();
-    const noopFlowAudit: FlowAudit = () => Promise.resolve();
-    const noopScopeMapperAudit: ScopeMapperAudit = () => Promise.resolve();
-    const noopSmtpAudit: SmtpAudit = () => Promise.resolve();
+    // Every usecase group's `XAuditEvent` has this same shape, so one
+    // function writes all of them through `auditRepository` — in the same
+    // transaction the usecase is already inside, since `tx` is the one it
+    // calls this with. Parameter contravariance is what lets one function
+    // typed on the common shape stand in for each group's own narrower
+    // `Audit` type below.
+    async function recordAudit(
+      tx: TenantScopedDatabase,
+      event: {
+        readonly action: string;
+        readonly resourceType: string;
+        readonly resourceId: string;
+        readonly actorSubjectId: string;
+        readonly outcome: 'allowed' | 'refused' | 'failed';
+        readonly detail?: Record<string, unknown>;
+      },
+    ): Promise<void> {
+      await auditRepository(tx).record({
+        eventType: 'admin_mutation',
+        action: event.action,
+        outcome: event.outcome,
+        resourceType: event.resourceType,
+        resourceId: event.resourceId,
+        actorSubjectId: event.actorSubjectId,
+        detail: event.detail,
+      });
+      // Lets an integration test prove the write above is inside the
+      // mutating transaction: its rejection rolls the whole thing back
+      // with it. Unset in production.
+      if (deps.afterAuditWrite !== undefined) await deps.afterAuditWrite();
+    }
+    const tenantAudit: Audit = recordAudit;
+    const clientAudit: ClientAudit = recordAudit;
+    const subjectAudit: SubjectAudit = recordAudit;
+    const sessionAudit: SessionAudit = recordAudit;
+    const roleAudit: RoleAudit = recordAudit;
+    const groupAudit: GroupAudit = recordAudit;
+    const scopeAudit: ScopeAudit = recordAudit;
+    const keyAudit: KeyAudit = recordAudit;
+    const flowAudit: FlowAudit = recordAudit;
+    const scopeMapperAudit: ScopeMapperAudit = recordAudit;
+    const smtpAudit: SmtpAudit = recordAudit;
+    const settingsAudit: SettingsAudit = recordAudit;
     // Same call `authzDeps.effectiveRoles` makes below, scoped to whichever
     // tenant the caller's own token was issued from — never the target
     // tenant a cross-tenant system admin is reaching into. Shared by
@@ -181,71 +217,71 @@ export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
     const subjectsDeps: SubjectsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
-      audit: noopSubjectAudit,
+      audit: subjectAudit,
       now: () => clock.now(),
       callerCapabilities,
     };
     const rolesDeps: RolesRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
-      audit: noopRoleAudit,
+      audit: roleAudit,
       callerCapabilities,
     };
     const groupsDeps: GroupsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
-      audit: noopGroupAudit,
+      audit: groupAudit,
       callerCapabilities,
     };
     const scopesDeps: ScopesRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
-      audit: noopScopeAudit,
+      audit: scopeAudit,
       callerCapabilities,
     };
     const keysDeps: KeysRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
       kek: deps.kek,
-      audit: noopKeyAudit,
+      audit: keyAudit,
     };
     const flowDeps: FlowRouteDeps = {
       database: deps.database.db,
-      audit: noopFlowAudit,
+      audit: flowAudit,
     };
     const scopeMappersDeps: ScopeMappersRouteDeps = {
       database: deps.database.db,
       claimMappers: deps.claimMappers,
-      audit: noopScopeMapperAudit,
+      audit: scopeMapperAudit,
     };
     const smtpDeps: SmtpRouteDeps = {
       database: deps.database.db,
       kek: deps.kek,
-      audit: noopSmtpAudit,
+      audit: smtpAudit,
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,
       ownerDatabase: deps.ownerDatabase.db,
       cursorKey: deps.cursorKey,
       kek: deps.kek,
-      audit: noopAudit,
+      audit: tenantAudit,
     };
     const settingsDeps: SettingsRouteDeps = {
       database: deps.database.db,
-      audit: () => Promise.resolve(),
+      audit: settingsAudit,
     };
     const clientsDeps: ClientsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
       hashClientSecret: hashPassword,
       tlsClientAuthEnabled: deps.trustProxy ?? false,
-      audit: noopClientAudit,
+      audit: clientAudit,
     };
     const sessionsDeps: SessionsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
       kek: deps.kek,
-      audit: noopSessionAudit,
+      audit: sessionAudit,
       now: () => clock.now(),
       findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
     };

@@ -1,6 +1,6 @@
 import { requiredActionRepository } from '@odudu/authn-flows';
 import { generateTotpSecret, totpCode, totpCounter } from '@odudu/crypto';
-import { withTenant } from '@odudu/db';
+import { withTenant, type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
 import {
   credentialRepository,
@@ -892,12 +892,12 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/credentials/{credentialId}', (
 describe('audit', () => {
   function collector(): {
     events: SubjectAuditEvent[];
-    audit: (e: SubjectAuditEvent) => Promise<void>;
+    audit: (tx: TenantScopedDatabase, e: SubjectAuditEvent) => Promise<void>;
   } {
     const events: SubjectAuditEvent[] = [];
     return {
       events,
-      audit: (event) => {
+      audit: (_tx, event) => {
         events.push(event);
         return Promise.resolve();
       },

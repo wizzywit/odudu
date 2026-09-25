@@ -1,4 +1,4 @@
-import { withTenant } from '@odudu/db';
+import { withTenant, type TenantScopedDatabase } from '@odudu/db';
 import { clientScopeRepository, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { standardClaimMappers } from '@odudu/protocol-oidc';
@@ -163,12 +163,12 @@ describe('is refused for every capability but manage-tenant, on both mapper rout
 describe('audit', () => {
   function collector(): {
     events: ScopeMapperAuditEvent[];
-    audit: (e: ScopeMapperAuditEvent) => Promise<void>;
+    audit: (tx: TenantScopedDatabase, e: ScopeMapperAuditEvent) => Promise<void>;
   } {
     const events: ScopeMapperAuditEvent[] = [];
     return {
       events,
-      audit: (event) => {
+      audit: (_tx, event) => {
         events.push(event);
         return Promise.resolve();
       },

@@ -13,10 +13,12 @@ export interface SettingsAuditEvent {
   readonly resourceType: 'tenant';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
 }
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
-export type Audit = (event: SettingsAuditEvent) => Promise<void>;
+export type Audit = (tx: TenantScopedDatabase, event: SettingsAuditEvent) => Promise<void>;
 
 export interface ReadSettingsResult {
   readonly settings: TenantSettingsRecord;
@@ -132,11 +134,12 @@ export async function amendSettings(
     throw error;
   }
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'tenant.amend_settings',
     resourceType: 'tenant',
     resourceId: input.tenantId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return { kind: 'amended', settings, etag: etagOf(settings) };

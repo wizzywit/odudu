@@ -23,10 +23,12 @@ export interface ScopeAuditEvent {
   readonly resourceType: 'scope';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
 }
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
-export type Audit = (event: ScopeAuditEvent) => Promise<void>;
+export type Audit = (tx: TenantScopedDatabase, event: ScopeAuditEvent) => Promise<void>;
 
 export function scopeWireShape(scope: {
   id: string;
@@ -144,11 +146,12 @@ export async function createScope(
       : {}),
   });
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'scope.create',
     resourceType: 'scope',
     resourceId: created.id,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return scopeWireShape(created);
@@ -275,11 +278,12 @@ export async function amendScope(
     });
   }
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'scope.amend',
     resourceType: 'scope',
     resourceId: input.scopeId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   const after = await readScope(tx, input.scopeId);
@@ -312,11 +316,12 @@ export async function deleteScope(
   const deleted = await clientScopeRepository(tx).delete(input.scopeId);
   if (!deleted) return { kind: 'not_found' };
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'scope.delete',
     resourceType: 'scope',
     resourceId: input.scopeId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
   return { kind: 'deleted' };
 }
@@ -394,11 +399,12 @@ export async function setScopeRoles(
 
   await roleRepository(tx).setClientScopeRoles(input.scopeId, uniqueRoleIds);
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'scope.roles_set',
     resourceType: 'scope',
     resourceId: input.scopeId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return { kind: 'ok', roles: found };
@@ -440,11 +446,12 @@ export async function assignScopeToClient(
 
   await clientScopeRepository(tx).assignOrUpdate(input.clientId, input.scopeId, input.assignment);
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'scope.assign_to_client',
     resourceType: 'scope',
     resourceId: input.scopeId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   const outcome = await readClient(tx, input.clientId);

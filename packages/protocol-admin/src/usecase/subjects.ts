@@ -73,10 +73,12 @@ export interface SubjectAuditEvent {
   readonly resourceType: 'subject';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
 }
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
-export type Audit = (event: SubjectAuditEvent) => Promise<void>;
+export type Audit = (tx: TenantScopedDatabase, event: SubjectAuditEvent) => Promise<void>;
 
 export interface ListSubjectsInput {
   readonly limit: number;
@@ -202,11 +204,12 @@ export async function createSubject(
   // one, and the subject cannot complete a login until they do.
   await requiredActionRepository(tx).add(input.tenantId, subjectId, 'update-password');
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'subject.create',
     resourceType: 'subject',
     resourceId: subjectId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   const outcome = await readSubject(tx, subjectId);
@@ -371,11 +374,12 @@ export async function amendSubject(
     await userRepository(tx).updateEmail(input.subjectId, patch.email.value);
   }
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'subject.amend',
     resourceType: 'subject',
     resourceId: input.subjectId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   const after = await readSubject(tx, input.subjectId);
@@ -410,11 +414,12 @@ export async function deleteSubject(
   });
   if (rows.length === 0) return { kind: 'not_found' };
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'subject.delete',
     resourceType: 'subject',
     resourceId: input.subjectId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
   return { kind: 'deleted' };
 }
@@ -556,11 +561,12 @@ export async function deleteCredential(
 
   await credentialRepository(tx).deleteOne(row.id);
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'subject.credential_delete',
     resourceType: 'subject',
     resourceId: input.subjectId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
   return { kind: 'deleted' };
 }
@@ -598,11 +604,12 @@ export async function setRequiredActions(
 
   await requiredActionRepository(tx).replaceAll(input.tenantId, input.subjectId, input.actions);
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'subject.required_actions_set',
     resourceType: 'subject',
     resourceId: input.subjectId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return { kind: 'ok', actions: await requiredActionRepository(tx).pendingFor(input.subjectId) };
@@ -685,11 +692,12 @@ export async function setRoles(
     await roleRepository(tx).assignToSubject(input.subjectId, roleId);
   }
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'subject.roles_set',
     resourceType: 'subject',
     resourceId: input.subjectId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return { kind: 'ok', roles: found };

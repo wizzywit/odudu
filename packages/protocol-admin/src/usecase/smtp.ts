@@ -9,10 +9,12 @@ export interface SmtpAuditEvent {
   readonly resourceType: 'tenant';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
 }
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
-export type Audit = (event: SmtpAuditEvent) => Promise<void>;
+export type Audit = (tx: TenantScopedDatabase, event: SmtpAuditEvent) => Promise<void>;
 
 function toWireShape(record: TenantSmtpRecord | null): SmtpConfig {
   if (record === null) {
@@ -71,11 +73,12 @@ export async function putSmtp(
     starttls: input.starttls,
   });
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'tenant.smtp_set',
     resourceType: 'tenant',
     resourceId: input.tenantId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return toWireShape(record);

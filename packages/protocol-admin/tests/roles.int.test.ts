@@ -1,4 +1,4 @@
-import { withTenant } from '@odudu/db';
+import { withTenant, type TenantScopedDatabase } from '@odudu/db';
 import { roleComposites, roleRepository } from '@odudu/domain-authz';
 import {
   ADMIN_CLIENT_ID,
@@ -426,12 +426,12 @@ describe('is refused for every capability but manage-tenant, on every route', ()
 describe('audit', () => {
   function collector(): {
     events: RoleAuditEvent[];
-    audit: (e: RoleAuditEvent) => Promise<void>;
+    audit: (tx: TenantScopedDatabase, e: RoleAuditEvent) => Promise<void>;
   } {
     const events: RoleAuditEvent[] = [];
     return {
       events,
-      audit: (event) => {
+      audit: (_tx, event) => {
         events.push(event);
         return Promise.resolve();
       },

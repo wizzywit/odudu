@@ -240,11 +240,14 @@ describe('PUT /admin/tenants/{t}/flow/executions', () => {
 });
 
 describe('audit', () => {
-  function collector(): { events: FlowAuditEvent[]; audit: (e: FlowAuditEvent) => Promise<void> } {
+  function collector(): {
+    events: FlowAuditEvent[];
+    audit: (tx: TenantScopedDatabase, e: FlowAuditEvent) => Promise<void>;
+  } {
     const events: FlowAuditEvent[] = [];
     return {
       events,
-      audit: (event) => {
+      audit: (_tx, event) => {
         events.push(event);
         return Promise.resolve();
       },

@@ -15,10 +15,12 @@ export interface RoleAuditEvent {
   readonly resourceType: 'role';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
 }
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
-export type Audit = (event: RoleAuditEvent) => Promise<void>;
+export type Audit = (tx: TenantScopedDatabase, event: RoleAuditEvent) => Promise<void>;
 
 export function roleWireShape(role: {
   id: string;
@@ -114,11 +116,12 @@ export async function createRole(
     defaultForNewSubjects: input.defaultForNewSubjects,
   });
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'role.create',
     resourceType: 'role',
     resourceId: created.id,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return roleWireShape(created);
@@ -205,11 +208,12 @@ export async function amendRole(
     await roleRepository(tx).amend(input.roleId, { description: patch.description.value });
   }
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'role.amend',
     resourceType: 'role',
     resourceId: input.roleId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   const after = await readRole(tx, input.roleId);
@@ -238,11 +242,12 @@ export async function deleteRole(
   const deleted = await roleRepository(tx).delete(input.roleId);
   if (!deleted) return { kind: 'not_found' };
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'role.delete',
     resourceType: 'role',
     resourceId: input.roleId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
   return { kind: 'deleted' };
 }
@@ -320,11 +325,12 @@ export async function addRoleComposite(
     throw error;
   }
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'role.composite_add',
     resourceType: 'role',
     resourceId: input.parentRoleId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
   return { kind: 'ok' };
 }

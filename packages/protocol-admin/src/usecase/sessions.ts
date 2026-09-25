@@ -24,10 +24,12 @@ export interface SessionAuditEvent {
   readonly resourceType: 'session';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
 }
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
-export type Audit = (event: SessionAuditEvent) => Promise<void>;
+export type Audit = (tx: TenantScopedDatabase, event: SessionAuditEvent) => Promise<void>;
 
 // One round trip for a whole page of sessions, keyed back to the session
 // each grant came from — `clientsForSession`'s own per-session form would
@@ -180,11 +182,12 @@ export async function endSession(
     },
   );
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'session.end',
     resourceType: 'session',
     resourceId: input.sessionId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return { kind: 'ended' };

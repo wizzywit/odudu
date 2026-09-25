@@ -135,7 +135,7 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
       amendSettings(
         tx,
         {
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -159,7 +159,7 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
       amendSettings(
         tx,
         {
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },

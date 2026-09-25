@@ -1,4 +1,4 @@
-import { withTenant } from '@odudu/db';
+import { withTenant, type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
 import {
   ADMIN_CLIENT_ID,
@@ -533,12 +533,12 @@ describe('PATCH /admin/tenants/{t}/groups/{id} — the reparent capability ceili
 describe('audit', () => {
   function collector(): {
     events: GroupAuditEvent[];
-    audit: (e: GroupAuditEvent) => Promise<void>;
+    audit: (tx: TenantScopedDatabase, e: GroupAuditEvent) => Promise<void>;
   } {
     const events: GroupAuditEvent[] = [];
     return {
       events,
-      audit: (event) => {
+      audit: (_tx, event) => {
         events.push(event);
         return Promise.resolve();
       },

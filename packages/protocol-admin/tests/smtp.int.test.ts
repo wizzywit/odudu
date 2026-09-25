@@ -195,7 +195,7 @@ describe('audit', () => {
       putSmtpUsecase(
         tx,
         {
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },

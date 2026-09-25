@@ -200,6 +200,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
       claimMappers,
     }),
   );
+  let failNextAuditWrite = false;
   await http.register(
     adminRoutes({
       database: app,
@@ -209,6 +210,11 @@ export async function startAdminFixture(): Promise<AdminFixture> {
       cursorKey: KEK,
       kek: KEK,
       claimMappers,
+      afterAuditWrite: () => {
+        if (!failNextAuditWrite) return Promise.resolve();
+        failNextAuditWrite = false;
+        return Promise.reject(new Error('fixture: forced failure after an audit write'));
+      },
     }),
   );
   await http.ready();
@@ -746,15 +752,9 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     });
   }
 
-  // No consumer until audit logging gives this a real write path to
-  // intercept. Throwing here rather than doing nothing keeps a caller from
-  // mistaking silence for the flag having taken effect.
   function failNextWriteAfterAudit(): Promise<void> {
-    return Promise.reject(
-      new Error(
-        'fixture: failNextWriteAfterAudit has no wiring yet — wire it when audit logging lands',
-      ),
-    );
+    failNextAuditWrite = true;
+    return Promise.resolve();
   }
 
   return {

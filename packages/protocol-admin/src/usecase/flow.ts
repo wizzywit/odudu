@@ -13,10 +13,12 @@ export interface FlowAuditEvent {
   readonly resourceType: 'flow';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
 }
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
-export type Audit = (event: FlowAuditEvent) => Promise<void>;
+export type Audit = (tx: TenantScopedDatabase, event: FlowAuditEvent) => Promise<void>;
 
 function toWireShape(record: AuthenticationExecutionRecord): ExecutionStep {
   return {
@@ -61,11 +63,12 @@ export async function replaceFlow(
 
   const rows = await executionRepository(tx).replaceForTenant(input.tenantId, input.steps);
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'flow.replace',
     resourceType: 'flow',
     resourceId: input.tenantId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return { kind: 'ok', items: rows.map(toWireShape) };

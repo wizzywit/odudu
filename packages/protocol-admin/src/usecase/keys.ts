@@ -19,10 +19,12 @@ export interface KeyAuditEvent {
   readonly resourceType: 'signing_key';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
 }
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
-export type Audit = (event: KeyAuditEvent) => Promise<void>;
+export type Audit = (tx: TenantScopedDatabase, event: KeyAuditEvent) => Promise<void>;
 
 // Never `publicJwk` or `privateJwkEncrypted` — a signing key's admin
 // representation is metadata about it, never the key itself.
@@ -132,11 +134,12 @@ export async function createKey(
     privateJwkEncrypted: generated.privateJwkEncrypted,
   });
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'key.create',
     resourceType: 'signing_key',
     resourceId: created.id,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return keyWireShape(created);
@@ -166,11 +169,12 @@ export async function promoteKey(
   const promoted = await signingKeyRepository(tx).promote(input.keyId);
   if (promoted === null) return { kind: 'not_found' };
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'key.promote',
     resourceType: 'signing_key',
     resourceId: promoted.id,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return { kind: 'ok', key: keyWireShape(promoted) };
@@ -216,11 +220,12 @@ export async function retireKey(
   if (locked.status === 'retired') {
     // Idempotent: the caller asked for the key retired and it is, so this
     // still audits as a retire even though nothing in the row changes.
-    await deps.audit({
+    await deps.audit(tx, {
       action: 'key.retire',
       resourceType: 'signing_key',
       resourceId: locked.id,
       actorSubjectId: input.actorSubjectId,
+      outcome: 'allowed',
     });
     return { kind: 'ok', key: keyWireShape(toSigningKeyRecord(locked)) };
   }
@@ -251,11 +256,12 @@ export async function retireKey(
     throw new Error(`signing key ${locked.id} vanished mid-retirement`);
   }
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'key.retire',
     resourceType: 'signing_key',
     resourceId: retired.id,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return { kind: 'ok', key: keyWireShape(retired) };

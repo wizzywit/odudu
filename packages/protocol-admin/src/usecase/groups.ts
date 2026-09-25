@@ -37,10 +37,12 @@ export interface GroupAuditEvent {
   readonly resourceType: 'group';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
 }
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
-export type Audit = (event: GroupAuditEvent) => Promise<void>;
+export type Audit = (tx: TenantScopedDatabase, event: GroupAuditEvent) => Promise<void>;
 
 export function groupWireShape(group: {
   id: string;
@@ -138,11 +140,12 @@ export async function createGroup(
     parentId: input.parentId,
   });
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'group.create',
     resourceType: 'group',
     resourceId: created.id,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return groupWireShape(created);
@@ -240,11 +243,12 @@ export async function amendGroup(
     }
   }
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'group.amend',
     resourceType: 'group',
     resourceId: input.groupId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   const after = await readGroup(tx, input.groupId);
@@ -273,11 +277,12 @@ export async function deleteGroup(
   const deleted = await groupRepository(tx).delete(input.groupId);
   if (!deleted) return { kind: 'not_found' };
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'group.delete',
     resourceType: 'group',
     resourceId: input.groupId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
   return { kind: 'deleted' };
 }
@@ -346,11 +351,12 @@ export async function setGroupRoles(
 
   await groupRepository(tx).setRoles(input.groupId, uniqueRoleIds);
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'group.roles_set',
     resourceType: 'group',
     resourceId: input.groupId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   return { kind: 'ok', roles: found };

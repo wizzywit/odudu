@@ -18,10 +18,12 @@ export interface ScopeMapperAuditEvent {
   readonly resourceType: 'scope';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
 }
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same no-op-until-a-real-sink seam. */
-export type Audit = (event: ScopeMapperAuditEvent) => Promise<void>;
+export type Audit = (tx: TenantScopedDatabase, event: ScopeMapperAuditEvent) => Promise<void>;
 
 export type ReadScopeMappersOutcome = { kind: 'not_found' } | { kind: 'ok'; mappers: ScopeMappers };
 
@@ -80,11 +82,12 @@ export async function setScopeMappers(
 
   await clientScopeMapperRepository(tx).replaceForScope(scope.tenantId, input.scopeId, uniqueNames);
 
-  await deps.audit({
+  await deps.audit(tx, {
     action: 'scope.mappers_set',
     resourceType: 'scope',
     resourceId: input.scopeId,
     actorSubjectId: input.actorSubjectId,
+    outcome: 'allowed',
   });
 
   const bound = await clientScopeMapperRepository(tx).namesForScope(input.scopeId);

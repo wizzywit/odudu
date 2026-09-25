@@ -1,4 +1,4 @@
-import { withTenant } from '@odudu/db';
+import { withTenant, type TenantScopedDatabase } from '@odudu/db';
 import { ClientIdConflictError, clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
@@ -354,7 +354,7 @@ describe('createClient', () => {
         {
           hashClientSecret: (secret) => Promise.resolve(`hashed:${secret}`),
           tlsClientAuthEnabled: false,
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -374,16 +374,16 @@ describe('createClient', () => {
     expect(events).toHaveLength(1);
   });
 
-  it('does not call audit when the client_id is reserved', async () => {
+  it('audits a refusal when the client_id is reserved', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
-    const events: unknown[] = [];
+    const events: { outcome: string }[] = [];
     const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
       createClient(
         tx,
         {
           hashClientSecret: (secret) => Promise.resolve(`hashed:${secret}`),
           tlsClientAuthEnabled: false,
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -397,19 +397,20 @@ describe('createClient', () => {
       ),
     );
     expect(outcome.kind).toBe('reserved_client_id');
-    expect(events).toHaveLength(0);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.outcome).toBe('refused');
   });
 
-  it('does not call audit when the metadata is refused', async () => {
+  it('audits a refusal when the metadata is refused', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
-    const events: unknown[] = [];
+    const events: { outcome: string }[] = [];
     const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
       createClient(
         tx,
         {
           hashClientSecret: (secret) => Promise.resolve(`hashed:${secret}`),
           tlsClientAuthEnabled: false,
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -428,7 +429,8 @@ describe('createClient', () => {
       ),
     );
     expect(outcome.kind).toBe('invalid_metadata');
-    expect(events).toHaveLength(0);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.outcome).toBe('refused');
   });
 
   it('does not call audit when the client_id collides with an existing client', async () => {
@@ -438,7 +440,7 @@ describe('createClient', () => {
     const deps = {
       hashClientSecret: (secret: string) => Promise.resolve(`hashed:${secret}`),
       tlsClientAuthEnabled: false,
-      audit: (event: unknown) => {
+      audit: (_tx: TenantScopedDatabase, event: unknown) => {
         events.push(event);
         return Promise.resolve();
       },
@@ -558,7 +560,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
         tx,
         {
           tlsClientAuthEnabled: false,
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -584,7 +586,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
         tx,
         {
           tlsClientAuthEnabled: false,
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -610,7 +612,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
         tx,
         {
           tlsClientAuthEnabled: false,
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -636,7 +638,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
         tx,
         {
           tlsClientAuthEnabled: false,
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -707,7 +709,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
         tx,
         {
           tlsClientAuthEnabled: false,
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -733,7 +735,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
         tx,
         {
           tlsClientAuthEnabled: false,
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -806,7 +808,7 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
       deleteClient(
         tx,
         {
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -826,7 +828,7 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
       deleteClient(
         tx,
         {
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -904,7 +906,7 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
         tx,
         {
           hashClientSecret: (secret) => Promise.resolve(`hashed:${secret}`),
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },
@@ -936,7 +938,7 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
         tx,
         {
           hashClientSecret: (secret) => Promise.resolve(`hashed:${secret}`),
-          audit: (event) => {
+          audit: (_tx, event) => {
             events.push(event);
             return Promise.resolve();
           },

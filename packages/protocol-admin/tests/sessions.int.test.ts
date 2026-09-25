@@ -13,7 +13,7 @@ import {
   tokenGrantRepository,
 } from '@odudu/protocol-oidc';
 import { type SessionLifespans } from '@odudu/authn-flows';
-import { withTenant } from '@odudu/db';
+import { withTenant, type TenantScopedDatabase } from '@odudu/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { endSession, listSessions, type SessionAuditEvent } from '#/usecase/sessions';
@@ -341,12 +341,12 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/sessions/{sid}', () => {
 describe('audit', () => {
   function collector(): {
     events: SessionAuditEvent[];
-    audit: (e: SessionAuditEvent) => Promise<void>;
+    audit: (tx: TenantScopedDatabase, e: SessionAuditEvent) => Promise<void>;
   } {
     const events: SessionAuditEvent[] = [];
     return {
       events,
-      audit: (event) => {
+      audit: (_tx, event) => {
         events.push(event);
         return Promise.resolve();
       },

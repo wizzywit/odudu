@@ -36,6 +36,8 @@ export interface TenantAuditEvent {
   readonly resourceType: 'tenant';
   readonly resourceId: string;
   readonly actorSubjectId: string;
+  readonly outcome: 'allowed' | 'refused' | 'failed';
+  readonly detail?: Record<string, unknown>;
 }
 
 /**
@@ -43,7 +45,7 @@ export interface TenantAuditEvent {
  * one exists, the composition root supplies a function that does nothing,
  * and this is the only seam a test has to prove a mutation still calls it.
  */
-export type Audit = (event: TenantAuditEvent) => Promise<void>;
+export type Audit = (tx: TenantScopedDatabase, event: TenantAuditEvent) => Promise<void>;
 
 export interface CreateTenantInput {
   readonly name: string;
@@ -120,6 +122,16 @@ export async function createTenant(
       await provisionAdminClient(tx, id);
       await mintSigningKey(tx, id, deps.kek);
 
+      // Written inside the same transaction as the row it describes: a
+      // rollback below leaves no audit row for a tenant that never existed.
+      await deps.audit(tx, {
+        action: 'tenant.create',
+        resourceType: 'tenant',
+        resourceId: id,
+        actorSubjectId: input.actorSubjectId,
+        outcome: 'allowed',
+      });
+
       return created;
     });
   } catch (error) {
@@ -132,13 +144,6 @@ export async function createTenant(
     if (isUniqueViolation(error)) return { kind: 'name_taken' };
     throw error;
   }
-
-  await deps.audit({
-    action: 'tenant.create',
-    resourceType: 'tenant',
-    resourceId: id,
-    actorSubjectId: input.actorSubjectId,
-  });
 
   return { kind: 'created', tenant };
 }

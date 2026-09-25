@@ -210,7 +210,7 @@ describe('createTenant', () => {
       {
         database: fixture.app.db,
         kek: KEK,
-        audit: (event) => {
+        audit: (_tx, event) => {
           events.push(event);
           return Promise.resolve();
         },
@@ -227,7 +227,7 @@ describe('createTenant', () => {
       {
         database: fixture.app.db,
         kek: KEK,
-        audit: (event) => {
+        audit: (_tx, event) => {
           events.push(event);
           return Promise.resolve();
         },

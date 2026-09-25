@@ -1,5 +1,5 @@
 import { signingKeyRepository, signingKeys } from '@odudu/crypto';
-import { withTenant } from '@odudu/db';
+import { withTenant, type TenantScopedDatabase } from '@odudu/db';
 import { TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -397,12 +397,12 @@ describe('is refused for every capability but manage-keys, on every route', () =
 describe('audit', () => {
   function collector(): {
     events: KeyAuditEvent[];
-    audit: (e: KeyAuditEvent) => Promise<void>;
+    audit: (tx: TenantScopedDatabase, e: KeyAuditEvent) => Promise<void>;
   } {
     const events: KeyAuditEvent[] = [];
     return {
       events,
-      audit: (event) => {
+      audit: (_tx, event) => {
         events.push(event);
         return Promise.resolve();
       },
