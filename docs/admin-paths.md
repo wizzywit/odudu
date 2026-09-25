@@ -1373,7 +1373,7 @@ write should still apply.
 
 Resolution order when this tenant's mail is actually sent
 (`apps/server/src/email.ts`'s `resolveSender`): this row first, then the
-deployment's own `ODUDU_SMTP_*` sender, then the capturing adapter. ADR
+deployment's own `ODUDU_SMTP_*` sender, then the log-only adapter. ADR
 0015 is unaffected — it governs where a deployment's own credentials live,
 and this is a credential the deployment itself never holds.
 

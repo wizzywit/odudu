@@ -442,6 +442,35 @@ describe('the sending pass', () => {
     expect(sendersByTenant.get(second)?.sent.map((m) => m.to)).toEqual(['second@example.test']);
   });
 
+  // Resolving a tenant's sender is a read and a decrypt, and both can
+  // throw — a stored password whose GCM tag no longer verifies after a KEK
+  // change, or a transient failure. A throw escaping the loop would take
+  // every tenant ordered after this one down with it, on this pass and on
+  // every pass until an operator intervened.
+  it('keeps going when one tenant sender cannot be resolved, and counts its batch failed', async () => {
+    const failing = tenantId;
+    const working = await seedTenant();
+    await enqueue(failing, { to: 'first@example.test' });
+    await enqueue(working, { to: 'second@example.test' });
+    const sender = capturing();
+
+    const outcome = await sendPending(
+      {
+        database: app,
+        ownerDatabase: owner,
+        resolveSender: (askedTenantId) =>
+          askedTenantId === failing
+            ? Promise.reject(new Error('unwrapSecret: authentication tag mismatch'))
+            : Promise.resolve(sender),
+      },
+      NOW,
+      OPTIONS,
+    );
+
+    expect(outcome).toEqual({ ran: true, sent: 1, failed: 1 });
+    expect(sender.sent.map((m) => m.to)).toEqual(['second@example.test']);
+  });
+
   it('backs a refused message off and keeps the reason, without sending it again', async () => {
     const id = await enqueue();
 

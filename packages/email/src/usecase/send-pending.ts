@@ -170,7 +170,22 @@ export async function sendPending(
     // Resolved once for the whole batch, not once per message — the read
     // itself is a brief, separate transaction (see resolveSender's own
     // implementation), never held open across any of the sends below.
-    const sender = await deps.resolveSender(tenantId);
+    //
+    // Caught per tenant: unwrapping a stored SMTP password throws when its
+    // GCM tag no longer verifies, and a transient read throws here too. A
+    // throw escaping this loop would end the pass, so every tenant ordered
+    // after the failing one would get no mail on any pass at all.
+    let sender: EmailSender;
+    try {
+      sender = await deps.resolveSender(tenantId);
+    } catch (err) {
+      failed += claimed.length;
+      deps.log?.error(
+        { err, tenantId, claimed: claimed.length },
+        'outbox could not resolve this tenant sender; its batch is offered again once the lease elapses',
+      );
+      continue;
+    }
 
     for (const message of claimed) {
       // Per message, so one address the transport chokes on does not

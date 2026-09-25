@@ -1,5 +1,5 @@
 import { withTenant, type Database } from '@odudu/db';
-import { capturingSender, smtpSender, type EmailMessage, type EmailSender } from '@odudu/email';
+import { loggingSender, smtpSender, type EmailMessage, type EmailSender } from '@odudu/email';
 import { OduduError, type Config } from '@odudu/kernel';
 import {
   resolveHostAddresses,
@@ -11,13 +11,13 @@ import { type Logger as PinoLogger } from 'pino';
 
 // A tenant with verify_email off needs no mail at all, and the compose
 // stack serves plain HTTP on loopback with nothing to relay through — so an
-// unset ODUDU_SMTP_HOST selects the capturing adapter rather than refusing
+// unset ODUDU_SMTP_HOST selects the log-only adapter rather than refusing
 // to boot. loadConfig's own check already refuses ODUDU_SMTP_HOST without
 // ODUDU_SMTP_FROM, so that combination cannot reach here.
 // `kind` is what a caller (and this file's own tests) tells the three
 // outcomes apart by — the resolved sender itself is used identically no
 // matter which one it is.
-export type ResolvedSender = EmailSender & ({ kind: 'smtp'; host: string } | { kind: 'capturing' });
+export type ResolvedSender = EmailSender & ({ kind: 'smtp'; host: string } | { kind: 'logging' });
 
 // This is the deployment-level decision: it depends only on config that
 // cannot change per tick, so a caller builds it once at boot and hands the
@@ -26,8 +26,8 @@ export type ResolvedSender = EmailSender & ({ kind: 'smtp'; host: string } | { k
 export function buildEmailSender(config: Config, logger: PinoLogger): ResolvedSender {
   if (config.ODUDU_SMTP_HOST === undefined || config.ODUDU_SMTP_FROM === undefined) {
     logger.info({}, 'ODUDU_SMTP_HOST is unset; capturing outgoing mail instead of sending it');
-    const sender = capturingSender(logger);
-    return { kind: 'capturing', send: (message: EmailMessage) => sender.send(message) };
+    const sender = loggingSender(logger);
+    return { kind: 'logging', send: (message: EmailMessage) => sender.send(message) };
   }
 
   const sender = smtpSender({

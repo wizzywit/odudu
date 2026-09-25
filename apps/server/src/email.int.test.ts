@@ -108,7 +108,7 @@ describe('resolveSender', () => {
     expect(sender).toMatchObject({ host: 'env.smtp.example' });
   });
 
-  it('falls back to capturing when neither the tenant nor the environment has a sender', async () => {
+  it('falls back to logging when neither the tenant nor the environment has a sender', async () => {
     const tenantId = await seedTenant();
     const config = loadConfig(baseConfig);
     const fallback = buildEmailSender(config, logger);
@@ -118,7 +118,7 @@ describe('resolveSender', () => {
       tenantId,
     );
 
-    expect(sender.kind).toBe('capturing');
+    expect(sender.kind).toBe('logging');
   });
 
   it('refuses a tenant row pointing inside the perimeter, rather than falling back', async () => {

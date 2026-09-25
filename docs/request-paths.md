@@ -2310,9 +2310,9 @@ The stack's own mail pass picks it up within
 so the capture below appears in `docker compose logs odudu` a moment later
 rather than in the seed command's own output. And with `ODUDU_SMTP_HOST`
 unset — true of the compose stack and of every way this document runs the
-server — nothing is actually delivered either: `capturingSender` logs the
-message it would have sent, which is how a reader without a mail server
-gets the link:
+server — nothing is actually delivered either: `loggingSender` writes the
+message it would have sent to the log and keeps nothing, which is how a
+reader without a mail server gets the link:
 
 ```json
 {
