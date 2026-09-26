@@ -256,7 +256,7 @@ CLI or `psql`.
 | 10  | Ending every session of a subject                            | one `DELETE` per session                                               | `DELETE …/subjects/{id}/sessions`                                                                             |
 | 11  | `clients.builtin_admin`, `clients.service_subject_id`        | readable only by `psql` (`docs/admin-paths.md:611-614`)                | read-only fields on the client representation                                                                 |
 | 12  | `client_registration_policy` outside its enumeration         | reaches the database `CHECK` (migration `0045`) instead of a `400`     | validated against the enumeration by the settings coercer                                                     |
-| 13  | Renaming a username                                          | refused by `subjects-patch.ts:13`: "belongs to a dedicated operation"  | `PUT …/subjects/{id}/username`, allowed when the tenant's new `username_editable` setting is on (§4.7)        |
+| 13  | Renaming a username                                          | refused by `subjects-patch.ts:13`: "belongs to a dedicated operation"  | `PATCH …/subjects/{id}` accepts `username` when the tenant's new `username_editable` setting is on (§4.7)     |
 
 Row 8 has the shape `odudu seed admin` already has: the server generates the
 password, answers it once, never stores or logs it in the clear, and the
@@ -333,11 +333,18 @@ that reason, and offers "create a copy" for roles and scopes.
 
 **Renamable: a username**, behind a tenant setting `username_editable`,
 `false` by default — Keycloak's "Edit username", off by default, is the
-precedent. It is the dedicated operation `subjects-patch.ts` already says a
-rename belongs to, so `PATCH …/subjects/{id}` goes on refusing `username`:
-`PUT …/subjects/{id}/username` with `{"username": …}`, `If-Match`
-mandatory, checked by the same validation creation runs and unique within
-the tenant. With the setting off it is refused with `409` and the reason. The change is an
+precedent, and so is where the change is made: Keycloak renames through its
+ordinary user update, and so does Okta through `profile.login`.
+`PATCH …/subjects/{id}` accepts `username`, checked by the same validation
+creation runs. `subjects-patch.ts`'s refusal becomes conditional: with the
+setting off, `username` is refused with `400` and the reason that the tenant
+has not enabled username editing, the way `type` is refused today. With it
+on, `If-Match` is mandatory whenever `username` is in the body — `428`
+without it, the precedent `redirect_uris` set on `PATCH …/clients/{id}` —
+because a rename silently undoing another administrator's is what that
+precondition exists to stop. A username another subject holds refuses the
+whole amendment with `409`, and nothing in it is applied.
+The change is an
 `admin_mutation` row carrying the before and after values. Nothing keyed on
 the subject moves: sessions and grants hold `sub`, brute-force counters are
 keyed by subject rather than by the name submitted
