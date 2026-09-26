@@ -288,7 +288,7 @@ export async function amendTenant(
     .select(TENANT_COLUMNS)
     .from(tenants)
     .where(eq(tenants.id, input.tenantId))
-    .for('update');
+    .for('no key update');
   const current = locked[0];
   if (current === undefined) return { kind: 'not_found' };
 

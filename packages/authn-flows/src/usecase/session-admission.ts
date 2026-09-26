@@ -30,7 +30,7 @@ export interface AdmitSessionInput {
 // id list exact either — see the ADR's amendment for the accepted
 // cap+k residual and why a per-subject predicate is not the fix.
 // `no key update` still excludes another admission, but not the key-share
-// lock any row referencing the tenant holds: that wait deadlocks.
+// lock any row referencing the tenant holds: that wait can deadlock.
 export async function admitSession(
   tx: TenantScopedDatabase,
   input: AdmitSessionInput,

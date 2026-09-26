@@ -239,10 +239,12 @@ observable rather than pending. The identifier itself is still not built.
 
 ## Amendment, 2026-09-26 — `for no key update`, not `for update`
 
-The tenant-row lock is taken `for no key update`. It conflicts with itself,
-so admissions still serialise exactly as the decision above requires, but
-not with `for key share` — the lock every foreign-key check against the
-tenant row takes. `for update` conflicted with both, and every tenant-scoped
+The tenant-row lock is taken `for no key update`. Admissions still
+serialise exactly as the decision above requires, because `for no key
+update` conflicts with itself — checked by executing a second
+`for no key update nowait` against a held admission, which was refused — but
+it does not conflict with `for key share`, the lock every foreign-key check
+against the tenant row takes. `for update` conflicted with both, and every tenant-scoped
 table references `tenants`, so any open transaction that had inserted a row
 in the tenant blocked admission. Two submissions of one login form turned
 that into a deadlock (`40P01`): the loser's `advance` had written a login
@@ -251,3 +253,13 @@ step row and waited to bind the authentication session, while the winner's
 key-share lock. `session-set.int.test.ts`'s "admits while another
 transaction holds a row referencing the tenant" reproduces the cycle with
 barriers and deadlocks under `for update`.
+
+The other tenant-row locks take the same mode for the same reason, since
+every audited transaction now holds that key share until it commits: the
+client-capacity lock (`clientRepository.lockCapacity`), the settings
+`If-Match` lock (`tenantSettingsRepository.lockById`) and `amendTenant`.
+None writes a key column (`id` and `name` are refused as amendments), so the
+weaker mode excludes exactly what `for update` did among themselves.
+`clients.int.test.ts`'s "lockCapacity under concurrent transactions" shows
+both halves: the lock is taken within a 500 ms `lock_timeout` beside an open
+audit row, and a second capacity lock still times out behind the first.
