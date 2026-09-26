@@ -399,3 +399,34 @@ authentication operations logged); Keycloak's `EventType.java`
 (`REFRESH_TOKEN` and `INTROSPECT_TOKEN` not saved by default,
 `CLIENT_LOGIN_ERROR` and `LOGIN_ERROR` saved) — read from source on
 2026-09-26, not from documentation.
+
+## 16. A session cookie is not its session's id — added 2026-09-26
+
+The whole-branch review found that the session cookie's value is the
+session row's id (`packages/authn-flows/src/service/session-cookie.ts`),
+and that the same id is the `sid` claim of every ID token and access token
+(`sid-claim.int.test.ts` compares the two). So every relying party and
+every resource server that receives an access token holds a value that
+works as the user's SSO cookie, and this phase had written it into audit
+rows `view-audit` can read. The defect predates the phase; the user chose
+to close it here.
+
+- **The cookie carries a secret.** Each entry of the session cookie lists
+  becomes `<session id>:<secret>`, the secret 32 random bytes in base64url.
+  `sessions` gains `secret_hash` (sha256 of the secret); migration
+  `0071_session_secret.sql` adds it nullable, and a row with none is never
+  live, so every session created before the migration ends — nothing is
+  deployed, and failing closed is the only safe reading of a row with no
+  secret. The id half is what `sid`, the audit rows, logout and the admin
+  API keep using; only the secret authenticates.
+- **Verification** compares the presented secret's sha256 with the stored
+  hash in constant time, in the same read that checks liveness, so an
+  entry with a wrong secret is exactly as dead as an unknown id.
+- **Re-emitting a cookie** (session reuse, logout, eviction) writes back
+  the entries the browser presented, never entries rebuilt from ids,
+  because the server does not hold a secret after creation.
+- **`sid` stops being a credential**, which the regression test states
+  directly: presenting a token's `sid` as the cookie authenticates nobody.
+- The `auth_session_id` a login step's audit row names as `resource_id` is
+  itself a login-continuation handle, so audit rows record its sha256 hex
+  digest instead; the session id needs no digest once it is not a cookie.

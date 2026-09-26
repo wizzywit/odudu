@@ -552,3 +552,38 @@ call, including the forced first set.
 - [ ] **Step 6: `docs/phases/p4e.md`** in `p4c.md`'s shape: what turned out wrong while building. `docs/NEXT.md`: position moves to P4d; remove the cross-tenant and `token_grants_session_fk` table rows and the "Only `POST /clients` and the capability ceilings record a refusal" section; what P4d inherits (events to show). `pnpm vitest run tests/docs` — PASS, including `next-budget`.
 - [ ] **Step 7: The closing pass** from CLAUDE.md, in order: read "What is not implemented" in `request-paths.md` and check each marker is still true; grep every document for `P4e` and for any phase number moved; read NEXT.md's headings against closed phases; reconcile the roadmap against the not-implemented list both ways.
 - [ ] **Step 8: Whole-branch review**, then `superpowers:finishing-a-development-branch`.
+
+---
+
+### Task 10: The session cookie carries a secret, not its session's id
+
+Added after the whole-branch review; spec §16 is the design.
+
+**Files:**
+
+- Create: `packages/db/drizzle/0071_session_secret.sql` (+ journal)
+- Modify: `packages/authn-flows/src/schema/sessions.ts`, `src/repository/sessions.ts` (`create` takes the hash; the live read verifies `(id, secret)` pairs), `src/service/session-cookie.ts` (entries are `<id>:<secret>`; readers return parsed pairs; writers take the presented entries), `src/usecase/executor.ts` (`establishSession` generates the secret and returns it once), `src/usecase/session-admission.ts`
+- Modify: every caller of `readSessionIds`/`sessionCookies`/`liveByIds` (`grep -rn "readSessionIds\|sessionCookies\|liveByIds" packages apps --include=*.ts` before starting — protocol-oidc index.ts `resolveSessions`, the login/consent/authorize/logout routes, protocol-admin session listing if it reads cookies)
+- Modify: `packages/protocol-oidc/tests/sid-claim.int.test.ts` (compare `sid` with the entry's id half), and every test that builds a cookie from a bare id
+- Modify: `docs/request-paths.md` wherever a transcript shows or builds a session cookie (re-run for real), README if it describes the cookie
+
+**Tests first:**
+
+- presenting a token's `sid` (a bare id) as the session cookie authenticates nobody — `/authorize` with `prompt=none` answers `login_required`;
+- presenting `<id>:<wrong secret>` authenticates nobody, and costs the same statements as an unknown id;
+- a genuine cookie still signs in, reuses, logs out and is evicted exactly as before (the existing session suites stay green);
+- a row with a null `secret_hash` is never live (the migration's fail-closed reading);
+- a session admitted, then a second login in the same browser: the re-emitted cookie still carries the first entry's original secret.
+
+Commit, push, CI, answer the review.
+
+### Task 11: The final review's fix wave
+
+- Login-step audit rows record `sha256(auth_session_id)` hex as `resource_id`; a test logs in over HTTP and asserts neither the `Set-Cookie` session values nor the form's `auth_session_id` appear anywhere in the serialised rows.
+- `tokenGrantRepository.revoke` reports whether it changed the row; `grant.revoked_on_code_replay` (and `grant.revoked_on_reuse`) are written only when it did, so a replayed spent code cannot append a row per request; a test replays one code N times and sees one row.
+- Refused token exchanges write a row: subject/actor token invalid, foreign or policy-refused (`invalid_request` at this door, RFC 8693 §2.2.2) are recorded under `token.exchange` with a reason; malformed requests at every other door stay rowless (ADR 0037 amended to say which `invalid_request`s are refusals).
+- `request_id` stays caller-suppliable — a correlation id, not evidence; ADR 0037 and README say so, and any document that treats a `request_id` join as proof is corrected.
+- Umbrella §11's bare-`P4` rule lists the grant's UserInfo claims among the P4e exceptions.
+- Delete the unreachable `ts.isTypeNode` guard in the coverage test; rewrap the long line in `request-paths.md`.
+
+Commit, push, CI, answer the review.
