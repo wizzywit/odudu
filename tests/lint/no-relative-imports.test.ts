@@ -1,9 +1,12 @@
+import path from 'node:path';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
+const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
+
 describe('no-restricted-imports for relative paths', () => {
   it('rejects a relative import in package source', async () => {
-    const eslint = new ESLint({ cwd: process.cwd() });
+    const eslint = new ESLint({ cwd: REPO_ROOT });
     const results = await eslint.lintText("import { KERNEL_VERSION } from './version.js';\n", {
       filePath: 'packages/kernel/src/index.ts',
     });
@@ -18,7 +21,7 @@ describe('no-restricted-imports for relative paths', () => {
 
   for (const specifier of flagged) {
     it(`rejects specifier ${JSON.stringify(specifier)}`, async () => {
-      const eslint = new ESLint({ cwd: process.cwd() });
+      const eslint = new ESLint({ cwd: REPO_ROOT });
       const results = await eslint.lintText(`import { x } from '${specifier}';\n`, {
         filePath: 'packages/kernel/src/index.ts',
       });
@@ -31,7 +34,7 @@ describe('no-restricted-imports for relative paths', () => {
 
   for (const specifier of allowed) {
     it(`allows specifier ${JSON.stringify(specifier)}`, async () => {
-      const eslint = new ESLint({ cwd: process.cwd() });
+      const eslint = new ESLint({ cwd: REPO_ROOT });
       const results = await eslint.lintText(`import { x } from '${specifier}';\n`, {
         filePath: 'packages/kernel/src/index.ts',
       });

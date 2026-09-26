@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { glob } from 'node:fs/promises';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // The maximum password length is enforced where a form is read, because the
@@ -14,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 const FORM_READ =
   /(?<prefix>[\s\S]{0,24})(?:request\.)?body(?:\.password\b|\[['"]password['"]\])/gu;
 
+const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const SOURCE_TREES = ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'];
 
 export interface PasswordReads {
@@ -45,9 +47,9 @@ describe('the password field is read through one function', () => {
     let compliant = 0;
 
     for (const pattern of SOURCE_TREES) {
-      for await (const file of glob(pattern)) {
+      for await (const file of glob(pattern, { cwd: REPO_ROOT })) {
         if (file.endsWith('.test.ts')) continue;
-        const source = await readFile(file, 'utf8');
+        const source = await readFile(path.join(REPO_ROOT, file), 'utf8');
         const reads = passwordReads(source);
         compliant += reads.throughKernel;
         for (const read of reads.direct) {

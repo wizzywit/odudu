@@ -1,10 +1,11 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { glob, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseRows, readingNoteHeadings, type Row } from '#/parse';
 import { reconcile, type SilencedMusts } from '#/reconcile';
-import { readSuite } from '#/suite';
+import { readSuites } from '#/suite';
 
 const PROTOCOLS = 'docs/protocols';
+const REPORTS = ['{packages,apps,tools}/*/trace-report.json', 'tests/trace-report.json'];
 const CENSUS = 'tools/trace/silenced-musts.json';
 
 function isCount(value: unknown): value is number {
@@ -34,6 +35,19 @@ async function loadCensus(): Promise<Map<string, SilencedMusts>> {
   return census;
 }
 
+// Each workspace package's `test` task writes its own report, so by default
+// every one of them is read; naming reports on the command line reads only those.
+async function reportPaths(named: readonly string[]): Promise<string[]> {
+  if (named.length > 0) return [...named];
+  const found: string[] = [];
+  for await (const path of glob(REPORTS)) found.push(path);
+  found.sort();
+  if (found.length === 0) {
+    throw new Error(`no test report matches ${REPORTS.join(' or ')}; run \`pnpm test\` first`);
+  }
+  return found;
+}
+
 async function loadTables(): Promise<{
   rows: Row[];
   headings: Map<string, Set<string>>;
@@ -55,7 +69,7 @@ async function loadTables(): Promise<{
 
 const strict = process.env.ODUDU_TRACE_STRICT === '1';
 const { rows, headings, errors: parseErrors } = await loadTables();
-const results = await readSuite(process.argv[2] ?? 'trace-report.json');
+const results = await readSuites(await reportPaths(process.argv.slice(2)));
 const findings = reconcile(rows, results, { strict, headings, silenced: await loadCensus() });
 
 // A row a `fatal` finding names cannot be trusted to be what it declares —

@@ -54,7 +54,7 @@ export async function actionsWithNoWriter(
 describe('every audit action has a production writer', () => {
   it('holds across packages/*/src', async () => {
     expect(ACTIONS.length).toBeGreaterThan(20);
-    const missing = await actionsWithNoWriter(process.cwd(), ACTIONS);
+    const missing = await actionsWithNoWriter(join(import.meta.dirname, '..', '..'), ACTIONS);
     expect(missing, `actions no production source writes: ${missing.join(', ')}`).toEqual([]);
   });
 });

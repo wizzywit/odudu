@@ -21,9 +21,11 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    # The suite alone reached 15 minutes; NEXT.md's CI-caching entry owns
-    # bringing it back down.
+    # Bounded by a cold cache: every package's tests run when nothing is
+    # restored, which is a full suite of 15 minutes or more.
     timeout-minutes: 30
+    env:
+      TURBO_CACHE_DIR: .turbo/cache
     steps:
       - uses: actions/checkout@v7
 
@@ -36,6 +38,15 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # Keyed per commit so each run saves its own; the prefix restores the
+      # newest earlier one, so an unchanged package replays its test results.
+      - name: Restore the Turborepo cache
+        uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
 
       - run: pnpm verify
 

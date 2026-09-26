@@ -1,7 +1,52 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [
+    "vitest.config.ts",
+    "tsconfig.base.json",
+    "pnpm-lock.yaml",
+    "tests/setup/**",
+    "eslint.config.js"
+  ],
   "tasks": {
-    "typecheck": { "dependsOn": ["^typecheck"] },
-    "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] }
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "test": {
+      "dependsOn": ["^typecheck"],
+      "inputs": ["src/**", "tests/**", "drizzle/**", "package.json", "tsconfig.json"],
+      "outputs": ["trace-report.json"]
+    },
+    "@odudu/db#test": {
+      "dependsOn": ["^typecheck"],
+      "inputs": [
+        "src/**",
+        "tests/**",
+        "drizzle/**",
+        "package.json",
+        "tsconfig.json",
+        "$TURBO_ROOT$/packages/*/src/schema/**"
+      ],
+      "outputs": ["trace-report.json"]
+    },
+    "@odudu/protocol-oidc#test": {
+      "dependsOn": ["^typecheck"],
+      "inputs": [
+        "src/**",
+        "tests/**",
+        "drizzle/**",
+        "package.json",
+        "tsconfig.json",
+        "$TURBO_ROOT$/packages/*/src/view/**",
+        "$TURBO_ROOT$/apps/*/src/**"
+      ],
+      "outputs": ["trace-report.json"]
+    },
+    "@odudu/repo-checks#test": {
+      "cache": false
+    }
   }
 }

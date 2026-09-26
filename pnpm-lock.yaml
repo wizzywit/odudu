@@ -594,6 +594,8 @@ importers:
         specifier: 3.4.9
         version: 3.4.9
 
+  tests: {}
+
   tools/commit-message: {}
 
   tools/trace: {}

@@ -1,12 +1,20 @@
+import path from 'node:path';
 import { cruise } from 'dependency-cruiser';
 import type { ICruiseResult } from 'dependency-cruiser';
 import { describe, expect, it } from 'vitest';
 import config from '../../.dependency-cruiser.cjs';
 
+const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const FIXTURES = 'tests/boundaries/fixtures';
 
 async function cruiseFixtures(): Promise<ICruiseResult> {
-  const result = await cruise([FIXTURES], { ...config.options, ruleSet: config, validate: true });
+  const result = await cruise([FIXTURES], {
+    ...config.options,
+    baseDir: REPO_ROOT,
+    tsConfig: { fileName: path.join(REPO_ROOT, 'tsconfig.base.json') },
+    ruleSet: config,
+    validate: true,
+  });
   if (typeof result.output === 'string') throw new Error('expected structured output');
   return result.output;
 }

@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { glob } from 'node:fs/promises';
+import path from 'node:path';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
@@ -14,6 +15,8 @@ import { describe, expect, it } from 'vitest';
 // exits zero, and leaves no trace. A ban nobody can re-enable by hand is the
 // only kind that survives; the second block is what makes it one.
 
+const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
+
 const ANY_RULES = [
   '@typescript-eslint/no-explicit-any',
   '@typescript-eslint/no-unsafe-return',
@@ -24,7 +27,7 @@ const ANY_RULES = [
 ] as const;
 
 async function lint(source: string): Promise<string[]> {
-  const eslint = new ESLint({ cwd: process.cwd() });
+  const eslint = new ESLint({ cwd: REPO_ROOT });
   const results = await eslint.lintText(source, { filePath: 'packages/kernel/src/index.ts' });
   const [result] = results;
   if (!result) throw new Error('expected a lint result');
