@@ -9,9 +9,9 @@ type JsonSchema = z.core.JSONSchema.BaseSchema;
 
 interface OpenApiParameter {
   readonly name: string;
-  readonly in: 'path';
-  readonly required: true;
-  readonly description: string;
+  readonly in: 'path' | 'query';
+  readonly required: boolean;
+  readonly description?: string;
   readonly schema: JsonSchema;
 }
 
@@ -26,6 +26,10 @@ interface OpenApiOperation {
   readonly summary: string;
   readonly description?: string;
   readonly parameters: readonly OpenApiParameterOrRef[];
+  readonly requestBody?: {
+    readonly required: true;
+    readonly content: { readonly 'application/json': { readonly schema: JsonSchema } };
+  };
   readonly responses: Readonly<Record<string, OpenApiResponse>>;
 }
 
@@ -89,6 +93,20 @@ function pathParametersFor(pattern: string): OpenApiParameterOrRef[] {
   );
 }
 
+// One query parameter per property of the schema the router validates the
+// querystring against, so the document and the check cannot disagree.
+function queryParametersFor(schema: z.ZodType | undefined): OpenApiParameter[] {
+  if (schema === undefined) return [];
+  const json = jsonSchemaFor(schema);
+  const required = new Set(json.required ?? []);
+  return Object.entries(json.properties ?? {}).map(([name, property]) => ({
+    name,
+    in: 'query' as const,
+    required: required.has(name),
+    schema: typeof property === 'boolean' ? {} : property,
+  }));
+}
+
 function operationFor(route: AdminRoute): OpenApiOperation {
   const status = String(route.successStatus ?? 200);
   const responses: Record<string, OpenApiResponse> = {
@@ -108,7 +126,18 @@ function operationFor(route: AdminRoute): OpenApiOperation {
         ? 'Requires an authenticated admin caller.'
         : `Requires the "${route.capability}" capability.`,
     ...(route.description === undefined ? {} : { description: route.description }),
-    parameters: pathParametersFor(route.pattern),
+    parameters: [
+      ...pathParametersFor(route.pattern),
+      ...queryParametersFor(route.querystringSchema),
+    ],
+    ...(route.bodySchema === undefined
+      ? {}
+      : {
+          requestBody: {
+            required: true as const,
+            content: { 'application/json': { schema: jsonSchemaFor(route.bodySchema) } },
+          },
+        }),
     responses,
   };
 }

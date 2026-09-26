@@ -25,6 +25,44 @@ describe('the published OpenAPI document', () => {
     }
   });
 
+  it('tells a client creator that an unknown field is refused, not ignored', async () => {
+    const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
+    const body = JSON.stringify(
+      res.json<{ paths: Record<string, Record<string, { requestBody?: unknown }>> }>().paths[
+        '/admin/tenants/{tenant}/clients'
+      ]?.post?.requestBody,
+    );
+    expect(body).toContain('audiences');
+    expect(body).toContain('refused with 400 naming it, never ignored');
+  });
+
+  it('documents the request body of every route that validates one', async () => {
+    const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
+    const doc = res.json<{
+      paths: Record<string, Record<string, { requestBody?: { required?: boolean } }>>;
+    }>();
+    const withBody = ADMIN_ROUTES.filter((route) => route.bodySchema !== undefined);
+    expect(withBody.length).toBeGreaterThan(0);
+    for (const route of withBody) {
+      const path = route.pattern.replace(/:(\w+)/gu, '{$1}');
+      const operation = doc.paths[path]?.[route.method.toLowerCase()];
+      expect(operation?.requestBody?.required, `${route.method} ${path}`).toBe(true);
+    }
+  });
+
+  it('documents the audit listing filters as query parameters', async () => {
+    const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
+    const doc = res.json<{
+      paths: Record<string, Record<string, { parameters: { name: string; in: string }[] }>>;
+    }>();
+    const query = (doc.paths['/admin/tenants/{tenant}/audit']?.get?.parameters ?? [])
+      .filter((parameter) => parameter.in === 'query')
+      .map((parameter) => parameter.name);
+    expect(query).toEqual(
+      expect.arrayContaining(['limit', 'cursor', 'event_type', 'outcome', 'from', 'to']),
+    );
+  });
+
   it('describes no route the router does not register', async () => {
     const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
     const doc = res.json<{ paths: Record<string, Record<string, unknown>> }>();
@@ -74,7 +112,7 @@ describe('the published OpenAPI document', () => {
     const doc = res.json<{
       paths: Record<
         string,
-        Record<string, { parameters: ({ name?: string } & { $ref?: string })[] }>
+        Record<string, { parameters: ({ name?: string; in?: string } & { $ref?: string })[] }>
       >;
       components: { parameters: Record<string, { name: string; in: string }> };
     }>();
@@ -86,9 +124,11 @@ describe('the published OpenAPI document', () => {
     for (const [path, methods] of Object.entries(doc.paths)) {
       const templated = [...path.matchAll(/\{(\w+)\}/gu)].map((match) => match[1]);
       for (const operation of Object.values(methods)) {
-        const declared = operation.parameters.map((parameter) =>
-          parameter.$ref === '#/components/parameters/tenant' ? 'tenant' : parameter.name,
-        );
+        const declared = operation.parameters
+          .filter((parameter) => parameter.in !== 'query')
+          .map((parameter) =>
+            parameter.$ref === '#/components/parameters/tenant' ? 'tenant' : parameter.name,
+          );
         expect(declared, path).toEqual(templated);
       }
     }
