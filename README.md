@@ -634,6 +634,20 @@ migrations on boot, so there is no separate migrate step.
 Do not run both at once: each wants port 3000. Postgres is published on
 **5442**, not 5432, because a host commonly already has one there.
 
+**Browsing the admin API.** The same stack starts a Swagger UI beside the
+server when asked for it:
+
+```bash
+cd infra/docker && docker compose --profile swagger up -d --build
+```
+
+It serves http://localhost:3001 and loads `/admin/openapi.json` live from
+the server, so reloading the page after a server restart shows the current
+routes. Without `--profile swagger` the stack starts exactly as above. It is
+for reading only: "Try it out" cannot reach the admin API from another
+origin, because only the OpenAPI document is readable cross-origin — use
+`curl`, as [docs/admin-paths.md](docs/admin-paths.md) does, to call it.
+
 **Everything on your host** — your own Postgres, no Docker at all. Needs one
 bootstrap statement, because the restricted serving role is normally created
 by the compose stack's init scripts:

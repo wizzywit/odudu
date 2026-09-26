@@ -144,5 +144,9 @@ export function buildAdminOpenApiDocument(): OpenApiDocument {
 
 export function registerOpenApiRoute(app: FastifyInstance): void {
   const document = buildAdminOpenApiDocument();
-  app.get('/admin/openapi.json', (_request, reply) => reply.code(200).send(document));
+  // Readable from any origin so a viewer on another port can load it: the
+  // document is public already, and no credential is ever allowed with it.
+  app.get('/admin/openapi.json', (_request, reply) =>
+    reply.code(200).header('access-control-allow-origin', '*').send(document),
+  );
 }
