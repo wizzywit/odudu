@@ -18,6 +18,7 @@ import { authenticationSessionRepository } from '#/repository/authentication-ses
 import { sessionRepository } from '#/repository/sessions';
 import { type PendingRequest } from '#/schema/authentication-sessions';
 import { sessions } from '#/schema/sessions';
+import { authenticationSessionDigest } from '#/service/authentication-session-digest';
 import { SessionEntry } from '#/service/session-entry';
 import { isSessionLive } from '#/service/session-liveness';
 import { admitSession } from '#/usecase/session-admission';
@@ -470,7 +471,7 @@ describe('the live session set', () => {
         outcome: 'allowed',
         actorSubjectId: subjectId,
         resourceType: 'authentication_session',
-        resourceId: authSessionId,
+        resourceId: authenticationSessionDigest(authSessionId),
         detail: { factor: 'password' },
       });
       markLoserWrote();

@@ -27,6 +27,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { type PendingRequest } from '#/schema/authentication-sessions';
+import { authenticationSessionDigest } from '#/service/authentication-session-digest';
 import { advance, initialChallenge, startAuthentication } from '#/usecase/executor';
 import { beginPasskeyAuthentication } from '#/usecase/passkey-authentication';
 import { completePasskeyEnrolment } from '#/usecase/passkey-enrolment';
@@ -354,7 +355,7 @@ describe('the row a passkey attempt writes', () => {
       actorSubjectId: subjectId,
       actorClientId: null,
       resourceType: 'authentication_session',
-      resourceId: authSessionId,
+      resourceId: authenticationSessionDigest(authSessionId),
       detail: { factor: 'passkey' },
     });
   });

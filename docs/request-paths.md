@@ -1056,17 +1056,20 @@ in the transaction that checked it. The two refusals below both answer
 identical by hash; the rows are where they differ.
 Each carries its own `x-request-id`, which the server adopts as the request
 id and binds into the row, so the query that reads them back is scoped to
-these two requests and to nothing else this document has done:
+these two requests and to nothing else this document has done. The first
+line prints the sha256 of the form's `auth_session_id`, which is what the
+rows name it by:
 
 ```bash
+printf '%s' "$AUTH_SESSION_ID" | shasum -a 256
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -H 'x-request-id: login-refused-wrong-password' \
+  -H 'x-request-id: login-refused-digest-wrong-password' \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=wrong-password' \
   "$LOGIN"
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -H 'x-request-id: login-refused-unknown-user' \
+  -H 'x-request-id: login-refused-digest-unknown-user' \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=nobody' \
   --data-urlencode 'password=wrong-password' \
@@ -1076,40 +1079,50 @@ docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
   "select e.action, e.outcome, e.actor_subject_id, c.client_id as actor_client,
           e.resource_type, e.resource_id, e.request_id, e.ip, e.detail
      from audit_events e left join clients c on c.id = e.actor_client_id
-    where e.request_id in ('login-refused-wrong-password', 'login-refused-unknown-user')
+    where e.request_id in ('login-refused-digest-wrong-password',
+                           'login-refused-digest-unknown-user')
     order by e.request_id desc;"
 ```
 
 ```
+433ca52d17548c2c5857e420896a3a8d821a3fbf4e756e4a52aba362e60d8da8  -
 200
 200
--[ RECORD 1 ]----+----------------------------------------------------
+-[ RECORD 1 ]----+-----------------------------------------------------------------
 action           | login.password
 outcome          | refused
 actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
 actor_client     | demo-spa
 resource_type    | authentication_session
-resource_id      | 01a0db22-4754-7575-882b-7be6e7cf6c51
-request_id       | login-refused-wrong-password
+resource_id      | 433ca52d17548c2c5857e420896a3a8d821a3fbf4e756e4a52aba362e60d8da8
+request_id       | login-refused-digest-wrong-password
 ip               | 172.20.0.1
 detail           | {"factor": "password", "reason": "bad_credential"}
--[ RECORD 2 ]----+----------------------------------------------------
+-[ RECORD 2 ]----+-----------------------------------------------------------------
 action           | login.password
 outcome          | refused
 actor_subject_id | (null)
 actor_client     | demo-spa
 resource_type    | authentication_session
-resource_id      | 01a0db22-4754-7575-882b-7be6e7cf6c51
-request_id       | login-refused-unknown-user
+resource_id      | 433ca52d17548c2c5857e420896a3a8d821a3fbf4e756e4a52aba362e60d8da8
+request_id       | login-refused-digest-unknown-user
 ip               | 172.20.0.1
 detail           | {"factor": "password", "reason": "unknown_subject"}
 ```
 
-That was captured against a freshly seeded compose stack, whose seed
-printed `userSubjectId` `01a0db22-1c92-7730-9d37-4085f28eca2c` for `ada` and
-whose `/authorize` rendered `auth_session_id`
-`01a0db22-4754-7575-882b-7be6e7cf6c51` — the `resource_id` both rows name.
+That was captured against the compose stack this document's other audit
+transcripts share, rebuilt from the current tree, where `ada` is subject
+`01a0db22-1c92-7730-9d37-4085f28eca2c` in `users` and whose `/authorize`
+rendered `auth_session_id`
+`01a0de54-cffa-72f6-a6c3-90dd30a1809a` for this run. The request ids are
+this run's own, since an earlier capture of this section left rows under
+the names it used before.
 
+- **`resource_id` is a digest, never the `auth_session_id` itself.** The
+  hidden field is what lets a browser finish a login that has already
+  authenticated, so a row that carried it would hand anyone who can read
+  the audit trail that login. The sha256 still names one login: every step
+  of it, refused or accepted, carries the same `resource_id`.
 - **The wrong password names `ada`; the unknown username names nobody.**
   `nobody` appears nowhere in the second row, and neither password appears
   in either: what was typed into the username field is never recorded,

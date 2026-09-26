@@ -132,8 +132,9 @@ session view is complete whoever ended it, and the admin view is unchanged.
 - `actor_tenant_id` — the row's own tenant, except on `token.foreign_issuer`,
   where it is the issuing tenant.
 - `resource_type`/`resource_id` — `grant` for token events,
-  `session` for session events, `authentication_session` for login steps,
-  `subject` for credential events.
+  `session` for session events, `authentication_session` for login steps
+  (named by the sha256 hex of its id, §16), `subject` for credential
+  events.
 - `outcome` — `allowed`, or `refused` with `detail.reason`. `failed` stays
   reserved for a server fault, as P4c defined it.
 - `request_id`, `ip` — filled on every row this phase writes, admin rows

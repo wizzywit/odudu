@@ -7,6 +7,7 @@ import {
 } from '@odudu/domain-audit';
 import { clientRepository } from '@odudu/domain-tenant';
 import { type Logger } from '@odudu/kernel';
+import { authenticationSessionDigest } from '#/service/authentication-session-digest';
 import {
   OTP,
   PASSKEY,
@@ -73,7 +74,7 @@ export async function loginAuditFor(
     eventType: 'authentication',
     actorClientId: client === null ? null : client.id,
     resourceType: 'authentication_session',
-    resourceId: authSessionId,
+    resourceId: authenticationSessionDigest(authSessionId),
   } as const;
   const audit = auditRepository(tx);
 

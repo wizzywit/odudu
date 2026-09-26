@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { generateTotpSecret, totpCode, totpCounter } from '@odudu/crypto';
 import {
   credentialRepository,
@@ -249,7 +250,7 @@ beforeAll(async () => {
     ['alice', 'bob', 'carol', 'dave', 'erin', 'mallory', 'trent', 'victor', 'wanda', 'xena'],
     false,
   );
-  otpTenant = await seedTenant('audit-login-otp', ['otto', 'rita'], true);
+  otpTenant = await seedTenant('audit-login-otp', ['otto', 'rita', 'priya'], true);
   await countAuditInsertStatements(ownerHandle);
   await refuseAuditInsertsForMarkedRequests(ownerHandle);
 
@@ -297,7 +298,7 @@ describe('a password attempt writes one login.password row', () => {
       actorSubjectId: subjectOf(passwordTenant, 'alice'),
       actorClientId: passwordTenant.clientDbId,
       resourceType: 'authentication_session',
-      resourceId: authSessionId,
+      resourceId: createHash('sha256').update(authSessionId).digest('hex'),
       requestId: attempt.requestId,
       ip: '127.0.0.1',
     });
@@ -367,7 +368,7 @@ describe('the lockout', () => {
       outcome: 'refused',
       requestId: attempts[4]?.requestId,
       resourceType: 'authentication_session',
-      resourceId: authSessionId,
+      resourceId: createHash('sha256').update(authSessionId).digest('hex'),
     });
     expect(tripped[0]?.detail).toEqual({ reason: 'locked_out' });
 
@@ -600,6 +601,52 @@ describe('second factors', () => {
     });
     expect(againRow.detail).toEqual({ factor: 'recovery-code', reason: 'already_used' });
     expect(JSON.stringify(againRow)).not.toContain(recoveryCode);
+  });
+});
+
+describe('what the browser holds', () => {
+  it('writes neither the session cookie nor the auth_session_id into any row', async () => {
+    const secret = await enrolTotp(otpTenant, 'priya');
+    const authSessionId = await startAuthSession(otpTenant);
+    const refused = await submit(otpTenant, {
+      auth_session_id: authSessionId,
+      username: 'priya',
+      password: WRONG_PASSWORD,
+    });
+    expect(refused.res.statusCode).toBe(200);
+    await submit(otpTenant, {
+      auth_session_id: authSessionId,
+      username: 'priya',
+      password: PASSWORD,
+    });
+    const signedIn = await submit(otpTenant, {
+      auth_session_id: authSessionId,
+      code: totpCode(secret, totpCounter(new Date())),
+    });
+    expect(signedIn.res.statusCode).toBe(302);
+
+    const cookieValues = [signedIn.res.headers['set-cookie'] ?? []]
+      .flat()
+      .map((header) => /^[^=]+=([^;]*)/.exec(header)?.[1] ?? '')
+      .filter((value) => value.length > 0);
+    expect(cookieValues).toHaveLength(1);
+    const secrets = cookieValues.flatMap((value) =>
+      value.split('.').map((entry) => entry.split(':')[1] ?? ''),
+    );
+    expect(secrets.every((part) => part.length > 0)).toBe(true);
+
+    const rows = await withTenant(app.db, otpTenant.id, (tx) =>
+      auditRepository(tx).list({ limit: 100 }),
+    );
+    expect(
+      rows.some((row) => row.action === 'session.created' && row.requestId === signedIn.requestId),
+    ).toBe(true);
+    const serialised = JSON.stringify(rows);
+    for (const held of [authSessionId, ...cookieValues, ...secrets]) {
+      expect(serialised).not.toContain(held);
+    }
+    const digest = createHash('sha256').update(authSessionId).digest('hex');
+    expect((await rowsFor(otpTenant, refused))[0]?.resourceId).toBe(digest);
   });
 });
 

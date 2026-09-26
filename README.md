@@ -58,7 +58,13 @@ exchange, revoke, and a grant revoked on refresh-token reuse or code
 replay); and `credential` (registration, email verification, password reset
 and change, TOTP and passkey enrolment, recovery codes issued). Every row
 carries the request's `request_id` and `ip`, and none carries a secret, a
-code, a token or an attempted username. A refusal is a row only where the
+code, a token or an attempted username; a login step names its
+`authentication_session` by the sha256 of its `auth_session_id`, which
+still joins one login's steps and cannot continue it. `ip` is the address
+the server saw, a proxy's report only under `ODUDU_TRUST_PROXY`, while
+`request_id` is the caller's own `x-request-id` whenever it sends one: it
+correlates rows and proves nothing about who sent them (ADR 0037's
+third amendment). A refusal is a row only where the
 principal it names bounds it; a refusal nothing bounds — an unregistered
 `client_id`, an admin `401`, a forged foreign-issuer token — goes to a
 `warn` log line instead
