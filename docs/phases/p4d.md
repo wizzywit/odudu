@@ -101,3 +101,209 @@ Simulated locally over three runs against a copy of a 3,085-entry cache —
 35 entries and removed 3,085, and the next two, each changing one
 package's source, found 37 and kept 35. The cost is that a hash last used
 two runs ago is gone: reverting that change missed on the third run.
+
+## Spikes
+
+Throwaway code under `.superpowers/spikes/` (git-ignored), each installed
+there with `npm install --before=2026-09-26T00:00:00Z`, so nothing resolved
+is younger than the workspace's `minimumReleaseAge`. The workspace's own
+`package.json` files and lockfile are untouched. `pnpm install
+--ignore-workspace` is not a way to do that under pnpm 12.3.4: run inside
+`.superpowers/spikes/fastify-inject` it rewrote the repository's
+`pnpm-lock.yaml`, which was restored with `git checkout` and a frozen
+install.
+
+### `inject` and the client address
+
+Fastify 5.12.3, a route answering `request.ip`, `request.ips` and
+`request.socket.remoteAddress`, called with
+`app.inject({ method: 'GET', url: '/ip', remoteAddress: '203.0.113.9' })`
+and again with `headers: { 'x-forwarded-for': '198.51.100.7' }`.
+
+verified: `cd .superpowers/spikes/fastify-inject && node inject.mjs`
+
+```
+trustProxy=false remoteAddress only: {"ip":"203.0.113.9","socket":"203.0.113.9"}
+trustProxy=false remoteAddress + x-forwarded-for 198.51.100.7: {"ip":"203.0.113.9","socket":"203.0.113.9"}
+trustProxy=true remoteAddress only: {"ip":"203.0.113.9","ips":["203.0.113.9"],"socket":"203.0.113.9"}
+trustProxy=true remoteAddress + x-forwarded-for 198.51.100.7: {"ip":"198.51.100.7","ips":["203.0.113.9","198.51.100.7"],"socket":"203.0.113.9"}
+```
+
+`inject` presents whatever `remoteAddress` it is given as the socket
+address, so `request.ip` is the browser's address under `trustProxy: false`
+and an `x-forwarded-for` is ignored. Under `trustProxy: true` the header
+wins, exactly as for a real socket. Without `remoteAddress`, `inject`
+answers `127.0.0.1` (verified: the same app, `app.inject({ url: '/ip' })`,
+answered `{"ip":"127.0.0.1"}`).
+
+### Vite and inline script
+
+`create-vite@9.2.1 --template react-ts`, then pinned to `vite@8.3.1`,
+`@vitejs/plugin-react@6.1.1`, `react@19.3.0`, `react-dom@19.3.0` and
+`typescript@6.0.3`. The inline-script count is the `<script>` tags in
+`dist/index.html` without `src`.
+
+verified: `cd .superpowers/spikes/vite-csp && npm run build && grep -o '<script[^>]*>' dist/index.html | grep -vc 'src='; grep -o 'style=' dist/index.html | wc -l`
+
+```
+0
+0
+```
+
+The whole of the built `index.html` is one
+`<script type="module" crossorigin src="/assets/index-….js">` and one
+stylesheet `<link>`; there is no `<style>` element either. Vite 8 puts the
+module-preload polyfill inside the entry chunk rather than inline.
+
+verified: the same build with `build: { modulePreload: { polyfill: false } }`
+(`npx vite build --config vite.config.nopolyfill.ts`) gives `0` and `0`
+again, and a `diff` of the two `index.html` files differs only in the
+entry chunk's hash; the entry chunk shrinks from 222,523 to 221,849 bytes.
+With a lazily imported chunk added, the build adds only a
+`<link rel="modulepreload" … href="/assets/rolldown-runtime-….js">`,
+still no inline script. So `script-src 'self'` needs no nonce, and the
+polyfill setting is irrelevant to it.
+
+### React Aria under a strict CSP
+
+Pending the browser check. The app renders a React Aria Components 1.21.1
+`Dialog` (in a `Modal`) and, from a lazily imported chunk, a `ComboBox`,
+and lists every `securitypolicyviolation` event on the page itself as well
+as in the console. Serve it with
+`node .superpowers/spikes/vite-csp/serve.mjs`, which answers every file of
+`dist/` at `http://127.0.0.1:4174/` with exactly
+`content-security-policy: default-src 'self'; style-src 'self'; script-src 'self'`.
+
+What reading the source predicts, to be confirmed or refuted there —
+`assumption:`, not yet verified. `usePress`
+(`react-aria/dist/private/interactions/usePress.mjs:585`) prepends a
+`<style id="react-aria-pressable-style">` to `<head>` the first time any
+pressable mounts, in every browser, and `usePreventScroll` does the same
+on iOS WebKit when a modal opens. Both give the element a nonce read from
+`<meta name="csp-nonce">` (or `__webpack_nonce__`) when one exists
+(`react-aria/dist/private/utils/getNonce.mjs`). So a `style-src`
+violation is expected on first render, and a nonce is the likely fallback:
+`PORT=4175 node .superpowers/spikes/vite-csp/serve.mjs --nonce` adds a
+per-response `'nonce-…'` to `style-src` and the matching
+`<meta name="csp-nonce">` to `index.html`, for comparison.
+
+### Prefix search as one range scan
+
+`postgres:17-alpine` through `startTestDatabase()` (server 17.11,
+`datcollate` `en_US.utf8`), a `users`-shaped table (`subject_id`,
+`tenant_id`, `username`), `ENABLE` and `FORCE ROW LEVEL SECURITY` with the
+migrations' policy
+`tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid`,
+200,000 rows over 5 tenants (40,000 in the queried one, 5,758 of them
+matching `ad%`, 213 after the cursor), the index
+`(tenant_id, lower(username) text_pattern_ops, subject_id)`, `ANALYZE`d.
+Each query runs in a transaction after `set_config('app.tenant_id', …, true)`
+and `SET LOCAL ROLE spike_app` (`NOSUPERUSER NOBYPASSRLS`).
+
+verified: `cd .superpowers/spikes/prefix-scan && node spike2.ts`, the
+query the plan names and its expanded fallback:
+
+```
+SELECT subject_id, username FROM users
+  WHERE lower(username) LIKE 'ad%' AND (lower(username), subject_id) > ('adz', '7f000000-…')
+  ORDER BY lower(username), subject_id LIMIT 51
+
+Limit  (actual time=17.578..17.588 rows=51 loops=1)
+  ->  Sort  Sort Key: (lower(username)), subject_id
+        ->  Bitmap Heap Scan on users
+              Filter: ((lower(username) ~~ 'ad%'::text) AND (ROW(lower(username), subject_id) > ROW('adz'::text, '7f000000-…'::uuid)))
+              Rows Removed by Filter: 39787
+              ->  Bitmap Index Scan on users_tenant_username_prefix
+                    Index Cond: (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)
+Execution Time: 17.648 ms
+
+… AND (lower(username) > 'adz' OR (lower(username) = 'adz' AND subject_id > '7f000000-…')) …
+
+Limit  (actual time=14.630..14.637 rows=51 loops=1)
+  ->  Sort  Sort Key: (lower(username)), subject_id
+        ->  Bitmap Heap Scan on users
+              Filter: ((lower(username) ~~ 'ad%'::text) AND ((lower(username) > 'adz'::text) OR …))
+              Rows Removed by Filter: 39787
+              ->  Bitmap Index Scan on users_tenant_username_prefix
+                    Index Cond: (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)
+Execution Time: 14.719 ms
+```
+
+**Both forms fail the pass condition**: the index narrows to the tenant
+only, every one of its 40,000 rows is filtered, and a Sort follows. The
+row comparison is not the cause. Under RLS the planner uses a user
+predicate as an index condition only if every function in it is
+leakproof, and `lower(text)` is not. `text_pattern_ops` does not help
+either, since `ORDER BY lower(username)` sorts in the database collation,
+not the pattern operators' byte order.
+
+verified: in the same run,
+`select proname, proleakproof from pg_proc …` answered
+`text_gt=true text_pattern_ge=true text_pattern_gt=true texteq=true textlike=false uuid_eq=true uuid_gt=true`
+and `lower(text)` `false`. Rewriting with `~>=~`/`~<~` and
+`ORDER BY lower(username) USING ~<~` removed the Sort, but under RLS the
+bounds stayed a `Filter` (`Rows Removed by Filter: 5709`), while the same
+query run as the superuser, which bypasses RLS, put them in the
+`Index Cond`.
+
+**What passes**: a stored generated column in the `C` collation, with a
+plain index on it, queried with an explicit upper bound instead of `LIKE`.
+
+verified: `cd .superpowers/spikes/prefix-scan && node spike3.ts`, with
+`username_lower_c text COLLATE "C" GENERATED ALWAYS AS (lower(username)) STORED`
+and `CREATE INDEX … ON users (tenant_id, username_lower_c, subject_id)`:
+
+```
+SELECT subject_id, username FROM users
+  WHERE username_lower_c >= 'ad' AND username_lower_c < 'ae'
+    AND (username_lower_c, subject_id) > ('adz', '7f000000-…')
+  ORDER BY username_lower_c, subject_id LIMIT 51
+
+Limit  (cost=0.43..121.89 rows=51 width=48) (actual time=0.026..0.074 rows=51 loops=1)
+  Buffers: shared hit=51 read=4
+  ->  Index Scan using users_prefix_collate_c on users  (actual time=0.025..0.070 rows=51 loops=1)
+        Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (username_lower_c >= 'ad'::text) AND (username_lower_c < 'ae'::text) AND (ROW(username_lower_c, subject_id) > ROW('adz'::text, '7f000000-…'::uuid)))
+Execution Time: 0.104 ms
+```
+
+One Index Scan, no Sort, no Filter, 55 buffers against 2,826, and the row
+comparison is itself an index condition, so the expanded form is not
+needed. The same run shows two near misses. `LIKE 'ad%'` on that column
+stays a `Filter`, since `textlike` is not leakproof, so a short last page
+would scan to the end of the tenant: the upper bound has to be computed
+by the caller. And a generated column in the default collation with a
+`text_pattern_ops` index gets its bounds into the `Index Cond` but leaves
+the cursor comparison a `Filter` (`Rows Removed by Filter: 5545`). The
+planned index shape, on an expression, cannot serve this under RLS at
+all: Part 2 needs the generated column.
+
+### The admin audience on refresh
+
+Against `startAdminFixture()`: a user in a fresh tenant signs in through
+`/authorize` and `/login-actions/authenticate` as `odudu-admin` (public,
+PKCE, `redirect_uri` `ADMIN_CLIENT_REDIRECT_URI`, `scope=openid`); the code
+is exchanged with `resource=urn:odudu:params:admin-api`; the resulting
+refresh token is refreshed without `resource`, and that one's with it.
+Run once with no `resource` at `/authorize` and once with it.
+
+verified: `cd packages/protocol-admin && pnpm vitest run --config ../../vitest.config.ts --project integration --silent=false --reporter=verbose tests/spike-admin-audience.int.test.ts`
+(the file was deleted afterwards; a copy is in
+`.superpowers/spikes/admin-audience/`)
+
+```
+SPIKE /authorize resource=false; code exchange with resource: 200  [ 'urn:odudu:params:admin-api', 'http://localhost/tenants/spike' ] refresh_token issued: true
+SPIKE   refresh without resource: 200  [ 'urn:odudu:params:admin-api', 'http://localhost/tenants/spike' ]
+SPIKE   refresh with resource: 200  [ 'urn:odudu:params:admin-api', 'http://localhost/tenants/spike' ]
+SPIKE /authorize resource=true; code exchange with resource: 200  [ 'urn:odudu:params:admin-api', 'http://localhost/tenants/spike' ] refresh_token issued: true
+SPIKE   refresh without resource: 200  [ 'urn:odudu:params:admin-api', 'http://localhost/tenants/spike' ]
+SPIKE   refresh with resource: 200  [ 'urn:odudu:params:admin-api', 'http://localhost/tenants/spike' ]
+SPIKE issuer: [ 'urn:odudu:params:admin-api', 'http://localhost/tenants/spike' ] (code exchange with no resource at all)
+```
+
+Every access token's `aud` is the admin API and the tenant's issuer. A
+refresh keeps the grant's audience with or without `resource`
+(`resolveAudience(grant.audience, request.resource)`,
+`packages/protocol-oidc/src/usecase/token-issuance.ts:786`), and since
+`odudu-admin` registers only the admin API as its audience, even a code
+exchange naming no `resource` gets it. A refresh token is issued on
+`scope=openid` alone.
