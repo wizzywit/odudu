@@ -61,6 +61,48 @@ split five ways already. The estimate is re-stated rather than squeezed:
 console was re-scoped and before the configuration scan. §11 is amended in
 this phase's first increment (§12).
 
+**Nothing found in this brainstorm is split off.** Every item the
+configuration scan placed against P4d — §4.5 rows 1 to 12 — is built,
+tested and documented in this phase, alongside the rest of §4, and none of
+them waits for the console to exist. The only items that leave are the ones
+§4.5 places by topic (rows 13 to 18) and the self-service work §2 moves to
+P4f.
+
+**The restated §11 criterion**, which the first increment writes into the
+umbrella spec verbatim so that no item here can be skipped with nothing
+going red:
+
+> ADR 0038 choosing the console's stack and its backend-for-frontend,
+> written before the first line of console code, and ADR 0039 recording
+> that names are identifiers; CI caching by Turborepo, landed before the
+> first Playwright increment; tenant names constrained to DNS labels by a
+> `CHECK`, a predicate and a test holding them together; the admin API made
+> complete — initial access tokens minted, listed and revoked; a subject's
+> group memberships read and replaced; a role's composites listed and
+> removed; a scope unassigned from a client; `default_for_new_subjects`
+> amended after creation; a subject's profile claims and verification flags
+> read and amended; a subject's consents listed and revoked; a one-time
+> password issued with a forced change; a brute-force lockout cleared; every
+> session of a subject ended at once; `builtin_admin` and
+> `service_subject_id` readable; `client_registration_policy` validated
+> before the database; `whoami` answering the caller's effective
+> capabilities; server-side, field-scoped, case-insensitive prefix search
+> and exact filters on every paged list, each backed by an index, with
+> cursors bound to their filters and the existing subject search's `LIKE`
+> escaping fixed; bounded counts beside every countable list; tenant export
+> with no secret in it and import into a new tenant only; `seed tenant`
+> provisioning the admin client, and `odudu console provision` re-running it;
+> a console gateway holding every token server-side behind an `HttpOnly`
+> cookie, with CSRF defended beyond `SameSite`; an admin console reaching
+> every capability the admin API exposes and none it does not, for tenant
+> administrators and system administrators alike, the audit trail among it
+> read by event type and by resource; the five functional layers carried
+> outside the server for the first time, with the boundary suite's fixtures
+> proving `service-is-a-leaf` is not over-broad; WCAG 2.2 AA checked on
+> every page in both themes; Playwright green in its own CI job;
+> `docs/admin-paths.md` and `docs/request-paths.md` with every new
+> transcript executed; cross-tenant RLS probes green.
+
 **Already done.** `POST /admin/tenants/{tenant}/clients` honouring or
 refusing every field `PATCH` amends shipped in `534c434` (PR #39). The
 criterion's item is closed, and the `docs/NEXT.md` entry still listing it as
