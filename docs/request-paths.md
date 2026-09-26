@@ -4664,9 +4664,9 @@ location: http://localhost:8080/callback?code=QnWfcy1CggMc-sXu1mjrahD5SrkuKrVuVx
 
 (`sid` is the `/authorize` request above with the hidden field read out of
 the page it renders, against `lockout-demo`. This block was captured again,
-against a fresh `lockout-demo`, after the session cookie gained its secret. The wait is 125 seconds rather
-than 60 because the refused right password counted as the sixth failure and
-re-locked for two minutes.)
+against a fresh `lockout-demo`, after the session cookie gained its secret.
+The wait is 125 seconds rather than 60 because the refused right password
+counted as the sixth failure and re-locked for two minutes.)
 
 A correct password accepted by an **unlocked** account deletes the row, so a
 run of failures ends when the account is signed into rather than decaying.
@@ -6069,9 +6069,9 @@ content-length: 220
 </html>
 ```
 
-(`x-request-id`, `Date` and the keep-alive headers are omitted. This page and the refusal
-were captured after the form gained its token, against a fresh sign-in into
-`cookies2.txt` on the same stack.)
+(`x-request-id`, `Date` and the keep-alive headers are omitted. This page
+and the refusal were captured after the form gained its token, against a
+fresh sign-in into `cookies2.txt` on the same stack.)
 
 A `post_logout_redirect_uri` that is not an exact match to a registered
 value — a trailing slash, a query string, a different host — is refused,
@@ -6082,12 +6082,12 @@ alone, never about whether logout happened.
 
 A session writes one `session` row when a login creates it and one when it
 ends, each in the transaction that did the work. A signed-in `/authorize`
-that reuses a session creates nothing and writes nothing. This run signs
-in with a fresh jar, fetches the confirmation page for the `session_id`
-and `csrf` it carries, and posts both back. The sign-in and the confirming `POST` each
-carry their own `x-request-id` — the page fetch between them writes no row
-and carries none — so the query below reads those two requests and nothing
-else:
+that reuses a session creates nothing and writes nothing. This run signs in
+with a fresh jar, fetches the confirmation page for the `session_id` and
+`csrf` it carries, and posts both back. The sign-in and the confirming
+`POST` each carry their own `x-request-id` — the page fetch between them
+writes no row and carries none — so the query below reads those two requests
+and nothing else:
 
 ```bash
 AUTH_SESSION_ID=$(curl -sS --get \
@@ -6152,16 +6152,15 @@ ip               | 172.20.0.1
 detail           | {"via": "logout"}
 ```
 
-Captured against the same stack as
-[what a refused login leaves behind](#what-a-refused-login-leaves-behind):
-`ada` is subject `01a0db22-1c92-…`, and `resource_id` is the session the
-`demo-session` cookie's entry named — its id half, never its secret. `detail.via` says how a session ended:
-`logout` here, `admin` when the admin API's
-`DELETE …/sessions/{sid}` ends it (beside that route's own
-`admin_mutation` row), and `evicted` when a login past the tenant's
-`max_sessions_per_browser` ends the browser's least recently active
-session, naming that session's own subject. Ending a session that has
-already ended writes no second row.
+Captured against the same stack as [what a refused login leaves
+behind](#what-a-refused-login-leaves-behind): `ada` is subject
+`01a0db22-1c92-…`, and `resource_id` is the session the `demo-session`
+cookie's entry named — its id half, never its secret. `detail.via` says how
+a session ended: `logout` here, `admin` when the admin API's `DELETE
+…/sessions/{sid}` ends it (beside that route's own `admin_mutation` row),
+and `evicted` when a login past the tenant's `max_sessions_per_browser` ends
+the browser's least recently active session, naming that session's own
+subject. Ending a session that has already ended writes no second row.
 
 ### The same request over `POST`
 
@@ -6416,14 +6415,14 @@ content-length: 318
 </html>
 ```
 
-(`sid` shortened; it is the id half of the session cookie's entry, and `iss` is this
-tenant's issuer.) `sid` is present because `reports-widget` registered
-`frontchannel_logout_session_required`; a client that had not would be
-framed with `iss` alone. `demo-spa` itself is not framed here — it
+(`sid` shortened; it is the id half of the session cookie's entry, and `iss`
+is this tenant's issuer.) `sid` is present because `reports-widget`
+registered `frontchannel_logout_session_required`; a client that had not
+would be framed with `iss` alone. `demo-spa` itself is not framed here — it
 registered no `frontchannel_logout_uri` at all, and §2's own rule is that a
 client without one is not framed and contributes no origin, which
-`frame-src` above bears out: it names `reports-widget`'s origin and
-nothing else.
+`frame-src` above bears out: it names `reports-widget`'s origin and nothing
+else.
 
 **This is an attempt, not a delivered notification.** The iframe's
 response is never read back, and whether `reports-widget` ever sees the

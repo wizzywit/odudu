@@ -241,12 +241,12 @@ observable rather than pending. The identifier itself is still not built.
 
 ## Amendment, 2026-09-26 — `for no key update`, not `for update`
 
-The tenant-row lock is taken `for no key update`. Admissions still
-serialise exactly as the decision above requires, because `for no key
-update` conflicts with itself — checked by executing a second
-`for no key update nowait` against a held admission, which was refused — but
-it does not conflict with `for key share`, the lock every foreign-key check
-against the tenant row takes. `for update` conflicted with both, and every tenant-scoped
+The tenant-row lock is taken `for no key update`. Admissions still serialise
+exactly as the decision above requires, because `for no key update`
+conflicts with itself — checked by executing a second `for no key update
+nowait` against a held admission, which was refused — but it does not
+conflict with `for key share`, the lock every foreign-key check against the
+tenant row takes. `for update` conflicted with both, and every tenant-scoped
 table references `tenants`, so any open transaction that had inserted a row
 in the tenant blocked admission. Two submissions of one login form turned
 that into a deadlock (`40P01`): the loser's `advance` had written a login

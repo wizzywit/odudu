@@ -25,7 +25,6 @@ function isProductionSource(file: string): boolean {
 function propertyValues(source: string): string[] {
   const values: string[] = [];
   const visit = (node: ts.Node): void => {
-    if (ts.isTypeNode(node)) return;
     if (
       ts.isPropertyAssignment(node) &&
       ts.isObjectLiteralExpression(node.parent) &&
