@@ -1203,7 +1203,9 @@ async function issueExchangedTokens(
     request.actorToken === undefined || actorType === null
       ? null
       : await resolveExchangeToken(tx, resolveDeps, actorType, request.actorToken);
-  if (actor !== null && actor.kind !== 'ok') throw refused('invalid_grant');
+  if (actor !== null && actor.kind !== 'ok') {
+    throw refused('invalid_grant', subject.token.subjectId);
+  }
 
   const actorSubject = actor === null ? client.clientId : actor.token.subjectId;
   if (!mayActPermits(subject.token.mayAct, actorSubject)) {

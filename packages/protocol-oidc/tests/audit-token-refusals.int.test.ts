@@ -967,6 +967,39 @@ describe('refused token exchanges', () => {
     expect(await onlyRowFor(tenant, requestId)).toMatchObject({
       action: 'token.exchange',
       outcome: 'refused',
+      actorSubjectId: tenant.subjectId,
+      detail: { reason: 'invalid_grant' },
+    });
+  });
+
+  it('records an actor token whose act chain cannot be extended', async () => {
+    const tenant = await seedTenant();
+    const service = await serviceAccessToken(tenant);
+    const key = await withTenant(app.db, tenant.id, (tx) => signingKeyRepository(tx).active());
+    const actor = await signJwt(
+      { ...claimsOf(service), act: 'not-an-act-claim' },
+      { key, kek: KEK, typ: 'at+jwt' },
+    );
+    const requestId = requestIdFor('exchange-act-chain');
+
+    const res = await exchange(
+      tenant,
+      {
+        subject_token: await signInAccessToken(tenant),
+        subject_token_type: ACCESS_TOKEN_TYPE,
+        actor_token: actor,
+        actor_token_type: ACCESS_TOKEN_TYPE,
+      },
+      requestId,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'invalid_request' });
+    expect(await onlyRowFor(tenant, requestId)).toMatchObject({
+      action: 'token.exchange',
+      outcome: 'refused',
+      actorSubjectId: tenant.subjectId,
+      actorClientId: tenant.clientDbId,
       detail: { reason: 'invalid_grant' },
     });
   });
