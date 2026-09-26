@@ -48,12 +48,17 @@ export const createClientResponseSchema = clientSchema.extend({
 export type CreateClientResponse = z.infer<typeof createClientResponseSchema>;
 
 // `client_id` is chosen by the operator, unlike RFC 7591 dynamic
-// registration where the server assigns it — everything else is the same
-// client metadata `parseClientMetadata` (@odudu/protocol-oidc) narrows, so
-// ajv only checks the body is a JSON object naming one.
+// registration where the server assigns it. The rest is checked by the
+// usecase, not this shape, the way `amendClientRequestSchema` leaves it —
+// so ajv only checks the body is a JSON object naming a `client_id`.
 export const createClientRequestSchema = z
   .object({ client_id: z.string().min(1) })
-  .catchall(z.unknown());
+  .catchall(z.unknown())
+  .describe(
+    'RFC 7591 client metadata, plus any field PATCH /clients/{id} amends ' +
+      '(audiences, web_origins, token lifetimes, …). Any other field is ' +
+      'refused with 400 naming it, never ignored.',
+  );
 export type CreateClientRequest = z.infer<typeof createClientRequestSchema>;
 
 export const listClientsResponseSchema = z.object({

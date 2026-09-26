@@ -248,10 +248,11 @@ export async function readClient(
 
 export interface CreateClientInput {
   readonly clientId: string;
-  // RFC 7591 client metadata, as the caller sent it (minus `client_id`,
-  // which this door lets an operator choose and dynamic registration does
-  // not) — narrowed by `parseClientMetadata`, never read by hand.
-  readonly metadata: unknown;
+  // The body as the caller sent it, minus `client_id` (which this door lets
+  // an operator choose and dynamic registration does not): RFC 7591
+  // metadata narrowed by `parseClientMetadata`, plus the admin-only fields
+  // `checkedAdminFields` narrows.
+  readonly metadata: Readonly<Record<string, unknown>>;
   readonly tenantId: string;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
@@ -275,6 +276,8 @@ export type CreateClientOutcome =
       error: 'invalid_redirect_uri' | 'invalid_client_metadata';
       description: string;
     }
+  | { kind: 'refused_field'; field: string; reason: string }
+  | { kind: 'invalid_value'; field: string; description: string }
   | { kind: 'at_capacity' }
   | { kind: 'ok'; client: ClientView; secret: string | null };
 
@@ -368,6 +371,27 @@ export async function createClient(
   const metadata = parsed.metadata;
   const type = clientType(metadata.tokenEndpointAuthMethod);
 
+  const auditRefusal = (): Promise<void> =>
+    deps.audit(tx, {
+      action: 'client.create',
+      resourceType: 'client',
+      resourceId: input.clientId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+    });
+  const refusal = createFieldRefusal(input.metadata);
+  if (refusal !== null) {
+    await auditRefusal();
+    return { kind: 'refused_field', ...refusal };
+  }
+  const admin = checkedAdminFields(input.metadata);
+  if (isFieldError(admin)) {
+    await auditRefusal();
+    return { kind: 'invalid_value', ...admin };
+  }
+
   // Locked and counted the same way `registerClient` gates dynamic
   // registration (`packages/protocol-oidc/src/usecase/client-registration.ts`)
   // — the holder of `manage-clients` is not the holder of `manage-tenant`,
@@ -409,10 +433,14 @@ export async function createClient(
   const client = await clientRepository(tx).create({
     tenantId: input.tenantId,
     clientId: input.clientId,
-    name: metadata.clientName ?? input.clientId,
+    name: admin.client.name ?? metadata.clientName ?? input.clientId,
     type,
     secretHash,
     serviceSubjectId,
+    ...(admin.client.enabled === undefined ? {} : { enabled: admin.client.enabled }),
+    ...(admin.client.fullScopeAllowed === undefined
+      ? {}
+      : { fullScopeAllowed: admin.client.fullScopeAllowed }),
     // Distinct from the CLI's 'seeded' and dynamic registration's
     // 'anonymous'/'token': an operator naming a client_id through this
     // door is a provenance this record can state honestly, rather than
@@ -428,6 +456,7 @@ export async function createClient(
     audiences: [],
     accessTokenTtlSeconds: 300,
     refreshTokenTtlSeconds: 1_209_600,
+    ...admin.config,
     redirectUris: metadata.redirectUris,
     grantTypes: metadata.grantTypes,
     tokenEndpointAuthMethod:
@@ -604,6 +633,110 @@ function checkedWebOrigins(origins: readonly string[]): string[] | FieldError {
       };
 }
 
+// The amendable fields that are this server's own configuration rather
+// than RFC 7591 metadata — checked the same way whether a client is being
+// created or amended, since none of the checks depends on a stored row.
+const ADMIN_FIELDS = new Set<string>([
+  'name',
+  'enabled',
+  'full_scope_allowed',
+  'audiences',
+  'web_origins',
+  'post_logout_redirect_uris',
+  'client_credentials_scopes',
+  'access_token_ttl_seconds',
+  'refresh_token_ttl_seconds',
+  'consent_required',
+  'token_exchange_impersonation_allowed',
+]);
+
+interface AdminFieldPatches {
+  readonly client: { name?: string; enabled?: boolean; fullScopeAllowed?: boolean };
+  readonly config: {
+    audiences?: string[];
+    webOrigins?: string[];
+    postLogoutRedirectUris?: string[];
+    clientCredentialsScopes?: string[];
+    accessTokenTtlSeconds?: number;
+    refreshTokenTtlSeconds?: number;
+    consentRequired?: boolean;
+    tokenExchangeImpersonationAllowed?: boolean;
+  };
+}
+
+function checkedAdminFields(
+  values: Readonly<Record<string, unknown>>,
+): AdminFieldPatches | FieldError {
+  const client: AdminFieldPatches['client'] = {};
+  const config: AdminFieldPatches['config'] = {};
+
+  if ('name' in values) {
+    const checked = checkedString('name', values.name);
+    if (isFieldError(checked)) return checked;
+    client.name = checked;
+  }
+  if ('enabled' in values) {
+    const checked = checkedBoolean('enabled', values.enabled);
+    if (isFieldError(checked)) return checked;
+    client.enabled = checked;
+  }
+  if ('full_scope_allowed' in values) {
+    const checked = checkedBoolean('full_scope_allowed', values.full_scope_allowed);
+    if (isFieldError(checked)) return checked;
+    client.fullScopeAllowed = checked;
+  }
+
+  for (const field of [
+    'audiences',
+    'web_origins',
+    'post_logout_redirect_uris',
+    'client_credentials_scopes',
+  ] as const) {
+    if (!(field in values)) continue;
+    const checked = checkedStringArray(field, values[field]);
+    if (isFieldError(checked)) return checked;
+    if (field === 'audiences') config.audiences = checked;
+    else if (field === 'web_origins') {
+      const origins = checkedWebOrigins(checked);
+      if (isFieldError(origins)) return origins;
+      config.webOrigins = origins;
+    } else if (field === 'post_logout_redirect_uris') config.postLogoutRedirectUris = checked;
+    else config.clientCredentialsScopes = checked;
+  }
+  for (const field of ['access_token_ttl_seconds', 'refresh_token_ttl_seconds'] as const) {
+    if (!(field in values)) continue;
+    const checked = checkedInteger(field, values[field]);
+    if (isFieldError(checked)) return checked;
+    if (field === 'access_token_ttl_seconds') config.accessTokenTtlSeconds = checked;
+    else config.refreshTokenTtlSeconds = checked;
+  }
+  for (const field of ['consent_required', 'token_exchange_impersonation_allowed'] as const) {
+    if (!(field in values)) continue;
+    const checked = checkedBoolean(field, values[field]);
+    if (isFieldError(checked)) return checked;
+    if (field === 'consent_required') config.consentRequired = checked;
+    else config.tokenExchangeImpersonationAllowed = checked;
+  }
+
+  return { client, config };
+}
+
+// Every key a create body may carry is either RFC 7591 metadata or a field
+// `amendClient` would accept; anything else is refused by name rather than
+// dropped, so a create can never quietly differ from what was asked for.
+function createFieldRefusal(
+  body: Readonly<Record<string, unknown>>,
+): { field: string; reason: string } | null {
+  for (const field of Object.keys(body)) {
+    if (field === 'client_name' || METADATA_FIELDS.has(field) || ADMIN_FIELDS.has(field)) continue;
+    return { field, reason: refusalFor(field) ?? `${field} is not a client field` };
+  }
+  if ('name' in body && 'client_name' in body && body.name !== body.client_name) {
+    return { field: 'name', reason: 'name and client_name disagree; send one of them' };
+  }
+  return null;
+}
+
 // `undefined` when `key` is absent from `patch` (falls back to `current`),
 // and `undefined` in place of a literal `null` either way —
 // `parseClientMetadata`'s shape treats an unset field as absent, never as
@@ -672,59 +805,11 @@ export async function amendClient(
     throw new Error(`client ${input.clientDbId} has no client_oidc_config row`);
   }
 
-  const clientPatch: Partial<
-    Pick<typeof clients.$inferInsert, 'name' | 'enabled' | 'fullScopeAllowed'>
-  > = {};
+  const admin = checkedAdminFields(input.values);
+  if (isFieldError(admin)) return { kind: 'invalid_value', ...admin };
+  const clientPatch = admin.client;
   const configPatch: Partial<Omit<typeof clientOidcConfig.$inferInsert, 'clientId' | 'tenantId'>> =
-    {};
-
-  if ('name' in input.values) {
-    const checked = checkedString('name', input.values.name);
-    if (isFieldError(checked)) return { kind: 'invalid_value', ...checked };
-    clientPatch.name = checked;
-  }
-  if ('enabled' in input.values) {
-    const checked = checkedBoolean('enabled', input.values.enabled);
-    if (isFieldError(checked)) return { kind: 'invalid_value', ...checked };
-    clientPatch.enabled = checked;
-  }
-  if ('full_scope_allowed' in input.values) {
-    const checked = checkedBoolean('full_scope_allowed', input.values.full_scope_allowed);
-    if (isFieldError(checked)) return { kind: 'invalid_value', ...checked };
-    clientPatch.fullScopeAllowed = checked;
-  }
-
-  for (const field of [
-    'audiences',
-    'web_origins',
-    'post_logout_redirect_uris',
-    'client_credentials_scopes',
-  ] as const) {
-    if (!(field in input.values)) continue;
-    const checked = checkedStringArray(field, input.values[field]);
-    if (isFieldError(checked)) return { kind: 'invalid_value', ...checked };
-    if (field === 'audiences') configPatch.audiences = checked;
-    else if (field === 'web_origins') {
-      const origins = checkedWebOrigins(checked);
-      if (isFieldError(origins)) return { kind: 'invalid_value', ...origins };
-      configPatch.webOrigins = origins;
-    } else if (field === 'post_logout_redirect_uris') configPatch.postLogoutRedirectUris = checked;
-    else configPatch.clientCredentialsScopes = checked;
-  }
-  for (const field of ['access_token_ttl_seconds', 'refresh_token_ttl_seconds'] as const) {
-    if (!(field in input.values)) continue;
-    const checked = checkedInteger(field, input.values[field]);
-    if (isFieldError(checked)) return { kind: 'invalid_value', ...checked };
-    if (field === 'access_token_ttl_seconds') configPatch.accessTokenTtlSeconds = checked;
-    else configPatch.refreshTokenTtlSeconds = checked;
-  }
-  for (const field of ['consent_required', 'token_exchange_impersonation_allowed'] as const) {
-    if (!(field in input.values)) continue;
-    const checked = checkedBoolean(field, input.values[field]);
-    if (isFieldError(checked)) return { kind: 'invalid_value', ...checked };
-    if (field === 'consent_required') configPatch.consentRequired = checked;
-    else configPatch.tokenExchangeImpersonationAllowed = checked;
-  }
+    { ...admin.config };
 
   const touchesMetadata = [...METADATA_FIELDS].some((field) => field in input.values);
   if (touchesMetadata) {
