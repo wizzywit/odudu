@@ -1,6 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { type PgInsertValue } from 'drizzle-orm/pg-core';
 import { auditEvents, type AuditEventRecord } from '#/schema/audit-events';
 import {
   assertActionKnown,
@@ -34,7 +35,7 @@ export interface AuditEventFilter {
 // foreign-issuer token — names another.
 const ROW_TENANT = sql`nullif(current_setting('app.tenant_id', true), '')::uuid`;
 
-function validatedRow(event: AuditEventInput): typeof auditEvents.$inferInsert {
+function validatedRow(event: AuditEventInput): PgInsertValue<typeof auditEvents> {
   const detail: Record<string, unknown> = event.detail ?? {};
   if (event.eventType !== 'admin_mutation') {
     assertActionKnown(event.eventType, event.action);
