@@ -1,6 +1,6 @@
 import { type SessionRecord } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, type SigningKeyRecord } from '@odudu/crypto';
-import { type RequestContext } from '@odudu/db';
+import { type RequestContext } from '@odudu/domain-audit';
 import { type ClientLogoutTarget } from '#/repository/grants';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { frontChannelLogoutUrl } from '#/service/frontchannel-logout';

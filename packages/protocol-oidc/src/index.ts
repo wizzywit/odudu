@@ -27,8 +27,8 @@ import {
 } from '@odudu/authn-flows';
 import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
-import { withTenant, type DatabaseHandle, type RequestContext } from '@odudu/db';
-import { auditRepository } from '@odudu/domain-audit';
+import { withTenant, type DatabaseHandle } from '@odudu/db';
+import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
 import {
   clientRepository,

@@ -4,7 +4,7 @@ import {
   type RequiredAction,
   type SessionRecord,
 } from '@odudu/authn-flows';
-import { type RequestContext } from '@odudu/db';
+import { type RequestContext } from '@odudu/domain-audit';
 import { isUuid } from '@odudu/kernel';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import {

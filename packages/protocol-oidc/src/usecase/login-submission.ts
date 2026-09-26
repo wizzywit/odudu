@@ -7,7 +7,8 @@ import {
   type SessionLifespans,
   type SessionRecord,
 } from '@odudu/authn-flows';
-import { type RequestContext, type TenantScopedDatabase } from '@odudu/db';
+import { type TenantScopedDatabase } from '@odudu/db';
+import { type RequestContext } from '@odudu/domain-audit';
 import { isUuid } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { type TenantLookup } from '#/repository/tenant-lookup';
