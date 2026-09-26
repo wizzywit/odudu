@@ -131,7 +131,6 @@ async function resolveForeignIssuer(
   if (!iss.startsWith(prefix)) return undefined;
   const name = iss.slice(prefix.length);
   if (name.length === 0 || name.includes('/')) return undefined;
-  if (tenantIssuer(input.issuerBase, name) !== iss) return undefined;
 
   const tenant = await deps.findTenant(name);
   if (!tenant?.enabled) return undefined;

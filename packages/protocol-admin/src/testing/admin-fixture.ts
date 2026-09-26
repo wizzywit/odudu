@@ -251,7 +251,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
 
   async function resolveIssuer(tenantName: string): Promise<string> {
     const res = await http.inject({
-      url: `/tenants/${tenantName}/.well-known/openid-configuration`,
+      url: `/tenants/${encodeURIComponent(tenantName)}/.well-known/openid-configuration`,
     });
     if (res.statusCode !== 200) {
       throw new Error(

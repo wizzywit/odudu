@@ -204,6 +204,15 @@ describe('a token issued by another tenant of this deployment', () => {
     await expectRefusedWithoutRow(x, y, extended);
   });
 
+  it('writes nothing for a tenant whose name reaches below another tenant name', async () => {
+    const { x, y } = await twoTenants();
+    const below = await fixture.createTenant(`${x.name}/extra`);
+    const token = await fixture.adminToken(below.name, [...TENANT_CAPABILITIES]);
+
+    await expectRefusedWithoutRow(x, y, token);
+    expect(await rowsOf(below.id)).toHaveLength(0);
+  });
+
   it('writes nothing when no bearer token is presented', async () => {
     const { y } = await twoTenants();
 
