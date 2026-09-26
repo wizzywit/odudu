@@ -400,10 +400,10 @@ describe('atomic refresh rotation', () => {
 
     const results = await Promise.allSettled([
       withTenant(app.db, TENANT_ID, (tx) =>
-        rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS),
+        rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS, ['openid']),
       ),
       withTenant(app.db, TENANT_ID, (tx) =>
-        rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS),
+        rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS, ['openid']),
       ),
     ]);
 

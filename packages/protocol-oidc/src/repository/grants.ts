@@ -37,6 +37,7 @@ function toRecord(row: typeof tokenGrants.$inferSelect): TokenGrantRecord {
     exchangedFromGrantId: row.exchangedFromGrantId,
     actChain: row.actChain,
     expCeiling: row.expCeiling,
+    requestedUserinfoClaims: row.requestedUserinfoClaims,
   };
 }
 
@@ -65,6 +66,7 @@ export interface NewTokenGrant {
   // The ceiling `mintAccessToken`'s own `expCeiling` applied when this
   // grant was minted, so a refresh rotation can reapply it.
   expCeiling?: Date | null;
+  requestedUserinfoClaims?: readonly string[] | null;
 }
 
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
@@ -84,6 +86,8 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
           exchangedFromGrantId: input.exchangedFromGrantId ?? null,
           actChain: input.actChain ?? null,
           expCeiling: input.expCeiling ?? null,
+          requestedUserinfoClaims:
+            input.requestedUserinfoClaims == null ? null : [...input.requestedUserinfoClaims],
         })
         .returning();
       const row = rows[0];

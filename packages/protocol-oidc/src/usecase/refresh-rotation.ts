@@ -1,5 +1,6 @@
 import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
@@ -17,12 +18,14 @@ export type RotationOutcome =
 // but not revoked because a later statement failed would be worse than not
 // detecting it at all. Whether the requesting client owns this token is
 // decided by evaluateRefreshGrant, on both sides of this call — ADR 0019.
+// `issuedScope` is that decision's scope, recorded on the rotation's audit row.
 export async function rotateRefreshToken(
   tx: TenantScopedDatabase,
   presentedHash: string,
   now: Date,
   refreshTokenTtlSeconds: number,
   lifespans: SessionLifespans,
+  issuedScope: readonly string[],
 ): Promise<RotationOutcome> {
   const consumed = await refreshTokenRepository(tx).consume(presentedHash);
 
@@ -78,6 +81,16 @@ export async function rotateRefreshToken(
     expiresAt,
   });
   await refreshTokenRepository(tx).attachReplacement(presentedHash, nextHash);
+  await auditRepository(tx).record({
+    eventType: 'token',
+    action: 'token.refresh',
+    outcome: 'allowed',
+    actorSubjectId: grant.subjectId,
+    actorClientId: grant.clientId,
+    resourceType: 'grant',
+    resourceId: grant.id,
+    detail: { scope: issuedScope.join(' ') },
+  });
 
   return { kind: 'rotated', grant, next };
 }

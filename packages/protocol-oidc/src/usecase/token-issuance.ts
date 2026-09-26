@@ -6,6 +6,7 @@ import {
   type SigningKeyRecord,
 } from '@odudu/crypto';
 import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
 import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
@@ -110,6 +111,9 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // on a name for this (nginx, Envoy, Apache and HAProxy each use a
   // different one), so it is never a constant here.
   tlsClientCertHeader: string;
+  // Bound on every transaction this issuance opens beside the caller's own,
+  // so an audit row written there names the request that caused it.
+  request: RequestContext;
 }
 
 export interface AssertionLogger {
@@ -295,8 +299,11 @@ async function redeemAuthorizationCode(
     const grantId = existing?.grantId;
     if (grantId !== null && grantId !== undefined) {
       const revokedAt = deps.clock.now();
-      await withTenant(deps.database.db, deps.tenantId, (revokeTx) =>
-        tokenGrantRepository(revokeTx).revoke(grantId, revokedAt),
+      await withTenant(
+        deps.database.db,
+        deps.tenantId,
+        (revokeTx) => tokenGrantRepository(revokeTx).revoke(grantId, revokedAt),
+        deps.request,
       );
     }
     throw invalidGrant();
@@ -362,9 +369,9 @@ async function mintAccessToken(
     // belongs to — see the `grant_id` comment below.
     grantId: string;
     // The `claims` parameter's `userinfo` member, embedded so `/userinfo`
-    // (no code left to consult) can narrow the same way. Absent for a
-    // grant not minted from a code.
-    requestedUserinfoClaims?: readonly string[];
+    // (no code left to consult) can narrow the same way. Carried on the
+    // grant, so every access token minted from one embeds the same value.
+    requestedUserinfoClaims?: readonly string[] | null;
     // RFC 8693 §4.4's delegation chain, present only for a token-exchange
     // grant that named an actor. Never derived here — the caller resolves
     // it via `buildActChain` before this function ever runs.
@@ -420,7 +427,7 @@ async function mintAccessToken(
     // no combination of the other claims identifies one row uniquely. See
     // docs/protocols/rfc9068.md's reading note on private claims.
     grant_id: input.grantId,
-    ...(input.requestedUserinfoClaims !== undefined && input.requestedUserinfoClaims.length > 0
+    ...((input.requestedUserinfoClaims ?? []).length > 0
       ? { requested_userinfo_claims: input.requestedUserinfoClaims }
       : {}),
     ...(input.act === undefined ? {} : { act: input.act }),
@@ -475,6 +482,8 @@ async function issueAuthorizationCodeTokens(
   // into the access token below and passed to `create` afterward — the
   // `grant_id` comment on `mintAccessToken` explains why.
   const grantId = newId();
+  const userinfoClaims = Object.keys(code.claims.userinfo);
+  const requestedUserinfoClaims = userinfoClaims.length > 0 ? userinfoClaims : null;
 
   const { accessToken, audience, iat, exp } = await mintAccessToken(
     deps,
@@ -490,7 +499,7 @@ async function issueAuthorizationCodeTokens(
       accessTokenScope,
       sessionId,
       grantId,
-      requestedUserinfoClaims: Object.keys(code.claims.userinfo),
+      requestedUserinfoClaims,
     },
     key,
     now,
@@ -577,8 +586,19 @@ async function issueAuthorizationCodeTokens(
     scope: scope.join(' '),
     audience,
     sessionId,
+    requestedUserinfoClaims,
   });
   await authorizationCodeRepository(tx).attachGrant(code.codeHash, grant.id);
+  await auditRepository(tx).record({
+    eventType: 'token',
+    action: 'token.issue',
+    outcome: 'allowed',
+    actorSubjectId: code.subjectId,
+    actorClientId: client.id,
+    resourceType: 'grant',
+    resourceId: grant.id,
+    detail: { grant_type: 'authorization_code', scope: scope.join(' ') },
+  });
 
   // A refresh token is meaningless without an interactive grant to
   // originate from — client_oidc_config's own check constraint requires a
@@ -617,7 +637,7 @@ async function evaluatePresentedRefreshToken(
   request: Extract<StructuredRequest, { grantType: 'refresh_token' }>,
   client: ClientRecord,
   presentedHash: string,
-): Promise<void> {
+): Promise<readonly string[]> {
   const presented = await refreshTokenRepository(tx).byHash(presentedHash);
   // Unknown here and unknown to the rotation below are the same
   // `invalid_grant`; the rotation is skipped because there is nothing to
@@ -641,6 +661,7 @@ async function evaluatePresentedRefreshToken(
   // often enough to refuse before the presented token is consumed; a
   // revocation landing between the two reads is still caught there.
   resolveAudience(grant.audience, request.resource);
+  return decision.scope;
 }
 
 // Stage 3 (and everything after) for `refresh_token`. Rotation runs in its
@@ -660,16 +681,21 @@ async function issueRefreshTokens(
   const now = deps.clock.now();
   const presentedHash = hashRefreshToken(request.refreshToken);
 
-  await evaluatePresentedRefreshToken(tx, request, client, presentedHash);
+  const presentedScope = await evaluatePresentedRefreshToken(tx, request, client, presentedHash);
 
-  const outcome = await withTenant(deps.database.db, deps.tenantId, (rotationTx) =>
-    rotateRefreshToken(
-      rotationTx,
-      presentedHash,
-      now,
-      config.refreshTokenTtlSeconds,
-      deps.lifespans,
-    ),
+  const outcome = await withTenant(
+    deps.database.db,
+    deps.tenantId,
+    (rotationTx) =>
+      rotateRefreshToken(
+        rotationTx,
+        presentedHash,
+        now,
+        config.refreshTokenTtlSeconds,
+        deps.lifespans,
+        presentedScope,
+      ),
+    deps.request,
   );
   if (outcome.kind !== 'rotated') throw invalidGrant();
 
@@ -725,6 +751,7 @@ async function issueRefreshTokens(
       // `jti`, which is why revocation and introspection can still name
       // this grant after several rotations.
       grantId: grant.id,
+      requestedUserinfoClaims: grant.requestedUserinfoClaims,
       ...(act === undefined ? {} : { act }),
       ...(expCeiling === undefined ? {} : { expCeiling }),
     },
@@ -813,6 +840,15 @@ async function issueClientCredentialsTokens(
     subjectId: serviceSubjectId,
     scope: scope.join(' '),
     audience,
+  });
+  await auditRepository(tx).record({
+    eventType: 'token',
+    action: 'token.issue',
+    outcome: 'allowed',
+    actorClientId: client.id,
+    resourceType: 'grant',
+    resourceId: grantId,
+    detail: { grant_type: 'client_credentials', scope: scope.join(' ') },
   });
 
   return {
@@ -1000,6 +1036,10 @@ export function assertNeverGrant(request: never): never {
   throw new Error(`unhandled grant type: ${JSON.stringify(request)}`);
 }
 
+const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token';
+const REFRESH_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:refresh_token';
+const ID_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:id_token';
+
 // RFC 8693's grant, minting from a subject_token (and, optionally, an
 // actor_token) rather than a credential the client owns outright.
 async function issueExchangedTokens(
@@ -1082,6 +1122,22 @@ async function issueExchangedTokens(
   // impersonation names no actor in the claim, so none is recorded here
   // either (token-grants.ts's own comment on the column).
   const actorSubjectId = act === undefined ? null : actorSubject;
+  const requestedUserinfoClaims = subject.token.requestedUserinfoClaims;
+  const recordExchange = (resourceId: string | null, issuedTokenType: string) =>
+    auditRepository(tx).record({
+      eventType: 'token',
+      action: 'token.exchange',
+      outcome: 'allowed',
+      actorSubjectId: subject.token.subjectId,
+      actorClientId: client.id,
+      resourceType: resourceId === null ? null : 'grant',
+      resourceId,
+      detail: {
+        mode: request.actorToken === undefined ? 'impersonation' : 'delegation',
+        scope: scope.join(' '),
+        requested_token_type: issuedTokenType,
+      },
+    });
 
   if (issuedType === 'refresh_token') {
     const grantId = newId();
@@ -1097,7 +1153,9 @@ async function issueExchangedTokens(
       exchangedFromGrantId: subject.token.grantId,
       actChain: act ?? null,
       expCeiling: expCeiling ?? null,
+      requestedUserinfoClaims,
     });
+    await recordExchange(grantId, REFRESH_TOKEN_TYPE);
     const refreshToken = generateRefreshToken();
     const rawExpiresAt = new Date(now.getTime() + config.refreshTokenTtlSeconds * 1000);
     // The ceiling is a cap, never a grant of extra life: an exchanging
@@ -1119,7 +1177,7 @@ async function issueExchangedTokens(
       token_type: 'N_A',
       expires_in: Math.floor((refreshExpiresAt.getTime() - now.getTime()) / 1000),
       scope: scope.join(' '),
-      issued_token_type: 'urn:ietf:params:oauth:token-type:refresh_token',
+      issued_token_type: REFRESH_TOKEN_TYPE,
     };
   }
 
@@ -1160,6 +1218,7 @@ async function issueExchangedTokens(
       ...(act === undefined ? {} : { act }),
     });
     const idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
+    await recordExchange(null, ID_TOKEN_TYPE);
 
     return {
       access_token: idToken,
@@ -1167,7 +1226,7 @@ async function issueExchangedTokens(
       token_type: 'N_A',
       expires_in: exp - iat,
       scope: scope.join(' '),
-      issued_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+      issued_token_type: ID_TOKEN_TYPE,
     };
   }
 
@@ -1189,6 +1248,7 @@ async function issueExchangedTokens(
       accessTokenScope,
       sessionId: subject.token.sessionId,
       grantId,
+      requestedUserinfoClaims,
       ...(act === undefined ? {} : { act }),
       ...(expCeiling === undefined ? {} : { expCeiling }),
     },
@@ -1208,14 +1268,16 @@ async function issueExchangedTokens(
     exchangedFromGrantId: subject.token.grantId,
     actChain: act ?? null,
     expCeiling: expCeiling ?? null,
+    requestedUserinfoClaims,
   });
+  await recordExchange(grantId, ACCESS_TOKEN_TYPE);
 
   return {
     access_token: accessToken,
     token_type: 'Bearer',
     expires_in: exp - iat,
     scope: scope.join(' '),
-    issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+    issued_token_type: ACCESS_TOKEN_TYPE,
   };
 }
 

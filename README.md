@@ -935,6 +935,11 @@ replicas on their own schedules included: the pass takes a Postgres
 advisory lock and whoever loses the tick skips it rather than duplicating
 the work.
 
+`audit_events` is the exception to the grant-family windows: it keeps each
+tenant's own `audit_retention_days` (90 by default). Refresh rows dominate
+its growth, one `token.refresh` per `refresh_token` redemption, so that
+setting is the one to size against a tenant's refresh traffic.
+
 **Without `ODUDU_APP_DATABASE_URL` nothing is reaped, on a schedule or
 otherwise.** The pass deletes under the row-level-security policy that the
 owner role the migrations use escapes, so it refuses rather than running

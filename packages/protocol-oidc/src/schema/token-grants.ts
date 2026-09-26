@@ -21,8 +21,7 @@ export const tokenGrants = pgTable('token_grants', {
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   // Null means an offline grant: nothing expires it and no logout ends it.
   // The composite foreign key to sessions(tenant_id, id) and its ON DELETE
-  // SET NULL live only in packages/db/drizzle/0026_token_grants_session.sql
-  // — see this file's own note above on why FKs are hand-authored here.
+  // SET NULL (session_id) live only in packages/db/drizzle/ (0026, 0070).
   sessionId: uuid('session_id'),
   // The party recorded in the issued token's `act` claim, so introspection
   // can reproduce it without holding the token. Null for every grant that
@@ -43,6 +42,10 @@ export const tokenGrants = pgTable('token_grants', {
   // grant no exchange produced — every subject shape this server resolves
   // (access token, refresh token, id_token) carries its own expiry.
   expCeiling: timestamp('exp_ceiling', { withTimezone: true }),
+  // The claims parameter's userinfo member names, so every access token
+  // minted from this grant narrows /userinfo as the first did (ADR 0036).
+  // Null when the request named no userinfo member.
+  requestedUserinfoClaims: text('requested_userinfo_claims').array(),
 }).enableRLS();
 
 export interface TokenGrantRecord {
@@ -62,4 +65,5 @@ export interface TokenGrantRecord {
   // point of use, not typed here.
   actChain: unknown;
   expCeiling: Date | null;
+  requestedUserinfoClaims: string[] | null;
 }

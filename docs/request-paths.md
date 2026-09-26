@@ -1884,35 +1884,50 @@ honours it the same way, so there is no per-tenant derivation:
 { "claims_parameter_supported": true }
 ```
 
-**The narrowing above is per-authorization-code, not per-grant.** Only the
-code minted at /authorize carries the `claims` request onto the access token
-it produces — `requested_userinfo_claims`, a third private access-token
-claim alongside `grant_id` and `sid` (see
-[docs/protocols/rfc9068.md](protocols/rfc9068.md)'s reading note above);
-a `refresh_token` redemption mints a new access token with none, so
-`/userinfo` answers from the full scope-granted set again, silently. Same
-code, redeeming the request above and then refreshing:
+**The narrowing travels with the grant, so a refresh keeps it.** The code
+minted at /authorize carries the `claims` request onto the grant its
+redemption creates (`token_grants.requested_userinfo_claims`), and every
+access token minted from that grant embeds it as
+`requested_userinfo_claims`, a third private access-token claim alongside
+`grant_id` and `sid` (see [docs/protocols/rfc9068.md](protocols/rfc9068.md)'s
+reading note above). That covers the code's own token, each
+`refresh_token` redemption's, and a token exchanged from one. Redeeming the
+`claims={"userinfo":{"email":null}}` request above with `scope=openid email`
+and then refreshing (captured against the stack that the refused-login
+transcript uses, where ada is `01a0db22-1c92-…`):
+
+```bash
+curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
+```
+
+```
+{"sub":"01a0db22-1c92-…","email":"ada@example.com"}
+```
 
 ```bash
 curl -sS \
   --data-urlencode 'grant_type=refresh_token' \
   --data-urlencode "refresh_token=$REFRESH_TOKEN" \
   --data-urlencode 'client_id=demo-spa' "$BASE/token"
-# then, with the new access token:
+```
+
+```
+{"access_token":"…","refresh_token":"…","token_type":"Bearer","expires_in":300,"scope":"openid email"}
+```
+
+and then, with the refreshed access token:
+
+```bash
 curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
 ```
 
-```json
-{ "sub": "01a0cb07-4e76-…", "email": "ada@example.com", "email_verified": false }
+```
+{"sub":"01a0db22-1c92-…","email":"ada@example.com"}
 ```
 
-Nothing here crosses the consented scope — the narrowing was never a
-confidentiality boundary, only the client asking for less than scope would
-give — so this is a consistency gap, not a security one. ADR 0036 decides
-the narrowing itself is the right reading and this gap is the defect: the
-fix is threading `requested_userinfo_claims` onto the rotated grant, tracked
-against **P4e**, the authentication-and-token-audit-events phase split out
-of P4c (`docs/superpowers/specs/2026-09-24-p4c-admin-api-design.md` §2).
+Before migration `0070` the refreshed token carried no narrowing, so this
+last call also returned `email_verified`, the rest of what `scope=email`
+grants. ADR 0036 decides the narrowing and its amendment records the fix.
 
 ### Encrypted and nested UserInfo responses
 
@@ -8544,17 +8559,19 @@ session lifecycle. A citation of either half here means that half.
 
 **The admin API**
 
-- **The audit log records administrative mutations, login steps and
-  sessions, and nothing else.** A password, a second factor, a passkey, the
-  factor offered after a first one and a lockout tripping each write an
-  `authentication` row ([what a refused login leaves behind](#what-a-refused-login-leaves-behind)),
-  and a session starting or ending writes a `session` row
+- **The audit log records administrative mutations, login steps, sessions
+  and tokens issued, and nothing else.** A password, a second factor, a
+  passkey, the factor offered after a first one and a lockout tripping each
+  write an `authentication` row ([what a refused login leaves behind](#what-a-refused-login-leaves-behind)),
+  a session starting or ending writes a `session` row
   ([what a session leaves in the audit log](#what-a-session-leaves-in-the-audit-log)),
-  but a token minted or refreshed or revoked, a client failing to
-  authenticate, and a credential enrolled leave no trace — `?event_type=`
-  narrows to any of the vocabulary's six values, and nothing yet writes
-  `token` or `credential`, nor `authentication`'s `client.authenticate`.
-  **P4e**, whose criterion names the token and credential events themselves.
+  and a token minted, refreshed or exchanged writes a `token` row
+  (`token.issue`, `token.refresh`, `token.exchange`). A token revoked, a
+  grant revoked on reuse or code replay, a client failing to authenticate
+  and a credential enrolled leave no trace — `?event_type=` narrows to any
+  of the vocabulary's six values, and nothing yet writes `credential`,
+  `token.revoke`, either `grant.revoked_on_*`, nor `authentication`'s
+  `client.authenticate`. **P4e**, whose criterion names those events.
 - **No refusal outside the login steps and the admin API is recorded.**
   Every refused login step writes a `refused` row under
   `resource_type: authentication_session`, and the admin API records the

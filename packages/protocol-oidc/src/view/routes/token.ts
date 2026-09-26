@@ -1,5 +1,6 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
+import { requestContextFrom } from '@odudu/domain-audit';
 import { type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { corsHeadersForRequest } from '#/service/cors';
@@ -73,36 +74,42 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
 
     const issuer = tenantIssuerFor(request, request.params.tenant);
 
+    const context = requestContextFrom(request);
     try {
-      const response: TokenResponse = await withTenant(deps.database.db, tenant.id, (tx) =>
-        issueTokens(
-          tx,
-          {
-            database: deps.database,
-            tenantId: tenant.id,
-            issuer,
-            kek: deps.kek,
-            clock: deps.clock,
-            lifespans: {
-              ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
-              ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
-              rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
-              rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+      const response: TokenResponse = await withTenant(
+        deps.database.db,
+        tenant.id,
+        (tx) =>
+          issueTokens(
+            tx,
+            {
+              database: deps.database,
+              tenantId: tenant.id,
+              issuer,
+              kek: deps.kek,
+              clock: deps.clock,
+              lifespans: {
+                ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+                ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+                rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+                rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+              },
+              verifyPassword: deps.verifyPassword,
+              clientSecretLimiter: deps.clientSecretLimiter,
+              claimMappers: deps.claimMappers,
+              loadClaimContext: (tenantId, subjectId) => deps.loadClaimContext(tenantId, subjectId),
+              clientKeySet: deps.clientKeySet,
+              logger: request.log,
+              trustProxy: deps.trustProxy,
+              tlsClientCertHeader: deps.tlsClientCertHeader,
+              request: context,
             },
-            verifyPassword: deps.verifyPassword,
-            clientSecretLimiter: deps.clientSecretLimiter,
-            claimMappers: deps.claimMappers,
-            loadClaimContext: (tenantId, subjectId) => deps.loadClaimContext(tenantId, subjectId),
-            clientKeySet: deps.clientKeySet,
-            logger: request.log,
-            trustProxy: deps.trustProxy,
-            tlsClientCertHeader: deps.tlsClientCertHeader,
-          },
-          request.body,
-          request.headers.authorization,
-          request.headers,
-          request.raw.rawHeaders,
-        ),
+            request.body,
+            request.headers.authorization,
+            request.headers,
+            request.raw.rawHeaders,
+          ),
+        context,
       );
 
       return await reply

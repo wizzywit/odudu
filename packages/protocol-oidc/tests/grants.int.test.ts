@@ -270,7 +270,7 @@ describe('tokenGrantRepository', () => {
     );
 
     const outcome = await withTenant(app.db, tenantId, (tx) =>
-      rotateRefreshToken(tx, hashRefreshToken(token), new Date(), 600, LIFESPANS),
+      rotateRefreshToken(tx, hashRefreshToken(token), new Date(), 600, LIFESPANS, ['openid']),
     );
     expect(outcome.kind).toBe('revoked');
   });

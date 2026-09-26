@@ -43,7 +43,7 @@ protocol endpoints keep `parseStructure` on a recorded rationale. The
 three exchange branches read it through one shared predicate. ADR 0036
 decides that `/userinfo`'s claims narrowing is the right reading of OIDC
 Core §5.5 and that losing `requested_userinfo_claims` on refresh is the
-defect; closing it is P4e's.
+defect; migration `0070` closes it (the ADR's amendment).
 
 **A bare `P4` below means P4e** unless it concerns token exchange, the grant
 allowlist, the admin API, the consoles, theming or client branding — the
@@ -104,14 +104,6 @@ in `REAP_ORDER`, so P4e inherits the window rather than adding a second one
 to keep in step. `GET /admin/tenants/{tenant}/audit` filters by
 `event_type`, `resource_type`, `action`, `outcome`, `actor_subject_id` and
 an `occurred_at` range.
-
-**`requested_userinfo_claims` is lost on refresh, and ADR 0036 says so.**
-The narrowing itself is decided — OIDC Core §5.5's `claims` parameter
-narrows what `/userinfo` returns, which is the stricter of two readings and
-now a written one. The defect the ADR leaves open is that a rotated grant
-does not carry the request forward, so a refresh widens the response.
-Closing it means threading the value onto the grant row, on the same
-rotation path P4e's token events instrument.
 
 **Only `POST /clients` and the capability ceilings record a refusal.**
 `outcome` has three values; a ceiling refusal writes a row naming what the
@@ -197,17 +189,16 @@ that should hold it, which is usually false.
 
 ### Argued elsewhere, and pointed at from here
 
-| What is open                                                                                                            | Where it is argued                                                                       | Trigger                                                 |
-| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| No scope means anything in particular at an audience; RFC 9068 §2.2.3 wants `scope` coherent with `aud`                 | [rfc9068.md](protocols/rfc9068.md), "Why §2.2.3 is accepted, not held"                   | **P9**, with the row below                              |
-| `/introspect` answers every registered client alike: no per-resource scope narrowing, no "may introspect"               | [rfc7662.md](protocols/rfc7662.md), "Two MAYs left `gap`"                                | **P9**, with the row above                              |
-| `private_key_jwt` and `tls_client_auth` reach `/token` alone, never `/introspect` or `/revoke`                          | [rfc7662.md](protocols/rfc7662.md), "Only the two password methods reach this endpoint"  | **P13**                                                 |
-| RFC 7523 has no clause table, so the clauses of an implemented RFC are untracked by the system built for it             | [rfc7523.md](protocols/rfc7523.md)'s own header                                          | **P13**                                                 |
-| The session cap is per browser and admits `cap + (k - 1)` under `k` concurrent logins, orphaning one                    | [ADR 0033](adr/0033-admitting-a-session-locks-the-tenant-row.md)                         | **P4d**, wanting a session's device                     |
-| An admin request refused for an issuer mismatch writes no audit row, and cannot safely write one yet                    | [p4c.md](phases/p4c.md), "Things that were reverted rather than shipped"                 | **P4e**, which decides what a refusal writes            |
-| `token_grants_session_fk` has the unrestricted `ON DELETE SET NULL` defect P4a fixed in `0059`                          | [p4a.md](phases/p4a.md), "A migration idiom copied from precedent that was itself wrong" | the next migration touching `token_grants`              |
-| `CLAUDE.md` states an untagged-fence rule that `tests/docs/markdown.ts` cannot see, so no JSON response is byte-checked | [p3b.md](phases/p3b.md), "`CLAUDE.md` states a rule its own tests forbid"                | its own change; it untags every JSON transcript at once |
-| Committed development credentials                                                                                       | [ADR 0014](adr/0014-committed-development-credentials.md)                                | the conditions that ADR names                           |
+| What is open                                                                                                            | Where it is argued                                                                      | Trigger                                                 |
+| ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| No scope means anything in particular at an audience; RFC 9068 §2.2.3 wants `scope` coherent with `aud`                 | [rfc9068.md](protocols/rfc9068.md), "Why §2.2.3 is accepted, not held"                  | **P9**, with the row below                              |
+| `/introspect` answers every registered client alike: no per-resource scope narrowing, no "may introspect"               | [rfc7662.md](protocols/rfc7662.md), "Two MAYs left `gap`"                               | **P9**, with the row above                              |
+| `private_key_jwt` and `tls_client_auth` reach `/token` alone, never `/introspect` or `/revoke`                          | [rfc7662.md](protocols/rfc7662.md), "Only the two password methods reach this endpoint" | **P13**                                                 |
+| RFC 7523 has no clause table, so the clauses of an implemented RFC are untracked by the system built for it             | [rfc7523.md](protocols/rfc7523.md)'s own header                                         | **P13**                                                 |
+| The session cap is per browser and admits `cap + (k - 1)` under `k` concurrent logins, orphaning one                    | [ADR 0033](adr/0033-admitting-a-session-locks-the-tenant-row.md)                        | **P4d**, wanting a session's device                     |
+| An admin request refused for an issuer mismatch writes no audit row, and cannot safely write one yet                    | [p4c.md](phases/p4c.md), "Things that were reverted rather than shipped"                | **P4e**, which decides what a refusal writes            |
+| `CLAUDE.md` states an untagged-fence rule that `tests/docs/markdown.ts` cannot see, so no JSON response is byte-checked | [p3b.md](phases/p3b.md), "`CLAUDE.md` states a rule its own tests forbid"               | its own change; it untags every JSON transcript at once |
+| Committed development credentials                                                                                       | [ADR 0014](adr/0014-committed-development-credentials.md)                               | the conditions that ADR names                           |
 
 ### Argued here, because there is nowhere else
 
