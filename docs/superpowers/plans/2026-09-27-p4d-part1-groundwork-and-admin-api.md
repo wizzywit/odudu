@@ -179,7 +179,7 @@ written into a plan as fact before it has been run.
       instead, and record which in `docs/phases/p4d.md`.
 
 - [ ] **Step 8: Declare the task in `turbo.json`:**
-      `"test": { "dependsOn": ["^typecheck"], "inputs": ["src/**", "tests/**", "package.json", "tsconfig.json"], "outputs": ["trace-report.json"] }`,
+      `"test": { "dependsOn": ["^typecheck"], "inputs": ["src/**", "tests/**", "drizzle/**", "package.json", "tsconfig.json"], "outputs": ["trace-report.json"] }`,
       and top-level `"globalDependencies": ["vitest.config.ts", "tsconfig.base.json", "pnpm-lock.yaml", "tests/setup/**", "eslint.config.js"]`.
       Root scripts: `"test": "turbo run test"`, `"trace"` without its argument.
       Add `trace-report.json` under packages to `.gitignore` (the root entry is
@@ -782,12 +782,14 @@ command run and its output, so Parts 2 and 3 cite `verified:` instead of
 **Interfaces:**
 
 - Produces: `profileSchema` — every OIDC claim column on `users` in
-  snake_case (`name` … `address_country`), plus `email_verified`,
-  `phone_number_verified`, `profile_updated_at` read-only;
-  `GET|PATCH /admin/tenants/:tenant/subjects/:id/profile` (`view-users` /
-  `manage-users`), `PATCH` a partial of the writable members with `If-Match`
-  optional; `setVerification(subjectId, { emailVerified?, phoneNumberVerified? })`
-  on `userRepository`; audit `subject.profile_amend` with a redacted diff.
+  snake_case (`name` … `address_country`), plus `email_verified` and
+  `phone_number_verified`, both writable, and `profile_updated_at`,
+  read-only; `GET|PATCH /admin/tenants/:tenant/subjects/:id/profile`
+  (`view-users` / `manage-users`), `PATCH` a partial of every writable
+  member — the claim columns through `updateProfile`, the two verification
+  flags through a new `setVerification(subjectId, { emailVerified?, phoneNumberVerified? })`
+  on `userRepository`, both in one transaction — with `If-Match` optional;
+  audit `subject.profile_amend` with a redacted diff.
 
 - [ ] **Step 1: Write failing tests:** read shows every claim; amending
       `given_name` changes the next ID token's `given_name` and stamps
