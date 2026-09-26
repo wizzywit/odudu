@@ -7,7 +7,7 @@ tenant rename is done. P4 has been split five ways.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
 "P4 became four phases, then five" subsection has the reasoning.
 
-The order is **P4a → P4c → P4e → P4d → P4b**, and the letters deliberately
+The order is **P4a → P4c → P4e → P4d → P4f → P4b**, and the letters deliberately
 do not read in execution order, because `P4b` was spent on theming before P4
 split and an accepted ADR cites it. P4a was token exchange
 ([spec](superpowers/specs/2026-09-23-p4a-token-exchange-design.md)); P4c was
@@ -15,7 +15,10 @@ the admin API
 ([spec](superpowers/specs/2026-09-24-p4c-admin-api-design.md)); P4e was
 authentication and token audit events
 ([spec](superpowers/specs/2026-09-26-p4e-audit-events-design.md)); **P4d is
-next** — the admin and account consoles; P4b stays theming and stays last.
+next** — the admin console and the admin API it needs
+([spec](superpowers/specs/2026-09-26-p4d-admin-console-design.md)); **P4f**,
+self-service through a "me" API and application-initiated actions, replaced
+the account console; P4b stays theming and stays last.
 
 **P4c shipped the admin API**, at `/admin/tenants/{tenant}/` with
 `/admin/tenants` above it, authenticated by an ordinary access token whose
@@ -102,7 +105,7 @@ another paragraph. `tests/docs/next-budget.test.ts` holds the file to 400
 lines and any one section to 130, so an entry that has somewhere better to
 live is pushed there rather than accumulating here.
 
-## What P4d and P4b inherit
+## What P4d, P4f and P4b inherit
 
 **An audit trail with six kinds of row to show.** P4d's criterion shows the
 audit trail; `GET /admin/tenants/{tenant}/audit` is what it reads, filtered
@@ -120,9 +123,9 @@ third amendment); and a refresh whose
 rotation committed before a refusal leaves both an `allowed` and a
 `refused` row under one request id ([p4e.md](phases/p4e.md)).
 
-**Two recovery-code gaps that need the account console.** A subject cannot
+**Two recovery-code gaps that need self-service.** A subject cannot
 ask for a fresh set before running out, and nothing warns as the list gets
-short. Both are named in P4d's exit criterion; `beginRecoveryCodes` already
+short. Both are named in P4f's exit criterion; `beginRecoveryCodes` already
 replaces a set wholesale, so what is owed is a surface, not a mechanism.
 
 **Theming is P4b's, and the contract it needs already exists.** Every
@@ -201,7 +204,7 @@ that should hold it, which is usually false.
 | `/introspect` answers every registered client alike: no per-resource scope narrowing, no "may introspect"               | [rfc7662.md](protocols/rfc7662.md), "Two MAYs left `gap`"                               | **P9**, with the row above                              |
 | `private_key_jwt` and `tls_client_auth` reach `/token` alone, never `/introspect` or `/revoke`                          | [rfc7662.md](protocols/rfc7662.md), "Only the two password methods reach this endpoint" | **P13**                                                 |
 | RFC 7523 has no clause table, so the clauses of an implemented RFC are untracked by the system built for it             | [rfc7523.md](protocols/rfc7523.md)'s own header                                         | **P13**                                                 |
-| The session cap is per browser and admits `cap + (k - 1)` under `k` concurrent logins, orphaning one                    | [ADR 0033](adr/0033-admitting-a-session-locks-the-tenant-row.md)                        | **P4d**, wanting a session's device                     |
+| The session cap is per browser and admits `cap + (k - 1)` under `k` concurrent logins, orphaning one                    | [ADR 0033](adr/0033-admitting-a-session-locks-the-tenant-row.md)                        | **P4f**, wanting a session's device                     |
 | `CLAUDE.md` states an untagged-fence rule that `tests/docs/markdown.ts` cannot see, so no JSON response is byte-checked | [p3b.md](phases/p3b.md), "`CLAUDE.md` states a rule its own tests forbid"               | its own change; it untags every JSON transcript at once |
 | Tenant names are unconstrained, so a name holding `/` nests its issuer under another tenant's                           | [p4e.md](phases/p4e.md), "Guards, one that could never fire…"                           | **P4d**, whose console creates tenants                  |
 | Committed development credentials                                                                                       | [ADR 0014](adr/0014-committed-development-credentials.md)                               | the conditions that ADR names                           |
@@ -305,13 +308,13 @@ a phase note.
 - The two `user_credentials` counts at `docs/request-paths.md:3052` and
   `:3282` are unscoped, and correct only in document order — the
   neighbouring query of the same kind is scoped. Re-scoping them needs a
-  re-run against a live stack. **P4d**, which re-captures those transcripts
+  re-run against a live stack. **P4f**, which re-captures those transcripts
   anyway: its criterion gives a subject a fresh set of recovery codes before
   the old set is spent, which is what those two queries count.
 - The boundary suite's negative control filters a fixture with no imports at
   all, so it cannot demonstrate that `service-is-a-leaf` is not over-broad.
-  A service importing another service would. **P4d**: its consoles are the
-  first packages outside the server to carry the five layers, so the rule set
+  A service importing another service would. **P4d**: its console is the
+  first package outside the server to carry the five layers, so the rule set
   and its fixtures are extended there.
 - `tests/lint/production-guard-order.test.ts` compares source offsets and
   breaks on a rename or a helper extraction. A reasonable stopgap for the
@@ -319,16 +322,6 @@ a phase note.
   whoever reads it next. **P12**, whose criterion sources secrets from
   somewhere other than the process environment and so reworks the boot
   sequence in `apps/server/src/main.ts` that the test pins by offset.
-
-- `POST /admin/tenants/{tenant}/clients` silently drops `audiences`: the
-  body goes through `parseClientMetadata`, which knows RFC 7591's fields
-  and not the ones only `PATCH …/clients/{id}` amends, and creation writes
-  `audiences: []` (`packages/protocol-admin/src/usecase/clients.ts`), so
-  the answer is a `201` naming none. Found while
-  capturing P4e's admin-access transcript, which had to `PATCH` the field.
-  Outside P4e's topic (client administration, P4c's, closed). **P4d**,
-  whose console creates clients: refuse the field or accept it, for every
-  field `PATCH` accepts and creation does not.
 
 - CI caching. `verify` takes about 15 minutes and during P4e reached its
   15-minute timeout after every test had passed; the timeout is 30 minutes

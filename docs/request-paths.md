@@ -3688,7 +3688,9 @@ setup at the same moment, for the same reason.
 
 Two ways out that this does not provide, both needing a page this server does
 not have yet: asking for a fresh set _before_ running out, and a warning as
-the list gets short. Both are the account console, which is **P4d**'s.
+the list gets short. Both are self-service, which is **P4f**'s: an
+application-initiated action for the fresh set, and the "me" API's count for
+the warning.
 
 ### Where the step sits in the flow
 
@@ -9267,7 +9269,8 @@ session lifecycle. A citation of either half here means that half.
   so a list runs out into a fresh set rather than into a lockout.
   What is not there yet: no way for a subject to ask for a fresh set _before_
   they run out, and no warning as the list gets short — self-service
-  credential management is the account console, which is **P4d**'s. And **no rate
+  credential management is **P4f**'s "me" API and application-initiated
+  actions. And **no rate
   limit on re-issuing**: while the action is owed, each login submission
   with a valid password renders the page again, which costs ten Argon2id
   hashes and eleven row writes. Bounded by holding the password and by

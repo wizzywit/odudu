@@ -58,8 +58,10 @@ application-initiated actions. It moves to P4f with:
 as separate phases and kept together at the user's direction: P4 has been
 split five ways already. The estimate is re-stated rather than squeezed:
 **140–180 hours**, against §11's 55–85, which was set before the account
-console was re-scoped and before the configuration scan. §11 is amended in
-this phase's first increment (§12).
+console was re-scoped and before the configuration scan. §11 was amended
+with this spec, before the plan: P4d's row, a new P4f row, the order, both
+totals, and each other phase's criterion that §4.5 places an item against
+(P4b, P7, P10, P11).
 
 **Nothing found in this brainstorm is split off.** Every item the
 configuration scan placed against P4d — §4.5 rows 1 to 13 — is built,
@@ -68,9 +70,8 @@ them waits for the console to exist. The only items that leave are the ones
 §4.5 places by topic (rows 14 to 19) and the self-service work §2 moves to
 P4f.
 
-**The restated §11 criterion**, which the first increment writes into the
-umbrella spec verbatim so that no item here can be skipped with nothing
-going red:
+**The restated §11 criterion**, as it now stands in the umbrella spec, so
+that no item here can be skipped with nothing going red:
 
 > ADR 0038 choosing the console's stack and its backend-for-frontend,
 > written before the first line of console code, and ADR 0039 recording
@@ -144,7 +145,8 @@ probe, an `admin_mutation` row where it writes, and an executed transcript in
 
 ### 4.1 Tenant names
 
-A tenant name is a DNS label: `^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`. No
+A tenant name is a DNS label: one to 63 characters of lowercase letters,
+digits and hyphens, neither starting nor ending with a hyphen. No
 `/`, so one tenant's issuer cannot nest under another's (the `docs/NEXT.md`
 row); no uppercase, so two tenants cannot differ by case alone in a URL a
 person reads.
@@ -759,8 +761,7 @@ changes; the phase note asks for it.
 Each is two to six hours, independently mergeable, and ends with CI green on
 a pushed commit and the review it attracted answered.
 
-1. **Groundwork** — CI caching; the umbrella spec's §11 amended; ADR 0038
-   and ADR 0039; the spikes listed in this spec's §11.
+1. **Groundwork** — CI caching; ADR 0038 and ADR 0039; the spikes listed in this spec's §11.
 2. **API** — tenant names; `whoami`; search, filters, cursors and indexes by
    collection (about three); counts; §4.5 rows 1–13 (about four); export;
    import.
