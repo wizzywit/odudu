@@ -88,7 +88,7 @@ describe('audit_events', () => {
     expect(seen[0]?.actorTenantId).not.toBe(u);
   });
 
-  it('accepts a row with no actor, for the events P4e will add', async () => {
+  it('accepts a row with no actor, as an event with nobody behind it has', async () => {
     const t = await seedTenant(`acme-${newId()}`);
 
     await expect(
