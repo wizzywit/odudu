@@ -15,10 +15,3 @@ reasoning it corrects than split into a separate file a reader has to find.
 This is not an exception to immutability: the decision itself does not
 change, and the original context, decision and consequences sections stay
 as written. See ADR 0008, 0009 and 0013 for examples.
-
-Every ADR is a numbered file in this directory; there is no separate index
-to keep in step. Section 2 of the design spec
-(`docs/superpowers/specs/2026-09-10-odudu-design.md`) cross-references the
-decisions that trace back to the umbrella spec by ADR number; a decision
-made inside a single phase is instead cross-referenced from that phase's own
-spec and from `docs/NEXT.md` where it is still open.
