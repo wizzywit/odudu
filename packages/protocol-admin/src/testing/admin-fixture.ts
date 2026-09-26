@@ -38,6 +38,7 @@ import {
   standardClaimMappers,
   tenantIssuerFor,
   tokenGrantRepository,
+  UNLIMITED_AUDIT_REFUSAL_BUDGET,
   UNLIMITED_CLIENT_SECRET_LIMITER,
 } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -199,6 +200,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
       kek: KEK,
       clock,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
       claimMappers,
     }),

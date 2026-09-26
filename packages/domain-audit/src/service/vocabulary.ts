@@ -119,7 +119,7 @@ type AuthenticationInput =
   | (EventCommon & {
       readonly eventType: 'authentication';
       readonly action: 'client.authenticate';
-      readonly detail?: WithReason<{ method: string }>;
+      readonly detail?: WithReason<{ method?: string }>;
     });
 
 type SessionInput =
@@ -135,6 +135,14 @@ type SessionInput =
     });
 
 type TokenInput =
+  // A refused request was never issued anything, so it has no scope, grant
+  // type or mode to report: only why it was refused.
+  | (EventCommon & {
+      readonly eventType: 'token';
+      readonly action: 'token.issue' | 'token.refresh' | 'token.exchange';
+      readonly outcome: 'refused';
+      readonly detail: Readonly<{ reason: AuditReason }>;
+    })
   | (EventCommon & {
       readonly eventType: 'token';
       readonly action: 'token.issue';

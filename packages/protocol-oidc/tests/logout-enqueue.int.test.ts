@@ -23,6 +23,7 @@ import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttl
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
 import { backchannelLogoutDeliveries } from '#/schema/logout-deliveries';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -299,6 +300,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );

@@ -32,6 +32,7 @@ import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttl
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -232,6 +233,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       // Every client below carries its keys inline (`jwks`), except
       // unreachableJwksClient, which registers a `jwks_uri` this fetcher
       // always refuses — no fake key server needed to prove a dead

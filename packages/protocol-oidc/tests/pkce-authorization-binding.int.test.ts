@@ -23,6 +23,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodes } from '#/schema/authorization-codes';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 // What /authorize was told and what /token later checks are two ends of the
 // same journey, and nothing short of running it observes the binding
@@ -222,6 +223,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );

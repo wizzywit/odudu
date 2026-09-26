@@ -45,6 +45,7 @@ import { tenantLookupRepository } from '#/repository/tenant-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers, type ClaimContext, type LoadedClaimContext } from '#/service/claims';
 import { type LiveClientLookup } from '#/service/client-enabled';
+import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import {
   USERINFO_ENCRYPTION_ENC_DEFAULT,
@@ -111,6 +112,11 @@ export interface OidcRoutesDeps {
   // (#/repository/client-keys.ts). `apps/server/src/app.ts` supplies the
   // real one, wired to `node:https` and `node:dns`.
   clientKeySet: ClientKeySet;
+  // Whether a client authentication refusal at /token or /revoke naming a
+  // registered client is an audit row or a log line (ADR 0037). Required
+  // for the same reason `clientSecretLimiter` is; a caller with no opinion
+  // passes `UNLIMITED_AUDIT_REFUSAL_BUDGET`.
+  auditRefusalBudget: AuditRefusalBudget;
   // Shared with @odudu/protocol-admin's scope-mapper routes so the two
   // never list different mappers (`GET /scopes/:id/mappers` reads its
   // available names from the same registry this plugin assembles claims
@@ -478,6 +484,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       listPublishableKeys,
       verifyPassword,
       clientSecretLimiter,
+      auditRefusalBudget: deps.auditRefusalBudget,
       clock,
     });
     registerClientRegistrationRoute(app, {
@@ -791,6 +798,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         clock,
         verifyPassword,
         clientSecretLimiter,
+        auditRefusalBudget: deps.auditRefusalBudget,
         claimMappers,
         loadClaimContext,
         resolveClientWebOrigins,
@@ -887,6 +895,11 @@ export {
 // authentication chain it exists to test).
 export { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 export { endSession, type EndSessionDeps, type EndSessionInput } from '#/usecase/end-session';
+export {
+  auditRefusalBudgetKey,
+  UNLIMITED_AUDIT_REFUSAL_BUDGET,
+  type AuditRefusalBudget,
+} from '#/service/audit-refusal-budget';
 export {
   UNLIMITED_CLIENT_SECRET_LIMITER,
   type ClientSecretLimiter,

@@ -19,6 +19,7 @@ import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 function locationHeader(res: LightMyRequestResponse): string {
   const location = res.headers.location;
@@ -67,6 +68,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: Buffer.alloc(32, 3),
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );

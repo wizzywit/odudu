@@ -5,10 +5,12 @@ import { type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { corsHeadersForRequest } from '#/service/cors';
 import { type ClaimContext, type LoadedClaimContext } from '#/service/claims';
+import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import { issueTokens, type ClientKeySet, type TokenResponse } from '#/usecase/token-issuance';
 import { tenantIssuerFor } from '#/view/issuer';
+import { recordRefusal } from '#/view/routes/record-refusal';
 
 export interface TokenRouteDeps {
   database: DatabaseHandle;
@@ -41,6 +43,8 @@ export interface TokenRouteDeps {
   // ADR 0023's client-authentication budget, per client_id. See
   // token-issuance.ts's TokenIssuanceDeps for what it counts.
   clientSecretLimiter: ClientSecretLimiter;
+  // ADR 0037: whether a client authentication refusal is a row or a log line.
+  auditRefusalBudget: AuditRefusalBudget;
   // RFC 7523 §2.2's fetcher for a client's jwks_uri — see
   // token-issuance.ts's TokenIssuanceDeps for what calls it.
   clientKeySet: ClientKeySet;
@@ -119,6 +123,14 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
         .header('pragma', 'no-cache')
         .send(response);
     } catch (err) {
+      if (err instanceof TokenRateLimited || err instanceof TokenError) {
+        await recordRefusal(
+          { database: deps.database, logger: request.log, budget: deps.auditRefusalBudget },
+          tenant.id,
+          context,
+          err.audit,
+        );
+      }
       if (err instanceof TokenRateLimited) {
         // No body, the way the per-origin throttle's 429 carries none: the
         // refusal must look identical whichever client_id provoked it.

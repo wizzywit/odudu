@@ -22,6 +22,7 @@ import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttl
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 // RFC 8707 §2 at /token: the access token's `aud` is derived from what the
 // code (or, on a refresh, the grant it rotated) actually carries, never
@@ -280,6 +281,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );

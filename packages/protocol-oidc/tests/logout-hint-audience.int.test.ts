@@ -21,6 +21,7 @@ import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 // `disagreeing` makes the `client_id`/hint comparison after verification
 // rather than inside it, because §4 needs a disagreeing pair told apart
@@ -251,6 +252,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );

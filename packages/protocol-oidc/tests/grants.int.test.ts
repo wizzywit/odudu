@@ -33,6 +33,8 @@ const AUDIENCE = ['https://api.example'];
 
 // The grant under test here carries no session (issueRefreshToken never
 // sets one), so which pair this names never affects the outcome.
+const NO_LOG = { error: () => undefined };
+
 const LIFESPANS: SessionLifespans = {
   ssoSessionIdleSeconds: 1_800,
   ssoSessionMaxSeconds: 36_000,
@@ -270,7 +272,15 @@ describe('tokenGrantRepository', () => {
     );
 
     const outcome = await withTenant(app.db, tenantId, (tx) =>
-      rotateRefreshToken(tx, hashRefreshToken(token), new Date(), 600, LIFESPANS, ['openid']),
+      rotateRefreshToken(
+        tx,
+        hashRefreshToken(token),
+        new Date(),
+        600,
+        LIFESPANS,
+        ['openid'],
+        NO_LOG,
+      ),
     );
     expect(outcome.kind).toBe('revoked');
   });

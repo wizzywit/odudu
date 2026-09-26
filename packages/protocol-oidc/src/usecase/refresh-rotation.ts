@@ -1,13 +1,14 @@
 import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
-import { type TenantScopedDatabase } from '@odudu/db';
+import { withSavepoint, type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
+import { type Logger } from '@odudu/kernel';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 
 export type RotationOutcome =
   | { readonly kind: 'rotated'; readonly grant: TokenGrantRecord; readonly next: string }
-  | { readonly kind: 'reused'; readonly revokedFamily: string }
+  | { readonly kind: 'reused'; readonly revokedFamily: string; readonly subjectId: string | null }
   | { readonly kind: 'revoked' }
   | { readonly kind: 'unknown' };
 
@@ -26,6 +27,7 @@ export async function rotateRefreshToken(
   refreshTokenTtlSeconds: number,
   lifespans: SessionLifespans,
   issuedScope: readonly string[],
+  logger: Pick<Logger, 'error'>,
 ): Promise<RotationOutcome> {
   const consumed = await refreshTokenRepository(tx).consume(presentedHash);
 
@@ -37,8 +39,35 @@ export async function rotateRefreshToken(
     if (existing === null) return { kind: 'unknown' };
     if (existing.usedAt === null) return { kind: 'unknown' };
 
+    const family = await tokenGrantRepository(tx).byId(existing.grantId);
     await tokenGrantRepository(tx).revoke(existing.grantId, now);
-    return { kind: 'reused', revokedFamily: existing.grantId };
+    // The revocation is the control and the row only reports it, so a
+    // failed insert is rolled back to its savepoint and logged, never
+    // allowed to take the revocation down with it.
+    try {
+      await withSavepoint(tx, (inner) =>
+        auditRepository(inner).record({
+          eventType: 'token',
+          action: 'grant.revoked_on_reuse',
+          outcome: 'allowed',
+          actorSubjectId: family?.subjectId ?? null,
+          actorClientId: family?.clientId ?? null,
+          resourceType: 'grant',
+          resourceId: existing.grantId,
+          detail: { reason: 'replayed' },
+        }),
+      );
+    } catch (error) {
+      logger.error(
+        { err: error, grantId: existing.grantId },
+        'could not record a grant revoked on refresh token reuse',
+      );
+    }
+    return {
+      kind: 'reused',
+      revokedFamily: existing.grantId,
+      subjectId: family?.subjectId ?? null,
+    };
   }
 
   const grant = await tokenGrantRepository(tx).byId(consumed.grantId);

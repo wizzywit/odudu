@@ -6,7 +6,11 @@ import {
   isPasswordAuthMethod,
   type ClientSecretLimiter,
 } from '#/service/client-secret-throttle';
-import { invalidClient, TokenError, TokenRateLimited } from '#/service/errors';
+import { invalidClient, TokenError, TokenRateLimited, withAudit } from '#/service/errors';
+
+export interface RefusalLogger {
+  warn(details: Record<string, unknown>, message: string): void;
+}
 
 // Every caller of `authenticateClient` — `/token` and `/introspect` alike —
 // authenticates a registered OAuth client the same way, against the same
@@ -20,6 +24,7 @@ export interface ClientAuthenticationDeps {
   // `apps/server/src/throttle.ts`'s `slidingWindow`; protocol-oidc only
   // ever sees the shape.
   clientSecretLimiter: ClientSecretLimiter;
+  logger: RefusalLogger;
 }
 
 export interface BasicCredentials {
@@ -88,30 +93,43 @@ async function verifyClientCredentials(
   oauthClientId: string,
   basic: BasicCredentials | undefined,
   bodyClientSecret: string | undefined,
+  attemptedMethod: string,
 ): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
   const client = await clientRepository(tx).byClientId(oauthClientId);
-  if (client === null) throw invalidClient(WWW_AUTHENTICATE);
+  // No row: a client_id nobody registered names no principal to record
+  // against, and a row per guess would be unbounded (ADR 0037).
+  if (client === null) {
+    deps.logger.warn(
+      { tenantId: deps.tenantId, claimedClientId: oauthClientId },
+      'client authentication refused for an unregistered client_id',
+    );
+    throw invalidClient(WWW_AUTHENTICATE);
+  }
 
   const config = await clientOidcConfigRepository(tx).byClientId(client.id);
   if (config === null) throw invalidClient(WWW_AUTHENTICATE);
 
+  const refused = (): TokenError =>
+    withAudit(invalidClient(WWW_AUTHENTICATE), {
+      action: 'client.authenticate',
+      reason: 'bad_credential',
+      clientDbId: client.id,
+      method: attemptedMethod,
+    });
+
   let presented: string | null;
   if (basic !== undefined) {
-    if (config.tokenEndpointAuthMethod !== 'client_secret_basic') {
-      throw invalidClient(WWW_AUTHENTICATE);
-    }
+    if (config.tokenEndpointAuthMethod !== 'client_secret_basic') throw refused();
     presented = basic.secret;
   } else if (bodyClientSecret !== undefined) {
-    if (config.tokenEndpointAuthMethod !== 'client_secret_post') {
-      throw invalidClient(WWW_AUTHENTICATE);
-    }
+    if (config.tokenEndpointAuthMethod !== 'client_secret_post') throw refused();
     presented = bodyClientSecret;
   } else {
     presented = null;
   }
 
   const ok = await verifyClientSecret(client, presented, deps.verifyPassword);
-  if (!ok) throw invalidClient(WWW_AUTHENTICATE);
+  if (!ok) throw refused();
 
   return { client, config };
 }
@@ -147,7 +165,14 @@ export async function authenticateClient(
         : undefined;
 
   try {
-    return await verifyClientCredentials(tx, deps, oauthClientId, basic, bodyClientSecret);
+    return await verifyClientCredentials(
+      tx,
+      deps,
+      oauthClientId,
+      basic,
+      bodyClientSecret,
+      attemptedMethod ?? 'none',
+    );
   } catch (err) {
     if (
       err instanceof TokenError &&
@@ -157,7 +182,12 @@ export async function authenticateClient(
       const decision = deps.clientSecretLimiter.check(
         clientSecretLimiterKey(deps.tenantId, oauthClientId),
       );
-      if (!decision.allowed) throw new TokenRateLimited(decision.retryAfterSeconds);
+      if (!decision.allowed) {
+        throw new TokenRateLimited(
+          decision.retryAfterSeconds,
+          err.audit === undefined ? undefined : { ...err.audit, reason: 'rate_limited' },
+        );
+      }
     }
     throw err;
   }

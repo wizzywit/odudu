@@ -5,8 +5,13 @@ import {
   verifyJwtAgainstJwkSet,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
-import { auditRepository, type RequestContext } from '@odudu/domain-audit';
+import {
+  withSavepoint,
+  withTenant,
+  type DatabaseHandle,
+  type TenantScopedDatabase,
+} from '@odudu/db';
+import { auditRepository, type AuditReason, type RequestContext } from '@odudu/domain-audit';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
 import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
@@ -34,8 +39,12 @@ import {
   invalidRequest,
   invalidScope,
   invalidTarget,
+  TokenError,
   unauthorizedClient,
   unsupportedGrantType,
+  withAudit,
+  type TokenErrorCode,
+  type TokenRefusalAudit,
 } from '#/service/errors';
 import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { parseResource } from '#/service/resource-indicator';
@@ -60,6 +69,7 @@ import {
   readOptionalField,
   WWW_AUTHENTICATE,
   type ClientAuthenticationDeps,
+  type RefusalLogger,
 } from '#/usecase/client-authentication';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
@@ -98,8 +108,9 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // `clientSecretLimiter` above.
   clientKeySet: ClientKeySet;
   // Where a private_key_jwt refusal's real cause goes — the caller sees
-  // one invalid_client whatever it was; see
-  // authenticatePrivateKeyJwt below.
+  // one invalid_client whatever it was; see authenticatePrivateKeyJwt
+  // below — and where a revocation's audit row goes when it cannot be
+  // written.
   logger: AssertionLogger;
   // Gates tls_client_auth exactly the way it already gates Fastify's own
   // `X-Forwarded-*` trust (apps/server/src/app.ts) — the proxy-supplied
@@ -116,8 +127,8 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   request: RequestContext;
 }
 
-export interface AssertionLogger {
-  warn(details: Record<string, unknown>, message: string): void;
+export interface AssertionLogger extends RefusalLogger {
+  error(details: Record<string, unknown>, message: string): void;
 }
 
 export interface TokenResponse {
@@ -297,16 +308,25 @@ async function redeemAuthorizationCode(
     // part of the decision that already rejected this call above.
     const existing = await authorizationCodeRepository(tx).byHash(codeHash);
     const grantId = existing?.grantId;
-    if (grantId !== null && grantId !== undefined) {
-      const revokedAt = deps.clock.now();
-      await withTenant(
-        deps.database.db,
-        deps.tenantId,
-        (revokeTx) => tokenGrantRepository(revokeTx).revoke(grantId, revokedAt),
-        deps.request,
-      );
-    }
-    throw invalidGrant();
+    if (existing === null || grantId === null || grantId === undefined) throw invalidGrant();
+
+    const revokedAt = deps.clock.now();
+    await withTenant(
+      deps.database.db,
+      deps.tenantId,
+      async (revokeTx) => {
+        await tokenGrantRepository(revokeTx).revoke(grantId, revokedAt);
+        await recordCodeReplayRevocation(revokeTx, deps, client, existing.subjectId, grantId);
+      },
+      deps.request,
+    );
+    throw withAudit(invalidGrant(), {
+      action: 'token.issue',
+      reason: 'replayed',
+      clientDbId: client.id,
+      subjectId: existing.subjectId,
+      grantId,
+    });
   }
 
   const decision = evaluateAuthorizationCodeGrant(record, client, {
@@ -316,6 +336,37 @@ async function redeemAuthorizationCode(
   if (!decision.ok) throw invalidGrant();
 
   return record;
+}
+
+// The revocation is the control and the row only reports it: a failed
+// insert rolls back to its savepoint and is logged, and the revocation
+// commits regardless.
+async function recordCodeReplayRevocation(
+  tx: TenantScopedDatabase,
+  deps: TokenIssuanceDeps,
+  client: ClientRecord,
+  subjectId: string,
+  grantId: string,
+): Promise<void> {
+  try {
+    await withSavepoint(tx, (inner) =>
+      auditRepository(inner).record({
+        eventType: 'token',
+        action: 'grant.revoked_on_code_replay',
+        outcome: 'allowed',
+        actorSubjectId: subjectId,
+        actorClientId: client.id,
+        resourceType: 'grant',
+        resourceId: grantId,
+        detail: { reason: 'replayed' },
+      }),
+    );
+  } catch (error) {
+    deps.logger.error(
+      { err: error, grantId },
+      'could not record a grant revoked on authorization code replay',
+    );
+  }
 }
 
 // RFC 8707 §2 at /token: what a request's `resource` narrows `base` to.
@@ -694,9 +745,19 @@ async function issueRefreshTokens(
         config.refreshTokenTtlSeconds,
         deps.lifespans,
         presentedScope,
+        deps.logger,
       ),
     deps.request,
   );
+  if (outcome.kind === 'reused') {
+    throw withAudit(invalidGrant(), {
+      action: 'token.refresh',
+      reason: 'replayed',
+      clientDbId: client.id,
+      grantId: outcome.revokedFamily,
+      ...(outcome.subjectId === null ? {} : { subjectId: outcome.subjectId }),
+    });
+  }
   if (outcome.kind !== 'rotated') throw invalidGrant();
 
   const grant: TokenGrantRecord = outcome.grant;
@@ -870,12 +931,29 @@ function refusePrivateKeyJwt(
   deps: TokenIssuanceDeps,
   reason: string,
   claimedClientId?: string,
+  resolved?: { client: ClientRecord; reason: AuditReason },
 ): never {
   deps.logger.warn(
     { reason, ...(claimedClientId !== undefined ? { claimedClientId } : {}) },
     'private_key_jwt authentication refused',
   );
-  throw invalidClient(WWW_AUTHENTICATE);
+  throw refusedAuthentication('private_key_jwt', resolved);
+}
+
+// A refusal is recorded only once the claimed client resolved to a
+// registered one; before that it names nobody (ADR 0037).
+function refusedAuthentication(
+  method: string,
+  resolved: { client: ClientRecord; reason: AuditReason } | undefined,
+): TokenError {
+  const refusal = invalidClient(WWW_AUTHENTICATE);
+  if (resolved === undefined) return refusal;
+  return withAudit(refusal, {
+    action: 'client.authenticate',
+    reason: resolved.reason,
+    clientDbId: resolved.client.id,
+    method,
+  });
 }
 
 // RFC 7523 §2.2 / OIDC Core §9's `private_key_jwt`. Every failure reports
@@ -890,23 +968,29 @@ async function authenticatePrivateKeyJwt(
   outcome: Exclude<AssertionOutcome, { kind: 'unsupported' }>,
   tokenEndpoint: string,
 ): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
-  const fail = (reason: string): never =>
-    refusePrivateKeyJwt(deps, reason, outcome.kind === 'ok' ? outcome.claimedClientId : undefined);
+  const fail = (reason: string, resolved?: { client: ClientRecord; reason: AuditReason }): never =>
+    refusePrivateKeyJwt(
+      deps,
+      reason,
+      outcome.kind === 'ok' ? outcome.claimedClientId : undefined,
+      resolved,
+    );
 
   if (outcome.kind !== 'ok') return fail('assertion failed structural validation');
 
   const client = await clientRepository(tx).byClientId(outcome.claimedClientId);
   if (client === null) return fail('unknown client');
+  const badCredential = { client, reason: 'bad_credential' } as const;
   // `authenticateClient`'s password path gets this only incidentally, inside
   // `verifyClientSecret` (packages/domain-tenant/src/service/client.ts) —
   // this path calls no such function, so a disabled client must be refused
   // here explicitly or the operator's one revocation lever does nothing to
   // a private_key_jwt client.
-  if (!client.enabled) return fail('client is disabled');
+  if (!client.enabled) return fail('client is disabled', badCredential);
 
   const config = await clientOidcConfigRepository(tx).byClientId(client.id);
   if (config?.tokenEndpointAuthMethod !== 'private_key_jwt') {
-    return fail('client is not registered for private_key_jwt');
+    return fail('client is not registered for private_key_jwt', badCredential);
   }
 
   let jwks: unknown;
@@ -916,10 +1000,10 @@ async function authenticatePrivateKeyJwt(
     try {
       jwks = await deps.clientKeySet.fetch(config.jwksUri, deps.tenantId);
     } catch (err) {
-      return fail(err instanceof Error ? err.message : 'jwks_uri fetch failed');
+      return fail(err instanceof Error ? err.message : 'jwks_uri fetch failed', badCredential);
     }
   } else {
-    return fail('client publishes no keys');
+    return fail('client publishes no keys', badCredential);
   }
 
   const verified = await verifyJwtAgainstJwkSet(outcome.assertion, jwks, {
@@ -927,7 +1011,7 @@ async function authenticatePrivateKeyJwt(
     audience: tokenEndpoint,
     now: deps.clock.now(),
   });
-  if (!verified) return fail('assertion signature did not verify');
+  if (!verified) return fail('assertion signature did not verify', badCredential);
 
   const claimed = await assertionJtiRepository(deps.database).claim(
     deps.tenantId,
@@ -935,7 +1019,7 @@ async function authenticatePrivateKeyJwt(
     outcome.jti,
     outcome.expiresAt,
   );
-  if (!claimed) return fail('jti already spent');
+  if (!claimed) return fail('jti already spent', { client, reason: 'replayed' });
 
   return { client, config };
 }
@@ -949,12 +1033,16 @@ function refuseTlsClientAuth(
   deps: TokenIssuanceDeps,
   reason: string,
   claimedClientId?: string,
+  client?: ClientRecord,
 ): never {
   deps.logger.warn(
     { reason, ...(claimedClientId !== undefined ? { claimedClientId } : {}) },
     'tls_client_auth authentication refused',
   );
-  throw invalidClient(WWW_AUTHENTICATE);
+  throw refusedAuthentication(
+    'tls_client_auth',
+    client === undefined ? undefined : { client, reason: 'bad_credential' },
+  );
 }
 
 // RFC 8705 §2.1's PKI mutual-TLS method, proxy-terminated
@@ -977,7 +1065,8 @@ async function authenticateTlsClientAuth(
 
   const client = await clientRepository(tx).byClientId(claimedClientId);
   if (client === null) return refuseTlsClientAuth(deps, 'unknown client', claimedClientId);
-  if (!client.enabled) return refuseTlsClientAuth(deps, 'client is disabled', claimedClientId);
+  if (!client.enabled)
+    return refuseTlsClientAuth(deps, 'client is disabled', claimedClientId, client);
   // tls_client_auth is a confidential-client method — checked again here
   // rather than trusted from registration. The only confidentiality check
   // on this path: `evaluateClientCredentialsGrant` also refuses a public
@@ -986,7 +1075,7 @@ async function authenticateTlsClientAuth(
   // for those grants this is the only thing standing between a public
   // client and a token.
   if (client.type !== 'confidential') {
-    return refuseTlsClientAuth(deps, 'client is not confidential', claimedClientId);
+    return refuseTlsClientAuth(deps, 'client is not confidential', claimedClientId, client);
   }
 
   const config = await clientOidcConfigRepository(tx).byClientId(client.id);
@@ -1002,6 +1091,7 @@ async function authenticateTlsClientAuth(
       deps,
       'client is not registered for tls_client_auth',
       claimedClientId,
+      client,
     );
   }
   // Unreachable only because the check immediately above already pinned
@@ -1016,6 +1106,7 @@ async function authenticateTlsClientAuth(
       deps,
       'client has no registered certificate subject',
       claimedClientId,
+      client,
     );
   }
   if (!tlsClientAuthSubjectMatches(certificateSubject, config.tlsClientAuthSubjectDn)) {
@@ -1023,6 +1114,7 @@ async function authenticateTlsClientAuth(
       deps,
       'certificate subject does not match the registered value',
       claimedClientId,
+      client,
     );
   }
 
@@ -1352,6 +1444,57 @@ export async function issueTokens(
         ? await authenticateTlsClientAuth(tx, deps, certificateSubject, request.clientId)
         : await authenticateClient(tx, deps, basic, request.clientId, bodyClientSecret);
 
+  try {
+    return await issueForAuthenticatedClient(tx, deps, request, client, config);
+  } catch (err) {
+    if (err instanceof TokenError && err.audit === undefined) {
+      throw annotatedAfterAuthentication(err, request.grantType, client);
+    }
+    throw err;
+  }
+}
+
+const GRANT_REFUSAL_ACTIONS: Readonly<
+  Record<StructuredRequest['grantType'], TokenRefusalAudit['action']>
+> = {
+  authorization_code: 'token.issue',
+  client_credentials: 'token.issue',
+  refresh_token: 'token.refresh',
+  [TOKEN_EXCHANGE_GRANT]: 'token.exchange',
+};
+
+// `invalid_request` has no reason here: it describes a malformed request,
+// not a decision about the client that sent it.
+const REFUSAL_REASONS: Readonly<Partial<Record<TokenErrorCode, AuditReason>>> = {
+  invalid_grant: 'invalid_grant',
+  invalid_scope: 'invalid_scope',
+  invalid_target: 'invalid_target',
+  unauthorized_client: 'unauthorized_client',
+};
+
+// ADR 0037: a refusal once the client has authenticated is recorded
+// unconditionally, since the client it names is proven.
+function annotatedAfterAuthentication(
+  err: TokenError,
+  grantType: StructuredRequest['grantType'],
+  client: ClientRecord,
+): TokenError {
+  const reason = REFUSAL_REASONS[err.error];
+  if (reason === undefined) return err;
+  return withAudit(err, {
+    action: GRANT_REFUSAL_ACTIONS[grantType],
+    reason,
+    clientDbId: client.id,
+  });
+}
+
+async function issueForAuthenticatedClient(
+  tx: TenantScopedDatabase,
+  deps: TokenIssuanceDeps,
+  request: StructuredRequest,
+  client: ClientRecord,
+  config: ClientOidcConfig,
+): Promise<TokenResponse> {
   // RFC 6749 §5.2. Until this landed, `config.grantTypes` gated only
   // whether a refresh token was issued, so a client could use any grant
   // this server implements regardless of what it registered for.

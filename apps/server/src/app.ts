@@ -20,7 +20,12 @@ import {
 } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
-import { clientKeySet, oidcRoutes, standardClaimMappers } from '@odudu/protocol-oidc';
+import {
+  clientKeySet,
+  oidcRoutes,
+  standardClaimMappers,
+  type AuditRefusalBudget,
+} from '@odudu/protocol-oidc';
 import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
@@ -118,6 +123,27 @@ export const DEFAULT_THROTTLE: ThrottleSettings = { limit: 10, windowSeconds: 60
 // unusual, and the two budgets being the same shape is easier for an
 // operator to reason about than a third, unrelated pair of numbers.
 export const DEFAULT_CLIENT_SECRET_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
+
+// ADR 0037: the most client authentication refusal rows one registered
+// client can put in the audit table per window, the last of them saying the
+// budget ran out. Past it, refusals are warn lines until the window reopens.
+export const AUDIT_REFUSAL_ROWS_PER_CLIENT = 20;
+export const AUDIT_REFUSAL_WINDOW_SECONDS = 60;
+
+export function auditRefusalBudget(now: () => Date): AuditRefusalBudget {
+  const rows = slidingWindow({
+    limit: AUDIT_REFUSAL_ROWS_PER_CLIENT - 1,
+    windowSeconds: AUDIT_REFUSAL_WINDOW_SECONDS,
+    now,
+  });
+  const closing = slidingWindow({ limit: 1, windowSeconds: AUDIT_REFUSAL_WINDOW_SECONDS, now });
+  return {
+    take: (key) => {
+      if (rows.check(key).allowed) return 'row';
+      return closing.check(key).allowed ? 'last_row' : 'log';
+    },
+  };
+}
 
 /**
  * The throttled routes, by the pattern Fastify matched rather than by the
@@ -242,6 +268,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       ownerDatabase: deps.ownerDatabase,
       kek: deps.kek,
       clientSecretLimiter,
+      auditRefusalBudget: auditRefusalBudget(() => new Date()),
       clientKeySet: privateKeyJwtKeySet,
       claimMappers,
       ...(deps.publicBaseUrl === undefined ? {} : { publicBaseUrl: deps.publicBaseUrl }),

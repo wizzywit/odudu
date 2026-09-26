@@ -60,6 +60,7 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
       tenantId: tenant.id,
       verifyPassword: deps.verifyPassword,
       clientSecretLimiter: deps.clientSecretLimiter,
+      logger: request.log,
       issuer,
       keys,
       lifespans: {

@@ -1,7 +1,7 @@
 import { type DatabaseHandle } from '@odudu/db';
 import { loadConfig } from '@odudu/kernel';
 import { describe, expect, it } from 'vitest';
-import { buildApp } from '#/app';
+import { AUDIT_REFUSAL_ROWS_PER_CLIENT, auditRefusalBudget, buildApp } from '#/app';
 import { createLogger } from '#/logger';
 
 const config = loadConfig({
@@ -91,5 +91,25 @@ describe('admin routes', () => {
       url: '/tenants/acme/.well-known/openid-configuration',
     });
     expect(discovery.statusCode).not.toBe(401);
+  });
+});
+
+describe('auditRefusalBudget', () => {
+  it('answers row until the last row of the window, then log until it reopens', () => {
+    let now = new Date('2026-09-26T00:00:00Z');
+    const budget = auditRefusalBudget(() => now);
+
+    const answers = Array.from({ length: AUDIT_REFUSAL_ROWS_PER_CLIENT + 2 }, () =>
+      budget.take('tenant:client'),
+    );
+
+    expect(answers.filter((answer) => answer === 'row')).toHaveLength(
+      AUDIT_REFUSAL_ROWS_PER_CLIENT - 1,
+    );
+    expect(answers.slice(AUDIT_REFUSAL_ROWS_PER_CLIENT - 1)).toEqual(['last_row', 'log', 'log']);
+    expect(budget.take('tenant:another-client')).toBe('row');
+
+    now = new Date(now.getTime() + 61_000);
+    expect(budget.take('tenant:client')).toBe('row');
   });
 });

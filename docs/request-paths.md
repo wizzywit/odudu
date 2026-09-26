@@ -4737,6 +4737,200 @@ A redemption that fails for any other reason — wrong verifier, wrong
 attempt is rolled back. Verified: after all three failures above, the
 correct redemption of the same code still returned 200.
 
+### What a refused token request leaves in the audit log
+
+A refusal at `/token` or `/revoke` rolls its own transaction back, so its
+row is written afterwards, in a transaction of its own, and a failure to
+write it is logged rather than returned: the response is the one the caller
+would have had with no audit at all. Which refusals write a row is decided
+by what the request names ([ADR 0037](adr/0037-refusal-rows-are-bounded-by-the-principal-they-name.md)).
+Every command below carries its own `x-request-id` and every query is
+scoped to those ids, captured against the stack
+[what a refused login leaves behind](#what-a-refused-login-leaves-behind)
+was, with `demo-backend` seeded as in [Bootstrap](#bootstrap).
+
+A wrong secret for a registered client, and a `client_id` nobody
+registered:
+
+```bash
+curl -sS -w '\n%{http_code}\n' -H 'x-request-id: token-refused-wrong-secret' \
+  -u demo-backend:wrong-secret --data-urlencode 'grant_type=client_credentials' \
+  "$BASE/token"
+curl -sS -w '\n%{http_code}\n' -H 'x-request-id: token-refused-unknown-client' \
+  -u nobody-here:anything --data-urlencode 'grant_type=client_credentials' \
+  "$BASE/token"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.event_type, e.action, e.outcome, c.client_id as actor_client, e.request_id, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id in ('token-refused-wrong-secret', 'token-refused-unknown-client');"
+docker compose logs odudu | grep 'unregistered client_id' | sed 's/^[^|]*| //'
+```
+
+```
+{"error":"invalid_client"}
+401
+{"error":"invalid_client"}
+401
+-[ RECORD 1 ]+--------------------------------------------------------------
+event_type   | authentication
+action       | client.authenticate
+outcome      | refused
+actor_client | demo-backend
+request_id   | token-refused-wrong-secret
+detail       | {"method": "client_secret_basic", "reason": "bad_credential"}
+
+{"level":40,"time":1790394525341,"pid":1,"hostname":"d7d0702d851a","reqId":"token-refused-unknown-client","tenantId":"01a0db22-1c32-7d17-b351-697d7911033c","claimedClientId":"nobody-here","msg":"client authentication refused for an unregistered client_id"}
+```
+
+- **The two answers are the same bytes; one wrote a row and one did not.**
+  A registered client is a principal the row can name, and at most twenty
+  of its refusals a minute become rows, the twentieth saying
+  `rate_limited`, before the rest become `warn` lines. A `client_id` nobody
+  registered names nobody, so it is a `warn` line from the first attempt:
+  otherwise every guessed name would be a row. `method` is the method the
+  request attempted, never the one the client registered.
+
+Reusing a refresh token, and replaying the code it came from. `$R1` here is
+a refresh token already rotated once, and `$CODE` with `$VERIFIER` the code
+that issued it, both from a fresh Path A run:
+
+```bash
+curl -sS -w '\n' -H 'x-request-id: token-refused-reuse' \
+  --data-urlencode 'grant_type=refresh_token' --data-urlencode "refresh_token=$R1" \
+  --data-urlencode 'client_id=demo-spa' "$BASE/token"
+curl -sS -w '\n' -H 'x-request-id: token-refused-code-replay' \
+  --data-urlencode 'grant_type=authorization_code' --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' --data-urlencode "code_verifier=$VERIFIER" \
+  "$BASE/token"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.action, e.outcome, e.actor_subject_id, c.client_id as actor_client,
+          e.resource_type, e.resource_id, e.request_id, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id in ('token-refused-reuse', 'token-refused-code-replay')
+    order by e.request_id desc, e.outcome;"
+```
+
+```
+{"error":"invalid_grant"}
+{"error":"invalid_grant"}
+-[ RECORD 1 ]----+-------------------------------------
+action           | grant.revoked_on_reuse
+outcome          | allowed
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | grant
+resource_id      | 01a0dbd4-68b9-7588-ab70-b9d5003341af
+request_id       | token-refused-reuse
+detail           | {"reason": "replayed"}
+-[ RECORD 2 ]----+-------------------------------------
+action           | token.refresh
+outcome          | refused
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | grant
+resource_id      | 01a0dbd4-68b9-7588-ab70-b9d5003341af
+request_id       | token-refused-reuse
+detail           | {"reason": "replayed"}
+-[ RECORD 3 ]----+-------------------------------------
+action           | grant.revoked_on_code_replay
+outcome          | allowed
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | grant
+resource_id      | 01a0dbd4-68b9-7588-ab70-b9d5003341af
+request_id       | token-refused-code-replay
+detail           | {"reason": "replayed"}
+-[ RECORD 4 ]----+-------------------------------------
+action           | token.issue
+outcome          | refused
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | grant
+resource_id      | 01a0dbd4-68b9-7588-ab70-b9d5003341af
+request_id       | token-refused-code-replay
+detail           | {"reason": "replayed"}
+```
+
+- **Each replay writes what the server did and what it refused.** The
+  `grant.revoked_on_*` row is written in the transaction that revokes, and
+  a failure to write it cannot undo the revocation; the refusal row names
+  the same grant. The code replay revokes a grant the reuse had already
+  revoked, which is why both name one `resource_id`.
+- **A refusal after the client authenticated is always a row**:
+  `invalid_grant`, `invalid_scope`, `invalid_target` and
+  `unauthorized_client`, under `token.issue`, `token.refresh` or
+  `token.exchange` by grant type. `invalid_request` is not recorded; it
+  describes the request, not a decision about the client.
+- **A refresh can leave an `allowed` and a `refused` `token.refresh` under
+  one request id.** When the rotation commits and the check after it then
+  refuses (a revocation or a disabled subject landing between the two), the
+  `allowed` row is true, the presented token was consumed and a
+  replacement exists, and the refusal says why none was returned.
+
+`/revoke` records a revocation it performs, and a refusal to revoke another
+client's grant. `$RT` is a refresh token `demo-spa` holds, fresh from
+another Path A run:
+
+```bash
+curl -sS -w '\n%{http_code}\n' -H 'x-request-id: revoke-foreign-grant' \
+  -u demo-backend:demo-backend-secret --data-urlencode "token=$RT" "$BASE/revoke"
+curl -sS -w '%{http_code}\n' -H 'x-request-id: revoke-own-grant' \
+  --data-urlencode 'client_id=demo-spa' --data-urlencode "token=$RT" "$BASE/revoke"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.action, e.outcome, e.actor_subject_id, c.client_id as actor_client,
+          e.resource_type, e.resource_id, e.request_id, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id in ('revoke-foreign-grant', 'revoke-own-grant')
+    order by e.occurred_at;"
+```
+
+```
+{"error":"invalid_grant"}
+400
+200
+-[ RECORD 1 ]----+-------------------------------------
+action           | token.revoke
+outcome          | refused
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-backend
+resource_type    | grant
+resource_id      | 01a0dbd6-0207-7337-8006-201eac7bb5ef
+request_id       | revoke-foreign-grant
+detail           | {"reason": "invalid_grant"}
+-[ RECORD 2 ]----+-------------------------------------
+action           | token.revoke
+outcome          | allowed
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | grant
+resource_id      | 01a0dbd6-0207-7337-8006-201eac7bb5ef
+request_id       | revoke-own-grant
+detail           | {}
+```
+
+A token this server never issued still answers `200`, and writes nothing,
+because nothing was revoked:
+
+```bash
+curl -sS -w '%{http_code}\n' -H 'x-request-id: revoke-unknown-token' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'token=not-a-token-this-server-issued' "$BASE/revoke"
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select count(*) from audit_events where request_id = 'revoke-unknown-token';"
+```
+
+```
+200
+ count
+-------
+     0
+(1 row)
+```
+
 ## Retention: what `odudu reap` removes
 
 Everything above leaves rows behind, and nothing in any repository deletes
@@ -8570,30 +8764,29 @@ session lifecycle. A citation of either half here means that half.
 **The admin API**
 
 - **The audit log records administrative mutations, login steps, sessions
-  and tokens issued, and nothing else.** A password, a second factor, a
+  and tokens, and no credential change.** A password, a second factor, a
   passkey, the factor offered after a first one and a lockout tripping each
   write an `authentication` row ([what a refused login leaves behind](#what-a-refused-login-leaves-behind)),
   a session starting or ending writes a `session` row
   ([what a session leaves in the audit log](#what-a-session-leaves-in-the-audit-log)),
-  and a token minted, refreshed or exchanged writes a `token` row
-  (`token.issue`, `token.refresh`, `token.exchange`; the last's
-  `requested_token_type` records the effective requested type, `access_token`
-  when none was named). A token revoked, a
-  grant revoked on reuse or code replay, a client failing to authenticate
-  and a credential enrolled leave no trace — `?event_type=` narrows to any
-  of the vocabulary's six values, and nothing yet writes `credential`,
-  `token.revoke`, either `grant.revoked_on_*`, nor `authentication`'s
-  `client.authenticate`. **P4e**, whose criterion names those events.
-- **No refusal outside the login steps and the admin API is recorded.**
-  Every refused login step writes a `refused` row under
-  `resource_type: authentication_session`, and the admin API records the
-  refusals its own checks make (`client.create`'s, and the privilege
-  ceilings on subject, role, group and scope changes). A refused token
-  request, a client failing to authenticate (`client.authenticate`), and a
-  refused session or credential change write nothing, so `?event_type=token`,
-  `session` or `credential` with `?outcome=refused` returns nothing — which
-  reads as "nothing was refused" and is not. **P4e**, whose criterion names
-  those events and the refusals among them.
+  and a token minted, refreshed, exchanged or revoked writes a `token` row
+  (`token.issue`, `token.refresh`, `token.exchange`, `token.revoke`; the
+  exchange's `requested_token_type` records the effective requested type,
+  `access_token` when none was named), as does a grant revoked on reuse or
+  code replay ([what a refused token request leaves in the audit log](#what-a-refused-token-request-leaves-in-the-audit-log)).
+  A credential enrolled, reset or changed leaves no trace — `?event_type=`
+  narrows to any of the vocabulary's six values, and nothing yet writes
+  `credential`. **P4e**, whose criterion names those events.
+- **No refused session or credential change is recorded.** Every refused login step
+  writes a `refused` row under `resource_type: authentication_session`, a
+  refused `/token` or `/revoke` request writes one under ADR 0037's bounds,
+  and the admin API records the refusals its own checks make
+  (`client.create`'s, and the privilege ceilings on subject, role, group and
+  scope changes). A refused session or credential change writes nothing,
+  so `?event_type=session` or `credential` with `?outcome=refused` returns
+  nothing — which reads as
+  "nothing was refused" and is not. **P4e**, whose criterion names those
+  events and the refusals among them.
 - **A request refused for a cross-tenant issuer mismatch writes no row.** A
   bearer token naming an issuer that is neither this tenant nor the system
   tenant is refused before its signature can be checked, since an

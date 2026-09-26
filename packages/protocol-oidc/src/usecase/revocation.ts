@@ -1,8 +1,9 @@
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import { tokenGrantRepository } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
-import { invalidGrant } from '#/service/errors';
+import { invalidGrant, withAudit } from '#/service/errors';
 import { hashRefreshToken } from '#/service/refresh';
 import {
   authenticateClient,
@@ -78,7 +79,15 @@ export async function respondToRevocationRequest(
   // requesting client. A grant genuinely found under a different client is
   // refused, never treated as unknown — the boundary §2.2's blanket success
   // stops short of.
-  if (grant.clientId !== client.id) throw invalidGrant();
+  if (grant.clientId !== client.id) {
+    throw withAudit(invalidGrant(), {
+      action: 'token.revoke',
+      reason: 'invalid_grant',
+      clientDbId: client.id,
+      subjectId: grant.subjectId,
+      grantId: grant.id,
+    });
+  }
 
   if (grant.revokedAt !== null) return;
 
@@ -87,4 +96,13 @@ export async function respondToRevocationRequest(
   // same way `rotateRefreshToken` reads `grant.revokedAt` rather than
   // anything on the presented token itself.
   await tokenGrantRepository(tx).revoke(grant.id, now);
+  await auditRepository(tx).record({
+    eventType: 'token',
+    action: 'token.revoke',
+    outcome: 'allowed',
+    actorSubjectId: grant.subjectId,
+    actorClientId: client.id,
+    resourceType: 'grant',
+    resourceId: grant.id,
+  });
 }

@@ -39,6 +39,7 @@ import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { hashRefreshToken } from '#/service/refresh';
 import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -326,6 +327,7 @@ beforeAll(async () => {
       kek: KEK,
       clock: fakeClock,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
