@@ -2812,54 +2812,80 @@ seeded user always has been.
 A created account writes one `credential` row, `account.registered`, in the
 transaction that creates it, and a redeemed verification link writes
 `email.verified` in the transaction that consumes it. A refusal writes
-neither: a taken address or a policy violation is a form error, and a spent
-link names nobody the caller has proved anything about. This ran against its
-own tenant, so the account and the mailed link are the only ones in play,
-and each request carries an `x-request-id` the query below is scoped to:
+neither: a taken address is a form error, and a spent link names nobody the
+caller has proved anything about. This ran against its own tenant,
+`signup-audit`, created by the two seed commands below, so the account and
+the mailed link are the only ones in play. Every request carries an
+`x-request-id` starting `signup-audit-`, and the query below reads back
+exactly those.
+
+The second registration differs from the first only in its username, so the
+address is the only thing that can refuse it:
 
 ```bash
-odudu seed --tenant register-audit --client register-audit-spa \
+odudu seed --tenant signup-audit --client signup-audit-spa \
   --redirect-uri http://localhost:8080/callback
-odudu seed tenant --name register-audit \
+odudu seed tenant --name signup-audit \
   --set registration_allowed=true --set verify_email=true
 
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/register-audit/login-actions/registration \
-  -H 'x-request-id: register-audit-ada' \
+  -X POST http://localhost:3000/tenants/signup-audit/login-actions/registration \
+  -H 'x-request-id: signup-audit-ada' \
   --data-urlencode 'username=ada' \
   --data-urlencode 'email=ada@example.com' \
   --data-urlencode 'password=correct-horse-battery'
-curl -sS -o /dev/null -w '%{http_code}\n' \
-  -X POST http://localhost:3000/tenants/register-audit/login-actions/registration \
-  -H 'x-request-id: register-audit-duplicate' \
+curl -sS -w '\n%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/signup-audit/login-actions/registration \
+  -H 'x-request-id: signup-audit-duplicate' \
   --data-urlencode 'username=carol' \
   --data-urlencode 'email=ada@example.com' \
-  --data-urlencode 'password=another-password'
+  --data-urlencode 'password=correct-horse-battery'
 ```
 
 ```
-{"created":true,"tenant":"register-audit","tenantId":"01a0dc4f-d714-7bef-a239-11d5bd1f2a72","clientId":"register-audit-spa"}
-{"command":"tenant","created":false,"tenant":"register-audit","tenantId":"01a0dc4f-d714-7bef-a239-11d5bd1f2a72","settings":["registration_allowed","verify_email"]}
+{"created":true,"tenant":"signup-audit","tenantId":"01a0dc5e-9596-7fe2-903f-e72fe1e10817","clientId":"signup-audit-spa"}
+{"command":"tenant","created":false,"tenant":"signup-audit","tenantId":"01a0dc5e-9596-7fe2-903f-e72fe1e10817","settings":["registration_allowed","verify_email"]}
 201
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can&#39;t create this account</title></head>
+<body>
+<h1>Can't create this account</h1>
+<ul>
+<li>That email address is already registered.</li>
+</ul>
+</body>
+</html>
 400
 ```
 
-The link the first registration mailed, followed twice — the second time
-it is already spent:
+The key is read out of the verification mail the first registration queued,
+which is the only message `signup-audit` has. The link is then followed
+twice; the second time it is already spent:
 
 ```bash
-KEY=hF8gx-n3NCG1iEhFmjX7Ff96sx2sTpr_ZdfUHPfhK3s
-curl -sS -o /dev/null -w '%{http_code}\n' -H 'x-request-id: verify-audit-ada' \
-  "http://localhost:3000/tenants/register-audit/login-actions/action-token?key=$KEY"
-curl -sS -o /dev/null -w '%{http_code}\n' -H 'x-request-id: verify-audit-replay' \
-  "http://localhost:3000/tenants/register-audit/login-actions/action-token?key=$KEY"
+docker compose exec -T postgres psql -U odudu -d odudu -At -c \
+  "select substring(o.body_text from 'key=([A-Za-z0-9_-]+)')
+     from email_outbox o join tenants t on t.id = o.tenant_id
+    where t.name = 'signup-audit';"
+```
+
+```
+TDknXMNC-qv54W-FspVCC7cVDcnmyUJP_AJQL_us3sU
+```
+
+```bash
+KEY=TDknXMNC-qv54W-FspVCC7cVDcnmyUJP_AJQL_us3sU
+curl -sS -o /dev/null -w '%{http_code}\n' -H 'x-request-id: signup-audit-verify' \
+  "http://localhost:3000/tenants/signup-audit/login-actions/action-token?key=$KEY"
+curl -sS -o /dev/null -w '%{http_code}\n' -H 'x-request-id: signup-audit-replay' \
+  "http://localhost:3000/tenants/signup-audit/login-actions/action-token?key=$KEY"
 
 docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
   "select e.request_id, e.event_type, e.action, e.outcome, e.actor_subject_id,
           e.resource_type, e.resource_id, e.detail
      from audit_events e
-    where e.request_id in ('register-audit-ada', 'register-audit-duplicate',
-                           'verify-audit-ada', 'verify-audit-replay')
+    where e.request_id like 'signup-audit-%'
     order by e.occurred_at;"
 ```
 
@@ -2867,28 +2893,28 @@ docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
 200
 400
 -[ RECORD 1 ]----+-------------------------------------
-request_id       | register-audit-ada
+request_id       | signup-audit-ada
 event_type       | credential
 action           | account.registered
 outcome          | allowed
-actor_subject_id | 01a0dc4f-d92f-7aeb-abe3-d5d40b44b7b3
+actor_subject_id | 01a0dc5e-97dc-7029-a57e-bf0089130db1
 resource_type    | subject
-resource_id      | 01a0dc4f-d92f-7aeb-abe3-d5d40b44b7b3
+resource_id      | 01a0dc5e-97dc-7029-a57e-bf0089130db1
 detail           | {}
 -[ RECORD 2 ]----+-------------------------------------
-request_id       | verify-audit-ada
+request_id       | signup-audit-verify
 event_type       | credential
 action           | email.verified
 outcome          | allowed
-actor_subject_id | 01a0dc4f-d92f-7aeb-abe3-d5d40b44b7b3
+actor_subject_id | 01a0dc5e-97dc-7029-a57e-bf0089130db1
 resource_type    | subject
-resource_id      | 01a0dc4f-d92f-7aeb-abe3-d5d40b44b7b3
+resource_id      | 01a0dc5e-97dc-7029-a57e-bf0089130db1
 detail           | {}
 ```
 
 Four requests, two rows: none for the duplicate address and none for the
-replayed link. `01a0dc4f-d92f-…` is the `users.subject_id` this stack holds
-for `ada` in `register-audit`. `detail` is empty on every `credential` row —
+replayed link. `01a0dc5e-97dc-…` is the `users.subject_id` this stack holds
+for `ada` in `signup-audit`. `detail` is empty on every `credential` row —
 no password, address or key is written to one, and the action names what
 happened.
 
@@ -4090,12 +4116,25 @@ not the request, which must look the same whether or not the address has an
 account; not a refused link, which names nobody the caller has proved
 anything about; and not a password the policy refuses, which is a form
 error rather than a change. This ran against its own tenant, `reset-audit`,
-seeded as `reset-demo` is above (`userSubjectId`
-`01a0dc50-76c6-7e00-9086-ac84f6c1a2f2`), with every request's
-`x-request-id` starting `reset-audit-`.
+created by the two seed commands below, with every request's `x-request-id`
+starting `reset-audit-` — six of them, all shown here:
+
+```bash
+odudu seed --tenant reset-audit --client reset-audit-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+odudu seed tenant --name reset-audit --set reset_password_allowed=true
+```
+
+```
+{"created":true,"tenant":"reset-audit","tenantId":"01a0dc50-7654-75c9-a070-33faf7d67368","clientId":"reset-audit-spa","userSubjectId":"01a0dc50-76c6-7e00-9086-ac84f6c1a2f2"}
+{"command":"tenant","created":false,"tenant":"reset-audit","tenantId":"01a0dc50-7654-75c9-a070-33faf7d67368","settings":["reset_password_allowed"]}
+```
 
 The first link was left unredeemed past its five minutes. That it is
-expired, and not spent, is what the table shows before it is submitted:
+expired, and not spent, is what the table shows before it is submitted.
+Its key is the one in the message that request queued, read from that
+message's `email_outbox` row:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
@@ -4124,15 +4163,28 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 400
 ```
 
-A second request mints a fresh link, which is then submitted with a
-password the policy refuses, with one it accepts, and once more after it is
-spent:
+A second request mints a fresh link, whose key is read from the message it
+queued — the newest of the two `reset-audit` has:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
   -X POST http://localhost:3000/tenants/reset-audit/login-actions/reset-password \
   -H 'x-request-id: reset-audit-request-2' --data-urlencode 'email=ada@example.com'
+docker compose exec -T postgres psql -U odudu -d odudu -At -c \
+  "select substring(o.body_text from 'key=([A-Za-z0-9_-]+)')
+     from email_outbox o join tenants t on t.id = o.tenant_id
+    where t.name = 'reset-audit' order by o.created_at desc limit 1;"
+```
 
+```
+200
+lA0JiQk1PNRbz9m_LTUP2PWGcFpQfukwqpn1Ig4euuc
+```
+
+That link is then submitted with a password the policy refuses, with one it
+accepts, and once more after it is spent:
+
+```bash
 KEY=lA0JiQk1PNRbz9m_LTUP2PWGcFpQfukwqpn1Ig4euuc
 curl -sS -o /dev/null -w '%{http_code}\n' \
   -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
@@ -4159,7 +4211,6 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
 ```
 
 ```
-200
 400
 200
 400
@@ -4179,7 +4230,7 @@ detail           | {}
 (1 row)
 ```
 
-Seven requests, one row. The last query reads every audit row this stack
+Six requests, one row. The last query reads every audit row this stack
 holds, in every tenant, as text: none carries the password that was set or
 the key that set it.
 
