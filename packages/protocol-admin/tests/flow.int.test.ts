@@ -112,7 +112,10 @@ async function loginWithAssertionOnly(
     signCount,
   });
   return withTenant(fixture.app.db, tenantId, (tx) =>
-    advance(tx, authSessionId, { assertion }, undefined, { publicBaseUrl: PUBLIC_BASE_URL }),
+    advance(tx, authSessionId, { assertion }, undefined, {
+      logger: { error: (): void => undefined },
+      publicBaseUrl: PUBLIC_BASE_URL,
+    }),
   );
 }
 

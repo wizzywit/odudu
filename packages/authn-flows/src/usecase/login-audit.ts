@@ -56,13 +56,12 @@ export interface LoginAudit {
  * in. The client is resolved here, before any factor runs, and every refusal
  * runs the same savepoint and one INSERT whatever it carries, so a wrong
  * password, an unknown account and a locked one issue the same statements.
- * With no logger, a failed refusal write is rethrown rather than dropped.
  */
 export async function loginAuditFor(
   tx: TenantScopedDatabase,
   authSessionId: string,
   oauthClientId: string,
-  logger?: AuditFailureLogger,
+  logger: AuditFailureLogger,
 ): Promise<LoginAudit> {
   const client = await clientRepository(tx).byClientId(oauthClientId);
   const common = {
@@ -104,7 +103,6 @@ export async function loginAuditFor(
       try {
         await withSavepoint(tx, (inner) => auditRepository(inner).recordAll(events));
       } catch (error) {
-        if (logger === undefined) throw error;
         logger.error(
           { err: error, authSessionId, action: loginActionFor(authenticator) },
           'could not record a refused login step',

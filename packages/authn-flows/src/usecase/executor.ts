@@ -585,8 +585,8 @@ export interface AdvanceInput {
 // and nothing else changes.
 export interface AdvanceOptions {
   publicBaseUrl?: string;
-  // Where a refused step's audit row goes when it cannot be written.
-  logger?: AuditFailureLogger;
+  // Where a refused step's audit-write failure is logged; the row is lost.
+  logger: AuditFailureLogger;
 }
 
 interface FlowContext {
@@ -601,7 +601,7 @@ async function loadFlowContext(
   authSessionId: string,
   clock: Clock,
   input: AdvanceInput,
-  options: AdvanceOptions,
+  options: Pick<AdvanceOptions, 'publicBaseUrl'>,
 ): Promise<FlowContext | null> {
   const record = await authenticationSessionRepository(tx).byId(authSessionId);
   if (record === null || record.expiresAt.getTime() <= clock.now().getTime()) {
@@ -774,7 +774,7 @@ export async function advance(
   authSessionId: string,
   input: AdvanceInput,
   clock: Clock = systemClock,
-  options: AdvanceOptions = {},
+  options: AdvanceOptions,
 ): Promise<AdvanceOutcome> {
   const context = await loadFlowContext(tx, authSessionId, clock, input, options);
   if (context === null) {

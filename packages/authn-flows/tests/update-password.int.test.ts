@@ -23,6 +23,8 @@ import { advance, startAuthentication, type AdvanceOutcome } from '#/usecase/exe
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
 import { completeUpdatePassword, type UpdatePasswordOutcome } from '#/usecase/update-password';
 
+const SILENT_LOGGER = { error: (): void => undefined };
+
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
@@ -118,7 +120,9 @@ async function agePassword(account: Account, days: number): Promise<void> {
 function signIn(account: Account, password: string): Promise<AdvanceOutcome> {
   return withTenant(app.db, account.tenantId, async (tx) => {
     const { authSessionId } = await startAuthentication(tx, account.tenantId, request);
-    return advance(tx, authSessionId, { username: 'ada', password });
+    return advance(tx, authSessionId, { username: 'ada', password }, undefined, {
+      logger: SILENT_LOGGER,
+    });
   });
 }
 

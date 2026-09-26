@@ -32,6 +32,8 @@ import { beginPasskeyAuthentication } from '#/usecase/passkey-authentication';
 import { completePasskeyEnrolment } from '#/usecase/passkey-enrolment';
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
 
+const SILENT_LOGGER = { error: (): void => undefined };
+
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
@@ -160,7 +162,10 @@ async function assertWithPasskey(
 
 function submit(tenantId: string, authSessionId: string, assertion: unknown) {
   return withTenant(app.db, tenantId, (tx) =>
-    advance(tx, authSessionId, { assertion }, undefined, { publicBaseUrl: PUBLIC_BASE_URL }),
+    advance(tx, authSessionId, { assertion }, undefined, {
+      logger: SILENT_LOGGER,
+      publicBaseUrl: PUBLIC_BASE_URL,
+    }),
   );
 }
 
@@ -295,11 +300,17 @@ describe('signing in with a passkey and no username', () => {
     const authSessionId = await start(tenantId);
 
     const outcome = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, {
-        username: 'ada',
-        password: PASSWORD,
-        assertion: { id: 'not-a-credential', rawId: 'x', type: 'public-key' },
-      }),
+      advance(
+        tx,
+        authSessionId,
+        {
+          username: 'ada',
+          password: PASSWORD,
+          assertion: { id: 'not-a-credential', rawId: 'x', type: 'public-key' },
+        },
+        undefined,
+        { logger: SILENT_LOGGER },
+      ),
     );
 
     expect(outcome.kind).toBe('failure');
@@ -311,7 +322,9 @@ describe('signing in with a passkey and no username', () => {
     const authSessionId = await start(tenantId);
 
     const outcome = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, undefined, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     expect(outcome).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });

@@ -23,6 +23,8 @@ import {
 } from '#/usecase/executor';
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
 
+const SILENT_LOGGER = { error: (): void => undefined };
+
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
@@ -112,7 +114,9 @@ describe('[ODUDU-AUTHN-FLOW-ORDER-01] a tenant dispatches its own ordered execut
     // inapplicable for this subject, since a conditional applicable
     // execution would be offered next instead.
     const result = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password }),
+      advance(tx, authSessionId, { username: 'ada', password }, undefined, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(result).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
   });
@@ -130,7 +134,9 @@ describe('[ODUDU-AUTHN-FLOW-ORDER-01] a tenant dispatches its own ordered execut
     });
 
     const first = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password }),
+      advance(tx, authSessionId, { username: 'ada', password }, undefined, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(first).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
 
@@ -144,7 +150,9 @@ describe('[ODUDU-AUTHN-FLOW-ORDER-01] a tenant dispatches its own ordered execut
     expect(record?.satisfied).toEqual([]);
 
     const second = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password }),
+      advance(tx, authSessionId, { username: 'ada', password }, undefined, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(second).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
   });
@@ -214,7 +222,9 @@ describe('[ODUDU-AUTHN-SESSION-EXPIRY-UNCHANGED-01] expiry is checked before the
     clock.advance(31 * 60_000);
 
     const result = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: 'x' }, clock),
+      advance(tx, authSessionId, { username: 'ada', password: 'x' }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(result).toEqual({ kind: 'failure', reason: 'authentication_session_expired' });
   });

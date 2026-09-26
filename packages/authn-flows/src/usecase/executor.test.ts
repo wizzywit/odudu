@@ -25,6 +25,8 @@ import { provisionBrowserFlow } from '#/usecase/provision-flow';
 import { type PendingRequest } from '#/schema/authentication-sessions';
 import { type Step } from '#/service/requirements';
 
+const SILENT_LOGGER = { error: (): void => undefined };
+
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
@@ -119,7 +121,9 @@ describe('[ODUDU-AUTHN-REQUEST-PARKING-01] the request is parked server-side, no
     clock.advance(31 * 60_000);
 
     const result = await withTenant(app.db, tenantId, async (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: 'x' }, clock),
+      advance(tx, authSessionId, { username: 'ada', password: 'x' }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(result).toMatchObject({ kind: 'failure' });
   });
@@ -181,12 +185,16 @@ describe('[ODUDU-AUTHN-NO-USER-ENUMERATION-01] the password step does not enumer
 
     const unknownSessionId = await sessionFor();
     const unknown = await withTenant(app.db, tenantId, async (tx) =>
-      advance(tx, unknownSessionId, { username: 'nobody', password: 'x' }),
+      advance(tx, unknownSessionId, { username: 'nobody', password: 'x' }, undefined, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     const wrongSessionId = await sessionFor();
     const wrong = await withTenant(app.db, tenantId, async (tx) =>
-      advance(tx, wrongSessionId, { username: 'ada', password: 'x' }),
+      advance(tx, wrongSessionId, { username: 'ada', password: 'x' }, undefined, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     expect(unknown).toEqual(wrong);
@@ -196,7 +204,13 @@ describe('[ODUDU-AUTHN-NO-USER-ENUMERATION-01] the password step does not enumer
     // not a step that always fails.
     const goodSessionId = await sessionFor();
     const good = await withTenant(app.db, tenantId, async (tx) =>
-      advance(tx, goodSessionId, { username: 'ada', password: 'correct-horse-battery-staple' }),
+      advance(
+        tx,
+        goodSessionId,
+        { username: 'ada', password: 'correct-horse-battery-staple' },
+        undefined,
+        { logger: SILENT_LOGGER },
+      ),
     );
     expect(good.kind).toBe('success');
   });
