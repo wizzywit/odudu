@@ -2807,6 +2807,91 @@ A tenant with `verify_email` off skips the mail and the gate above entirely:
 the account created is usable at the next login, the same way a
 seeded user always has been.
 
+### What registration and verification leave in the audit log
+
+A created account writes one `credential` row, `account.registered`, in the
+transaction that creates it, and a redeemed verification link writes
+`email.verified` in the transaction that consumes it. A refusal writes
+neither: a taken address or a policy violation is a form error, and a spent
+link names nobody the caller has proved anything about. This ran against its
+own tenant, so the account and the mailed link are the only ones in play,
+and each request carries an `x-request-id` the query below is scoped to:
+
+```bash
+odudu seed --tenant register-audit --client register-audit-spa \
+  --redirect-uri http://localhost:8080/callback
+odudu seed tenant --name register-audit \
+  --set registration_allowed=true --set verify_email=true
+
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/register-audit/login-actions/registration \
+  -H 'x-request-id: register-audit-ada' \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=correct-horse-battery'
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/register-audit/login-actions/registration \
+  -H 'x-request-id: register-audit-duplicate' \
+  --data-urlencode 'username=carol' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=another-password'
+```
+
+```
+{"created":true,"tenant":"register-audit","tenantId":"01a0dc4f-d714-7bef-a239-11d5bd1f2a72","clientId":"register-audit-spa"}
+{"command":"tenant","created":false,"tenant":"register-audit","tenantId":"01a0dc4f-d714-7bef-a239-11d5bd1f2a72","settings":["registration_allowed","verify_email"]}
+201
+400
+```
+
+The link the first registration mailed, followed twice — the second time
+it is already spent:
+
+```bash
+KEY=hF8gx-n3NCG1iEhFmjX7Ff96sx2sTpr_ZdfUHPfhK3s
+curl -sS -o /dev/null -w '%{http_code}\n' -H 'x-request-id: verify-audit-ada' \
+  "http://localhost:3000/tenants/register-audit/login-actions/action-token?key=$KEY"
+curl -sS -o /dev/null -w '%{http_code}\n' -H 'x-request-id: verify-audit-replay' \
+  "http://localhost:3000/tenants/register-audit/login-actions/action-token?key=$KEY"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.request_id, e.event_type, e.action, e.outcome, e.actor_subject_id,
+          e.resource_type, e.resource_id, e.detail
+     from audit_events e
+    where e.request_id in ('register-audit-ada', 'register-audit-duplicate',
+                           'verify-audit-ada', 'verify-audit-replay')
+    order by e.occurred_at;"
+```
+
+```
+200
+400
+-[ RECORD 1 ]----+-------------------------------------
+request_id       | register-audit-ada
+event_type       | credential
+action           | account.registered
+outcome          | allowed
+actor_subject_id | 01a0dc4f-d92f-7aeb-abe3-d5d40b44b7b3
+resource_type    | subject
+resource_id      | 01a0dc4f-d92f-7aeb-abe3-d5d40b44b7b3
+detail           | {}
+-[ RECORD 2 ]----+-------------------------------------
+request_id       | verify-audit-ada
+event_type       | credential
+action           | email.verified
+outcome          | allowed
+actor_subject_id | 01a0dc4f-d92f-7aeb-abe3-d5d40b44b7b3
+resource_type    | subject
+resource_id      | 01a0dc4f-d92f-7aeb-abe3-d5d40b44b7b3
+detail           | {}
+```
+
+Four requests, two rows: none for the duplicate address and none for the
+replayed link. `01a0dc4f-d92f-…` is the `users.subject_id` this stack holds
+for `ada` in `register-audit`. `detail` is empty on every `credential` row —
+no password, address or key is written to one, and the action names what
+happened.
+
 ## Two-factor authentication with TOTP
 
 A tenant's `otp_required` decides whether every subject in it is expected to
@@ -3986,6 +4071,107 @@ off closes redemption as well as the request form: an outstanding link
 minted while it was on answers `400` from `/login-actions/action-token`
 once it is off, the kill switch an operator reaches for during an incident
 covering both halves of the flow.
+
+### What a reset leaves in the audit log
+
+A redeemed link writes one `credential` row, `password.reset`, in the
+transaction that sets the password. Nothing else in the flow writes one:
+not the request, which must look the same whether or not the address has an
+account; not a refused link, which names nobody the caller has proved
+anything about; and not a password the policy refuses, which is a form
+error rather than a change. This ran against its own tenant, `reset-audit`,
+seeded as `reset-demo` is above (`userSubjectId`
+`01a0dc50-76c6-7e00-9086-ac84f6c1a2f2`), with every request's
+`x-request-id` starting `reset-audit-`.
+
+The first link was left unredeemed past its five minutes. That it is
+expired, and not spent, is what the table shows before it is submitted:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/reset-password \
+  -H 'x-request-id: reset-audit-request-1' --data-urlencode 'email=ada@example.com'
+
+# … five minutes later
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select a.type, a.expires_at < now() as expired, a.consumed_at
+     from action_tokens a join tenants t on t.id = a.tenant_id
+    where t.name = 'reset-audit';"
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -H 'x-request-id: reset-audit-expired' \
+  --data-urlencode 'key=1TPp8NWSSuC3EVyQOjd2dNllZ1QpWHC6urrquiB2D0M' \
+  --data-urlencode 'password=a brand new password'
+```
+
+```
+200
+      type      | expired | consumed_at
+----------------+---------+-------------
+ reset_password | t       |
+(1 row)
+
+400
+```
+
+A second request mints a fresh link, which is then submitted with a
+password the policy refuses, with one it accepts, and once more after it is
+spent:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/reset-password \
+  -H 'x-request-id: reset-audit-request-2' --data-urlencode 'email=ada@example.com'
+
+KEY=lA0JiQk1PNRbz9m_LTUP2PWGcFpQfukwqpn1Ig4euuc
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -H 'x-request-id: reset-audit-weak' --data-urlencode "key=$KEY" --data-urlencode 'password=weak'
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -H 'x-request-id: reset-audit-ada' --data-urlencode "key=$KEY" \
+  --data-urlencode 'password=a brand new password'
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -H 'x-request-id: reset-audit-replay' --data-urlencode "key=$KEY" \
+  --data-urlencode 'password=another password'
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.request_id, e.event_type, e.action, e.outcome, e.actor_subject_id,
+          e.resource_type, e.resource_id, e.detail
+     from audit_events e
+    where e.request_id like 'reset-audit-%'
+    order by e.occurred_at;"
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select count(*) as rows_naming_either
+     from audit_events e
+    where e::text like '%a brand new password%' or e::text like '%$KEY%';"
+```
+
+```
+200
+400
+200
+400
+-[ RECORD 1 ]----+-------------------------------------
+request_id       | reset-audit-ada
+event_type       | credential
+action           | password.reset
+outcome          | allowed
+actor_subject_id | 01a0dc50-76c6-7e00-9086-ac84f6c1a2f2
+resource_type    | subject
+resource_id      | 01a0dc50-76c6-7e00-9086-ac84f6c1a2f2
+detail           | {}
+
+ rows_naming_either
+--------------------
+                  0
+(1 row)
+```
+
+Seven requests, one row. The last query reads every audit row this stack
+holds, in every tenant, as text: none carries the password that was set or
+the key that set it.
 
 ## Password expiry, and changing a password
 

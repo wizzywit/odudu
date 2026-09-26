@@ -1,4 +1,5 @@
 import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import { outboxRepository, renderVerifyEmail } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
 
@@ -55,6 +56,7 @@ export async function sendVerificationEmail(
 export interface CompleteEmailVerificationDeps {
   readonly database: DatabaseHandle;
   readonly tenantId: string;
+  readonly request: RequestContext;
   // Injected rather than imported: @odudu/account does not depend on
   // @odudu/domain-identity, where the users table and its Argon2id
   // neighbours live. The composition root (apps/server/src/app.ts) wires
@@ -75,17 +77,30 @@ export async function completeEmailVerification(
   deps: CompleteEmailVerificationDeps,
   key: string,
 ): Promise<CompleteEmailVerificationResult> {
-  return withTenant(deps.database.db, deps.tenantId, async (tx) => {
-    const record = await actionTokenRepository(tx).consume(key, 'verify_email');
-    if (record === null) return { kind: 'invalid' };
+  return withTenant(
+    deps.database.db,
+    deps.tenantId,
+    async (tx) => {
+      const record = await actionTokenRepository(tx).consume(key, 'verify_email');
+      if (record === null) return { kind: 'invalid' };
 
-    // The token carries the address it was minted for; a changed address
-    // since then means this link no longer proves anything about the
-    // address the user holds today.
-    const currentEmail = await deps.getCurrentEmail(tx, record.subjectId);
-    if (currentEmail === null || currentEmail !== record.email) return { kind: 'invalid' };
+      // The token carries the address it was minted for; a changed address
+      // since then means this link no longer proves anything about the
+      // address the user holds today.
+      const currentEmail = await deps.getCurrentEmail(tx, record.subjectId);
+      if (currentEmail === null || currentEmail !== record.email) return { kind: 'invalid' };
 
-    await deps.markVerified(tx, record.subjectId);
-    return { kind: 'verified' };
-  });
+      await deps.markVerified(tx, record.subjectId);
+      await auditRepository(tx).record({
+        eventType: 'credential',
+        action: 'email.verified',
+        outcome: 'allowed',
+        actorSubjectId: record.subjectId,
+        resourceType: 'subject',
+        resourceId: record.subjectId,
+      });
+      return { kind: 'verified' };
+    },
+    deps.request,
+  );
 }

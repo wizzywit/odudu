@@ -1,4 +1,5 @@
 import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import { outboxRepository, renderVerifyEmail } from '@odudu/email';
 import { OduduError } from '@odudu/kernel';
 import { actionTokenRepository } from '#/repository/action-tokens';
@@ -26,6 +27,7 @@ export interface RegisterDeps {
   readonly tenantId: string;
   readonly tenantName: string;
   readonly tenantDisplayName: string;
+  readonly request: RequestContext;
   // The base a verification link is built from — operator configuration
   // (ODUDU_PUBLIC_BASE_URL), never derived from the request that reached
   // this usecase: see #/view/routes/registration.ts for why a request
@@ -116,29 +118,46 @@ export async function register(
 
   let created: { subjectId: string };
   try {
-    created = await withTenant(deps.database.db, deps.tenantId, async (tx) => {
-      const account = await deps.createAccount(tx, deps.tenantId, input);
-      // The earlier misconfigured check already guarantees issuerBase is
-      // defined whenever verification is on; re-checking it here (rather
-      // than asserting past the type) is what lets that stay true by
-      // construction instead of by convention.
-      if (!deps.verifyEmailEnabled || deps.issuerBase === undefined) {
+    created = await withTenant(
+      deps.database.db,
+      deps.tenantId,
+      async (tx) => {
+        const account = await deps.createAccount(tx, deps.tenantId, input);
+        await auditRepository(tx).record({
+          eventType: 'credential',
+          action: 'account.registered',
+          outcome: 'allowed',
+          actorSubjectId: account.subjectId,
+          resourceType: 'subject',
+          resourceId: account.subjectId,
+        });
+        // The earlier misconfigured check already guarantees issuerBase is
+        // defined whenever verification is on; re-checking it here (rather
+        // than asserting past the type) is what lets that stay true by
+        // construction instead of by convention.
+        if (!deps.verifyEmailEnabled || deps.issuerBase === undefined) {
+          return { subjectId: account.subjectId };
+        }
+        const { token } = await actionTokenRepository(tx).issue({
+          tenantId: deps.tenantId,
+          subjectId: account.subjectId,
+          type: 'verify_email',
+          email: input.email,
+          ttlSeconds: VERIFY_EMAIL_TTL_SECONDS,
+        });
+        const link = `${deps.issuerBase}/tenants/${deps.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
+        await outboxRepository(tx).enqueue({
+          tenantId: deps.tenantId,
+          ...renderVerifyEmail({
+            to: input.email,
+            link,
+            tenantDisplayName: deps.tenantDisplayName,
+          }),
+        });
         return { subjectId: account.subjectId };
-      }
-      const { token } = await actionTokenRepository(tx).issue({
-        tenantId: deps.tenantId,
-        subjectId: account.subjectId,
-        type: 'verify_email',
-        email: input.email,
-        ttlSeconds: VERIFY_EMAIL_TTL_SECONDS,
-      });
-      const link = `${deps.issuerBase}/tenants/${deps.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
-      await outboxRepository(tx).enqueue({
-        tenantId: deps.tenantId,
-        ...renderVerifyEmail({ to: input.email, link, tenantDisplayName: deps.tenantDisplayName }),
-      });
-      return { subjectId: account.subjectId };
-    });
+      },
+      deps.request,
+    );
   } catch (err) {
     const failure = classifyAccountCreationError(err);
     if (failure !== null) return { kind: failure };

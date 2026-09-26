@@ -212,6 +212,9 @@ importers:
       '@odudu/db':
         specifier: workspace:*
         version: link:../db
+      '@odudu/domain-audit':
+        specifier: workspace:*
+        version: link:../domain-audit
       '@odudu/email':
         specifier: workspace:*
         version: link:../email

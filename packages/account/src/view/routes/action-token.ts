@@ -1,4 +1,5 @@
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import { requestContextFrom } from '@odudu/domain-audit';
 import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { peekActionToken } from '#/usecase/action-token';
@@ -118,6 +119,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
       {
         database: deps.database,
         tenantId: tenant.id,
+        request: requestContextFrom(request),
         getCurrentEmail: deps.getCurrentEmail,
         markVerified: deps.markVerified,
       },
@@ -170,6 +172,7 @@ export function registerActionTokenRoute(app: FastifyInstance, deps: ActionToken
       {
         database: deps.database,
         tenantId: tenant.id,
+        request: requestContextFrom(request),
         setPassword: deps.setPassword,
         passwordPolicy: tenant.passwordPolicy,
         evaluatePassword: deps.evaluatePassword,
