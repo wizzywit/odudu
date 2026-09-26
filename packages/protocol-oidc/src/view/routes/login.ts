@@ -6,6 +6,7 @@ import {
   type RecoveryCodesOffer,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
+import { requestContextFrom } from '@odudu/domain-audit';
 import { isUuid, PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
@@ -165,6 +166,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
           ? {}
           : { assertion: parseAssertion(assertion) }),
       },
+      requestContextFrom(request),
       request.headers.cookie,
       rememberMe,
     );

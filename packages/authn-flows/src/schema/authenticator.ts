@@ -1,3 +1,5 @@
+import { type AuditReason } from '@odudu/domain-audit';
+
 // Shared between the service layer (which produces it) and the repository
 // layer (which persists nothing further about it, but needs the type to hand
 // results back through `advance`) — kept here, not in repository, so a
@@ -15,4 +17,10 @@ export type AuthenticatorResult =
   // a registry key (#/usecase/executor's AUTHENTICATORS), not a fixed enum,
   // so a new authenticator needs no change here to be challengeable.
   | { kind: 'challenge'; form: string }
-  | { kind: 'failure'; reason: string };
+  // `reason` is what the caller is told; `audit` is what the audit row
+  // records, which may tell apart failures the caller must not see apart.
+  | {
+      kind: 'failure';
+      reason: string;
+      audit?: { reason: AuditReason; subjectId: string | null; lockoutTripped?: boolean };
+    };

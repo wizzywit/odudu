@@ -670,11 +670,15 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withTenant(deps.database.db, tenantId, (tx) =>
           recordRememberMe(tx, authSessionId, remembered),
         ),
-      advance: (tenantId, authSessionId, input) =>
-        withTenant(deps.database.db, tenantId, (tx) =>
-          advance(tx, authSessionId, input, clock, {
-            ...(publicBaseUrl === undefined ? {} : { publicBaseUrl }),
-          }),
+      advance: (tenantId, authSessionId, input, request) =>
+        withTenant(
+          deps.database.db,
+          tenantId,
+          (tx) =>
+            advance(tx, authSessionId, input, clock, {
+              ...(publicBaseUrl === undefined ? {} : { publicBaseUrl }),
+            }),
+          request,
         ),
       loadPendingRequest: (tenantId, authSessionId) =>
         withTenant(deps.database.db, tenantId, (tx) => loadPendingRequest(tx, authSessionId)),

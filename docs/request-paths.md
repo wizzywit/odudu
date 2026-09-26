@@ -1039,6 +1039,84 @@ decides whether that is allowed: see
 **What the client does next:** verify `state` and `iss`, then redeem the
 code. Immediately: it expires in a minute.
 
+#### What a refused login leaves behind
+
+Every password submitted writes one `authentication` row, accepted or not,
+in the transaction that checked it. The two refusals below both answer
+`200`, in bytes [Brute-force lockout](#brute-force-lockout) shows are
+identical by hash; the rows are where they differ.
+Each carries its own `x-request-id`, which the server adopts as the request
+id and binds into the row, so the query that reads them back is scoped to
+these two requests and to nothing else this document has done:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -H 'x-request-id: login-refused-wrong-password' \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=wrong-password' \
+  "$LOGIN"
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -H 'x-request-id: login-refused-unknown-user' \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=nobody' \
+  --data-urlencode 'password=wrong-password' \
+  "$LOGIN"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.action, e.outcome, e.actor_subject_id, c.client_id as actor_client,
+          e.resource_type, e.resource_id, e.request_id, e.ip, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id in ('login-refused-wrong-password', 'login-refused-unknown-user')
+    order by e.request_id desc;"
+```
+
+```
+200
+200
+-[ RECORD 1 ]----+----------------------------------------------------
+action           | login.password
+outcome          | refused
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | authentication_session
+resource_id      | 01a0db22-4754-7575-882b-7be6e7cf6c51
+request_id       | login-refused-wrong-password
+ip               | 172.20.0.1
+detail           | {"factor": "password", "reason": "bad_credential"}
+-[ RECORD 2 ]----+----------------------------------------------------
+action           | login.password
+outcome          | refused
+actor_subject_id | (null)
+actor_client     | demo-spa
+resource_type    | authentication_session
+resource_id      | 01a0db22-4754-7575-882b-7be6e7cf6c51
+request_id       | login-refused-unknown-user
+ip               | 172.20.0.1
+detail           | {"factor": "password", "reason": "unknown_subject"}
+```
+
+That was captured against a freshly seeded compose stack, whose seed
+printed `userSubjectId` `01a0db22-1c92-7730-9d37-4085f28eca2c` for `ada` and
+whose `/authorize` rendered `auth_session_id`
+`01a0db22-4754-7575-882b-7be6e7cf6c51` — the `resource_id` both rows name.
+
+- **The wrong password names `ada`; the unknown username names nobody.**
+  `nobody` appears nowhere in the second row, and neither password appears
+  in either: what was typed into the username field is never recorded,
+  because people type passwords there often enough that recording it would
+  eventually record one.
+- **`ip` is the address the server saw**, `request.ip` and nothing else.
+  Here that is Docker's bridge gateway, because nothing in front of the
+  container is trusted to report the client's; `ODUDU_TRUST_PROXY` is what
+  changes that, and no header does.
+- **A locked account writes `reason: locked_out`** and answers with the same
+  bytes as both of these ([Brute-force lockout](#brute-force-lockout)); the
+  failure that locks it writes a second row, `lockout.tripped`. A second
+  factor writes `login.otp` or `login.recovery_code` the same way, with
+  `replayed` or `already_used` where the code was spent before, and a
+  password that leads to one writes `factor.offered` naming the form.
+
 #### A remembered login
 
 The login form renders a `remember_me` checkbox whenever the tenant's
@@ -4697,10 +4775,10 @@ not this section's own capture — it was re-verified on a separate, minimal
 stack (seed a tenant, run `odudu reap`, confirm `audit_events` is `0` and
 last in `REAP_ORDER`'s order) rather than by re-walking the whole of
 [Path A](#path-a-authorization-code-with-pkce) — but it holds by
-construction regardless: nothing in this walkthrough calls the admin API,
-which is the only thing that writes to `audit_events`, so its own retention
-rule (`audit_retention_days`, unrelated to any window above) has nothing to
-delete either way.
+construction regardless: the rows this walkthrough does write there — one
+per login step — are minutes old, and `audit_events`' own retention rule
+(`audit_retention_days`, 90 by default and unrelated to any window above)
+deletes nothing younger than a day.
 
 What makes a row deletable is the **grant family** being past retention,
 which is seven days for a session-bound family and thirty for an offline
@@ -8383,18 +8461,16 @@ session lifecycle. A citation of either half here means that half.
 
 **The admin API**
 
-- **The audit log records administrative mutations and nothing else.**
-  Every row `GET /admin/tenants/{tenant}/audit` returns carries
-  `event_type: "admin_mutation"`, so a login, a second factor answered, a
-  token minted or refreshed or revoked, and a session ending leave no trace
-  there — the log answers "who changed this tenant's configuration", not
-  "what happened in this tenant". The table and the listing were built for
-  both: `actor_subject_id` is nullable because an authentication event has a
-  subject it happened to rather than an administrator who did it, the
-  retention window is already the tenant's own `audit_retention_days`, and
-  `?event_type=` already narrows to any of the vocabulary's six values —
-  nothing yet writes the other five. **P4e**, whose criterion names the
-  authentication, token, session and credential events themselves.
+- **The audit log records administrative mutations and login steps, and
+  nothing else.** A password, a second factor, a passkey, the factor offered
+  after a first one and a lockout tripping each write an `authentication`
+  row ([what a refused login leaves behind](#what-a-refused-login-leaves-behind)),
+  but a token minted or refreshed or revoked, a client failing to
+  authenticate, a session starting or ending, and a credential enrolled
+  leave no trace — `?event_type=` narrows to any of the vocabulary's six
+  values, and nothing yet writes `session`, `token` or `credential`, nor
+  `authentication`'s `client.authenticate`. **P4e**, whose criterion names
+  the token, session and credential events themselves.
 - **Only `POST /clients` records a refused attempt.** `outcome` has three
   values and every other mutation writes a row only when it succeeds, so
   `?outcome=refused` against any other `resource_type` returns nothing —

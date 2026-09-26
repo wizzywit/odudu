@@ -249,6 +249,9 @@ importers:
       '@odudu/db':
         specifier: workspace:*
         version: link:../db
+      '@odudu/domain-audit':
+        specifier: workspace:*
+        version: link:../domain-audit
       '@odudu/domain-identity':
         specifier: workspace:*
         version: link:../domain-identity
@@ -535,6 +538,9 @@ importers:
       '@odudu/db':
         specifier: workspace:*
         version: link:../db
+      '@odudu/domain-audit':
+        specifier: workspace:*
+        version: link:../domain-audit
       '@odudu/domain-authz':
         specifier: workspace:*
         version: link:../domain-authz

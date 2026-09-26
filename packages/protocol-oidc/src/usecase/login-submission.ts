@@ -7,7 +7,7 @@ import {
   type SessionLifespans,
   type SessionRecord,
 } from '@odudu/authn-flows';
-import { type TenantScopedDatabase } from '@odudu/db';
+import { type RequestContext, type TenantScopedDatabase } from '@odudu/db';
 import { isUuid } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { type TenantLookup } from '#/repository/tenant-lookup';
@@ -293,7 +293,14 @@ export async function decideConsentGate(
 
 export interface LoginSubmissionDeps extends ConsentGateDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
-  advance(tenantId: string, authSessionId: string, input: AdvanceInput): Promise<AdvanceOutcome>;
+  // `request` is bound to the transaction the attempt runs in, which is where
+  // the audit rows it writes take their request id and address from.
+  advance(
+    tenantId: string,
+    authSessionId: string,
+    input: AdvanceInput,
+    request: RequestContext,
+  ): Promise<AdvanceOutcome>;
   loadPendingRequest(tenantId: string, authSessionId: string): Promise<PendingRequest | null>;
   resolveClientId(tenantId: string, oauthClientId: string): Promise<string | null>;
   // Read only when the tenant's verify_email is on: the cost of an extra
@@ -502,6 +509,7 @@ export async function handleLoginSubmission(
   issuerBase: string,
   authSessionId: string | undefined,
   input: AdvanceInput,
+  request: RequestContext,
   // The browser's `Cookie` header, threaded through to completeAuthorizedLogin
   // — required, not optional: an omitted header resolves to an empty
   // session set and silently drops every other live session from the
@@ -534,7 +542,7 @@ export async function handleLoginSubmission(
   // past it — direct completion or a detour through consent — agrees.
   const remembered = rememberMe && tenant.rememberMeAllowed;
 
-  const result = await deps.advance(tenant.id, authSessionId, input);
+  const result = await deps.advance(tenant.id, authSessionId, input, request);
 
   if (result.kind === 'failure' && result.reason === 'authentication_session_expired') {
     return { kind: 'unauthenticated' };

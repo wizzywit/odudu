@@ -14,6 +14,7 @@ import { requiredActionRepository } from '#/repository/required-actions';
 import { sessionRepository } from '#/repository/sessions';
 import { oweRecoveryCodesIfNoneUnspent } from '#/usecase/recovery-codes';
 import { recordPasswordExpiryIfOwed } from '#/usecase/update-password';
+import { loginAuditFor, type LoginAudit } from '#/usecase/login-audit';
 import {
   type AuthenticationSessionRecord,
   type PendingRequest,
@@ -97,8 +98,20 @@ async function runPasswordStep(
     return outcome;
   }
 
-  await failures.recordFailure(attempt.keyedOn, context.lockout, context.now);
-  return { kind: 'failure', reason: 'invalid_credentials' };
+  const recorded = await failures.recordFailure(attempt.keyedOn, context.lockout, context.now);
+  const lockedBefore = isLockedOut(attempt.onRecord, context.now);
+  const { subjectId } = attempt.verification;
+  return {
+    kind: 'failure',
+    reason: 'invalid_credentials',
+    audit: {
+      reason:
+        subjectId === null ? 'unknown_subject' : lockedBefore ? 'locked_out' : 'bad_credential',
+      subjectId,
+      lockoutTripped:
+        !lockedBefore && recorded.kind === 'recorded' && recorded.state.lockedUntil !== null,
+    },
+  };
 }
 
 interface StoredTotp {
@@ -131,6 +144,16 @@ async function runOtpStep(
     now: context.now,
   });
 
+  if (outcome.kind === 'failure') {
+    return {
+      kind: 'failure',
+      reason: outcome.reason,
+      audit: {
+        reason: outcome.replayed ? 'replayed' : 'bad_credential',
+        subjectId: context.subjectId,
+      },
+    };
+  }
   if (outcome.kind !== 'success' || stored === null) return outcome;
 
   // RFC 6238 §5.2's other half (docs/protocols/rfc6238.md): verifyTotp
@@ -144,7 +167,12 @@ async function runOtpStep(
   // therefore cannot answer for anybody else. A factor that identifies its
   // own subject — a passkey assertion — must not spend anything until that
   // guard has passed.
-  return spent ? outcome : { kind: 'failure', reason: 'invalid_credentials' };
+  if (spent) return outcome;
+  return {
+    kind: 'failure',
+    reason: 'invalid_credentials',
+    audit: { reason: 'replayed', subjectId: context.subjectId },
+  };
 }
 
 async function storedRecoveryCodesFor(
@@ -168,6 +196,16 @@ async function runRecoveryStep(
   const { subjectId } = context;
   const codes = subjectId === null ? [] : await storedRecoveryCodesFor(tx, subjectId);
   const outcome = await recoveryStep(input, { subjectId, codes });
+  if (outcome.kind === 'failure') {
+    return {
+      kind: 'failure',
+      reason: outcome.reason,
+      audit: {
+        reason: outcome.reason === 'already_used' ? 'already_used' : 'bad_credential',
+        subjectId,
+      },
+    };
+  }
   if (outcome.kind !== 'success') return outcome;
 
   // Deferred rather than written here, even though this step resolves its
@@ -237,6 +275,16 @@ async function runPasskeyStep(
     expectedChallenge,
     publicBaseUrl: context.publicBaseUrl,
   });
+  if (outcome.kind === 'failure') {
+    return {
+      kind: 'failure',
+      reason: outcome.reason,
+      audit: {
+        reason: 'bad_credential',
+        subjectId: credential === null ? context.subjectId : credential.subjectId,
+      },
+    };
+  }
   if (outcome.kind !== 'success') return outcome;
 
   // Deferred rather than written here: unlike the OTP step, a passkey names
@@ -659,7 +707,7 @@ export async function pendingChallenge(
 type SettledResult =
   | { kind: 'success'; subjectId: string }
   | { kind: 'challenge'; form: string }
-  | { kind: 'failure'; reason: string };
+  | Extract<AuthenticatorResult, { kind: 'failure' }>;
 
 // Runs whatever a factor deferred, under the same two rules the first
 // factor's `commit` passes: it must answer for the subject this attempt is
@@ -669,11 +717,39 @@ type SettledResult =
 // for dropping one, so it is run rather than trusted not to exist.
 async function settle(result: AuthenticatorResult, boundTo: string): Promise<SettledResult> {
   if (result.kind !== 'success') return result;
-  if (result.subjectId !== boundTo) return { kind: 'failure', reason: SUBJECT_MISMATCH };
+  if (result.subjectId !== boundTo) {
+    return {
+      kind: 'failure',
+      reason: SUBJECT_MISMATCH,
+      audit: { reason: 'subject_mismatch', subjectId: boundTo },
+    };
+  }
   if (result.commit !== undefined && !(await result.commit())) {
-    return { kind: 'failure', reason: 'invalid_credentials' };
+    return {
+      kind: 'failure',
+      reason: 'invalid_credentials',
+      audit: { reason: 'replayed', subjectId: result.subjectId },
+    };
   }
   return { kind: 'success', subjectId: result.subjectId };
+}
+
+// The second dispatch's row. It runs with an empty input, so every factor
+// today answers it with a challenge: the next form, offered.
+async function recordSettled(
+  audit: LoginAudit,
+  authenticator: string,
+  settled: SettledResult,
+  subjectId: string,
+): Promise<void> {
+  if (settled.kind === 'challenge') {
+    await audit.factorOffered(settled.form, subjectId);
+  } else if (settled.kind === 'success') {
+    await audit.step(authenticator, settled.subjectId);
+  } else {
+    const refused = settled.audit ?? { reason: 'bad_credential', subjectId };
+    await audit.step(authenticator, refused.subjectId, refused.reason);
+  }
 }
 
 // What `advance` reports on success — unlike the per-authenticator
@@ -697,6 +773,7 @@ export async function advance(
     return { kind: 'failure', reason: 'authentication_session_expired' };
   }
   const { record, steps, satisfied, registry } = context;
+  const audit = await loginAuditFor(tx, authSessionId, record.pendingRequest.clientId);
 
   const dispatched = await dispatchNext(registry, steps, satisfied, input);
   if (dispatched.kind !== 'ran') {
@@ -704,8 +781,12 @@ export async function advance(
   }
 
   const { authenticator, result } = dispatched;
-  if (result.kind !== 'success') {
-    return result;
+  if (result.kind === 'challenge') return result;
+  if (result.kind === 'failure') {
+    const refused = result.audit ?? { reason: 'bad_credential', subjectId: record.subjectId };
+    await audit.step(authenticator, refused.subjectId, refused.reason);
+    if (refused.lockoutTripped === true) await audit.lockoutTripped(refused.subjectId);
+    return { kind: 'failure', reason: result.reason };
   }
 
   // One attempt answers for one person. A factor that names a different
@@ -713,6 +794,7 @@ export async function advance(
   // rather than allowed to redirect the login — whoever passed the earlier
   // factor would otherwise be signed in as whoever passed the later one.
   if (record.subjectId !== null && record.subjectId !== result.subjectId) {
+    await audit.step(authenticator, record.subjectId, 'subject_mismatch');
     return { kind: 'failure', reason: SUBJECT_MISMATCH };
   }
 
@@ -722,10 +804,12 @@ export async function advance(
   // whose state had already moved on (a replayed assertion racing the one
   // that spent the same counter), so the login is refused with it.
   if (result.commit !== undefined && !(await result.commit())) {
+    await audit.step(authenticator, result.subjectId, 'replayed');
     return { kind: 'failure', reason: 'invalid_credentials' };
   }
 
   const subjectId = result.subjectId;
+  await audit.step(authenticator, subjectId);
   await authenticationSessionRepository(tx).bindSubject(authSessionId, subjectId);
 
   // Everything after this point is decided for this subject, so the flow is
@@ -771,14 +855,18 @@ export async function advance(
   if (after.kind === 'ran') {
     await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
     const settled = await settle(after.result, subjectId);
-    outcome =
-      settled.kind === 'success'
-        ? {
-            kind: 'success',
-            subjectId: settled.subjectId,
-            authenticators: [...record.satisfied, authenticator, after.authenticator],
-          }
-        : settled;
+    await recordSettled(audit, after.authenticator, settled, subjectId);
+    if (settled.kind === 'success') {
+      outcome = {
+        kind: 'success',
+        subjectId: settled.subjectId,
+        authenticators: [...record.satisfied, authenticator, after.authenticator],
+      };
+    } else if (settled.kind === 'failure') {
+      outcome = { kind: 'failure', reason: settled.reason };
+    } else {
+      outcome = settled;
+    }
   } else if (after.kind === 'fail') {
     outcome = { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
   } else {
