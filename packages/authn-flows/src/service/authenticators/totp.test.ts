@@ -32,7 +32,7 @@ describe('totpStep', () => {
       { subjectId: SUBJECT, secret: credential(), now: NOW },
     );
 
-    expect(result).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
+    expect(result).toEqual({ kind: 'failure', reason: 'invalid_credentials', replayed: false });
   });
 
   it('challenges for a code when none was submitted', () => {
@@ -50,7 +50,7 @@ describe('totpStep', () => {
       { subjectId: SUBJECT, secret: null, now: NOW },
     );
 
-    expect(result).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
+    expect(result).toEqual({ kind: 'failure', reason: 'invalid_credentials', replayed: false });
   });
 
   it('fails when the caller resolved no subject', () => {
@@ -59,19 +59,21 @@ describe('totpStep', () => {
       { subjectId: null, secret: credential(), now: NOW },
     );
 
-    expect(result).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
+    expect(result).toEqual({ kind: 'failure', reason: 'invalid_credentials', replayed: false });
   });
 
   // RFC 6238 §5.2: the verifier must not accept a second attempt of an OTP
   // that already validated. `lastStep` is how a stored credential carries
   // that refusal across calls.
-  it('refuses a code whose step the credential has already used', () => {
+  // The refusal reads exactly as a wrong code's; `replayed` is for the audit
+  // row alone.
+  it('refuses a code whose step the credential has already used, as a replay', () => {
     const result = totpStep(
       { code: currentCode() },
       { subjectId: SUBJECT, secret: credential({ lastStep: totpCounter(NOW) }), now: NOW },
     );
 
-    expect(result).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
+    expect(result).toEqual({ kind: 'failure', reason: 'invalid_credentials', replayed: true });
   });
 });
 

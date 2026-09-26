@@ -27,7 +27,15 @@ export interface TotpVerification {
 export type TotpStepOutcome =
   | { kind: 'success'; subjectId: string; step: number }
   | { kind: 'challenge'; form: string }
-  | { kind: 'failure'; reason: string };
+  | { kind: 'failure'; reason: string; replayed: boolean };
+
+// verifyTotp never compares a step at or below `lastStep`, so a code it
+// refuses may be one it accepted before. Asking again without that floor is
+// what tells a replay apart from a wrong code; both still refuse alike.
+function isSpentCode(secret: TotpSecret, code: string, now: Date): boolean {
+  const unbounded = verifyTotp({ secret: secret.secret, code, now, lastStep: null });
+  return unbounded.ok && unbounded.step <= secret.lastStep;
+}
 
 export function totpStep(input: TotpInput, verification: TotpVerification): TotpStepOutcome {
   if (input.code === undefined) {
@@ -36,7 +44,7 @@ export function totpStep(input: TotpInput, verification: TotpVerification): Totp
 
   const { subjectId, secret } = verification;
   if (subjectId === null || secret === null) {
-    return { kind: 'failure', reason: 'invalid_credentials' };
+    return { kind: 'failure', reason: 'invalid_credentials', replayed: false };
   }
 
   const verified = verifyTotp({
@@ -46,9 +54,12 @@ export function totpStep(input: TotpInput, verification: TotpVerification): Totp
     lastStep: secret.lastStep,
   });
 
-  return verified.ok
-    ? { kind: 'success', subjectId, step: verified.step }
-    : { kind: 'failure', reason: 'invalid_credentials' };
+  if (verified.ok) return { kind: 'success', subjectId, step: verified.step };
+  return {
+    kind: 'failure',
+    reason: 'invalid_credentials',
+    replayed: isSpentCode(secret, input.code, verification.now),
+  };
 }
 
 // What an authenticator app scans (the otpauth:// URI Google Authenticator
