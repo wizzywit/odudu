@@ -98,7 +98,8 @@ live is pushed there rather than accumulating here.
 `actor_subject_id` and a nullable `actor_client_id` precisely so an
 authentication event — which has a subject it happened to, and often no
 administrator at all — fits the same table as an admin mutation, without a
-migration. `admin_mutation` is the only `event_type` written today.
+migration. `admin_mutation`, `authentication`, `session` and `token` rows
+are written today; `admin_access` and `credential` are not yet.
 Retention is the tenant's own `audit_retention_days` setting, already last
 in `REAP_ORDER`, so P4e inherits the window rather than adding a second one
 to keep in step. `GET /admin/tenants/{tenant}/audit` filters by

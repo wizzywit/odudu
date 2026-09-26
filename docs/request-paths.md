@@ -8566,7 +8566,9 @@ session lifecycle. A citation of either half here means that half.
   a session starting or ending writes a `session` row
   ([what a session leaves in the audit log](#what-a-session-leaves-in-the-audit-log)),
   and a token minted, refreshed or exchanged writes a `token` row
-  (`token.issue`, `token.refresh`, `token.exchange`). A token revoked, a
+  (`token.issue`, `token.refresh`, `token.exchange`; the last's
+  `requested_token_type` records the effective requested type, `access_token`
+  when none was named). A token revoked, a
   grant revoked on reuse or code replay, a client failing to authenticate
   and a credential enrolled leave no trace — `?event_type=` narrows to any
   of the vocabulary's six values, and nothing yet writes `credential`,
