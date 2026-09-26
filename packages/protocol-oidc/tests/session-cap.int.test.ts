@@ -141,10 +141,10 @@ function cookieHeader(jar: Map<string, string>): string {
   return [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
 }
 
-// The ephemeral session-cookie ids a single response set, as opposed to
+// The ephemeral session-cookie entries a single response set, as opposed to
 // what survives in the jar after every response has overwritten the last —
-// an evicted id shows up here even though mergeCookies has since replaced
-// it with whatever the next login wrote.
+// an evicted entry shows up here even though mergeCookies has since
+// replaced it with whatever the next login wrote.
 function ephemeralIdsSet(tenantName: string, res: LightMyRequestResponse): string[] {
   const name = `${tenantName}-session=`;
   const value = cookieList(res)

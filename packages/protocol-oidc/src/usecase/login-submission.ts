@@ -425,7 +425,7 @@ export async function completeAuthorizedLogin(
   };
 
   // Read before completing the login: admitSession evicts from exactly
-  // this list (ADR 0033) — the ids this browser's cookies name right now,
+  // this list (ADR 0033) — the entries this browser's cookies prove now,
   // never a subject-wide read, since the cap is per browser and a browser
   // can hold sessions for more than one subject.
   const before = await deps.resolveSessions(
