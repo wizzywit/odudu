@@ -1,9 +1,11 @@
+import { type Database, type TenantScopedDatabase } from '@odudu/db';
 import { SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { type Clock } from '@odudu/kernel';
-import { tenantIssuerFor } from '@odudu/protocol-oidc';
+import { issuerBaseFor, tenantIssuerFor } from '@odudu/protocol-oidc';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 import { paramsSchemaFor } from '#/service/path-params';
+import { recordCapabilityRefused, recordForeignIssuer } from '#/usecase/access-audit';
 import {
   authenticateAdmin,
   type AdminPrincipal,
@@ -11,6 +13,7 @@ import {
 } from '#/usecase/authenticate-admin';
 import { authorizeAdmin, type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
 import { problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 
 // Optional: `/admin/tenants` itself carries no `:tenant` segment (see
 // `targetTenantNameFor` below), and most routes carry no `:id` segment
@@ -33,6 +36,14 @@ export type AdminRouteHandler = (
   principal: AdminPrincipal,
   targetTenantId: string,
 ) => FastifyReply | Promise<FastifyReply>;
+
+export interface AdminRouterDeps {
+  readonly auth: AuthenticateAdminDeps;
+  readonly authz: AuthorizeAdminDeps;
+  readonly clock: Clock;
+  // Where a refused request's row goes: the tenant in the path.
+  readonly database: Database;
+}
 
 /** Keyed by `"<method> <pattern>"`, exactly matching an `ADMIN_ROUTES` entry. */
 export type AdminRouteHandlers = Readonly<Record<string, AdminRouteHandler>>;
@@ -64,35 +75,66 @@ function targetTenantNameFor(route: AdminRoute, params: AdminRouteParams): strin
   return tenant;
 }
 
+// A refusal is sent whether or not its row could be written (ADR 0037).
+async function recordRefusal(
+  database: Database,
+  request: FastifyRequest,
+  tenantId: string,
+  write: (tx: TenantScopedDatabase) => Promise<void>,
+): Promise<void> {
+  try {
+    await adminTx(database, request, tenantId, write);
+  } catch (error) {
+    request.log.error({ err: error, tenantId }, 'could not record a refused admin request');
+  }
+}
+
 async function handleRoute(
   route: AdminRoute,
   handler: AdminRouteHandler,
-  authDeps: AuthenticateAdminDeps,
-  authzDeps: AuthorizeAdminDeps,
-  clock: Clock,
+  deps: AdminRouterDeps,
   request: AdminRequest,
   reply: FastifyReply,
 ): Promise<FastifyReply> {
   const targetTenantName = targetTenantNameFor(route, request.params);
-  const targetTenant = await authDeps.findTenant(targetTenantName);
-  if (targetTenant === null) return sendUnauthorized(request, reply);
+  const targetTenant = await deps.auth.findTenant(targetTenantName);
+  if (targetTenant === null) {
+    request.log.warn({ reason: 'unknown_tenant' }, 'admin request unauthenticated');
+    return sendUnauthorized(request, reply);
+  }
 
-  const outcome = await authenticateAdmin(authDeps, {
+  const outcome = await authenticateAdmin(deps.auth, {
     authorizationHeader: request.headers.authorization,
     targetTenantName,
     targetTenantIssuer: tenantIssuerFor(request, targetTenantName),
     systemTenantIssuer: tenantIssuerFor(request, SYSTEM_TENANT_NAME),
-    now: clock.now(),
+    issuerBase: issuerBaseFor(request),
+    now: deps.clock.now(),
   });
-  if (outcome.kind === 'unauthenticated') return sendUnauthorized(request, reply);
+  if (outcome.kind === 'unauthenticated') {
+    const foreign = outcome.foreignIssuer;
+    if (foreign === undefined) {
+      request.log.warn({ reason: outcome.reason }, 'admin request unauthenticated');
+    } else {
+      await recordRefusal(deps.database, request, targetTenant.id, (tx) =>
+        recordForeignIssuer(tx, foreign),
+      );
+    }
+    return sendUnauthorized(request, reply);
+  }
 
   const decision = await authorizeAdmin(
-    authzDeps,
+    deps.authz,
     outcome.principal,
     { tenantId: targetTenant.id },
     route.capability,
   );
-  if (decision === 'forbidden') return sendForbidden(request, reply);
+  if (decision.kind === 'forbidden') {
+    await recordRefusal(deps.database, request, targetTenant.id, (tx) =>
+      recordCapabilityRefused(tx, outcome.principal, decision.missing),
+    );
+    return sendForbidden(request, reply);
+  }
 
   return handler(request, reply, outcome.principal, targetTenant.id);
 }
@@ -106,9 +148,7 @@ async function handleRoute(
 export function registerAdminRoutes(
   app: FastifyInstance,
   handlers: AdminRouteHandlers,
-  authDeps: AuthenticateAdminDeps,
-  authzDeps: AuthorizeAdminDeps,
-  clock: Clock,
+  deps: AdminRouterDeps,
 ): void {
   const unclaimed = new Set(Object.keys(handlers));
 
@@ -129,8 +169,7 @@ export function registerAdminRoutes(
         ...(route.querystringSchema !== undefined ? { querystring: route.querystringSchema } : {}),
         ...(route.bodySchema !== undefined ? { body: route.bodySchema } : {}),
       },
-      handler: (request, reply) =>
-        handleRoute(route, handler, authDeps, authzDeps, clock, request, reply),
+      handler: (request, reply) => handleRoute(route, handler, deps, request, reply),
     });
   }
 

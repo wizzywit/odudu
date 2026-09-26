@@ -90,6 +90,9 @@ export interface AdminFixture {
   // presenting the resulting token needs to inject with the same `host`
   // header to be accepted, and a different one to be refused.
   adminTokenAt(tenantName: string, capabilities: readonly string[], host: string): Promise<string>;
+  // Signs arbitrary claims with the tenant's own active key, `iss` included,
+  // so a test can present a genuine signature over an issuer it chose.
+  signWithTenantKey(tenantName: string, claims: Record<string, unknown>): Promise<string>;
 
   // Subjects and clients.
   createSubject(tenantName: string, username: string): Promise<{ id: string }>;
@@ -467,6 +470,15 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     return mintAdminLikeToken({ ...ctx, issuer }, capabilities, [ADMIN_API_AUDIENCE]);
   }
 
+  async function signWithTenantKey(
+    tenantName: string,
+    claims: Record<string, unknown>,
+  ): Promise<string> {
+    const ctx = requireTenant(tenantName);
+    const key = await withTenant(app.db, ctx.id, (tx) => signingKeyRepository(tx).active());
+    return signJwt(claims, { key, kek: KEK, typ: 'at+jwt' });
+  }
+
   async function systemAdminToken(capabilities: readonly string[]): Promise<string> {
     return mintAdminLikeToken(systemTenant, capabilities, [ADMIN_API_AUDIENCE]);
   }
@@ -774,6 +786,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     stop,
     adminToken,
     adminTokenAt,
+    signWithTenantKey,
     systemAdminToken,
     applicationToken,
     createSubject,

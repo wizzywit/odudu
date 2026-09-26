@@ -1841,17 +1841,31 @@ per resource type: a secret, a password hash or a private key never
 appears in it, whichever of the two it would have been, and a field on
 neither list is absent rather than shown.
 
-`outcome` is `allowed`, `refused` or `failed`. Two kinds of refusal record
-one. **`POST /clients`** does — a reserved `client_id`, metadata
-`parseClientMetadata` rejects, or a tenant at its client capacity — and so
-does **every capability ceiling**: `POST /groups` and `PATCH /groups/{id}`
-choosing a parent, `PUT /subjects/{id}/roles`, `PUT /groups/{id}/roles`,
+`outcome` is `allowed`, `refused` or `failed`. Two kinds of mutation
+refusal record an `admin_mutation` row. **`POST /clients`** does — a
+reserved `client_id`, metadata `parseClientMetadata` rejects, or a tenant at
+its client capacity — and so does **every capability ceiling**:
+`POST /groups` and `PATCH /groups/{id}` choosing a parent,
+`PUT /subjects/{id}/roles`, `PUT /groups/{id}/roles`,
 `PUT /scopes/{id}/roles` and `POST /roles/{id}/composites`, each writing a
 row whose `detail` names the capabilities the caller does not hold. An
 attempted privilege escalation is the refusal worth recording even while
-refusals in general are not. Every other mutation above writes a row only
-when it succeeds; `?outcome=refused` against a resource type with neither
-of those doors returns nothing yet, not because nothing was refused.
+refusals in general are not. Every other mutation above writes an
+`admin_mutation` row only when it succeeds; `?outcome=refused` against a
+resource type with neither of those doors returns no `admin_mutation` row,
+not because nothing was refused.
+
+The door in front of every route records two refusals of its own, as
+`admin_access` rows, whatever the route. A **`403`** to an authenticated
+caller writes `capability.refused`, reads included, with `detail.capability`
+naming the capability the caller lacked — `manage-tenants` when a system
+admin without it reaches another tenant, the route's own otherwise. A
+**`401` for a genuine token from another tenant** of this deployment writes
+`token.foreign_issuer` into the tenant it was presented at, below. Every
+other `401` — no token, a malformed or forged one, an issuer this
+deployment does not serve, a dead session — writes no row, only a `warn`
+log line naming the reason: the caller has proved nothing, so a row per
+request would be theirs to append at will (ADR 0037).
 
 `tenant_id` on a row is the tenant the change was made **to**, not the
 tenant of whoever made it. `actor_tenant_id` and `actor_client_id` name the
@@ -1859,14 +1873,6 @@ caller instead — the tenant that issued the caller's own token and the
 admin client it authenticated as — so a system admin's change to this
 tenant is a row this tenant's own administrators can read, and can see was
 made by someone outside it.
-
-A request refused for a cross-tenant issuer mismatch — a bearer token
-naming an issuer neither this tenant nor the system tenant — writes no row
-here at all. That refusal is decided before the token's signature is even
-checked, since a token naming an unrecognised issuer has no keys to verify
-it against; auditing it at that point would let an unauthenticated caller
-append a row per request, which is a worse defect than the missing row.
-See `docs/NEXT.md`'s `deferred:` entry for what recording it safely needs.
 
 Paginated the same way every other list here is, over
 `(occurred_at, id)` descending rather than ascending `id`: newest first.
@@ -1983,6 +1989,139 @@ curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 No page above needed a `next`: the stack never had more than twenty rows of
 any one scope.
+
+### A token from another tenant, and a caller missing a capability
+
+**A fourth stack.** This subsection only ran against the compose stack
+[docs/request-paths.md](request-paths.md#what-a-refused-login-leaves-behind)'s
+audit transcripts were captured on, whose `demo` is
+`01a0db22-1c32-7d17-b351-697d7911033c`. That stack had no `system` tenant
+until `seed admin --username ada` was run on it for this section, printing
+subject `01a0dc0c-0167-709b-af07-e6eb529e8139`; `ada` then signed in the way
+[Getting the token](#getting-the-token) shows, created a tenant `acme`
+through `POST /admin/tenants`, and created a client `demo-operator` in
+`demo` through `POST /clients` — `client_credentials`,
+`client_secret_basic` — then gave it the admin audience through
+`PATCH /clients/{id}` with `{"audiences": ["urn:odudu:params:admin-api"]}`.
+`demo-operator` is `01a0dc0c-ec33-7e6a-bd79-339e8682bd86`, and holds no
+capability in `demo`. Its ids refer only to each other.
+
+`demo-operator`'s `client_credentials` token is a genuine `demo` token for
+the admin API. Its payload, decoded as in
+[Getting the token](#getting-the-token), and `demo` accepting it:
+
+```
+{
+  "iss": "http://localhost:3000/tenants/demo",
+  "sub": "01a0dc0c-ec16-7566-adfb-a8bf7681149c",
+  "aud": [
+    "urn:odudu:params:admin-api",
+    "http://localhost:3000/tenants/demo"
+  ],
+  "client_id": "demo-operator",
+  "scope": "",
+  "iat": 1790398252,
+  "exp": 1790398552,
+  "jti": "01a0dc0d-4611-7720-b3fc-d5a5e84ba945",
+  "grant_id": "01a0dc0d-4611-7720-b3fc-d5a43620011b"
+}
+```
+
+```bash
+curl -sS -H "Authorization: Bearer $DEMO_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/whoami
+```
+
+```
+{"subjectId":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","issuerTenantId":"01a0db22-1c32-7d17-b351-697d7911033c"}
+```
+
+Presented at `acme` instead, it is refused with the `401` a string that is
+not a token at all gets. Both requests carry the same `x-request-id`, so the
+two responses differ only in `Date`:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $DEMO_TOKEN" \
+  -H 'x-request-id: foreign-issuer-doc' \
+  http://localhost:3000/admin/tenants/acme/subjects
+curl -sS -D - -H "Authorization: Bearer not-a-token" \
+  -H 'x-request-id: foreign-issuer-doc' \
+  http://localhost:3000/admin/tenants/acme/subjects
+```
+
+```
+HTTP/1.1 401 Unauthorized
+x-request-id: foreign-issuer-doc
+content-type: application/problem+json; charset=utf-8
+content-length: 90
+Date: Sat, 26 Sep 2026 04:50:58 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"foreign-issuer-doc"}
+HTTP/1.1 401 Unauthorized
+x-request-id: foreign-issuer-doc
+content-type: application/problem+json; charset=utf-8
+content-length: 90
+Date: Sat, 26 Sep 2026 04:51:03 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"foreign-issuer-doc"}
+```
+
+What tells them apart is behind the response. The first names an issuer
+this deployment serves, and its signature verifies against `demo`'s own
+keys, so it is recorded in `acme`'s trail — the tenant the attempt was made
+against — naming `demo` as the caller's tenant, its subject and its client.
+The second writes only a `warn` line to the server's log:
+
+```
+{"level":40,"time":1790398263230,"pid":1,"hostname":"bd66202e30bc","reqId":"foreign-issuer-doc","reason":"malformed_token","msg":"admin request unauthenticated"}
+```
+
+`acme` was created moments before, so its `admin_access` trail holds only
+what this subsection did; `demo`'s holds nothing yet:
+
+```bash
+curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "event_type=admin_access" \
+  http://localhost:3000/admin/tenants/acme/audit
+curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "event_type=admin_access" \
+  http://localhost:3000/admin/tenants/demo/audit
+```
+
+```
+{"items":[{"id":"01a0dc0d-5c73-74df-80e9-a834a955aacc","occurred_at":"2026-09-26T04:50:58.290Z","event_type":"admin_access","action":"token.foreign_issuer","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"foreign-issuer-doc","ip":"172.20.0.1","detail":{"reason":"foreign_issuer"}}]}
+{"items":[]}
+```
+
+The same token at `demo`, where it authenticates but holds no capability,
+is a `403`, and `demo`'s trail now has the `capability.refused` row naming
+what `GET /subjects` needed:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $DEMO_TOKEN" \
+  -H 'x-request-id: capability-refused-doc' \
+  http://localhost:3000/admin/tenants/demo/subjects
+curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "event_type=admin_access" \
+  http://localhost:3000/admin/tenants/demo/audit
+```
+
+```
+HTTP/1.1 403 Forbidden
+x-request-id: capability-refused-doc
+content-type: application/problem+json; charset=utf-8
+content-length: 91
+Date: Sat, 26 Sep 2026 04:51:08 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Forbidden","status":403,"instance":"capability-refused-doc"}
+{"items":[{"id":"01a0dc0d-82ec-7888-ab05-4e8c931ffd35","occurred_at":"2026-09-26T04:51:08.139Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
+```
 
 ## `GET /admin/openapi.json`
 

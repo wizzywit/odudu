@@ -8847,21 +8847,13 @@ session lifecycle. A citation of either half here means that half.
   refused login step writes a `refused` row under
   `resource_type: authentication_session`, a refused `/token`, `/revoke` or
   `/introspect` request writes one within ADR 0037's budget, and the admin
-  API records the refusals its own checks make (`client.create`'s, and the
-  privilege ceilings on subject, role, group and scope changes). A refused
-  session or credential change writes nothing, so `?event_type=session` or
-  `credential` with `?outcome=refused` returns nothing — which reads as
-  "nothing was refused" and is not. **P4e**, whose criterion names those
+  API records the refusals its own checks make (`client.create`'s, the
+  privilege ceilings on subject, role, group and scope changes, every `403`,
+  and a genuine token from another tenant). A refused session or credential
+  change writes nothing, so `?event_type=session` or `credential` with
+  `?outcome=refused` returns nothing — which reads as "nothing was refused"
+  and is not. **P4e**, whose criterion names those
   events and the refusals among them.
-- **A request refused for a cross-tenant issuer mismatch writes no row.** A
-  bearer token naming an issuer that is neither this tenant nor the system
-  tenant is refused before its signature can be checked, since an
-  unrecognised issuer names no keys to check it against; auditing at that
-  point would let an unauthenticated caller append a row per request, which
-  is a worse defect than the missing one. Recording it safely means
-  resolving the named issuer to a tenant in this deployment and verifying
-  against that tenant's keys first. **P4e**, whose criterion names it, and
-  `docs/NEXT.md` carries the same entry with its trigger.
 
 **Endpoints that do not exist at all**
 

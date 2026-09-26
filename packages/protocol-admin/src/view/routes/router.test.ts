@@ -1,14 +1,24 @@
+import { type Database } from '@odudu/db';
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 import { ADMIN_ROUTES } from '#/service/capability';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
-import { type AdminRouteHandlers, registerAdminRoutes } from '#/view/routes/router';
+import {
+  type AdminRouteHandlers,
+  type AdminRouterDeps,
+  registerAdminRoutes,
+} from '#/view/routes/router';
 
-// Never called: registration itself never authenticates or authorizes.
+// Never called: registration itself never authenticates, authorizes or writes.
 const authDeps = {} as unknown as AuthenticateAdminDeps;
 const authzDeps = {} as unknown as AuthorizeAdminDeps;
-const clock = { now: () => new Date(0) };
+const deps: AdminRouterDeps = {
+  auth: authDeps,
+  authz: authzDeps,
+  clock: { now: () => new Date(0) },
+  database: {} as unknown as Database,
+};
 const noopHandler = () => {
   throw new Error('not called by these tests');
 };
@@ -25,7 +35,7 @@ describe('registerAdminRoutes', () => {
     // beside is not allowed to import. `hasRoute` reads the route table
     // `registerAdminRoutes` builds directly, without booting.
     const app = Fastify();
-    registerAdminRoutes(app, handlersFor(ADMIN_ROUTES), authDeps, authzDeps, clock);
+    registerAdminRoutes(app, handlersFor(ADMIN_ROUTES), deps);
 
     for (const route of ADMIN_ROUTES) {
       expect(
@@ -41,7 +51,7 @@ describe('registerAdminRoutes', () => {
     const app = Fastify();
     const incomplete = handlersFor(ADMIN_ROUTES.slice(1));
     expect(() => {
-      registerAdminRoutes(app, incomplete, authDeps, authzDeps, clock);
+      registerAdminRoutes(app, incomplete, deps);
     }).toThrow(/has no registered handler/u);
   });
 
@@ -52,7 +62,7 @@ describe('registerAdminRoutes', () => {
       'GET /admin/tenants/:tenant/not-a-real-route': noopHandler,
     };
     expect(() => {
-      registerAdminRoutes(app, extra, authDeps, authzDeps, clock);
+      registerAdminRoutes(app, extra, deps);
     }).toThrow(/missing from ADMIN_ROUTES/u);
   });
 });

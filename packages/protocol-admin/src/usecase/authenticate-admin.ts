@@ -9,11 +9,19 @@ export interface AdminPrincipal {
   readonly clientDbId: string;
 }
 
+// A genuine token from another tenant of this deployment, presented at a
+// tenant it was never minted for: refused, and recorded (ADR 0037).
+export interface ForeignIssuer {
+  readonly issuerTenantId: string;
+  readonly subjectId: string;
+  readonly clientDbId: string | null;
+}
+
 export type AdminAuthOutcome =
   | { kind: 'authenticated'; principal: AdminPrincipal }
   // `reason` is for logging only — the route never puts it in a response
   // body, so a caller cannot use it to learn which step refused them.
-  | { kind: 'unauthenticated'; reason: string };
+  | { kind: 'unauthenticated'; reason: string; foreignIssuer?: ForeignIssuer };
 
 export interface AuthenticateAdminDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
@@ -37,6 +45,7 @@ export interface AuthenticateAdminInput {
   // so it stays free of the Fastify request type that computes them.
   targetTenantIssuer: string;
   systemTenantIssuer: string;
+  issuerBase: string;
   now: Date;
 }
 
@@ -110,6 +119,44 @@ async function matchIssuer(
   return { id: tenant.id, lifespans: lifespansOf(tenant) };
 }
 
+// Resolves an issuer neither of the two above, only to learn whether a
+// tenant here really signed it. The answer changes no response.
+async function resolveForeignIssuer(
+  deps: AuthenticateAdminDeps,
+  input: AuthenticateAdminInput,
+  token: string,
+  iss: string,
+): Promise<ForeignIssuer | undefined> {
+  const prefix = `${input.issuerBase}/tenants/`;
+  if (!iss.startsWith(prefix)) return undefined;
+  const name = iss.slice(prefix.length);
+  if (name.length === 0 || name.includes('/')) return undefined;
+
+  const tenant = await deps.findTenant(name);
+  if (!tenant?.enabled) return undefined;
+
+  const keys = await deps.listPublishableKeys(tenant.id);
+  let payload;
+  try {
+    payload = await verifyJwt(token, {
+      keys,
+      issuer: iss,
+      audience: ADMIN_API_AUDIENCE,
+      typ: 'at+jwt',
+    });
+  } catch {
+    return undefined;
+  }
+  if (typeof payload.sub !== 'string' || payload.sub.length === 0) return undefined;
+
+  const grantId = payload.grant_id;
+  const grant =
+    typeof grantId === 'string' && grantId.length > 0
+      ? await deps.loadGrant(tenant.id, grantId)
+      : null;
+  return { issuerTenantId: tenant.id, subjectId: payload.sub, clientDbId: grant?.clientId ?? null };
+}
+
 export async function authenticateAdmin(
   deps: AuthenticateAdminDeps,
   input: AuthenticateAdminInput,
@@ -121,7 +168,12 @@ export async function authenticateAdmin(
   if (iss === undefined) return unauthenticated('malformed_token');
 
   const matched = await matchIssuer(deps, input, iss);
-  if (matched === undefined) return unauthenticated('issuer_mismatch');
+  if (matched === undefined) {
+    const foreignIssuer = await resolveForeignIssuer(deps, input, token, iss);
+    return foreignIssuer === undefined
+      ? unauthenticated('issuer_mismatch')
+      : { kind: 'unauthenticated', reason: 'issuer_mismatch', foreignIssuer };
+  }
 
   const keys = await deps.listPublishableKeys(matched.id);
   let payload;

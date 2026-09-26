@@ -425,7 +425,12 @@ function buildAdminRoutes(
     };
 
     registerOpenApiRoute(app);
-    registerAdminRoutes(app, handlers, authDeps, authzDeps, clock);
+    registerAdminRoutes(app, handlers, {
+      auth: authDeps,
+      authz: authzDeps,
+      clock,
+      database: deps.database.db,
+    });
 
     deps.logger.debug({}, 'protocol-admin registered its admin routes');
     return Promise.resolve();
