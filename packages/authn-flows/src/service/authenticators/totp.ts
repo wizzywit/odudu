@@ -30,11 +30,13 @@ export type TotpStepOutcome =
   | { kind: 'failure'; reason: string; replayed: boolean };
 
 // verifyTotp never compares a step at or below `lastStep`, so a code it
-// refuses may be one it accepted before. Asking again without that floor is
-// what tells a replay apart from a wrong code; both still refuse alike.
+// refuses may be the one it last accepted. Asking again without that floor
+// tells that replay apart from a wrong code; both still refuse alike. An
+// earlier step is far more often a drifted clock than a replay, so it
+// counts as a wrong code.
 function isSpentCode(secret: TotpSecret, code: string, now: Date): boolean {
   const unbounded = verifyTotp({ secret: secret.secret, code, now, lastStep: null });
-  return unbounded.ok && unbounded.step <= secret.lastStep;
+  return unbounded.ok && unbounded.step === secret.lastStep;
 }
 
 export function totpStep(input: TotpInput, verification: TotpVerification): TotpStepOutcome {

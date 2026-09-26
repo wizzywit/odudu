@@ -67,13 +67,24 @@ describe('totpStep', () => {
   // that refusal across calls.
   // The refusal reads exactly as a wrong code's; `replayed` is for the audit
   // row alone.
-  it('refuses a code whose step the credential has already used, as a replay', () => {
+  it('refuses the code of the last step the credential used, as a replay', () => {
     const result = totpStep(
       { code: currentCode() },
       { subjectId: SUBJECT, secret: credential({ lastStep: totpCounter(NOW) }), now: NOW },
     );
 
     expect(result).toEqual({ kind: 'failure', reason: 'invalid_credentials', replayed: true });
+  });
+
+  // A code from a step before the last one used is, far more often, a clock
+  // the authenticator drifted behind than a code presented twice.
+  it('refuses a code from a step before the last one used, as a wrong code', () => {
+    const result = totpStep(
+      { code: currentCode() },
+      { subjectId: SUBJECT, secret: credential({ lastStep: totpCounter(NOW) + 1 }), now: NOW },
+    );
+
+    expect(result).toEqual({ kind: 'failure', reason: 'invalid_credentials', replayed: false });
   });
 });
 
