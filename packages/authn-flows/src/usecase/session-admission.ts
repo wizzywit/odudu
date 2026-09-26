@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { tenants, type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository, type AuditEventInput } from '@odudu/domain-audit';
 import { type Clock, systemClock } from '@odudu/kernel';
 import { sessionRepository } from '#/repository/sessions';
 import { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
@@ -38,7 +39,21 @@ export async function admitSession(
   const now = clock.now();
   const repo = sessionRepository(tx);
   const live = await repo.liveByIds(input.browserSessionIds, input.lifespans, now);
-  await repo.endMany(chooseEvictions(live, input.maxSessionsPerBrowser), now);
+  const evicted = new Set(chooseEvictions(live, input.maxSessionsPerBrowser));
+  await repo.endMany([...evicted], now);
+  await auditRepository(tx).recordAll(
+    live
+      .filter((session) => evicted.has(session.id))
+      .map((session): AuditEventInput => ({
+        eventType: 'session',
+        action: 'session.ended',
+        outcome: 'allowed',
+        actorSubjectId: session.subjectId,
+        resourceType: 'session',
+        resourceId: session.id,
+        detail: { via: 'evicted' },
+      })),
+  );
 
   const { maxSeconds } = lifespanFor(input.lifespans, input.remembered);
   return establishSession(

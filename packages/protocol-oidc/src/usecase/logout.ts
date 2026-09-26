@@ -1,5 +1,6 @@
 import { type SessionRecord } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, type SigningKeyRecord } from '@odudu/crypto';
+import { type RequestContext } from '@odudu/db';
 import { type ClientLogoutTarget } from '#/repository/grants';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { frontChannelLogoutUrl } from '#/service/frontchannel-logout';
@@ -138,6 +139,7 @@ export interface LogoutUsecaseDeps {
     subjectId: string,
     now: Date,
     issuer: string,
+    request: RequestContext,
   ): Promise<void>;
   // Front-Channel Logout 1.0 §3's "set of logged-in RPs": the distinct
   // clients holding a grant issued under this session, with enough of each
@@ -212,6 +214,7 @@ export async function handleLogoutRequest(
   issuer: string,
   header: string | undefined,
   params: LogoutRequestParams,
+  request: RequestContext,
 ): Promise<LogoutOutcome> {
   const tenant = await deps.findTenant(tenantName);
   if (!tenant?.enabled) return { kind: 'not_found' };
@@ -272,7 +275,7 @@ export async function handleLogoutRequest(
   // matched redirect with nothing to end (see its own comment) — there is
   // no session row to touch.
   if (session !== null) {
-    await deps.endSession(tenant.id, session.id, session.subjectId, deps.now(), issuer);
+    await deps.endSession(tenant.id, session.id, session.subjectId, deps.now(), issuer, request);
   }
 
   if (decision.kind === 'end') {
@@ -324,6 +327,7 @@ export async function handleLogoutConfirmation(
   issuer: string,
   header: string | undefined,
   params: LogoutConfirmationParams,
+  request: RequestContext,
 ): Promise<LogoutOutcome> {
   const tenant = await deps.findTenant(tenantName);
   if (!tenant?.enabled) return { kind: 'not_found' };
@@ -357,7 +361,7 @@ export async function handleLogoutConfirmation(
     registered,
   });
 
-  await deps.endSession(tenant.id, session.id, session.subjectId, deps.now(), issuer);
+  await deps.endSession(tenant.id, session.id, session.subjectId, deps.now(), issuer, request);
 
   if (decision.kind === 'end') {
     const frontChannel =

@@ -147,6 +147,7 @@ export type LoginSubmissionOutcome =
 export interface CompleteLoginInput {
   tenantId: string;
   authSessionId: string;
+  request: RequestContext;
   subjectId: string;
   clientId: string;
   redirectUri: string;
@@ -390,6 +391,7 @@ export async function completeAuthorizedLogin(
   clientId: string,
   subjectId: string,
   authenticators: string[],
+  request: RequestContext,
   // The browser's own `Cookie` header, read by the route and trusted for
   // nothing but resolving its current session set — the same value
   // /authorize and logout resolve through.
@@ -428,6 +430,7 @@ export async function completeAuthorizedLogin(
   const completed = await deps.completeLogin({
     tenantId: tenant.id,
     authSessionId,
+    request,
     subjectId,
     clientId,
     redirectUri: pending.redirectUri,
@@ -674,6 +677,7 @@ export async function handleLoginSubmission(
     clientId,
     result.subjectId,
     result.authenticators,
+    request,
     header,
     remembered,
   );

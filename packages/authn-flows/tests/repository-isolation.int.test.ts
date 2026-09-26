@@ -104,10 +104,8 @@ describe('sessionRepository', () => {
         expect(found?.expiresAt).toEqual(originalExpiry);
       },
       attempt: async (tx, id) => sessionRepository(tx).end(id, new Date()),
-      expectBlocked: () => {
-        // `end` is an UPDATE affecting zero rows under a foreign tenant
-        // context, not a thrown error or a returned value to assert on —
-        // `verifyTenantAUnaffected` is where the blocking actually shows.
+      expectBlocked: (ended) => {
+        expect(ended).toBe(false);
       },
       verifyTenantAUnaffected: async (tx, id) => {
         const found = await sessionRepository(tx).byId(id);

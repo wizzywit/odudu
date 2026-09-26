@@ -156,6 +156,7 @@ describe('handleLoginSubmission — the success path', () => {
     expect(completeLogin).toHaveBeenCalledWith({
       tenantId: TENANT.id,
       authSessionId: AUTH_SESSION_ID,
+      request: REQUEST,
       subjectId: 'subject-1',
       clientId: 'client-uuid-1',
       redirectUri: PENDING.redirectUri,

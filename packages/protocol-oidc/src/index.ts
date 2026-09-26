@@ -28,6 +28,7 @@ import {
 import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
 import {
   clientRepository,
@@ -342,58 +343,72 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // the form path and the consent POST — completeAuthorizedLogin is the
     // only caller of either.
     const completeLogin = (input: CompleteLoginInput): Promise<CompleteLoginOutcome> =>
-      withTenant(deps.database.db, input.tenantId, async (tx) => {
-        const now = clock.now();
-        const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
-        if (!consumed) return { kind: 'already_consumed' };
+      withTenant(
+        deps.database.db,
+        input.tenantId,
+        async (tx) => {
+          const now = clock.now();
+          const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
+          if (!consumed) return { kind: 'already_consumed' };
 
-        // A session reuse a consent decision promoted: touch and reuse it,
-        // reporting its own authTime, rather than establishing a fresh
-        // session and reporting `now` — the same distinction completeReuse
-        // draws for the ungated reuse path, and for the same reason: being
-        // asked for consent must not itself read as a new authentication.
-        const reuseSession = input.reuseSession;
-        let sessionId: string;
-        let authTime: Date;
-        if (reuseSession !== undefined) {
-          await sessionRepository(tx).touch(reuseSession.sessionId, now);
-          sessionId = reuseSession.sessionId;
-          authTime = reuseSession.authTime;
-        } else {
-          const admitted = await admitSession(
-            tx,
-            {
-              tenantId: input.tenantId,
-              subjectId: input.subjectId,
-              authenticators: input.authenticators,
-              remembered: input.remembered,
-              browserSessionIds: input.browserSessionIds,
-              maxSessionsPerBrowser: input.maxSessionsPerBrowser,
-              lifespans: input.lifespans,
-            },
-            clock,
-          );
-          sessionId = admitted.sessionId;
-          authTime = now;
-        }
+          // A session reuse a consent decision promoted: touch and reuse it,
+          // reporting its own authTime, rather than establishing a fresh
+          // session and reporting `now` — the same distinction completeReuse
+          // draws for the ungated reuse path, and for the same reason: being
+          // asked for consent must not itself read as a new authentication.
+          const reuseSession = input.reuseSession;
+          let sessionId: string;
+          let authTime: Date;
+          if (reuseSession !== undefined) {
+            await sessionRepository(tx).touch(reuseSession.sessionId, now);
+            sessionId = reuseSession.sessionId;
+            authTime = reuseSession.authTime;
+          } else {
+            const admitted = await admitSession(
+              tx,
+              {
+                tenantId: input.tenantId,
+                subjectId: input.subjectId,
+                authenticators: input.authenticators,
+                remembered: input.remembered,
+                browserSessionIds: input.browserSessionIds,
+                maxSessionsPerBrowser: input.maxSessionsPerBrowser,
+                lifespans: input.lifespans,
+              },
+              clock,
+            );
+            sessionId = admitted.sessionId;
+            authTime = now;
+            await auditRepository(tx).record({
+              eventType: 'session',
+              action: 'session.created',
+              outcome: 'allowed',
+              actorSubjectId: input.subjectId,
+              actorClientId: input.clientId,
+              resourceType: 'session',
+              resourceId: sessionId,
+            });
+          }
 
-        const { code } = await issueAuthorizationCode(tx, {
-          tenantId: input.tenantId,
-          clientId: input.clientId,
-          subjectId: input.subjectId,
-          redirectUri: input.redirectUri,
-          scope: input.scope,
-          nonce: input.nonce,
-          codeChallenge: input.codeChallenge,
-          codeChallengeMethod: input.codeChallengeMethod,
-          authTime,
-          now,
-          sessionId,
-          resource: input.resource,
-          claims: input.claims,
-        });
-        return { kind: 'issued', sessionId, code };
-      });
+          const { code } = await issueAuthorizationCode(tx, {
+            tenantId: input.tenantId,
+            clientId: input.clientId,
+            subjectId: input.subjectId,
+            redirectUri: input.redirectUri,
+            scope: input.scope,
+            nonce: input.nonce,
+            codeChallenge: input.codeChallenge,
+            codeChallengeMethod: input.codeChallengeMethod,
+            authTime,
+            now,
+            sessionId,
+            resource: input.resource,
+            claims: input.claims,
+          });
+          return { kind: 'issued', sessionId, code };
+        },
+        input.request,
+      );
 
     registerDiscoveryRoute(app, {
       findTenant,
@@ -735,9 +750,17 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // Two concurrent logouts on the same session both reach this and both
       // attempt to enqueue a delivery; logoutDeliveryRepository.enqueue's
       // own comment is why that yields one delivery, not two.
-      endSession: (tenantId, sessionId, subjectId, now, issuer) =>
-        withTenant(deps.database.db, tenantId, (tx) =>
-          endSession(tx, { kek: deps.kek }, { tenantId, sessionId, subjectId, now, issuer }),
+      endSession: (tenantId, sessionId, subjectId, now, issuer, request) =>
+        withTenant(
+          deps.database.db,
+          tenantId,
+          (tx) =>
+            endSession(
+              tx,
+              { kek: deps.kek },
+              { tenantId, sessionId, subjectId, now, issuer, via: 'logout' },
+            ),
+          request,
         ),
       // Front-Channel Logout 1.0 §3's "set of logged-in RPs" — read after
       // endSession above has already revoked the session's grants, since

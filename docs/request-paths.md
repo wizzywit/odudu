@@ -5360,6 +5360,87 @@ value — a trailing slash, a query string, a different host — is refused,
 and the session still ends: §3's redirect rule is about the redirect
 alone, never about whether logout happened.
 
+### What a session leaves in the audit log
+
+A session writes one `session` row when a login creates it and one when it
+ends, each in the transaction that did the work. A signed-in `/authorize`
+that reuses a session creates nothing and writes nothing. This run signs
+in with a fresh jar, fetches the confirmation page for the `session_id`
+it carries, and posts it back, each request with its own `x-request-id`,
+so the query below reads these two requests and nothing else:
+
+```bash
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-audit' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+
+curl -sS -c cookies-audit.txt -o /dev/null -w '%{http_code}\n' \
+  -H 'x-request-id: logout-doc-sign-in' \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "$LOGIN"
+
+SESSION_ID=$(curl -sS -b cookies-audit.txt \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout" \
+  | sed -n 's/.*name="session_id" value="\([^"]*\)".*/\1/p')
+
+curl -sS -b cookies-audit.txt -o /dev/null -w '%{http_code}\n' \
+  -H 'x-request-id: logout-doc-confirm' \
+  --data-urlencode "session_id=$SESSION_ID" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.action, e.outcome, e.actor_subject_id, c.client_id as actor_client,
+          e.resource_type, e.resource_id, e.request_id, e.ip, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.event_type = 'session'
+      and e.request_id in ('logout-doc-sign-in', 'logout-doc-confirm')
+    order by e.occurred_at;"
+```
+
+```
+302
+200
+-[ RECORD 1 ]----+-------------------------------------
+action           | session.created
+outcome          | allowed
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | session
+resource_id      | 01a0db7b-71ae-7434-bed7-8ff98d96b67c
+request_id       | logout-doc-sign-in
+ip               | 172.20.0.1
+detail           | {}
+-[ RECORD 2 ]----+-------------------------------------
+action           | session.ended
+outcome          | allowed
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | (null)
+resource_type    | session
+resource_id      | 01a0db7b-71ae-7434-bed7-8ff98d96b67c
+request_id       | logout-doc-confirm
+ip               | 172.20.0.1
+detail           | {"via": "logout"}
+```
+
+Captured against the same stack as
+[what a refused login leaves behind](#what-a-refused-login-leaves-behind):
+`ada` is subject `01a0db22-1c92-…`, and `resource_id` is the session the
+`demo-session` cookie named. `detail.via` says how a session ended:
+`logout` here, `admin` when the admin API's
+`DELETE …/sessions/{sid}` ends it (beside that route's own
+`admin_mutation` row), and `evicted` when a login past the tenant's
+`max_sessions_per_browser` ends the browser's least recently active
+session, naming that session's own subject. Ending a session that has
+already ended writes no second row.
+
 ### The same request over `POST`
 
 §2 requires both methods at this endpoint, so an RP may serialize the
@@ -8461,16 +8542,17 @@ session lifecycle. A citation of either half here means that half.
 
 **The admin API**
 
-- **The audit log records administrative mutations and login steps, and
-  nothing else.** A password, a second factor, a passkey, the factor offered
-  after a first one and a lockout tripping each write an `authentication`
-  row ([what a refused login leaves behind](#what-a-refused-login-leaves-behind)),
+- **The audit log records administrative mutations, login steps and
+  sessions, and nothing else.** A password, a second factor, a passkey, the
+  factor offered after a first one and a lockout tripping each write an
+  `authentication` row ([what a refused login leaves behind](#what-a-refused-login-leaves-behind)),
+  and a session starting or ending writes a `session` row
+  ([what a session leaves in the audit log](#what-a-session-leaves-in-the-audit-log)),
   but a token minted or refreshed or revoked, a client failing to
-  authenticate, a session starting or ending, and a credential enrolled
-  leave no trace — `?event_type=` narrows to any of the vocabulary's six
-  values, and nothing yet writes `session`, `token` or `credential`, nor
-  `authentication`'s `client.authenticate`. **P4e**, whose criterion names
-  the token, session and credential events themselves.
+  authenticate, and a credential enrolled leave no trace — `?event_type=`
+  narrows to any of the vocabulary's six values, and nothing yet writes
+  `token` or `credential`, nor `authentication`'s `client.authenticate`.
+  **P4e**, whose criterion names the token and credential events themselves.
 - **No refusal outside the login steps and the admin API is recorded.**
   Every refused login step writes a `refused` row under
   `resource_type: authentication_session`, and the admin API records the

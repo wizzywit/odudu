@@ -1,4 +1,5 @@
 import { sessionCookies } from '@odudu/authn-flows';
+import { requestContextFrom } from '@odudu/domain-audit';
 import { type FastifyInstance } from 'fastify';
 import { handleConsentSubmission, type ConsentSubmissionDeps } from '#/usecase/consent-submission';
 import { renderAuthorizeErrorPage, renderEmailUnverifiedPage } from '#/view/authorize-html';
@@ -51,6 +52,7 @@ export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDep
       issuerBaseFor(request),
       authSessionId,
       { decision: firstString(body.decision), scopes: scopeValues(body.scope) },
+      requestContextFrom(request),
       request.headers.cookie,
     );
 

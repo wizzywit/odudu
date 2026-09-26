@@ -148,6 +148,27 @@ describe('the live session set', () => {
     });
   });
 
+  it('reports from end whether the session was still unended', async () => {
+    const tenantId = newId();
+    const now = new Date();
+    const { liveId, deadId } = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+      return {
+        liveId: await createSession(tx, tenantId, subject.id, new Date(now.getTime() + 3_600_000)),
+        deadId: await createSession(tx, tenantId, subject.id, new Date(now.getTime() - 3_600_000)),
+      };
+    });
+
+    await withTenant(app.db, tenantId, async (tx) => {
+      const repo = sessionRepository(tx);
+      expect(await repo.end(liveId, now)).toBe(true);
+      expect(await repo.end(liveId, new Date(now.getTime() + 60_000))).toBe(false);
+      expect(await repo.end(deadId, now)).toBe(false);
+      expect(await repo.end(newId(), now)).toBe(false);
+    });
+  });
+
   it('cannot end a foreign tenant’s session, and leaves it unaffected', async () => {
     const now = new Date();
     await expectCrossTenantMethodProbe(app.db, {

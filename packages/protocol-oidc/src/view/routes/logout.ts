@@ -1,4 +1,5 @@
 import { clearedSessionCookies } from '@odudu/authn-flows';
+import { requestContextFrom } from '@odudu/domain-audit';
 import { type RenderedPage } from '@odudu/kernel';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import {
@@ -131,6 +132,7 @@ async function respondToLogoutRequest(
     tenantIssuerFor(request, tenant),
     request.headers.cookie,
     params,
+    requestContextFrom(request),
   );
   return respondToOutcome(outcome, tenant, deps.tls, reply);
 }
@@ -168,6 +170,7 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
         postLogoutRedirectUri: firstString(body.post_logout_redirect_uri) ?? null,
         state: firstString(body.state) ?? null,
       },
+      requestContextFrom(request),
     );
     return respondToOutcome(outcome, request.params.tenant, deps.tls, reply);
   });

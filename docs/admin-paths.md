@@ -1140,15 +1140,19 @@ client that used it and has a `backchannel_logout_uri` configured (§2.5 of
 the spec). **Front-Channel Logout does not apply here**: §3 renders an
 iframe per relying party in the End-User's own browser, and an
 admin-initiated end has no browser to render one in, so only the
-back-channel delivery is attempted. A second `DELETE` of the same session
-is idempotent and answers `204`: ending an already-ended session only
-moves `expires_at` earlier, and a repeat delivery for the same client is
-deduped by `backchannel_logout_deliveries_dedupe`. "Only moves earlier" is
-what `least(expires_at, now)` and `coalesce(revoked_at, now)` make true — a
-bare assignment would push both stamps forward on every repeat, so a second
-`DELETE` at a later moment would delay the reaping the first one started
-rather than changing nothing. An unknown session id,
-or one belonging to a different subject, answers `404`.
+back-channel delivery is attempted. Beside its own `admin_mutation` row,
+`session.end`, it writes the `session.ended` row every session end writes,
+with `detail.via` `admin` ([request paths](request-paths.md#what-a-session-leaves-in-the-audit-log)).
+A second `DELETE` of the same session is idempotent and answers `204`:
+ending an already-ended session moves neither stamp, and a repeat delivery
+for the same client is deduped by `backchannel_logout_deliveries_dedupe`.
+`expires_at` moves only while it is still ahead of now, and
+`coalesce(revoked_at, now)` keeps the first revocation — a bare assignment
+would push both stamps forward on every repeat, so a second `DELETE` at a
+later moment would delay the reaping the first one started rather than
+changing nothing. The repeat writes its own `admin_mutation` row, since it
+is a request an administrator made, but no second `session.ended`. An
+unknown session id, or one belonging to a different subject, answers `404`.
 
 A session needs a login, and a subject this API created has no password, so
 this section runs against `bob` — seeded with

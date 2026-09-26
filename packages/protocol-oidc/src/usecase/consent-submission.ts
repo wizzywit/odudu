@@ -4,6 +4,7 @@ import {
   type RequiredAction,
   type SessionRecord,
 } from '@odudu/authn-flows';
+import { type RequestContext } from '@odudu/db';
 import { isUuid } from '@odudu/kernel';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import {
@@ -107,6 +108,7 @@ export async function handleConsentSubmission(
   issuerBase: string,
   authSessionId: string | undefined,
   answer: ConsentAnswer,
+  request: RequestContext,
   // The browser's `Cookie` header — required, not optional; see
   // login-submission.ts's identical parameter on handleLoginSubmission for
   // why an omitted one is a silent bug rather than a safe default.
@@ -223,6 +225,7 @@ export async function handleConsentSubmission(
     clientId,
     subjectId,
     authenticators,
+    request,
     header,
     // The only place this choice can still come from: this door reads no
     // `remember_me` field of its own, so whatever handleLoginSubmission's
