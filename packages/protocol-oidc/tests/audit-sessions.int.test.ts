@@ -420,3 +420,14 @@ describe('session.ended', () => {
     });
   });
 });
+
+describe('tenant isolation', () => {
+  it('shows a tenant no session row written for another', async () => {
+    const tenant = await seedTenant();
+    const other = await seedTenant();
+    await login(tenant, new Map());
+
+    expect(await sessionRows(tenant, 'session.created')).toHaveLength(1);
+    expect(await sessionRows(other, 'session.created')).toEqual([]);
+  });
+});

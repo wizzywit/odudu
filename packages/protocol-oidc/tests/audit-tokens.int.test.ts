@@ -41,6 +41,8 @@ const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 const TOKEN_EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange';
 const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token';
+const REFRESH_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:refresh_token';
+const ID_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:id_token';
 
 interface SeededTenant {
   name: string;
@@ -119,12 +121,12 @@ function codeFrom(res: LightMyRequestResponse): string {
   return code;
 }
 
-async function loginForCode(tenant: SeededTenant): Promise<string> {
+async function loginForCode(tenant: SeededTenant, scope = 'openid'): Promise<string> {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
-    scope: 'openid',
+    scope,
     state: 'xyz',
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
@@ -194,6 +196,7 @@ function exchange(
   subjectToken: string,
   actorToken: string | undefined,
   requestId?: string,
+  requestedTokenType?: string,
 ): Promise<TokenBody> {
   return tokenRequest(
     tenant,
@@ -201,6 +204,7 @@ function exchange(
       grant_type: TOKEN_EXCHANGE_GRANT,
       subject_token: subjectToken,
       subject_token_type: ACCESS_TOKEN_TYPE,
+      ...(requestedTokenType === undefined ? {} : { requested_token_type: requestedTokenType }),
       ...(actorToken === undefined
         ? {}
         : { actor_token: actorToken, actor_token_type: ACCESS_TOKEN_TYPE }),
@@ -328,6 +332,22 @@ describe('token.refresh', () => {
     });
     expect(grantIdOf(refreshed.access_token)).toBe(row.resourceId);
   });
+
+  it("records the narrower scope a refresh asked for, not the grant's", async () => {
+    const tenant = await seedTenant();
+    const issued = await redeem(tenant, await loginForCode(tenant, 'openid email'));
+    expect(issued.scope).toBe('openid email');
+
+    const refreshed = await tokenRequest(tenant, {
+      grant_type: 'refresh_token',
+      refresh_token: present(issued.refresh_token, 'refresh_token'),
+      scope: 'openid',
+    });
+    expect(refreshed.scope).toBe('openid');
+
+    const row = onlyRow(await tokenRows(tenant, 'token.refresh'));
+    expect(row.detail).toEqual({ scope: 'openid' });
+  });
 });
 
 describe('token.exchange', () => {
@@ -376,6 +396,67 @@ describe('token.exchange', () => {
       detail: { mode: 'impersonation', scope: 'openid', requested_token_type: ACCESS_TOKEN_TYPE },
     });
     expect(row.resourceId).toBe(grantIdOf(exchanged.access_token));
+  });
+
+  it('names the grant a refresh-token exchange creates', async () => {
+    const tenant = await seedTenant();
+    const subject = await redeem(tenant, await loginForCode(tenant));
+    const subjectToken = present(subject.access_token, 'access_token');
+
+    const exchanged = await exchange(
+      tenant,
+      subjectToken,
+      undefined,
+      undefined,
+      REFRESH_TOKEN_TYPE,
+    );
+
+    const row = onlyRow(await tokenRows(tenant, 'token.exchange'));
+    expect(row).toMatchObject({
+      outcome: 'allowed',
+      actorSubjectId: tenant.subjectId,
+      resourceType: 'grant',
+      detail: { mode: 'impersonation', scope: 'openid', requested_token_type: REFRESH_TOKEN_TYPE },
+    });
+    expect(row.resourceId).not.toBe(grantIdOf(subjectToken));
+    const refreshed = await tokenRequest(tenant, {
+      grant_type: 'refresh_token',
+      refresh_token: present(exchanged.access_token, 'access_token'),
+    });
+    expect(grantIdOf(refreshed.access_token)).toBe(row.resourceId);
+  });
+
+  it('names no resource for an id_token exchange, which creates no grant', async () => {
+    const tenant = await seedTenant();
+    const subject = await redeem(tenant, await loginForCode(tenant));
+
+    await exchange(
+      tenant,
+      present(subject.access_token, 'access_token'),
+      undefined,
+      undefined,
+      ID_TOKEN_TYPE,
+    );
+
+    const row = onlyRow(await tokenRows(tenant, 'token.exchange'));
+    expect(row).toMatchObject({
+      outcome: 'allowed',
+      actorSubjectId: tenant.subjectId,
+      resourceType: null,
+      resourceId: null,
+      detail: { mode: 'impersonation', scope: 'openid', requested_token_type: ID_TOKEN_TYPE },
+    });
+  });
+});
+
+describe('tenant isolation', () => {
+  it('shows a tenant no token row written for another', async () => {
+    const tenant = await seedTenant();
+    const other = await seedTenant();
+    await redeem(tenant, await loginForCode(tenant));
+
+    expect(await tokenRows(tenant)).toHaveLength(1);
+    expect(await tokenRows(other)).toEqual([]);
   });
 });
 
