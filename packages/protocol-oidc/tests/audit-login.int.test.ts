@@ -21,6 +21,7 @@ import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
+import { sql } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
@@ -171,6 +172,31 @@ async function onlyRowFor(tenant: SeededTenant, attempt: Attempt): Promise<Audit
   return row;
 }
 
+// A statement-level trigger fires once per INSERT however many rows it
+// carries, so this counts the statements an attempt issued against the
+// table, keyed on the request id the transaction was bound to.
+async function countAuditInsertStatements(owner: DatabaseHandle): Promise<void> {
+  await owner.db.execute(sql`create table audit_insert_statements (request_id text)`);
+  await owner.db.execute(sql`
+    create function count_audit_insert() returns trigger
+      language plpgsql security definer as $$
+      begin
+        insert into audit_insert_statements values (current_setting('app.request_id', true));
+        return null;
+      end $$`);
+  await owner.db.execute(sql`
+    create trigger count_audit_insert after insert on audit_events
+      for each statement execute function count_audit_insert()`);
+}
+
+async function auditStatementsFor(attempt: Attempt): Promise<number> {
+  const rows = await ownerHandle?.db.execute<{ count: number }>(
+    sql`select count(*)::int as count from audit_insert_statements
+          where request_id = ${attempt.requestId}`,
+  );
+  return rows?.[0]?.count ?? -1;
+}
+
 function comparable(res: LightMyRequestResponse): unknown {
   const headers = Object.fromEntries(
     Object.entries(res.headers).filter(
@@ -189,10 +215,11 @@ beforeAll(async () => {
 
   passwordTenant = await seedTenant(
     'audit-login',
-    ['alice', 'bob', 'carol', 'dave', 'erin', 'mallory'],
+    ['alice', 'bob', 'carol', 'dave', 'erin', 'mallory', 'trent'],
     false,
   );
   otpTenant = await seedTenant('audit-login-otp', ['otto', 'rita'], true);
+  await countAuditInsertStatements(ownerHandle);
 
   http = Fastify({ requestIdHeader: 'x-request-id' });
   httpApp = http;
@@ -373,6 +400,38 @@ describe('the lockout', () => {
       { factor: 'password', reason: 'unknown_subject' },
       { factor: 'password', reason: 'locked_out' },
     ]);
+  });
+});
+
+describe('the audit write costs every refusal the same', () => {
+  it('issues one statement for the attempt that trips a lockout, as for an unknown name', async () => {
+    const authSessionId = await startAuthSession(passwordTenant);
+    const attempts: Attempt[] = [];
+    for (let i = 0; i < 5; i++) {
+      attempts.push(
+        await submit(passwordTenant, {
+          auth_session_id: authSessionId,
+          username: 'trent',
+          password: WRONG_PASSWORD,
+        }),
+      );
+    }
+    const unknown = await submit(passwordTenant, {
+      auth_session_id: authSessionId,
+      username: 'nobody-else',
+      password: WRONG_PASSWORD,
+    });
+    const tripping = attempts[4];
+    const ordinary = attempts[0];
+    if (tripping === undefined || ordinary === undefined) throw new Error('expected attempts');
+
+    expect((await rowsFor(passwordTenant, tripping)).map((row) => row.action).sort()).toEqual([
+      'lockout.tripped',
+      'login.password',
+    ]);
+    expect(await auditStatementsFor(tripping)).toBe(1);
+    expect(await auditStatementsFor(ordinary)).toBe(1);
+    expect(await auditStatementsFor(unknown)).toBe(1);
   });
 });
 

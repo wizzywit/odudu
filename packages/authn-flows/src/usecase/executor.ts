@@ -27,7 +27,13 @@ import {
   passkeyStep,
   type WebauthnSecret,
 } from '#/service/authenticators/passkey';
-import { OTP, PASSKEY, PASSWORD, RECOVERY_CODE } from '#/service/authenticators/names';
+import {
+  OTP,
+  PASSKEY,
+  PASSWORD,
+  RECOVERY_CODE,
+  type AuthenticatorName,
+} from '#/service/authenticators/names';
 import {
   recoveryApplicable,
   recoveryCodeOffered,
@@ -326,7 +332,7 @@ type TenantAuthenticatorFn = (
   context: StepContext,
 ) => Promise<AuthenticatorResult>;
 
-const AUTHENTICATORS: Record<string, TenantAuthenticatorFn> = {
+const AUTHENTICATORS: Record<AuthenticatorName, TenantAuthenticatorFn> = {
   [PASSWORD]: runPasswordStep,
   [PASSKEY]: runPasskeyStep,
   [OTP]: runOtpStep,
@@ -784,8 +790,7 @@ export async function advance(
   if (result.kind === 'challenge') return result;
   if (result.kind === 'failure') {
     const refused = result.audit ?? { reason: 'bad_credential', subjectId: record.subjectId };
-    await audit.step(authenticator, refused.subjectId, refused.reason);
-    if (refused.lockoutTripped === true) await audit.lockoutTripped(refused.subjectId);
+    await audit.step(authenticator, refused.subjectId, refused.reason, refused.lockoutTripped);
     return { kind: 'failure', reason: result.reason };
   }
 
