@@ -47,22 +47,24 @@ fixes the decisions that span all of them.
 Each of these has an ADR in `docs/adr/` recording the alternatives and why
 they were rejected.
 
-| Area               | Decision                                                     | ADR  |
-| ------------------ | ------------------------------------------------------------ | ---- |
-| Runtime            | TypeScript on Node 24                                        | 0001 |
-| Deployment         | Self-hostable: one container + PostgreSQL                    | 0002 |
-| Agent model        | Hybrid: type is a client, instance is an ephemeral principal | 0003 |
-| HTTP               | Fastify 5                                                    | 0004 |
-| Database           | PostgreSQL 17 only                                           | 0005 |
-| DB access          | Drizzle ORM                                                  | 0006 |
-| Schemas            | Zod 4 authored, compiled to JSON Schema                      | 0007 |
-| Lint               | ESLint 10 flat with type-aware rules                         | 0008 |
-| Tenancy            | Shared tables keyed by tenant, with row-level security       | 0009 |
-| Code structure     | Five functional layers, enforced                             | 0010 |
-| Monorepo           | pnpm workspaces + Turborepo                                  | 0011 |
-| TypeScript version | Pinned to 6.x, not 7.x                                       | 0012 |
-| Imports            | Node subpath imports (`#/*`), not path aliases               | 0013 |
-| Dev credentials    | Environment-driven (`.env`, gitignored), loopback-bound      | 0015 |
+| Area               | Decision                                                      | ADR  |
+| ------------------ | ------------------------------------------------------------- | ---- |
+| Runtime            | TypeScript on Node 24                                         | 0001 |
+| Deployment         | Self-hostable: one container + PostgreSQL                     | 0002 |
+| Agent model        | Hybrid: type is a client, instance is an ephemeral principal  | 0003 |
+| HTTP               | Fastify 5                                                     | 0004 |
+| Database           | PostgreSQL 17 only                                            | 0005 |
+| DB access          | Drizzle ORM                                                   | 0006 |
+| Schemas            | Zod 4 authored, compiled to JSON Schema                       | 0007 |
+| Lint               | ESLint 10 flat with type-aware rules                          | 0008 |
+| Tenancy            | Shared tables keyed by tenant, with row-level security        | 0009 |
+| Code structure     | Five functional layers, enforced                              | 0010 |
+| Monorepo           | pnpm workspaces + Turborepo                                   | 0011 |
+| TypeScript version | Pinned to 6.x, not 7.x                                        | 0012 |
+| Imports            | Node subpath imports (`#/*`), not path aliases                | 0013 |
+| Dev credentials    | Environment-driven (`.env`, gitignored), loopback-bound       | 0015 |
+| Console            | Backend-for-frontend holding every token server-side          | 0038 |
+| Names              | Role, scope, group and tenant names are immutable identifiers | 0039 |
 
 The runtime choice rests on precedent: `node-oidc-provider` is an officially
 OpenID-certified provider written in JavaScript, and Logto ships the full
