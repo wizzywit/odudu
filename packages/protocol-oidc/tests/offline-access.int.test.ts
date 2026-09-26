@@ -335,10 +335,11 @@ async function logoutViaConfirmation(tenantName: string, cookie: string): Promis
   }
   const match = /name="session_id" value="([^"]*)"/.exec(res.body);
   const confirmedSessionId = match?.[1];
-  if (confirmedSessionId === undefined) {
-    throw new Error('session_id not found in the confirmation form');
+  const csrf = /name="csrf" value="([^"]*)"/.exec(res.body)?.[1];
+  if (confirmedSessionId === undefined || csrf === undefined) {
+    throw new Error('session_id or csrf not found in the confirmation form');
   }
-  const form = new URLSearchParams({ session_id: confirmedSessionId });
+  const form = new URLSearchParams({ session_id: confirmedSessionId, csrf });
   const confirmed = await http.inject({
     method: 'POST',
     url: `/tenants/${tenantName}/protocol/openid-connect/logout`,

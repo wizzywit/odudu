@@ -50,4 +50,15 @@ describe('SessionEntry', () => {
     expect(JSON.stringify({ entry })).not.toContain(secret);
     expect(inspect({ entry }, { showHidden: true, depth: null })).not.toContain(secret);
   });
+
+  it('proves a purpose-bound value only with its own secret', () => {
+    const entry = SessionEntry.issue(ID);
+    const proof = entry.proof('logout-confirm');
+
+    expect(entry.proves('logout-confirm', proof)).toBe(true);
+    expect(entry.proves('other-purpose', proof)).toBe(false);
+    expect(entry.proves('logout-confirm', '')).toBe(false);
+    expect(SessionEntry.issue(ID).proves('logout-confirm', proof)).toBe(false);
+    expect(proof).not.toContain(secretOf(entry));
+  });
 });

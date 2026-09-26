@@ -1,4 +1,4 @@
-import { type SessionRecord } from '@odudu/authn-flows';
+import { type PresentedSession } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, type SigningKeyRecord } from '@odudu/crypto';
 import { type RequestContext } from '@odudu/domain-audit';
 import { type ClientLogoutTarget } from '#/repository/grants';
@@ -66,14 +66,16 @@ export interface LogoutRequestParams {
 
 export type LogoutOutcome =
   | { kind: 'not_found' }
-  // The confirmation form's whole CSRF defence failed: the hidden session
-  // id posted back does not name the session the cookie itself resolves
-  // to. Distinct from `render` below — nothing was ended, so the page must
-  // not say it was.
+  // The confirmation POST named no session the cookie resolves to, or
+  // carried no token that session's entry proves. Distinct from `render`
+  // below — nothing was ended, so the page must not say it was.
   | { kind: 'unauthenticated' }
   | {
       kind: 'confirm';
       sessionId: string | null;
+      // The anti-forgery token the form carries beside `sessionId`, null
+      // exactly when `sessionId` is (see LOGOUT_CONFIRMATION).
+      csrf: string | null;
       clientId: string | null;
       postLogoutRedirectUri: string | null;
       state: string | null;
@@ -124,7 +126,7 @@ export interface LogoutUsecaseDeps {
       rememberMeMaxSeconds: number;
     },
     header: string | undefined,
-  ): Promise<SessionRecord[]>;
+  ): Promise<PresentedSession[]>;
   // One transaction: ends the session row, revokes every grant whose
   // session_id is that session (Back-Channel Logout §2.7), and enqueues one
   // back-channel logout delivery per relying party that used the session
@@ -192,16 +194,24 @@ async function registeredUris(
 // (#/service/session-selection) is only the fallback for a hint that names
 // nothing usable, the same stand-in the reuse decision at /authorize makes.
 function selectLogoutSession(
-  sessions: readonly SessionRecord[],
+  sessions: readonly PresentedSession[],
   hintSid: string | null,
-): SessionRecord | null {
+): PresentedSession | null {
   const named = hintSid === null ? undefined : sessions.find((session) => session.id === hintSid);
-  return named ?? mostRecentlyActive(sessions);
+  if (named !== undefined) return named;
+  const recent = mostRecentlyActive(sessions);
+  return sessions.find((session) => session.id === recent?.id) ?? null;
 }
 
-function toLogoutSession(session: SessionRecord | null): LogoutSession | null {
+function toLogoutSession(session: PresentedSession | null): LogoutSession | null {
   return session === null ? null : { id: session.id, subjectId: session.subjectId };
 }
+
+// The purpose the confirmation form's token is bound to. The session id it
+// sits beside is public — every token for the session carries it as `sid`
+// — so the token is an HMAC keyed by the secret half of the cookie's entry,
+// which a cross-site forger cannot read (SessionEntry.proof).
+const LOGOUT_CONFIRMATION = 'logout-confirm';
 
 // A `GET` (or unconfirmed `POST`) against the logout endpoint: the first
 // contact, before anything has been ended. Ends the session immediately
@@ -251,7 +261,8 @@ export async function handleLogoutRequest(
     params.clientId !== null && hint !== null && !hint.audiences.includes(params.clientId);
   const requested = disagreeing ? null : params.postLogoutRedirectUri;
   const hintSid = disagreeing ? null : (hint?.sid ?? null);
-  const session = toLogoutSession(selectLogoutSession(sessions, hintSid));
+  const selected = selectLogoutSession(sessions, hintSid);
+  const session = toLogoutSession(selected);
 
   const decision = decideLogout({
     hintSubject: disagreeing ? null : (hint?.subject ?? null),
@@ -265,6 +276,7 @@ export async function handleLogoutRequest(
     return {
       kind: 'confirm',
       sessionId: session?.id ?? null,
+      csrf: selected?.entry.proof(LOGOUT_CONFIRMATION) ?? null,
       clientId: params.clientId,
       postLogoutRedirectUri: requested,
       state: params.state,
@@ -305,13 +317,12 @@ export async function handleLogoutRequest(
 }
 
 export interface LogoutConfirmationParams {
-  // The value the confirmation form's hidden field carried — a
-  // double-submit cookie check, not a single-use token: it *is* one of the
-  // session cookies' own values, echoed back and checked for membership in
-  // the set the cookies themselves still resolve to. Only a browser
-  // holding an HttpOnly cookie can name a member, which is what stops a
-  // forged cross-site POST from ending it.
+  // The session the form names, which must be one the cookie itself still
+  // resolves to. It is public, so on its own it proves nothing.
   confirmedSessionId: string;
+  // The form's anti-forgery token, which must be the one that session's
+  // own presented entry proves (LOGOUT_CONFIRMATION); empty when absent.
+  csrf: string;
   clientId: string | null;
   postLogoutRedirectUri: string | null;
   state: string | null;
@@ -343,7 +354,11 @@ export async function handleLogoutConfirmation(
     },
     header,
   );
-  const confirmed = sessions.find((candidate) => candidate.id === params.confirmedSessionId);
+  const confirmed = sessions.find(
+    (candidate) =>
+      candidate.id === params.confirmedSessionId &&
+      candidate.entry.proves(LOGOUT_CONFIRMATION, params.csrf),
+  );
   if (confirmed === undefined) {
     return { kind: 'unauthenticated' };
   }

@@ -2680,6 +2680,9 @@ set-cookie: register-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; M
 location: http://localhost:8080/callback?code=8DR6gZGbEKhkDcC7a0dilL9k2gDcZjHo8ZMOuZ6mnqM&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fregister-demo
 ```
 
+(Captured before the session cookie carried a secret, so the cookie shown
+is a truncated bare id; it is now `<session id>:<secret>`.)
+
 `users.email` is unique per tenant, not globally — `email` alone would be a
 tenancy bug — so a second registration for an address already held **in
 this tenant** is refused:
@@ -4131,6 +4134,9 @@ set-cookie: reset-demo-session=01a0cb18-68f6-…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: reset-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=IO_8jS6voHd3FYEquHGgvuUlTYOYFKJBc7qJj8SZFBQ&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Freset-demo
 ```
+
+(Captured before the session cookie carried a secret, so the cookie shown
+is a truncated bare id; it is now `<session id>:<secret>`.)
 
 The same link a second time is refused — minted for one redemption, the
 same as a verify-email token, and `action_tokens.consumed_at` is now set:
@@ -5935,21 +5941,63 @@ curl -sS -b cookies2.txt \
 <h1>Sign out?</h1>
 <p>Signing out ends this session for every application that uses it.</p>
 <form method="post" action="/tenants/demo/protocol/openid-connect/logout">
-  <input type="hidden" name="session_id" value="01a0cb1f-cf51-…">
+  <input type="hidden" name="session_id" value="01a0de36-80e1-…">
+  <input type="hidden" name="csrf" value="yU7AU__xF-kY…">
   <button type="submit">Sign out</button>
 </form>
 </body>
 </html>
 ```
 
-(`session_id` shortened, as elsewhere in this document.) Unlike the login
-form's `auth_session_id`, this hidden field is the session's **id** — the
-id half of the cookie's entry, and the `sid` every token for it carries, so
-not a secret — and the POST handler checks it against the sessions the
-cookie itself still resolves to before ending anything. A forged
-cross-site POST carries no cookie at all, because the cookie is
-`SameSite=Lax`, so it resolves no session and ends nothing; knowing the id
-is not enough without the secret half the browser holds.
+(`session_id` and `csrf` shortened, as elsewhere in this document.)
+`session_id` is the session's **id** — the id half of the cookie's entry,
+and the `sid` every token for it carries — so it is not a secret and proves
+nothing on its own. `csrf` is what does: base64url of an HMAC-SHA256 over
+`logout-confirm:<session id>`, keyed by the **secret** half of the entry.
+The POST recomputes it from the entry this browser's cookie presents for
+that session and compares in constant time, and the session must also be
+one the cookie still resolves to. A forger who knows the id from any token
+still cannot produce the token, and the secret itself never appears in the
+page. Two defences stand beside it: the cookie is `SameSite=Lax`, so a
+cross-site POST carries none, and a `session_id` outside the cookie's own
+set is refused.
+
+The right `session_id` without the token, from the same browser, is
+refused with exactly the page a non-member `session_id` gets, and ends
+nothing:
+
+```bash
+SID2=$(curl -sS -b cookies2.txt \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout" \
+  | sed -n 's/.*name="session_id" value="\([^"]*\)".*/\1/p')
+
+curl -sS -b cookies2.txt -D - -X POST \
+  --data-urlencode "session_id=$SID2" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
+```
+
+```
+HTTP/1.1 400 Bad Request
+cache-control: no-store
+content-type: text/html
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
+x-frame-options: DENY
+referrer-policy: no-referrer
+content-length: 220
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can&#39;t sign out</title></head>
+<body>
+<h1>Can't sign out</h1>
+<p>This sign-out attempt is no longer valid. Go back and try again.</p>
+</body>
+</html>
+```
+
+(`x-request-id`, `Date` and the keep-alive headers are omitted. This page and the refusal
+were captured after the form gained its token, against a fresh sign-in into
+`cookies2.txt` on the same stack.)
 
 A `post_logout_redirect_uri` that is not an exact match to a registered
 value — a trailing slash, a query string, a different host — is refused,
@@ -5962,7 +6010,7 @@ A session writes one `session` row when a login creates it and one when it
 ends, each in the transaction that did the work. A signed-in `/authorize`
 that reuses a session creates nothing and writes nothing. This run signs
 in with a fresh jar, fetches the confirmation page for the `session_id`
-it carries, and posts it back. The sign-in and the confirming `POST` each
+and `csrf` it carries, and posts both back. The sign-in and the confirming `POST` each
 carry their own `x-request-id` — the page fetch between them writes no row
 and carries none — so the query below reads those two requests and nothing
 else:
@@ -5979,19 +6027,21 @@ AUTH_SESSION_ID=$(curl -sS --get \
   "$BASE/auth" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
 
 curl -sS -c cookies-audit.txt -o /dev/null -w '%{http_code}\n' \
-  -H 'x-request-id: logout-doc-sign-in' \
+  -H 'x-request-id: logout-csrf-doc-sign-in' \
   --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery' \
   "$LOGIN"
 
-SESSION_ID=$(curl -sS -b cookies-audit.txt \
-  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout" \
-  | sed -n 's/.*name="session_id" value="\([^"]*\)".*/\1/p')
+PAGE=$(curl -sS -b cookies-audit.txt \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout")
+SESSION_ID=$(printf '%s' "$PAGE" | sed -n 's/.*name="session_id" value="\([^"]*\)".*/\1/p')
+CSRF=$(printf '%s' "$PAGE" | sed -n 's/.*name="csrf" value="\([^"]*\)".*/\1/p')
 
 curl -sS -b cookies-audit.txt -o /dev/null -w '%{http_code}\n' \
-  -H 'x-request-id: logout-doc-confirm' \
+  -H 'x-request-id: logout-csrf-doc-confirm' \
   --data-urlencode "session_id=$SESSION_ID" \
+  --data-urlencode "csrf=$CSRF" \
   "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
 
 docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
@@ -5999,7 +6049,7 @@ docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
           e.resource_type, e.resource_id, e.request_id, e.ip, e.detail
      from audit_events e left join clients c on c.id = e.actor_client_id
     where e.event_type = 'session'
-      and e.request_id in ('logout-doc-sign-in', 'logout-doc-confirm')
+      and e.request_id in ('logout-csrf-doc-sign-in', 'logout-csrf-doc-confirm')
     order by e.occurred_at;"
 ```
 
@@ -6012,8 +6062,8 @@ outcome          | allowed
 actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
 actor_client     | demo-spa
 resource_type    | session
-resource_id      | 01a0db7b-71ae-7434-bed7-8ff98d96b67c
-request_id       | logout-doc-sign-in
+resource_id      | 01a0de36-817a-78e7-9515-96498c511556
+request_id       | logout-csrf-doc-sign-in
 ip               | 172.20.0.1
 detail           | {}
 -[ RECORD 2 ]----+-------------------------------------
@@ -6022,8 +6072,8 @@ outcome          | allowed
 actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
 actor_client     | (null)
 resource_type    | session
-resource_id      | 01a0db7b-71ae-7434-bed7-8ff98d96b67c
-request_id       | logout-doc-confirm
+resource_id      | 01a0de36-817a-78e7-9515-96498c511556
+request_id       | logout-csrf-doc-confirm
 ip               | 172.20.0.1
 detail           | {"via": "logout"}
 ```
@@ -6031,7 +6081,7 @@ detail           | {"via": "logout"}
 Captured against the same stack as
 [what a refused login leaves behind](#what-a-refused-login-leaves-behind):
 `ada` is subject `01a0db22-1c92-…`, and `resource_id` is the session the
-`demo-session` cookie named. `detail.via` says how a session ended:
+`demo-session` cookie's entry named — its id half, never its secret. `detail.via` says how a session ended:
 `logout` here, `admin` when the admin API's
 `DELETE …/sessions/{sid}` ends it (beside that route's own
 `admin_mutation` row), and `evicted` when a login past the tenant's
@@ -6086,9 +6136,10 @@ curl -sS \
 Two messages therefore arrive at the same `POST`: this one, and the
 confirmation form above submitting back. The form's hidden `session_id` is
 what tells them apart, so a body carrying it is a confirmation and a body
-without it is a logout request. A forged cross-site POST cannot guess that
-value, so it is read as a request — which, with no hint, is answered by the
-confirmation page and ends nothing.
+without it is a logout request. A confirmation is honoured only with the
+`csrf` token the cookie's secret derives; a body without `session_id` is
+read as a request — which, with no hint, is answered by the confirmation
+page and ends nothing.
 
 ### A `client_id` that disagrees with the hint
 
@@ -6798,6 +6849,9 @@ set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: https://rp.example/cb?code=dt04gc43VMf7…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
+
+(Captured before the session cookie carried a secret, so the cookie shown
+is a truncated bare id; it is now `<session id>:<secret>`.)
 
 Pressing Deny instead answers exactly where a client-side `access_denied`
 always does — the request's own `redirect_uri`, not a page — with nothing

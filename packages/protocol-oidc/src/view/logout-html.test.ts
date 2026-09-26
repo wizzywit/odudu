@@ -16,13 +16,14 @@ function expectFragment(page: { html: string; body: string }): void {
 
 describe('renderLogoutConfirmationPage', () => {
   it('returns a body fragment and a title beside the document', () => {
-    const page = renderLogoutConfirmationPage('acme', 'session-id', {
+    const page = renderLogoutConfirmationPage('acme', 'session-id', 'the-token', {
       clientId: null,
       postLogoutRedirectUri: null,
       state: null,
     });
     expect(page.title).toBe('Sign out?');
     expect(page.body).toContain('name="session_id"');
+    expect(page.body).toContain('<input type="hidden" name="csrf" value="the-token">');
     expectFragment(page);
   });
 });

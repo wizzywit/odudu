@@ -395,14 +395,17 @@ describe('session.ended', () => {
     });
     expect(asked.statusCode).toBe(200);
     const confirmedSessionId = /name="session_id" value="([^"]*)"/.exec(asked.body)?.[1];
-    if (confirmedSessionId === undefined) throw new Error('session_id not found');
+    const csrf = /name="csrf" value="([^"]*)"/.exec(asked.body)?.[1];
+    if (confirmedSessionId === undefined || csrf === undefined) {
+      throw new Error('session_id or csrf not found');
+    }
     expect(await sessionRows(tenant, 'session.ended')).toHaveLength(0);
 
     const requestId = `audit-sessions-logout-${newId()}`;
     const confirmed = await http.inject({
       method: 'POST',
       url: `/tenants/${tenant.name}/protocol/openid-connect/logout`,
-      payload: new URLSearchParams({ session_id: confirmedSessionId }).toString(),
+      payload: new URLSearchParams({ session_id: confirmedSessionId, csrf }).toString(),
       headers: {
         'content-type': 'application/x-www-form-urlencoded',
         'x-request-id': requestId,

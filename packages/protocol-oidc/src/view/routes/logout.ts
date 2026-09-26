@@ -35,9 +35,9 @@ function firstString(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-// Every page this route renders carries a live SSO session identifier
-// (the confirmation form's hidden `session_id`) or exists only because one
-// was just ended — neither belongs in a shared or history cache.
+// Every page this route renders carries a live session's id and its
+// anti-forgery token (the confirmation form's hidden fields) or exists only
+// because one was just ended — neither belongs in a shared or history cache.
 function sendLogoutHtml(reply: FastifyReply, status: number, page: RenderedPage): FastifyReply {
   reply.header('cache-control', 'no-store');
   return sendHtml(reply, status, page);
@@ -58,13 +58,13 @@ async function respondToOutcome(
   }
 
   if (outcome.kind === 'confirm') {
-    if (outcome.sessionId === null) {
+    if (outcome.sessionId === null || outcome.csrf === null) {
       return sendLogoutHtml(reply, 200, renderNoActiveSessionPage());
     }
     return sendLogoutHtml(
       reply,
       200,
-      renderLogoutConfirmationPage(tenant, outcome.sessionId, {
+      renderLogoutConfirmationPage(tenant, outcome.sessionId, outcome.csrf, {
         clientId: outcome.clientId,
         postLogoutRedirectUri: outcome.postLogoutRedirectUri,
         state: outcome.state,
@@ -166,6 +166,7 @@ export function registerLogoutRoute(app: FastifyInstance, deps: LogoutRouteDeps)
       request.headers.cookie,
       {
         confirmedSessionId,
+        csrf: firstString(body.csrf) ?? '',
         clientId: firstString(body.client_id) ?? null,
         postLogoutRedirectUri: firstString(body.post_logout_redirect_uri) ?? null,
         state: firstString(body.state) ?? null,

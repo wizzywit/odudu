@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { isUuid } from '@odudu/kernel';
 
 const PAIR = ':';
@@ -44,6 +44,19 @@ export class SessionEntry {
     const stored = Buffer.from(storedHash, 'hex');
     const presented = sha256(this.#secret);
     return stored.length === presented.length && timingSafeEqual(stored, presented);
+  }
+
+  // A value bound to this session and to `purpose`, keyed by the secret:
+  // whoever holds only the public id cannot compute it, and the secret
+  // never leaves the cookie to produce it.
+  proof(purpose: string): string {
+    return createHmac('sha256', this.#secret).update(`${purpose}:${this.id}`).digest('base64url');
+  }
+
+  proves(purpose: string, presented: string): boolean {
+    const expected = Buffer.from(this.proof(purpose));
+    const received = Buffer.from(presented);
+    return expected.length === received.length && timingSafeEqual(expected, received);
   }
 
   cookieValue(): string {
