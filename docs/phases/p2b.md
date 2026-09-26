@@ -908,7 +908,9 @@ one it has been logged out. The confirmation form's `session_id` hidden
 field _is_ the session cookie's own value, echoed back and compared
 against what the cookie still resolves to on POST — a double-submit-cookie
 defence, not a single-use token the way login's `auth_session_id` is (the
-two write-ups calling it "the same" were wrong and are fixed). Every page
+two write-ups calling it "the same" were wrong and are fixed; superseded in
+P4e, where the cookie carries a secret and the form a `csrf` token keyed by
+it — see `docs/phases/p4e.md`). Every page
 this route renders carries `Cache-Control: no-store`, and every outcome
 that actually ends a session clears the cookie (`Max-Age=0`, same
 attributes login sets it with). `end_session_endpoint` moved into

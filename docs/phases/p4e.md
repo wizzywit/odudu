@@ -133,6 +133,54 @@ old token was consumed and a replacement exists, in a transaction that
 committed — and removing it would make the trail disagree with the
 database, which spec §7 exists to prevent.
 
+## The session cookie was its own row id, and every token's `sid`
+
+The whole-branch review joined two things no increment had looked at
+together: the session cookie's value was the session row's id, and that id
+is the `sid` claim of every ID and access token. Every relying party and
+resource server therefore held a working SSO cookie for each user it saw,
+and this phase had written the same value into `session.created` rows that
+`view-audit` serves. The defect predates the phase; the user chose to close
+it here, as spec §16. Each cookie entry is now `<session id>:<secret>`,
+`sessions.secret_hash` holds the secret's sha256 (migration `0071`), a row
+without one is never live, and the id goes on naming the session in `sid`,
+audit rows and the admin API because it no longer signs anybody in.
+
+The logout confirmation's hidden `session_id` had been described since P2b
+as a double-submit-cookie defence, which was false once the id was public.
+It now carries a `csrf` token, an HMAC over the session id keyed by the
+entry's secret, so only the cookie's holder can compute it. The token is
+per session and not rotated, by choice: it is bound to a secret an
+attacker cannot read, and rotating it would buy nothing that secret does
+not already give.
+
+## The final review's fixes
+
+- **`auth_session_id` in login-step rows.** It is the only thing that
+  finishes a login that has authenticated, so a row naming it handed any
+  `view-audit` reader a parked login. Rows name its sha256 hex instead, and
+  a test logs in over HTTP and searches every serialised row for the form's
+  field and the cookie's entries.
+- **A spent code replayed without limit.** `tokenGrantRepository.revoke`
+  was unconditional, so each replay appended another
+  `grant.revoked_on_code_replay` row outside any budget. It now reports
+  whether it changed the row, keeps the first `revoked_at`, and only the
+  call that revoked writes the row — the same shape `sessionRepository.end`
+  was given earlier in the phase for the same reason. The two revocation
+  rows now both name the grant's own client.
+- **Refused exchanges left no trace.** ADR 0037 excluded `invalid_request`
+  as describing a malformed request, which RFC 8693 §2.2.2 makes false at
+  the exchange: there it answers a refused subject or actor token. Those
+  refusals are rows now, with `unsupported_token_type` added to the reasons.
+- **`request_id` read as proof.** It is whatever `x-request-id` a caller
+  sends, and `NEXT.md` told P4d it joined a login's rows. It stays
+  caller-suppliable as a correlation id, and ADR 0037's third amendment
+  says a join on it is reliable only for requests the operator made or a
+  trusted proxy forwarded.
+- **A transcript the logout token broke.** One sign-in's audit trail still
+  posted the logout confirmation without the token, showing a `200` the
+  server no longer gave; it was re-run with the token.
+
 ## Transcripts that looked right and were not
 
 Review found a refresh transcript that never assigned the refreshed token,
