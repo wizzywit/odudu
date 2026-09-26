@@ -358,3 +358,16 @@ describe('redeeming a reset link writes one password.reset row', () => {
     expect(await credentialRows(tenant.id)).toEqual([]);
   });
 });
+
+describe('tenant isolation', () => {
+  it('shows a tenant no credential row written for another', async () => {
+    const tenant = await seedTenant();
+    const other = await seedTenant();
+    const requestId = `register-${newId()}`;
+
+    expect((await register(tenant.name, requestId)).statusCode).toBe(201);
+
+    expect(await rowsFor(tenant.id, requestId)).toHaveLength(1);
+    expect(await credentialRows(other.id)).toEqual([]);
+  });
+});

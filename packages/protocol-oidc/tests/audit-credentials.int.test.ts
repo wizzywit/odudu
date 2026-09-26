@@ -353,3 +353,19 @@ describe('changing a password the login owes', () => {
     expect(everything).not.toContain(PASSWORD);
   });
 });
+
+describe('tenant isolation', () => {
+  it('shows a tenant no credential row written for another', async () => {
+    const tenant = await seedTenant('audit-isolated', { owes: 'update-password' });
+    const other = await seedTenant('audit-bystander');
+    const authSessionId = await startAuthSession(tenant);
+    await passwordStep(tenant, authSessionId);
+    const changed = await action(tenant, 'update-password', {
+      auth_session_id: authSessionId,
+      password: 'a considerably better passphrase than the old one',
+    });
+
+    await expectOneRow(tenant, changed, 'password.changed');
+    expect(await credentialRows(other)).toEqual([]);
+  });
+});

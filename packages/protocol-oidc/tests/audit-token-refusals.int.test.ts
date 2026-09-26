@@ -1090,3 +1090,16 @@ describe('recordRefusal', () => {
     expect(logger.error).not.toHaveBeenCalled();
   });
 });
+
+describe('tenant isolation', () => {
+  it('shows a tenant no refusal row written for another', async () => {
+    const tenant = await seedTenant();
+    const other = await seedTenant();
+    const requestId = requestIdFor('isolated-wrong-secret');
+
+    expect((await wrongSecret(tenant, requestId)).statusCode).toBe(401);
+
+    await onlyRowFor(tenant, requestId);
+    expect(await rowsIn(other)).toEqual([]);
+  });
+});
