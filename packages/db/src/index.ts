@@ -8,5 +8,6 @@ export {
   type RequestContext,
   type TenantScopedDatabase,
   withEachTenantExclusive,
+  withSavepoint,
   withTenant,
 } from '#/tx';

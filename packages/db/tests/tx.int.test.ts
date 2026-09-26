@@ -5,7 +5,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseHandle } from '#/client';
 import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
 import { tenants } from '#/schema/index';
-import { type TenantScopedDatabase, withEachTenantExclusive, withTenant } from '#/tx';
+import {
+  type TenantScopedDatabase,
+  withEachTenantExclusive,
+  withSavepoint,
+  withTenant,
+} from '#/tx';
 
 const TENANT_A = newId();
 const TENANT_B = newId();
@@ -177,6 +182,63 @@ describe('withTenant with a RequestContext', () => {
 
     expect(after.request_id).toBe('');
     expect(after.ip).toBe('');
+  });
+});
+
+describe('withSavepoint', () => {
+  async function displayNameOfA(): Promise<string | null | undefined> {
+    const [alpha] = await owner.db.select().from(tenants).where(eq(tenants.id, TENANT_A));
+    return alpha?.displayName;
+  }
+
+  async function tenantGuc(tx: TenantScopedDatabase): Promise<string | undefined> {
+    const rows = await tx.execute(sql`select current_setting('app.tenant_id', true) as tenant`);
+    return (rows as unknown as { tenant: string }[])[0]?.tenant;
+  }
+
+  it('rolls back only its own writes when it throws, and the outer transaction commits', async () => {
+    try {
+      const outcome = await withTenant(app.db, TENANT_A, async (tx) => {
+        await tx.update(tenants).set({ displayName: 'before' }).where(eq(tenants.id, TENANT_A));
+        const failure = await withSavepoint(tx, async (inner) => {
+          await inner
+            .update(tenants)
+            .set({ displayName: 'inside' })
+            .where(eq(tenants.id, TENANT_A));
+          await inner.execute(sql`select 1 / 0`);
+        }).then(
+          () => null,
+          (error: unknown) => error,
+        );
+        await tx
+          .update(tenants)
+          .set({ displayName: sql`${tenants.displayName} || '+after'` })
+          .where(eq(tenants.id, TENANT_A));
+        return { failure, guc: await tenantGuc(tx) };
+      });
+
+      expect(String(outcome.failure)).toMatch(/select 1 \/ 0/);
+      expect(outcome.guc).toBe(TENANT_A);
+      expect(await displayNameOfA()).toBe('before+after');
+    } finally {
+      await owner.db.update(tenants).set({ displayName: null }).where(eq(tenants.id, TENANT_A));
+    }
+  });
+
+  it('keeps its writes and returns its value when it succeeds', async () => {
+    try {
+      const value = await withTenant(app.db, TENANT_A, (tx) =>
+        withSavepoint(tx, async (inner) => {
+          await inner.update(tenants).set({ displayName: 'kept' }).where(eq(tenants.id, TENANT_A));
+          return 42;
+        }),
+      );
+
+      expect(value).toBe(42);
+      expect(await displayNameOfA()).toBe('kept');
+    } finally {
+      await owner.db.update(tenants).set({ displayName: null }).where(eq(tenants.id, TENANT_A));
+    }
   });
 });
 

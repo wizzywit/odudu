@@ -59,6 +59,27 @@ export async function withTenant<T>(
   });
 }
 
+interface SavepointCapable {
+  transaction<T>(fn: (inner: unknown) => Promise<T>): Promise<T>;
+}
+
+/**
+ * Runs `fn` so that a statement failing inside it undoes only its own writes
+ * and leaves the transaction usable. Safe where a nested `withTenant` is not:
+ * it never calls `set_config`, so releasing the savepoint rebinds nothing.
+ * The driver's own savepoint is used rather than a raw SAVEPOINT statement,
+ * because postgres-js rethrows any failed query at the end of the scope it
+ * ran in, caught or not, and only its savepoint opens a scope of its own.
+ */
+export function withSavepoint<T>(
+  tx: TenantScopedDatabase,
+  fn: (tx: TenantScopedDatabase) => Promise<T>,
+): Promise<T> {
+  return (tx as unknown as SavepointCapable).transaction((inner) =>
+    fn(inner as TenantScopedDatabase),
+  );
+}
+
 /**
  * Ran every tenant in turn, or found another instance already doing it. A
  * zeroed result and a skipped pass are different answers, so the caller
