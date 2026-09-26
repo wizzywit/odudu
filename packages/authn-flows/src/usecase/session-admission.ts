@@ -29,12 +29,14 @@ export interface AdmitSessionInput {
 // failure). Locking the tenant row does not make eviction against a fixed
 // id list exact either — see the ADR's amendment for the accepted
 // cap+k residual and why a per-subject predicate is not the fix.
+// `no key update` still excludes another admission, but not the key-share
+// lock any row referencing the tenant holds: that wait deadlocks.
 export async function admitSession(
   tx: TenantScopedDatabase,
   input: AdmitSessionInput,
   clock: Clock = systemClock,
 ): Promise<{ sessionId: string }> {
-  await tx.select().from(tenants).where(eq(tenants.id, input.tenantId)).for('update');
+  await tx.select().from(tenants).where(eq(tenants.id, input.tenantId)).for('no key update');
 
   const now = clock.now();
   const repo = sessionRepository(tx);

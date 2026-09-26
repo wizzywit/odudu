@@ -236,3 +236,18 @@ reads live sessions by subject and ends one. An operator can therefore
 reach an orphan, and the trigger condition for a stable browser identifier
 — an orphan's absence being visible rather than theoretical — is now
 observable rather than pending. The identifier itself is still not built.
+
+## Amendment, 2026-09-26 — `for no key update`, not `for update`
+
+The tenant-row lock is taken `for no key update`. It conflicts with itself,
+so admissions still serialise exactly as the decision above requires, but
+not with `for key share` — the lock every foreign-key check against the
+tenant row takes. `for update` conflicted with both, and every tenant-scoped
+table references `tenants`, so any open transaction that had inserted a row
+in the tenant blocked admission. Two submissions of one login form turned
+that into a deadlock (`40P01`): the loser's `advance` had written a login
+step row and waited to bind the authentication session, while the winner's
+`completeLogin` had consumed that session and waited on the loser's
+key-share lock. `session-set.int.test.ts`'s "admits while another
+transaction holds a row referencing the tenant" reproduces the cycle with
+barriers and deadlocks under `for update`.

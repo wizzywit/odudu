@@ -9,11 +9,14 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
+import { auditRepository } from '@odudu/domain-audit';
 import { subjectRepository } from '@odudu/domain-identity';
 import { FakeClock, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { sessionRepository } from '#/repository/sessions';
+import { type PendingRequest } from '#/schema/authentication-sessions';
 import { sessions } from '#/schema/sessions';
 import { isSessionLive } from '#/service/session-liveness';
 import { admitSession } from '#/usecase/session-admission';
@@ -24,6 +27,16 @@ const TENANT_LIFESPANS = {
   ssoSessionMaxSeconds: 36_000,
   rememberMeIdleSeconds: 604_800,
   rememberMeMaxSeconds: 2_592_000,
+};
+
+const PENDING_REQUEST: PendingRequest = {
+  clientId: 'client-1',
+  redirectUri: 'https://client.example/callback',
+  scope: 'openid',
+  state: null,
+  nonce: null,
+  codeChallenge: 'challenge-value',
+  codeChallengeMethod: 'S256',
 };
 
 let containerHandle: TestDatabase | undefined;
@@ -314,6 +327,67 @@ describe('the live session set', () => {
       const live = await liveInTenant(tenantId, now);
       expect(live).toBeLessThanOrEqual(cap + 1);
     }
+  });
+
+  // Two submissions of one login form: the loser has written a login-step
+  // row (whose foreign key share-locks the tenant row) and is about to bind
+  // the authentication session the winner has just consumed. The winner's
+  // admission must not wait on that share lock, or each waits on the other.
+  it('admits while another transaction holds a row referencing the tenant', async () => {
+    const tenantId = newId();
+    const authSessionId = newId();
+    const subjectId = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await authenticationSessionRepository(tx).create({
+        id: authSessionId,
+        tenantId,
+        pendingRequest: PENDING_REQUEST,
+        expiresAt: new Date(Date.now() + 600_000),
+      });
+      return (await subjectRepository(tx).create({ tenantId, type: 'user' })).id;
+    });
+
+    let markLoserWrote!: () => void;
+    const loserWrote = new Promise<void>((resolve) => {
+      markLoserWrote = resolve;
+    });
+    let markWinnerConsumed!: () => void;
+    const winnerConsumed = new Promise<void>((resolve) => {
+      markWinnerConsumed = resolve;
+    });
+    const loser = withTenant(app.db, tenantId, async (tx) => {
+      await auditRepository(tx).record({
+        eventType: 'authentication',
+        action: 'login.password',
+        outcome: 'allowed',
+        actorSubjectId: subjectId,
+        resourceType: 'authentication_session',
+        resourceId: authSessionId,
+        detail: { factor: 'password' },
+      });
+      markLoserWrote();
+      await winnerConsumed;
+      await authenticationSessionRepository(tx).bindSubject(authSessionId, subjectId);
+    });
+    const winner = withTenant(app.db, tenantId, async (tx) => {
+      await loserWrote;
+      expect(await authenticationSessionRepository(tx).consume(authSessionId, new Date())).toBe(
+        true,
+      );
+      markWinnerConsumed();
+      return admitSession(tx, {
+        tenantId,
+        subjectId,
+        authenticators: [],
+        remembered: false,
+        browserSessionIds: [],
+        maxSessionsPerBrowser: 3,
+        lifespans: TENANT_LIFESPANS,
+      });
+    });
+
+    await expect(Promise.all([loser, winner])).resolves.toBeDefined();
+    expect(await liveInTenant(tenantId, new Date())).toBe(1);
   });
 
   it('measures a remembered session against the remembered idle window', async () => {
