@@ -6,6 +6,7 @@ import {
   withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
+import { auditRepository, type AuditEventRecord } from '@odudu/domain-audit';
 import {
   credentialRepository,
   hashPassword,
@@ -140,6 +141,27 @@ function change(account: Account, password: string): Promise<UpdatePasswordOutco
       password,
     }),
   );
+}
+
+function credentialRows(account: Account): Promise<AuditEventRecord[]> {
+  return withTenant(app.db, account.tenantId, (tx) =>
+    auditRepository(tx).list({ eventType: 'credential', limit: 50 }),
+  );
+}
+
+async function waitingLocks(): Promise<number> {
+  const rows = await owner.db.execute<{ waiting: number }>(
+    sql`select count(*)::int as waiting from pg_locks where not granted`,
+  );
+  return rows[0]?.waiting ?? 0;
+}
+
+async function awaitBlockedTransaction(): Promise<void> {
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    if ((await waitingLocks()) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('no transaction ever blocked; the two writes did not overlap');
 }
 
 function historyHashes(account: Account): Promise<string[]> {
@@ -304,5 +326,57 @@ describe('the tenant password policy binds the change-password action', () => {
 
     expect(await historyHashes(account)).toEqual([]);
     expect(await signIn(account, PASSWORD)).toMatchObject({ kind: 'success' });
+  });
+});
+
+describe('the change-password action writes one password.changed row', () => {
+  it('writes the row for an accepted change, and none for a candidate history refuses', async () => {
+    const account = await seedAccount({ historyDepth: 2 });
+
+    expect(await change(account, 'second passphrase here')).toEqual({ kind: 'updated' });
+    expect(await change(account, PASSWORD)).toMatchObject({ kind: 'rejected' });
+    expect(await change(account, 'second passphrase here')).toMatchObject({ kind: 'rejected' });
+
+    const rows = await credentialRows(account);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      action: 'password.changed',
+      outcome: 'allowed',
+      actorSubjectId: account.subjectId,
+      resourceType: 'subject',
+      resourceId: account.subjectId,
+    });
+  });
+
+  // The other writer holds the row while this change reads the old hash and
+  // blocks on its UPDATE; once the other commits, the compare-and-swap
+  // matches nothing, and the candidate this change carried is never stored.
+  it('writes no row for a change another transaction superseded', async () => {
+    const account = await seedAccount();
+    let release: () => void = () => undefined;
+    let arrive: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const written = new Promise<void>((resolve) => {
+      arrive = resolve;
+    });
+    const other = withTenant(app.db, account.tenantId, async (tx) => {
+      await credentialRepository(tx).setPassword(
+        account.subjectId,
+        await hashPassword('set by the other writer'),
+      );
+      arrive();
+      await gate;
+    });
+    await written;
+
+    const superseded = change(account, 'a candidate that loses the race');
+    await awaitBlockedTransaction();
+    release();
+    await other;
+
+    expect(await superseded).toEqual({ kind: 'superseded' });
+    expect(await credentialRows(account)).toEqual([]);
   });
 });

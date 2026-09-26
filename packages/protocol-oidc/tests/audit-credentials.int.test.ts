@@ -265,7 +265,9 @@ describe('enrolling a TOTP app, then being shown recovery codes', () => {
     const everything = JSON.stringify(await credentialRows(tenant));
     expect(everything).not.toContain(secret);
     expect(everything).not.toContain(code);
-    for (const recoveryCode of offeredCodes(shown.res.body)) {
+    const recoveryCodes = offeredCodes(shown.res.body);
+    expect(recoveryCodes).toHaveLength(10);
+    for (const recoveryCode of recoveryCodes) {
       expect(everything).not.toContain(recoveryCode);
     }
   });
