@@ -1308,7 +1308,7 @@ as a phase closing completely.
   given one, since a refresh token is retained for the life of its grant
   family (ADR 0021's amendment).
 
-### P4e's exit criterion, checked at phase close, 2026-09-26
+### P4e closed against its own exit criterion, 2026-09-26
 
 `docs/superpowers/specs/2026-09-26-p4e-audit-events-design.md` is the phase
 spec; `docs/phases/p4e.md` is what building it found. Each clause of the
@@ -1354,14 +1354,11 @@ spends a per-client `auditRefusalBudget`.
 to 40–60 hours for the credential events the brainstorm added, and the
 roadmap total with it. What P4d inherits is in `docs/NEXT.md`.
 
-**One item in the phase's topic is still open, and it is P4e's.** A
-refused credential or session change — a wrong code while enrolling TOTP,
-a password the policy refuses, a spent link, a logout that ends nothing —
-writes no row, though each names a principal ADR 0037's rule can bound.
-The criterion does not name it, which is why the closing pass rather than
-the criterion found it; `docs/request-paths.md`'s "What is not
-implemented" places it here, and the phase does not close until it is
-recorded or ruled a decision.
+**Refused credential and session changes write no row, by decision.** A
+spent or unknown link, a password the policy refuses, a wrong code at
+enrolment and a logout that ends nothing are recorded as a decision in ADR
+0037's amendment of the same date; the closing pass found them undecided,
+not unbuilt.
 
 ## 12. Working protocol
 

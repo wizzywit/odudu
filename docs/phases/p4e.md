@@ -104,9 +104,10 @@ it said nothing wrote `credential` rows, after they were written. The other
 was true: a refused credential or session change writes no row. Spec §5
 listed credential actions as successes only, and §8's table enumerates the
 refusals that write rows without saying what happens to one it does not
-list, so the gap was a silence rather than a decision. Each of those
-refusals names a principal ADR 0037's rule can bound, and it is still open
-at the time of writing; the not-implemented list places it on this phase.
+list, so the gap was a silence rather than a decision. It is a decision
+now, argued from ADR 0037's own principle in that ADR's amendment: a
+refused link names no principal, a refused change on an authenticated
+session is form validation, and a logout that ends nothing changes nothing.
 
 ## Guards, one that could never fire and one that looked like it could not
 

@@ -2,8 +2,7 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a, P3b, P4a and P4c are complete, P4e's exit
-criterion is delivered with one item in its topic still open, and the
+**P0, P1, P2a, P2b, P3a, P3b, P4a, P4c and P4e are complete, and the
 tenant rename is done. P4 has been split five ways.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
 "P4 became four phases, then five" subsection has the reasoning.
@@ -16,11 +15,7 @@ the admin API
 ([spec](superpowers/specs/2026-09-24-p4c-admin-api-design.md)); P4e was
 authentication and token audit events
 ([spec](superpowers/specs/2026-09-26-p4e-audit-events-design.md)); **P4d is
-next** once P4e closes — the admin and account consoles; P4b stays theming
-and stays last. The open P4e item is refused credential and session changes,
-which write no row
-([request-paths.md](request-paths.md#what-is-not-implemented), under "The
-admin API").
+next** — the admin and account consoles; P4b stays theming and stays last.
 
 **P4c shipped the admin API**, at `/admin/tenants/{tenant}/` with
 `/admin/tenants` above it, authenticated by an ordinary access token whose
