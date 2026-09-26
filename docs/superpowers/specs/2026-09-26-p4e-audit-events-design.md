@@ -98,7 +98,7 @@ on `@odudu/db` and `@odudu/kernel`:
 |                  | `login.passkey`                | every answer                                                               |
 |                  | `factor.offered`               | a second factor challenged after a first succeeds                          |
 |                  | `lockout.tripped`              | the attempt whose failure sets `locked_until`                              |
-|                  | `client.authenticate`          | `protocol-oidc`, `/token` and `/revoke` refusals only                      |
+|                  | `client.authenticate`          | `protocol-oidc`, `/token`, `/revoke` and `/introspect` refusals only       |
 | `session`        | `session.created`              | `completeLogin`                                                            |
 |                  | `session.ended`                | `endSession` and admission, `detail.via`: `logout` \| `admin` \| `evicted` |
 | `token`          | `token.issue`                  | `/token`, `detail.grant_type`                                              |
@@ -217,7 +217,7 @@ what the refused request **names**:
 | Login failure — bad credential, locked out, unknown subject              | yes                     | the per-IP throttle on `login-actions/authenticate` (`THROTTLED_POSTS`), the bound `login_failures` already sits behind |
 | Client authentication failure naming a **registered** client, any method | yes, while under budget | `auditRefusalBudget`, below                                                                                             |
 | Client authentication failure naming an **unregistered** `client_id`     | no — `warn` line        | nothing needed: no row                                                                                                  |
-| Refusal after the client authenticated                                   | yes                     | the client is authenticated, and the row names it                                                                       |
+| Refusal after the client authenticated                                   | yes, while under budget | `auditRefusalBudget`, below — a public client authenticates with nothing, so its name alone proves nothing              |
 | Admin `401`                                                              | no — `warn` line        | nothing needed                                                                                                          |
 | Admin `403` to an authenticated caller                                   | yes                     | the caller is authenticated, and the row names it                                                                       |
 | Foreign-issuer admin token, signature valid                              | yes                     | the caller holds a genuine token, and the row names its subject                                                         |
@@ -229,9 +229,23 @@ what the refused request **names**:
 applies to password methods only, and making `private_key_jwt` or
 `tls_client_auth` failures count against it would turn a `400` into a `429`:
 a response change. The budget changes no response. It decides only whether
-a refusal is a row or a log line. When it trips, one `client.authenticate`
-row with `reason: rate_limited` is written; further refusals in the window
-are `warn` lines.
+a refusal is a row or a log line. When it trips, one row with
+`reason: rate_limited` is written; further refusals in the window are
+`warn` lines.
+
+Every refusal row at `/token`, `/revoke` and `/introspect` spends it, not
+only failed client authentication. Amended 2026-09-26, during
+implementation: the first reading exempted refusals after the client
+authenticated, on the ground that the row names a proven client. A public
+client authenticates by presenting its `client_id` and nothing else, so
+anyone who knows one — `demo-spa` is public by design — could append a
+refused `token.refresh` row per request with a random refresh token. The
+key stays a registered client, so the bound holds for every refusal.
+
+`/introspect` is audited only here: a failed client authentication there
+is an authentication decision like one at `/token`, metered by the same
+ADR 0023 limiter. §2's exclusion covers successful introspection, which
+issues and changes nothing.
 
 Being in-memory, the budget is per replica, so N replicas admit N times the
 window. Acceptable while Odudu is single-replica, and **P11**, which brings
