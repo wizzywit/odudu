@@ -29,6 +29,11 @@ export interface AuditEventFilter {
   readonly limit: number;
 }
 
+// A writer that names no actor tenant is recording an actor of the row's
+// own tenant. Only a caller from elsewhere — a system administrator, a
+// foreign-issuer token — names another.
+const ROW_TENANT = sql`nullif(current_setting('app.tenant_id', true), '')::uuid`;
+
 function validatedRow(event: AuditEventInput): typeof auditEvents.$inferInsert {
   const detail: Record<string, unknown> = event.detail ?? {};
   if (event.eventType !== 'admin_mutation') {
@@ -44,7 +49,7 @@ function validatedRow(event: AuditEventInput): typeof auditEvents.$inferInsert {
     eventType: event.eventType,
     action: event.action,
     outcome: event.outcome,
-    actorTenantId: event.actorTenantId ?? null,
+    actorTenantId: event.actorTenantId ?? ROW_TENANT,
     actorSubjectId: event.actorSubjectId ?? null,
     actorClientId: event.actorClientId ?? null,
     resourceType: event.resourceType ?? null,

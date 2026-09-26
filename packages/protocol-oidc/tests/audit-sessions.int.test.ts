@@ -272,6 +272,7 @@ describe('session.created', () => {
     expect(row).toMatchObject({
       eventType: 'session',
       outcome: 'allowed',
+      actorTenantId: tenant.id,
       actorSubjectId: tenant.subjectId,
       actorClientId: tenant.clientDbId,
       resourceType: 'session',

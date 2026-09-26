@@ -71,6 +71,39 @@ describe('record and list', () => {
     });
   });
 
+  it('names the row’s own tenant as the actor’s when the event names none', async () => {
+    const tenantId = newId();
+    const issuerTenantId = newId();
+    await withTenant(app.db, issuerTenantId, (tx) => seedTenant(tx, issuerTenantId));
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await auditRepository(tx).recordAll([
+        { eventType: 'session', action: 'session.created', outcome: 'allowed' },
+        {
+          eventType: 'admin_access',
+          action: 'token.foreign_issuer',
+          outcome: 'refused',
+          actorTenantId: issuerTenantId,
+          detail: { reason: 'foreign_issuer' },
+        },
+      ]);
+      await auditRepository(tx).record({
+        eventType: 'token',
+        action: 'token.revoke',
+        outcome: 'allowed',
+      });
+    });
+
+    const rows = await withTenant(app.db, tenantId, (tx) =>
+      auditRepository(tx).list({ limit: 10 }),
+    );
+    expect(Object.fromEntries(rows.map((row) => [row.action, row.actorTenantId]))).toEqual({
+      'session.created': tenantId,
+      'token.revoke': tenantId,
+      'token.foreign_issuer': issuerTenantId,
+    });
+  });
+
   it('filters by eventType', async () => {
     const tenantId = newId();
     await withTenant(app.db, tenantId, async (tx) => {
