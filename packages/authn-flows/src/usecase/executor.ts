@@ -14,7 +14,7 @@ import { requiredActionRepository } from '#/repository/required-actions';
 import { sessionRepository } from '#/repository/sessions';
 import { oweRecoveryCodesIfNoneUnspent } from '#/usecase/recovery-codes';
 import { recordPasswordExpiryIfOwed } from '#/usecase/update-password';
-import { loginAuditFor, type LoginAudit } from '#/usecase/login-audit';
+import { loginAuditFor, type AuditFailureLogger, type LoginAudit } from '#/usecase/login-audit';
 import {
   type AuthenticationSessionRecord,
   type PendingRequest,
@@ -585,6 +585,8 @@ export interface AdvanceInput {
 // and nothing else changes.
 export interface AdvanceOptions {
   publicBaseUrl?: string;
+  // Where a refused step's audit row goes when it cannot be written.
+  logger?: AuditFailureLogger;
 }
 
 interface FlowContext {
@@ -751,10 +753,10 @@ async function recordSettled(
   if (settled.kind === 'challenge') {
     await audit.factorOffered(settled.form, subjectId);
   } else if (settled.kind === 'success') {
-    await audit.step(authenticator, settled.subjectId);
+    await audit.allowed(authenticator, settled.subjectId);
   } else {
     const refused = settled.audit ?? { reason: 'bad_credential', subjectId };
-    await audit.step(authenticator, refused.subjectId, refused.reason);
+    await audit.refused(authenticator, refused.subjectId, refused.reason);
   }
 }
 
@@ -779,7 +781,12 @@ export async function advance(
     return { kind: 'failure', reason: 'authentication_session_expired' };
   }
   const { record, steps, satisfied, registry } = context;
-  const audit = await loginAuditFor(tx, authSessionId, record.pendingRequest.clientId);
+  const audit = await loginAuditFor(
+    tx,
+    authSessionId,
+    record.pendingRequest.clientId,
+    options.logger,
+  );
 
   const dispatched = await dispatchNext(registry, steps, satisfied, input);
   if (dispatched.kind !== 'ran') {
@@ -790,7 +797,7 @@ export async function advance(
   if (result.kind === 'challenge') return result;
   if (result.kind === 'failure') {
     const refused = result.audit ?? { reason: 'bad_credential', subjectId: record.subjectId };
-    await audit.step(authenticator, refused.subjectId, refused.reason, refused.lockoutTripped);
+    await audit.refused(authenticator, refused.subjectId, refused.reason, refused.lockoutTripped);
     return { kind: 'failure', reason: result.reason };
   }
 
@@ -799,7 +806,7 @@ export async function advance(
   // rather than allowed to redirect the login — whoever passed the earlier
   // factor would otherwise be signed in as whoever passed the later one.
   if (record.subjectId !== null && record.subjectId !== result.subjectId) {
-    await audit.step(authenticator, record.subjectId, 'subject_mismatch');
+    await audit.refused(authenticator, record.subjectId, 'subject_mismatch');
     return { kind: 'failure', reason: SUBJECT_MISMATCH };
   }
 
@@ -809,12 +816,12 @@ export async function advance(
   // whose state had already moved on (a replayed assertion racing the one
   // that spent the same counter), so the login is refused with it.
   if (result.commit !== undefined && !(await result.commit())) {
-    await audit.step(authenticator, result.subjectId, 'replayed');
+    await audit.refused(authenticator, result.subjectId, 'replayed');
     return { kind: 'failure', reason: 'invalid_credentials' };
   }
 
   const subjectId = result.subjectId;
-  await audit.step(authenticator, subjectId);
+  await audit.allowed(authenticator, subjectId);
   await authenticationSessionRepository(tx).bindSubject(authSessionId, subjectId);
 
   // Everything after this point is decided for this subject, so the flow is

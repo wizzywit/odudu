@@ -51,6 +51,7 @@ interface SeededTenant {
 }
 
 let passwordTenant: SeededTenant;
+const errorLog: string[] = [];
 let otpTenant: SeededTenant;
 
 async function seedTenant(
@@ -143,8 +144,11 @@ interface Attempt {
   res: LightMyRequestResponse;
 }
 
-async function submit(tenant: SeededTenant, fields: Record<string, string>): Promise<Attempt> {
-  const requestId = `audit-login-${newId()}`;
+async function submit(
+  tenant: SeededTenant,
+  fields: Record<string, string>,
+  requestId = `audit-login-${newId()}`,
+): Promise<Attempt> {
   const res = await http.inject({
     method: 'POST',
     url: `/tenants/${tenant.name}/login-actions/authenticate`,
@@ -189,6 +193,32 @@ async function countAuditInsertStatements(owner: DatabaseHandle): Promise<void> 
       for each statement execute function count_audit_insert()`);
 }
 
+const FAILING_AUDIT_PREFIX = 'audit-insert-fails-';
+
+// Stands in for an audit table that cannot be written: any row bound to a
+// request id with this prefix is refused by the database.
+async function refuseAuditInsertsForMarkedRequests(owner: DatabaseHandle): Promise<void> {
+  await owner.db.execute(sql`
+    create function refuse_marked_audit_insert() returns trigger
+      language plpgsql as $$
+      begin
+        if new.request_id like 'audit-insert-fails-%' then
+          raise exception 'audit_events refused this row';
+        end if;
+        return new;
+      end $$`);
+  await owner.db.execute(sql`
+    create trigger refuse_marked_audit_insert before insert on audit_events
+      for each row execute function refuse_marked_audit_insert()`);
+}
+
+async function failureCountOf(tenant: SeededTenant, username: string): Promise<number> {
+  const rows = await ownerHandle?.db.execute<{ failure_count: number }>(
+    sql`select failure_count from login_failures where subject_id = ${subjectOf(tenant, username)}`,
+  );
+  return rows?.[0]?.failure_count ?? 0;
+}
+
 async function auditStatementsFor(attempt: Attempt): Promise<number> {
   const rows = await ownerHandle?.db.execute<{ count: number }>(
     sql`select count(*)::int as count from audit_insert_statements
@@ -215,13 +245,17 @@ beforeAll(async () => {
 
   passwordTenant = await seedTenant(
     'audit-login',
-    ['alice', 'bob', 'carol', 'dave', 'erin', 'mallory', 'trent'],
+    ['alice', 'bob', 'carol', 'dave', 'erin', 'mallory', 'trent', 'victor', 'wanda', 'xena'],
     false,
   );
   otpTenant = await seedTenant('audit-login-otp', ['otto', 'rita'], true);
   await countAuditInsertStatements(ownerHandle);
+  await refuseAuditInsertsForMarkedRequests(ownerHandle);
 
-  http = Fastify({ requestIdHeader: 'x-request-id' });
+  http = Fastify({
+    requestIdHeader: 'x-request-id',
+    logger: { level: 'error', stream: { write: (line: string) => errorLog.push(line) } },
+  });
   httpApp = http;
   await http.register(formbody);
   await http.register(
@@ -432,6 +466,45 @@ describe('the audit write costs every refusal the same', () => {
     expect(await auditStatementsFor(tripping)).toBe(1);
     expect(await auditStatementsFor(ordinary)).toBe(1);
     expect(await auditStatementsFor(unknown)).toBe(1);
+  });
+});
+
+describe('an audit table that refuses the write', () => {
+  it('still answers a wrong password with the ordinary refusal, and still counts it', async () => {
+    const authSessionId = await startAuthSession(passwordTenant);
+    const ordinary = await submit(passwordTenant, {
+      auth_session_id: authSessionId,
+      username: 'victor',
+      password: WRONG_PASSWORD,
+    });
+    const unrecorded = await submit(
+      passwordTenant,
+      { auth_session_id: authSessionId, username: 'wanda', password: WRONG_PASSWORD },
+      `${FAILING_AUDIT_PREFIX}${newId()}`,
+    );
+
+    expect(ordinary.res.statusCode).toBe(200);
+    expect(comparable(unrecorded.res)).toEqual(comparable(ordinary.res));
+    expect(await failureCountOf(passwordTenant, 'wanda')).toBe(1);
+    expect(await rowsFor(passwordTenant, unrecorded)).toEqual([]);
+    const logged = errorLog.map((line) => JSON.parse(line) as unknown);
+    expect(logged).toContainEqual(
+      expect.objectContaining({ level: 50, msg: 'could not record a refused login step' }),
+    );
+  });
+
+  it('fails a correct password whose success row cannot be written', async () => {
+    const authSessionId = await startAuthSession(passwordTenant);
+    const attempt = await submit(
+      passwordTenant,
+      { auth_session_id: authSessionId, username: 'xena', password: PASSWORD },
+      `${FAILING_AUDIT_PREFIX}${newId()}`,
+    );
+
+    expect(attempt.res.statusCode).toBe(500);
+    expect(attempt.res.headers['set-cookie']).toBeUndefined();
+    expect(attempt.res.headers.location).toBeUndefined();
+    expect(await rowsFor(passwordTenant, attempt)).toEqual([]);
   });
 });
 
