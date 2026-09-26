@@ -52,7 +52,7 @@ application-initiated actions. It moves to P4f with:
 - the re-scoping of `docs/request-paths.md`'s two unscoped `user_credentials`
   counts, which P4f re-captures;
 - per-tenant TOTP policy, WebAuthn policy and recovery-code count (§4.5,
-  row 14), which need per-credential parameters stored before they can vary.
+  row 15), which need per-credential parameters stored before they can vary.
 
 **One phase, not two.** Admin API completion and the console were weighed
 as separate phases and kept together at the user's direction: P4 has been
@@ -62,10 +62,10 @@ console was re-scoped and before the configuration scan. §11 is amended in
 this phase's first increment (§12).
 
 **Nothing found in this brainstorm is split off.** Every item the
-configuration scan placed against P4d — §4.5 rows 1 to 12 — is built,
+configuration scan placed against P4d — §4.5 rows 1 to 13 — is built,
 tested and documented in this phase, alongside the rest of §4, and none of
 them waits for the console to exist. The only items that leave are the ones
-§4.5 places by topic (rows 13 to 18) and the self-service work §2 moves to
+§4.5 places by topic (rows 14 to 19) and the self-service work §2 moves to
 P4f.
 
 **The restated §11 criterion**, which the first increment writes into the
@@ -74,7 +74,7 @@ going red:
 
 > ADR 0038 choosing the console's stack and its backend-for-frontend,
 > written before the first line of console code, and ADR 0039 recording
-> that names are identifiers; CI caching by Turborepo, landed before the
+> that names relying parties match on are identifiers; CI caching by Turborepo, landed before the
 > first Playwright increment; tenant names constrained to DNS labels by a
 > `CHECK`, a predicate and a test holding them together; the admin API made
 > complete — initial access tokens minted, listed and revoked; a subject's
@@ -85,7 +85,8 @@ going red:
 > password issued with a forced change; a brute-force lockout cleared; every
 > session of a subject ended at once; `builtin_admin` and
 > `service_subject_id` readable; `client_registration_policy` validated
-> before the database; `whoami` answering the caller's effective
+> before the database; a username renamed where the tenant's
+> `username_editable` setting allows it; `whoami` answering the caller's effective
 > capabilities; server-side, field-scoped, case-insensitive prefix search
 > and exact filters on every paged list, each backed by an index, with
 > cursors bound to their filters and the existing subject search's `LIKE`
@@ -126,7 +127,7 @@ Identity providers are P6's.
 | 8   | Search is prefix, case-insensitive, scoped to one named field, ordered by that field; no contains-search, no free sort  | §4.3           |
 | 9   | Counts are a separate bounded endpoint, capped at 10,000; lists stay count-free                                         | §4.4           |
 | 10  | Export never carries a secret; import only creates a new tenant                                                         | §4.6           |
-| 11  | Role, group, scope and tenant names and usernames are immutable                                                         | §4.7, ADR 0039 |
+| 11  | Role, group, scope and tenant names are immutable; usernames are renamable behind a tenant setting, off by default      | §4.7, ADR 0039 |
 | 12  | Tenant names are DNS labels                                                                                             | §4.1           |
 | 13  | Visual direction "Instrument", light and dark, responsive by container queries                                          | §8             |
 | 14  | Playwright runs as its own CI job, `e2e`, beside `verify`                                                               | §9             |
@@ -237,7 +238,7 @@ makes deliberately — Keycloak's `/count` shape, bounded.
 ### 4.5 Configuration the API does not reach today
 
 A scan of every configuration-bearing column against `ADMIN_ROUTES` found
-these. Rows 1–12 are this phase's: the topic is administration, and each is a
+these. Rows 1–13 are this phase's: the topic is administration, and each is a
 setting the server honours that an administrator cannot change without the
 CLI or `psql`.
 
@@ -255,6 +256,7 @@ CLI or `psql`.
 | 10  | Ending every session of a subject                            | one `DELETE` per session                                               | `DELETE …/subjects/{id}/sessions`                                                                             |
 | 11  | `clients.builtin_admin`, `clients.service_subject_id`        | readable only by `psql` (`docs/admin-paths.md:611-614`)                | read-only fields on the client representation                                                                 |
 | 12  | `client_registration_policy` outside its enumeration         | reaches the database `CHECK` (migration `0045`) instead of a `400`     | validated against the enumeration by the settings coercer                                                     |
+| 13  | Renaming a username                                          | refused by `subjects-patch.ts:13`: "belongs to a dedicated operation"  | `PUT …/subjects/{id}/username`, allowed when the tenant's new `username_editable` setting is on (§4.7)        |
 
 Row 8 has the shape `odudu seed admin` already has: the server generates the
 password, answers it once, never stores or logs it in the clear, and the
@@ -265,12 +267,12 @@ Placed elsewhere, each against the phase whose topic covers it:
 
 | #   | Item                                                                                                                            | Phase                                       |
 | --- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| 13  | Renaming a role, group, scope, tenant or username                                                                               | decision, §4.7                              |
-| 14  | TOTP policy, WebAuthn policy and recovery-code count per tenant                                                                 | **P4f**                                     |
-| 15  | Email templates                                                                                                                 | **P4b**                                     |
-| 16  | Operator-supplied claim mappers and authenticators                                                                              | **P10**                                     |
-| 17  | Identity providers                                                                                                              | **P6**                                      |
-| 18  | `apps/server/src/app.ts:91-92` names `ODUDU_CLIENT_SECRET_THROTTLE_*`, which does not exist; the limiter is fixed at 5 per 60 s | **P11**, whose criterion names that limiter |
+| 14  | Renaming a role, group, scope or tenant                                                                                         | decision, §4.7                              |
+| 15  | TOTP policy, WebAuthn policy and recovery-code count per tenant                                                                 | **P4f**                                     |
+| 16  | Email templates                                                                                                                 | **P4b**                                     |
+| 17  | Operator-supplied claim mappers and authenticators                                                                              | **P10**                                     |
+| 18  | Identity providers                                                                                                              | **P6**                                      |
+| 19  | `apps/server/src/app.ts:91-92` names `ODUDU_CLIENT_SECRET_THROTTLE_*`, which does not exist; the limiter is fixed at 5 per 60 s | **P11**, whose criterion names that limiter |
 
 Deployment-wide settings — retention windows, workers, the SMTP fallback,
 proxy and TLS — stay environment variables. They configure an installation,
@@ -310,18 +312,41 @@ Merging into an existing tenant is not offered: deciding what wins on a
 conflict and what an import may delete is where partial import damages a
 live tenant, and "new tenant only" makes that impossible.
 
-### 4.7 Names are immutable
+### 4.7 Names relying parties match on are identifiers; usernames are not
 
-A role's name is what a token's `roles` claim carries; a scope's is what a
-client requests; a group's is embedded in every descendant path; a tenant's
-is the issuer; a username is what a person types and an RP may have stored.
-A rename silently changes what every relying party matches on. The
-"needs its own operation" refusals in `role-patch.ts`, `group-patch.ts`,
-`scope-patch.ts`, `tenant-patch.ts` and `subjects-patch.ts` become a recorded
-decision rather than an unbuilt operation: **ADR 0039**, "Names are
-identifiers". The console presents a name as fixed after creation with that
-reason, and offers "create a copy" where a copy is meaningful (roles,
-scopes).
+OIDC Core makes `iss` and `sub` together the only stable identifier for an
+End-User, and forbids a relying party from keying on `preferred_username`,
+`email` or `name`. Odudu's `sub` is the subject's id
+(`packages/protocol-oidc/src/service/claims.ts:31`), so two kinds of name
+behave differently.
+
+**Immutable: role, scope, group and tenant names.** These are the values a
+relying party authorises on — the `roles` claim, a requested `scope`, the
+`groups` claim and its paths — and a tenant's name is the issuer. A rename
+would change new tokens while tokens already issued still carry the old
+value, so an RP's check would pass or fail by a token's age. The "needs its
+own operation" refusals in `role-patch.ts`, `group-patch.ts`,
+`scope-patch.ts` and `tenant-patch.ts` become a recorded decision rather
+than an unbuilt operation: **ADR 0039**, "Names relying parties match on are
+identifiers". The console shows such a name as fixed after creation, with
+that reason, and offers "create a copy" for roles and scopes.
+
+**Renamable: a username**, behind a tenant setting `username_editable`,
+`false` by default — Keycloak's "Edit username", off by default, is the
+precedent. It is the dedicated operation `subjects-patch.ts` already says a
+rename belongs to, so `PATCH …/subjects/{id}` goes on refusing `username`:
+`PUT …/subjects/{id}/username` with `{"username": …}`, `If-Match`
+mandatory, checked by the same validation creation runs and unique within
+the tenant. With the setting off it is refused with `409` and the reason. The change is an
+`admin_mutation` row carrying the before and after values. Nothing keyed on
+the subject moves: sessions and grants hold `sub`, brute-force counters are
+keyed by subject rather than by the name submitted
+(`packages/domain-identity/src/schema/login-failures.ts`), and
+`preferred_username` changes on the next token issued. A password that
+equals the new username is not re-checked against `password_not_username`
+until it is next changed, which is when every password policy applies. The
+setting joins `SETTINGS` in `@odudu/domain-tenant` through a migration, so
+`PATCH …/settings`, `seed tenant --set` and export all reach it.
 
 ## 5. The console gateway
 
@@ -606,7 +631,7 @@ A tenant cannot be deleted: the API has no such route. It can be disabled.
   control and an acknowledgement, and never enters a toast, the URL, a draft
   or the query cache.
 - A rule that cannot be changed is shown as fixed text with its reason
-  ("`system` cannot be disabled"; "names are fixed after creation"), not
+  ("`system` cannot be disabled"; "a role's name is fixed after creation"), not
   offered and then refused.
 - Three empty states are distinct: nothing yet, nothing matches, failed to
   load.
@@ -692,8 +717,8 @@ changes; the phase note asks for it.
   cookie, proxy — as real output, in its own section.
 - `README.md`: running the console, `ODUDU_CONSOLE`, `ODUDU_PUBLIC_BASE_URL`,
   and the development proxy.
-- ADR 0038 (the console's stack and its gateway) and ADR 0039 (names are
-  identifiers), before the code each governs.
+- ADR 0038 (the console's stack and its gateway) and ADR 0039 (names relying
+  parties match on are identifiers), before the code each governs.
 - The umbrella spec's §11: P4d's criterion and estimate restated, a **P4f**
   row added, the order **P4d → P4f → P4b**, and a subsection recording why
   the account console was replaced.
@@ -725,7 +750,7 @@ a pushed commit and the review it attracted answered.
 1. **Groundwork** — CI caching; the umbrella spec's §11 amended; ADR 0038
    and ADR 0039; the spikes listed in this spec's §11.
 2. **API** — tenant names; `whoami`; search, filters, cursors and indexes by
-   collection (about three); counts; §4.5 rows 1–12 (about four); export;
+   collection (about three); counts; §4.5 rows 1–13 (about four); export;
    import.
 3. **Gateway** — the tables and reaping; login and callback; the proxy and
    refresh; logout, CSRF and static serving; the redirect URI on
