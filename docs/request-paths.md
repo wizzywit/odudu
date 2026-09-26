@@ -1892,9 +1892,11 @@ access token minted from that grant embeds it as
 `grant_id` and `sid` (see [docs/protocols/rfc9068.md](protocols/rfc9068.md)'s
 reading note above). That covers the code's own token, each
 `refresh_token` redemption's, and a token exchanged from one. Redeeming the
-`claims={"userinfo":{"email":null}}` request above with `scope=openid email`
-and then refreshing (captured against the stack that the refused-login
-transcript uses, where ada is `01a0db22-1c92-…`):
+`claims={"userinfo":{"email":null}}` request above with `scope=openid email`,
+with `$ACCESS_TOKEN` and `$REFRESH_TOKEN` taken from its token response the
+way [the shell variables above](#the-shell-variables-the-rest-of-this-document-uses)
+take them, and then refreshing (captured against the stack that the
+refused-login transcript uses, where ada is `01a0db22-1c92-…`):
 
 ```bash
 curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
@@ -1904,18 +1906,26 @@ curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
 {"sub":"01a0db22-1c92-…","email":"ada@example.com"}
 ```
 
+The refresh replaces `$ACCESS_TOKEN` with the token it returns, and prints
+its response with both tokens elided:
+
 ```bash
-curl -sS \
+ORIGINAL_ACCESS_TOKEN=$ACCESS_TOKEN
+REFRESHED=$(curl -sS \
   --data-urlencode 'grant_type=refresh_token' \
   --data-urlencode "refresh_token=$REFRESH_TOKEN" \
-  --data-urlencode 'client_id=demo-spa' "$BASE/token"
+  --data-urlencode 'client_id=demo-spa' "$BASE/token")
+printf '%s\n' "$REFRESHED" | sed 's/"access_token":"[^"]*"/"access_token":"…"/; s/"refresh_token":"[^"]*"/"refresh_token":"…"/'
+ACCESS_TOKEN=$(printf '%s' "$REFRESHED" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+[ "$ACCESS_TOKEN" != "$ORIGINAL_ACCESS_TOKEN" ] && echo 'a different access token'
 ```
 
 ```
 {"access_token":"…","refresh_token":"…","token_type":"Bearer","expires_in":300,"scope":"openid email"}
+a different access token
 ```
 
-and then, with the refreshed access token:
+and then, with the refreshed access token now in `$ACCESS_TOKEN`:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
