@@ -5125,10 +5125,10 @@ a refresh token already rotated once, and `$CODE` with `$VERIFIER` the code
 that issued it, both from a fresh Path A run:
 
 ```bash
-curl -sS -w '\n' -H 'x-request-id: token-refused-reuse' \
+curl -sS -w '\n' -H 'x-request-id: token-refused-reuse-then-replay' \
   --data-urlencode 'grant_type=refresh_token' --data-urlencode "refresh_token=$R1" \
   --data-urlencode 'client_id=demo-spa' "$BASE/token"
-curl -sS -w '\n' -H 'x-request-id: token-refused-code-replay' \
+curl -sS -w '\n' -H 'x-request-id: token-refused-replay-after-reuse' \
   --data-urlencode 'grant_type=authorization_code' --data-urlencode "code=$CODE" \
   --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
   --data-urlencode 'client_id=demo-spa' --data-urlencode "code_verifier=$VERIFIER" \
@@ -5138,7 +5138,8 @@ docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
   "select e.action, e.outcome, e.actor_subject_id, c.client_id as actor_client,
           e.resource_type, e.resource_id, e.request_id, e.detail
      from audit_events e left join clients c on c.id = e.actor_client_id
-    where e.request_id in ('token-refused-reuse', 'token-refused-code-replay')
+    where e.request_id in ('token-refused-reuse-then-replay',
+                           'token-refused-replay-after-reuse')
     order by e.request_id desc, e.outcome;"
 ```
 
@@ -5151,8 +5152,8 @@ outcome          | allowed
 actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
 actor_client     | demo-spa
 resource_type    | grant
-resource_id      | 01a0dbd4-68b9-7588-ab70-b9d5003341af
-request_id       | token-refused-reuse
+resource_id      | 01a0de55-903e-7638-9eaf-d67227d6783b
+request_id       | token-refused-reuse-then-replay
 detail           | {"reason": "replayed"}
 -[ RECORD 2 ]----+-------------------------------------
 action           | token.refresh
@@ -5160,44 +5161,104 @@ outcome          | refused
 actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
 actor_client     | demo-spa
 resource_type    | grant
-resource_id      | 01a0dbd4-68b9-7588-ab70-b9d5003341af
-request_id       | token-refused-reuse
+resource_id      | 01a0de55-903e-7638-9eaf-d67227d6783b
+request_id       | token-refused-reuse-then-replay
 detail           | {"reason": "replayed"}
 -[ RECORD 3 ]----+-------------------------------------
-action           | grant.revoked_on_code_replay
-outcome          | allowed
-actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
-actor_client     | demo-spa
-resource_type    | grant
-resource_id      | 01a0dbd4-68b9-7588-ab70-b9d5003341af
-request_id       | token-refused-code-replay
-detail           | {"reason": "replayed"}
--[ RECORD 4 ]----+-------------------------------------
 action           | token.issue
 outcome          | refused
 actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
 actor_client     | demo-spa
 resource_type    | grant
-resource_id      | 01a0dbd4-68b9-7588-ab70-b9d5003341af
-request_id       | token-refused-code-replay
+resource_id      | 01a0de55-903e-7638-9eaf-d67227d6783b
+request_id       | token-refused-replay-after-reuse
 detail           | {"reason": "replayed"}
 ```
 
-- **Each replay writes what the server did and what it refused.** The
-  `grant.revoked_on_*` row is written in the transaction that revokes, and
-  a failure to write it cannot undo the revocation; the refusal row names
-  the same grant. The code replay revokes a grant the reuse had already
-  revoked, which is why both name one `resource_id`.
+(Captured on the stack rebuilt from the current tree, after a revocation
+row came to be written only by the request that revoked; the request ids
+are new because an earlier capture left rows under the old ones.)
+
+- **The request that revokes writes what the server did and what it
+  refused.** The `grant.revoked_on_*` row is written in the transaction
+  that revokes, and a failure to write it cannot undo the revocation; the
+  refusal row names the same grant. The code replay finds that grant
+  already revoked by the reuse, so it writes its refusal and no revocation
+  row: only a call that changed the grant records a revocation, so a spent
+  code replayed any number of times revokes, and records, once. The
+  revocation row names the grant's own client, the refusal the client that
+  asked, which differ when another client presents the code.
 - **A refusal after the client authenticated is a row, while its client's
   budget lasts**: `invalid_grant`, `invalid_scope`, `invalid_target` and
   `unauthorized_client`, under `token.issue`, `token.refresh` or
-  `token.exchange` by grant type. `invalid_request` is not recorded; it
-  describes the request, not a decision about the client.
+  `token.exchange` by grant type, and a token exchange's `invalid_request`,
+  shown below. An `invalid_request` for a request missing a parameter is
+  refused before the client is known, and writes nothing.
 - **A refresh can leave an `allowed` and a `refused` `token.refresh` under
   one request id.** When the rotation commits and the check after it then
   refuses (a revocation or a disabled subject landing between the two), the
   `allowed` row is true, the presented token was consumed and a
   replacement exists, and the refusal says why none was returned.
+
+A token exchange answers `invalid_request` both for a subject token it
+refuses and for a request missing one (RFC 8693 §2.2.2), and only the first
+is a decision about the client, so only the first is a row. `demo` has no
+client registered for the grant, so this run seeds one and lets it
+impersonate, which `seed client` has no flag for (as in
+[Path D](#path-d-token-exchange)):
+
+```bash
+odudu seed client --tenant demo \
+  --client-id demo-exchanger --client-secret demo-exchanger-secret \
+  --redirect-uri http://localhost:8080/callback \
+  --grant-type authorization_code \
+  --grant-type urn:ietf:params:oauth:grant-type:token-exchange
+docker compose exec -T postgres psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config
+    SET token_exchange_impersonation_allowed = true
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'demo-exchanger'
+      AND client_oidc_config.tenant_id = (SELECT id FROM tenants WHERE name = 'demo');"
+
+curl -sS -w '\n' -H 'x-request-id: exchange-refused-subject-token' \
+  -u demo-exchanger:demo-exchanger-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode 'subject_token=not-a-token-this-server-issued' \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  "$BASE/token"
+curl -sS -w '\n' -H 'x-request-id: exchange-refused-malformed' \
+  -u demo-exchanger:demo-exchanger-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  "$BASE/token"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.action, e.outcome, c.client_id as actor_client, e.request_id, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id in ('exchange-refused-subject-token', 'exchange-refused-malformed');"
+```
+
+The seed's JSON line is omitted; the rest is the run's output:
+
+```
+UPDATE 1
+{"error":"invalid_request"}
+{"error":"invalid_request"}
+-[ RECORD 1 ]+-------------------------------
+action       | token.exchange
+outcome      | refused
+actor_client | demo-exchanger
+request_id   | exchange-refused-subject-token
+detail       | {"reason": "invalid_grant"}
+```
+
+The two answers are the same bytes and one wrote a row. A subject token
+that is unknown, expired, revoked or another client's is `invalid_grant`,
+an actor `may_act` does not name is `subject_mismatch`, and a token type
+the server does not exchange is `unsupported_token_type`, each under
+`token.exchange` and the client's budget; the request with no
+`subject_token` was refused while it was parsed, before any client was
+known (ADR 0037's second amendment).
 
 `/revoke` records a revocation it performs, and a refusal to revoke another
 client's grant. `$RT` is a refresh token `demo-spa` holds, fresh from

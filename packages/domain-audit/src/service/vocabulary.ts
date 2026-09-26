@@ -59,6 +59,7 @@ const AUDIT_REASONS = [
   'invalid_scope',
   'invalid_target',
   'unauthorized_client',
+  'unsupported_token_type',
   'rate_limited',
   'foreign_issuer',
   'missing_capability',

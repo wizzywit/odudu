@@ -49,8 +49,9 @@ public client authenticates by presenting its `client_id` and nothing else,
 so anyone who knows one could otherwise append a refused `token.refresh`
 row per request with a random refresh token. The call that spends the
 window writes one row with `reason: rate_limited`, under the action the
-refusal would have had; later refusals in the window are `warn` lines. It is separate from the client secret limiter
-because that limiter applies to password methods only, and counting
+refusal would have had; later refusals in the window are `warn` lines. It
+is separate from the client secret limiter because that limiter applies to
+password methods only, and counting
 `private_key_jwt` or `tls_client_auth` failures against it would turn a
 `400` or `401` into a `429`, a response change. The budget changes no
 response; it decides only whether a refusal is a row or a log line.
@@ -62,9 +63,10 @@ At `/introspect` only failed client authentication is a refusal: a
 successful introspection issues and changes nothing, and writes no row. A
 throw there is caught and logged at `error`; the response is the one the
 caller was always going to get. After authentication, `invalid_grant`,
-`invalid_scope`, `invalid_target` and `unauthorized_client` are recorded;
-`invalid_request` is not, since it describes a malformed request rather
-than a decision about the client. A public client asking for
+`invalid_scope`, `invalid_target` and `unauthorized_client` are recorded,
+and so is a token exchange's `invalid_request` (the second amendment); an
+`invalid_request` from parsing the request, before the client is known, is
+not. A public client asking for
 `client_credentials` answers `invalid_client` and is recorded as
 `unauthorized_client`. A `private_key_jwt` client whose `jwks_uri` cannot be
 fetched is a `warn` line, not a row: that is this server failing to reach
@@ -90,7 +92,9 @@ the client's keys, not the client failing to authenticate.
   (`grant.revoked_on_code_replay`) is written in the transaction that
   revokes, inside a savepoint: a failed insert is logged and the revocation
   commits regardless, because the revocation is the control and the row
-  only reports it.
+  only reports it. It is written only by the call that revoked the grant,
+  so a spent code replayed any number of times writes one, and it names the
+  grant's own client; the refusal beside it names the client that asked.
 - A refresh whose rotation commits and whose post-rotation check then
   refuses carries two rows under one request id: the `token.refresh`
   `allowed` row, which is true (the presented token was consumed and a
@@ -135,3 +139,30 @@ Nothing logs why any of these was refused. The request log at `info`
 records each request's method, path without its query, status and request
 id, so an operator can see that one happened, but not that it was a refusal
 or its reason.
+
+## Amendment, 2026-09-26 — a token exchange's `invalid_request`
+
+A token exchange's `invalid_request` is a refusal. RFC 8693 §2.2.2
+answers `invalid_request` when the subject or actor token "is invalid for
+any reason, or is unacceptable based on policy", so at this grant it is a
+decision about an authenticated client's tokens, not a malformed request.
+Every `invalid_request` the exchange answers after the client authenticated
+is a `token.exchange` refusal under the client's budget: a subject or actor
+token that is unknown, expired, revoked or another client's, and an act
+chain that cannot be extended, as `invalid_grant`; an actor `may_act` does
+not name, as `subject_mismatch`; a token type this server does not
+exchange, as `unsupported_token_type`. A request missing a parameter is
+refused while it is parsed, before any client is known, and writes nothing.
+
+## Amendment, 2026-09-26 — `request_id` is a correlation id, not evidence
+
+A caller sets `request_id` with `x-request-id` whatever `ODUDU_TRUST_PROXY`
+says, because a proxy in front and every transcript in
+`docs/request-paths.md` rely on naming their own.
+`ip` is the evidence, and only a trusted proxy can change it. So a
+`request_id` join between rows is reliable only for requests an operator
+made or that came through a proxy it trusts; for anyone else's it shows
+what the caller chose to claim, and an investigation reads `ip`, the actor
+columns and `occurred_at` instead. Gating the header on `ODUDU_TRUST_PROXY`
+was rejected: it would break every transcript's scoping and protect a value
+that proves nothing either way.

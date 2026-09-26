@@ -89,13 +89,12 @@ export async function respondToRevocationRequest(
     });
   }
 
-  if (grant.revokedAt !== null) return;
-
   // The grant is the record a family's rotation shares — revoking it by id
   // reaches a refresh token's current row whatever rotation it is on, the
   // same way `rotateRefreshToken` reads `grant.revokedAt` rather than
-  // anything on the presented token itself.
-  await tokenGrantRepository(tx).revoke(grant.id, now);
+  // anything on the presented token itself. A grant a concurrent request
+  // revoked first writes no second row.
+  if (!(await tokenGrantRepository(tx).revoke(grant.id, now))) return;
   await auditRepository(tx).record({
     eventType: 'token',
     action: 'token.revoke',

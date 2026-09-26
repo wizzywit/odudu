@@ -1901,7 +1901,10 @@ filters. Both default from the request that made the change (`withTenant`'s
 own `RequestContext`, `packages/db/src/tx.ts`): `request_id` is the
 request's own id, which a caller may supply as `x-request-id` (truncated to
 128 characters), and `ip` is `request.ip`, which only `ODUDU_TRUST_PROXY`
-lets a forwarded header decide.
+lets a forwarded header decide. So `request_id` correlates rows and `ip` is
+the evidence: a join on `request_id` holds for requests you made or that
+came through a proxy you trust, and shows only what the caller claimed for
+anyone else's (ADR 0037's third amendment).
 
 **A third stack.** The examples below — this section only — were re-run
 against a third stack, brought up the same way from an empty volume, to

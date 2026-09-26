@@ -140,6 +140,26 @@ describe('tokenGrantRepository', () => {
     expect(found?.revokedAt).not.toBeNull();
   });
 
+  it('reports whether a revoke changed the grant, and keeps the first revocation time', async () => {
+    const tenantId = newId();
+    const created = await withTenant(app.db, tenantId, (tx) => createGrant(tx, tenantId));
+    const first = new Date('2026-09-26T10:00:00Z');
+
+    const revoked = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(created.id, first),
+    );
+    const again = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(created.id, new Date('2026-09-26T11:00:00Z')),
+    );
+
+    expect(revoked).toBe(true);
+    expect(again).toBe(false);
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).byId(created.id),
+    );
+    expect(found?.revokedAt).toEqual(first);
+  });
+
   it('cannot find a grant by id under a different tenant context', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => createGrant(tx, tenantId),
@@ -163,7 +183,7 @@ describe('tokenGrantRepository', () => {
       },
       attempt: async (tx, grant) => tokenGrantRepository(tx).revoke(grant.id, new Date()),
       expectBlocked: (result) => {
-        expect(result).toBeUndefined();
+        expect(result).toBe(false);
       },
       verifyTenantAUnaffected: async (tx, grant) => {
         const found = await tokenGrantRepository(tx).byId(grant.id);

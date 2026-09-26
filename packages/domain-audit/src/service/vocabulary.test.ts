@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { assertActionKnown, assertDetailAllowed, AUDIT_EVENT_TYPES } from '#/service/vocabulary';
+import {
+  assertActionKnown,
+  assertDetailAllowed,
+  AUDIT_ACTIONS,
+  AUDIT_EVENT_TYPES,
+} from '#/service/vocabulary';
 
 describe('assertDetailAllowed', () => {
   it('accepts the detail keys token.issue names', () => {
@@ -70,15 +75,14 @@ describe('assertDetailAllowed', () => {
     }).toThrow(/factor/);
   });
 
-  it('lists every event type, admin_mutation first', () => {
-    expect(AUDIT_EVENT_TYPES).toEqual([
-      'admin_mutation',
-      'admin_access',
-      'authentication',
-      'session',
-      'token',
-      'credential',
-    ]);
+  it('accepts unsupported_token_type as the reason a token exchange was refused', () => {
+    expect(() => {
+      assertDetailAllowed('token.exchange', { reason: 'unsupported_token_type' });
+    }).not.toThrow();
+  });
+
+  it('lists every event type the vocabulary groups, admin_mutation first', () => {
+    expect(AUDIT_EVENT_TYPES).toEqual(['admin_mutation', ...Object.keys(AUDIT_ACTIONS)]);
   });
 });
 

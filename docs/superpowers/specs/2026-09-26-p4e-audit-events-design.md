@@ -163,7 +163,8 @@ enough to see spraying and stuffing, which is what the row is for.
 
 Reasons: `unknown_subject`, `bad_credential`, `locked_out`, `replayed`,
 `already_used`, `subject_mismatch`, `invalid_grant`, `invalid_scope`,
-`invalid_target`, `unauthorized_client`, `rate_limited`, `foreign_issuer`,
+`invalid_target`, `unauthorized_client`, `unsupported_token_type` (added with
+ADR 0037's second amendment), `rate_limited`, `foreign_issuer`,
 `missing_capability`. The response a caller sees does not change: a wrong
 password, an unknown account and a locked account still answer identically.
 The row distinguishes them and only `view-audit` reads it.
@@ -242,6 +243,12 @@ client authenticates by presenting its `client_id` and nothing else, so
 anyone who knows one — `demo-spa` is public by design — could append a
 refused `token.refresh` row per request with a random refresh token. The
 key stays a registered client, so the bound holds for every refusal.
+
+A token exchange's `invalid_request` after the client authenticated is such
+a refusal: RFC 8693 §2.2.2 answers it for a subject or actor token that is
+invalid or refused by policy, which is a decision, not a malformed request.
+Amended 2026-09-26 by the whole-branch review; ADR 0037's second amendment
+lists the reasons.
 
 `/introspect` is audited only here: a failed client authentication there
 is an authentication decision like one at `/token`, metered by the same

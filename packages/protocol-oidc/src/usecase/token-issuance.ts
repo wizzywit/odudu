@@ -315,8 +315,9 @@ async function redeemAuthorizationCode(
       deps.database.db,
       deps.tenantId,
       async (revokeTx) => {
-        await tokenGrantRepository(revokeTx).revoke(grantId, revokedAt);
-        await recordCodeReplayRevocation(revokeTx, deps, client, existing.subjectId, grantId);
+        if (await tokenGrantRepository(revokeTx).revoke(grantId, revokedAt)) {
+          await recordCodeReplayRevocation(revokeTx, deps, existing, grantId);
+        }
       },
       deps.request,
     );
@@ -340,12 +341,12 @@ async function redeemAuthorizationCode(
 
 // The revocation is the control and the row only reports it: a failed
 // insert rolls back to its savepoint and is logged, and the revocation
-// commits regardless.
+// commits regardless. The row names the grant's own client, as
+// `grant.revoked_on_reuse` does; the refusal beside it names the caller.
 async function recordCodeReplayRevocation(
   tx: TenantScopedDatabase,
   deps: TokenIssuanceDeps,
-  client: ClientRecord,
-  subjectId: string,
+  code: { readonly clientId: string; readonly subjectId: string },
   grantId: string,
 ): Promise<void> {
   try {
@@ -354,8 +355,8 @@ async function recordCodeReplayRevocation(
         eventType: 'token',
         action: 'grant.revoked_on_code_replay',
         outcome: 'allowed',
-        actorSubjectId: subjectId,
-        actorClientId: client.id,
+        actorSubjectId: code.subjectId,
+        actorClientId: code.clientId,
         resourceType: 'grant',
         resourceId: grantId,
         detail: { reason: 'replayed' },
@@ -1149,13 +1150,22 @@ async function issueExchangedTokens(
   client: ClientRecord,
   config: ClientOidcConfig,
 ): Promise<TokenResponse> {
-  // Every failure this parse can report is invalid_request (RFC 8693
-  // §2.2.2), for all three token-type parameters alike, so they are never
-  // told apart here.
+  // RFC 8693 §2.2.2 answers every refusal below `invalid_request`, a
+  // decision about an authenticated client's tokens rather than a malformed
+  // request, so each is recorded under its own reason (ADR 0037).
+  const refused = (reason: AuditReason, subjectId?: string): TokenError =>
+    withAudit(invalidRequest(), {
+      action: 'token.exchange',
+      reason,
+      clientDbId: client.id,
+      ...(subjectId === undefined ? {} : { subjectId }),
+    });
+  // Every failure this parse can report is the same refusal, for all three
+  // token-type parameters alike, so they are never told apart here.
   const accepted = (raw: string): ExchangeTokenType => {
     const outcome = parseTokenType(raw);
     if (outcome === 'refused' || outcome === 'deferred' || outcome === 'unknown') {
-      throw invalidRequest();
+      throw refused('unsupported_token_type');
     }
     return outcome;
   };
@@ -1184,7 +1194,7 @@ async function issueExchangedTokens(
   };
 
   const subject = await resolveExchangeToken(tx, resolveDeps, subjectType, request.subjectToken);
-  if (subject.kind !== 'ok') throw invalidRequest();
+  if (subject.kind !== 'ok') throw refused('invalid_grant');
 
   // `actorTokenType` is non-undefined whenever `actorToken` is — stage 1
   // refuses the pair otherwise — but narrow it rather than asserting it.
@@ -1193,13 +1203,17 @@ async function issueExchangedTokens(
     request.actorToken === undefined || actorType === null
       ? null
       : await resolveExchangeToken(tx, resolveDeps, actorType, request.actorToken);
-  if (actor !== null && actor.kind !== 'ok') throw invalidRequest();
+  if (actor !== null && actor.kind !== 'ok') throw refused('invalid_grant');
 
   const actorSubject = actor === null ? client.clientId : actor.token.subjectId;
-  if (!mayActPermits(subject.token.mayAct, actorSubject)) throw invalidRequest();
+  if (!mayActPermits(subject.token.mayAct, actorSubject)) {
+    throw refused('subject_mismatch', subject.token.subjectId);
+  }
 
   const actChain = actor === null ? undefined : buildActChain(actorSubject, actor.token.act);
-  if (actChain !== undefined && actChain.kind !== 'ok') throw invalidRequest();
+  if (actChain !== undefined && actChain.kind !== 'ok') {
+    throw refused('invalid_grant', subject.token.subjectId);
+  }
   const act = actChain?.kind === 'ok' ? actChain.act : undefined;
 
   const scopeOutcome = attenuateScope(request.scope, subject.token.scope);
@@ -1471,8 +1485,8 @@ const GRANT_REFUSAL_ACTIONS: Readonly<
   [TOKEN_EXCHANGE_GRANT]: 'token.exchange',
 };
 
-// `invalid_request` has no reason here: it describes a malformed request,
-// not a decision about the client that sent it.
+// `invalid_request` has no reason here: after authentication only a token
+// exchange answers it, and that path annotates its own refusals.
 const REFUSAL_REASONS: Readonly<Partial<Record<TokenErrorCode, AuditReason>>> = {
   invalid_grant: 'invalid_grant',
   invalid_scope: 'invalid_scope',

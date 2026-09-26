@@ -55,7 +55,8 @@ Core §5.5 and that losing `requested_userinfo_claims` on refresh is the
 defect; migration `0070` closes it (the ADR's amendment).
 
 **A bare `P4` below means P4d** unless it concerns token exchange, the grant
-allowlist, the admin API, audit events, theming or client branding — the
+allowlist, the admin API, audit events, the grant's UserInfo claims,
+theming or client branding — the
 same disambiguation the P2 split used, and for the same reason: a citation
 renumbered wrongly is invisible for good. Nothing below is a plan for any of
 them, only what they inherit and what is still open.
@@ -113,7 +114,9 @@ each row carries is in the README's P4e paragraph and
 [docs/request-paths.md](request-paths.md#one-sign-ins-audit-trail-read-through-the-admin-api).
 Three things a console showing it needs to know: `actor_tenant_id` differs
 from the row's own tenant only for a caller from elsewhere; `request_id`
-joins a login's step rows to its `session.created`; and a refresh whose
+correlates a login's last step with its `session.created`, but any caller
+sets it, so it is a correlation to show rather than evidence (ADR 0037's
+third amendment); and a refresh whose
 rotation committed before a refusal leaves both an `allowed` and a
 `refused` row under one request id ([p4e.md](phases/p4e.md)).
 

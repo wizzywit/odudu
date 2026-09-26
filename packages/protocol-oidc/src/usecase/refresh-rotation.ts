@@ -40,28 +40,30 @@ export async function rotateRefreshToken(
     if (existing.usedAt === null) return { kind: 'unknown' };
 
     const family = await tokenGrantRepository(tx).byId(existing.grantId);
-    await tokenGrantRepository(tx).revoke(existing.grantId, now);
+    const revoked = await tokenGrantRepository(tx).revoke(existing.grantId, now);
     // The revocation is the control and the row only reports it, so a
     // failed insert is rolled back to its savepoint and logged, never
     // allowed to take the revocation down with it.
-    try {
-      await withSavepoint(tx, (inner) =>
-        auditRepository(inner).record({
-          eventType: 'token',
-          action: 'grant.revoked_on_reuse',
-          outcome: 'allowed',
-          actorSubjectId: family?.subjectId ?? null,
-          actorClientId: family?.clientId ?? null,
-          resourceType: 'grant',
-          resourceId: existing.grantId,
-          detail: { reason: 'replayed' },
-        }),
-      );
-    } catch (error) {
-      logger.error(
-        { err: error, grantId: existing.grantId },
-        'could not record a grant revoked on refresh token reuse',
-      );
+    if (revoked) {
+      try {
+        await withSavepoint(tx, (inner) =>
+          auditRepository(inner).record({
+            eventType: 'token',
+            action: 'grant.revoked_on_reuse',
+            outcome: 'allowed',
+            actorSubjectId: family?.subjectId ?? null,
+            actorClientId: family?.clientId ?? null,
+            resourceType: 'grant',
+            resourceId: existing.grantId,
+            detail: { reason: 'replayed' },
+          }),
+        );
+      } catch (error) {
+        logger.error(
+          { err: error, grantId: existing.grantId },
+          'could not record a grant revoked on refresh token reuse',
+        );
+      }
     }
     return {
       kind: 'reused',

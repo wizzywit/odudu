@@ -1,4 +1,10 @@
-import { generateSigningKey, signingKeys, type SigningKeyRecord } from '@odudu/crypto';
+import {
+  generateSigningKey,
+  signingKeyRepository,
+  signingKeys,
+  signJwt,
+  type SigningKeyRecord,
+} from '@odudu/crypto';
 import { auditRepository, type AuditEventRecord } from '@odudu/domain-audit';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import {
@@ -32,6 +38,7 @@ import {
   type AuditRefusalBudget,
 } from '#/service/audit-refusal-budget';
 import { CLIENT_ASSERTION_TYPE } from '#/service/client-assertion';
+import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import {
   UNLIMITED_CLIENT_SECRET_LIMITER,
   type ClientSecretLimiter,
@@ -72,6 +79,7 @@ const FAILING_AUDIT_PREFIX = 'audit-insert-fails-';
 const DISABLE_ON_ROTATE_PREFIX = 'disable-subject-on-rotate-';
 const NARROW_ON_ROTATE_PREFIX = 'narrow-audience-on-rotate-';
 const API_AUDIENCE = 'https://api.example/';
+const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token';
 
 let clientKey: SigningKeyRecord;
 let strangerKey: SigningKeyRecord;
@@ -143,7 +151,12 @@ async function seedTenant(): Promise<SeededTenant> {
     const clientDbId = await seedClient(tx, id, {
       clientId: CLIENT_ID,
       method: 'client_secret_basic',
-      grantTypes: ['authorization_code', 'refresh_token', 'client_credentials'],
+      grantTypes: [
+        'authorization_code',
+        'refresh_token',
+        'client_credentials',
+        TOKEN_EXCHANGE_GRANT,
+      ],
     });
     const otherClientDbId = await seedClient(tx, id, {
       clientId: OTHER_CLIENT_ID,
@@ -665,6 +678,67 @@ describe('refusals after the client authenticated', () => {
     });
   });
 
+  it('records a code replayed three times as one revocation, not three', async () => {
+    const tenant = await seedTenant();
+    const code = await loginForCode(tenant);
+    expect((await redeem(tenant, code, requestIdFor('first'))).statusCode).toBe(200);
+
+    const replays: LightMyRequestResponse[] = [];
+    for (const label of ['replay-1', 'replay-2', 'replay-3']) {
+      replays.push(await redeem(tenant, code, requestIdFor(label)));
+    }
+
+    expect(replays.map((res) => res.statusCode)).toEqual([400, 400, 400]);
+    expect(new Set(replays.map((res) => JSON.stringify(comparable(res)))).size).toBe(1);
+    const rows = await rowsIn(tenant);
+    expect(rows.filter((row) => row.action === 'grant.revoked_on_code_replay')).toHaveLength(1);
+    expect(
+      rows.filter((row) => row.action === 'token.issue' && row.outcome === 'refused'),
+    ).toHaveLength(3);
+  });
+
+  it("names the code's own client on the revocation, and the replaying one on the refusal", async () => {
+    const tenant = await seedTenant();
+    const code = await loginForCode(tenant);
+    expect((await redeem(tenant, code, requestIdFor('first'))).statusCode).toBe(200);
+    const requestId = requestIdFor('foreign-replay');
+
+    const res = await token(
+      tenant,
+      {
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: REDIRECT_URI,
+        code_verifier: VERIFIER,
+      },
+      requestId,
+      basicAuth(OTHER_CLIENT_ID, CLIENT_SECRET),
+    );
+
+    expect(res.statusCode).toBe(400);
+    const rows = await rowsFor(tenant, requestId);
+    expect(rows.find((row) => row.action === 'grant.revoked_on_code_replay')).toMatchObject({
+      actorClientId: tenant.clientDbId,
+    });
+    expect(rows.find((row) => row.action === 'token.issue')).toMatchObject({
+      outcome: 'refused',
+      actorClientId: tenant.otherClientDbId,
+    });
+  });
+
+  it('records refresh-token reuse repeated three times as one revoked family', async () => {
+    const tenant = await seedTenant();
+    const original = await issuedRefreshToken(tenant);
+    expect((await refresh(tenant, original, requestIdFor('rotate'))).statusCode).toBe(200);
+
+    for (const label of ['reuse-1', 'reuse-2', 'reuse-3']) {
+      expect((await refresh(tenant, original, requestIdFor(label))).statusCode).toBe(400);
+    }
+
+    const rows = await rowsIn(tenant);
+    expect(rows.filter((row) => row.action === 'grant.revoked_on_reuse')).toHaveLength(1);
+  });
+
   it('keeps a replay revocation whose audit row cannot be written', async () => {
     const tenant = await seedTenant();
     const code = await loginForCode(tenant);
@@ -795,6 +869,202 @@ describe('refusals after the client authenticated', () => {
       outcome: 'refused',
       detail: { reason: 'invalid_scope' },
     });
+  });
+});
+
+function accessTokenFrom(res: LightMyRequestResponse): string {
+  expect(res.statusCode).toBe(200);
+  const accessToken = res.json<{ access_token?: string }>().access_token;
+  if (accessToken === undefined) throw new Error('expected an access token');
+  return accessToken;
+}
+
+async function signInAccessToken(tenant: SeededTenant): Promise<string> {
+  return accessTokenFrom(await redeem(tenant, await loginForCode(tenant), requestIdFor('redeem')));
+}
+
+async function serviceAccessToken(tenant: SeededTenant): Promise<string> {
+  return accessTokenFrom(
+    await token(
+      tenant,
+      { grant_type: 'client_credentials', scope: SERVICE_SCOPE },
+      requestIdFor('service'),
+    ),
+  );
+}
+
+function claimsOf(jwt: string): Record<string, unknown> {
+  const claims: unknown = JSON.parse(Buffer.from(jwt.split('.')[1] ?? '', 'base64url').toString());
+  if (typeof claims !== 'object' || claims === null) throw new Error('malformed token');
+  return Object.fromEntries(Object.entries(claims));
+}
+
+// Nothing mints `may_act`, so a real grant-backed access token is re-signed
+// with the claim added, the way token-exchange.int.test.ts exercises it.
+async function withMayAct(tenant: SeededTenant, accessToken: string, sub: string): Promise<string> {
+  const key = await withTenant(app.db, tenant.id, (tx) => signingKeyRepository(tx).active());
+  return signJwt({ ...claimsOf(accessToken), may_act: { sub } }, { key, kek: KEK, typ: 'at+jwt' });
+}
+
+function exchange(
+  tenant: SeededTenant,
+  fields: Record<string, string>,
+  requestId: string,
+): Promise<LightMyRequestResponse> {
+  return token(tenant, { grant_type: TOKEN_EXCHANGE_GRANT, ...fields }, requestId);
+}
+
+describe('refused token exchanges', () => {
+  it('records a subject token that is not a token this server issued', async () => {
+    const tenant = await seedTenant();
+    const requestId = requestIdFor('exchange-bad-subject');
+
+    const res = await exchange(
+      tenant,
+      {
+        subject_token: 'not-a-token',
+        subject_token_type: ACCESS_TOKEN_TYPE,
+        actor_token: await serviceAccessToken(tenant),
+        actor_token_type: ACCESS_TOKEN_TYPE,
+      },
+      requestId,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'invalid_request' });
+    expect(await onlyRowFor(tenant, requestId)).toMatchObject({
+      eventType: 'token',
+      action: 'token.exchange',
+      outcome: 'refused',
+      actorClientId: tenant.clientDbId,
+      detail: { reason: 'invalid_grant' },
+    });
+  });
+
+  it('records an actor token whose grant was revoked', async () => {
+    const tenant = await seedTenant();
+    const actor = await serviceAccessToken(tenant);
+    const actorGrant = claimsOf(actor).grant_id;
+    if (typeof actorGrant !== 'string') throw new Error('expected a grant_id');
+    await owner.db
+      .update(tokenGrants)
+      .set({ revokedAt: new Date() })
+      .where(eq(tokenGrants.id, actorGrant));
+    const requestId = requestIdFor('exchange-revoked-actor');
+
+    const res = await exchange(
+      tenant,
+      {
+        subject_token: await signInAccessToken(tenant),
+        subject_token_type: ACCESS_TOKEN_TYPE,
+        actor_token: actor,
+        actor_token_type: ACCESS_TOKEN_TYPE,
+      },
+      requestId,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(await onlyRowFor(tenant, requestId)).toMatchObject({
+      action: 'token.exchange',
+      outcome: 'refused',
+      detail: { reason: 'invalid_grant' },
+    });
+  });
+
+  it('records an actor the subject token does not name in may_act', async () => {
+    const tenant = await seedTenant();
+    const subjectToken = await withMayAct(tenant, await signInAccessToken(tenant), newId());
+    const requestId = requestIdFor('exchange-may-act');
+
+    const res = await exchange(
+      tenant,
+      {
+        subject_token: subjectToken,
+        subject_token_type: ACCESS_TOKEN_TYPE,
+        actor_token: await serviceAccessToken(tenant),
+        actor_token_type: ACCESS_TOKEN_TYPE,
+      },
+      requestId,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'invalid_request' });
+    expect(await onlyRowFor(tenant, requestId)).toMatchObject({
+      action: 'token.exchange',
+      outcome: 'refused',
+      actorSubjectId: tenant.subjectId,
+      actorClientId: tenant.clientDbId,
+      detail: { reason: 'subject_mismatch' },
+    });
+  });
+
+  it('records a token type this server does not exchange', async () => {
+    const tenant = await seedTenant();
+    const requestId = requestIdFor('exchange-token-type');
+
+    const res = await exchange(
+      tenant,
+      {
+        subject_token: await signInAccessToken(tenant),
+        subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+        actor_token: await serviceAccessToken(tenant),
+        actor_token_type: ACCESS_TOKEN_TYPE,
+      },
+      requestId,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'invalid_request' });
+    expect(await onlyRowFor(tenant, requestId)).toMatchObject({
+      action: 'token.exchange',
+      outcome: 'refused',
+      detail: { reason: 'unsupported_token_type' },
+    });
+  });
+
+  it('records impersonation by a client not permitted it as unauthorized_client', async () => {
+    const tenant = await seedTenant();
+    const requestId = requestIdFor('exchange-impersonation');
+
+    const res = await exchange(
+      tenant,
+      { subject_token: await signInAccessToken(tenant), subject_token_type: ACCESS_TOKEN_TYPE },
+      requestId,
+    );
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'unauthorized_client' });
+    expect(await onlyRowFor(tenant, requestId)).toMatchObject({
+      action: 'token.exchange',
+      outcome: 'refused',
+      detail: { reason: 'unauthorized_client' },
+    });
+  });
+
+  it('writes nothing for an exchange missing its subject_token, which is malformed', async () => {
+    const tenant = await seedTenant();
+    const requestId = requestIdFor('exchange-malformed');
+
+    const res = await exchange(tenant, { subject_token_type: ACCESS_TOKEN_TYPE }, requestId);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'invalid_request' });
+    expect(await rowsFor(tenant, requestId)).toEqual([]);
+  });
+
+  it('answers a refused exchange identically whether or not its row is written', async () => {
+    const tenant = await seedTenant();
+    const fields = {
+      subject_token: 'not-a-token',
+      subject_token_type: ACCESS_TOKEN_TYPE,
+      actor_token: await serviceAccessToken(tenant),
+      actor_token_type: ACCESS_TOKEN_TYPE,
+    };
+
+    const audited = await exchange(tenant, fields, requestIdFor('exchange-audited'));
+    const unaudited = await exchange(tenant, fields, `${FAILING_AUDIT_PREFIX}${newId()}`);
+
+    expect(comparable(audited)).toEqual(comparable(unaudited));
   });
 });
 
