@@ -47,6 +47,26 @@ email — and **P2b** is credentials, MFA and the session lifecycle. **P3a**
 is clients, registration and consent, and **P3b** is sessions, logout and
 the token surface.
 
+**P4e** fills that audit trail beyond admin mutations. `GET
+/admin/tenants/{tenant}/audit?event_type=…` takes one of six event types:
+`admin_mutation`; `admin_access` (a `403` to an authenticated caller, a
+genuine token from another tenant); `authentication` (every password,
+one-time-code, recovery-code and passkey answer, a second factor offered, a
+lockout tripped, a refused client authentication); `session` (created, and
+ended by logout, by an admin or by eviction); `token` (issue, refresh,
+exchange, revoke, and a grant revoked on refresh-token reuse or code
+replay); and `credential` (registration, email verification, password reset
+and change, TOTP and passkey enrolment, recovery codes issued). Every row
+carries the request's `request_id` and `ip`, and none carries a secret, a
+code, a token or an attempted username. A refusal is a row only where the
+principal it names bounds it; a refusal nothing bounds — an unregistered
+`client_id`, an admin `401`, a forged foreign-issuer token — goes to a
+`warn` log line instead
+([ADR 0037](docs/adr/0037-refusal-rows-are-bounded-by-the-principal-they-name.md)).
+Refresh rows dominate the table's growth, and each tenant's
+`audit_retention_days` is what bounds them (see
+[`odudu reap`](#running-it) below).
+
 A role reaches a token only when it is mapped to a scope the client is
 assigned, because `clients.full_scope_allowed` is off by default — a client
 sees the tenant's entire role vocabulary only once that is switched on for

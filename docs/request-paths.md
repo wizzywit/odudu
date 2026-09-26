@@ -7593,6 +7593,117 @@ regardless of which encapsulated scope registered it (`docs/superpowers/p2a-spik
 records the mechanism); it is harmless — nothing downstream keys a cache
 entry on it — but it is not hidden here as something it is not.
 
+## One sign-in's audit trail, read through the admin API
+
+The sections above read `audit_events` with `psql`, one door at a time.
+This one drives a whole sign-in — a login, the code's redemption, a
+refresh, a logout — and reads what it left through
+`GET /admin/tenants/{tenant}/audit`, which is how an operator reads it.
+`$ADMIN_TOKEN` is an admin access token got the way
+[docs/admin-paths.md](admin-paths.md#getting-the-token) shows, here for a
+second `system` administrator seeded on the same stack. `event_type` picks
+the kind of row, and `from` scopes both queries to this run, since
+`request_id` is not a filter:
+
+```bash
+BASE=http://localhost:3000/tenants/demo/protocol/openid-connect
+LOGIN=http://localhost:3000/tenants/demo/login-actions/authenticate
+SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+VERIFIER=$(openssl rand -hex 32)
+CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 \
+  | openssl base64 | tr '+/' '-_' | tr -d '=')
+
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-trail' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+
+CODE=$(curl -sS -D - -o /dev/null -c cookies-trail.txt \
+  -H 'x-request-id: trail-sign-in' \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "$LOGIN" | sed -n 's/.*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
+
+REFRESH_TOKEN=$(curl -sS -H 'x-request-id: trail-code' \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode "code_verifier=$VERIFIER" "$BASE/token" \
+  | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+
+curl -sS -o /dev/null -w '%{http_code}\n' -H 'x-request-id: trail-refresh' \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' "$BASE/token"
+
+SESSION_ID=$(curl -sS -b cookies-trail.txt "$BASE/logout" \
+  | sed -n 's/.*name="session_id" value="\([^"]*\)".*/\1/p')
+
+curl -sS -b cookies-trail.txt -o /dev/null -w '%{http_code}\n' \
+  -H 'x-request-id: trail-logout' \
+  --data-urlencode "session_id=$SESSION_ID" "$BASE/logout"
+
+for EVENT_TYPE in token session; do
+  curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+    --data-urlencode "event_type=$EVENT_TYPE" \
+    --data-urlencode "from=$SINCE" \
+    http://localhost:3000/admin/tenants/demo/audit
+  echo
+done
+```
+
+The refresh's status, the logout's, then the `token` page and the
+`session` page, newest first:
+
+```
+200
+200
+{"items":[{"id":"01a0dca8-471a-7a73-b86e-aa6df0778eac","occurred_at":"2026-09-26T07:40:10.896Z","event_type":"token","action":"token.refresh","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"grant","resource_id":"01a0dca8-46e2-75fa-829c-e072eb0304b7","request_id":"trail-refresh","ip":"172.20.0.1","detail":{"scope":"openid"}},{"id":"01a0dca8-46f1-7773-80e9-0075084f4ef7","occurred_at":"2026-09-26T07:40:10.833Z","event_type":"token","action":"token.issue","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"grant","resource_id":"01a0dca8-46e2-75fa-829c-e072eb0304b7","request_id":"trail-code","ip":"172.20.0.1","detail":{"scope":"openid","grant_type":"authorization_code"}}]}
+{"items":[{"id":"01a0dca8-474a-7100-9a23-7b562be0bee7","occurred_at":"2026-09-26T07:40:10.952Z","event_type":"session","action":"session.ended","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":null,"resource_type":"session","resource_id":"01a0dca8-46bb-7a00-86ac-f034f41d5d39","request_id":"trail-logout","ip":"172.20.0.1","detail":{"via":"logout"}},{"id":"01a0dca8-46bd-783b-97cf-d6639a2d908e","occurred_at":"2026-09-26T07:40:10.808Z","event_type":"session","action":"session.created","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"session","resource_id":"01a0dca8-46bb-7a00-86ac-f034f41d5d39","request_id":"trail-sign-in","ip":"172.20.0.1","detail":{}}]}
+```
+
+Captured against the same stack as
+[what a refused login leaves behind](#what-a-refused-login-leaves-behind),
+with the image rebuilt from the current tree. The ids the rows name:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select t.id as demo, c.id as demo_spa, u.subject_id as ada
+     from tenants t
+     join clients c on c.tenant_id = t.id and c.client_id = 'demo-spa'
+     join users u on u.tenant_id = t.id and u.username = 'ada'
+    where t.name = 'demo';"
+```
+
+```
+                 demo                 |               demo_spa               |                 ada
+--------------------------------------+--------------------------------------+--------------------------------------
+ 01a0db22-1c32-7d17-b351-697d7911033c | 01a0db22-1c61-714b-be3a-3d5234477dff | 01a0db22-1c92-7730-9d37-4085f28eca2c
+(1 row)
+```
+
+The four requests sent with an `x-request-id` left one row each on these
+pages, under that id. The login also wrote a `login.password` row, as
+[what a refused login leaves behind](#what-a-refused-login-leaves-behind)
+shows for a refusal; it is an `authentication` row, so neither page above
+returns it. `token.issue` and `token.refresh` name one grant, which
+rotation reuses; `session.created` and `session.ended` name one session.
+`actor_tenant_id` is `demo` on all four: it names the tenant the actor
+belongs to, which differs from the row's own only when the caller came
+from elsewhere — a `system` administrator's admin rows, or a
+`token.foreign_issuer` refusal. `session.ended` names no client whichever
+way the session ends, since ending it ends it for every client that shared
+it. The confirmation page the logout fetched first wrote nothing, and
+carried no `x-request-id`.
+
 ## The branches
 
 ### `/authorize`: the render-versus-redirect boundary
@@ -9080,31 +9191,29 @@ session lifecycle. A citation of either half here means that half.
 
 **The admin API**
 
-- **The audit log records administrative mutations, login steps, sessions
-  and tokens, and no credential change.** A password, a second factor, a
-  passkey, the factor offered after a first one and a lockout tripping each
-  write an `authentication` row ([what a refused login leaves behind](#what-a-refused-login-leaves-behind)),
-  a session starting or ending writes a `session` row
-  ([what a session leaves in the audit log](#what-a-session-leaves-in-the-audit-log)),
-  and a token minted, refreshed, exchanged or revoked writes a `token` row
-  (`token.issue`, `token.refresh`, `token.exchange`, `token.revoke`; the
-  exchange's `requested_token_type` records the effective requested type,
-  `access_token` when none was named), as does a grant revoked on reuse or
-  code replay ([what a refused token request leaves in the audit log](#what-a-refused-token-request-leaves-in-the-audit-log)).
-  A credential enrolled, reset or changed leaves no trace — `?event_type=`
-  narrows to any of the vocabulary's six values, and nothing yet writes
-  `credential`. **P4e**, whose criterion names those events.
-- **Refused session and credential changes are not recorded.** Every
-  refused login step writes a `refused` row under
-  `resource_type: authentication_session`, a refused `/token`, `/revoke` or
-  `/introspect` request writes one within ADR 0037's budget, and the admin
-  API records the refusals its own checks make (`client.create`'s, the
-  privilege ceilings on subject, role, group and scope changes, every `403`,
-  and a genuine token from another tenant). A refused session or credential
-  change writes nothing, so `?event_type=session` or `credential` with
-  `?outcome=refused` returns nothing — which reads as "nothing was refused"
-  and is not. **P4e**, whose criterion names those
-  events and the refusals among them.
+- **The audit trail has one reader, the admin API, and no destination
+  outside the database.** Every kind of row the vocabulary names is
+  written — [one sign-in's trail](#one-sign-ins-audit-trail-read-through-the-admin-api)
+  reads two of them back through `GET /admin/tenants/{tenant}/audit` — but
+  nothing shows it except that endpoint: a console is **P4d**'s, whose
+  criterion shows the audit trail, and an `EventListener` delivering a
+  tenant's events to a SIEM or a webhook is **P10**'s, whose criterion
+  names one. A successful `/introspect` or `/userinfo` call writes no row,
+  which is a decision (the P4e spec's §2): each is a read a resource server
+  makes per request, and the grant it reads was recorded when it was
+  issued.
+- **A refused credential or session change writes no row.** A wrong code
+  offered while enrolling TOTP, a failed passkey ceremony, a password the
+  policy refuses at a change or a reset, an expired or spent reset or
+  verification link, a refused registration and a logout that ends
+  nothing all answer as before and leave `audit_events` untouched, so
+  `?event_type=credential&outcome=refused` returns nothing — which reads as
+  "nothing was refused" and is not. Login steps, `/token`, `/revoke`,
+  `/introspect` and the admin API's own checks do record their refusals,
+  within ADR 0037's bounds. **P4e**, whose topic this is: each of these
+  names a principal ADR 0037's rule can bound — an authentication session
+  that has already passed a password, or a route the per-origin throttle
+  already covers — and none is recorded yet.
 
 **Endpoints that do not exist at all**
 
