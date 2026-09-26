@@ -59,7 +59,7 @@ the sixteen reports and prints the same line as before.
   `MISS`, though it does not depend on `@odudu/account`. `drizzle/**` is in
   every package's inputs, since `@odudu/db`'s own tests run its migrations.
   A third such file is caught rather than remembered:
-  `tests/lint/cross-package-reads.test.ts` scans every package's and app's
+  `tests/lint/cross-package-reads.test.ts` scans every package's, app's and tool's
   `src/` and `tests/` for a `join`, `resolve` or `new URL` whose `..`
   segments climb above the package root, and fails, naming the file, unless
   turbo.json has a `<package>#test` override with a `$TURBO_ROOT$` input.

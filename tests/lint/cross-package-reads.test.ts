@@ -108,11 +108,13 @@ describe('escapesPackage', () => {
 });
 
 describe('a file that reads above its package root has a turbo.json test override', () => {
-  it('holds for every package and app', async () => {
+  it('holds for every package, app and tool', async () => {
     const overrides = overridesReachingOut();
     const offenders: string[] = [];
     let scanned = 0;
-    for await (const file of glob('{packages,apps}/*/{src,tests}/**/*.ts', { cwd: REPO_ROOT })) {
+    for await (const file of glob('{packages,apps,tools}/*/{src,tests}/**/*.ts', {
+      cwd: REPO_ROOT,
+    })) {
       scanned += 1;
       const [top = '', dir = '', ...rest] = file.split(path.sep);
       const packageDir = `${top}/${dir}`;
