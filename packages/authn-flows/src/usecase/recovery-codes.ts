@@ -1,4 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import { credentialRepository, hashPassword } from '@odudu/domain-identity';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { generateRecoveryCodes, normaliseRecoveryCode } from '#/service/authenticators/recovery';
@@ -34,6 +35,14 @@ export async function beginRecoveryCodes(
       secret: { kind: 'recovery-code', hash },
     });
   }
+  await auditRepository(tx).record({
+    eventType: 'credential',
+    action: 'recovery_codes.issued',
+    outcome: 'allowed',
+    actorSubjectId: input.subjectId,
+    resourceType: 'subject',
+    resourceId: input.subjectId,
+  });
   return { codes, replaced: replaced > 0 };
 }
 

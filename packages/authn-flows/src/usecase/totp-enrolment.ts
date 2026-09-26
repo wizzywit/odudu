@@ -1,5 +1,6 @@
 import { generateTotpSecret, verifyTotp } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { systemClock, type Clock } from '@odudu/kernel';
 import { requiredActionRepository } from '#/repository/required-actions';
@@ -59,6 +60,14 @@ export async function completeTotpEnrolment(
     secret: { kind: 'totp', secret: input.secret, digits: 6, lastStep: verified.step },
   });
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-totp');
+  await auditRepository(tx).record({
+    eventType: 'credential',
+    action: 'otp.enrolled',
+    outcome: 'allowed',
+    actorSubjectId: input.subjectId,
+    resourceType: 'subject',
+    resourceId: input.subjectId,
+  });
   await oweRecoveryCodesIfNoneUnspent(tx, input.tenantId, input.subjectId);
   return { kind: 'enrolled' };
 }

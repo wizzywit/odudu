@@ -9,6 +9,7 @@ import {
   type RecoveryCodesOffer,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
+import { requestContextFrom, type RequestContext } from '@odudu/domain-audit';
 import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import {
@@ -41,7 +42,11 @@ export interface RequiredActionRouteDeps extends RequiredActionSubmissionDeps {
   // Ten fresh codes, written as hashes and returned in plaintext for the
   // one render of them there will be. Called again on a re-render, which
   // is why the page it feeds says the codes on it replace any earlier set.
-  beginRecoveryCodes(tenantId: string, subjectId: string): Promise<RecoveryCodesOffer>;
+  beginRecoveryCodes(
+    tenantId: string,
+    subjectId: string,
+    request: RequestContext,
+  ): Promise<RecoveryCodesOffer>;
   // What the parked login is waiting for now that the action is done —
   // the same call the login route makes to re-render after a rejection.
   pendingChallenge(tenantId: string, authSessionId: string): Promise<AuthenticatorResult>;
@@ -86,15 +91,21 @@ export function registerRequiredActionRoute(
       );
     }
 
-    const outcome = await handleRequiredActionSubmission(deps, tenantName, {
-      authSessionId,
-      action: request.query.action,
-      secret: firstString(body.secret),
-      code: firstString(body.code),
-      password: candidate.kind === 'present' ? candidate.password : undefined,
-      credential: firstString(body.credential),
-      label: firstString(body.label),
-    });
+    const context = requestContextFrom(request);
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      tenantName,
+      {
+        authSessionId,
+        action: request.query.action,
+        secret: firstString(body.secret),
+        code: firstString(body.code),
+        password: candidate.kind === 'present' ? candidate.password : undefined,
+        credential: firstString(body.credential),
+        label: firstString(body.label),
+      },
+      context,
+    );
 
     if (outcome.kind === 'unauthenticated') {
       return sendHtml(
@@ -163,7 +174,7 @@ export function registerRequiredActionRoute(
     }
 
     if (outcome.action === 'generate-recovery-codes') {
-      const offer = await deps.beginRecoveryCodes(tenant.id, outcome.subjectId);
+      const offer = await deps.beginRecoveryCodes(tenant.id, outcome.subjectId, context);
       return sendHtml(
         reply,
         200,

@@ -9,6 +9,7 @@ import {
   type RequiredAction,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
+import { requestContextFrom, type RequestContext } from '@odudu/domain-audit';
 import { type FastifyReply } from 'fastify';
 import { sendHtml } from '#/view/html-response';
 
@@ -31,7 +32,11 @@ export interface RequiredActionResponseDeps {
     subjectId: string,
     authSessionId: string,
   ): Promise<PasskeyEnrolmentOffer>;
-  beginRecoveryCodes(tenantId: string, subjectId: string): Promise<RecoveryCodesOffer>;
+  beginRecoveryCodes(
+    tenantId: string,
+    subjectId: string,
+    request: RequestContext,
+  ): Promise<RecoveryCodesOffer>;
 }
 
 // The one place a 'required_action' outcome becomes a response, so login.ts,
@@ -56,7 +61,11 @@ export async function sendRequiredActionPage(
   if (action === 'generate-recovery-codes') {
     const tenant = await deps.findTenant(tenantName);
     if (tenant !== null) {
-      const offer = await deps.beginRecoveryCodes(tenant.id, subjectId);
+      const offer = await deps.beginRecoveryCodes(
+        tenant.id,
+        subjectId,
+        requestContextFrom(reply.request),
+      );
       return sendHtml(reply, 200, renderRecoveryCodesPage(tenantName, authSessionId, offer));
     }
   }

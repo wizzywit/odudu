@@ -2983,6 +2983,9 @@ credential written before its first correct code would lock the account out
 of its own second factor if the app never actually scanned it, so the
 credential is created by the submission that proves a code, not by the page
 that offers a secret. An abandoned enrolment leaves no row behind at all.
+The submission that proves a code also writes the one `credential` audit
+row, `otp.enrolled`, naming the subject; a wrong code writes none
+(`packages/protocol-oidc/tests/audit-credentials.int.test.ts`).
 
 ### Confirming the secret enrols it
 
@@ -3199,6 +3202,11 @@ action to a subject who holds no codes already, and that is the page the
 walkthrough above landed on. A subject who _does_ already hold codes is not
 asked again: a new factor does not invalidate a list they have saved, and
 re-issuing would silently retire the copy on their paper.
+
+Every render of the page writes one `credential` audit row,
+`recovery_codes.issued`, in the transaction that stores the hashes — the
+forced first set included, and again for each set a re-render issues in
+its place. The row carries no code.
 
 Every command and response below was executed against the compose stack,
 continuing the same `otp-demo` tenant and the same `auth_session_id`.
@@ -3660,7 +3668,9 @@ What the flow is, stated rather than shown:
    the credential: `lookup_key` is the credential id, and `secret_data`
    holds the COSE public key, the authenticator's signature counter at
    registration, and its transports. The `configure-passkey` action is
-   cleared last, so a refused ceremony leaves it owed.
+   cleared last, so a refused ceremony leaves it owed, and one `credential`
+   audit row, `passkey.enrolled`, is written in the same transaction; a
+   refused ceremony writes none.
 5. The page's script is inline, because only a script can reach an
    authenticator. The response's `Content-Security-Policy` names a
    per-response `nonce` and that script carries it — not `unsafe-inline`, so
@@ -4332,6 +4342,10 @@ force — otherwise a mailed link would restart the clock on an expired
 password without changing it — but it consults no history, so a password
 retired more than one change ago can be restored that way. Only this action
 reads history, and only this action writes any.
+
+An accepted change writes one `credential` audit row, `password.changed`,
+naming the subject. A candidate the policy or the history refuses writes
+none, and no row carries a candidate either way.
 
 A retired hash is never a login's input. The password credential read at
 authentication filters on `type = 'password'`, so the row above answers

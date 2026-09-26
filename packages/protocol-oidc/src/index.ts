@@ -27,7 +27,7 @@ import {
 } from '@odudu/authn-flows';
 import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
-import { withTenant, type DatabaseHandle } from '@odudu/db';
+import { withTenant, type DatabaseHandle, type RequestContext } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
 import {
@@ -503,9 +503,12 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
     // One definition for the same two doors: the login that discovers the
     // action is owed, and the acknowledgement that has to re-render it.
-    const startRecoveryCodes = (tenantId: string, subjectId: string) =>
-      withTenant(deps.database.db, tenantId, (tx) =>
-        beginRecoveryCodes(tx, { tenantId, subjectId }),
+    const startRecoveryCodes = (tenantId: string, subjectId: string, request: RequestContext) =>
+      withTenant(
+        deps.database.db,
+        tenantId,
+        (tx) => beginRecoveryCodes(tx, { tenantId, subjectId }),
+        request,
       );
 
     // Both halves of passkey enrolment exist only where a relying party can
@@ -546,15 +549,21 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       publicBaseUrl === undefined
         ? {}
         : {
-            completePasskeyEnrolment: (input: {
-              tenantId: string;
-              subjectId: string;
-              authSessionId: string;
-              response: unknown;
-              label?: string;
-            }) =>
-              withTenant(deps.database.db, input.tenantId, (tx) =>
-                completePasskeyEnrolment(tx, { ...input, publicBaseUrl }),
+            completePasskeyEnrolment: (
+              input: {
+                tenantId: string;
+                subjectId: string;
+                authSessionId: string;
+                response: unknown;
+                label?: string;
+              },
+              request: RequestContext,
+            ) =>
+              withTenant(
+                deps.database.db,
+                input.tenantId,
+                (tx) => completePasskeyEnrolment(tx, { ...input, publicBaseUrl }),
+                request,
               ),
           };
 
@@ -667,15 +676,23 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withTenant(deps.database.db, tenantId, (tx) =>
           authenticatedSubject(tx, authSessionId, clock),
         ),
-      completeTotpEnrolment: (input) =>
-        withTenant(deps.database.db, input.tenantId, (tx) =>
-          completeTotpEnrolment(tx, input, clock),
+      completeTotpEnrolment: (input, request) =>
+        withTenant(
+          deps.database.db,
+          input.tenantId,
+          (tx) => completeTotpEnrolment(tx, input, clock),
+          request,
         ),
       beginRecoveryCodes: startRecoveryCodes,
       completeRecoveryCodes: (input) =>
         withTenant(deps.database.db, input.tenantId, (tx) => completeRecoveryCodes(tx, input)),
-      completeUpdatePassword: (input) =>
-        withTenant(deps.database.db, input.tenantId, (tx) => completeUpdatePassword(tx, input)),
+      completeUpdatePassword: (input, request) =>
+        withTenant(
+          deps.database.db,
+          input.tenantId,
+          (tx) => completeUpdatePassword(tx, input),
+          request,
+        ),
     });
     registerLoginRoute(app, {
       findTenant,
