@@ -1,21 +1,15 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { type PgInsertValue } from 'drizzle-orm/pg-core';
 import { auditEvents, type AuditEventRecord } from '#/schema/audit-events';
-
-export interface AuditEventInput {
-  readonly eventType: string;
-  readonly action: string;
-  readonly outcome: 'allowed' | 'refused' | 'failed';
-  readonly actorTenantId?: string | null;
-  readonly actorSubjectId?: string | null;
-  readonly actorClientId?: string | null;
-  readonly resourceType?: string | null;
-  readonly resourceId?: string | null;
-  readonly requestId?: string | null;
-  readonly ip?: string | null;
-  readonly detail?: Record<string, unknown> | undefined;
-}
+import {
+  assertActionKnown,
+  assertDetailAllowed,
+  isAuditReason,
+  type AuditEventInput,
+  type AuditEventType,
+} from '#/service/vocabulary';
 
 /** A page's last row, so the next page's query resumes strictly after it. */
 export interface AuditCursorPosition {
@@ -24,6 +18,7 @@ export interface AuditCursorPosition {
 }
 
 export interface AuditEventFilter {
+  readonly eventType?: AuditEventType | undefined;
   readonly actorSubjectId?: string | undefined;
   readonly resourceType?: string | undefined;
   readonly action?: string | undefined;
@@ -35,27 +30,52 @@ export interface AuditEventFilter {
   readonly limit: number;
 }
 
+// A writer that names no actor tenant is recording an actor of the row's
+// own tenant. Only a caller from elsewhere — a system administrator, a
+// foreign-issuer token — names another.
+const ROW_TENANT = sql`nullif(current_setting('app.tenant_id', true), '')::uuid`;
+
+function validatedRow(event: AuditEventInput): PgInsertValue<typeof auditEvents> {
+  const detail: Record<string, unknown> = event.detail ?? {};
+  if (event.eventType !== 'admin_mutation') {
+    assertActionKnown(event.eventType, event.action);
+    if (event.outcome === 'refused' && !isAuditReason(detail.reason)) {
+      throw new Error(`audit event '${event.action}' is refused but has no valid reason`);
+    }
+    assertDetailAllowed(event.action, detail);
+  }
+
+  return {
+    id: newId(),
+    eventType: event.eventType,
+    action: event.action,
+    outcome: event.outcome,
+    actorTenantId: event.actorTenantId ?? ROW_TENANT,
+    actorSubjectId: event.actorSubjectId ?? null,
+    actorClientId: event.actorClientId ?? null,
+    resourceType: event.resourceType ?? null,
+    resourceId: event.resourceId ?? null,
+    detail,
+  };
+}
+
 export function auditRepository(tx: TenantScopedDatabase) {
   return {
     // No tenantId field: audit_events.tenant_id defaults to the same
     // app.tenant_id session variable withTenant already bound this
-    // transaction to, which is the mutation's target rather than
-    // whichever tenant issued the caller's own token.
+    // transaction to — the tenant the event happened to, not whichever
+    // tenant issued the caller's own token.
     async record(event: AuditEventInput): Promise<void> {
-      await tx.insert(auditEvents).values({
-        id: newId(),
-        eventType: event.eventType,
-        action: event.action,
-        outcome: event.outcome,
-        actorTenantId: event.actorTenantId ?? null,
-        actorSubjectId: event.actorSubjectId ?? null,
-        actorClientId: event.actorClientId ?? null,
-        resourceType: event.resourceType ?? null,
-        resourceId: event.resourceId ?? null,
-        requestId: event.requestId ?? null,
-        ip: event.ip ?? null,
-        detail: event.detail ?? {},
-      });
+      await tx.insert(auditEvents).values(validatedRow(event));
+    },
+
+    // Every event is checked before any is written, and all of them go in
+    // one statement: a caller whose row count varies with what happened
+    // still issues the same number of statements either way.
+    async recordAll(events: readonly AuditEventInput[]): Promise<void> {
+      const rows = events.map(validatedRow);
+      if (rows.length === 0) return;
+      await tx.insert(auditEvents).values(rows);
     },
 
     // Ordered (occurred_at DESC, id DESC) — newest first, ties broken by id
@@ -65,6 +85,9 @@ export function auditRepository(tx: TenantScopedDatabase) {
     // previous page" without a second OR-of-conditions branch.
     async list(filter: AuditEventFilter): Promise<AuditEventRecord[]> {
       const conditions: SQL[] = [];
+      if (filter.eventType !== undefined) {
+        conditions.push(eq(auditEvents.eventType, filter.eventType));
+      }
       if (filter.actorSubjectId !== undefined) {
         conditions.push(eq(auditEvents.actorSubjectId, filter.actorSubjectId));
       }

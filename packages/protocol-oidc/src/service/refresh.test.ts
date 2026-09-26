@@ -40,6 +40,7 @@ const grant: TokenGrantRecord = {
   exchangedFromGrantId: null,
   actChain: null,
   expCeiling: null,
+  requestedUserinfoClaims: null,
 };
 
 // The other half of RFC6749-10.10-02; see the note on the authorization

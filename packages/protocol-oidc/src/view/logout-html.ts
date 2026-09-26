@@ -13,17 +13,16 @@ export interface LogoutConfirmationFields {
   state: string | null;
 }
 
-// RP-Initiated Logout 1.0 §2's confirmation page. Unlike the login form's
-// auth_session_id, `sessionId` here *is* the session cookie's own value,
-// echoed back rather than a distinct one-time token — the POST is checked
-// by comparing this field against what the cookie itself still resolves
-// to, a double-submit-cookie defence rather than a single-use one. Ending
-// a session on a bare GET would let an `<img>` tag on any page log the
-// End-User out of every tenant they hold one in — this form is what keeps
-// that a POST, from this browser, with this browser's own cookie.
+// RP-Initiated Logout 1.0 §2's confirmation page. `sessionId` is public —
+// it is every token's `sid` — so the defence is `csrf`, an HMAC keyed by the
+// secret half of the cookie's entry, which the POST recomputes from the
+// entry the browser presents; SameSite=Lax and the membership check stand
+// beside it. Ending a session on a bare GET would let an `<img>` tag on any
+// page log the End-User out — this form keeps it a POST from this browser.
 export function renderLogoutConfirmationPage(
   tenant: string,
   sessionId: string,
+  csrf: string,
   fields: LogoutConfirmationFields,
 ): RenderedPage {
   const action = `/tenants/${escapeHtml(tenant)}/protocol/openid-connect/logout`;
@@ -33,6 +32,7 @@ export function renderLogoutConfirmationPage(
 <p>Signing out ends this session for every application that uses it.</p>
 <form method="post" action="${action}">
   <input type="hidden" name="session_id" value="${escapeHtml(sessionId)}">
+  <input type="hidden" name="csrf" value="${escapeHtml(csrf)}">
   ${hiddenField('client_id', fields.clientId)}${hiddenField('post_logout_redirect_uri', fields.postLogoutRedirectUri)}${hiddenField('state', fields.state)}<button type="submit">Sign out</button>
 </form>`,
   );

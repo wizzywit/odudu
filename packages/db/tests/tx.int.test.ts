@@ -1,11 +1,16 @@
 import { newId, OduduError } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseHandle } from '#/client';
 import { MIGRATIONS_DIR, runMigrations } from '#/migrate';
 import { tenants } from '#/schema/index';
-import { type TenantScopedDatabase, withEachTenantExclusive, withTenant } from '#/tx';
+import {
+  type TenantScopedDatabase,
+  withEachTenantExclusive,
+  withSavepoint,
+  withTenant,
+} from '#/tx';
 
 const TENANT_A = newId();
 const TENANT_B = newId();
@@ -136,6 +141,104 @@ describe('withTenant', () => {
     }
 
     expect(nestedWithTenantMustNotCompile).toBeTypeOf('function');
+  });
+});
+
+describe('withTenant with a RequestContext', () => {
+  interface GucRow {
+    request_id: string | null;
+    ip: string | null;
+  }
+
+  async function readGucs(tx: TenantScopedDatabase): Promise<GucRow> {
+    const rows = await tx.execute(
+      sql`select current_setting('app.request_id', true) as request_id, current_setting('app.client_ip', true) as ip`,
+    );
+    return (rows as unknown as GucRow[])[0] ?? { request_id: null, ip: null };
+  }
+
+  it('binds app.request_id and app.client_ip for the life of the transaction', async () => {
+    const seen = await withTenant(app.db, TENANT_A, (tx) => readGucs(tx), {
+      requestId: 'r-1',
+      ip: '192.0.2.7',
+    });
+
+    expect(seen.request_id).toBe('r-1');
+    expect(seen.ip).toBe('192.0.2.7');
+  });
+
+  it('does not carry app.request_id into the next transaction on the same pooled connection', async () => {
+    await withTenant(app.db, TENANT_A, (tx) => readGucs(tx), {
+      requestId: 'r-1',
+      ip: '192.0.2.7',
+    });
+
+    // app.db is a max:1 pool: the next call reuses the same backend
+    // connection. set_config(..., true) is transaction-local, so a value
+    // bound in the prior transaction is gone once it commits — reverted to
+    // '', the same touched-then-reverted state withTenant's own tenant_id
+    // leaves behind (see the "does not leak tenant context" test above).
+    const after = await withTenant(app.db, TENANT_A, (tx) => readGucs(tx));
+
+    expect(after.request_id).toBe('');
+    expect(after.ip).toBe('');
+  });
+});
+
+describe('withSavepoint', () => {
+  async function displayNameOfA(): Promise<string | null | undefined> {
+    const [alpha] = await owner.db.select().from(tenants).where(eq(tenants.id, TENANT_A));
+    return alpha?.displayName;
+  }
+
+  async function tenantGuc(tx: TenantScopedDatabase): Promise<string | undefined> {
+    const rows = await tx.execute(sql`select current_setting('app.tenant_id', true) as tenant`);
+    return (rows as unknown as { tenant: string }[])[0]?.tenant;
+  }
+
+  it('rolls back only its own writes when it throws, and the outer transaction commits', async () => {
+    try {
+      const outcome = await withTenant(app.db, TENANT_A, async (tx) => {
+        await tx.update(tenants).set({ displayName: 'before' }).where(eq(tenants.id, TENANT_A));
+        const failure = await withSavepoint(tx, async (inner) => {
+          await inner
+            .update(tenants)
+            .set({ displayName: 'inside' })
+            .where(eq(tenants.id, TENANT_A));
+          await inner.execute(sql`select 1 / 0`);
+        }).then(
+          () => null,
+          (error: unknown) => error,
+        );
+        await tx
+          .update(tenants)
+          .set({ displayName: sql`${tenants.displayName} || '+after'` })
+          .where(eq(tenants.id, TENANT_A));
+        return { failure, guc: await tenantGuc(tx) };
+      });
+
+      expect(String(outcome.failure)).toMatch(/select 1 \/ 0/);
+      expect(outcome.guc).toBe(TENANT_A);
+      expect(await displayNameOfA()).toBe('before+after');
+    } finally {
+      await owner.db.update(tenants).set({ displayName: null }).where(eq(tenants.id, TENANT_A));
+    }
+  });
+
+  it('keeps its writes and returns its value when it succeeds', async () => {
+    try {
+      const value = await withTenant(app.db, TENANT_A, (tx) =>
+        withSavepoint(tx, async (inner) => {
+          await inner.update(tenants).set({ displayName: 'kept' }).where(eq(tenants.id, TENANT_A));
+          return 42;
+        }),
+      );
+
+      expect(value).toBe(42);
+      expect(await displayNameOfA()).toBe('kept');
+    } finally {
+      await owner.db.update(tenants).set({ displayName: null }).where(eq(tenants.id, TENANT_A));
+    }
   });
 });
 

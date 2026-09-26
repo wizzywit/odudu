@@ -1,7 +1,7 @@
 import { executionRepository } from '@odudu/authn-flows';
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { signingKeyRepository } from '@odudu/crypto';
-import { tenants, withTenant } from '@odudu/db';
+import { tenants, withTenant, type RequestContext } from '@odudu/db';
 import { clientRepository, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
@@ -13,6 +13,7 @@ import { createTenant } from '#/usecase/tenants';
 // admin-fixture.ts) — a fixed value is fine, since nothing outside this
 // file needs to read what it encrypts.
 const KEK = Buffer.alloc(32, 7);
+const NO_CONTEXT: RequestContext = { requestId: null, ip: null };
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -40,6 +41,31 @@ describe('POST /admin/tenants', () => {
       expect(await executionRepository(tx).forTenant(id)).not.toHaveLength(0);
       expect(await clientRepository(tx).byClientId('odudu-admin')).not.toBeNull();
     });
+  });
+
+  it('records the caller’s request id and address on its own tenant.create row', async () => {
+    // manage-tenants and view-audit both on the system tenant's own admin
+    // client — the same cross-tenant reach a system admin uses to read a
+    // tenant it did not create through the fixture's own bookkeeping.
+    const token = await fixture.systemAdminToken(['manage-tenants', 'view-audit']);
+    const name = `acme-${newId()}`;
+    const created = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}`, 'x-request-id': 'probe-456' },
+      payload: { name },
+    });
+    expect(created.statusCode).toBe(201);
+
+    const audit = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${name}/audit?action=tenant.create`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const body = audit.json<{ items: { request_id: string | null; ip: string | null }[] }>();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]?.request_id).toBe('probe-456');
+    expect(body.items[0]?.ip).toBe('127.0.0.1');
   });
 
   it('refuses a numeric name rather than creating a tenant called "123"', async () => {
@@ -222,6 +248,7 @@ describe('createTenant', () => {
         actorTenantId: 'test-tenant',
         actorClientId: 'test-client',
       },
+      NO_CONTEXT,
     );
     expect(outcome.kind).toBe('created');
     expect(events).toHaveLength(1);
@@ -244,6 +271,7 @@ describe('createTenant', () => {
         actorTenantId: 'test-tenant',
         actorClientId: 'test-client',
       },
+      NO_CONTEXT,
     );
     expect(outcome.kind).toBe('name_refused');
     expect(events).toHaveLength(0);
@@ -258,6 +286,7 @@ describe('createTenant', () => {
         actorTenantId: 'test-tenant',
         actorClientId: 'test-client',
       },
+      NO_CONTEXT,
     );
     if (outcome.kind !== 'created') throw new Error('expected the tenant to be created');
     await withTenant(fixture.app.db, outcome.tenant.id, async (tx) => {

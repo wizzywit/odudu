@@ -28,6 +28,8 @@ import {
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
 import { nextRequiredAction } from '#/usecase/required-actions';
 
+const SILENT_LOGGER = { error: (): void => undefined };
+
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
@@ -95,7 +97,13 @@ describe('a pending required action blocks completion, not authentication', () =
     });
 
     const { outcome, action } = await withTenant(app.db, tenantId, async (tx) => {
-      const outcome = await advance(tx, authSessionId, { username: USERNAME, password: PASSWORD });
+      const outcome = await advance(
+        tx,
+        authSessionId,
+        { username: USERNAME, password: PASSWORD },
+        undefined,
+        { logger: SILENT_LOGGER },
+      );
       const pending =
         outcome.kind === 'success'
           ? await requiredActionRepository(tx).pendingFor(outcome.subjectId)
@@ -130,7 +138,13 @@ describe('a pending required action blocks completion, not authentication', () =
     });
 
     await withTenant(app.db, tenantId, async (tx) => {
-      const outcome = await advance(tx, authSessionId, { username: USERNAME, password: PASSWORD });
+      const outcome = await advance(
+        tx,
+        authSessionId,
+        { username: USERNAME, password: PASSWORD },
+        undefined,
+        { logger: SILENT_LOGGER },
+      );
       if (outcome.kind !== 'success') throw new Error('expected authentication to succeed');
       const pending = await requiredActionRepository(tx).pendingFor(outcome.subjectId);
       expect(nextRequiredAction(pending)).toBe('update-password');

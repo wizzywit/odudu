@@ -27,6 +27,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -255,7 +256,7 @@ async function refreshWith(
 }
 
 function sessionIdFromCookie(cookie: string): string {
-  const id = cookie.split('=')[1];
+  const id = cookie.split('=')[1]?.split(':')[0];
   if (id === undefined) throw new Error('expected a session id in the cookie');
   return id;
 }
@@ -280,6 +281,34 @@ function logoutUrl(tenantName: string, overrides: Record<string, string | undefi
   return `/tenants/${tenantName}/protocol/openid-connect/logout${suffix === '' ? '' : `?${suffix}`}`;
 }
 
+// The confirmation form's two hidden fields, read the way a browser submits
+// them: GETting the page with the cookie, never computing either field.
+async function confirmationForm(
+  tenantName: string,
+  cookie: string,
+): Promise<{ sessionId: string; csrf: string }> {
+  const page = await http.inject({ url: logoutUrl(tenantName), headers: { cookie } });
+  const sessionId = /name="session_id" value="([^"]*)"/.exec(page.body)?.[1];
+  const csrf = /name="csrf" value="([^"]*)"/.exec(page.body)?.[1];
+  if (sessionId === undefined || csrf === undefined) {
+    throw new Error('expected a confirmation form carrying session_id and csrf');
+  }
+  return { sessionId, csrf };
+}
+
+async function postConfirmation(
+  tenantName: string,
+  cookie: string,
+  fields: Record<string, string>,
+): Promise<LightMyRequestResponse> {
+  return http.inject({
+    method: 'POST',
+    url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
+    payload: new URLSearchParams(fields).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+  });
+}
+
 beforeAll(async () => {
   containerHandle = await startTestDatabase();
   container = containerHandle;
@@ -301,6 +330,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
@@ -461,9 +491,9 @@ describe('a hint naming an older session, in a browser holding a newer one too',
     const subjectId = await subjectIdOf(tenantId, USERNAME);
     const hint = await mintIdToken(tenantName, subjectId, olderSessionId);
 
-    // One browser holding both: the two cookies' own ids, combined the way
-    // sessionCookies itself joins a list (session-cookie.ts's SEPARATOR).
-    const bothCookie = `${tenantName}-session=${olderSessionId}.${newerSessionId}`;
+    // One browser holding both: the two cookies' own entries, combined the
+    // way sessionCookies itself joins a list (session-cookie.ts's SEPARATOR).
+    const bothCookie = `${tenantName}-session=${olderCookie.split('=')[1] ?? ''}.${newerCookie.split('=')[1] ?? ''}`;
 
     const res = await http.inject({
       url: logoutUrl(tenantName, { id_token_hint: hint }),
@@ -501,17 +531,11 @@ describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both tri
     );
     expect(stillLive).not.toBeNull();
 
-    const sessionIdMatch = /name="session_id" value="([^"]*)"/.exec(res.body);
-    const confirmedSessionId = sessionIdMatch?.[1];
-    if (confirmedSessionId === undefined)
-      throw new Error('session_id not found in confirmation form');
-
-    const form = new URLSearchParams({ session_id: confirmedSessionId });
-    const confirmed = await http.inject({
-      method: 'POST',
-      url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
-      payload: form.toString(),
-      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+    const form = await confirmationForm(tenantName, cookie);
+    expect(form.sessionId).toBe(sessionId);
+    const confirmed = await postConfirmation(tenantName, cookie, {
+      session_id: form.sessionId,
+      csrf: form.csrf,
     });
     expect(confirmed.statusCode).toBe(200);
 
@@ -820,11 +844,11 @@ describe('GET the logout endpoint with a foreign tenant session id', () => {
     await setupTenant(tenantBName);
 
     // Tenant B's cookie name is distinct, but nothing stops a raw request
-    // from carrying tenant A's session id under tenant B's cookie name — the
-    // scoping has to come from the lookup, not the header's own shape.
+    // from carrying tenant A's session entry under tenant B's cookie name —
+    // the scoping has to come from the lookup, not the header's own shape.
     const res = await http.inject({
       url: logoutUrl(tenantBName),
-      headers: { cookie: `${tenantBName}-session=${sessionIdA}` },
+      headers: { cookie: `${tenantBName}-session=${cookieA.split('=')[1] ?? ''}` },
     });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<title>Already signed out</title>');
@@ -834,23 +858,21 @@ describe('GET the logout endpoint with a foreign tenant session id', () => {
   });
 });
 
-describe('the confirmation POST is a double-submit-cookie check', () => {
+// The session id is public — it is every token's `sid` — so the form also
+// carries a token derived from the secret half of the cookie's entry, which
+// a cross-site forger cannot read. SameSite=Lax and the membership check
+// stand beside it.
+describe('the confirmation POST needs a token only the cookie holder can compute', () => {
   it("refuses a session_id that is not the cookie's own session, and leaves it live", async () => {
     const tenantName = `logout-csrf-${newId()}`;
     const { tenantId } = await setupTenant(tenantName);
     const cookie = await signIn(tenantName);
     const sessionId = sessionIdFromCookie(cookie);
 
-    // A syntactically plausible session id that is not the one the cookie
-    // resolves to — what a forged cross-site POST would have to guess,
-    // since it cannot read the HttpOnly cookie's own value.
-    const form = new URLSearchParams({ session_id: newId() });
-    const res = await http.inject({
-      method: 'POST',
-      url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
-      payload: form.toString(),
-      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-    });
+    // A syntactically plausible session id that is not one the cookie
+    // resolves to, carrying the genuine form's own token.
+    const { csrf } = await confirmationForm(tenantName, cookie);
+    const res = await postConfirmation(tenantName, cookie, { session_id: newId(), csrf });
 
     expect(res.statusCode).toBe(400);
     expect(res.body).toContain('<title>Can&#39;t sign out</title>');
@@ -862,12 +884,61 @@ describe('the confirmation POST is a double-submit-cookie check', () => {
     expect(stillLive).not.toBeNull();
   });
 
+  it.each([
+    ['no token', undefined],
+    ['a wrong token', 'bm90LXRoZS10b2tlbg'],
+  ])(
+    'refuses the cookie’s own session_id with %s, exactly as a non-member, ending nothing',
+    async (_label, token) => {
+      const tenantName = `logout-csrf-token-${newId()}`;
+      const { tenantId } = await setupTenant(tenantName);
+      const cookie = await signIn(tenantName);
+      const sessionId = sessionIdFromCookie(cookie);
+      const { csrf } = await confirmationForm(tenantName, cookie);
+
+      const refused = await postConfirmation(tenantName, cookie, {
+        session_id: sessionId,
+        ...(token === undefined ? {} : { csrf: token }),
+      });
+      const nonMember = await postConfirmation(tenantName, cookie, { session_id: newId(), csrf });
+
+      expect(refused.statusCode).toBe(400);
+      expect(refused.body).toBe(nonMember.body);
+      expect(refused.headers['set-cookie']).toBeUndefined();
+      const stillLive = await withTenant(app.db, tenantId, (tx) =>
+        sessionRepository(tx).liveById(sessionId, GENEROUS_LIFESPANS, new Date()),
+      );
+      expect(stillLive).not.toBeNull();
+    },
+  );
+
+  it('derives a different token for each session, and one session’s token ends no other', async () => {
+    const tenantName = `logout-csrf-per-session-${newId()}`;
+    const { tenantId } = await setupTenant(tenantName);
+    const first = await signIn(tenantName);
+    const second = await signIn(tenantName);
+    const firstForm = await confirmationForm(tenantName, first);
+    const secondForm = await confirmationForm(tenantName, second);
+    expect(firstForm.sessionId).not.toBe(secondForm.sessionId);
+    expect(firstForm.csrf).not.toBe(secondForm.csrf);
+
+    const crossed = await postConfirmation(tenantName, second, {
+      session_id: secondForm.sessionId,
+      csrf: firstForm.csrf,
+    });
+
+    expect(crossed.statusCode).toBe(400);
+    const stillLive = await withTenant(app.db, tenantId, (tx) =>
+      sessionRepository(tx).liveById(secondForm.sessionId, GENEROUS_LIFESPANS, new Date()),
+    );
+    expect(stillLive).not.toBeNull();
+  });
+
   // A body with no `session_id` is not a broken confirmation — since §2
   // requires `POST` at this endpoint, it is a logout request an RP
   // serialized into a form body, and it is answered like one: the
-  // confirmation page, with nothing ended. The CSRF property is unchanged,
-  // and this is what pins it: a forged cross-site POST cannot carry the
-  // field, so it cannot end anything without the End-User saying so here.
+  // confirmation page, with nothing ended. A forged POST that leaves the
+  // field out therefore ends nothing without the End-User confirming here.
   it('reads a POST with no session_id as a logout request, ending nothing', async () => {
     const tenantName = `logout-csrf-missing-${newId()}`;
     const { tenantId } = await setupTenant(tenantName);
@@ -963,15 +1034,12 @@ describe('a disabled client is not a logout target', () => {
     // The confirmation form's own POST, which needs no id_token_hint —
     // decideLogout only asks the redirect rule of a confirmed session, and
     // that rule is exactly what reads the disabled client's own list.
-    const res = await http.inject({
-      method: 'POST',
-      url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
-      payload: new URLSearchParams({
-        session_id: sessionId,
-        client_id: disabledClientId,
-        post_logout_redirect_uri: disabledRedirect,
-      }).toString(),
-      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+    const { csrf } = await confirmationForm(tenantName, cookie);
+    const res = await postConfirmation(tenantName, cookie, {
+      session_id: sessionId,
+      csrf,
+      client_id: disabledClientId,
+      post_logout_redirect_uri: disabledRedirect,
     });
 
     expect(res.statusCode).toBe(400);

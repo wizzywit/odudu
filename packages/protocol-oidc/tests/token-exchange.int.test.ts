@@ -39,6 +39,7 @@ import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { hashRefreshToken } from '#/service/refresh';
 import { TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -273,7 +274,7 @@ async function loginAndGetToken(
   }
   const cookie = setCookieValue(submitted);
   if (cookie === undefined) throw new Error('expected a set-cookie header from a successful login');
-  const sessionId = cookie.split('=')[1];
+  const sessionId = cookie.split('=')[1]?.split(':')[0];
   if (sessionId === undefined) throw new Error('expected a session id in the cookie');
 
   const code = new URL(locationHeader(submitted)).searchParams.get('code');
@@ -326,6 +327,7 @@ beforeAll(async () => {
       kek: KEK,
       clock: fakeClock,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );

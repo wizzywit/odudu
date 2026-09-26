@@ -14,6 +14,7 @@ import {
   userCredentials,
   users,
 } from '@odudu/domain-identity';
+import { auditRepository, type AuditEventRecord } from '@odudu/domain-audit';
 import { newId } from '@odudu/kernel';
 import {
   createAppRole,
@@ -26,10 +27,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { type PendingRequest } from '#/schema/authentication-sessions';
+import { authenticationSessionDigest } from '#/service/authentication-session-digest';
 import { advance, initialChallenge, startAuthentication } from '#/usecase/executor';
 import { beginPasskeyAuthentication } from '#/usecase/passkey-authentication';
 import { completePasskeyEnrolment } from '#/usecase/passkey-enrolment';
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
+
+const SILENT_LOGGER = { error: (): void => undefined };
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -159,7 +163,10 @@ async function assertWithPasskey(
 
 function submit(tenantId: string, authSessionId: string, assertion: unknown) {
   return withTenant(app.db, tenantId, (tx) =>
-    advance(tx, authSessionId, { assertion }, undefined, { publicBaseUrl: PUBLIC_BASE_URL }),
+    advance(tx, authSessionId, { assertion }, undefined, {
+      logger: SILENT_LOGGER,
+      publicBaseUrl: PUBLIC_BASE_URL,
+    }),
   );
 }
 
@@ -294,11 +301,17 @@ describe('signing in with a passkey and no username', () => {
     const authSessionId = await start(tenantId);
 
     const outcome = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, {
-        username: 'ada',
-        password: PASSWORD,
-        assertion: { id: 'not-a-credential', rawId: 'x', type: 'public-key' },
-      }),
+      advance(
+        tx,
+        authSessionId,
+        {
+          username: 'ada',
+          password: PASSWORD,
+          assertion: { id: 'not-a-credential', rawId: 'x', type: 'public-key' },
+        },
+        undefined,
+        { logger: SILENT_LOGGER },
+      ),
     );
 
     expect(outcome.kind).toBe('failure');
@@ -310,9 +323,81 @@ describe('signing in with a passkey and no username', () => {
     const authSessionId = await start(tenantId);
 
     const outcome = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, undefined, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     expect(outcome).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
+  });
+});
+
+function loginRows(tenantId: string): Promise<AuditEventRecord[]> {
+  return withTenant(app.db, tenantId, (tx) =>
+    auditRepository(tx).list({ eventType: 'authentication', limit: 50 }),
+  );
+}
+
+describe('the row a passkey attempt writes', () => {
+  it('records an accepted assertion as allowed, for the subject it named', async () => {
+    const tenantId = newId();
+    const { subjectId, authenticator } = await seedSubjectWithAPasskey(tenantId, { signCount: 1 });
+    const authSessionId = await start(tenantId);
+    const assertion = await assertWithPasskey(tenantId, authSessionId, authenticator, 2);
+
+    await submit(tenantId, authSessionId, assertion);
+
+    const rows = await loginRows(tenantId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      action: 'login.passkey',
+      outcome: 'allowed',
+      actorSubjectId: subjectId,
+      actorClientId: null,
+      resourceType: 'authentication_session',
+      resourceId: authenticationSessionDigest(authSessionId),
+      detail: { factor: 'passkey' },
+    });
+  });
+
+  it('records a counter that did not advance as a bad credential for that subject', async () => {
+    const tenantId = newId();
+    const { subjectId, authenticator } = await seedSubjectWithAPasskey(tenantId, { signCount: 6 });
+    const authSessionId = await start(tenantId);
+    const assertion = await assertWithPasskey(tenantId, authSessionId, authenticator, 6);
+
+    await submit(tenantId, authSessionId, assertion);
+
+    const rows = await loginRows(tenantId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      action: 'login.passkey',
+      outcome: 'refused',
+      actorSubjectId: subjectId,
+      detail: { factor: 'passkey', reason: 'bad_credential' },
+    });
+  });
+
+  it('records an assertion for somebody else as subject_mismatch, against the bound subject', async () => {
+    const tenantId = newId();
+    const { authenticator } = await seedSubjectWithAPasskey(tenantId, { signCount: 1 });
+    const bound = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId, 'bob'));
+    const authSessionId = await start(tenantId);
+    await withTenant(app.db, tenantId, (tx) =>
+      authenticationSessionRepository(tx).bindSubject(authSessionId, bound),
+    );
+    const assertion = await assertWithPasskey(tenantId, authSessionId, authenticator, 2);
+
+    const outcome = await submit(tenantId, authSessionId, assertion);
+
+    expect(outcome).toEqual({ kind: 'failure', reason: 'subject_mismatch' });
+    const rows = await loginRows(tenantId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      action: 'login.passkey',
+      outcome: 'refused',
+      actorSubjectId: bound,
+      detail: { factor: 'passkey', reason: 'subject_mismatch' },
+    });
   });
 });

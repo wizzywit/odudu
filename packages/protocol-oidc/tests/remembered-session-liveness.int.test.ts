@@ -21,6 +21,7 @@ import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 // A tenant's ordinary idle window defaults to 1800s and its remember-me idle
 // window to 604_800s (packages/db/src/schema/tenants.ts). This file backs a
@@ -184,8 +185,8 @@ async function completeFlow(
     (c) => c.startsWith(`${tenantName}-session=`) && !c.includes('-persistent'),
   );
   const persistent = cookieList(submitted).find((c) => c.includes('-session-persistent='));
-  const fromEphemeral = ephemeral?.split('=')[1]?.split(';')[0];
-  const fromPersistent = persistent?.split('=')[1]?.split(';')[0];
+  const fromEphemeral = ephemeral?.split('=')[1]?.split(';')[0]?.split(':')[0];
+  const fromPersistent = persistent?.split('=')[1]?.split(';')[0]?.split(':')[0];
   const sessionId =
     fromEphemeral !== undefined && fromEphemeral !== '' ? fromEphemeral : fromPersistent;
   if (sessionId === undefined || sessionId === '') {
@@ -275,6 +276,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );

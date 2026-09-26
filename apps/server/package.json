@@ -18,6 +18,7 @@
     "@odudu/authn-flows": "workspace:*",
     "@odudu/crypto": "workspace:*",
     "@odudu/db": "workspace:*",
+    "@odudu/domain-audit": "workspace:*",
     "@odudu/domain-authz": "workspace:*",
     "@odudu/domain-identity": "workspace:*",
     "@odudu/domain-tenant": "workspace:*",

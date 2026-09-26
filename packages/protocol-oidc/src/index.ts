@@ -17,17 +17,19 @@ import {
   markSessionAuthenticated,
   pendingChallenge,
   pendingSession,
-  readSessionIds,
+  readSessionEntries,
   recordRememberMe,
   requiredActionRepository,
   resetAuthenticationProgress,
   sessionRepository,
   startAuthentication,
+  type SessionEntry,
   type SessionLifespans,
 } from '@odudu/authn-flows';
 import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
+import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
 import {
   clientRepository,
@@ -44,6 +46,7 @@ import { tenantLookupRepository } from '#/repository/tenant-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers, type ClaimContext, type LoadedClaimContext } from '#/service/claims';
 import { type LiveClientLookup } from '#/service/client-enabled';
+import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import {
   USERINFO_ENCRYPTION_ENC_DEFAULT,
@@ -110,6 +113,11 @@ export interface OidcRoutesDeps {
   // (#/repository/client-keys.ts). `apps/server/src/app.ts` supplies the
   // real one, wired to `node:https` and `node:dns`.
   clientKeySet: ClientKeySet;
+  // Whether a refusal at /token, /revoke or /introspect naming a registered
+  // client is an audit row or a log line (ADR 0037). Required
+  // for the same reason `clientSecretLimiter` is; a caller with no opinion
+  // passes `UNLIMITED_AUDIT_REFUSAL_BUDGET`.
+  auditRefusalBudget: AuditRefusalBudget;
   // Shared with @odudu/protocol-admin's scope-mapper routes so the two
   // never list different mappers (`GET /scopes/:id/mappers` reads its
   // available names from the same registry this plugin assembles claims
@@ -280,9 +288,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       },
       header: string | undefined,
     ) => {
-      const ids = readSessionIds(header, tenant.name, tls);
+      const entries = readSessionEntries(header, tenant.name, tls);
       return withTenant(deps.database.db, tenant.id, (tx) =>
-        sessionRepository(tx).liveByIds([...ids.ephemeral, ...ids.persistent], tenant, clock.now()),
+        sessionRepository(tx).liveByEntries(
+          [...entries.ephemeral, ...entries.persistent],
+          tenant,
+          clock.now(),
+        ),
       );
     };
 
@@ -342,58 +354,74 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // the form path and the consent POST — completeAuthorizedLogin is the
     // only caller of either.
     const completeLogin = (input: CompleteLoginInput): Promise<CompleteLoginOutcome> =>
-      withTenant(deps.database.db, input.tenantId, async (tx) => {
-        const now = clock.now();
-        const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
-        if (!consumed) return { kind: 'already_consumed' };
+      withTenant(
+        deps.database.db,
+        input.tenantId,
+        async (tx) => {
+          const now = clock.now();
+          const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
+          if (!consumed) return { kind: 'already_consumed' };
 
-        // A session reuse a consent decision promoted: touch and reuse it,
-        // reporting its own authTime, rather than establishing a fresh
-        // session and reporting `now` — the same distinction completeReuse
-        // draws for the ungated reuse path, and for the same reason: being
-        // asked for consent must not itself read as a new authentication.
-        const reuseSession = input.reuseSession;
-        let sessionId: string;
-        let authTime: Date;
-        if (reuseSession !== undefined) {
-          await sessionRepository(tx).touch(reuseSession.sessionId, now);
-          sessionId = reuseSession.sessionId;
-          authTime = reuseSession.authTime;
-        } else {
-          const admitted = await admitSession(
-            tx,
-            {
-              tenantId: input.tenantId,
-              subjectId: input.subjectId,
-              authenticators: input.authenticators,
-              remembered: input.remembered,
-              browserSessionIds: input.browserSessionIds,
-              maxSessionsPerBrowser: input.maxSessionsPerBrowser,
-              lifespans: input.lifespans,
-            },
-            clock,
-          );
-          sessionId = admitted.sessionId;
-          authTime = now;
-        }
+          // A session reuse a consent decision promoted: touch and reuse it,
+          // reporting its own authTime, rather than establishing a fresh
+          // session and reporting `now` — the same distinction completeReuse
+          // draws for the ungated reuse path, and for the same reason: being
+          // asked for consent must not itself read as a new authentication.
+          const reuseSession = input.reuseSession;
+          let sessionId: string;
+          let authTime: Date;
+          let entry: SessionEntry | null = null;
+          if (reuseSession !== undefined) {
+            await sessionRepository(tx).touch(reuseSession.sessionId, now);
+            sessionId = reuseSession.sessionId;
+            authTime = reuseSession.authTime;
+          } else {
+            const admitted = await admitSession(
+              tx,
+              {
+                tenantId: input.tenantId,
+                subjectId: input.subjectId,
+                authenticators: input.authenticators,
+                remembered: input.remembered,
+                browserSessions: input.browserSessions,
+                maxSessionsPerBrowser: input.maxSessionsPerBrowser,
+                lifespans: input.lifespans,
+              },
+              clock,
+            );
+            sessionId = admitted.sessionId;
+            entry = admitted.entry;
+            authTime = now;
+            await auditRepository(tx).record({
+              eventType: 'session',
+              action: 'session.created',
+              outcome: 'allowed',
+              actorSubjectId: input.subjectId,
+              actorClientId: input.clientId,
+              resourceType: 'session',
+              resourceId: sessionId,
+            });
+          }
 
-        const { code } = await issueAuthorizationCode(tx, {
-          tenantId: input.tenantId,
-          clientId: input.clientId,
-          subjectId: input.subjectId,
-          redirectUri: input.redirectUri,
-          scope: input.scope,
-          nonce: input.nonce,
-          codeChallenge: input.codeChallenge,
-          codeChallengeMethod: input.codeChallengeMethod,
-          authTime,
-          now,
-          sessionId,
-          resource: input.resource,
-          claims: input.claims,
-        });
-        return { kind: 'issued', sessionId, code };
-      });
+          const { code } = await issueAuthorizationCode(tx, {
+            tenantId: input.tenantId,
+            clientId: input.clientId,
+            subjectId: input.subjectId,
+            redirectUri: input.redirectUri,
+            scope: input.scope,
+            nonce: input.nonce,
+            codeChallenge: input.codeChallenge,
+            codeChallengeMethod: input.codeChallengeMethod,
+            authTime,
+            now,
+            sessionId,
+            resource: input.resource,
+            claims: input.claims,
+          });
+          return { kind: 'issued', sessionId, code, entry };
+        },
+        input.request,
+      );
 
     registerDiscoveryRoute(app, {
       findTenant,
@@ -450,6 +478,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       listPublishableKeys,
       verifyPassword,
       clientSecretLimiter,
+      auditRefusalBudget: deps.auditRefusalBudget,
       loadGrant: loadIntrospectionGrant,
       isSessionLive: isIntrospectionSessionLive,
       liveClientLookup,
@@ -463,6 +492,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       listPublishableKeys,
       verifyPassword,
       clientSecretLimiter,
+      auditRefusalBudget: deps.auditRefusalBudget,
       clock,
     });
     registerClientRegistrationRoute(app, {
@@ -480,9 +510,12 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
     // One definition for the same two doors: the login that discovers the
     // action is owed, and the acknowledgement that has to re-render it.
-    const startRecoveryCodes = (tenantId: string, subjectId: string) =>
-      withTenant(deps.database.db, tenantId, (tx) =>
-        beginRecoveryCodes(tx, { tenantId, subjectId }),
+    const startRecoveryCodes = (tenantId: string, subjectId: string, request: RequestContext) =>
+      withTenant(
+        deps.database.db,
+        tenantId,
+        (tx) => beginRecoveryCodes(tx, { tenantId, subjectId }),
+        request,
       );
 
     // Both halves of passkey enrolment exist only where a relying party can
@@ -523,15 +556,21 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       publicBaseUrl === undefined
         ? {}
         : {
-            completePasskeyEnrolment: (input: {
-              tenantId: string;
-              subjectId: string;
-              authSessionId: string;
-              response: unknown;
-              label?: string;
-            }) =>
-              withTenant(deps.database.db, input.tenantId, (tx) =>
-                completePasskeyEnrolment(tx, { ...input, publicBaseUrl }),
+            completePasskeyEnrolment: (
+              input: {
+                tenantId: string;
+                subjectId: string;
+                authSessionId: string;
+                response: unknown;
+                label?: string;
+              },
+              request: RequestContext,
+            ) =>
+              withTenant(
+                deps.database.db,
+                input.tenantId,
+                (tx) => completePasskeyEnrolment(tx, { ...input, publicBaseUrl }),
+                request,
               ),
           };
 
@@ -644,15 +683,23 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withTenant(deps.database.db, tenantId, (tx) =>
           authenticatedSubject(tx, authSessionId, clock),
         ),
-      completeTotpEnrolment: (input) =>
-        withTenant(deps.database.db, input.tenantId, (tx) =>
-          completeTotpEnrolment(tx, input, clock),
+      completeTotpEnrolment: (input, request) =>
+        withTenant(
+          deps.database.db,
+          input.tenantId,
+          (tx) => completeTotpEnrolment(tx, input, clock),
+          request,
         ),
       beginRecoveryCodes: startRecoveryCodes,
       completeRecoveryCodes: (input) =>
         withTenant(deps.database.db, input.tenantId, (tx) => completeRecoveryCodes(tx, input)),
-      completeUpdatePassword: (input) =>
-        withTenant(deps.database.db, input.tenantId, (tx) => completeUpdatePassword(tx, input)),
+      completeUpdatePassword: (input, request) =>
+        withTenant(
+          deps.database.db,
+          input.tenantId,
+          (tx) => completeUpdatePassword(tx, input),
+          request,
+        ),
     });
     registerLoginRoute(app, {
       findTenant,
@@ -670,11 +717,16 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withTenant(deps.database.db, tenantId, (tx) =>
           recordRememberMe(tx, authSessionId, remembered),
         ),
-      advance: (tenantId, authSessionId, input) =>
-        withTenant(deps.database.db, tenantId, (tx) =>
-          advance(tx, authSessionId, input, clock, {
-            ...(publicBaseUrl === undefined ? {} : { publicBaseUrl }),
-          }),
+      advance: (tenantId, authSessionId, input, request) =>
+        withTenant(
+          deps.database.db,
+          tenantId,
+          (tx) =>
+            advance(tx, authSessionId, input, clock, {
+              ...(publicBaseUrl === undefined ? {} : { publicBaseUrl }),
+              logger: app.log.child({ reqId: request.requestId }),
+            }),
+          request,
         ),
       loadPendingRequest: (tenantId, authSessionId) =>
         withTenant(deps.database.db, tenantId, (tx) => loadPendingRequest(tx, authSessionId)),
@@ -730,9 +782,17 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // Two concurrent logouts on the same session both reach this and both
       // attempt to enqueue a delivery; logoutDeliveryRepository.enqueue's
       // own comment is why that yields one delivery, not two.
-      endSession: (tenantId, sessionId, subjectId, now, issuer) =>
-        withTenant(deps.database.db, tenantId, (tx) =>
-          endSession(tx, { kek: deps.kek }, { tenantId, sessionId, subjectId, now, issuer }),
+      endSession: (tenantId, sessionId, subjectId, now, issuer, request) =>
+        withTenant(
+          deps.database.db,
+          tenantId,
+          (tx) =>
+            endSession(
+              tx,
+              { kek: deps.kek },
+              { tenantId, sessionId, subjectId, now, issuer, via: 'logout' },
+            ),
+          request,
         ),
       // Front-Channel Logout 1.0 §3's "set of logged-in RPs" — read after
       // endSession above has already revoked the session's grants, since
@@ -763,6 +823,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         clock,
         verifyPassword,
         clientSecretLimiter,
+        auditRefusalBudget: deps.auditRefusalBudget,
         claimMappers,
         loadClaimContext,
         resolveClientWebOrigins,
@@ -800,7 +861,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
 
 // The admin API verifies a bearer token's `iss` the same way /userinfo
 // does (packages/protocol-admin/src/usecase/authenticate-admin.ts).
-export { tenantIssuerFor } from '#/view/issuer';
+export { tenantIssuer } from '#/service/issuer';
+export { issuerBaseFor, tenantIssuerFor } from '#/view/issuer';
 export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { isWellFormedWebOrigin } from '#/service/web-origin';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
@@ -859,6 +921,11 @@ export {
 // authentication chain it exists to test).
 export { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 export { endSession, type EndSessionDeps, type EndSessionInput } from '#/usecase/end-session';
+export {
+  auditRefusalBudgetKey,
+  UNLIMITED_AUDIT_REFUSAL_BUDGET,
+  type AuditRefusalBudget,
+} from '#/service/audit-refusal-budget';
 export {
   UNLIMITED_CLIENT_SECRET_LIMITER,
   type ClientSecretLimiter,

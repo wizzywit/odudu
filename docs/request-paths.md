@@ -999,13 +999,22 @@ curl -sS -D - -o /dev/null \
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=01a0cb09-7b25-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=01a0de0f-e0c1-…:ymX2RgGntNQX…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:8080/callback?code=S3Ax4Fi7OrAT…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
+location: http://localhost:8080/callback?code=BHGxL9ZKCpm7…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
 
-(Session id and code truncated.)
+(Session entry and code truncated.)
+
+The cookie's value is an **entry**, `<session id>:<secret>`: the id of the
+session row, and 32 random bytes in base64url of which the server keeps
+only a sha256 hash (`sessions.secret_hash`). The id half is public — it is
+the `sid` claim of every ID token and access token this session issues —
+so it identifies the session and authenticates nothing: presenting it
+alone, or with any secret but this one, resolves to no session at all, at
+the same cost as an id that names none. A browser holding several sessions
+carries several entries, joined with `.`.
 
 Two `set-cookie` headers, not one: the ephemeral `demo-session` this login
 just established, and `demo-session-persistent` cleared to empty with
@@ -1039,6 +1048,97 @@ decides whether that is allowed: see
 **What the client does next:** verify `state` and `iss`, then redeem the
 code. Immediately: it expires in a minute.
 
+#### What a refused login leaves behind
+
+Every password submitted writes one `login.password` row, accepted or not,
+in the transaction that checked it. The two refusals below both answer
+`200`, in bytes [Brute-force lockout](#brute-force-lockout) shows are
+identical by hash; the rows are where they differ.
+Each carries its own `x-request-id`, which the server adopts as the request
+id and binds into the row, so the query that reads them back is scoped to
+these two requests and to nothing else this document has done. The first
+line prints the sha256 of the form's `auth_session_id`, which is what the
+rows name it by:
+
+```bash
+printf '%s' "$AUTH_SESSION_ID" | shasum -a 256
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -H 'x-request-id: login-refused-digest-wrong-password' \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=wrong-password' \
+  "$LOGIN"
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -H 'x-request-id: login-refused-digest-unknown-user' \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=nobody' \
+  --data-urlencode 'password=wrong-password' \
+  "$LOGIN"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.action, e.outcome, e.actor_subject_id, c.client_id as actor_client,
+          e.resource_type, e.resource_id, e.request_id, e.ip, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id in ('login-refused-digest-wrong-password',
+                           'login-refused-digest-unknown-user')
+    order by e.request_id desc;"
+```
+
+```
+433ca52d17548c2c5857e420896a3a8d821a3fbf4e756e4a52aba362e60d8da8  -
+200
+200
+-[ RECORD 1 ]----+-----------------------------------------------------------------
+action           | login.password
+outcome          | refused
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | authentication_session
+resource_id      | 433ca52d17548c2c5857e420896a3a8d821a3fbf4e756e4a52aba362e60d8da8
+request_id       | login-refused-digest-wrong-password
+ip               | 172.20.0.1
+detail           | {"factor": "password", "reason": "bad_credential"}
+-[ RECORD 2 ]----+-----------------------------------------------------------------
+action           | login.password
+outcome          | refused
+actor_subject_id | (null)
+actor_client     | demo-spa
+resource_type    | authentication_session
+resource_id      | 433ca52d17548c2c5857e420896a3a8d821a3fbf4e756e4a52aba362e60d8da8
+request_id       | login-refused-digest-unknown-user
+ip               | 172.20.0.1
+detail           | {"factor": "password", "reason": "unknown_subject"}
+```
+
+That was captured against the compose stack this document's other audit
+transcripts share, rebuilt from the current tree, where `ada` is subject
+`01a0db22-1c92-7730-9d37-4085f28eca2c` in `users` and whose `/authorize`
+rendered `auth_session_id`
+`01a0de54-cffa-72f6-a6c3-90dd30a1809a` for this run. The request ids are
+this run's own, since an earlier capture of this section left rows under
+the names it used before.
+
+- **`resource_id` is a digest, never the `auth_session_id` itself.** The
+  hidden field is what lets a browser finish a login that has already
+  authenticated, so a row that carried it would hand anyone who can read
+  the audit trail that login. The sha256 still names one login: every step
+  of it, refused or accepted, carries the same `resource_id`.
+- **The wrong password names `ada`; the unknown username names nobody.**
+  `nobody` appears nowhere in the second row, and neither password appears
+  in either: what was typed into the username field is never recorded,
+  because people type passwords there often enough that recording it would
+  eventually record one.
+- **`ip` is the address the server saw**, `request.ip` and nothing else.
+  Here that is Docker's bridge gateway, because nothing in front of the
+  container is trusted to report the client's; `ODUDU_TRUST_PROXY` is what
+  changes that, and no header does.
+- **A locked account writes `reason: locked_out`** and answers with the same
+  bytes as both of these ([Brute-force lockout](#brute-force-lockout)); the
+  failure that locks it writes a second row, `lockout.tripped`. A second
+  factor writes `login.otp` or `login.recovery_code` the same way, with
+  `replayed` or `already_used` where the code was spent before, and a
+  password that leads to one writes `factor.offered` naming the form.
+
 #### A remembered login
 
 The login form renders a `remember_me` checkbox whenever the tenant's
@@ -1051,8 +1151,8 @@ The login form renders a `remember_me` checkbox whenever the tenant's
 `demo`'s setting was turned on for this run —
 `odudu seed tenant --name demo --set remember_me_allowed=true` — since it is
 off for every other transcript in this document. Ticking the box and
-submitting the same form puts the new session's id in the **persistent**
-cookie instead:
+submitting the same form puts the new session's entry in the
+**persistent** cookie instead:
 
 ```bash
 curl -sS -D - -o /dev/null \
@@ -1066,14 +1166,14 @@ curl -sS -D - -o /dev/null \
 ```
 HTTP/1.1 302 Found
 set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: demo-session-persistent=01a0cb09-7e23-…; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000
-location: http://localhost:8080/callback?code=EgQF5EqNi16q…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
+set-cookie: demo-session-persistent=01a0de10-6e0f-…:_VOQ7Kojly1r…; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000
+location: http://localhost:8080/callback?code=8DehL4bWBMqb…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
 
-(Session id and code truncated.) The two cookies swap roles from the
+(Session entry and code truncated.) The two cookies swap roles from the
 ordinary case above: `demo-session` is now the one cleared with
-`Max-Age=0`, and `demo-session-persistent` carries this session's id with
+`Max-Age=0`, and `demo-session-persistent` carries this session's entry with
 `Max-Age=2592000` — the tenant's `remember_me_max_seconds` (default 30
 days), not `sso_session_max_seconds`. The session this establishes is also
 measured against a different idle window while it lives,
@@ -1806,35 +1906,60 @@ honours it the same way, so there is no per-tenant derivation:
 { "claims_parameter_supported": true }
 ```
 
-**The narrowing above is per-authorization-code, not per-grant.** Only the
-code minted at /authorize carries the `claims` request onto the access token
-it produces — `requested_userinfo_claims`, a third private access-token
-claim alongside `grant_id` and `sid` (see
-[docs/protocols/rfc9068.md](protocols/rfc9068.md)'s reading note above);
-a `refresh_token` redemption mints a new access token with none, so
-`/userinfo` answers from the full scope-granted set again, silently. Same
-code, redeeming the request above and then refreshing:
+**The narrowing travels with the grant, so a refresh keeps it.** The code
+minted at /authorize carries the `claims` request onto the grant its
+redemption creates (`token_grants.requested_userinfo_claims`), and every
+access token minted from that grant embeds it as
+`requested_userinfo_claims`, a third private access-token claim alongside
+`grant_id` and `sid` (see [docs/protocols/rfc9068.md](protocols/rfc9068.md)'s
+reading note above). That covers the code's own token, each
+`refresh_token` redemption's, and a token exchanged from one. Redeeming the
+`claims={"userinfo":{"email":null}}` request above with `scope=openid email`,
+with `$ACCESS_TOKEN` and `$REFRESH_TOKEN` taken from its token response the
+way [the shell variables above](#the-shell-variables-the-rest-of-this-document-uses)
+take them, and then refreshing (captured against the stack that the
+refused-login transcript uses, where ada is `01a0db22-1c92-…`):
 
 ```bash
-curl -sS \
-  --data-urlencode 'grant_type=refresh_token' \
-  --data-urlencode "refresh_token=$REFRESH_TOKEN" \
-  --data-urlencode 'client_id=demo-spa' "$BASE/token"
-# then, with the new access token:
 curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
 ```
 
-```json
-{ "sub": "01a0cb07-4e76-…", "email": "ada@example.com", "email_verified": false }
+```
+{"sub":"01a0db22-1c92-…","email":"ada@example.com"}
 ```
 
-Nothing here crosses the consented scope — the narrowing was never a
-confidentiality boundary, only the client asking for less than scope would
-give — so this is a consistency gap, not a security one. ADR 0036 decides
-the narrowing itself is the right reading and this gap is the defect: the
-fix is threading `requested_userinfo_claims` onto the rotated grant, tracked
-against **P4e**, the authentication-and-token-audit-events phase split out
-of P4c (`docs/superpowers/specs/2026-09-24-p4c-admin-api-design.md` §2).
+The refresh replaces `$ACCESS_TOKEN` with the token it returns, and prints
+its response with both tokens elided:
+
+```bash
+ORIGINAL_ACCESS_TOKEN=$ACCESS_TOKEN
+REFRESHED=$(curl -sS \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' "$BASE/token")
+printf '%s\n' "$REFRESHED" | sed 's/"access_token":"[^"]*"/"access_token":"…"/; s/"refresh_token":"[^"]*"/"refresh_token":"…"/'
+ACCESS_TOKEN=$(printf '%s' "$REFRESHED" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+[ "$ACCESS_TOKEN" != "$ORIGINAL_ACCESS_TOKEN" ] && echo 'a different access token'
+```
+
+```
+{"access_token":"…","refresh_token":"…","token_type":"Bearer","expires_in":300,"scope":"openid email"}
+a different access token
+```
+
+and then, with the refreshed access token now in `$ACCESS_TOKEN`:
+
+```bash
+curl -sS -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE/userinfo"
+```
+
+```
+{"sub":"01a0db22-1c92-…","email":"ada@example.com"}
+```
+
+Before migration `0070` the refreshed token carried no narrowing, so this
+last call also returned `email_verified`, the rest of what `scope=email`
+grants. ADR 0036 decides the narrowing and its amendment records the fix.
 
 ### Encrypted and nested UserInfo responses
 
@@ -2568,6 +2693,9 @@ set-cookie: register-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; M
 location: http://localhost:8080/callback?code=8DR6gZGbEKhkDcC7a0dilL9k2gDcZjHo8ZMOuZ6mnqM&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fregister-demo
 ```
 
+(Captured before the session cookie carried a secret, so the cookie shown
+is a truncated bare id; it is now `<session id>:<secret>`.)
+
 `users.email` is unique per tenant, not globally — `email` alone would be a
 tenancy bug — so a second registration for an address already held **in
 this tenant** is refused:
@@ -2704,6 +2832,117 @@ A tenant with `verify_email` off skips the mail and the gate above entirely:
 the account created is usable at the next login, the same way a
 seeded user always has been.
 
+### What registration and verification leave in the audit log
+
+A created account writes one `credential` row, `account.registered`, in the
+transaction that creates it, and a redeemed verification link writes
+`email.verified` in the transaction that consumes it. A refusal writes
+neither: a taken address is a form error, and a spent link names nobody the
+caller has proved anything about. This ran against its own tenant,
+`signup-audit`, created by the two seed commands below, so the account and
+the mailed link are the only ones in play. Every request carries an
+`x-request-id` starting `signup-audit-`, and the query below reads back
+exactly those.
+
+The second registration differs from the first only in its username, so the
+address is the only thing that can refuse it:
+
+```bash
+odudu seed --tenant signup-audit --client signup-audit-spa \
+  --redirect-uri http://localhost:8080/callback
+odudu seed tenant --name signup-audit \
+  --set registration_allowed=true --set verify_email=true
+
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/signup-audit/login-actions/registration \
+  -H 'x-request-id: signup-audit-ada' \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=correct-horse-battery'
+curl -sS -w '\n%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/signup-audit/login-actions/registration \
+  -H 'x-request-id: signup-audit-duplicate' \
+  --data-urlencode 'username=carol' \
+  --data-urlencode 'email=ada@example.com' \
+  --data-urlencode 'password=correct-horse-battery'
+```
+
+```
+{"created":true,"tenant":"signup-audit","tenantId":"01a0dc5e-9596-7fe2-903f-e72fe1e10817","clientId":"signup-audit-spa"}
+{"command":"tenant","created":false,"tenant":"signup-audit","tenantId":"01a0dc5e-9596-7fe2-903f-e72fe1e10817","settings":["registration_allowed","verify_email"]}
+201
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can&#39;t create this account</title></head>
+<body>
+<h1>Can't create this account</h1>
+<ul>
+<li>That email address is already registered.</li>
+</ul>
+</body>
+</html>
+400
+```
+
+The key is read out of the verification mail the first registration queued,
+which is the only message `signup-audit` has. The link is then followed
+twice; the second time it is already spent:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -At -c \
+  "select substring(o.body_text from 'key=([A-Za-z0-9_-]+)')
+     from email_outbox o join tenants t on t.id = o.tenant_id
+    where t.name = 'signup-audit';"
+```
+
+```
+TDknXMNC-qv54W-FspVCC7cVDcnmyUJP_AJQL_us3sU
+```
+
+```bash
+KEY=TDknXMNC-qv54W-FspVCC7cVDcnmyUJP_AJQL_us3sU
+curl -sS -o /dev/null -w '%{http_code}\n' -H 'x-request-id: signup-audit-verify' \
+  "http://localhost:3000/tenants/signup-audit/login-actions/action-token?key=$KEY"
+curl -sS -o /dev/null -w '%{http_code}\n' -H 'x-request-id: signup-audit-replay' \
+  "http://localhost:3000/tenants/signup-audit/login-actions/action-token?key=$KEY"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.request_id, e.event_type, e.action, e.outcome, e.actor_subject_id,
+          e.resource_type, e.resource_id, e.detail
+     from audit_events e
+    where e.request_id like 'signup-audit-%'
+    order by e.occurred_at;"
+```
+
+```
+200
+400
+-[ RECORD 1 ]----+-------------------------------------
+request_id       | signup-audit-ada
+event_type       | credential
+action           | account.registered
+outcome          | allowed
+actor_subject_id | 01a0dc5e-97dc-7029-a57e-bf0089130db1
+resource_type    | subject
+resource_id      | 01a0dc5e-97dc-7029-a57e-bf0089130db1
+detail           | {}
+-[ RECORD 2 ]----+-------------------------------------
+request_id       | signup-audit-verify
+event_type       | credential
+action           | email.verified
+outcome          | allowed
+actor_subject_id | 01a0dc5e-97dc-7029-a57e-bf0089130db1
+resource_type    | subject
+resource_id      | 01a0dc5e-97dc-7029-a57e-bf0089130db1
+detail           | {}
+```
+
+Four requests, two rows: none for the duplicate address and none for the
+replayed link. `01a0dc5e-97dc-…` is the `users.subject_id` this stack holds
+for `ada` in `signup-audit`. `detail` is empty on every `credential` row —
+no password, address or key is written to one, and the action names what
+happened.
+
 ## Two-factor authentication with TOTP
 
 A tenant's `otp_required` decides whether every subject in it is expected to
@@ -2795,6 +3034,9 @@ credential written before its first correct code would lock the account out
 of its own second factor if the app never actually scanned it, so the
 credential is created by the submission that proves a code, not by the page
 that offers a secret. An abandoned enrolment leaves no row behind at all.
+The submission that proves a code also writes the one `credential` audit
+row, `otp.enrolled`, naming the subject; a wrong code writes none
+(`packages/protocol-oidc/tests/audit-credentials.int.test.ts`).
 
 ### Confirming the secret enrols it
 
@@ -2969,6 +3211,20 @@ set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Ag
 location: http://localhost:8080/callback?code=qLJc6jy_z9EFISBTU4WLjujP498MmuZ_TvPtCfq9YqQ&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 ```
 
+Run again from an empty volume after the session cookie gained its secret
+(`0071_session_secret.sql`), the same steps end in this — that run's own
+values throughout, the cookie now `<session id>:<secret>`:
+
+```
+HTTP/1.1 302 Found
+set-cookie: otp-demo-session=01a0de16-cef0-7a20-8596-48316e1ddd13:G4JLrmZkQCpvIOgXn4ZtyaaOE3l3HEz_aVEdA2-w3RM; HttpOnly; SameSite=Lax; Path=/
+set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: http://localhost:8080/callback?code=GpmtUiLT0pnxZ09_veMPvNmiOCwffRqGvK4mn8WT7sU&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
+content-length: 0
+```
+
+The rest of this section and the next continue the first run.
+
 ### What two factors do to the ID token
 
 ```bash
@@ -3011,6 +3267,11 @@ action to a subject who holds no codes already, and that is the page the
 walkthrough above landed on. A subject who _does_ already hold codes is not
 asked again: a new factor does not invalidate a list they have saved, and
 re-issuing would silently retire the copy on their paper.
+
+Every render of the page writes one `credential` audit row,
+`recovery_codes.issued`, in the transaction that stores the hashes — the
+forced first set included, and again for each set a re-render issues in
+its place. The row carries no code.
 
 Every command and response below was executed against the compose stack,
 continuing the same `otp-demo` tenant and the same `auth_session_id`.
@@ -3180,6 +3441,18 @@ set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Ag
 location: http://localhost:8080/callback?code=zOxWHDFwzAqNIzzrBtz_NYjiMNrYEdqfJtQEYA-92yY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 ```
 
+Run again from an empty volume after the session cookie gained its secret
+(`0071_session_secret.sql`), the same steps end in this — that run's own
+values throughout, the cookie now `<session id>:<secret>`:
+
+```
+HTTP/1.1 302 Found
+set-cookie: otp-demo-session=01a0de16-cf8a-7f82-8d04-2f218f9f5247:LMW3RRiOwkBfRlbtm4WMasLE6ZjAJqjvXg2s6V0wero; HttpOnly; SameSite=Lax; Path=/
+set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: http://localhost:8080/callback?code=QROXhrX5sUTvoQ51M80dT_N7LABiXqyLkjDuSQCqwts&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
+content-length: 0
+```
+
 The same success a password-and-code login gets: a session cookie and a code
 on the redirect. No code from the app was ever submitted, and the login was
 not asked for one — the OTP step stands down for the rest of an attempt that
@@ -3336,6 +3609,18 @@ location: http://localhost:8080/callback?code=LQElc84DzT7Xd0vWaaaeQSNYLHTcq-Wo6v
 content-length: 0
 ```
 
+Run again from an empty volume after the session cookie gained its secret
+(`0071_session_secret.sql`), the same steps end in this — that run's own
+values throughout, the cookie now `<session id>:<secret>`:
+
+```
+HTTP/1.1 302 Found
+set-cookie: rc8-demo-session=01a0de1a-490d-773e-9b5e-cdedbb1afa25:eke56OH4KHliq1WIn0oZuIeDoxFbXUoWoQUStHr0Dcc; HttpOnly; SameSite=Lax; Path=/
+set-cookie: rc8-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: http://localhost:8080/callback?code=RtDYxF3GaEyctUrlTnkoTjXiHQLPbRPJBsT1dvv_9K8&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Frc8-demo
+content-length: 0
+```
+
 The tenth authenticates just as well, and does not redirect:
 
 ```bash
@@ -3472,7 +3757,9 @@ What the flow is, stated rather than shown:
    the credential: `lookup_key` is the credential id, and `secret_data`
    holds the COSE public key, the authenticator's signature counter at
    registration, and its transports. The `configure-passkey` action is
-   cleared last, so a refused ceremony leaves it owed.
+   cleared last, so a refused ceremony leaves it owed, and one `credential`
+   audit row, `passkey.enrolled`, is written in the same transaction; a
+   refused ceremony writes none.
 5. The page's script is inline, because only a script can reach an
    authenticator. The response's `Content-Security-Policy` names a
    per-response `nonce` and that script carries it — not `unsafe-inline`, so
@@ -3861,6 +4148,9 @@ set-cookie: reset-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-
 location: http://localhost:8080/callback?code=IO_8jS6voHd3FYEquHGgvuUlTYOYFKJBc7qJj8SZFBQ&state=xyz123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Freset-demo
 ```
 
+(Captured before the session cookie carried a secret, so the cookie shown
+is a truncated bare id; it is now `<session id>:<secret>`.)
+
 The same link a second time is refused — minted for one redemption, the
 same as a verify-email token, and `action_tokens.consumed_at` is now set:
 
@@ -3883,6 +4173,132 @@ off closes redemption as well as the request form: an outstanding link
 minted while it was on answers `400` from `/login-actions/action-token`
 once it is off, the kill switch an operator reaches for during an incident
 covering both halves of the flow.
+
+### What a reset leaves in the audit log
+
+A redeemed link writes one `credential` row, `password.reset`, in the
+transaction that sets the password. Nothing else in the flow writes one:
+not the request, which must look the same whether or not the address has an
+account; not a refused link, which names nobody the caller has proved
+anything about; and not a password the policy refuses, which is a form
+error rather than a change. This ran against its own tenant, `reset-audit`,
+created by the two seed commands below, with every request's `x-request-id`
+starting `reset-audit-` — six of them, all shown here:
+
+```bash
+odudu seed --tenant reset-audit --client reset-audit-spa \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+odudu seed tenant --name reset-audit --set reset_password_allowed=true
+```
+
+```
+{"created":true,"tenant":"reset-audit","tenantId":"01a0dc50-7654-75c9-a070-33faf7d67368","clientId":"reset-audit-spa","userSubjectId":"01a0dc50-76c6-7e00-9086-ac84f6c1a2f2"}
+{"command":"tenant","created":false,"tenant":"reset-audit","tenantId":"01a0dc50-7654-75c9-a070-33faf7d67368","settings":["reset_password_allowed"]}
+```
+
+The first link was left unredeemed past its five minutes. That it is
+expired, and not spent, is what the table shows before it is submitted.
+Its key is the one in the message that request queued, read from that
+message's `email_outbox` row:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/reset-password \
+  -H 'x-request-id: reset-audit-request-1' --data-urlencode 'email=ada@example.com'
+
+# … five minutes later
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select a.type, a.expires_at < now() as expired, a.consumed_at
+     from action_tokens a join tenants t on t.id = a.tenant_id
+    where t.name = 'reset-audit';"
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -H 'x-request-id: reset-audit-expired' \
+  --data-urlencode 'key=1TPp8NWSSuC3EVyQOjd2dNllZ1QpWHC6urrquiB2D0M' \
+  --data-urlencode 'password=a brand new password'
+```
+
+```
+200
+      type      | expired | consumed_at
+----------------+---------+-------------
+ reset_password | t       |
+(1 row)
+
+400
+```
+
+A second request mints a fresh link, whose key is read from the message it
+queued — the newest of the two `reset-audit` has:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/reset-password \
+  -H 'x-request-id: reset-audit-request-2' --data-urlencode 'email=ada@example.com'
+docker compose exec -T postgres psql -U odudu -d odudu -At -c \
+  "select substring(o.body_text from 'key=([A-Za-z0-9_-]+)')
+     from email_outbox o join tenants t on t.id = o.tenant_id
+    where t.name = 'reset-audit' order by o.created_at desc limit 1;"
+```
+
+```
+200
+lA0JiQk1PNRbz9m_LTUP2PWGcFpQfukwqpn1Ig4euuc
+```
+
+That link is then submitted with a password the policy refuses, with one it
+accepts, and once more after it is spent:
+
+```bash
+KEY=lA0JiQk1PNRbz9m_LTUP2PWGcFpQfukwqpn1Ig4euuc
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -H 'x-request-id: reset-audit-weak' --data-urlencode "key=$KEY" --data-urlencode 'password=weak'
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -H 'x-request-id: reset-audit-ada' --data-urlencode "key=$KEY" \
+  --data-urlencode 'password=a brand new password'
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:3000/tenants/reset-audit/login-actions/action-token \
+  -H 'x-request-id: reset-audit-replay' --data-urlencode "key=$KEY" \
+  --data-urlencode 'password=another password'
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.request_id, e.event_type, e.action, e.outcome, e.actor_subject_id,
+          e.resource_type, e.resource_id, e.detail
+     from audit_events e
+    where e.request_id like 'reset-audit-%'
+    order by e.occurred_at;"
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select count(*) as rows_naming_either
+     from audit_events e
+    where e::text like '%a brand new password%' or e::text like '%$KEY%';"
+```
+
+```
+400
+200
+400
+-[ RECORD 1 ]----+-------------------------------------
+request_id       | reset-audit-ada
+event_type       | credential
+action           | password.reset
+outcome          | allowed
+actor_subject_id | 01a0dc50-76c6-7e00-9086-ac84f6c1a2f2
+resource_type    | subject
+resource_id      | 01a0dc50-76c6-7e00-9086-ac84f6c1a2f2
+detail           | {}
+
+ rows_naming_either
+--------------------
+                  0
+(1 row)
+```
+
+Six requests, one row. The last query reads every audit row this stack
+holds, in every tenant, as text: none carries the password that was set or
+the key that set it.
 
 ## Password expiry, and changing a password
 
@@ -4038,11 +4454,27 @@ set-cookie: expiry-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max
 location: http://localhost:8080/callback?code=P1ZeKGbV9OteeKbw_gRs-D5IIiwuRjYVTnOaUOxxTqY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fexpiry-demo
 ```
 
+Run again from an empty volume after the session cookie gained its secret
+(`0071_session_secret.sql`), the same steps end in this — that run's own
+values throughout, the cookie now `<session id>:<secret>`:
+
+```
+HTTP/1.1 302 Found
+set-cookie: expiry-demo-session=01a0de1b-17be-7fb4-b28e-d0248b3ce0b5:f_omtnt8VhDKR0eHmE9yeUUTnRnC2Uwa0HvZRi0eQC4; HttpOnly; SameSite=Lax; Path=/
+set-cookie: expiry-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: http://localhost:8080/callback?code=vSlHGH12cPSAt-UQ2VJTNdhRu_YE5ScUWM5wOi64xZk&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fexpiry-demo
+content-length: 0
+```
+
 Reset redemption shares only half of this. It refuses the password in
 force — otherwise a mailed link would restart the clock on an expired
 password without changing it — but it consults no history, so a password
 retired more than one change ago can be restored that way. Only this action
 reads history, and only this action writes any.
+
+An accepted change writes one `credential` audit row, `password.changed`,
+naming the subject. A candidate the policy or the history refuses writes
+none, and no row carries a candidate either way.
 
 A retired hash is never a login's input. The password credential read at
 authentication filters on `type = 'password'`, so the row above answers
@@ -4225,15 +4657,16 @@ attempt 5: 200
 status 200, location ''
 --- the same password, 125 seconds later ---
 HTTP/1.1 302 Found
-set-cookie: lockout-demo-session=01a0cb1b-7e7a-7bd6-9881-5981156a1260; HttpOnly; SameSite=Lax; Path=/
+set-cookie: lockout-demo-session=01a0de1d-56f0-752b-bdda-35fea9a3bd12:sSLOTtksH5BK5FC8ou5gmQ4cvjhvanx9_xokqpQ5w0k; HttpOnly; SameSite=Lax; Path=/
 set-cookie: lockout-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:8080/callback?code=5567J8rWmantteNzsWvQcLZdu8TeOViV84osa75F6Bc&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Flockout-demo
+location: http://localhost:8080/callback?code=QnWfcy1CggMc-sXu1mjrahD5SrkuKrVuVx8wdy7AYug&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Flockout-demo
 ```
 
 (`sid` is the `/authorize` request above with the hidden field read out of
-the page it renders, against `lockout-demo`. The wait is 125 seconds rather
-than 60 because the refused right password counted as the sixth failure and
-re-locked for two minutes.)
+the page it renders, against `lockout-demo`. This block was captured again,
+against a fresh `lockout-demo`, after the session cookie gained its secret.
+The wait is 125 seconds rather than 60 because the refused right password
+counted as the sixth failure and re-locked for two minutes.)
 
 A correct password accepted by an **unlocked** account deletes the row, so a
 run of failures ends when the account is signed into rather than decaying.
@@ -4634,6 +5067,327 @@ A redemption that fails for any other reason — wrong verifier, wrong
 attempt is rolled back. Verified: after all three failures above, the
 correct redemption of the same code still returned 200.
 
+### What a refused token request leaves in the audit log
+
+A refusal at `/token`, `/revoke` or `/introspect` rolls its own transaction
+back, so its row is written afterwards, in a transaction of its own, and a
+failure to write it is logged rather than returned: the response is the one
+the caller would have had with no audit at all. Which refusals write a row
+is decided by what the request names ([ADR 0037](adr/0037-refusal-rows-are-bounded-by-the-principal-they-name.md)).
+Every command below carries its own `x-request-id` and every query is
+scoped to those ids. All of it was captured against the same stack as
+[what a refused login leaves behind](#what-a-refused-login-leaves-behind),
+with `demo-backend` seeded as in [Bootstrap](#bootstrap).
+
+A wrong secret for a registered client, and a `client_id` nobody
+registered:
+
+```bash
+curl -sS -w '\n%{http_code}\n' -H 'x-request-id: token-refused-wrong-secret' \
+  -u demo-backend:wrong-secret --data-urlencode 'grant_type=client_credentials' \
+  "$BASE/token"
+curl -sS -w '\n%{http_code}\n' -H 'x-request-id: token-refused-unknown-client' \
+  -u nobody-here:anything --data-urlencode 'grant_type=client_credentials' \
+  "$BASE/token"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.event_type, e.action, e.outcome, c.client_id as actor_client, e.request_id, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id in ('token-refused-wrong-secret', 'token-refused-unknown-client');"
+docker compose logs odudu | grep 'unregistered client_id' | sed 's/^[^|]*| //'
+```
+
+```
+{"error":"invalid_client"}
+401
+{"error":"invalid_client"}
+401
+-[ RECORD 1 ]+--------------------------------------------------------------
+event_type   | authentication
+action       | client.authenticate
+outcome      | refused
+actor_client | demo-backend
+request_id   | token-refused-wrong-secret
+detail       | {"method": "client_secret_basic", "reason": "bad_credential"}
+
+{"level":40,"time":1790394525341,"pid":1,"hostname":"d7d0702d851a","reqId":"token-refused-unknown-client","tenantId":"01a0db22-1c32-7d17-b351-697d7911033c","claimedClientId":"nobody-here","msg":"client authentication refused for an unregistered client_id"}
+```
+
+- **The two answers are the same bytes; one wrote a row and one did not.**
+  A registered client is a principal the row can name. A `client_id` nobody
+  registered names nobody, so it is a `warn` line from the first attempt:
+  otherwise every guessed name would be a row. `method` is the method the
+  request attempted, never the one the client registered. How many rows a
+  registered client can cause is bounded below.
+
+Reusing a refresh token, and replaying the code it came from. `$R1` here is
+a refresh token already rotated once, and `$CODE` with `$VERIFIER` the code
+that issued it, both from a fresh Path A run:
+
+```bash
+curl -sS -w '\n' -H 'x-request-id: token-refused-reuse-then-replay' \
+  --data-urlencode 'grant_type=refresh_token' --data-urlencode "refresh_token=$R1" \
+  --data-urlencode 'client_id=demo-spa' "$BASE/token"
+curl -sS -w '\n' -H 'x-request-id: token-refused-replay-after-reuse' \
+  --data-urlencode 'grant_type=authorization_code' --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' --data-urlencode "code_verifier=$VERIFIER" \
+  "$BASE/token"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.action, e.outcome, e.actor_subject_id, c.client_id as actor_client,
+          e.resource_type, e.resource_id, e.request_id, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id in ('token-refused-reuse-then-replay',
+                           'token-refused-replay-after-reuse')
+    order by e.request_id desc, e.outcome;"
+```
+
+```
+{"error":"invalid_grant"}
+{"error":"invalid_grant"}
+-[ RECORD 1 ]----+-------------------------------------
+action           | grant.revoked_on_reuse
+outcome          | allowed
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | grant
+resource_id      | 01a0de55-903e-7638-9eaf-d67227d6783b
+request_id       | token-refused-reuse-then-replay
+detail           | {"reason": "replayed"}
+-[ RECORD 2 ]----+-------------------------------------
+action           | token.refresh
+outcome          | refused
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | grant
+resource_id      | 01a0de55-903e-7638-9eaf-d67227d6783b
+request_id       | token-refused-reuse-then-replay
+detail           | {"reason": "replayed"}
+-[ RECORD 3 ]----+-------------------------------------
+action           | token.issue
+outcome          | refused
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | grant
+resource_id      | 01a0de55-903e-7638-9eaf-d67227d6783b
+request_id       | token-refused-replay-after-reuse
+detail           | {"reason": "replayed"}
+```
+
+(Captured on the stack rebuilt from the current tree, after a revocation
+row came to be written only by the request that revoked; the request ids
+are new because an earlier capture left rows under the old ones.)
+
+- **The request that revokes writes what the server did and what it
+  refused.** The `grant.revoked_on_*` row is written in the transaction
+  that revokes, and a failure to write it cannot undo the revocation; the
+  refusal row names the same grant. The code replay finds that grant
+  already revoked by the reuse, so it writes its refusal and no revocation
+  row: only a call that changed the grant records a revocation, so a spent
+  code replayed any number of times revokes, and records, once. The
+  revocation row names the grant's own client, the refusal the client that
+  asked, which differ when another client presents the code.
+- **A refusal after the client authenticated is a row, while its client's
+  budget lasts**: `invalid_grant`, `invalid_scope`, `invalid_target` and
+  `unauthorized_client`, under `token.issue`, `token.refresh` or
+  `token.exchange` by grant type, and a token exchange's `invalid_request`,
+  shown below. An `invalid_request` for a request missing a parameter is
+  refused before the client is known, and writes nothing.
+- **A refresh can leave an `allowed` and a `refused` `token.refresh` under
+  one request id.** When the rotation commits and the check after it then
+  refuses (a revocation or a disabled subject landing between the two), the
+  `allowed` row is true, the presented token was consumed and a
+  replacement exists, and the refusal says why none was returned.
+
+A token exchange answers `invalid_request` both for a subject token it
+refuses and for a request missing one (RFC 8693 §2.2.2), and only the first
+is a decision about the client, so only the first is a row. `demo` has no
+client registered for the grant, so this run seeds one and lets it
+impersonate, which `seed client` has no flag for (as in
+[Path D](#path-d-token-exchange)):
+
+```bash
+odudu seed client --tenant demo \
+  --client-id demo-exchanger --client-secret demo-exchanger-secret \
+  --redirect-uri http://localhost:8080/callback \
+  --grant-type authorization_code \
+  --grant-type urn:ietf:params:oauth:grant-type:token-exchange
+docker compose exec -T postgres psql -U odudu -d odudu -c "
+    UPDATE client_oidc_config
+    SET token_exchange_impersonation_allowed = true
+    FROM clients
+    WHERE clients.id = client_oidc_config.client_id AND clients.client_id = 'demo-exchanger'
+      AND client_oidc_config.tenant_id = (SELECT id FROM tenants WHERE name = 'demo');"
+
+curl -sS -w '\n' -H 'x-request-id: exchange-refused-subject-token' \
+  -u demo-exchanger:demo-exchanger-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode 'subject_token=not-a-token-this-server-issued' \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  "$BASE/token"
+curl -sS -w '\n' -H 'x-request-id: exchange-refused-malformed' \
+  -u demo-exchanger:demo-exchanger-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  "$BASE/token"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.action, e.outcome, c.client_id as actor_client, e.request_id, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id in ('exchange-refused-subject-token', 'exchange-refused-malformed');"
+```
+
+The seed's JSON line is omitted; the rest is the run's output:
+
+```
+UPDATE 1
+{"error":"invalid_request"}
+{"error":"invalid_request"}
+-[ RECORD 1 ]+-------------------------------
+action       | token.exchange
+outcome      | refused
+actor_client | demo-exchanger
+request_id   | exchange-refused-subject-token
+detail       | {"reason": "invalid_grant"}
+```
+
+The two answers are the same bytes and one wrote a row. A subject token
+that is unknown, expired, revoked or another client's is `invalid_grant`,
+an actor `may_act` does not name is `subject_mismatch`, and a token type
+the server does not exchange is `unsupported_token_type`, each under
+`token.exchange` and the client's budget; the request with no
+`subject_token` was refused while it was parsed, before any client was
+known (ADR 0037's second amendment).
+
+`/revoke` records a revocation it performs, and a refusal to revoke another
+client's grant. `$RT` is a refresh token `demo-spa` holds, fresh from
+another Path A run:
+
+```bash
+curl -sS -w '\n%{http_code}\n' -H 'x-request-id: revoke-foreign-grant' \
+  -u demo-backend:demo-backend-secret --data-urlencode "token=$RT" "$BASE/revoke"
+curl -sS -w '%{http_code}\n' -H 'x-request-id: revoke-own-grant' \
+  --data-urlencode 'client_id=demo-spa' --data-urlencode "token=$RT" "$BASE/revoke"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.action, e.outcome, e.actor_subject_id, c.client_id as actor_client,
+          e.resource_type, e.resource_id, e.request_id, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id in ('revoke-foreign-grant', 'revoke-own-grant')
+    order by e.occurred_at;"
+```
+
+```
+{"error":"invalid_grant"}
+400
+200
+-[ RECORD 1 ]----+-------------------------------------
+action           | token.revoke
+outcome          | refused
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-backend
+resource_type    | grant
+resource_id      | 01a0dbd6-0207-7337-8006-201eac7bb5ef
+request_id       | revoke-foreign-grant
+detail           | {"reason": "invalid_grant"}
+-[ RECORD 2 ]----+-------------------------------------
+action           | token.revoke
+outcome          | allowed
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | grant
+resource_id      | 01a0dbd6-0207-7337-8006-201eac7bb5ef
+request_id       | revoke-own-grant
+detail           | {}
+```
+
+A token this server never issued still answers `200`, and writes nothing,
+because nothing was revoked:
+
+```bash
+curl -sS -w '%{http_code}\n' -H 'x-request-id: revoke-unknown-token' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'token=not-a-token-this-server-issued' "$BASE/revoke"
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select count(*) from audit_events where request_id = 'revoke-unknown-token';"
+```
+
+```
+200
+ count
+-------
+     0
+(1 row)
+```
+
+`/introspect` records a failed client authentication the same way, and
+nothing else: a successful introspection issues and changes nothing.
+
+```bash
+curl -sS -w '\n%{http_code}\n' -H 'x-request-id: introspect-refused-wrong-secret' \
+  -u demo-backend:wrong-secret --data-urlencode 'token=anything' "$BASE/token/introspect"
+curl -sS -w '\n%{http_code}\n' -H 'x-request-id: introspect-refused-unknown-client' \
+  -u nobody-here:anything --data-urlencode 'token=anything' "$BASE/token/introspect"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.event_type, e.action, e.outcome, c.client_id as actor_client, e.request_id, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id in ('introspect-refused-wrong-secret', 'introspect-refused-unknown-client');"
+```
+
+```
+{"error":"invalid_client"}
+401
+{"error":"invalid_client"}
+401
+-[ RECORD 1 ]+--------------------------------------------------------------
+event_type   | authentication
+action       | client.authenticate
+outcome      | refused
+actor_client | demo-backend
+request_id   | introspect-refused-wrong-secret
+detail       | {"method": "client_secret_basic", "reason": "bad_credential"}
+```
+
+Every one of these rows spends its client's budget: twenty rows per
+registered client per minute, the twentieth saying `rate_limited`, and a
+`warn` line for each refusal after that until the window reopens. That
+covers refusals after authentication as much as failed authentication,
+because a public client authenticates with its name alone. `demo-spa` is
+public, so anybody can post guessed refresh tokens under it; twenty-two of
+them, with no refusal from `demo-spa` in the minute before:
+
+```bash
+for n in $(seq 1 22); do
+  curl -sS -o /dev/null -w '%{http_code} ' -H "x-request-id: public-spray-$n" \
+    --data-urlencode 'grant_type=refresh_token' --data-urlencode "refresh_token=guess-$n" \
+    --data-urlencode 'client_id=demo-spa' "$BASE/token"
+done; echo
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select e.action, e.detail->>'reason' as reason, count(*)
+     from audit_events e
+    where e.request_id like 'public-spray-%'
+    group by 1, 2 order by 3 desc;"
+docker compose logs odudu --since 2m | grep -c 'audit budget for this client is spent'
+```
+
+```
+400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400
+    action     |    reason     | count
+---------------+---------------+-------
+ token.refresh | invalid_grant |    19
+ token.refresh | rate_limited  |     1
+(2 rows)
+
+2
+```
+
+Every answer is the same `400`; the budget decides only whether a refusal
+is a row or a log line. The budget lives in one process's memory, so each
+replica keeps its own ([ADR 0037](adr/0037-refusal-rows-are-bounded-by-the-principal-they-name.md)
+places the shared one on P11).
+
 ## Retention: what `odudu reap` removes
 
 Everything above leaves rows behind, and nothing in any repository deletes
@@ -4697,10 +5451,10 @@ not this section's own capture — it was re-verified on a separate, minimal
 stack (seed a tenant, run `odudu reap`, confirm `audit_events` is `0` and
 last in `REAP_ORDER`'s order) rather than by re-walking the whole of
 [Path A](#path-a-authorization-code-with-pkce) — but it holds by
-construction regardless: nothing in this walkthrough calls the admin API,
-which is the only thing that writes to `audit_events`, so its own retention
-rule (`audit_retention_days`, unrelated to any window above) has nothing to
-delete either way.
+construction regardless: the rows this walkthrough does write there — one
+per login step — are minutes old, and `audit_events`' own retention rule
+(`audit_retention_days`, 90 by default and unrelated to any window above)
+deletes nothing younger than a day.
 
 What makes a row deletable is the **grant family** being past retention,
 which is seven days for a session-bound family and thirty for an offline
@@ -5261,26 +6015,152 @@ curl -sS -b cookies2.txt \
 <h1>Sign out?</h1>
 <p>Signing out ends this session for every application that uses it.</p>
 <form method="post" action="/tenants/demo/protocol/openid-connect/logout">
-  <input type="hidden" name="session_id" value="01a0cb1f-cf51-…">
+  <input type="hidden" name="session_id" value="01a0de36-80e1-…">
+  <input type="hidden" name="csrf" value="yU7AU__xF-kY…">
   <button type="submit">Sign out</button>
 </form>
 </body>
 </html>
 ```
 
-(`session_id` shortened, as elsewhere in this document.) Unlike the login
-form's `auth_session_id`, this hidden field _is_ the session cookie's own
-value — echoed back rather than a distinct one-time token — and the POST
-handler checks it again against what the cookie itself still resolves to
-before ending anything: a double-submit-cookie defence, not a single-use
-one. Only a browser holding that `HttpOnly` cookie can supply a match,
-which is what stops a forged cross-site POST from ending a session it
-cannot read the id of.
+(`session_id` and `csrf` shortened, as elsewhere in this document.)
+`session_id` is the session's **id** — the id half of the cookie's entry,
+and the `sid` every token for it carries — so it is not a secret and proves
+nothing on its own. `csrf` is what does: base64url of an HMAC-SHA256 over
+`logout-confirm:<session id>`, keyed by the **secret** half of the entry.
+The POST recomputes it from the entry this browser's cookie presents for
+that session and compares in constant time, and the session must also be
+one the cookie still resolves to. A forger who knows the id from any token
+still cannot produce the token, and the secret itself never appears in the
+page. Two defences stand beside it: the cookie is `SameSite=Lax`, so a
+cross-site POST carries none, and a `session_id` outside the cookie's own
+set is refused.
+
+The right `session_id` without the token, from the same browser, is
+refused with exactly the page a non-member `session_id` gets, and ends
+nothing:
+
+```bash
+SID2=$(curl -sS -b cookies2.txt \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout" \
+  | sed -n 's/.*name="session_id" value="\([^"]*\)".*/\1/p')
+
+curl -sS -b cookies2.txt -D - -X POST \
+  --data-urlencode "session_id=$SID2" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
+```
+
+```
+HTTP/1.1 400 Bad Request
+cache-control: no-store
+content-type: text/html
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
+x-frame-options: DENY
+referrer-policy: no-referrer
+content-length: 220
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can&#39;t sign out</title></head>
+<body>
+<h1>Can't sign out</h1>
+<p>This sign-out attempt is no longer valid. Go back and try again.</p>
+</body>
+</html>
+```
+
+(`x-request-id`, `Date` and the keep-alive headers are omitted. This page
+and the refusal were captured after the form gained its token, against a
+fresh sign-in into `cookies2.txt` on the same stack.)
 
 A `post_logout_redirect_uri` that is not an exact match to a registered
 value — a trailing slash, a query string, a different host — is refused,
 and the session still ends: §3's redirect rule is about the redirect
 alone, never about whether logout happened.
+
+### What a session leaves in the audit log
+
+A session writes one `session` row when a login creates it and one when it
+ends, each in the transaction that did the work. A signed-in `/authorize`
+that reuses a session creates nothing and writes nothing. This run signs in
+with a fresh jar, fetches the confirmation page for the `session_id` and
+`csrf` it carries, and posts both back. The sign-in and the confirming
+`POST` each carry their own `x-request-id` — the page fetch between them
+writes no row and carries none — so the query below reads those two requests
+and nothing else:
+
+```bash
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-audit' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+
+curl -sS -c cookies-audit.txt -o /dev/null -w '%{http_code}\n' \
+  -H 'x-request-id: logout-csrf-doc-sign-in' \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "$LOGIN"
+
+PAGE=$(curl -sS -b cookies-audit.txt \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout")
+SESSION_ID=$(printf '%s' "$PAGE" | sed -n 's/.*name="session_id" value="\([^"]*\)".*/\1/p')
+CSRF=$(printf '%s' "$PAGE" | sed -n 's/.*name="csrf" value="\([^"]*\)".*/\1/p')
+
+curl -sS -b cookies-audit.txt -o /dev/null -w '%{http_code}\n' \
+  -H 'x-request-id: logout-csrf-doc-confirm' \
+  --data-urlencode "session_id=$SESSION_ID" \
+  --data-urlencode "csrf=$CSRF" \
+  "http://localhost:3000/tenants/demo/protocol/openid-connect/logout"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.action, e.outcome, e.actor_subject_id, c.client_id as actor_client,
+          e.resource_type, e.resource_id, e.request_id, e.ip, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.event_type = 'session'
+      and e.request_id in ('logout-csrf-doc-sign-in', 'logout-csrf-doc-confirm')
+    order by e.occurred_at;"
+```
+
+```
+302
+200
+-[ RECORD 1 ]----+-------------------------------------
+action           | session.created
+outcome          | allowed
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | demo-spa
+resource_type    | session
+resource_id      | 01a0de36-817a-78e7-9515-96498c511556
+request_id       | logout-csrf-doc-sign-in
+ip               | 172.20.0.1
+detail           | {}
+-[ RECORD 2 ]----+-------------------------------------
+action           | session.ended
+outcome          | allowed
+actor_subject_id | 01a0db22-1c92-7730-9d37-4085f28eca2c
+actor_client     | (null)
+resource_type    | session
+resource_id      | 01a0de36-817a-78e7-9515-96498c511556
+request_id       | logout-csrf-doc-confirm
+ip               | 172.20.0.1
+detail           | {"via": "logout"}
+```
+
+Captured against the same stack as [what a refused login leaves
+behind](#what-a-refused-login-leaves-behind): `ada` is subject
+`01a0db22-1c92-…`, and `resource_id` is the session the `demo-session`
+cookie's entry named — its id half, never its secret. `detail.via` says how
+a session ended: `logout` here, `admin` when the admin API's `DELETE
+…/sessions/{sid}` ends it (beside that route's own `admin_mutation` row),
+and `evicted` when a login past the tenant's `max_sessions_per_browser` ends
+the browser's least recently active session, naming that session's own
+subject. Ending a session that has already ended writes no second row.
 
 ### The same request over `POST`
 
@@ -5329,9 +6209,10 @@ curl -sS \
 Two messages therefore arrive at the same `POST`: this one, and the
 confirmation form above submitting back. The form's hidden `session_id` is
 what tells them apart, so a body carrying it is a confirmation and a body
-without it is a logout request. A forged cross-site POST cannot guess that
-value, so it is read as a request — which, with no hint, is answered by the
-confirmation page and ends nothing.
+without it is a logout request. A confirmation is honoured only with the
+`csrf` token the cookie's secret derives; a body without `session_id` is
+read as a request — which, with no hint, is answered by the confirmation
+page and ends nothing.
 
 ### A `client_id` that disagrees with the hint
 
@@ -5534,14 +6415,14 @@ content-length: 318
 </html>
 ```
 
-(`sid` shortened; it is the session cookie's own id, and `iss` is this
-tenant's issuer.) `sid` is present because `reports-widget` registered
-`frontchannel_logout_session_required`; a client that had not would be
-framed with `iss` alone. `demo-spa` itself is not framed here — it
+(`sid` shortened; it is the id half of the session cookie's entry, and `iss`
+is this tenant's issuer.) `sid` is present because `reports-widget`
+registered `frontchannel_logout_session_required`; a client that had not
+would be framed with `iss` alone. `demo-spa` itself is not framed here — it
 registered no `frontchannel_logout_uri` at all, and §2's own rule is that a
 client without one is not framed and contributes no origin, which
-`frame-src` above bears out: it names `reports-widget`'s origin and
-nothing else.
+`frame-src` above bears out: it names `reports-widget`'s origin and nothing
+else.
 
 **This is an attempt, not a delivered notification.** The iframe's
 response is never read back, and whether `reports-widget` ever sees the
@@ -6041,6 +6922,9 @@ set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: https://rp.example/cb?code=dt04gc43VMf7…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
+
+(Captured before the session cookie carried a secret, so the cookie shown
+is a truncated bare id; it is now `<session id>:<secret>`.)
 
 Pressing Deny instead answers exactly where a client-side `access_denied`
 always does — the request's own `redirect_uri`, not a page — with nothing
@@ -6896,6 +7780,125 @@ regardless of which encapsulated scope registered it (`docs/superpowers/p2a-spik
 records the mechanism); it is harmless — nothing downstream keys a cache
 entry on it — but it is not hidden here as something it is not.
 
+## One sign-in's audit trail, read through the admin API
+
+The sections above read `audit_events` with `psql`, one door at a time.
+This one drives a whole sign-in — a login, the code's redemption, a
+refresh, a logout — and reads what it left through
+`GET /admin/tenants/{tenant}/audit`, which is how an operator reads it.
+`$ADMIN_TOKEN` is an admin access token got the way
+[docs/admin-paths.md](admin-paths.md#getting-the-token) shows, here for a
+second `system` administrator seeded on the same stack. `event_type` picks
+the kind of row, and `from` narrows both queries to rows written since the
+run began, `request_id` not being a filter. `from` is only as precise as the
+second `$SINCE` names, so it scopes to this run only on a stack with no
+other traffic in `demo`; the request id on each row is what shows that held
+here:
+
+```bash
+BASE=http://localhost:3000/tenants/demo/protocol/openid-connect
+LOGIN=http://localhost:3000/tenants/demo/login-actions/authenticate
+SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+VERIFIER=$(openssl rand -hex 32)
+CHALLENGE=$(printf '%s' "$VERIFIER" | openssl dgst -binary -sha256 \
+  | openssl base64 | tr '+/' '-_' | tr -d '=')
+
+AUTH_SESSION_ID=$(curl -sS --get \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'scope=openid' \
+  --data-urlencode 'state=xyz-trail' \
+  --data-urlencode "code_challenge=$CHALLENGE" \
+  --data-urlencode 'code_challenge_method=S256' \
+  "$BASE/auth" | sed -n '/name="auth_session_id"/{s/.*value="\([^"]*\)".*/\1/p;q;}')
+
+CODE=$(curl -sS -D - -o /dev/null -c cookies-trail.txt \
+  -H 'x-request-id: trail-sign-in' \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=ada' \
+  --data-urlencode 'password=correct-horse-battery' \
+  "$LOGIN" | sed -n 's/.*[?&]code=\([^&[:space:]]*\).*/\1/p' | tr -d '\r')
+
+REFRESH_TOKEN=$(curl -sS -H 'x-request-id: trail-code' \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode "code=$CODE" \
+  --data-urlencode 'redirect_uri=http://localhost:8080/callback' \
+  --data-urlencode 'client_id=demo-spa' \
+  --data-urlencode "code_verifier=$VERIFIER" "$BASE/token" \
+  | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+
+curl -sS -o /dev/null -w '%{http_code}\n' -H 'x-request-id: trail-refresh' \
+  --data-urlencode 'grant_type=refresh_token' \
+  --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+  --data-urlencode 'client_id=demo-spa' "$BASE/token"
+
+PAGE=$(curl -sS -b cookies-trail.txt "$BASE/logout")
+SESSION_ID=$(printf '%s' "$PAGE" | sed -n 's/.*name="session_id" value="\([^"]*\)".*/\1/p')
+CSRF=$(printf '%s' "$PAGE" | sed -n 's/.*name="csrf" value="\([^"]*\)".*/\1/p')
+
+curl -sS -b cookies-trail.txt -o /dev/null -w '%{http_code}\n' \
+  -H 'x-request-id: trail-logout' \
+  --data-urlencode "session_id=$SESSION_ID" \
+  --data-urlencode "csrf=$CSRF" "$BASE/logout"
+
+for EVENT_TYPE in token session; do
+  curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+    --data-urlencode "event_type=$EVENT_TYPE" \
+    --data-urlencode "from=$SINCE" \
+    http://localhost:3000/admin/tenants/demo/audit
+  echo
+done
+```
+
+The refresh's status, the logout's, then the `token` page and the
+`session` page, newest first:
+
+```
+200
+200
+{"items":[{"id":"01a0de57-47f6-75ee-bd0c-397d8c07d8c1","occurred_at":"2026-09-26T15:30:57.138Z","event_type":"token","action":"token.refresh","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"grant","resource_id":"01a0de57-47d6-7a12-9446-5170a97d2ebd","request_id":"trail-refresh","ip":"172.20.0.1","detail":{"scope":"openid"}},{"id":"01a0de57-47de-7930-ae5b-63f55f8c41ab","occurred_at":"2026-09-26T15:30:57.100Z","event_type":"token","action":"token.issue","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"grant","resource_id":"01a0de57-47d6-7a12-9446-5170a97d2ebd","request_id":"trail-code","ip":"172.20.0.1","detail":{"scope":"openid","grant_type":"authorization_code"}}]}
+{"items":[{"id":"01a0de57-4822-7f4d-866e-9bc1eb70258c","occurred_at":"2026-09-26T15:30:57.185Z","event_type":"session","action":"session.ended","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":null,"resource_type":"session","resource_id":"01a0de57-47b6-73c8-ac09-420a582bac8e","request_id":"trail-logout","ip":"172.20.0.1","detail":{"via":"logout"}},{"id":"01a0de57-47b7-79a8-99b2-d2ba39295b21","occurred_at":"2026-09-26T15:30:57.077Z","event_type":"session","action":"session.created","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"session","resource_id":"01a0de57-47b6-73c8-ac09-420a582bac8e","request_id":"trail-sign-in","ip":"172.20.0.1","detail":{}}]}
+```
+
+Captured against the same stack as
+[what a refused login leaves behind](#what-a-refused-login-leaves-behind),
+with the image rebuilt from the current tree after the logout confirmation
+gained its `csrf` token, which the logout above reads off the page it
+fetched and posts back. The ids the rows name:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select t.id as demo, c.id as demo_spa, u.subject_id as ada
+     from tenants t
+     join clients c on c.tenant_id = t.id and c.client_id = 'demo-spa'
+     join users u on u.tenant_id = t.id and u.username = 'ada'
+    where t.name = 'demo';"
+```
+
+```
+                 demo                 |               demo_spa               |                 ada
+--------------------------------------+--------------------------------------+--------------------------------------
+ 01a0db22-1c32-7d17-b351-697d7911033c | 01a0db22-1c61-714b-be3a-3d5234477dff | 01a0db22-1c92-7730-9d37-4085f28eca2c
+(1 row)
+```
+
+The four requests sent with an `x-request-id` left one row each on these
+pages, under that id, and no row on either page carries any other — so
+nothing else in `demo` wrote a token or session row after `$SINCE`. The
+login also wrote a `login.password` row, as [what a refused login leaves
+behind](#what-a-refused-login-leaves-behind) shows for a refusal; it is an
+`authentication` row, so neither page above returns it. `token.issue` and
+`token.refresh` name one grant, which rotation reuses; `session.created` and
+`session.ended` name one session. `actor_tenant_id` is `demo` on all four:
+it names the tenant the actor belongs to, which differs from the row's own
+only when the caller came from elsewhere — a `system` administrator's admin
+rows, or a `token.foreign_issuer` refusal. `session.ended` names no client
+whichever way the session ends, since ending it ends it for every client
+that shared it. The confirmation page the logout fetched first wrote
+nothing, and carried no `x-request-id`.
+
 ## The branches
 
 ### `/authorize`: the render-versus-redirect boundary
@@ -7347,8 +8350,9 @@ max-expired, prompt=none     302 …/callback?error=login_required&state=max2&is
 ```
 
 (The same four requests this section already ran, against the same cookie
-jar; the session id is the one `grep session cookies.txt` printed above, in
-full because a `psql` statement needs it whole.) A dead session is not an
+jar; the session id is the one `grep session cookies.txt` printed above —
+the id half of the entry — in full because a `psql` statement needs it
+whole.) A dead session is not an
 error: with no `prompt` the request is answered with the login form, exactly
 as a request carrying no cookie is, and it is `prompt=none` — the client
 saying it will not accept an interaction — that turns the same state into
@@ -7359,8 +8363,8 @@ refused on the same two terms.
 never rewritten, and a tenant carries `max_sessions_per_browser` (1–32,
 default 25) — a CHECK constraint bounding the **setting's own value**, and
 also the ceiling `admitSession` evicts a browser's own least recently
-active sessions down to before establishing a new one, read from the ids
-its cookies already name rather than by subject
+active sessions down to before establishing a new one, read from the
+entries its cookies already prove rather than by subject
 (`packages/authn-flows/src/usecase/session-admission.ts`, ADR 0033).
 `odudu seed tenant --set max_sessions_per_browser=10` changes the stored
 value the same way as every other tenant setting, and every login after
@@ -7402,8 +8406,11 @@ set-cookie: cap-demo-session=01a0cb28-710c-….01a0cb28-715b-…; HttpOnly; Same
 ```
 
 (Session ids truncated; each response also carried the cleared persistent
-cookie, `Max-Age=0`, omitted here since nothing about it changes.) The
-third login's list still holds two ids, not three: `70b2`, the first
+cookie, `Max-Age=0`, omitted here since nothing about it changes. This run
+predates the session cookie's secret, so each entry was then a bare id; an
+entry is now `<id>:<secret>`, and a login writes back the entries its
+browser presented, secrets unchanged.) The third login's list still holds
+two ids, not three: `70b2`, the first
 login's session, is gone, evicted by `admitSession` as the least recently
 active once a third session tried to join a browser already at the cap —
 the second and third logins' own ids are exactly what survive. Nothing
@@ -8383,32 +9390,29 @@ session lifecycle. A citation of either half here means that half.
 
 **The admin API**
 
-- **The audit log records administrative mutations and nothing else.**
-  Every row `GET /admin/tenants/{tenant}/audit` returns carries
-  `event_type: "admin_mutation"`, so a login, a second factor answered, a
-  token minted or refreshed or revoked, and a session ending leave no trace
-  there — the log answers "who changed this tenant's configuration", not
-  "what happened in this tenant". The table was built for both: `event_type`
-  exists, `actor_subject_id` is nullable because an authentication event has
-  a subject it happened to rather than an administrator who did it, and the
-  retention window is already the tenant's own `audit_retention_days`.
-  **P4e**, whose criterion names the events and the `event_type` filter the
-  listing will need.
-- **Only `POST /clients` records a refused attempt.** `outcome` has three
-  values and every other mutation writes a row only when it succeeds, so
-  `?outcome=refused` against any other `resource_type` returns nothing —
-  which reads as "nothing was refused" and is not. **P4e**: what a refused
-  request writes is one question, and that phase is where it is asked for
-  authentication, which is the larger half of it.
-- **A request refused for a cross-tenant issuer mismatch writes no row.** A
-  bearer token naming an issuer that is neither this tenant nor the system
-  tenant is refused before its signature can be checked, since an
-  unrecognised issuer names no keys to check it against; auditing at that
-  point would let an unauthenticated caller append a row per request, which
-  is a worse defect than the missing one. Recording it safely means
-  resolving the named issuer to a tenant in this deployment and verifying
-  against that tenant's keys first. **P4e**, whose criterion names it, and
-  `docs/NEXT.md` carries the same entry with its trigger.
+- **The audit trail has one reader, the admin API, and no destination
+  outside the database.** Every kind of row the vocabulary names is
+  written — [one sign-in's trail](#one-sign-ins-audit-trail-read-through-the-admin-api)
+  reads two of them back through `GET /admin/tenants/{tenant}/audit` — but
+  nothing shows it except that endpoint: a console is **P4d**'s, whose
+  criterion shows the audit trail, and an `EventListener` delivering a
+  tenant's events to a SIEM or a webhook is **P10**'s, whose criterion
+  names one. A successful `/introspect` or `/userinfo` call writes no row,
+  which is a decision (the P4e spec's §2): each is a read a resource server
+  makes per request, and the grant it reads was recorded when it was
+  issued.
+- **A refused credential or session change writes no row.** A spent,
+  expired or unknown reset or verification link, a password the policy
+  refuses, a wrong code or refused passkey at enrolment, a refused
+  registration and a logout that ends nothing all leave `audit_events`
+  untouched, so `?event_type=credential&outcome=refused` returns nothing.
+  A decision, in ADR 0037's amendment: a link's key is chosen by the
+  caller and bounds nothing, a refused change on an authenticated session
+  is form validation rather than an authentication decision, and a logout
+  that ends nothing changes nothing. Login steps, `/token`, `/revoke`,
+  `/introspect` and the admin API's own checks do record their refusals.
+  The request log shows each such request's path and status, not its
+  reason.
 
 **Endpoints that do not exist at all**
 

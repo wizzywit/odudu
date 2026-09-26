@@ -14,11 +14,12 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { provisionTenant, sessionRepository } from '@odudu/authn-flows';
+import { provisionTenant, SessionEntry, sessionRepository } from '@odudu/authn-flows';
 import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 const TENANT_LIFESPANS = {
   ssoSessionIdleSeconds: 1_800,
@@ -140,10 +141,10 @@ function cookieHeader(jar: Map<string, string>): string {
   return [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
 }
 
-// The ephemeral session-cookie ids a single response set, as opposed to
+// The ephemeral session-cookie entries a single response set, as opposed to
 // what survives in the jar after every response has overwritten the last —
-// an evicted id shows up here even though mergeCookies has since replaced
-// it with whatever the next login wrote.
+// an evicted entry shows up here even though mergeCookies has since
+// replaced it with whatever the next login wrote.
 function ephemeralIdsSet(tenantName: string, res: LightMyRequestResponse): string[] {
   const name = `${tenantName}-session=`;
   const value = cookieList(res)
@@ -198,6 +199,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: Buffer.alloc(32, 9),
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
@@ -244,9 +246,15 @@ describe('the session cap, end to end', () => {
 
     const now = new Date();
     await withTenant(app.db, tenantId, async (tx) => {
-      const live = await sessionRepository(tx).liveByIds(allIssuedIds, TENANT_LIFESPANS, now);
+      const entries = allIssuedIds
+        .map((value) => SessionEntry.parse(value))
+        .filter((entry) => entry !== null);
+      expect(entries).toHaveLength(allIssuedIds.length);
+      const live = await sessionRepository(tx).liveByEntries(entries, TENANT_LIFESPANS, now);
       expect(live).toHaveLength(CAP);
-      expect(live.map((session) => session.id).sort()).toEqual([...finalIds].sort());
+      expect(live.map((session) => session.entry.cookieValue()).sort()).toEqual(
+        [...finalIds].sort(),
+      );
     });
   });
 });

@@ -1,4 +1,4 @@
-import { sessionRepository } from '@odudu/authn-flows';
+import { SessionEntry, sessionRepository } from '@odudu/authn-flows';
 import { hashPassword, subjectRepository } from '@odudu/domain-identity';
 import {
   clientRepository,
@@ -13,6 +13,7 @@ import {
   tokenGrantRepository,
 } from '@odudu/protocol-oidc';
 import { type SessionLifespans } from '@odudu/authn-flows';
+import { auditRepository } from '@odudu/domain-audit';
 import { withTenant, type TenantScopedDatabase } from '@odudu/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -78,6 +79,7 @@ async function seedSessionWithGrant(
       subjectId,
       expiresAt: new Date(fixture.clock.now().getTime() + 3_600_000),
       authenticators: ['pwd'],
+      secretHash: SessionEntry.issue(sessionId).secretHash(),
     });
     await tokenGrantRepository(tx).create({
       id: newId(),
@@ -103,6 +105,7 @@ async function seedLiveSession(tenantId: string, subjectId: string): Promise<str
       subjectId,
       expiresAt: new Date(fixture.clock.now().getTime() + 3_600_000),
       authenticators: ['pwd'],
+      secretHash: SessionEntry.issue(sessionId).secretHash(),
     });
     return sessionId;
   });
@@ -320,6 +323,56 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/sessions/{sid}', () => {
     expect(later.grants.map((grant) => grant.revokedAt)).toEqual(
       after.grants.map((grant) => grant.revokedAt),
     );
+  });
+
+  it('records its admin_mutation row and a session.ended row with via admin', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `hal-${newId()}`);
+    const { sessionId } = await seedSessionWithGrant(t.id, subjectId);
+
+    const token = await fixture.adminToken(t.name, ['manage-sessions']);
+    const requestId = `admin-end-session-${newId()}`;
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/subjects/${subjectId}/sessions/${sessionId}`,
+      headers: { authorization: `Bearer ${token}`, 'x-request-id': requestId },
+    });
+    expect(res.statusCode).toBe(204);
+
+    const rows = await withTenant(fixture.app.db, t.id, (tx) =>
+      auditRepository(tx).list({ limit: 50 }),
+    );
+    const forSession = rows.filter((row) => row.resourceId === sessionId);
+    expect(forSession.map((row) => [row.eventType, row.action]).sort()).toEqual([
+      ['admin_mutation', 'session.end'],
+      ['session', 'session.ended'],
+    ]);
+    expect(forSession.find((row) => row.eventType === 'session')).toMatchObject({
+      outcome: 'allowed',
+      actorSubjectId: subjectId,
+      resourceType: 'session',
+      requestId,
+      detail: { via: 'admin' },
+    });
+  });
+
+  it('writes no second session.ended row for a second DELETE of an ended session', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `ivy-${newId()}`);
+    const { sessionId } = await seedSessionWithGrant(t.id, subjectId);
+
+    const token = await fixture.adminToken(t.name, ['manage-sessions']);
+    const url = `/admin/tenants/${t.name}/subjects/${subjectId}/sessions/${sessionId}`;
+    const headers = { authorization: `Bearer ${token}` };
+    await fixture.http.inject({ method: 'DELETE', url, headers });
+    fixture.clock.advance(60_000);
+    const second = await fixture.http.inject({ method: 'DELETE', url, headers });
+    expect(second.statusCode).toBe(204);
+
+    const ended = await withTenant(fixture.app.db, t.id, (tx) =>
+      auditRepository(tx).list({ eventType: 'session', action: 'session.ended', limit: 50 }),
+    );
+    expect(ended.filter((row) => row.resourceId === sessionId)).toHaveLength(1);
   });
 
   it('refuses an unknown session id with 404', async () => {

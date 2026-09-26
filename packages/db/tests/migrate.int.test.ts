@@ -95,6 +95,35 @@ describe('migrations', () => {
     });
   });
 
+  it('nulls only session_id on a grant whose session is deleted', async () => {
+    const tenantId = newId();
+    const subjectId = newId();
+    const clientId = newId();
+    const sessionId = newId();
+    const grantId = newId();
+    await handle.sql`insert into tenants (id, name) values (${tenantId}, 'session-fk')`;
+    await handle.sql`insert into subjects (id, tenant_id, type) values (${subjectId}, ${tenantId}, 'user')`;
+    await handle.sql`
+      insert into clients (id, tenant_id, client_id, name, type)
+      values (${clientId}, ${tenantId}, 'session-fk-client', 'session-fk', 'public')
+    `;
+    await handle.sql`
+      insert into sessions (id, tenant_id, subject_id, expires_at)
+      values (${sessionId}, ${tenantId}, ${subjectId}, now() + interval '1 hour')
+    `;
+    await handle.sql`
+      insert into token_grants (id, tenant_id, client_id, subject_id, scope, session_id)
+      values (${grantId}, ${tenantId}, ${clientId}, ${subjectId}, 'openid', ${sessionId})
+    `;
+
+    await handle.sql`delete from sessions where id = ${sessionId}`;
+
+    const rows = await handle.sql<{ tenant_id: string; session_id: string | null }[]>`
+      select tenant_id, session_id from token_grants where id = ${grantId}
+    `;
+    expect(rows).toEqual([{ tenant_id: tenantId, session_id: null }]);
+  });
+
   it('is idempotent when run a second time', async () => {
     await expect(runMigrations(handle.db, MIGRATIONS_DIR)).resolves.toBeUndefined();
   });

@@ -89,3 +89,29 @@ this follow-up.
   same `token_grants` row and rotation path P4e's audit-events work is
   about to extend; doing it piecemeal ahead of that phase risks two passes
   over the same column instead of one.
+
+## Amendment, 2026-09-26
+
+The refresh gap is closed. Migration `0070_grant_userinfo_claims.sql` adds
+`token_grants.requested_userinfo_claims` (`text[]`, null when the request
+named no `userinfo` member). `issueAuthorizationCodeTokens` writes it from
+the code's `claims.userinfo` keys, and `issueRefreshTokens` passes the
+rotated grant's value to `mintAccessToken`, so a refreshed access token
+embeds what the original did. `[ODUDU-CLAIMS-USERINFO-01]` now pins that
+directly: `claims={"userinfo":{"sub":null}}` with `scope=openid email`
+answers `{ sub }` at `/userinfo` after the code redemption and again after a
+`refresh_token` redemption. This is the throwaway reproduction above, made
+permanent.
+
+A token exchange inherits the value too. When the subject token is backed by
+a grant (an access token or a refresh token), the exchanged grant copies
+that grant's `requested_userinfo_claims`, and so does its access token. An
+exchange can therefore narrow what `/userinfo` returns and never widen it.
+An `id_token` subject names no grant, so it carries no narrowing.
+`client_credentials` writes none.
+
+The same migration replaces `token_grants_session_fk`'s unrestricted
+`ON DELETE SET NULL` with `ON DELETE SET NULL (session_id)`. The
+unrestricted form nulls `tenant_id` too, so deleting a referenced session
+failed on `NOT NULL` instead of detaching the grant. `0059` fixed the same
+idiom for its own keys.

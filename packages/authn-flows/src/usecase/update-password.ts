@@ -1,4 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import {
   credentialRepository,
   evaluatePassword,
@@ -115,7 +116,16 @@ export async function completeUpdatePassword(
   // Which password is in force is the part the caller has to be told apart:
   // on a false return it is the one the other transaction set.
   await requiredActionRepository(tx).complete(input.subjectId, 'update-password');
-  return rotated ? { kind: 'updated' } : { kind: 'superseded' };
+  if (!rotated) return { kind: 'superseded' };
+  await auditRepository(tx).record({
+    eventType: 'credential',
+    action: 'password.changed',
+    outcome: 'allowed',
+    actorSubjectId: input.subjectId,
+    resourceType: 'subject',
+    resourceId: input.subjectId,
+  });
+  return { kind: 'updated' };
 }
 
 // A tenant that ages passwords out has to say so somewhere the login can act

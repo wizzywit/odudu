@@ -1,6 +1,7 @@
 import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository, signJwt } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import { newId } from '@odudu/kernel';
 import { tokenGrantRepository, type ClientLogoutTarget } from '#/repository/grants';
 import { logoutDeliveryRepository } from '#/repository/logout-deliveries';
@@ -22,6 +23,7 @@ export interface EndSessionInput {
   readonly subjectId: string;
   readonly now: Date;
   readonly issuer: string;
+  readonly via: 'logout' | 'admin';
 }
 
 // The one path that ends a session — the RP-Initiated Logout flow
@@ -36,7 +38,18 @@ export async function endSession(
   deps: EndSessionDeps,
   input: EndSessionInput,
 ): Promise<void> {
-  await sessionRepository(tx).end(input.sessionId, input.now);
+  const ended = await sessionRepository(tx).end(input.sessionId, input.now);
+  if (ended) {
+    await auditRepository(tx).record({
+      eventType: 'session',
+      action: 'session.ended',
+      outcome: 'allowed',
+      actorSubjectId: input.subjectId,
+      resourceType: 'session',
+      resourceId: input.sessionId,
+      detail: { via: input.via },
+    });
+  }
   await tokenGrantRepository(tx).revokeForSession(input.sessionId, input.now);
 
   const targets = await tokenGrantRepository(tx).clientsForSession(input.sessionId);

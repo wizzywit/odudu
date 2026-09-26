@@ -1,4 +1,5 @@
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import { requestContextFrom } from '@odudu/domain-audit';
 import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import {
@@ -121,6 +122,7 @@ export function registerRegistrationRoute(app: FastifyInstance, deps: Registrati
         tenantId: tenant.id,
         tenantName: tenant.name,
         tenantDisplayName: tenant.displayName ?? tenant.name,
+        request: requestContextFrom(request),
         issuerBase: deps.publicBaseUrl,
         verifyEmailEnabled: tenant.verifyEmail,
         createAccount: deps.createAccount,

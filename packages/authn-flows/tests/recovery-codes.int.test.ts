@@ -38,6 +38,8 @@ import {
 } from '#/usecase/recovery-codes';
 import { completeTotpEnrolment } from '#/usecase/totp-enrolment';
 
+const SILENT_LOGGER = { error: (): void => undefined };
+
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
@@ -166,7 +168,7 @@ async function signInWithPassword(
 ): Promise<string> {
   const authSessionId = await start(tenantId, clock);
   await withTenant(app.db, tenantId, (tx) =>
-    advance(tx, authSessionId, { username, password: PASSWORD }, clock),
+    advance(tx, authSessionId, { username, password: PASSWORD }, clock, { logger: SILENT_LOGGER }),
   );
   return authSessionId;
 }
@@ -177,7 +179,9 @@ function present(
   recoveryCode: string,
   clock: FakeClock,
 ): Promise<AdvanceOutcome> {
-  return withTenant(app.db, tenantId, (tx) => advance(tx, authSessionId, { recoveryCode }, clock));
+  return withTenant(app.db, tenantId, (tx) =>
+    advance(tx, authSessionId, { recoveryCode }, clock, { logger: SILENT_LOGGER }),
+  );
 }
 
 function storedCodes(
@@ -400,7 +404,9 @@ describe('one code, one login', () => {
       sessions.map((authSessionId) =>
         withTenant(app.db, account.tenantId, async (tx) => {
           await arrive();
-          return advance(tx, authSessionId, { recoveryCode: code }, clock);
+          return advance(tx, authSessionId, { recoveryCode: code }, clock, {
+            logger: SILENT_LOGGER,
+          });
         }),
       ),
     );
@@ -428,7 +434,9 @@ describe('the second-factor form offers both, and the recovery code wins the ste
     const authSessionId = await start(tenantId, clock);
     expect(
       await withTenant(app.db, tenantId, (tx) =>
-        advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+        advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+          logger: SILENT_LOGGER,
+        }),
       ),
     ).toEqual({ kind: 'challenge', form: 'otp' });
     expect(
@@ -441,7 +449,9 @@ describe('the second-factor form offers both, and the recovery code wins the ste
       beginRecoveryCodes(tx, { tenantId, subjectId }),
     );
     const outcome = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { recoveryCode: offer.codes[0] ?? '' }, clock),
+      advance(tx, authSessionId, { recoveryCode: offer.codes[0] ?? '' }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     // The OTP step stands down for the rest of the attempt: a subject who

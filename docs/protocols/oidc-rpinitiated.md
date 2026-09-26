@@ -157,11 +157,16 @@ path and a body without it is read as a logout request, through the same
 read, because two readers are how the two methods would drift into
 answering the same request differently.
 
-Nothing about the CSRF property changes. A forged cross-site `POST` cannot
-carry a `session_id` it cannot guess, so it lands on the request path,
-where the answer to a hintless request is the confirmation page and
-nothing is ended without the End-User saying so. What changes is that the
-same request now gets the same answer either way, which is what the
+The `session_id` itself is no defence: it is the session's public id, the
+`sid` every token for the session carries. What makes a confirmation
+unforgeable is the form's `csrf` field, an HMAC over the session id keyed by
+the secret half of the cookie's entry, recomputed by the `POST` from the
+entry the browser presents; `SameSite=Lax` and the check that `session_id`
+names a session the cookie resolves to stand beside it. A forged `POST` with
+no token is refused exactly as a non-member `session_id` is, and one with no
+`session_id` lands on the request path, where the answer to a hintless
+request is the confirmation page and nothing is ended. What changes is that
+the same request now gets the same answer either way, which is what the
 `[OIDC-RPINITIATED-2-03]` tests assert by driving every property — the
 confirmation triggers, the exact-match refusal, the ended session, the
 cleared cookie — over both methods rather than over `GET` alone.

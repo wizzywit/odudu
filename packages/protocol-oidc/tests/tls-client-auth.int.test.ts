@@ -26,6 +26,7 @@ import { NO_CLIENT_KEY_FETCHER, oidcRoutes } from '#/index';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { CLIENT_ASSERTION_TYPE } from '#/service/client-assertion';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -116,6 +117,7 @@ async function buildServer(deps: {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
       clock: { now: () => NOW },
       trustProxy: deps.trustProxy,

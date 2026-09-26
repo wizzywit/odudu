@@ -23,6 +23,7 @@ import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttl
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
 import { backchannelLogoutDeliveries } from '#/schema/logout-deliveries';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -196,7 +197,7 @@ function setCookieValue(res: LightMyRequestResponse): string | undefined {
 }
 
 function sessionIdFromCookie(cookie: string): string {
-  const id = cookie.split('=')[1];
+  const id = cookie.split('=')[1]?.split(':')[0];
   if (id === undefined) throw new Error('expected a session id in the cookie');
   return id;
 }
@@ -247,14 +248,19 @@ async function grantUnderSession(
 }
 
 // Ends the session over the confirmation form's POST, which needs no
-// `id_token_hint` (only the cookie and the hidden `session_id` field) — the
-// transactional-failure test's tenant carries no signing key, so minting one
-// is not an option.
+// `id_token_hint` (only the cookie and the form's hidden `session_id` and
+// `csrf`, read off the page) — the transactional-failure test's tenant
+// carries no signing key, so minting one is not an option.
 async function confirmLogout(tenantName: string, cookie: string, sessionId: string) {
+  const page = await http.inject({
+    url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
+    headers: { cookie },
+  });
+  const csrf = /name="csrf" value="([^"]*)"/.exec(page.body)?.[1] ?? '';
   return http.inject({
     method: 'POST',
     url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
-    payload: new URLSearchParams({ session_id: sessionId }).toString(),
+    payload: new URLSearchParams({ session_id: sessionId, csrf }).toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
   });
 }
@@ -299,6 +305,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );

@@ -2,12 +2,13 @@ export {
   sessionCookieName,
   warnIfCookieFallbackActive,
   sessionCookies,
-  readSessionIds,
+  readSessionEntries,
   clearedSessionCookies,
   PERSISTENT_SUFFIX,
   type SessionCookieInput,
-  type SessionIds,
+  type SessionEntries,
 } from '#/service/session-cookie';
+export { SessionEntry } from '#/service/session-entry';
 export {
   startAuthentication,
   loadPendingRequest,
@@ -94,7 +95,7 @@ export {
   type PasskeyEnrolmentOffer,
 } from '#/view/passkey-enrolment-html';
 export { authenticationSessionRepository } from '#/repository/authentication-sessions';
-export { sessionRepository } from '#/repository/sessions';
+export { sessionRepository, type PresentedSession } from '#/repository/sessions';
 export {
   authenticationSessions,
   type AuthenticationSessionRecord,

@@ -20,6 +20,7 @@ import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 // The tenant setting is the authority behind `remember_me`; the field in the
 // login form body is only ever a request. These three cases are the whole
@@ -135,7 +136,7 @@ async function postLogin(
 }
 
 async function rememberedFlagOf(cookieValue: string): Promise<boolean | undefined> {
-  const sessionId = cookieValue.split('=')[1]?.split(';')[0];
+  const sessionId = cookieValue.split('=')[1]?.split(';')[0]?.split(':')[0];
   if (sessionId === undefined) throw new Error('expected a session id in the cookie value');
   const rows = await owner.db
     .select({ remembered: sessions.remembered })
@@ -165,6 +166,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: Buffer.alloc(32, 9),
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );

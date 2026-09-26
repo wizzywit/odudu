@@ -10,7 +10,7 @@ import {
 import { expectCrossTenantMethodProbe, expectTenantIsolation } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { clientRepository } from '#/repository/clients';
 import { clients } from '#/schema/clients';
@@ -328,5 +328,72 @@ describe('clientRepository', () => {
         expect(survived).not.toBeNull();
       },
     });
+  });
+});
+
+// Every audited transaction holds `FOR KEY SHARE` on its tenant row until it
+// commits, through audit_events' foreign key. The capacity lock has to
+// exclude other registrations without also queueing behind those.
+describe('lockCapacity under concurrent transactions', () => {
+  const LOCK_TIMEOUT = sql`select set_config('lock_timeout', '500ms', true)`;
+
+  function holding(tenantId: string, work: (tx: TenantScopedDatabase) => Promise<unknown>) {
+    let markHeld!: () => void;
+    const held = new Promise<void>((resolve) => {
+      markHeld = resolve;
+    });
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const done = withTenant(app.db, tenantId, async (tx) => {
+      await work(tx);
+      markHeld();
+      await released;
+    });
+    return { held, release, done };
+  }
+
+  async function seededTenant(): Promise<string> {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    return tenantId;
+  }
+
+  it('does not wait behind an open transaction holding an audit row', async () => {
+    const tenantId = await seededTenant();
+    const audited = holding(tenantId, (tx) =>
+      tx.execute(sql`
+        insert into audit_events (id, event_type, action, outcome)
+        values (${newId()}, 'authentication', 'login.password', 'allowed')
+      `),
+    );
+    await audited.held;
+    try {
+      const capacity = await withTenant(app.db, tenantId, async (tx) => {
+        await tx.execute(LOCK_TIMEOUT);
+        return clientRepository(tx).lockCapacity(tenantId);
+      });
+      expect(capacity.count).toBe(0);
+    } finally {
+      audited.release();
+      await audited.done;
+    }
+  });
+
+  it('still excludes a second registration in the same tenant', async () => {
+    const tenantId = await seededTenant();
+    const first = holding(tenantId, (tx) => clientRepository(tx).lockCapacity(tenantId));
+    await first.held;
+    try {
+      const second = withTenant(app.db, tenantId, async (tx) => {
+        await tx.execute(LOCK_TIMEOUT);
+        return clientRepository(tx).lockCapacity(tenantId);
+      });
+      await expect(second).rejects.toMatchObject({ cause: { code: '55P03' } });
+    } finally {
+      first.release();
+      await first.done;
+    }
   });
 });

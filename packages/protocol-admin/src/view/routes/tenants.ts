@@ -3,7 +3,8 @@ import {
   createTenantRequestSchema,
   cursorQuerySchema,
 } from '@odudu/contracts/admin';
-import { withTenant, type Database } from '@odudu/db';
+import { type Database } from '@odudu/db';
+import { requestContextFrom } from '@odudu/domain-audit';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import {
   amendTenant,
@@ -14,6 +15,7 @@ import {
   type Audit,
 } from '#/usecase/tenants';
 import { problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface TenantsRouteDeps {
@@ -31,7 +33,7 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
 
 export function readTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       readTenant(tx, targetTenantId),
     );
     if (outcome.kind === 'not_found') {
@@ -46,7 +48,7 @@ export function amendTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const values = amendTenantRequestSchema.parse(request.body);
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       amendTenant(
         tx,
         { audit: deps.audit },
@@ -107,6 +109,7 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
         actorTenantId: principal.issuerTenantId,
         actorClientId: principal.clientDbId,
       },
+      requestContextFrom(request),
     );
 
     if (outcome.kind === 'name_refused') {

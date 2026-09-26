@@ -28,6 +28,7 @@ import { tokenGrants } from '#/schema/token-grants';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { rotateRefreshToken } from '#/usecase/refresh-rotation';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -45,6 +46,8 @@ let TENANT_ID: string;
 const REDIRECT_URI = 'https://app.example/callback';
 const AUDIENCE = 'https://api.example';
 const KEK = Buffer.alloc(32, 7);
+
+const NO_LOG = { error: () => undefined };
 
 const LIFESPANS: SessionLifespans = {
   ssoSessionIdleSeconds: 1_800,
@@ -157,6 +160,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
@@ -400,10 +404,10 @@ describe('atomic refresh rotation', () => {
 
     const results = await Promise.allSettled([
       withTenant(app.db, TENANT_ID, (tx) =>
-        rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS),
+        rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS, ['openid'], NO_LOG),
       ),
       withTenant(app.db, TENANT_ID, (tx) =>
-        rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS),
+        rotateRefreshToken(tx, hash, now, 1_209_600, LIFESPANS, ['openid'], NO_LOG),
       ),
     ]);
 

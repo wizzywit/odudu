@@ -22,6 +22,7 @@ import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrants } from '#/schema/token-grants';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -254,12 +255,12 @@ async function signIn(
 async function completeFlow(
   tenantName: string,
   scope: string,
-): Promise<{ sessionId: string; access_token: string; refresh_token: string; scope: string }> {
+): Promise<{ sessionEntry: string; access_token: string; refresh_token: string; scope: string }> {
   const { cookie, code } = await signIn(tenantName, scope);
-  const sessionId = cookie.split('=')[1];
-  if (sessionId === undefined) throw new Error('expected a session id in the cookie');
+  const sessionEntry = cookie.split('=')[1];
+  if (sessionEntry === undefined) throw new Error('expected a session entry in the cookie');
   const redeemed = await redeemCode(tenantName, code);
-  return { sessionId, ...redeemed };
+  return { sessionEntry, ...redeemed };
 }
 
 // A live session cookie completes a second authorization request with no
@@ -334,10 +335,11 @@ async function logoutViaConfirmation(tenantName: string, cookie: string): Promis
   }
   const match = /name="session_id" value="([^"]*)"/.exec(res.body);
   const confirmedSessionId = match?.[1];
-  if (confirmedSessionId === undefined) {
-    throw new Error('session_id not found in the confirmation form');
+  const csrf = /name="csrf" value="([^"]*)"/.exec(res.body)?.[1];
+  if (confirmedSessionId === undefined || csrf === undefined) {
+    throw new Error('session_id or csrf not found in the confirmation form');
   }
-  const form = new URLSearchParams({ session_id: confirmedSessionId });
+  const form = new URLSearchParams({ session_id: confirmedSessionId, csrf });
   const confirmed = await http.inject({
     method: 'POST',
     url: `/tenants/${tenantName}/protocol/openid-connect/logout`,
@@ -395,6 +397,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
@@ -425,7 +428,7 @@ describe('offline access', () => {
     await setupTenant(tenantName, ['openid', 'offline_access']);
 
     const first = await completeFlow(tenantName, 'openid');
-    const cookie = `${tenantName}-session=${first.sessionId}`;
+    const cookie = `${tenantName}-session=${first.sessionEntry}`;
     const offline = await reuseSession(tenantName, cookie, 'openid offline_access');
 
     await logoutViaConfirmation(tenantName, cookie);
@@ -472,7 +475,8 @@ describe('offline access', () => {
     // rest of the suite would stay green.
     const tenantName = `offline-touch-${newId()}`;
     await setupTenant(tenantName, ['openid']);
-    const { sessionId, refresh_token: refreshToken } = await completeFlow(tenantName, 'openid');
+    const { sessionEntry, refresh_token: refreshToken } = await completeFlow(tenantName, 'openid');
+    const sessionId = sessionEntry.split(':')[0] ?? '';
 
     // Back-dated so the two reads cannot tie on timer resolution alone,
     // and still well inside the default idle window so the refresh itself

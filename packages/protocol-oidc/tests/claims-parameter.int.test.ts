@@ -20,6 +20,7 @@ import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 // OIDC Core §5.5: what a `claims` request carries onto the flow it starts —
 // an Essential Claim honoured at ID token issuance, a `sub` that narrows who
@@ -43,6 +44,12 @@ let TENANT_ID: string;
 const CLIENT_ID = 'claims-client';
 const CLIENT_SECRET = 'claims-client-secret';
 const REDIRECT_URI = 'https://app.example/callback';
+// Registered for the grants that mint from an existing grant rather than a
+// code, so a narrowing can be followed past the code redemption.
+const ROTATING_CLIENT_ID = 'claims-rotating-client';
+const ROTATING_CLIENT_SECRET = 'claims-rotating-client-secret';
+const TOKEN_EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange';
+const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token';
 const KEK = Buffer.alloc(32, 11);
 const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
@@ -97,6 +104,28 @@ async function setupTenant(): Promise<void> {
       audiences: [],
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
+    });
+
+    const rotatingDbId = newId();
+    await tx.insert(clients).values({
+      id: rotatingDbId,
+      tenantId,
+      clientId: ROTATING_CLIENT_ID,
+      name: 'Claims parameter rotating client',
+      type: 'confidential',
+      secretHash: await hashPassword(ROTATING_CLIENT_SECRET),
+    });
+    await provisionClientDefaults(tx, rotatingDbId);
+    await clientOidcConfigRepository(tx).create({
+      clientId: rotatingDbId,
+      tenantId,
+      redirectUris: [REDIRECT_URI],
+      grantTypes: ['authorization_code', 'refresh_token', TOKEN_EXCHANGE_GRANT],
+      tokenEndpointAuthMethod: 'client_secret_basic',
+      audiences: [],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+      tokenExchangeImpersonationAllowed: true,
     });
 
     const alice = await subjectRepository(tx).create({ tenantId, type: 'user' });
@@ -321,6 +350,50 @@ async function userinfoAfter(overrides: {
   return res.json<Record<string, unknown>>();
 }
 
+async function rotatingTokenRequest(
+  fields: Record<string, string>,
+): Promise<Record<string, string | undefined>> {
+  const res = await http.inject({
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+    payload: new URLSearchParams(fields).toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: `Basic ${Buffer.from(`${ROTATING_CLIENT_ID}:${ROTATING_CLIENT_SECRET}`).toString('base64')}`,
+    },
+  });
+  expect(res.statusCode).toBe(200);
+  return res.json<Record<string, string | undefined>>();
+}
+
+async function userinfoWith(accessToken: string | undefined): Promise<Record<string, unknown>> {
+  if (accessToken === undefined) throw new Error('expected an access_token');
+  const res = await http.inject({
+    url: `/tenants/${TENANT}/protocol/openid-connect/userinfo`,
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  expect(res.statusCode).toBe(200);
+  return res.json<Record<string, unknown>>();
+}
+
+async function redeemForRotatingClient(overrides: {
+  claims: string;
+  scope: string;
+}): Promise<Record<string, string | undefined>> {
+  const { code } = await formLogin(ALICE_USERNAME, ALICE_PASSWORD, {
+    client_id: ROTATING_CLIENT_ID,
+    code_challenge: CHALLENGE,
+    claims: overrides.claims,
+    scope: overrides.scope,
+  });
+  return rotatingTokenRequest({
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: REDIRECT_URI,
+    code_verifier: VERIFIER,
+  });
+}
+
 // Door 3 — the account chooser. `prompt=select_account` forces the chooser
 // even for the one live session this subject has (decideReuse's own rule),
 // so a fresh login here establishes the session and the second request
@@ -488,6 +561,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
@@ -677,6 +751,42 @@ describe('[ODUDU-CLAIMS-USERINFO-01] a requested userinfo claim is intersected w
     });
     expect(body.email).toBe(ALICE_EMAIL);
     expect('preferred_username' in body).toBe(false);
+  });
+
+  // ADR 0036: the narrowing travels on the grant, so a refresh_token
+  // redemption mints an access token that narrows exactly as the code's did.
+  it('narrows UserInfo the same way after a refresh_token redemption', async () => {
+    const redeemed = await redeemForRotatingClient({
+      claims: JSON.stringify({ userinfo: { sub: null } }),
+      scope: 'openid email',
+    });
+    expect(await userinfoWith(redeemed.access_token)).toEqual({ sub: aliceSubjectId });
+
+    const refreshToken = redeemed.refresh_token;
+    if (refreshToken === undefined) throw new Error('expected a refresh_token');
+    const refreshed = await rotatingTokenRequest({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    });
+    expect(refreshed.scope).toBe('openid email');
+    expect(await userinfoWith(refreshed.access_token)).toEqual({ sub: aliceSubjectId });
+  });
+
+  it('narrows UserInfo the same way for a token exchanged from the grant', async () => {
+    const redeemed = await redeemForRotatingClient({
+      claims: JSON.stringify({ userinfo: { sub: null } }),
+      scope: 'openid email',
+    });
+    const subjectToken = redeemed.access_token;
+    if (subjectToken === undefined) throw new Error('expected an access_token');
+
+    const exchanged = await rotatingTokenRequest({
+      grant_type: TOKEN_EXCHANGE_GRANT,
+      subject_token: subjectToken,
+      subject_token_type: ACCESS_TOKEN_TYPE,
+    });
+    expect(exchanged.scope).toBe('openid email');
+    expect(await userinfoWith(exchanged.access_token)).toEqual({ sub: aliceSubjectId });
   });
 });
 

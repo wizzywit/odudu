@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clients } from '@odudu/domain-tenant';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { clientOidcConfig } from '#/schema/client-oidc-config';
 import { tokenGrants, type TokenGrantRecord } from '#/schema/token-grants';
 
@@ -37,6 +37,7 @@ function toRecord(row: typeof tokenGrants.$inferSelect): TokenGrantRecord {
     exchangedFromGrantId: row.exchangedFromGrantId,
     actChain: row.actChain,
     expCeiling: row.expCeiling,
+    requestedUserinfoClaims: row.requestedUserinfoClaims,
   };
 }
 
@@ -65,6 +66,7 @@ export interface NewTokenGrant {
   // The ceiling `mintAccessToken`'s own `expCeiling` applied when this
   // grant was minted, so a refresh rotation can reapply it.
   expCeiling?: Date | null;
+  requestedUserinfoClaims?: readonly string[] | null;
 }
 
 export function tokenGrantRepository(tx: TenantScopedDatabase) {
@@ -84,6 +86,8 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
           exchangedFromGrantId: input.exchangedFromGrantId ?? null,
           actChain: input.actChain ?? null,
           expCeiling: input.expCeiling ?? null,
+          requestedUserinfoClaims:
+            input.requestedUserinfoClaims == null ? null : [...input.requestedUserinfoClaims],
         })
         .returning();
       const row = rows[0];
@@ -95,10 +99,16 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
 
     // RFC 6749 §4.1.2: on detected authorization-code reuse, the tokens
     // issued from the first (legitimate) redemption are revoked, not just
-    // the replay rejected. Idempotent — revoking an already-revoked grant
-    // is a no-op, not an error.
-    async revoke(id: string, revokedAt: Date): Promise<void> {
-      await tx.update(tokenGrants).set({ revokedAt }).where(eq(tokenGrants.id, id));
+    // the replay rejected. True only for the call that revoked it: an
+    // already-revoked grant keeps its first `revoked_at`, and its caller
+    // writes no second audit row for a revocation that did not happen.
+    async revoke(id: string, revokedAt: Date): Promise<boolean> {
+      const rows = await tx
+        .update(tokenGrants)
+        .set({ revokedAt })
+        .where(and(eq(tokenGrants.id, id), isNull(tokenGrants.revokedAt)))
+        .returning({ id: tokenGrants.id });
+      return rows.length > 0;
     },
 
     async byId(id: string): Promise<TokenGrantRecord | null> {

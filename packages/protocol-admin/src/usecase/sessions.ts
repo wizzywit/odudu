@@ -162,9 +162,9 @@ async function lockOwnedSession(
 // The same `endSession` the RP-Initiated Logout usecase calls
 // (`@odudu/protocol-oidc`), so there is one path that ends a session, not
 // two. No front-channel delivery: see docs/admin-paths.md's sessions
-// section. A second end changes nothing — `sessionRepository.end` clamps
-// with `least`, `revokeForSession` keeps the first stamp with `coalesce`,
-// and a repeat delivery is deduped by
+// section. A second end changes nothing — `sessionRepository.end` moves
+// only a ceiling still ahead of now, `revokeForSession` keeps the first
+// stamp with `coalesce`, and a repeat delivery is deduped by
 // `backchannel_logout_deliveries_dedupe`.
 export async function endSession(
   tx: TenantScopedDatabase,
@@ -183,6 +183,7 @@ export async function endSession(
       subjectId: input.subjectId,
       now: input.now,
       issuer: input.issuer,
+      via: 'admin',
     },
   );
 

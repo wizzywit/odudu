@@ -1,8 +1,9 @@
 import { listAuditQuerySchema, type AuditEvent } from '@odudu/contracts/admin';
-import { withTenant, type Database } from '@odudu/db';
+import { type Database } from '@odudu/db';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { listAudit } from '#/usecase/audit';
 import { problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
 export interface AuditRouteDeps {
@@ -26,12 +27,13 @@ export function listAuditHandler(deps: AuditRouteDeps): AdminRouteHandler {
     const query = listAuditQuerySchema.parse(request.query);
     const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listAudit(tx, {
         tenantId: targetTenantId,
         limit,
         cursor: query.cursor,
         cursorKey: deps.cursorKey,
+        ...(query.event_type !== undefined ? { eventType: query.event_type } : {}),
         ...(query.actor_subject_id !== undefined ? { actorSubjectId: query.actor_subject_id } : {}),
         ...(query.resource_type !== undefined ? { resourceType: query.resource_type } : {}),
         ...(query.action !== undefined ? { action: query.action } : {}),

@@ -12,7 +12,10 @@ export interface AuthorizeAdminTarget {
   readonly tenantId: string;
 }
 
-export type AuthorizeAdminOutcome = 'allowed' | 'forbidden';
+export type AuthorizeAdminOutcome =
+  { readonly kind: 'allowed' } | { readonly kind: 'forbidden'; readonly missing: AdminCapability };
+
+const ALLOWED: AuthorizeAdminOutcome = { kind: 'allowed' };
 
 // Roles are resolved against the principal's own issuer tenant, never the
 // path tenant: that is where its subject and role rows actually live under
@@ -27,7 +30,7 @@ export async function authorizeAdmin(
   required: AdminCapability | null,
 ): Promise<AuthorizeAdminOutcome> {
   const crossTenant = principal.issuerTenantId !== target.tenantId;
-  if (!crossTenant && required === null) return 'allowed';
+  if (!crossTenant && required === null) return ALLOWED;
 
   const roles = await deps.effectiveRoles(principal.issuerTenantId, principal.subjectId);
   // A capability is a role on the built-in admin client and nowhere else.
@@ -37,8 +40,10 @@ export async function authorizeAdmin(
     roles.filter((role) => role.clientKey === ADMIN_CLIENT_ID).map((role) => role.name),
   );
 
-  if (crossTenant && !names.has(MANAGE_TENANTS)) return 'forbidden';
-  if (required !== null && !names.has(required)) return 'forbidden';
+  if (crossTenant && !names.has(MANAGE_TENANTS)) {
+    return { kind: 'forbidden', missing: MANAGE_TENANTS };
+  }
+  if (required !== null && !names.has(required)) return { kind: 'forbidden', missing: required };
 
-  return 'allowed';
+  return ALLOWED;
 }

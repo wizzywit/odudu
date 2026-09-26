@@ -154,17 +154,18 @@ export function clientRepository(tx: TenantScopedDatabase) {
       return toRecord(row);
     },
 
-    // `SELECT ... FOR UPDATE` on the tenant row before the `COUNT`, in the
-    // same transaction the caller inserts the new client in — a bare COUNT
-    // then INSERT lets two concurrent registrations both see room under the
-    // cap. Serialises registrations within one tenant; a different tenant's
-    // registration takes a different row and is not blocked by this one.
+    // `SELECT ... FOR NO KEY UPDATE` on the tenant row before the `COUNT`, in
+    // the same transaction the caller inserts the new client in — a bare
+    // COUNT then INSERT lets two concurrent registrations both see room under
+    // the cap. Serialises registrations within one tenant, but not behind the
+    // key-share lock every foreign key to the tenant row takes (ADR 0033).
+    // A different tenant's registration takes a different row.
     async lockCapacity(tenantId: string): Promise<ClientCapacity> {
       const lockRows = await tx
         .select({ maxClients: tenants.maxClients })
         .from(tenants)
         .where(eq(tenants.id, tenantId))
-        .for('update');
+        .for('no key update');
       const maxClients = lockRows[0]?.maxClients;
       if (maxClients === undefined) {
         throw new Error(`tenant ${tenantId} not found while locking its client capacity`);

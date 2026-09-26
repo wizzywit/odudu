@@ -1,7 +1,20 @@
 import { z } from 'zod';
 import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
 
+// Mirrors @odudu/domain-audit's AUDIT_EVENT_TYPES: this package stays a
+// wire-only contract with no dependency on a server-side domain package, the
+// same reason `outcome` below is its own literal rather than AuditOutcome.
+const AUDIT_EVENT_TYPES = [
+  'admin_mutation',
+  'admin_access',
+  'authentication',
+  'session',
+  'token',
+  'credential',
+] as const;
+
 export const listAuditQuerySchema = cursorQuerySchema.extend({
+  event_type: z.enum(AUDIT_EVENT_TYPES).optional(),
   // A `uuid` column: anything else reaches Postgres and fails on syntax
   // rather than filtering to nothing.
   actor_subject_id: z.uuid().optional(),

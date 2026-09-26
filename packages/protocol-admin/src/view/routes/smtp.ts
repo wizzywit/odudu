@@ -1,5 +1,5 @@
 import { putSmtpRequestSchema, testSmtpRequestSchema } from '@odudu/contracts/admin';
-import { withTenant, type Database } from '@odudu/db';
+import { type Database } from '@odudu/db';
 import { readPasswordField } from '@odudu/kernel';
 import { type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import {
@@ -11,6 +11,7 @@ import {
   type Audit,
 } from '#/usecase/smtp';
 import { problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
 export interface SmtpRouteDeps {
@@ -22,8 +23,8 @@ export interface SmtpRouteDeps {
 }
 
 export function readSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
-  return async (_request, reply, _principal, targetTenantId) => {
-    const config = await withTenant(deps.database, targetTenantId, (tx) =>
+  return async (request, reply, _principal, targetTenantId) => {
+    const config = await adminTx(deps.database, request, targetTenantId, (tx) =>
       readSmtp(tx, targetTenantId),
     );
     return reply.code(200).send(config);
@@ -65,7 +66,7 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
       );
     }
 
-    const config = await withTenant(deps.database, targetTenantId, (tx) =>
+    const config = await adminTx(deps.database, request, targetTenantId, (tx) =>
       putSmtp(
         tx,
         { audit: deps.audit, kek: deps.kek },
@@ -90,7 +91,7 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
 
 export function deleteSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteSmtp(
         tx,
         { audit: deps.audit },
@@ -123,7 +124,7 @@ export function testSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
     // Read inside the tenant transaction, then release it before sending —
     // an unreachable or slow SMTP host must never hold a pooled connection
     // for the length of the attempt.
-    const readOutcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const readOutcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       readSmtpForTest(tx, targetTenantId),
     );
     if (readOutcome.kind === 'not_configured') {

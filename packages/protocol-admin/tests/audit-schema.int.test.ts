@@ -6,10 +6,10 @@ import {
   withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
+import { auditEvents } from '@odudu/domain-audit';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { auditEvents } from '#/schema/audit-events';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -88,7 +88,7 @@ describe('audit_events', () => {
     expect(seen[0]?.actorTenantId).not.toBe(u);
   });
 
-  it('accepts a row with no actor, for the events P4e will add', async () => {
+  it('accepts a row with no actor, as an event with nobody behind it has', async () => {
     const t = await seedTenant(`acme-${newId()}`);
 
     await expect(

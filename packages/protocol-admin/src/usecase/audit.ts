@@ -1,8 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { type AuditEvent } from '@odudu/contracts/admin';
+import { auditRepository, type AuditEventRecord, type AuditEventType } from '@odudu/domain-audit';
 import { decodeCursor, encodeCursor } from '#/service/cursor';
-import { auditRepository } from '#/repository/audit';
-import { type AuditEventRecord } from '#/schema/audit-events';
 
 const COLLECTION = 'audit';
 
@@ -11,6 +10,7 @@ export interface ListAuditInput {
   readonly limit: number;
   readonly cursor: string | undefined;
   readonly cursorKey: Uint8Array;
+  readonly eventType?: AuditEventType | undefined;
   readonly actorSubjectId?: string | undefined;
   readonly resourceType?: string | undefined;
   readonly action?: string | undefined;
@@ -67,6 +67,7 @@ export async function listAudit(
   }
 
   const rows: AuditEventRecord[] = await auditRepository(tx).list({
+    ...(input.eventType !== undefined ? { eventType: input.eventType } : {}),
     ...(input.actorSubjectId !== undefined ? { actorSubjectId: input.actorSubjectId } : {}),
     ...(input.resourceType !== undefined ? { resourceType: input.resourceType } : {}),
     ...(input.action !== undefined ? { action: input.action } : {}),

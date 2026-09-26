@@ -1,4 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
@@ -121,6 +122,14 @@ export async function completePasskeyEnrolment(
     },
   });
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-passkey');
+  await auditRepository(tx).record({
+    eventType: 'credential',
+    action: 'passkey.enrolled',
+    outcome: 'allowed',
+    actorSubjectId: input.subjectId,
+    resourceType: 'subject',
+    resourceId: input.subjectId,
+  });
   await oweRecoveryCodesIfNoneUnspent(tx, input.tenantId, input.subjectId);
   return { kind: 'enrolled', credentialId: verified.credentialId };
 }

@@ -1,4 +1,4 @@
-import { isUuid } from '@odudu/kernel';
+import { SessionEntry } from '#/service/session-entry';
 
 export const PERSISTENT_SUFFIX = '-persistent';
 
@@ -25,17 +25,20 @@ export function warnIfCookieFallbackActive(
   }
 }
 
-// The ids a browser presents, before any of them has been resolved to a row.
-export interface SessionIds {
-  readonly ephemeral: readonly string[];
-  readonly persistent: readonly string[];
+// The entries a browser presents, before any of them has been verified
+// against a row.
+export interface SessionEntries {
+  readonly ephemeral: readonly SessionEntry[];
+  readonly persistent: readonly SessionEntry[];
 }
 
+// The server keeps no secret after a session is created, so every entry
+// here is either the one just issued or one the browser presented.
 export interface SessionCookieInput {
   readonly tenant: string;
   readonly tls: boolean;
-  readonly ephemeral: readonly string[];
-  readonly persistent: readonly string[];
+  readonly ephemeral: readonly SessionEntry[];
+  readonly persistent: readonly SessionEntry[];
   readonly persistentMaxAgeSeconds: number;
 }
 
@@ -57,15 +60,15 @@ function cookie(name: string, value: string, tls: boolean, maxAge: number | null
 
 // An empty list is written as an expiry rather than omitted: omitting it
 // leaves whatever the browser already holds, which is how a logged-out
-// session id survives a logout.
+// session survives a logout.
 function listCookie(
   name: string,
-  ids: readonly string[],
+  entries: readonly SessionEntry[],
   tls: boolean,
   maxAge: number | null,
 ): string {
-  if (ids.length === 0) return cookie(name, '', tls, 0);
-  return cookie(name, ids.join(SEPARATOR), tls, maxAge);
+  if (entries.length === 0) return cookie(name, '', tls, 0);
+  return cookie(name, entries.map((entry) => entry.cookieValue()).join(SEPARATOR), tls, maxAge);
 }
 
 export function sessionCookies(input: SessionCookieInput): readonly string[] {
@@ -87,7 +90,7 @@ export function clearedSessionCookies(tenant: string, tls: boolean): readonly st
   ];
 }
 
-function valuesOf(header: string, name: string): readonly string[] {
+function entriesOf(header: string, name: string): readonly SessionEntry[] {
   for (const pair of header.split(';')) {
     const index = pair.indexOf('=');
     if (index === -1) continue;
@@ -96,23 +99,24 @@ function valuesOf(header: string, name: string): readonly string[] {
       .slice(index + 1)
       .trim()
       .split(SEPARATOR)
-      .filter((value) => isUuid(value));
+      .map((value) => SessionEntry.parse(value))
+      .filter((entry) => entry !== null);
   }
   return [];
 }
 
-// A malformed id is dropped rather than refused. A browser keeps cookies
+// A malformed entry is dropped rather than refused. A browser keeps cookies
 // across a database reset and a person can edit one; a request that fails
 // because of a value the server itself wrote months ago is a login nobody
 // can complete and nothing explains.
-export function readSessionIds(
+export function readSessionEntries(
   header: string | undefined,
   tenant: string,
   tls: boolean,
-): SessionIds {
+): SessionEntries {
   if (header === undefined) return { ephemeral: [], persistent: [] };
   return {
-    ephemeral: valuesOf(header, sessionCookieName(tenant, tls)),
-    persistent: valuesOf(header, persistentName(tenant, tls)),
+    ephemeral: entriesOf(header, sessionCookieName(tenant, tls)),
+    persistent: entriesOf(header, persistentName(tenant, tls)),
   };
 }

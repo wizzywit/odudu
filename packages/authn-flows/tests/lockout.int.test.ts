@@ -22,6 +22,8 @@ import { type PendingRequest } from '#/schema/authentication-sessions';
 import { advance, startAuthentication, type AdvanceOutcome } from '#/usecase/executor';
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
 
+const SILENT_LOGGER = { error: (): void => undefined };
+
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
@@ -133,7 +135,9 @@ function attempt(
 ): Promise<AdvanceOutcome> {
   return withTenant(handle.db, account.tenantId, async (tx) => {
     const { authSessionId } = await startAuthentication(tx, account.tenantId, request, clock);
-    return advance(tx, authSessionId, { username: account.username, password }, clock);
+    return advance(tx, authSessionId, { username: account.username, password }, clock, {
+      logger: SILENT_LOGGER,
+    });
   });
 }
 

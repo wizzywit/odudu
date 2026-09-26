@@ -36,6 +36,8 @@ import { provisionBrowserFlow } from '#/usecase/provision-flow';
 import { nextRequiredAction } from '#/usecase/required-actions';
 import { beginTotpEnrolment, completeTotpEnrolment } from '#/usecase/totp-enrolment';
 
+const SILENT_LOGGER = { error: (): void => undefined };
+
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
 let appHandle: DatabaseHandle | undefined;
@@ -151,7 +153,9 @@ describe('a tenant that requires a second factor collects it as a required actio
     // No code is asked for: a subject with nothing enrolled could not
     // produce one, and the flow would park forever if it asked.
     const outcome = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(outcome).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
 
@@ -171,7 +175,9 @@ describe('a tenant that requires a second factor collects it as a required actio
 
     const blocked = await start(tenantId, clock);
     await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, blocked, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, blocked, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     const { secret } = await enrol(tenantId, subjectId, clock);
@@ -187,12 +193,16 @@ describe('a tenant that requires a second factor collects it as a required actio
     clock.advance(31_000);
     const authSessionId = await start(tenantId, clock);
     const challenge = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(challenge).toEqual({ kind: 'challenge', form: 'otp' });
 
     const completed = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock),
+      advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(completed).toEqual({
       kind: 'success',
@@ -239,7 +249,9 @@ describe('a tenant that requires a second factor collects it as a required actio
 
     const authSessionId = await start(tenantId, clock);
     const challenge = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     expect(challenge).toEqual({ kind: 'challenge', form: 'otp' });
@@ -275,7 +287,9 @@ describe('a factor with work left after it is written down, and one that finishe
 
     const authSessionId = await start(tenantId, clock);
     await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     // Without this write, the next submission — which carries a code and no
@@ -288,7 +302,9 @@ describe('a factor with work left after it is written down, and one that finishe
     expect(afterPassword?.subjectId).toBe(subjectId);
 
     const completed = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock),
+      advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(completed).toEqual({
       kind: 'success',
@@ -316,11 +332,13 @@ describe('a factor with work left after it is written down, and one that finishe
 
     const authSessionId = await start(tenantId, clock);
     await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     const wrong = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { code: '000000' }, clock),
+      advance(tx, authSessionId, { code: '000000' }, clock, { logger: SILENT_LOGGER }),
     );
     expect(wrong).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
 
@@ -330,7 +348,9 @@ describe('a factor with work left after it is written down, and one that finishe
     expect(still).toEqual({ kind: 'challenge', form: 'otp' });
 
     const completed = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock),
+      advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(completed).toEqual({
       kind: 'success',
@@ -355,21 +375,27 @@ describe('a factor with work left after it is written down, and one that finishe
 
     const first = await start(tenantId, clock);
     await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, first, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, first, { username: 'ada', password: PASSWORD }, clock, { logger: SILENT_LOGGER }),
     );
-    expect(await withTenant(app.db, tenantId, (tx) => advance(tx, first, { code }, clock))).toEqual(
-      {
-        kind: 'success',
-        subjectId,
-        authenticators: ['password', 'otp'],
-      },
-    );
+    expect(
+      await withTenant(app.db, tenantId, (tx) =>
+        advance(tx, first, { code }, clock, { logger: SILENT_LOGGER }),
+      ),
+    ).toEqual({
+      kind: 'success',
+      subjectId,
+      authenticators: ['password', 'otp'],
+    });
 
     const second = await start(tenantId, clock);
     await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, second, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, second, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
-    const replay = await withTenant(app.db, tenantId, (tx) => advance(tx, second, { code }, clock));
+    const replay = await withTenant(app.db, tenantId, (tx) =>
+      advance(tx, second, { code }, clock, { logger: SILENT_LOGGER }),
+    );
 
     expect(replay).toEqual({ kind: 'failure', reason: 'invalid_credentials' });
   });
@@ -393,7 +419,9 @@ describe('a finished authentication is recorded, and stops being recorded', () =
     // enrolment as a required action instead.
     const authSessionId = await start(tenantId, clock);
     const finished = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(finished).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
     const complete = await withTenant(app.db, tenantId, (tx) =>
@@ -411,7 +439,9 @@ describe('a finished authentication is recorded, and stops being recorded', () =
     const { secret } = await enrol(tenantId, subjectId, clock);
     clock.advance(31_000);
     const challenged = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(challenged).toEqual({ kind: 'challenge', form: 'otp' });
 
@@ -429,7 +459,9 @@ describe('a finished authentication is recorded, and stops being recorded', () =
     // instant — rewritten on every attempt, not restored to the old stamp.
     clock.advance(31_000);
     const completed = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock),
+      advance(tx, authSessionId, { code: totpCode(secret, totpCounter(clock.now())) }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(completed).toEqual({
       kind: 'success',
@@ -459,7 +491,9 @@ describe('a finished authentication is recorded, and stops being recorded', () =
     const authSessionId = await start(tenantId, clock);
     expect(
       await withTenant(app.db, tenantId, (tx) =>
-        advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+        advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+          logger: SILENT_LOGGER,
+        }),
       ),
     ).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
     expect(
@@ -497,13 +531,17 @@ describe('one code, one login', () => {
     const sessions = await Promise.all([start(tenantId, clock), start(tenantId, clock)]);
     for (const authSessionId of sessions) {
       await withTenant(app.db, tenantId, (tx) =>
-        advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+        advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+          logger: SILENT_LOGGER,
+        }),
       );
     }
 
     const outcomes = await Promise.all(
       sessions.map((authSessionId) =>
-        withTenant(app.db, tenantId, (tx) => advance(tx, authSessionId, { code }, clock)),
+        withTenant(app.db, tenantId, (tx) =>
+          advance(tx, authSessionId, { code }, clock, { logger: SILENT_LOGGER }),
+        ),
       ),
     );
 
@@ -528,7 +566,9 @@ describe('an attempt answers for one subject and no other', () => {
 
     const authSessionId = await start(tenantId, clock);
     await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     // bob's own valid code, submitted with bob's username, against the
@@ -540,6 +580,7 @@ describe('an attempt answers for one subject and no other', () => {
         authSessionId,
         { username: 'bob', code: totpCode(bobSecret, totpCounter(clock.now())) },
         clock,
+        { logger: SILENT_LOGGER },
       ),
     );
 
@@ -564,12 +605,16 @@ describe('an attempt answers for one subject and no other', () => {
     const authSessionId = await start(tenantId, clock);
     expect(
       await withTenant(app.db, tenantId, (tx) =>
-        advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+        advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+          logger: SILENT_LOGGER,
+        }),
       ),
     ).toMatchObject({ kind: 'success', subjectId: ada });
 
     const hijack = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'bob', password: PASSWORD }, clock),
+      advance(tx, authSessionId, { username: 'bob', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     expect(hijack).toEqual({ kind: 'failure', reason: 'subject_mismatch' });
@@ -588,7 +633,9 @@ describe('an attempt answers for one subject and no other', () => {
 
     const authSessionId = await start(tenantId, clock);
     await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     await withTenant(app.db, tenantId, (tx) => resetAuthenticationProgress(tx, authSessionId));
@@ -600,7 +647,9 @@ describe('an attempt answers for one subject and no other', () => {
     expect(cleared?.subjectId).toBeNull();
 
     const bobsLogin = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'bob', password: PASSWORD }, clock),
+      advance(tx, authSessionId, { username: 'bob', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(bobsLogin).toEqual({ kind: 'success', subjectId: bob, authenticators: ['password'] });
   });

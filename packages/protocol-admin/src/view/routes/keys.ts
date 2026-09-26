@@ -3,7 +3,7 @@ import {
   listKeysQuerySchema,
   type SigningKey,
 } from '@odudu/contracts/admin';
-import { withTenant, type Database } from '@odudu/db';
+import { type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import {
@@ -15,6 +15,7 @@ import {
   type RetireKeyOutcome,
 } from '#/usecase/keys';
 import { problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface KeysRouteDeps {
@@ -33,7 +34,7 @@ export function listKeysHandler(deps: KeysRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: keys route received no :tenant');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listKeys(tx, {
         limit,
         cursor: query.cursor,
@@ -66,7 +67,7 @@ export function createKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const body = createKeyRequestSchema.parse(request.body);
 
-    const key: SigningKey = await withTenant(deps.database, targetTenantId, (tx) =>
+    const key: SigningKey = await adminTx(deps.database, request, targetTenantId, (tx) =>
       createKey(
         tx,
         { audit: deps.audit, kek: deps.kek },
@@ -91,7 +92,7 @@ export function promoteKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: POST key promote route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       promoteKey(
         tx,
         { audit: deps.audit },
@@ -163,7 +164,7 @@ export function retireKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: POST key retire route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       retireKey(
         tx,
         { audit: deps.audit },

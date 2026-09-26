@@ -26,6 +26,8 @@ import { completePasskeyEnrolment } from '#/usecase/passkey-enrolment';
 import { provisionBrowserFlow } from '#/usecase/provision-flow';
 import { beginTotpEnrolment, completeTotpEnrolment } from '#/usecase/totp-enrolment';
 
+const SILENT_LOGGER = { error: (): void => undefined };
+
 // Pins the exact behaviour a default tenant's `BROWSER_FLOW_DEFAULT` produced
 // before `required` and `conditional` were split
 // (packages/authn-flows/src/service/requirements.ts). Every step in that
@@ -120,7 +122,9 @@ describe('a default tenant login, walked for several subject shapes before and a
     const authSessionId = await start(tenantId);
 
     const outcome = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, undefined, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     expect(outcome).toEqual({ kind: 'success', subjectId, authenticators: ['password'] });
@@ -155,12 +159,20 @@ describe('a default tenant login, walked for several subject shapes before and a
       return id;
     });
     const afterPassword = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, clock, {
+        logger: SILENT_LOGGER,
+      }),
     );
     expect(afterPassword).toEqual({ kind: 'challenge', form: 'otp' });
 
     const afterOtp = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { code: totpCode(offer.secret, totpCounter(clock.now())) }, clock),
+      advance(
+        tx,
+        authSessionId,
+        { code: totpCode(offer.secret, totpCounter(clock.now())) },
+        clock,
+        { logger: SILENT_LOGGER },
+      ),
     );
     expect(afterOtp).toEqual({ kind: 'success', subjectId, authenticators: ['password', 'otp'] });
   });
@@ -203,7 +215,10 @@ describe('a default tenant login, walked for several subject shapes before and a
     });
 
     const outcome = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { assertion }, undefined, { publicBaseUrl: PUBLIC_BASE_URL }),
+      advance(tx, authSessionId, { assertion }, undefined, {
+        logger: SILENT_LOGGER,
+        publicBaseUrl: PUBLIC_BASE_URL,
+      }),
     );
     expect(outcome).toEqual({ kind: 'success', subjectId, authenticators: ['passkey'] });
   });
@@ -237,7 +252,9 @@ describe('a default tenant login, walked for several subject shapes before and a
     const authSessionId = await start(tenantId);
 
     const outcome = await withTenant(app.db, tenantId, (tx) =>
-      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }),
+      advance(tx, authSessionId, { username: 'ada', password: PASSWORD }, undefined, {
+        logger: SILENT_LOGGER,
+      }),
     );
 
     expect(outcome).toEqual({ kind: 'failure', reason: 'no_applicable_execution' });

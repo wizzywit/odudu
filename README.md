@@ -47,6 +47,32 @@ email — and **P2b** is credentials, MFA and the session lifecycle. **P3a**
 is clients, registration and consent, and **P3b** is sessions, logout and
 the token surface.
 
+**P4e** fills that audit trail beyond admin mutations. `GET
+/admin/tenants/{tenant}/audit?event_type=…` takes one of six event types:
+`admin_mutation`; `admin_access` (a `403` to an authenticated caller, a
+genuine token from another tenant); `authentication` (every password,
+one-time-code, recovery-code and passkey answer, a second factor offered, a
+lockout tripped, a refused client authentication); `session` (created, and
+ended by logout, by an admin or by eviction); `token` (issue, refresh,
+exchange, revoke, and a grant revoked on refresh-token reuse or code
+replay); and `credential` (registration, email verification, password reset
+and change, TOTP and passkey enrolment, recovery codes issued). Every row
+carries the request's `request_id` and `ip`, and none carries a secret, a
+code, a token or an attempted username; a login step names its
+`authentication_session` by the sha256 of its `auth_session_id`, which
+still joins one login's steps and cannot continue it. `ip` is the address
+the server saw, a proxy's report only under `ODUDU_TRUST_PROXY`, while
+`request_id` is the caller's own `x-request-id` whenever it sends one: it
+correlates rows and proves nothing about who sent them (ADR 0037's
+third amendment). A refusal is a row only where the
+principal it names bounds it; a refusal nothing bounds — an unregistered
+`client_id`, an admin `401`, a forged foreign-issuer token — goes to a
+`warn` log line instead
+([ADR 0037](docs/adr/0037-refusal-rows-are-bounded-by-the-principal-they-name.md)).
+Refresh rows dominate the table's growth, and each tenant's
+`audit_retention_days` is what bounds them (see
+[`odudu reap`](#running-it) below).
+
 A role reaches a token only when it is mapped to a scope the client is
 assigned, because `clients.full_scope_allowed` is off by default — a client
 sees the tenant's entire role vocabulary only once that is switched on for
@@ -427,8 +453,18 @@ a client's own `max_age` check depends on — and `max_age` is honoured, so a
 client can demand a fresher authentication than the cookie represents. The
 email-verified gate guards this second door into completing a login exactly
 as it guards the password form. The cookie now holds a **list** of session
-ids, not one, and a fresh login joins a browser's existing set rather than
-replacing it.
+entries, not one, and a fresh login joins a browser's existing set rather
+than replacing it.
+
+**A session cookie is not its session's id.** Each entry is
+`<session id>:<secret>`, the secret 32 random bytes in base64url that the
+server keeps only as a sha256 hash (`sessions.secret_hash`), compared in
+constant time. The id half is public — it is the `sid` claim of every ID
+token and access token — so presenting it alone, or with any other secret,
+authenticates nobody, and costs the same statements as an id no session
+has. A cookie the server writes back carries the entries the browser
+presented, never entries rebuilt from ids. A session created before
+migration `0071_session_secret.sql` has no hash and is never live.
 
 **A tenant can now offer "remember me."** Three settings gate it:
 `remember_me_allowed` (off by default), and the pair
@@ -436,7 +472,7 @@ replacing it.
 days) a remembered login is measured against instead of
 `sso_session_idle_seconds`/`sso_session_max_seconds`. When the setting is
 on, the login form offers a `remember_me` checkbox; ticking it writes the
-new session's id into the `{tenant}-session-persistent` cookie, carrying
+new session's entry into the `{tenant}-session-persistent` cookie, carrying
 `Max-Age=remember_me_max_seconds`, instead of the ephemeral
 `{tenant}-session` cookie. **The tenant setting is the authority, not the
 field**: a tenant with `remember_me_allowed` off ignores a ticked box
@@ -446,7 +482,7 @@ ordinary login would.
 **A browser's session count is capped, and the cap is enforced.**
 `tenants.max_sessions_per_browser` (1–32, default 25) is the ceiling
 `admitSession` evicts a browser's own least recently active sessions down
-to — read from the ids its cookies already name, never by subject, since
+to — read from the entries its cookies already prove, never by subject, since
 one browser can hold sessions for more than one — in the same transaction
 it creates a new one. A lock on the tenant's own row serialises logins
 arriving at once, but does not make the cap exact under concurrency: `k`
@@ -934,6 +970,11 @@ has a pass with work to do. Running it from two places at once is safe —
 replicas on their own schedules included: the pass takes a Postgres
 advisory lock and whoever loses the tick skips it rather than duplicating
 the work.
+
+`audit_events` is the exception to the grant-family windows: it keeps each
+tenant's own `audit_retention_days` (90 by default). Refresh rows dominate
+its growth, one `token.refresh` per `refresh_token` redemption, so that
+setting is the one to size against a tenant's refresh traffic.
 
 **Without `ODUDU_APP_DATABASE_URL` nothing is reaped, on a schedule or
 otherwise.** The pass deletes under the row-level-security policy that the

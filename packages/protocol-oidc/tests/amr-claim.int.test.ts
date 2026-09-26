@@ -35,6 +35,7 @@ import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -204,7 +205,7 @@ async function signInAndRedeem(
   expect(submitted.statusCode).toBe(302);
   const cookie = setCookieValue(submitted);
   if (cookie === undefined) throw new Error('expected a set-cookie header from a successful login');
-  const sessionId = cookie.split('=')[1];
+  const sessionId = cookie.split('=')[1]?.split(':')[0];
   if (sessionId === undefined) throw new Error('expected a session id in the cookie');
 
   const code = new URL(locationHeader(submitted)).searchParams.get('code');
@@ -299,6 +300,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );

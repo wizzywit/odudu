@@ -5,9 +5,9 @@ import { jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 // `tenant_id` is the tenant an event happened *to*, not the actor's own —
 // a system admin changing tenant U writes a row U's own administrators can
 // read, and keying on the actor's tenant would hide it from exactly those
-// people. The actor columns are nullable: an authentication event
-// (P4e) has no administrator behind it, and those rows land here too
-// rather than in a second table.
+// people. The actor columns are nullable: an authentication event has no
+// administrator behind it, and those rows land here too rather than in a
+// second table.
 export const auditEvents = pgTable('audit_events', {
   id: uuid('id').primaryKey(),
   tenantId: uuid('tenant_id')
@@ -23,8 +23,8 @@ export const auditEvents = pgTable('audit_events', {
   actorClientId: uuid('actor_client_id'),
   resourceType: text('resource_type'),
   resourceId: text('resource_id'),
-  requestId: text('request_id'),
-  ip: text('ip'),
+  requestId: text('request_id').default(sql`nullif(current_setting('app.request_id', true), '')`),
+  ip: text('ip').default(sql`nullif(current_setting('app.client_ip', true), '')`),
   detail: jsonb('detail').notNull().default({}),
 }).enableRLS();
 

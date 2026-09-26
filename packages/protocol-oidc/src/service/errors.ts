@@ -1,3 +1,16 @@
+import { type AuditAction, type AuditReason } from '@odudu/domain-audit';
+
+export interface TokenRefusalAudit {
+  readonly action:
+    | Extract<AuditAction<'authentication'>, `client.${string}`>
+    | Exclude<AuditAction<'token'>, `grant.${string}`>;
+  readonly reason: AuditReason;
+  readonly clientDbId: string;
+  readonly subjectId?: string;
+  readonly grantId?: string;
+  readonly method?: string;
+}
+
 export type TokenErrorCode =
   | 'invalid_request'
   | 'invalid_client'
@@ -16,14 +29,27 @@ export class TokenError extends Error {
   readonly error: TokenErrorCode;
   readonly status: number;
   readonly wwwAuthenticate: string | undefined;
+  // Set only where ADR 0037 says a refusal is recorded; never read by the
+  // response, which is identical with or without it.
+  readonly audit: TokenRefusalAudit | undefined;
 
-  constructor(error: TokenErrorCode, status: number, wwwAuthenticate?: string) {
+  constructor(
+    error: TokenErrorCode,
+    status: number,
+    wwwAuthenticate?: string,
+    audit?: TokenRefusalAudit,
+  ) {
     super(error);
     this.name = 'TokenError';
     this.error = error;
     this.status = status;
     this.wwwAuthenticate = wwwAuthenticate;
+    this.audit = audit;
   }
+}
+
+export function withAudit(err: TokenError, audit: TokenRefusalAudit): TokenError {
+  return new TokenError(err.error, err.status, err.wwwAuthenticate, audit);
 }
 
 export function invalidGrant(): TokenError {
@@ -71,10 +97,12 @@ export function invalidTarget(): TokenError {
 // authentication failure by anything but status and Retry-After.
 export class TokenRateLimited extends Error {
   readonly retryAfterSeconds: number;
+  readonly audit: TokenRefusalAudit | undefined;
 
-  constructor(retryAfterSeconds: number) {
+  constructor(retryAfterSeconds: number, audit?: TokenRefusalAudit) {
     super('client_secret_rate_limited');
     this.name = 'TokenRateLimited';
     this.retryAfterSeconds = retryAfterSeconds;
+    this.audit = audit;
   }
 }

@@ -20,6 +20,7 @@ import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 // handleLoginSubmission's 'consent' branch parks the already-gated
 // `remember_me` choice on the authentication session (recordRememberMe,
@@ -139,6 +140,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: Buffer.alloc(32, 9),
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
     }),
   );
@@ -198,7 +200,7 @@ describe('remember me, carried across a consent-requiring client', () => {
     expect(persistent).toContain(`Max-Age=${String(REMEMBER_ME_MAX_SECONDS)}`);
     expect(ephemeral).toContain('Max-Age=0');
 
-    const sessionId = persistent.split('=')[1]?.split(';')[0];
+    const sessionId = persistent.split('=')[1]?.split(';')[0]?.split(':')[0];
     if (sessionId === undefined) throw new Error('expected a session id in the persistent cookie');
     const rows = await owner.db
       .select({ remembered: sessions.remembered })

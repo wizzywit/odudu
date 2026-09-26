@@ -45,6 +45,14 @@ through the endpoints below. Its `demo` is
 `ETag`s and timestamps refer to each other and to nothing in the sections
 above. Each such section says so. It was torn down the same way.
 
+**The third stack.** "Getting the token" was captured again, after the
+session cookie gained its secret (`0071_session_secret.sql`), against a
+stack brought up the same way from an empty volume with only
+`seed admin --username ada` run against it. Its password, ids, code and
+cookie are that run's own: its `ada` is
+`01a0de12-c116-70ee-9cc1-984429980dcc`, not the subject the sections after
+it name.
+
 ## The shape of it
 
 Most of the admin endpoint lives under `/admin/tenants/{tenant}/`, mirroring
@@ -168,9 +176,9 @@ docker compose exec -T odudu node dist/main.js seed admin --username ada
 ```
 
 ```
-qVWBqjTLZBlCgwfqTnFD7hWEURGc8yQ6
+27Kfg-JXR64ZjLc9FkJ_0kIERHv-EeuF
 This password is shown once and cannot be retrieved again.
-{"command":"admin","tenantId":"0199aa00-0000-7000-8000-000000000001","username":"ada","subjectId":"01a0d6fb-0918-7846-b430-0a714b8bf7bf"}
+{"command":"admin","tenantId":"0199aa00-0000-7000-8000-000000000001","username":"ada","subjectId":"01a0de12-c116-70ee-9cc1-984429980dcc"}
 ```
 
 The subject is created with an `update-password` required action, so the
@@ -186,7 +194,7 @@ the login form did:
 <h1>Change your password</h1>
 <p>This account needs a new password before you can continue.</p>
 <form method="post" action="/tenants/system/login-actions/required-action?action=update-password">
-  <input type="hidden" name="auth_session_id" value="01a0d6fb-45c9-750b-b189-c0f12cfed7b9">
+  <input type="hidden" name="auth_session_id" value="01a0de13-03cf-7df3-bd31-e5086f0926c1">
   <label>New password <input type="password" name="password" autocomplete="new-password"></label>
   <button type="submit">Update password</button>
 </form>
@@ -200,12 +208,12 @@ with the new password:
 
 ```bash
 curl -sS -c jar -b jar \
-  --data-urlencode "auth_session_id=01a0d6fb-45c9-750b-b189-c0f12cfed7b9" \
+  --data-urlencode "auth_session_id=01a0de13-03cf-7df3-bd31-e5086f0926c1" \
   --data-urlencode 'password=correct-horse-battery-staple-9' \
   'http://localhost:3000/tenants/system/login-actions/required-action?action=update-password'
 
 curl -sS -D - -c jar -b jar \
-  --data-urlencode "auth_session_id=01a0d6fb-45c9-750b-b189-c0f12cfed7b9" \
+  --data-urlencode "auth_session_id=01a0de13-03cf-7df3-bd31-e5086f0926c1" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery-staple-9' \
   'http://localhost:3000/tenants/system/login-actions/authenticate'
@@ -213,9 +221,14 @@ curl -sS -D - -c jar -b jar \
 
 ```
 HTTP/1.1 302 Found
-set-cookie: system-session=01a0d6fb-a6c4-778d-90fb-d682fa5b0b5a; HttpOnly; SameSite=Lax; Path=/
-location: http://127.0.0.1:8080/callback?code=bloWwM1eqh9sRGtzxgsJDgLoEHz3zAwz-Nu9zIM-zLA&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fsystem
+set-cookie: system-session=01a0de13-04cb-70b0-8def-e2775efe7bd8:uCLBEyReeXErUxqMZDN-CsA_U44NWLcWDo2fylzaSOo; HttpOnly; SameSite=Lax; Path=/
+set-cookie: system-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: http://127.0.0.1:8080/callback?code=4uFhKJ34riRIjYzfr-EfMI8filnxus4w7pQe6H1wc6M&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fsystem
 ```
+
+The cookie's value is `<session id>:<secret>`. The id half is the `sid`
+the token below carries, so every client that receives a token holds it;
+only the secret, which the server keeps as a sha256 hash, signs anybody in.
 
 The code redeems at `/token` the way any `authorization_code` does. The
 access token's `aud` carries `urn:odudu:params:admin-api` **without the
@@ -228,15 +241,15 @@ the wire, because the bytes on the wire are a signed JWT:
 ```
 {
   "iss": "http://localhost:3000/tenants/system",
-  "sub": "01a0d6fb-0918-7846-b430-0a714b8bf7bf",
+  "sub": "01a0de12-c116-70ee-9cc1-984429980dcc",
   "aud": ["urn:odudu:params:admin-api", "http://localhost:3000/tenants/system"],
   "client_id": "odudu-admin",
   "scope": "openid",
-  "iat": 1790313220,
-  "exp": 1790313520,
-  "jti": "01a0d6fb-c892-746e-9a30-903b33b02697",
-  "sid": "01a0d6fb-a6c4-778d-90fb-d682fa5b0b5a",
-  "grant_id": "01a0d6fb-c892-746e-9a30-903a020bafe9"
+  "iat": 1790432192,
+  "exp": 1790432492,
+  "jti": "01a0de13-27db-7965-99e5-40acd8f67252",
+  "sid": "01a0de13-04cb-70b0-8def-e2775efe7bd8",
+  "grant_id": "01a0de13-27db-7965-99e5-40ab0704242c"
 }
 ```
 
@@ -250,7 +263,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"subjectId":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","issuerTenantId":"0199aa00-0000-7000-8000-000000000001"}
+{"subjectId":"01a0de12-c116-70ee-9cc1-984429980dcc","issuerTenantId":"0199aa00-0000-7000-8000-000000000001"}
 ```
 
 ## `GET /admin/tenants`
@@ -797,8 +810,9 @@ admin surface at all can call it.
 It answers `subjectId` (the token's `sub`) and `issuerTenantId` — the
 tenant that **issued** the token, not the tenant named in the URL. The
 captured run is under "Getting the token" above, against
-`/admin/tenants/system/whoami`; the same token against `demo` answers the
-identical body, `issuerTenantId` still naming `system`:
+`/admin/tenants/system/whoami`; the first stack's token against `demo`
+answers the same shape for its own `ada`, `issuerTenantId` still naming
+`system`:
 
 ```bash
 curl -sS \
@@ -1140,15 +1154,19 @@ client that used it and has a `backchannel_logout_uri` configured (§2.5 of
 the spec). **Front-Channel Logout does not apply here**: §3 renders an
 iframe per relying party in the End-User's own browser, and an
 admin-initiated end has no browser to render one in, so only the
-back-channel delivery is attempted. A second `DELETE` of the same session
-is idempotent and answers `204`: ending an already-ended session only
-moves `expires_at` earlier, and a repeat delivery for the same client is
-deduped by `backchannel_logout_deliveries_dedupe`. "Only moves earlier" is
-what `least(expires_at, now)` and `coalesce(revoked_at, now)` make true — a
-bare assignment would push both stamps forward on every repeat, so a second
-`DELETE` at a later moment would delay the reaping the first one started
-rather than changing nothing. An unknown session id,
-or one belonging to a different subject, answers `404`.
+back-channel delivery is attempted. Beside its own `admin_mutation` row,
+`session.end`, it writes the `session.ended` row every session end writes,
+with `detail.via` `admin` ([request paths](request-paths.md#what-a-session-leaves-in-the-audit-log)).
+A second `DELETE` of the same session is idempotent and answers `204`:
+ending an already-ended session moves neither stamp, and a repeat delivery
+for the same client is deduped by `backchannel_logout_deliveries_dedupe`.
+`expires_at` moves only while it is still ahead of now, and
+`coalesce(revoked_at, now)` keeps the first revocation — a bare assignment
+would push both stamps forward on every repeat, so a second `DELETE` at a
+later moment would delay the reaping the first one started rather than
+changing nothing. The repeat writes its own `admin_mutation` row, since it
+is a request an administrator made, but no second `session.ended`. An
+unknown session id, or one belonging to a different subject, answers `404`.
 
 A session needs a login, and a subject this API created has no password, so
 this section runs against `bob` — seeded with
@@ -1837,17 +1855,31 @@ per resource type: a secret, a password hash or a private key never
 appears in it, whichever of the two it would have been, and a field on
 neither list is absent rather than shown.
 
-`outcome` is `allowed`, `refused` or `failed`. Two kinds of refusal record
-one. **`POST /clients`** does — a reserved `client_id`, metadata
-`parseClientMetadata` rejects, or a tenant at its client capacity — and so
-does **every capability ceiling**: `POST /groups` and `PATCH /groups/{id}`
-choosing a parent, `PUT /subjects/{id}/roles`, `PUT /groups/{id}/roles`,
+`outcome` is `allowed`, `refused` or `failed`. Two kinds of mutation
+refusal record an `admin_mutation` row. **`POST /clients`** does — a
+reserved `client_id`, metadata `parseClientMetadata` rejects, or a tenant at
+its client capacity — and so does **every capability ceiling**:
+`POST /groups` and `PATCH /groups/{id}` choosing a parent,
+`PUT /subjects/{id}/roles`, `PUT /groups/{id}/roles`,
 `PUT /scopes/{id}/roles` and `POST /roles/{id}/composites`, each writing a
 row whose `detail` names the capabilities the caller does not hold. An
 attempted privilege escalation is the refusal worth recording even while
-refusals in general are not. Every other mutation above writes a row only
-when it succeeds; `?outcome=refused` against a resource type with neither
-of those doors returns nothing yet, not because nothing was refused.
+refusals in general are not. Every other mutation above writes an
+`admin_mutation` row only when it succeeds; `?outcome=refused` against a
+resource type with neither of those doors returns no `admin_mutation` row,
+not because nothing was refused.
+
+The door in front of every route records two refusals of its own, as
+`admin_access` rows, whatever the route. A **`403`** to an authenticated
+caller writes `capability.refused`, reads included, with `detail.capability`
+naming the capability the caller lacked — `manage-tenants` when a system
+admin without it reaches another tenant, the route's own otherwise. A
+**`401` for a genuine token from another tenant** of this deployment writes
+`token.foreign_issuer` into the tenant it was presented at, below. Every
+other `401` — no token, a malformed or forged one, an issuer this
+deployment does not serve, a dead session — writes no row, only a `warn`
+log line naming the reason: the caller has proved nothing, so a row per
+request would be theirs to append at will (ADR 0037).
 
 `tenant_id` on a row is the tenant the change was made **to**, not the
 tenant of whoever made it. `actor_tenant_id` and `actor_client_id` name the
@@ -1856,21 +1888,34 @@ admin client it authenticated as — so a system admin's change to this
 tenant is a row this tenant's own administrators can read, and can see was
 made by someone outside it.
 
-A request refused for a cross-tenant issuer mismatch — a bearer token
-naming an issuer neither this tenant nor the system tenant — writes no row
-here at all. That refusal is decided before the token's signature is even
-checked, since a token naming an unrecognised issuer has no keys to verify
-it against; auditing it at that point would let an unauthenticated caller
-append a row per request, which is a worse defect than the missing row.
-See `docs/NEXT.md`'s `deferred:` entry for what recording it safely needs.
-
 Paginated the same way every other list here is, over
 `(occurred_at, id)` descending rather than ascending `id`: newest first.
-Filters narrow the page rather than requiring one: `actor_subject_id`,
-`resource_type`, `action`, `outcome`, and a `from`/`to` range on
-`occurred_at` (ISO 8601, with an offset). `actor_subject_id` must be a
-UUID, since the column is one — anything else answers `400` rather than
-reaching Postgres and failing there.
+Filters narrow the page rather than requiring one: `event_type`,
+`actor_subject_id`, `resource_type`, `action`, `outcome`, and a `from`/`to`
+range on `occurred_at` (ISO 8601, with an offset). `event_type` must be one
+of the vocabulary's own six values (`admin_mutation`, `admin_access`,
+`authentication`, `session`, `token`, `credential`) and `actor_subject_id`
+must be a UUID, since the column is one — either answers `400` rather than
+reaching Postgres and failing there. `request_id` and `ip` are never
+filters. Both default from the request that made the change (`withTenant`'s
+own `RequestContext`, `packages/db/src/tx.ts`): `request_id` is the
+request's own id, which a caller may supply as `x-request-id` (truncated to
+128 characters), and `ip` is `request.ip`, which only `ODUDU_TRUST_PROXY`
+lets a forwarded header decide. So `request_id` correlates rows and `ip` is
+the evidence: a join on `request_id` holds for requests you made or that
+came through a proxy you trust, and shows only what the caller claimed for
+anyone else's (ADR 0037's third amendment).
+
+**A third stack.** The examples below — this section only — were re-run
+against a third stack, brought up the same way from an empty volume, to
+show `request_id`/`ip` filled in and the `event_type` filter working; nothing
+elsewhere in this document was recaptured, so this stack's ids refer only
+to each other and to nothing in the sections above or below. Its `demo` is
+`01a0daef-a94a-7ff3-a8d5-e78a1d2764f8`, `ada` in the `system` tenant is
+subject `01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8`, and the `odudu-admin` client
+she authenticated as is `01a0daee-7bb4-7abb-99dd-12bbd701c5d4`. Requests
+below went from the host into the container over the compose network, so
+`ip` is that network's own gateway address rather than `127.0.0.1`.
 
 ```bash
 curl -sS -G \
@@ -1881,40 +1926,219 @@ curl -sS -G \
   http://localhost:3000/admin/tenants/demo/audit
 ```
 
-**This listing prints whatever the sections above left behind**, so every
-query here is scoped. Both `client.create` rows on this stack —
-`demo-backend` from `POST /clients` and `demo-app` from the sessions
-section — newest first:
+All three `client.create` rows on this stack, newest first: the
+reserved-`client_id` refusal, attempted last, then `demo-app` and
+`demo-backend` below it — both created directly through `POST /clients`,
+oldest last:
 
 ```
-{"items":[{"id":"01a0d6fd-ee4b-7e24-94c4-8a1f089f7ff4","occurred_at":"2026-09-25T05:16:00.960Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"client","resource_id":"01a0d6fd-ee42-78c0-ab32-9077b0fc3804","request_id":null,"ip":null,"detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code","refresh_token"]},"web_origins":{"after":[]},"redirect_uris":{"after":["http://localhost:3000/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"none"}}},{"id":"01a0d6fc-e5c3-7d6b-bf08-007f2c7af08e","occurred_at":"2026-09-25T05:14:53.164Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"client","resource_id":"01a0d6fc-e5b4-73d4-9162-e2a9893d64b0","request_id":null,"ip":null,"detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
+{"items":[{"id":"01a0daef-c428-73d7-86f7-15d31e7ec3e0","occurred_at":"2026-09-25T23:39:01.543Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0daef-c41f-70ad-ac7a-45d82523ca89","ip":"172.20.0.1","detail":{}},{"id":"01a0daef-c414-763a-ac6e-28e568659122","occurred_at":"2026-09-25T23:39:01.514Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"01a0daef-c40c-7dac-8d24-bf63c93db1b2","request_id":"01a0daef-c402-7a09-9c9c-4e2d0672b648","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code","refresh_token"]},"web_origins":{"after":[]},"redirect_uris":{"after":["http://localhost:3000/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"none"}}},{"id":"01a0daef-c3f6-7eac-8f6f-908fe252c948","occurred_at":"2026-09-25T23:39:01.441Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"01a0daef-c3ea-727a-a8d1-57245d276f1c","request_id":"01a0daef-c3b3-73bc-bef7-8350110f08f7","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
 ```
 
-`actor_tenant_id` is `system` on both, and `tenant_id` is absent from the
-row's own representation — the tenant a row belongs to is the one in the
-path. Neither `detail` carries a secret: `demo-backend` was created with
-one, and the allowlist shows `jwks` as `{"changed": true}` rather than a
-value, which is the shape every redacted field takes.
+`actor_tenant_id` is `system` on all three, and `tenant_id` is absent from
+the row's own representation — the tenant a row belongs to is the one in
+the path. None of the three `detail`s carries a secret: the refusal's is
+empty, there being no row to diff, and `demo-backend` was created with
+one — the allowlist shows `jwks` as `{"changed": true}` rather than a
+value, which is the shape every redacted field takes. Every `request_id`
+is a real request id and every `ip` the container's own view of the
+caller.
 
-Three signing-key rows from the rotation above, narrowed by
-`resource_type` alone. Their `detail` is empty, a key having no allowlisted
-field to diff:
+Three signing-key rows from a stage/promote/retire rotation on this same
+stack, narrowed by `resource_type` alone. Their `detail` is empty, a key
+having no allowlisted field to diff:
 
 ```
-{"items":[{"id":"01a0d6fe-e5af-7e92-9a37-467c4486586e","occurred_at":"2026-09-25T05:17:04.301Z","event_type":"admin_mutation","action":"key.retire","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"signing_key","resource_id":"01a0d6fc-3654-7f93-817b-bd7f1bb2ff55","request_id":null,"ip":null,"detail":{}},{"id":"01a0d6fe-e558-781d-9400-1c2ec6563448","occurred_at":"2026-09-25T05:17:04.213Z","event_type":"admin_mutation","action":"key.promote","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"signing_key","resource_id":"01a0d6fe-e527-77e6-b71d-57ed1a903cc3","request_id":null,"ip":null,"detail":{}},{"id":"01a0d6fe-e527-77e6-b71d-57ee38478a8b","occurred_at":"2026-09-25T05:17:04.166Z","event_type":"admin_mutation","action":"key.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"signing_key","resource_id":"01a0d6fe-e527-77e6-b71d-57ed1a903cc3","request_id":null,"ip":null,"detail":{}}]}
+{"items":[{"id":"01a0daef-ee73-761c-bcf6-238fb5748e87","occurred_at":"2026-09-25T23:39:12.367Z","event_type":"admin_mutation","action":"key.retire","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"signing_key","resource_id":"01a0daef-a976-77ad-81e8-bec6ba60d906","request_id":"01a0daef-ee65-71d7-8693-366338b3d3cd","ip":"172.20.0.1","detail":{}},{"id":"01a0daef-ee57-7c06-ba34-229c5f617394","occurred_at":"2026-09-25T23:39:12.340Z","event_type":"admin_mutation","action":"key.promote","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"signing_key","resource_id":"01a0daef-dbc4-734b-86a1-6f46504e961d","request_id":"01a0daef-ee47-7a74-b7e2-4c3316d0a916","ip":"172.20.0.1","detail":{}},{"id":"01a0daef-dbc5-76a5-a17b-495d1ee64bd1","occurred_at":"2026-09-25T23:39:07.586Z","event_type":"admin_mutation","action":"key.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"signing_key","resource_id":"01a0daef-dbc4-734b-86a1-6f46504e961d","request_id":"01a0daef-dbb7-7d36-a27b-c77de68a9cdc","ip":"172.20.0.1","detail":{}}]}
 ```
 
-And `?outcome=refused`, non-empty for `POST /clients` and for a capability
-ceiling. The row below is the reserved-`client_id` attempt shown under that
-section, captured on a stack where no ceiling had yet been tripped;
+And `?outcome=refused`, non-empty for `POST /clients`: the same
+reserved-`client_id` row shown above, on its own —
 `resource_id` is the `client_id` string, there being no row to name:
 
 ```
-{"items":[{"id":"01a0d6ff-881f-763e-85bb-c7fc66a7e1ee","occurred_at":"2026-09-25T05:17:45.887Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","actor_client_id":"01a0d6fb-08e6-77ef-b8dd-69f7d63c040b","resource_type":"client","resource_id":"odudu-admin","request_id":null,"ip":null,"detail":{}}]}
+{"items":[{"id":"01a0daef-c428-73d7-86f7-15d31e7ec3e0","occurred_at":"2026-09-25T23:39:01.543Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0daef-c41f-70ad-ac7a-45d82523ca89","ip":"172.20.0.1","detail":{}}]}
+```
+
+Adding `event_type=admin_mutation` to the first query on this stack —
+`resource_type=client&action=client.create` — answers the same three rows
+byte for byte, since every `client` mutation writes an `admin_mutation`
+row and no other kind. The session `DELETE` is the one admin endpoint that
+also writes a row of another kind, a `session` row beside its own:
+
+```bash
+curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "event_type=admin_mutation" \
+  --data-urlencode "resource_type=client" \
+  --data-urlencode "action=client.create" \
+  http://localhost:3000/admin/tenants/demo/audit
+```
+
+```
+{"items":[{"id":"01a0daef-c428-73d7-86f7-15d31e7ec3e0","occurred_at":"2026-09-25T23:39:01.543Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0daef-c41f-70ad-ac7a-45d82523ca89","ip":"172.20.0.1","detail":{}},{"id":"01a0daef-c414-763a-ac6e-28e568659122","occurred_at":"2026-09-25T23:39:01.514Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"01a0daef-c40c-7dac-8d24-bf63c93db1b2","request_id":"01a0daef-c402-7a09-9c9c-4e2d0672b648","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code","refresh_token"]},"web_origins":{"after":[]},"redirect_uris":{"after":["http://localhost:3000/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"none"}}},{"id":"01a0daef-c3f6-7eac-8f6f-908fe252c948","occurred_at":"2026-09-25T23:39:01.441Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"01a0daef-c3ea-727a-a8d1-57245d276f1c","request_id":"01a0daef-c3b3-73bc-bef7-8350110f08f7","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
+```
+
+`?event_type=token`, a vocabulary event type no admin route writes,
+answers an empty page rather than an error:
+
+```bash
+curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "event_type=token" \
+  http://localhost:3000/admin/tenants/demo/audit
+```
+
+```
+{"items":[]}
+```
+
+A value the vocabulary does not name answers `400`, the same shape
+`querystring` validation already answers elsewhere in this document:
+
+```bash
+curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "event_type=bogus" \
+  http://localhost:3000/admin/tenants/demo/audit
+```
+
+```
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/event_type must be equal to one of the allowed values","instance":"01a0daf0-0d53-75f1-97d2-504e2737e2f5"}
 ```
 
 No page above needed a `next`: the stack never had more than twenty rows of
 any one scope.
+
+### A token from another tenant, and a caller missing a capability
+
+**A fourth stack.** This subsection only ran against the compose stack
+[docs/request-paths.md](request-paths.md#what-a-refused-login-leaves-behind)'s
+audit transcripts were captured on, whose `demo` is
+`01a0db22-1c32-7d17-b351-697d7911033c`. That stack had no `system` tenant
+until `seed admin --username ada` was run on it for this section, printing
+subject `01a0dc0c-0167-709b-af07-e6eb529e8139`; `ada` then signed in the way
+[Getting the token](#getting-the-token) shows, created a tenant `acme`
+through `POST /admin/tenants`, and created a client `demo-operator` in
+`demo` through `POST /clients` — `client_credentials`,
+`client_secret_basic` — then gave it the admin audience through
+`PATCH /clients/{id}` with `{"audiences": ["urn:odudu:params:admin-api"]}`.
+`demo-operator` is `01a0dc0c-ec33-7e6a-bd79-339e8682bd86`, and holds no
+capability in `demo`. Its ids refer only to each other.
+
+`demo-operator`'s `client_credentials` token is a genuine `demo` token for
+the admin API. Its payload, decoded as in
+[Getting the token](#getting-the-token), and `demo` accepting it:
+
+```
+{
+  "iss": "http://localhost:3000/tenants/demo",
+  "sub": "01a0dc0c-ec16-7566-adfb-a8bf7681149c",
+  "aud": [
+    "urn:odudu:params:admin-api",
+    "http://localhost:3000/tenants/demo"
+  ],
+  "client_id": "demo-operator",
+  "scope": "",
+  "iat": 1790398252,
+  "exp": 1790398552,
+  "jti": "01a0dc0d-4611-7720-b3fc-d5a5e84ba945",
+  "grant_id": "01a0dc0d-4611-7720-b3fc-d5a43620011b"
+}
+```
+
+```bash
+curl -sS -H "Authorization: Bearer $DEMO_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/whoami
+```
+
+```
+{"subjectId":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","issuerTenantId":"01a0db22-1c32-7d17-b351-697d7911033c"}
+```
+
+Presented at `acme` instead, it is refused with the `401` a string that is
+not a token at all gets. Both requests carry the same `x-request-id`, so the
+two responses differ only in `Date`:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $DEMO_TOKEN" \
+  -H 'x-request-id: foreign-issuer-doc' \
+  http://localhost:3000/admin/tenants/acme/subjects
+curl -sS -D - -H "Authorization: Bearer not-a-token" \
+  -H 'x-request-id: foreign-issuer-doc' \
+  http://localhost:3000/admin/tenants/acme/subjects
+```
+
+```
+HTTP/1.1 401 Unauthorized
+x-request-id: foreign-issuer-doc
+content-type: application/problem+json; charset=utf-8
+content-length: 90
+Date: Sat, 26 Sep 2026 04:50:58 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"foreign-issuer-doc"}
+HTTP/1.1 401 Unauthorized
+x-request-id: foreign-issuer-doc
+content-type: application/problem+json; charset=utf-8
+content-length: 90
+Date: Sat, 26 Sep 2026 04:51:03 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"foreign-issuer-doc"}
+```
+
+What tells them apart is behind the response. The first names an issuer
+this deployment serves, and its signature verifies against `demo`'s own
+keys, so it is recorded in `acme`'s trail — the tenant the attempt was made
+against — naming `demo` as the caller's tenant, its subject and its client.
+The second writes only a `warn` line to the server's log:
+
+```
+{"level":40,"time":1790398263230,"pid":1,"hostname":"bd66202e30bc","reqId":"foreign-issuer-doc","reason":"malformed_token","msg":"admin request unauthenticated"}
+```
+
+`acme` was created moments before, so its `admin_access` trail holds only
+what this subsection did; `demo`'s holds nothing yet:
+
+```bash
+curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "event_type=admin_access" \
+  http://localhost:3000/admin/tenants/acme/audit
+curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "event_type=admin_access" \
+  http://localhost:3000/admin/tenants/demo/audit
+```
+
+```
+{"items":[{"id":"01a0dc0d-5c73-74df-80e9-a834a955aacc","occurred_at":"2026-09-26T04:50:58.290Z","event_type":"admin_access","action":"token.foreign_issuer","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"foreign-issuer-doc","ip":"172.20.0.1","detail":{"reason":"foreign_issuer"}}]}
+{"items":[]}
+```
+
+The same token at `demo`, where it authenticates but holds no capability,
+is a `403`, and `demo`'s trail now has the `capability.refused` row naming
+what `GET /subjects` needed:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $DEMO_TOKEN" \
+  -H 'x-request-id: capability-refused-doc' \
+  http://localhost:3000/admin/tenants/demo/subjects
+curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "event_type=admin_access" \
+  http://localhost:3000/admin/tenants/demo/audit
+```
+
+```
+HTTP/1.1 403 Forbidden
+x-request-id: capability-refused-doc
+content-type: application/problem+json; charset=utf-8
+content-length: 91
+Date: Sat, 26 Sep 2026 04:51:08 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Forbidden","status":403,"instance":"capability-refused-doc"}
+{"items":[{"id":"01a0dc0d-82ec-7888-ab05-4e8c931ffd35","occurred_at":"2026-09-26T04:51:08.139Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
+```
 
 ## `GET /admin/openapi.json`
 

@@ -59,12 +59,17 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
-    // `SELECT ... FOR UPDATE`, in the same transaction the caller amends in:
-    // an `If-Match` compared against a row another transaction is already
-    // rewriting prevents nothing, because both readers match and the second
-    // write silently replaces the first.
+    // `SELECT ... FOR NO KEY UPDATE`, in the same transaction the caller
+    // amends in: an `If-Match` compared against a row another transaction is
+    // already rewriting prevents nothing, because both readers match and the
+    // second write silently replaces the first. Not `FOR UPDATE`, which also
+    // waits behind every foreign-key check against the tenant (ADR 0033).
     async lockById(tenantId: string): Promise<TenantSettingsRecord | null> {
-      const rows = await tx.select().from(tenants).where(eq(tenants.id, tenantId)).for('update');
+      const rows = await tx
+        .select()
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
+        .for('no key update');
       const row = rows[0];
       return row === undefined ? null : toRecord(row);
     },

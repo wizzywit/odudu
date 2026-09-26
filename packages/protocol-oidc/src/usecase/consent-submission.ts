@@ -1,9 +1,11 @@
 import {
   nextRequiredAction,
   type PendingRequest,
+  type PresentedSession,
   type RequiredAction,
-  type SessionRecord,
+  type SessionEntry,
 } from '@odudu/authn-flows';
+import { type RequestContext } from '@odudu/domain-audit';
 import { isUuid } from '@odudu/kernel';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import {
@@ -36,8 +38,8 @@ export type ConsentSubmissionOutcome =
       kind: 'redirect';
       location: string;
       sessionId: string;
-      ephemeralSessionIds: readonly string[];
-      persistentSessionIds: readonly string[];
+      ephemeralSessions: readonly SessionEntry[];
+      persistentSessions: readonly SessionEntry[];
       persistentMaxAgeSeconds: number;
     };
 
@@ -78,7 +80,7 @@ export interface ConsentSubmissionDeps {
       rememberMeMaxSeconds: number;
     },
     header: string | undefined,
-  ): Promise<SessionRecord[]>;
+  ): Promise<PresentedSession[]>;
   // The same two dependencies handleLoginSubmission reads to enforce its own
   // pre-consent gates — see refusedForUnverifiedEmail and nextRequiredAction
   // below, this endpoint's only callers of either.
@@ -107,6 +109,7 @@ export async function handleConsentSubmission(
   issuerBase: string,
   authSessionId: string | undefined,
   answer: ConsentAnswer,
+  request: RequestContext,
   // The browser's `Cookie` header — required, not optional; see
   // login-submission.ts's identical parameter on handleLoginSubmission for
   // why an omitted one is a silent bug rather than a safe default.
@@ -223,6 +226,7 @@ export async function handleConsentSubmission(
     clientId,
     subjectId,
     authenticators,
+    request,
     header,
     // The only place this choice can still come from: this door reads no
     // `remember_me` field of its own, so whatever handleLoginSubmission's

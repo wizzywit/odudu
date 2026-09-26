@@ -1,3 +1,4 @@
+import { SessionEntry } from '@odudu/authn-flows';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
   handleLoginSubmission,
@@ -9,6 +10,8 @@ import {
 // field before it reaches a `uuid` column, so a placeholder would be
 // refused as malformed and prove nothing about the path under test.
 const AUTH_SESSION_ID = '01a0a998-8326-7900-8fa6-dd06b842b269';
+const REQUEST = { requestId: 'req-login-1', ip: '203.0.113.9' };
+const ISSUED = SessionEntry.issue('session-1');
 
 const TENANT = {
   id: 'tenant-1',
@@ -55,7 +58,7 @@ function harness(): Harness {
     .mockResolvedValue({ kind: 'success', subjectId: 'subject-1', authenticators: ['password'] });
   const completeLogin = vi
     .fn()
-    .mockResolvedValue({ kind: 'issued', sessionId: 'session-1', code: 'code-1' });
+    .mockResolvedValue({ kind: 'issued', sessionId: 'session-1', code: 'code-1', entry: ISSUED });
   const checkEmailVerification = vi.fn().mockResolvedValue({ verified: true, hasEmail: true });
   const pendingActions = vi.fn().mockResolvedValue([]);
   const resetAuthenticationProgress = vi.fn().mockResolvedValue(undefined);
@@ -119,6 +122,7 @@ describe('handleLoginSubmission — a session id that cannot name a session', ()
         'https://idp.example',
         authSessionId,
         { username: 'ada', password: 'x' },
+        REQUEST,
         undefined,
       );
 
@@ -138,6 +142,7 @@ describe('handleLoginSubmission — the success path', () => {
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
     );
 
@@ -146,13 +151,14 @@ describe('handleLoginSubmission — the success path', () => {
       location:
         'https://app.example/callback?code=code-1&state=xyz&iss=https%3A%2F%2Fidp.example%2Ftenants%2Facme',
       sessionId: 'session-1',
-      ephemeralSessionIds: ['session-1'],
-      persistentSessionIds: [],
+      ephemeralSessions: [ISSUED],
+      persistentSessions: [],
       persistentMaxAgeSeconds: TENANT.rememberMeMaxSeconds,
     });
     expect(completeLogin).toHaveBeenCalledWith({
       tenantId: TENANT.id,
       authSessionId: AUTH_SESSION_ID,
+      request: REQUEST,
       subjectId: 'subject-1',
       clientId: 'client-uuid-1',
       redirectUri: PENDING.redirectUri,
@@ -163,7 +169,7 @@ describe('handleLoginSubmission — the success path', () => {
       remembered: false,
       lifespans: TENANT_LIFESPANS,
       maxSessionsPerBrowser: TENANT.maxSessionsPerBrowser,
-      browserSessionIds: [],
+      browserSessions: [],
       authenticators: ['password'],
       resource: [],
       claims: { idToken: {}, userinfo: {} },
@@ -178,6 +184,7 @@ describe('handleLoginSubmission — the success path', () => {
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
       true,
     );
@@ -200,6 +207,7 @@ describe('handleLoginSubmission — the success path', () => {
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
       true,
     );
@@ -233,6 +241,7 @@ describe('handleLoginSubmission — the success path', () => {
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
       true,
     );
@@ -254,6 +263,7 @@ describe('handleLoginSubmission — a tenant that requires a verified address', 
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
     );
 
@@ -276,6 +286,7 @@ describe('handleLoginSubmission — a tenant that requires a verified address', 
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
     );
 
@@ -297,6 +308,7 @@ describe('handleLoginSubmission — a tenant that requires a verified address', 
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
     );
 
@@ -315,6 +327,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
     );
 
@@ -337,6 +350,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
     );
 
@@ -358,6 +372,7 @@ describe('handleLoginSubmission — a subject with a pending required action', (
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
     );
 
@@ -377,10 +392,34 @@ describe('handleLoginSubmission — a session already consumed by an earlier or 
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
     );
 
     expect(outcome).toEqual({ kind: 'unauthenticated' });
+  });
+});
+
+describe('handleLoginSubmission — the request reaches the attempt', () => {
+  it('hands advance the request context, beside the submission it came with', async () => {
+    const { deps, advance } = harness();
+
+    await handleLoginSubmission(
+      deps,
+      'acme',
+      'https://idp.example',
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+      REQUEST,
+      undefined,
+    );
+
+    expect(advance).toHaveBeenCalledWith(
+      TENANT.id,
+      AUTH_SESSION_ID,
+      { username: 'ada', password: 'x' },
+      REQUEST,
+    );
   });
 });
 
@@ -395,6 +434,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'wrong' },
+      REQUEST,
       undefined,
     );
 
@@ -412,6 +452,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
     );
 
@@ -429,6 +470,7 @@ describe('handleLoginSubmission — a failed attempt must not consume the sessio
       'https://idp.example',
       AUTH_SESSION_ID,
       {},
+      REQUEST,
       undefined,
     );
 
@@ -450,6 +492,7 @@ describe('handleLoginSubmission — a hint naming somebody other than who signed
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
     );
 
@@ -470,6 +513,7 @@ describe('handleLoginSubmission — a hint naming somebody other than who signed
       'https://idp.example',
       AUTH_SESSION_ID,
       { username: 'ada', password: 'x' },
+      REQUEST,
       undefined,
     );
 

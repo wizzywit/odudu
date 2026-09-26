@@ -13,6 +13,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { sessionRepository } from '#/repository/sessions';
+import { SessionEntry } from '#/service/session-entry';
 import { type PendingRequest } from '#/schema/authentication-sessions';
 
 let containerHandle: TestDatabase | undefined;
@@ -57,6 +58,40 @@ async function seedTenant(tx: TenantScopedDatabase, tenantId: string): Promise<v
 }
 
 describe('sessionRepository', () => {
+  it('cannot resolve a browser’s entry under a different tenant context', async () => {
+    const lifespans = {
+      ssoSessionIdleSeconds: 1800,
+      ssoSessionMaxSeconds: 36_000,
+      rememberMeIdleSeconds: 604_800,
+      rememberMeMaxSeconds: 2_592_000,
+    };
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        const entry = SessionEntry.issue(newId());
+        await sessionRepository(tx).create({
+          id: entry.id,
+          tenantId,
+          subjectId: subject.id,
+          expiresAt: new Date(Date.now() + 3_600_000),
+          authenticators: [],
+          secretHash: entry.secretHash(),
+        });
+        return entry;
+      },
+      verifySeeded: async (tx, entry) => {
+        const found = await sessionRepository(tx).liveByEntries([entry], lifespans, new Date());
+        expect(found).toHaveLength(1);
+      },
+      attempt: async (tx, entry) =>
+        sessionRepository(tx).liveByEntries([entry], lifespans, new Date()),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+
   it('cannot find a session by id under a different tenant context', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {
@@ -69,6 +104,7 @@ describe('sessionRepository', () => {
           subjectId: subject.id,
           expiresAt: new Date(Date.now() + 3_600_000),
           authenticators: [],
+          secretHash: SessionEntry.issue(id).secretHash(),
         });
         return id;
       },
@@ -96,6 +132,7 @@ describe('sessionRepository', () => {
           subjectId: subject.id,
           expiresAt: originalExpiry,
           authenticators: [],
+          secretHash: SessionEntry.issue(id).secretHash(),
         });
         return id;
       },
@@ -104,10 +141,8 @@ describe('sessionRepository', () => {
         expect(found?.expiresAt).toEqual(originalExpiry);
       },
       attempt: async (tx, id) => sessionRepository(tx).end(id, new Date()),
-      expectBlocked: () => {
-        // `end` is an UPDATE affecting zero rows under a foreign tenant
-        // context, not a thrown error or a returned value to assert on —
-        // `verifyTenantAUnaffected` is where the blocking actually shows.
+      expectBlocked: (ended) => {
+        expect(ended).toBe(false);
       },
       verifyTenantAUnaffected: async (tx, id) => {
         const found = await sessionRepository(tx).byId(id);

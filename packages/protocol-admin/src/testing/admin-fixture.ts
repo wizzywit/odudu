@@ -15,7 +15,7 @@ import {
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionTenant, sessionRepository } from '@odudu/authn-flows';
+import { provisionTenant, SessionEntry, sessionRepository } from '@odudu/authn-flows';
 import { roleRepository, subjectRoles } from '@odudu/domain-authz';
 import { hashPassword, subjectRepository, userRepository } from '@odudu/domain-identity';
 import {
@@ -38,6 +38,7 @@ import {
   standardClaimMappers,
   tenantIssuerFor,
   tokenGrantRepository,
+  UNLIMITED_AUDIT_REFUSAL_BUDGET,
   UNLIMITED_CLIENT_SECRET_LIMITER,
 } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -89,6 +90,14 @@ export interface AdminFixture {
   // presenting the resulting token needs to inject with the same `host`
   // header to be accepted, and a different one to be refused.
   adminTokenAt(tenantName: string, capabilities: readonly string[], host: string): Promise<string>;
+  // Signs arbitrary claims with the tenant's own active key, `iss` included,
+  // so a test can present a genuine signature over an issuer it chose.
+  // `typ` defaults to `at+jwt`.
+  signWithTenantKey(
+    tenantName: string,
+    claims: Record<string, unknown>,
+    options?: { typ?: string },
+  ): Promise<string>;
 
   // Subjects and clients.
   createSubject(tenantName: string, username: string): Promise<{ id: string }>;
@@ -187,7 +196,10 @@ export async function startAdminFixture(): Promise<AdminFixture> {
   // GET /scopes/:id/mappers can never list a name issuance itself would not
   // recognise.
   const claimMappers = standardClaimMappers();
-  const http = Fastify();
+  // Same request-id wiring as apps/server/src/app.ts, so an audit row's
+  // request_id/ip can be tested here against a header this fixture actually
+  // honours rather than against light-my-request's own random id.
+  const http = Fastify({ genReqId: () => newId(), requestIdHeader: 'x-request-id' });
   await http.register(formbody);
   await http.register(
     oidcRoutes({
@@ -196,6 +208,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
       kek: KEK,
       clock,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
       claimMappers,
     }),
@@ -238,7 +251,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
 
   async function resolveIssuer(tenantName: string): Promise<string> {
     const res = await http.inject({
-      url: `/tenants/${tenantName}/.well-known/openid-configuration`,
+      url: `/tenants/${encodeURIComponent(tenantName)}/.well-known/openid-configuration`,
     });
     if (res.statusCode !== 200) {
       throw new Error(
@@ -363,6 +376,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
         subjectId: subject.id,
         expiresAt: new Date(clock.now().getTime() + 24 * 3600 * 1000),
         authenticators: ['pwd'],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
       });
       return mintTokenInTx(tx, ctx, {
         subjectId: subject.id,
@@ -460,6 +474,16 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     const ctx = requireTenant(tenantName);
     const issuer = tenantIssuerFor({ protocol: 'http', host }, tenantName);
     return mintAdminLikeToken({ ...ctx, issuer }, capabilities, [ADMIN_API_AUDIENCE]);
+  }
+
+  async function signWithTenantKey(
+    tenantName: string,
+    claims: Record<string, unknown>,
+    options: { typ?: string } = {},
+  ): Promise<string> {
+    const ctx = requireTenant(tenantName);
+    const key = await withTenant(app.db, ctx.id, (tx) => signingKeyRepository(tx).active());
+    return signJwt(claims, { key, kek: KEK, typ: options.typ ?? 'at+jwt' });
   }
 
   async function systemAdminToken(capabilities: readonly string[]): Promise<string> {
@@ -584,6 +608,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
         subjectId: subject.id,
         expiresAt: new Date(clock.now().getTime() + 24 * 3600 * 1000),
         authenticators: ['pwd'],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
       });
       // The grant is minted through the built-in admin client, so the only
       // way this token differs from `adminToken`'s is where its role sits.
@@ -769,6 +794,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     stop,
     adminToken,
     adminTokenAt,
+    signWithTenantKey,
     systemAdminToken,
     applicationToken,
     createSubject,

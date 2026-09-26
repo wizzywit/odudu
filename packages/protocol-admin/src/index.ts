@@ -1,13 +1,13 @@
 import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
 import { type DatabaseHandle, type TenantScopedDatabase, withTenant } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import { effectiveRoles } from '@odudu/domain-authz';
 import { hashPassword } from '@odudu/domain-identity';
 import { ADMIN_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
 import { type Clock, type Logger, systemClock } from '@odudu/kernel';
 import { tenantLookupRepository, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { type FastifyPluginAsync } from 'fastify';
-import { auditRepository } from '#/repository/audit';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
 import { type Audit as ClientAudit } from '#/usecase/clients';
@@ -425,7 +425,12 @@ function buildAdminRoutes(
     };
 
     registerOpenApiRoute(app);
-    registerAdminRoutes(app, handlers, authDeps, authzDeps, clock);
+    registerAdminRoutes(app, handlers, {
+      auth: authDeps,
+      authz: authzDeps,
+      clock,
+      database: deps.database.db,
+    });
 
     deps.logger.debug({}, 'protocol-admin registered its admin routes');
     return Promise.resolve();

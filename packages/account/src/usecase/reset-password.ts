@@ -1,4 +1,5 @@
 import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import { outboxRepository, renderResetPassword } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
@@ -78,6 +79,7 @@ export async function requestPasswordReset(
 export interface CompletePasswordResetDeps {
   readonly database: DatabaseHandle;
   readonly tenantId: string;
+  readonly request: RequestContext;
   // Injected rather than imported, for the same reason
   // completeEmailVerification's getCurrentEmail and markVerified are:
   // @odudu/account never imports @odudu/domain-identity, where hashPassword
@@ -134,30 +136,43 @@ export async function completePasswordReset(
   key: string,
   newPassword: string,
 ): Promise<CompletePasswordResetResult> {
-  return withTenant(deps.database.db, deps.tenantId, async (tx) => {
-    const peeked = await actionTokenRepository(tx).peek(key);
-    if (peeked?.type !== 'reset_password') return { kind: 'invalid' };
+  return withTenant(
+    deps.database.db,
+    deps.tenantId,
+    async (tx) => {
+      const peeked = await actionTokenRepository(tx).peek(key);
+      if (peeked?.type !== 'reset_password') return { kind: 'invalid' };
 
-    const username = await deps.getUsername(tx, peeked.subjectId);
-    const violations = deps.evaluatePassword(newPassword, deps.passwordPolicy, {
-      username,
-      email: peeked.email,
-    });
-    if (violations.length > 0) return { kind: 'invalid_password', violations };
+      const username = await deps.getUsername(tx, peeked.subjectId);
+      const violations = deps.evaluatePassword(newPassword, deps.passwordPolicy, {
+        username,
+        email: peeked.email,
+      });
+      if (violations.length > 0) return { kind: 'invalid_password', violations };
 
-    // Before the link is spent, for the same reason the rules above are:
-    // setting the password already in force restarts the tenant's
-    // password_max_age_days on it, which would make an expired password
-    // evadable by anybody who can read the account's mail.
-    const unchanged = await deps.unchangedPasswordViolations(tx, peeked.subjectId, newPassword);
-    if (unchanged.length > 0) return { kind: 'invalid_password', violations: unchanged };
+      // Before the link is spent, for the same reason the rules above are:
+      // setting the password already in force restarts the tenant's
+      // password_max_age_days on it, which would make an expired password
+      // evadable by anybody who can read the account's mail.
+      const unchanged = await deps.unchangedPasswordViolations(tx, peeked.subjectId, newPassword);
+      if (unchanged.length > 0) return { kind: 'invalid_password', violations: unchanged };
 
-    const record = await actionTokenRepository(tx).consume(key, 'reset_password');
-    if (record === null) return { kind: 'invalid' };
+      const record = await actionTokenRepository(tx).consume(key, 'reset_password');
+      if (record === null) return { kind: 'invalid' };
 
-    await deps.setPassword(tx, record.subjectId, newPassword);
-    await deps.clearPasswordUpdateAction(tx, record.subjectId);
-    await actionTokenRepository(tx).invalidateOutstanding(record.subjectId, 'reset_password');
-    return { kind: 'reset' };
-  });
+      await deps.setPassword(tx, record.subjectId, newPassword);
+      await deps.clearPasswordUpdateAction(tx, record.subjectId);
+      await actionTokenRepository(tx).invalidateOutstanding(record.subjectId, 'reset_password');
+      await auditRepository(tx).record({
+        eventType: 'credential',
+        action: 'password.reset',
+        outcome: 'allowed',
+        actorSubjectId: record.subjectId,
+        resourceType: 'subject',
+        resourceId: record.subjectId,
+      });
+      return { kind: 'reset' };
+    },
+    deps.request,
+  );
 }

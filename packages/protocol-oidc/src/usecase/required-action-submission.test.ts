@@ -17,6 +17,8 @@ const TENANT = {
   ssoSessionIdleSeconds: 1_800,
 };
 
+const REQUEST = { requestId: 'request-1', ip: '192.0.2.1' };
+
 const SUBMISSION = {
   authSessionId: AUTH_SESSION_ID,
   action: 'configure-totp',
@@ -81,10 +83,15 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
   it('refuses a submission carrying no authentication session', async () => {
     const { deps, completeTotpEnrolment } = harness();
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      authSessionId: undefined,
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        authSessionId: undefined,
+      },
+      REQUEST,
+    );
 
     expect(outcome).toEqual({ kind: 'unauthenticated' });
     expect(completeTotpEnrolment).not.toHaveBeenCalled();
@@ -97,10 +104,15 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     for (const authSessionId of MALFORMED_SESSION_IDS) {
       const { deps, authenticatedSubject, completeTotpEnrolment } = harness();
 
-      const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-        ...SUBMISSION,
-        authSessionId,
-      });
+      const outcome = await handleRequiredActionSubmission(
+        deps,
+        'acme',
+        {
+          ...SUBMISSION,
+          authSessionId,
+        },
+        REQUEST,
+      );
 
       expect(outcome).toEqual({ kind: 'unauthenticated' });
       expect(authenticatedSubject).not.toHaveBeenCalled();
@@ -112,7 +124,7 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     const { deps, authenticatedSubject, completeTotpEnrolment } = harness();
     authenticatedSubject.mockResolvedValue(null);
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION);
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
 
     expect(outcome).toEqual({ kind: 'unauthenticated' });
     expect(completeTotpEnrolment).not.toHaveBeenCalled();
@@ -122,7 +134,7 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     const { deps, findTenant } = harness();
     findTenant.mockResolvedValue({ ...TENANT, enabled: false });
 
-    expect(await handleRequiredActionSubmission(deps, 'acme', SUBMISSION)).toEqual({
+    expect(await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST)).toEqual({
       kind: 'unauthenticated',
     });
   });
@@ -135,7 +147,7 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     const { deps, pendingActions, completeTotpEnrolment } = harness();
     pendingActions.mockResolvedValue([]);
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION);
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
 
     expect(outcome).toEqual({ kind: 'not_owed', action: 'configure-totp' });
     expect(completeTotpEnrolment).not.toHaveBeenCalled();
@@ -145,7 +157,7 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     const { deps, pendingActions, completeTotpEnrolment } = harness();
     pendingActions.mockResolvedValue(['update-password']);
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION);
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
 
     expect(outcome).toEqual({ kind: 'not_owed', action: 'configure-totp' });
     expect(completeTotpEnrolment).not.toHaveBeenCalled();
@@ -159,10 +171,15 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     const { deps, pendingActions, completePasskeyEnrolment } = harness();
     pendingActions.mockResolvedValue(['update-password', 'configure-passkey']);
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'configure-passkey',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'configure-passkey',
+      },
+      REQUEST,
+    );
 
     expect(outcome).toEqual({ kind: 'not_owed', action: 'configure-passkey' });
     expect(completePasskeyEnrolment).not.toHaveBeenCalled();
@@ -172,10 +189,15 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     const { deps, pendingActions, completeRecoveryCodes } = harness();
     pendingActions.mockResolvedValue(['update-password', 'generate-recovery-codes']);
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'generate-recovery-codes',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'generate-recovery-codes',
+      },
+      REQUEST,
+    );
 
     expect(outcome).toEqual({ kind: 'not_owed', action: 'generate-recovery-codes' });
     expect(completeRecoveryCodes).not.toHaveBeenCalled();
@@ -184,10 +206,15 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
   it('refuses a submission naming no action at all', async () => {
     const { deps } = harness();
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: undefined,
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: undefined,
+      },
+      REQUEST,
+    );
 
     expect(outcome).toEqual({ kind: 'not_owed', action: '' });
   });
@@ -199,11 +226,16 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     const { deps, pendingActions, completeUpdatePassword } = harness();
     pendingActions.mockResolvedValue(['configure-totp']);
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'update-password',
-      password: 'correct horse battery staple',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'update-password',
+        password: 'correct horse battery staple',
+      },
+      REQUEST,
+    );
 
     expect(outcome).toEqual({ kind: 'not_owed', action: 'update-password' });
     expect(completeUpdatePassword).not.toHaveBeenCalled();
@@ -216,10 +248,15 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     const { deps, pendingActions, completeRecoveryCodes } = harness();
     pendingActions.mockResolvedValue(['configure-totp']);
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'generate-recovery-codes',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'generate-recovery-codes',
+      },
+      REQUEST,
+    );
 
     expect(outcome).toEqual({ kind: 'not_owed', action: 'generate-recovery-codes' });
     expect(completeRecoveryCodes).not.toHaveBeenCalled();
@@ -229,10 +266,15 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     const { deps, pendingActions, completeRecoveryCodes } = harness();
     pendingActions.mockResolvedValue(['generate-recovery-codes']);
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'generate-recovery-codes',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'generate-recovery-codes',
+      },
+      REQUEST,
+    );
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
     expect(completeRecoveryCodes).toHaveBeenCalledWith({
@@ -249,10 +291,15 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
     pendingActions.mockResolvedValue(['generate-recovery-codes']);
     completeRecoveryCodes.mockResolvedValue({ kind: 'rejected', reason: 'none_issued' });
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'generate-recovery-codes',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'generate-recovery-codes',
+      },
+      REQUEST,
+    );
 
     expect(outcome).toMatchObject({
       kind: 'rejected',
@@ -272,15 +319,20 @@ describe('handleRequiredActionSubmission — who is allowed to act', () => {
       authenticatedSubject: (tenantId, authSessionId) =>
         deps.authenticatedSubject(tenantId, authSessionId),
       pendingActions: (tenantId, subjectId) => deps.pendingActions(tenantId, subjectId),
-      completeTotpEnrolment: (input) => deps.completeTotpEnrolment(input),
+      completeTotpEnrolment: (input, request) => deps.completeTotpEnrolment(input, request),
       completeRecoveryCodes: (input) => deps.completeRecoveryCodes(input),
-      completeUpdatePassword: (input) => deps.completeUpdatePassword(input),
+      completeUpdatePassword: (input, request) => deps.completeUpdatePassword(input, request),
     };
 
-    const outcome = await handleRequiredActionSubmission(withoutPasskeys, 'acme', {
-      ...SUBMISSION,
-      action: 'configure-passkey',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      withoutPasskeys,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'configure-passkey',
+      },
+      REQUEST,
+    );
 
     expect(outcome).toEqual({ kind: 'unsupported', action: 'configure-passkey' });
   });
@@ -290,22 +342,25 @@ describe('handleRequiredActionSubmission — enrolling the owed factor', () => {
   it('completes the action for the bound subject and the submitted code', async () => {
     const { deps, completeTotpEnrolment } = harness();
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION);
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
-    expect(completeTotpEnrolment).toHaveBeenCalledWith({
-      tenantId: 'tenant-1',
-      subjectId: 'subject-1',
-      secret: SUBMISSION.secret,
-      code: SUBMISSION.code,
-    });
+    expect(completeTotpEnrolment).toHaveBeenCalledWith(
+      {
+        tenantId: 'tenant-1',
+        subjectId: 'subject-1',
+        secret: SUBMISSION.secret,
+        code: SUBMISSION.code,
+      },
+      REQUEST,
+    );
   });
 
   it('reports a wrong code back to the same attempt', async () => {
     const { deps, completeTotpEnrolment } = harness();
     completeTotpEnrolment.mockResolvedValue({ kind: 'rejected', reason: 'invalid_code' });
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION);
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
 
     expect(outcome).toMatchObject({
       kind: 'rejected',
@@ -321,7 +376,7 @@ describe('handleRequiredActionSubmission — enrolling the owed factor', () => {
     const { deps, completeTotpEnrolment } = harness();
     completeTotpEnrolment.mockResolvedValue({ kind: 'rejected', reason: 'already_enrolled' });
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION);
+    const outcome = await handleRequiredActionSubmission(deps, 'acme', SUBMISSION, REQUEST);
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
   });
@@ -332,18 +387,26 @@ describe('handleRequiredActionSubmission — changing an owed password', () => {
     const { deps, pendingActions, completeUpdatePassword } = harness();
     pendingActions.mockResolvedValue(['update-password']);
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'update-password',
-      password: 'correct horse battery staple',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'update-password',
+        password: 'correct horse battery staple',
+      },
+      REQUEST,
+    );
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
-    expect(completeUpdatePassword).toHaveBeenCalledWith({
-      tenantId: 'tenant-1',
-      subjectId: 'subject-1',
-      password: 'correct horse battery staple',
-    });
+    expect(completeUpdatePassword).toHaveBeenCalledWith(
+      {
+        tenantId: 'tenant-1',
+        subjectId: 'subject-1',
+        password: 'correct horse battery staple',
+      },
+      REQUEST,
+    );
   });
 
   it('carries every rule the tenant policy reported back to the same attempt', async () => {
@@ -357,11 +420,16 @@ describe('handleRequiredActionSubmission — changing an owed password', () => {
       ],
     });
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'update-password',
-      password: 'weak',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'update-password',
+        password: 'weak',
+      },
+      REQUEST,
+    );
 
     expect(outcome).toEqual({
       kind: 'password_rejected',
@@ -381,11 +449,16 @@ describe('handleRequiredActionSubmission — changing an owed password', () => {
     pendingActions.mockResolvedValue(['update-password']);
     completeUpdatePassword.mockResolvedValue({ kind: 'superseded' });
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'update-password',
-      password: 'correct horse battery staple',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'update-password',
+        password: 'correct horse battery staple',
+      },
+      REQUEST,
+    );
 
     expect(outcome).toMatchObject({ kind: 'password_rejected', authSessionId: AUTH_SESSION_ID });
     expect(outcome).not.toMatchObject({ kind: 'completed' });
@@ -398,16 +471,24 @@ describe('handleRequiredActionSubmission — changing an owed password', () => {
     const { deps, pendingActions, completeUpdatePassword } = harness();
     pendingActions.mockResolvedValue(['update-password']);
 
-    await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'update-password',
-    });
+    await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'update-password',
+      },
+      REQUEST,
+    );
 
-    expect(completeUpdatePassword).toHaveBeenCalledWith({
-      tenantId: 'tenant-1',
-      subjectId: 'subject-1',
-      password: '',
-    });
+    expect(completeUpdatePassword).toHaveBeenCalledWith(
+      {
+        tenantId: 'tenant-1',
+        subjectId: 'subject-1',
+        password: '',
+      },
+      REQUEST,
+    );
   });
 });
 
@@ -416,21 +497,29 @@ describe('handleRequiredActionSubmission — enrolling a passkey', () => {
     const { deps, completePasskeyEnrolment, pendingActions } = harness();
     pendingActions.mockResolvedValue(['configure-passkey']);
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'configure-passkey',
-      credential: '{"id":"abc"}',
-      label: 'Yubikey',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'configure-passkey',
+        credential: '{"id":"abc"}',
+        label: 'Yubikey',
+      },
+      REQUEST,
+    );
 
     expect(outcome).toEqual({ kind: 'completed', authSessionId: AUTH_SESSION_ID });
-    expect(completePasskeyEnrolment).toHaveBeenCalledWith({
-      tenantId: 'tenant-1',
-      subjectId: 'subject-1',
-      authSessionId: AUTH_SESSION_ID,
-      response: { id: 'abc' },
-      label: 'Yubikey',
-    });
+    expect(completePasskeyEnrolment).toHaveBeenCalledWith(
+      {
+        tenantId: 'tenant-1',
+        subjectId: 'subject-1',
+        authSessionId: AUTH_SESSION_ID,
+        response: { id: 'abc' },
+        label: 'Yubikey',
+      },
+      REQUEST,
+    );
   });
 
   // A field that is not JSON at all is the same kind of nothing as a
@@ -443,14 +532,20 @@ describe('handleRequiredActionSubmission — enrolling a passkey', () => {
       reason: 'invalid_response',
     });
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'configure-passkey',
-      credential: 'not-json',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'configure-passkey',
+        credential: 'not-json',
+      },
+      REQUEST,
+    );
 
     expect(completePasskeyEnrolment).toHaveBeenCalledWith(
       expect.objectContaining({ response: undefined }),
+      REQUEST,
     );
     expect(outcome).toMatchObject({ kind: 'rejected', action: 'configure-passkey' });
   });
@@ -460,11 +555,16 @@ describe('handleRequiredActionSubmission — enrolling a passkey', () => {
     pendingActions.mockResolvedValue(['configure-passkey']);
     completePasskeyEnrolment.mockResolvedValue({ kind: 'rejected', reason: 'no_challenge' });
 
-    const outcome = await handleRequiredActionSubmission(deps, 'acme', {
-      ...SUBMISSION,
-      action: 'configure-passkey',
-      credential: '{}',
-    });
+    const outcome = await handleRequiredActionSubmission(
+      deps,
+      'acme',
+      {
+        ...SUBMISSION,
+        action: 'configure-passkey',
+        credential: '{}',
+      },
+      REQUEST,
+    );
 
     expect(outcome).toMatchObject({
       kind: 'rejected',

@@ -6,6 +6,7 @@ import {
   type RecoveryCodesOffer,
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
+import { requestContextFrom, type RequestContext } from '@odudu/domain-audit';
 import { isUuid, PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
@@ -48,7 +49,11 @@ export interface LoginRouteDeps extends LoginSubmissionDeps {
   ): Promise<PasskeyEnrolmentOffer>;
   // The ten codes a generate-recovery-codes page shows, written as hashes
   // before it renders. Asked for only when that action is the one owed.
-  beginRecoveryCodes(tenantId: string, subjectId: string): Promise<RecoveryCodesOffer>;
+  beginRecoveryCodes(
+    tenantId: string,
+    subjectId: string,
+    request: RequestContext,
+  ): Promise<RecoveryCodesOffer>;
   // The request options the passkey button asks for, and the challenge it
   // parks on this attempt. Absent for the same reason the enrolment half is.
   beginPasskeyAuthentication?(
@@ -165,6 +170,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
           ? {}
           : { assertion: parseAssertion(assertion) }),
       },
+      requestContextFrom(request),
       request.headers.cookie,
       rememberMe,
     );
@@ -248,8 +254,8 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     const written = sessionCookies({
       tenant: request.params.tenant,
       tls: deps.tls,
-      ephemeral: outcome.ephemeralSessionIds,
-      persistent: outcome.persistentSessionIds,
+      ephemeral: outcome.ephemeralSessions,
+      persistent: outcome.persistentSessions,
       persistentMaxAgeSeconds: outcome.persistentMaxAgeSeconds,
     });
 

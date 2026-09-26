@@ -5,7 +5,13 @@ import {
   verifyJwtAgainstJwkSet,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { withTenant, type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
+import {
+  withSavepoint,
+  withTenant,
+  type DatabaseHandle,
+  type TenantScopedDatabase,
+} from '@odudu/db';
+import { auditRepository, type AuditReason, type RequestContext } from '@odudu/domain-audit';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, clientScopeRepository, type ClientRecord } from '@odudu/domain-tenant';
 import { type ClaimMapperRegistry, type Clock, newId } from '@odudu/kernel';
@@ -33,8 +39,12 @@ import {
   invalidRequest,
   invalidScope,
   invalidTarget,
+  TokenError,
   unauthorizedClient,
   unsupportedGrantType,
+  withAudit,
+  type TokenErrorCode,
+  type TokenRefusalAudit,
 } from '#/service/errors';
 import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { parseResource } from '#/service/resource-indicator';
@@ -59,6 +69,7 @@ import {
   readOptionalField,
   WWW_AUTHENTICATE,
   type ClientAuthenticationDeps,
+  type RefusalLogger,
 } from '#/usecase/client-authentication';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
@@ -97,8 +108,9 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // `clientSecretLimiter` above.
   clientKeySet: ClientKeySet;
   // Where a private_key_jwt refusal's real cause goes — the caller sees
-  // one invalid_client whatever it was; see
-  // authenticatePrivateKeyJwt below.
+  // one invalid_client whatever it was; see authenticatePrivateKeyJwt
+  // below — and where a revocation's audit row goes when it cannot be
+  // written.
   logger: AssertionLogger;
   // Gates tls_client_auth exactly the way it already gates Fastify's own
   // `X-Forwarded-*` trust (apps/server/src/app.ts) — the proxy-supplied
@@ -110,10 +122,13 @@ export interface TokenIssuanceDeps extends ClientAuthenticationDeps {
   // on a name for this (nginx, Envoy, Apache and HAProxy each use a
   // different one), so it is never a constant here.
   tlsClientCertHeader: string;
+  // Bound on every transaction this issuance opens beside the caller's own,
+  // so an audit row written there names the request that caused it.
+  request: RequestContext;
 }
 
-export interface AssertionLogger {
-  warn(details: Record<string, unknown>, message: string): void;
+export interface AssertionLogger extends RefusalLogger {
+  error(details: Record<string, unknown>, message: string): void;
 }
 
 export interface TokenResponse {
@@ -293,13 +308,26 @@ async function redeemAuthorizationCode(
     // part of the decision that already rejected this call above.
     const existing = await authorizationCodeRepository(tx).byHash(codeHash);
     const grantId = existing?.grantId;
-    if (grantId !== null && grantId !== undefined) {
-      const revokedAt = deps.clock.now();
-      await withTenant(deps.database.db, deps.tenantId, (revokeTx) =>
-        tokenGrantRepository(revokeTx).revoke(grantId, revokedAt),
-      );
-    }
-    throw invalidGrant();
+    if (existing === null || grantId === null || grantId === undefined) throw invalidGrant();
+
+    const revokedAt = deps.clock.now();
+    await withTenant(
+      deps.database.db,
+      deps.tenantId,
+      async (revokeTx) => {
+        if (await tokenGrantRepository(revokeTx).revoke(grantId, revokedAt)) {
+          await recordCodeReplayRevocation(revokeTx, deps, existing, grantId);
+        }
+      },
+      deps.request,
+    );
+    throw withAudit(invalidGrant(), {
+      action: 'token.issue',
+      reason: 'replayed',
+      clientDbId: client.id,
+      subjectId: existing.subjectId,
+      grantId,
+    });
   }
 
   const decision = evaluateAuthorizationCodeGrant(record, client, {
@@ -309,6 +337,37 @@ async function redeemAuthorizationCode(
   if (!decision.ok) throw invalidGrant();
 
   return record;
+}
+
+// The revocation is the control and the row only reports it: a failed
+// insert rolls back to its savepoint and is logged, and the revocation
+// commits regardless. The row names the grant's own client, as
+// `grant.revoked_on_reuse` does; the refusal beside it names the caller.
+async function recordCodeReplayRevocation(
+  tx: TenantScopedDatabase,
+  deps: TokenIssuanceDeps,
+  code: { readonly clientId: string; readonly subjectId: string },
+  grantId: string,
+): Promise<void> {
+  try {
+    await withSavepoint(tx, (inner) =>
+      auditRepository(inner).record({
+        eventType: 'token',
+        action: 'grant.revoked_on_code_replay',
+        outcome: 'allowed',
+        actorSubjectId: code.subjectId,
+        actorClientId: code.clientId,
+        resourceType: 'grant',
+        resourceId: grantId,
+        detail: { reason: 'replayed' },
+      }),
+    );
+  } catch (error) {
+    deps.logger.error(
+      { err: error, grantId },
+      'could not record a grant revoked on authorization code replay',
+    );
+  }
 }
 
 // RFC 8707 §2 at /token: what a request's `resource` narrows `base` to.
@@ -362,9 +421,9 @@ async function mintAccessToken(
     // belongs to — see the `grant_id` comment below.
     grantId: string;
     // The `claims` parameter's `userinfo` member, embedded so `/userinfo`
-    // (no code left to consult) can narrow the same way. Absent for a
-    // grant not minted from a code.
-    requestedUserinfoClaims?: readonly string[];
+    // (no code left to consult) can narrow the same way. Carried on the
+    // grant, so every access token minted from one embeds the same value.
+    requestedUserinfoClaims?: readonly string[] | null;
     // RFC 8693 §4.4's delegation chain, present only for a token-exchange
     // grant that named an actor. Never derived here — the caller resolves
     // it via `buildActChain` before this function ever runs.
@@ -420,7 +479,7 @@ async function mintAccessToken(
     // no combination of the other claims identifies one row uniquely. See
     // docs/protocols/rfc9068.md's reading note on private claims.
     grant_id: input.grantId,
-    ...(input.requestedUserinfoClaims !== undefined && input.requestedUserinfoClaims.length > 0
+    ...((input.requestedUserinfoClaims ?? []).length > 0
       ? { requested_userinfo_claims: input.requestedUserinfoClaims }
       : {}),
     ...(input.act === undefined ? {} : { act: input.act }),
@@ -475,6 +534,8 @@ async function issueAuthorizationCodeTokens(
   // into the access token below and passed to `create` afterward — the
   // `grant_id` comment on `mintAccessToken` explains why.
   const grantId = newId();
+  const userinfoClaims = Object.keys(code.claims.userinfo);
+  const requestedUserinfoClaims = userinfoClaims.length > 0 ? userinfoClaims : null;
 
   const { accessToken, audience, iat, exp } = await mintAccessToken(
     deps,
@@ -490,7 +551,7 @@ async function issueAuthorizationCodeTokens(
       accessTokenScope,
       sessionId,
       grantId,
-      requestedUserinfoClaims: Object.keys(code.claims.userinfo),
+      requestedUserinfoClaims,
     },
     key,
     now,
@@ -577,8 +638,19 @@ async function issueAuthorizationCodeTokens(
     scope: scope.join(' '),
     audience,
     sessionId,
+    requestedUserinfoClaims,
   });
   await authorizationCodeRepository(tx).attachGrant(code.codeHash, grant.id);
+  await auditRepository(tx).record({
+    eventType: 'token',
+    action: 'token.issue',
+    outcome: 'allowed',
+    actorSubjectId: code.subjectId,
+    actorClientId: client.id,
+    resourceType: 'grant',
+    resourceId: grant.id,
+    detail: { grant_type: 'authorization_code', scope: scope.join(' ') },
+  });
 
   // A refresh token is meaningless without an interactive grant to
   // originate from — client_oidc_config's own check constraint requires a
@@ -617,7 +689,7 @@ async function evaluatePresentedRefreshToken(
   request: Extract<StructuredRequest, { grantType: 'refresh_token' }>,
   client: ClientRecord,
   presentedHash: string,
-): Promise<void> {
+): Promise<readonly string[]> {
   const presented = await refreshTokenRepository(tx).byHash(presentedHash);
   // Unknown here and unknown to the rotation below are the same
   // `invalid_grant`; the rotation is skipped because there is nothing to
@@ -641,6 +713,7 @@ async function evaluatePresentedRefreshToken(
   // often enough to refuse before the presented token is consumed; a
   // revocation landing between the two reads is still caught there.
   resolveAudience(grant.audience, request.resource);
+  return decision.scope;
 }
 
 // Stage 3 (and everything after) for `refresh_token`. Rotation runs in its
@@ -660,17 +733,32 @@ async function issueRefreshTokens(
   const now = deps.clock.now();
   const presentedHash = hashRefreshToken(request.refreshToken);
 
-  await evaluatePresentedRefreshToken(tx, request, client, presentedHash);
+  const presentedScope = await evaluatePresentedRefreshToken(tx, request, client, presentedHash);
 
-  const outcome = await withTenant(deps.database.db, deps.tenantId, (rotationTx) =>
-    rotateRefreshToken(
-      rotationTx,
-      presentedHash,
-      now,
-      config.refreshTokenTtlSeconds,
-      deps.lifespans,
-    ),
+  const outcome = await withTenant(
+    deps.database.db,
+    deps.tenantId,
+    (rotationTx) =>
+      rotateRefreshToken(
+        rotationTx,
+        presentedHash,
+        now,
+        config.refreshTokenTtlSeconds,
+        deps.lifespans,
+        presentedScope,
+        deps.logger,
+      ),
+    deps.request,
   );
+  if (outcome.kind === 'reused') {
+    throw withAudit(invalidGrant(), {
+      action: 'token.refresh',
+      reason: 'replayed',
+      clientDbId: client.id,
+      grantId: outcome.revokedFamily,
+      ...(outcome.subjectId === null ? {} : { subjectId: outcome.subjectId }),
+    });
+  }
   if (outcome.kind !== 'rotated') throw invalidGrant();
 
   const grant: TokenGrantRecord = outcome.grant;
@@ -725,6 +813,7 @@ async function issueRefreshTokens(
       // `jti`, which is why revocation and introspection can still name
       // this grant after several rotations.
       grantId: grant.id,
+      requestedUserinfoClaims: grant.requestedUserinfoClaims,
       ...(act === undefined ? {} : { act }),
       ...(expCeiling === undefined ? {} : { expCeiling }),
     },
@@ -756,7 +845,13 @@ async function issueClientCredentialsTokens(
     requestedScope: request.scope,
   });
   if (!decision.ok) {
-    if (decision.reason === 'not_confidential') throw invalidClient(WWW_AUTHENTICATE);
+    if (decision.reason === 'not_confidential') {
+      throw withAudit(invalidClient(WWW_AUTHENTICATE), {
+        action: 'token.issue',
+        reason: 'unauthorized_client',
+        clientDbId: client.id,
+      });
+    }
     if (decision.reason === 'no_service_subject') throw unauthorizedClient();
     throw invalidScope();
   }
@@ -814,6 +909,15 @@ async function issueClientCredentialsTokens(
     scope: scope.join(' '),
     audience,
   });
+  await auditRepository(tx).record({
+    eventType: 'token',
+    action: 'token.issue',
+    outcome: 'allowed',
+    actorClientId: client.id,
+    resourceType: 'grant',
+    resourceId: grantId,
+    detail: { grant_type: 'client_credentials', scope: scope.join(' ') },
+  });
 
   return {
     access_token: accessToken,
@@ -834,12 +938,29 @@ function refusePrivateKeyJwt(
   deps: TokenIssuanceDeps,
   reason: string,
   claimedClientId?: string,
+  resolved?: { client: ClientRecord; reason: AuditReason },
 ): never {
   deps.logger.warn(
     { reason, ...(claimedClientId !== undefined ? { claimedClientId } : {}) },
     'private_key_jwt authentication refused',
   );
-  throw invalidClient(WWW_AUTHENTICATE);
+  throw refusedAuthentication('private_key_jwt', resolved);
+}
+
+// A refusal is recorded only once the claimed client resolved to a
+// registered one; before that it names nobody (ADR 0037).
+function refusedAuthentication(
+  method: string,
+  resolved: { client: ClientRecord; reason: AuditReason } | undefined,
+): TokenError {
+  const refusal = invalidClient(WWW_AUTHENTICATE);
+  if (resolved === undefined) return refusal;
+  return withAudit(refusal, {
+    action: 'client.authenticate',
+    reason: resolved.reason,
+    clientDbId: resolved.client.id,
+    method,
+  });
 }
 
 // RFC 7523 §2.2 / OIDC Core §9's `private_key_jwt`. Every failure reports
@@ -854,23 +975,29 @@ async function authenticatePrivateKeyJwt(
   outcome: Exclude<AssertionOutcome, { kind: 'unsupported' }>,
   tokenEndpoint: string,
 ): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
-  const fail = (reason: string): never =>
-    refusePrivateKeyJwt(deps, reason, outcome.kind === 'ok' ? outcome.claimedClientId : undefined);
+  const fail = (reason: string, resolved?: { client: ClientRecord; reason: AuditReason }): never =>
+    refusePrivateKeyJwt(
+      deps,
+      reason,
+      outcome.kind === 'ok' ? outcome.claimedClientId : undefined,
+      resolved,
+    );
 
   if (outcome.kind !== 'ok') return fail('assertion failed structural validation');
 
   const client = await clientRepository(tx).byClientId(outcome.claimedClientId);
   if (client === null) return fail('unknown client');
+  const badCredential = { client, reason: 'bad_credential' } as const;
   // `authenticateClient`'s password path gets this only incidentally, inside
   // `verifyClientSecret` (packages/domain-tenant/src/service/client.ts) —
   // this path calls no such function, so a disabled client must be refused
   // here explicitly or the operator's one revocation lever does nothing to
   // a private_key_jwt client.
-  if (!client.enabled) return fail('client is disabled');
+  if (!client.enabled) return fail('client is disabled', badCredential);
 
   const config = await clientOidcConfigRepository(tx).byClientId(client.id);
   if (config?.tokenEndpointAuthMethod !== 'private_key_jwt') {
-    return fail('client is not registered for private_key_jwt');
+    return fail('client is not registered for private_key_jwt', badCredential);
   }
 
   let jwks: unknown;
@@ -880,10 +1007,12 @@ async function authenticatePrivateKeyJwt(
     try {
       jwks = await deps.clientKeySet.fetch(config.jwksUri, deps.tenantId);
     } catch (err) {
+      // A fetch that fails is this server failing to reach the client's
+      // keys, not the client failing to authenticate, so it writes no row.
       return fail(err instanceof Error ? err.message : 'jwks_uri fetch failed');
     }
   } else {
-    return fail('client publishes no keys');
+    return fail('client publishes no keys', badCredential);
   }
 
   const verified = await verifyJwtAgainstJwkSet(outcome.assertion, jwks, {
@@ -891,7 +1020,7 @@ async function authenticatePrivateKeyJwt(
     audience: tokenEndpoint,
     now: deps.clock.now(),
   });
-  if (!verified) return fail('assertion signature did not verify');
+  if (!verified) return fail('assertion signature did not verify', badCredential);
 
   const claimed = await assertionJtiRepository(deps.database).claim(
     deps.tenantId,
@@ -899,7 +1028,7 @@ async function authenticatePrivateKeyJwt(
     outcome.jti,
     outcome.expiresAt,
   );
-  if (!claimed) return fail('jti already spent');
+  if (!claimed) return fail('jti already spent', { client, reason: 'replayed' });
 
   return { client, config };
 }
@@ -913,12 +1042,16 @@ function refuseTlsClientAuth(
   deps: TokenIssuanceDeps,
   reason: string,
   claimedClientId?: string,
+  client?: ClientRecord,
 ): never {
   deps.logger.warn(
     { reason, ...(claimedClientId !== undefined ? { claimedClientId } : {}) },
     'tls_client_auth authentication refused',
   );
-  throw invalidClient(WWW_AUTHENTICATE);
+  throw refusedAuthentication(
+    'tls_client_auth',
+    client === undefined ? undefined : { client, reason: 'bad_credential' },
+  );
 }
 
 // RFC 8705 §2.1's PKI mutual-TLS method, proxy-terminated
@@ -941,7 +1074,8 @@ async function authenticateTlsClientAuth(
 
   const client = await clientRepository(tx).byClientId(claimedClientId);
   if (client === null) return refuseTlsClientAuth(deps, 'unknown client', claimedClientId);
-  if (!client.enabled) return refuseTlsClientAuth(deps, 'client is disabled', claimedClientId);
+  if (!client.enabled)
+    return refuseTlsClientAuth(deps, 'client is disabled', claimedClientId, client);
   // tls_client_auth is a confidential-client method — checked again here
   // rather than trusted from registration. The only confidentiality check
   // on this path: `evaluateClientCredentialsGrant` also refuses a public
@@ -950,7 +1084,7 @@ async function authenticateTlsClientAuth(
   // for those grants this is the only thing standing between a public
   // client and a token.
   if (client.type !== 'confidential') {
-    return refuseTlsClientAuth(deps, 'client is not confidential', claimedClientId);
+    return refuseTlsClientAuth(deps, 'client is not confidential', claimedClientId, client);
   }
 
   const config = await clientOidcConfigRepository(tx).byClientId(client.id);
@@ -966,6 +1100,7 @@ async function authenticateTlsClientAuth(
       deps,
       'client is not registered for tls_client_auth',
       claimedClientId,
+      client,
     );
   }
   // Unreachable only because the check immediately above already pinned
@@ -980,6 +1115,7 @@ async function authenticateTlsClientAuth(
       deps,
       'client has no registered certificate subject',
       claimedClientId,
+      client,
     );
   }
   if (!tlsClientAuthSubjectMatches(certificateSubject, config.tlsClientAuthSubjectDn)) {
@@ -987,6 +1123,7 @@ async function authenticateTlsClientAuth(
       deps,
       'certificate subject does not match the registered value',
       claimedClientId,
+      client,
     );
   }
 
@@ -1000,6 +1137,10 @@ export function assertNeverGrant(request: never): never {
   throw new Error(`unhandled grant type: ${JSON.stringify(request)}`);
 }
 
+const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token';
+const REFRESH_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:refresh_token';
+const ID_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:id_token';
+
 // RFC 8693's grant, minting from a subject_token (and, optionally, an
 // actor_token) rather than a credential the client owns outright.
 async function issueExchangedTokens(
@@ -1009,13 +1150,22 @@ async function issueExchangedTokens(
   client: ClientRecord,
   config: ClientOidcConfig,
 ): Promise<TokenResponse> {
-  // Every failure this parse can report is invalid_request (RFC 8693
-  // §2.2.2), for all three token-type parameters alike, so they are never
-  // told apart here.
+  // RFC 8693 §2.2.2 answers every refusal below `invalid_request`, a
+  // decision about an authenticated client's tokens rather than a malformed
+  // request, so each is recorded under its own reason (ADR 0037).
+  const refused = (reason: AuditReason, subjectId?: string): TokenError =>
+    withAudit(invalidRequest(), {
+      action: 'token.exchange',
+      reason,
+      clientDbId: client.id,
+      ...(subjectId === undefined ? {} : { subjectId }),
+    });
+  // Every failure this parse can report is the same refusal, for all three
+  // token-type parameters alike, so they are never told apart here.
   const accepted = (raw: string): ExchangeTokenType => {
     const outcome = parseTokenType(raw);
     if (outcome === 'refused' || outcome === 'deferred' || outcome === 'unknown') {
-      throw invalidRequest();
+      throw refused('unsupported_token_type');
     }
     return outcome;
   };
@@ -1044,7 +1194,7 @@ async function issueExchangedTokens(
   };
 
   const subject = await resolveExchangeToken(tx, resolveDeps, subjectType, request.subjectToken);
-  if (subject.kind !== 'ok') throw invalidRequest();
+  if (subject.kind !== 'ok') throw refused('invalid_grant');
 
   // `actorTokenType` is non-undefined whenever `actorToken` is — stage 1
   // refuses the pair otherwise — but narrow it rather than asserting it.
@@ -1053,13 +1203,19 @@ async function issueExchangedTokens(
     request.actorToken === undefined || actorType === null
       ? null
       : await resolveExchangeToken(tx, resolveDeps, actorType, request.actorToken);
-  if (actor !== null && actor.kind !== 'ok') throw invalidRequest();
+  if (actor !== null && actor.kind !== 'ok') {
+    throw refused('invalid_grant', subject.token.subjectId);
+  }
 
   const actorSubject = actor === null ? client.clientId : actor.token.subjectId;
-  if (!mayActPermits(subject.token.mayAct, actorSubject)) throw invalidRequest();
+  if (!mayActPermits(subject.token.mayAct, actorSubject)) {
+    throw refused('subject_mismatch', subject.token.subjectId);
+  }
 
   const actChain = actor === null ? undefined : buildActChain(actorSubject, actor.token.act);
-  if (actChain !== undefined && actChain.kind !== 'ok') throw invalidRequest();
+  if (actChain !== undefined && actChain.kind !== 'ok') {
+    throw refused('invalid_grant', subject.token.subjectId);
+  }
   const act = actChain?.kind === 'ok' ? actChain.act : undefined;
 
   const scopeOutcome = attenuateScope(request.scope, subject.token.scope);
@@ -1082,6 +1238,22 @@ async function issueExchangedTokens(
   // impersonation names no actor in the claim, so none is recorded here
   // either (token-grants.ts's own comment on the column).
   const actorSubjectId = act === undefined ? null : actorSubject;
+  const requestedUserinfoClaims = subject.token.requestedUserinfoClaims;
+  const recordExchange = (resourceId: string | null, issuedTokenType: string) =>
+    auditRepository(tx).record({
+      eventType: 'token',
+      action: 'token.exchange',
+      outcome: 'allowed',
+      actorSubjectId: subject.token.subjectId,
+      actorClientId: client.id,
+      resourceType: resourceId === null ? null : 'grant',
+      resourceId,
+      detail: {
+        mode: request.actorToken === undefined ? 'impersonation' : 'delegation',
+        scope: scope.join(' '),
+        requested_token_type: issuedTokenType,
+      },
+    });
 
   if (issuedType === 'refresh_token') {
     const grantId = newId();
@@ -1097,7 +1269,9 @@ async function issueExchangedTokens(
       exchangedFromGrantId: subject.token.grantId,
       actChain: act ?? null,
       expCeiling: expCeiling ?? null,
+      requestedUserinfoClaims,
     });
+    await recordExchange(grantId, REFRESH_TOKEN_TYPE);
     const refreshToken = generateRefreshToken();
     const rawExpiresAt = new Date(now.getTime() + config.refreshTokenTtlSeconds * 1000);
     // The ceiling is a cap, never a grant of extra life: an exchanging
@@ -1119,7 +1293,7 @@ async function issueExchangedTokens(
       token_type: 'N_A',
       expires_in: Math.floor((refreshExpiresAt.getTime() - now.getTime()) / 1000),
       scope: scope.join(' '),
-      issued_token_type: 'urn:ietf:params:oauth:token-type:refresh_token',
+      issued_token_type: REFRESH_TOKEN_TYPE,
     };
   }
 
@@ -1160,6 +1334,7 @@ async function issueExchangedTokens(
       ...(act === undefined ? {} : { act }),
     });
     const idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
+    await recordExchange(null, ID_TOKEN_TYPE);
 
     return {
       access_token: idToken,
@@ -1167,7 +1342,7 @@ async function issueExchangedTokens(
       token_type: 'N_A',
       expires_in: exp - iat,
       scope: scope.join(' '),
-      issued_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+      issued_token_type: ID_TOKEN_TYPE,
     };
   }
 
@@ -1189,6 +1364,7 @@ async function issueExchangedTokens(
       accessTokenScope,
       sessionId: subject.token.sessionId,
       grantId,
+      requestedUserinfoClaims,
       ...(act === undefined ? {} : { act }),
       ...(expCeiling === undefined ? {} : { expCeiling }),
     },
@@ -1208,14 +1384,16 @@ async function issueExchangedTokens(
     exchangedFromGrantId: subject.token.grantId,
     actChain: act ?? null,
     expCeiling: expCeiling ?? null,
+    requestedUserinfoClaims,
   });
+  await recordExchange(grantId, ACCESS_TOKEN_TYPE);
 
   return {
     access_token: accessToken,
     token_type: 'Bearer',
     expires_in: exp - iat,
     scope: scope.join(' '),
-    issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+    issued_token_type: ACCESS_TOKEN_TYPE,
   };
 }
 
@@ -1290,6 +1468,57 @@ export async function issueTokens(
         ? await authenticateTlsClientAuth(tx, deps, certificateSubject, request.clientId)
         : await authenticateClient(tx, deps, basic, request.clientId, bodyClientSecret);
 
+  try {
+    return await issueForAuthenticatedClient(tx, deps, request, client, config);
+  } catch (err) {
+    if (err instanceof TokenError && err.audit === undefined) {
+      throw annotatedAfterAuthentication(err, request.grantType, client);
+    }
+    throw err;
+  }
+}
+
+const GRANT_REFUSAL_ACTIONS: Readonly<
+  Record<StructuredRequest['grantType'], TokenRefusalAudit['action']>
+> = {
+  authorization_code: 'token.issue',
+  client_credentials: 'token.issue',
+  refresh_token: 'token.refresh',
+  [TOKEN_EXCHANGE_GRANT]: 'token.exchange',
+};
+
+// `invalid_request` has no reason here: after authentication only a token
+// exchange answers it, and that path annotates its own refusals.
+const REFUSAL_REASONS: Readonly<Partial<Record<TokenErrorCode, AuditReason>>> = {
+  invalid_grant: 'invalid_grant',
+  invalid_scope: 'invalid_scope',
+  invalid_target: 'invalid_target',
+  unauthorized_client: 'unauthorized_client',
+};
+
+// ADR 0037: a refusal once the client has authenticated names that client,
+// and spends its audit budget like any other refusal.
+function annotatedAfterAuthentication(
+  err: TokenError,
+  grantType: StructuredRequest['grantType'],
+  client: ClientRecord,
+): TokenError {
+  const reason = REFUSAL_REASONS[err.error];
+  if (reason === undefined) return err;
+  return withAudit(err, {
+    action: GRANT_REFUSAL_ACTIONS[grantType],
+    reason,
+    clientDbId: client.id,
+  });
+}
+
+async function issueForAuthenticatedClient(
+  tx: TenantScopedDatabase,
+  deps: TokenIssuanceDeps,
+  request: StructuredRequest,
+  client: ClientRecord,
+  config: ClientOidcConfig,
+): Promise<TokenResponse> {
   // RFC 6749 §5.2. Until this landed, `config.grantTypes` gated only
   // whether a refresh token was issued, so a client could use any grant
   // this server implements regardless of what it registered for.

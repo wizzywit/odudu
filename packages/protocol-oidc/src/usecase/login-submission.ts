@@ -3,11 +3,13 @@ import {
   type AdvanceInput,
   type AdvanceOutcome,
   type PendingRequest,
+  type PresentedSession,
   type RequiredAction,
+  type SessionEntry,
   type SessionLifespans,
-  type SessionRecord,
 } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { type RequestContext } from '@odudu/domain-audit';
 import { isUuid } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
 import { type TenantLookup } from '#/repository/tenant-lookup';
@@ -132,11 +134,11 @@ export type LoginSubmissionOutcome =
       location: string;
       sessionId: string;
       // What sessionCookies (the one authority for the cookie, @odudu/authn-flows)
-      // needs to write both lists: this login's session joined with the
+      // needs to write both lists: this login's entry joined with the
       // browser's other surviving ones, split by which cookie already
       // carries each.
-      ephemeralSessionIds: readonly string[];
-      persistentSessionIds: readonly string[];
+      ephemeralSessions: readonly SessionEntry[];
+      persistentSessions: readonly SessionEntry[];
       persistentMaxAgeSeconds: number;
     };
 
@@ -147,6 +149,7 @@ export type LoginSubmissionOutcome =
 export interface CompleteLoginInput {
   tenantId: string;
   authSessionId: string;
+  request: RequestContext;
   subjectId: string;
   clientId: string;
   redirectUri: string;
@@ -165,11 +168,12 @@ export interface CompleteLoginInput {
   // never needs a lookup of its own inside the transaction it runs in.
   lifespans: SessionLifespans;
   maxSessionsPerBrowser: number;
-  // The ids this browser's cookies name, read before completeLogin runs —
-  // admitSession evicts from exactly this list, never a subject-wide one:
-  // the cap is per browser, and a browser can hold sessions for more than
-  // one subject (see ADR 0033's amendment on why per-subject was rejected).
-  browserSessionIds: readonly string[];
+  // The entries this browser's cookies proved, read before completeLogin
+  // runs — admitSession evicts from exactly this list, never a subject-wide
+  // one: the cap is per browser, and a browser can hold sessions for more
+  // than one subject (see ADR 0033's amendment on why per-subject was
+  // rejected).
+  browserSessions: readonly SessionEntry[];
   // What `advance` reported ran, in order — copied onto the session
   // establishSession creates, so a later reuse of it states `amr`/`acr`
   // about what this login actually used rather than what the subject
@@ -197,7 +201,10 @@ export type CompleteLoginOutcome =
   // The conditional consume found the session already used — by an earlier
   // request, or by one that raced this one to the same UPDATE — so nothing
   // was established or issued.
-  { kind: 'already_consumed' } | { kind: 'issued'; sessionId: string; code: string };
+  | { kind: 'already_consumed' }
+  // `entry` is the freshly established session's, carrying the only copy of
+  // its secret; null when a reused session was touched instead.
+  | { kind: 'issued'; sessionId: string; code: string; entry: SessionEntry | null };
 
 // The gate is a property of completing a login, not of submitting a form.
 // A tenant requiring a verified address refuses a cookie-borne login for an
@@ -293,7 +300,14 @@ export async function decideConsentGate(
 
 export interface LoginSubmissionDeps extends ConsentGateDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
-  advance(tenantId: string, authSessionId: string, input: AdvanceInput): Promise<AdvanceOutcome>;
+  // `request` is bound to the transaction the attempt runs in, which is where
+  // the audit rows it writes take their request id and address from.
+  advance(
+    tenantId: string,
+    authSessionId: string,
+    input: AdvanceInput,
+    request: RequestContext,
+  ): Promise<AdvanceOutcome>;
   loadPendingRequest(tenantId: string, authSessionId: string): Promise<PendingRequest | null>;
   resolveClientId(tenantId: string, oauthClientId: string): Promise<string | null>;
   // Read only when the tenant's verify_email is on: the cost of an extra
@@ -339,7 +353,7 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
       rememberMeMaxSeconds: number;
     },
     header: string | undefined,
-  ): Promise<SessionRecord[]>;
+  ): Promise<PresentedSession[]>;
 }
 
 // An authorization error response delivered to the parked request's own
@@ -383,6 +397,7 @@ export async function completeAuthorizedLogin(
   clientId: string,
   subjectId: string,
   authenticators: string[],
+  request: RequestContext,
   // The browser's own `Cookie` header, read by the route and trusted for
   // nothing but resolving its current session set — the same value
   // /authorize and logout resolve through.
@@ -410,7 +425,7 @@ export async function completeAuthorizedLogin(
   };
 
   // Read before completing the login: admitSession evicts from exactly
-  // this list (ADR 0033) — the ids this browser's cookies name right now,
+  // this list (ADR 0033) — the entries this browser's cookies prove now,
   // never a subject-wide read, since the cap is per browser and a browser
   // can hold sessions for more than one subject.
   const before = await deps.resolveSessions(
@@ -421,6 +436,7 @@ export async function completeAuthorizedLogin(
   const completed = await deps.completeLogin({
     tenantId: tenant.id,
     authSessionId,
+    request,
     subjectId,
     clientId,
     redirectUri: pending.redirectUri,
@@ -431,7 +447,7 @@ export async function completeAuthorizedLogin(
     remembered: rememberMeRequested,
     lifespans,
     maxSessionsPerBrowser: tenant.maxSessionsPerBrowser,
-    browserSessionIds: before.map((session) => session.id),
+    browserSessions: before.map((session) => session.entry),
     authenticators,
     ...(reuseSession !== undefined ? { reuseSession } : {}),
     resource: pending.resource ?? [],
@@ -445,7 +461,7 @@ export async function completeAuthorizedLogin(
   if (completed.kind === 'already_consumed') {
     return { kind: 'unauthenticated' };
   }
-  const { sessionId, code } = completed;
+  const { sessionId, code, entry: issued } = completed;
 
   const location = new URL(pending.redirectUri);
   location.searchParams.set('code', code);
@@ -464,22 +480,23 @@ export async function completeAuthorizedLogin(
   );
   const survivors = existing.filter((session) => session.id !== sessionId);
   // A reused session was already in the browser's cookies, so `existing`
-  // carries its own `remembered` (read fresh, from the row); a freshly
-  // established one never was — nothing sent it back yet — so its bucket
-  // is exactly what was just asked for and gated.
-  const remembered =
-    reuseSession !== undefined
-      ? (existing.find((session) => session.id === sessionId)?.remembered ?? false)
-      : rememberMeRequested;
+  // carries its own `remembered` (read fresh, from the row) and the entry
+  // the browser proved it with; a freshly established one never was —
+  // nothing sent it back yet — so its bucket is exactly what was just asked
+  // for and gated, and its entry is the one just issued.
+  const reused = existing.find((session) => session.id === sessionId);
+  const remembered = issued === null ? (reused?.remembered ?? false) : rememberMeRequested;
+  const own = issued ?? reused?.entry;
+  const joined = own === undefined ? [] : [own];
   const bucket = (flag: boolean) =>
-    survivors.filter((session) => session.remembered === flag).map((session) => session.id);
+    survivors.filter((session) => session.remembered === flag).map((session) => session.entry);
 
   return {
     kind: 'redirect',
     location: location.toString(),
     sessionId,
-    ephemeralSessionIds: remembered ? bucket(false) : [...bucket(false), sessionId],
-    persistentSessionIds: remembered ? [...bucket(true), sessionId] : bucket(true),
+    ephemeralSessions: remembered ? bucket(false) : [...bucket(false), ...joined],
+    persistentSessions: remembered ? [...bucket(true), ...joined] : bucket(true),
     // The ceiling for whatever the persistent cookie carries, which may be
     // sessions this login never touched — never this login's own
     // `rememberMeRequested`, which says nothing about a survivor already
@@ -502,6 +519,7 @@ export async function handleLoginSubmission(
   issuerBase: string,
   authSessionId: string | undefined,
   input: AdvanceInput,
+  request: RequestContext,
   // The browser's `Cookie` header, threaded through to completeAuthorizedLogin
   // — required, not optional: an omitted header resolves to an empty
   // session set and silently drops every other live session from the
@@ -534,7 +552,7 @@ export async function handleLoginSubmission(
   // past it — direct completion or a detour through consent — agrees.
   const remembered = rememberMe && tenant.rememberMeAllowed;
 
-  const result = await deps.advance(tenant.id, authSessionId, input);
+  const result = await deps.advance(tenant.id, authSessionId, input, request);
 
   if (result.kind === 'failure' && result.reason === 'authentication_session_expired') {
     return { kind: 'unauthenticated' };
@@ -666,6 +684,7 @@ export async function handleLoginSubmission(
     clientId,
     result.subjectId,
     result.authenticators,
+    request,
     header,
     remembered,
   );

@@ -91,9 +91,11 @@ one function, called from `completeLogin`
 `establishSession`. The test helper described above is deleted;
 `session-set.int.test.ts` calls the real usecase.
 
-Eviction reads `sessionRepository(tx).liveByIds` against the ids the
-browser's own cookies already name (`admitSession`'s `browserSessionIds`),
-never a subject- or tenant-wide scan. The cap is `max_sessions_per_browser`,
+Eviction reads `sessionRepository(tx).liveByEntries` against the entries
+the browser's own cookies already present (`admitSession`'s
+`browserSessions`; each entry is an id with its secret, spec §16 of
+`docs/superpowers/specs/2026-09-26-p4e-audit-events-design.md`), never a
+subject- or tenant-wide scan. The cap is `max_sessions_per_browser`,
 not per subject: a browser can hold sessions for more than one subject at
 once — the case `prompt=select_account` (a later increment) exists to
 choose among — so a per-subject predicate would let each subject on a
@@ -165,7 +167,7 @@ consequence of the same race, found in review: one of the two sessions a
 concurrent pair of logins creates can be **unreachable through logout**,
 not merely over-counted.
 
-Both logins read `browserSessionIds` from the same cookie snapshot, taken
+Both logins read `browserSessions` from the same cookie snapshot, taken
 before either admits. Each response then writes a fresh cookie naming its
 own new session alongside that snapshot — but a browser does not merge two
 `Set-Cookie` values for the same cookie name, it keeps whichever response
@@ -236,3 +238,30 @@ reads live sessions by subject and ends one. An operator can therefore
 reach an orphan, and the trigger condition for a stable browser identifier
 — an orphan's absence being visible rather than theoretical — is now
 observable rather than pending. The identifier itself is still not built.
+
+## Amendment, 2026-09-26 — `for no key update`, not `for update`
+
+The tenant-row lock is taken `for no key update`. Admissions still serialise
+exactly as the decision above requires, because `for no key update`
+conflicts with itself — checked by executing a second `for no key update
+nowait` against a held admission, which was refused — but it does not
+conflict with `for key share`, the lock every foreign-key check against the
+tenant row takes. `for update` conflicted with both, and every tenant-scoped
+table references `tenants`, so any open transaction that had inserted a row
+in the tenant blocked admission. Two submissions of one login form turned
+that into a deadlock (`40P01`): the loser's `advance` had written a login
+step row and waited to bind the authentication session, while the winner's
+`completeLogin` had consumed that session and waited on the loser's
+key-share lock. `session-set.int.test.ts`'s "admits while another
+transaction holds a row referencing the tenant" reproduces the cycle with
+barriers and deadlocks under `for update`.
+
+The other tenant-row locks take the same mode for the same reason, since
+every audited transaction now holds that key share until it commits: the
+client-capacity lock (`clientRepository.lockCapacity`), the settings
+`If-Match` lock (`tenantSettingsRepository.lockById`) and `amendTenant`.
+None writes a key column (`id` and `name` are refused as amendments), so the
+weaker mode excludes exactly what `for update` did among themselves.
+`clients.int.test.ts`'s "lockCapacity under concurrent transactions" shows
+both halves: the lock is taken within a 500 ms `lock_timeout` beside an open
+audit row, and a second capacity lock still times out behind the first.

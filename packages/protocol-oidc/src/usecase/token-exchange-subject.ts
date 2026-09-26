@@ -15,6 +15,9 @@ export interface ResolvedExchangeToken {
   scope: readonly string[];
   sessionId: string | null;
   grantId: string | null;
+  // The subject grant's own narrowing, inherited so an exchange never
+  // widens what /userinfo returns (ADR 0036).
+  requestedUserinfoClaims: readonly string[] | null;
   act: unknown;
   mayAct: unknown;
   expiresAt: Date | null;
@@ -85,6 +88,7 @@ async function resolveAccessToken(
       scope: grant.scope.split(' ').filter((entry) => entry !== ''),
       sessionId: grant.sessionId,
       grantId: grant.id,
+      requestedUserinfoClaims: grant.requestedUserinfoClaims,
       act: payload.act,
       mayAct: payload.may_act,
       expiresAt: typeof payload.exp === 'number' ? new Date(payload.exp * 1000) : null,
@@ -118,6 +122,7 @@ async function resolveRefreshToken(
       scope: grant.scope.split(' ').filter((entry) => entry !== ''),
       sessionId: grant.sessionId,
       grantId: grant.id,
+      requestedUserinfoClaims: grant.requestedUserinfoClaims,
       act: undefined,
       mayAct: undefined,
       expiresAt: record.expiresAt,
@@ -163,6 +168,7 @@ async function resolveIdToken(
       scope: [],
       sessionId: claims.sid,
       grantId: null,
+      requestedUserinfoClaims: null,
       act: undefined,
       mayAct: claims.mayAct,
       expiresAt: claims.expiresAt,

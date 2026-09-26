@@ -1,18 +1,28 @@
-import { asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray } from 'drizzle-orm';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { sessions, type SessionRecord } from '#/schema/sessions';
+import { type SessionEntry } from '#/service/session-entry';
 import { isSessionLive } from '#/service/session-liveness';
 import { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
 
-// The liveness arithmetic every reader of more than one session shares:
-// each record measured against the idle window its own `remembered`
-// column picks, never a single window applied to the whole set.
-function stillLive(record: SessionRecord, tenant: SessionLifespans, now: Date): boolean {
-  const { idleSeconds } = lifespanFor(tenant, record.remembered);
-  return isSessionLive(record, idleSeconds, now);
+type SessionRow = typeof sessions.$inferSelect;
+
+// The liveness arithmetic every live read shares: each row measured against
+// the idle window its own `remembered` column picks, and a row with no
+// secret hash never live (packages/db/drizzle/0071_session_secret.sql).
+function stillLive(row: SessionRow, tenant: SessionLifespans, now: Date): boolean {
+  if (row.secretHash === null) return false;
+  const { idleSeconds } = lifespanFor(tenant, row.remembered);
+  return isSessionLive(row, idleSeconds, now);
 }
 
-function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
+// A live session together with the entry the browser proved it with — the
+// only source a re-emitted cookie can take that entry from.
+export interface PresentedSession extends SessionRecord {
+  readonly entry: SessionEntry;
+}
+
+function toRecord(row: SessionRow): SessionRecord {
   return {
     id: row.id,
     tenantId: row.tenantId,
@@ -31,20 +41,26 @@ export interface NewSession {
   subjectId: string;
   expiresAt: Date;
   authenticators: string[];
+  secretHash: string;
   // Omitted, a fresh session is ordinary — the schema's own default
   // (packages/authn-flows/src/schema/sessions.ts). establishSession is the
   // only caller with a login's own choice to record.
   remembered?: boolean;
 }
 
-// All persistence for an established SSO session. `byId` is what a later
-// request — /authorize's single-sign-on check, or a logout handler — resolves
-// the `__Host-<tenant>-session` cookie's value against.
+async function rowById(tx: TenantScopedDatabase, id: string): Promise<SessionRow | undefined> {
+  const rows = await tx.select().from(sessions).where(eq(sessions.id, id));
+  return rows[0];
+}
+
+// All persistence for an established SSO session. A browser's cookie is
+// resolved through `liveByEntries` alone; every read keyed on a bare id
+// serves a caller that already holds the id from somewhere public — a
+// token's `sid`, a grant, an operator's request.
 export function sessionRepository(tx: TenantScopedDatabase) {
   return {
     async byId(id: string): Promise<SessionRecord | null> {
-      const rows = await tx.select().from(sessions).where(eq(sessions.id, id));
-      const row = rows[0];
+      const row = await rowById(tx, id);
       return row === undefined ? null : toRecord(row);
     },
 
@@ -52,17 +68,15 @@ export function sessionRepository(tx: TenantScopedDatabase) {
       await tx.insert(sessions).values(values);
     },
 
-    // The read every session consumer uses. `byId` still exists and still
-    // ignores liveness, because the reaper and a future session list need to
-    // see a dead row; nothing that authenticates should call it. Takes the
-    // whole `SessionLifespans` pair, like `liveByIds`, and picks the idle
-    // window by the record's own `remembered` column — a single idle number
-    // here would silently measure a remembered session against the
-    // ordinary window, which is the shape `liveByIds` exists to rule out.
+    // Whether the session a token or grant names is still live. `byId`
+    // still exists and still ignores liveness, because the reaper and a
+    // session list need to see a dead row; nothing that authenticates
+    // should call it. Takes the whole `SessionLifespans` pair and picks the
+    // idle window by the row's own `remembered` column, as every live read
+    // does.
     async liveById(id: string, tenant: SessionLifespans, now: Date): Promise<SessionRecord | null> {
-      const record = await this.byId(id);
-      if (record === null) return null;
-      return stillLive(record, tenant, now) ? record : null;
+      const row = await rowById(tx, id);
+      return row !== undefined && stillLive(row, tenant, now) ? toRecord(row) : null;
     },
 
     async touch(id: string, now: Date): Promise<void> {
@@ -73,33 +87,41 @@ export function sessionRepository(tx: TenantScopedDatabase) {
     // the row: `isSessionLive`'s exclusive `now >= expiresAt` treats that
     // as dead from this instant, and the reaping pass removes the row.
     //
-    // `least`, not a bare assignment: a second end at a later `now` would
-    // push `expires_at` forward, delaying the reaping the first one
-    // started instead of being the no-op callers rely on.
-    async end(id: string, now: Date): Promise<void> {
-      await tx
+    // Only a ceiling still ahead of `now` moves: a second end at a later
+    // `now` would otherwise push `expires_at` forward, delaying the reaping
+    // the first one started. `true` means this call is the one that ended it.
+    async end(id: string, now: Date): Promise<boolean> {
+      const ended = await tx
         .update(sessions)
-        .set({ expiresAt: sql`least(${sessions.expiresAt}, ${now.toISOString()}::timestamptz)` })
-        .where(eq(sessions.id, id));
+        .set({ expiresAt: now })
+        .where(and(eq(sessions.id, id), gt(sessions.expiresAt, now)))
+        .returning({ id: sessions.id });
+      return ended.length > 0;
     },
 
-    // The set read every session consumer uses now that a browser may hold
-    // more than one. Liveness is applied in the same pass rather than by the
-    // caller, so no caller can forget the idle window — and each record is
-    // measured against its own pair, picked by its own `remembered` column,
-    // so a remembered session beside an ordinary one is never checked
-    // against the other's window.
-    async liveByIds(
-      ids: readonly string[],
+    // The read a browser's cookie is resolved through. The secret is
+    // checked in the same pass as liveness, after a select keyed on the ids
+    // alone, so an entry with a wrong secret costs the same statement as an
+    // unknown id and comes back exactly as absent. A row presented twice
+    // is returned once, with whichever of its entries proved it.
+    async liveByEntries(
+      entries: readonly SessionEntry[],
       tenant: SessionLifespans,
       now: Date,
-    ): Promise<SessionRecord[]> {
-      if (ids.length === 0) return [];
+    ): Promise<PresentedSession[]> {
+      if (entries.length === 0) return [];
       const rows = await tx
         .select()
         .from(sessions)
-        .where(inArray(sessions.id, [...ids]));
-      return rows.map(toRecord).filter((record) => stillLive(record, tenant, now));
+        .where(inArray(sessions.id, [...new Set(entries.map((entry) => entry.id))]));
+      return rows.flatMap((row) => {
+        const entry = entries.find(
+          (candidate) => candidate.id.toLowerCase() === row.id && candidate.matches(row.secretHash),
+        );
+        return entry !== undefined && stillLive(row, tenant, now)
+          ? [{ ...toRecord(row), entry }]
+          : [];
+      });
     },
 
     // The only read keyed on who a session belongs to rather than what a
@@ -116,7 +138,7 @@ export function sessionRepository(tx: TenantScopedDatabase) {
         .from(sessions)
         .where(eq(sessions.subjectId, subjectId))
         .orderBy(asc(sessions.id));
-      return rows.map(toRecord).filter((record) => stillLive(record, tenant, now));
+      return rows.filter((row) => stillLive(row, tenant, now)).map(toRecord);
     },
 
     async endMany(ids: readonly string[], now: Date): Promise<void> {

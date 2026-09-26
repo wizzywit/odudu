@@ -31,6 +31,7 @@ import {
   jwksDocumentFor,
   signClientAssertion,
 } from '#/testing/private-key-jwt-fixture';
+import { UNLIMITED_AUDIT_REFUSAL_BUDGET } from '#/service/audit-refusal-budget';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -282,6 +283,7 @@ beforeAll(async () => {
       ownerDatabase: owner,
       kek: KEK,
       clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
       clientKeySet: clientKeySet({ lookup, request, now: () => NOW, allowPrivate: false }),
       clock: { now: () => NOW },
     }),

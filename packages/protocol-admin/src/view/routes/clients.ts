@@ -6,7 +6,7 @@ import {
   type CreateClientResponse,
   type RotateClientSecretResponse,
 } from '@odudu/contracts/admin';
-import { withTenant, type Database } from '@odudu/db';
+import { type Database } from '@odudu/db';
 import { ClientIdConflictError } from '@odudu/domain-tenant';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
@@ -25,6 +25,7 @@ import {
   type CreateClientOutcome,
 } from '#/usecase/clients';
 import { problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface ClientsRouteDeps {
@@ -58,7 +59,7 @@ export function listClientsHandler(deps: ClientsRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: clients route received no :tenant');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listClients(tx, {
         limit,
         cursor: query.cursor,
@@ -96,7 +97,9 @@ export function readClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: GET client route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) => readClient(tx, id));
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      readClient(tx, id),
+    );
     if (outcome.kind === 'not_found') {
       return sendProblem(
         reply,
@@ -121,7 +124,7 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
 
     let outcome: CreateClientOutcome;
     try {
-      outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+      outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
         createClient(
           tx,
           {
@@ -256,7 +259,7 @@ export function amendClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
     }
     const values = amendClientRequestSchema.parse(request.body);
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       amendClient(
         tx,
         { tlsClientAuthEnabled: deps.tlsClientAuthEnabled, audit: deps.audit },
@@ -286,7 +289,7 @@ export function deleteClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: DELETE client route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteClient(
         tx,
         { audit: deps.audit },
@@ -317,7 +320,7 @@ export function rotateClientSecretHandler(deps: ClientsRouteDeps): AdminRouteHan
       throw new Error('protocol-admin: POST client secret route received no :id');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       rotateClientSecret(
         tx,
         { hashClientSecret: deps.hashClientSecret, audit: deps.audit },

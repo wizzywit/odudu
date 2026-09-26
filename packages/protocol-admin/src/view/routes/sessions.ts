@@ -1,10 +1,11 @@
 import { cursorQuerySchema, type Session } from '@odudu/contracts/admin';
-import { withTenant, type Database } from '@odudu/db';
+import { type Database } from '@odudu/db';
 import { tenantIssuerFor, type TenantLookup } from '@odudu/protocol-oidc';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { lifespansOf } from '#/usecase/authenticate-admin';
 import { endSession, listSessions, type Audit, type SessionView } from '#/usecase/sessions';
 import { problem, sendProblem } from '#/view/problem';
+import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
 export interface SessionsRouteDeps {
@@ -47,7 +48,7 @@ export function listSessionsHandler(deps: SessionsRouteDeps): AdminRouteHandler 
       throw new Error(`protocol-admin: sessions route resolved a tenant router.ts already found`);
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listSessions(tx, {
         tenantId: targetTenantId,
         subjectId: id,
@@ -93,7 +94,7 @@ export function deleteSessionHandler(deps: SessionsRouteDeps): AdminRouteHandler
       throw new Error('protocol-admin: DELETE session route received no :tenant');
     }
 
-    const outcome = await withTenant(deps.database, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       endSession(
         tx,
         { audit: deps.audit, kek: deps.kek },

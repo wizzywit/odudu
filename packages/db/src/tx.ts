@@ -17,10 +17,22 @@ export type TenantScopedDatabase = Omit<Database, 'transaction'> & {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * The request an audit row's `request_id`/`ip` columns default from
+ * (`packages/domain-audit/src/schema/audit-events.ts`), bound for the life
+ * of one `withTenant` transaction. Declared here, not in `@odudu/domain-audit`,
+ * because `withTenant` is what binds it.
+ */
+export interface RequestContext {
+  readonly requestId: string | null;
+  readonly ip: string | null;
+}
+
 export async function withTenant<T>(
   db: Database,
   tenantId: string,
   fn: (tx: TenantScopedDatabase) => Promise<T>,
+  context?: RequestContext,
 ): Promise<T> {
   if (!UUID_PATTERN.test(tenantId)) {
     throw new OduduError(
@@ -32,9 +44,39 @@ export async function withTenant<T>(
   return db.transaction(async (tx) => {
     // set_config(..., true) is the bindable form of SET LOCAL; SET LOCAL itself
     // takes no parameters, and interpolating tenantId into DDL would be injectable.
-    await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+    if (context === undefined) {
+      await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+    } else {
+      await tx.execute(sql`
+        select
+          set_config('app.tenant_id', ${tenantId}, true),
+          set_config('app.request_id', ${context.requestId ?? ''}, true),
+          set_config('app.client_ip', ${context.ip ?? ''}, true)
+      `);
+    }
     return fn(tx as unknown as TenantScopedDatabase);
   });
+}
+
+interface SavepointCapable {
+  transaction<T>(fn: (inner: unknown) => Promise<T>): Promise<T>;
+}
+
+/**
+ * Runs `fn` so that a statement failing inside it undoes only its own writes
+ * and leaves the transaction usable. Safe where a nested `withTenant` is not:
+ * it never calls `set_config`, so releasing the savepoint rebinds nothing.
+ * The driver's own savepoint is used rather than a raw SAVEPOINT statement,
+ * because postgres-js rethrows any failed query at the end of the scope it
+ * ran in, caught or not, and only its savepoint opens a scope of its own.
+ */
+export function withSavepoint<T>(
+  tx: TenantScopedDatabase,
+  fn: (tx: TenantScopedDatabase) => Promise<T>,
+): Promise<T> {
+  return (tx as unknown as SavepointCapable).transaction((inner) =>
+    fn(inner as TenantScopedDatabase),
+  );
 }
 
 /**

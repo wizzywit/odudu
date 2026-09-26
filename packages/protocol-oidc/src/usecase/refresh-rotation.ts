@@ -1,12 +1,14 @@
 import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
-import { type TenantScopedDatabase } from '@odudu/db';
+import { withSavepoint, type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
+import { type Logger } from '@odudu/kernel';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
 import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 
 export type RotationOutcome =
   | { readonly kind: 'rotated'; readonly grant: TokenGrantRecord; readonly next: string }
-  | { readonly kind: 'reused'; readonly revokedFamily: string }
+  | { readonly kind: 'reused'; readonly revokedFamily: string; readonly subjectId: string | null }
   | { readonly kind: 'revoked' }
   | { readonly kind: 'unknown' };
 
@@ -17,12 +19,15 @@ export type RotationOutcome =
 // but not revoked because a later statement failed would be worse than not
 // detecting it at all. Whether the requesting client owns this token is
 // decided by evaluateRefreshGrant, on both sides of this call — ADR 0019.
+// `issuedScope` is that decision's scope, recorded on the rotation's audit row.
 export async function rotateRefreshToken(
   tx: TenantScopedDatabase,
   presentedHash: string,
   now: Date,
   refreshTokenTtlSeconds: number,
   lifespans: SessionLifespans,
+  issuedScope: readonly string[],
+  logger: Pick<Logger, 'error'>,
 ): Promise<RotationOutcome> {
   const consumed = await refreshTokenRepository(tx).consume(presentedHash);
 
@@ -34,8 +39,37 @@ export async function rotateRefreshToken(
     if (existing === null) return { kind: 'unknown' };
     if (existing.usedAt === null) return { kind: 'unknown' };
 
-    await tokenGrantRepository(tx).revoke(existing.grantId, now);
-    return { kind: 'reused', revokedFamily: existing.grantId };
+    const family = await tokenGrantRepository(tx).byId(existing.grantId);
+    const revoked = await tokenGrantRepository(tx).revoke(existing.grantId, now);
+    // The revocation is the control and the row only reports it, so a
+    // failed insert is rolled back to its savepoint and logged, never
+    // allowed to take the revocation down with it.
+    if (revoked) {
+      try {
+        await withSavepoint(tx, (inner) =>
+          auditRepository(inner).record({
+            eventType: 'token',
+            action: 'grant.revoked_on_reuse',
+            outcome: 'allowed',
+            actorSubjectId: family?.subjectId ?? null,
+            actorClientId: family?.clientId ?? null,
+            resourceType: 'grant',
+            resourceId: existing.grantId,
+            detail: { reason: 'replayed' },
+          }),
+        );
+      } catch (error) {
+        logger.error(
+          { err: error, grantId: existing.grantId },
+          'could not record a grant revoked on refresh token reuse',
+        );
+      }
+    }
+    return {
+      kind: 'reused',
+      revokedFamily: existing.grantId,
+      subjectId: family?.subjectId ?? null,
+    };
   }
 
   const grant = await tokenGrantRepository(tx).byId(consumed.grantId);
@@ -78,6 +112,16 @@ export async function rotateRefreshToken(
     expiresAt,
   });
   await refreshTokenRepository(tx).attachReplacement(presentedHash, nextHash);
+  await auditRepository(tx).record({
+    eventType: 'token',
+    action: 'token.refresh',
+    outcome: 'allowed',
+    actorSubjectId: grant.subjectId,
+    actorClientId: grant.clientId,
+    resourceType: 'grant',
+    resourceId: grant.id,
+    detail: { scope: issuedScope.join(' ') },
+  });
 
   return { kind: 'rotated', grant, next };
 }
