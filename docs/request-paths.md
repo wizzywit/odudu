@@ -7602,8 +7602,11 @@ refresh, a logout — and reads what it left through
 `$ADMIN_TOKEN` is an admin access token got the way
 [docs/admin-paths.md](admin-paths.md#getting-the-token) shows, here for a
 second `system` administrator seeded on the same stack. `event_type` picks
-the kind of row, and `from` scopes both queries to this run, since
-`request_id` is not a filter:
+the kind of row, and `from` narrows both queries to rows written since the
+run began, `request_id` not being a filter. `from` is only as precise as the
+second `$SINCE` names, so it scopes to this run only on a stack with no
+other traffic in `demo`; the request id on each row is what shows that held
+here:
 
 ```bash
 BASE=http://localhost:3000/tenants/demo/protocol/openid-connect
@@ -7691,7 +7694,8 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
 ```
 
 The four requests sent with an `x-request-id` left one row each on these
-pages, under that id. The login also wrote a `login.password` row, as
+pages, under that id, and no row on either page carries any other — so
+nothing else in `demo` wrote a token or session row after `$SINCE`. The login also wrote a `login.password` row, as
 [what a refused login leaves behind](#what-a-refused-login-leaves-behind)
 shows for a refusal; it is an `authentication` row, so neither page above
 returns it. `token.issue` and `token.refresh` name one grant, which
