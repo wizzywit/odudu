@@ -1873,9 +1873,11 @@ of the vocabulary's own six values (`admin_mutation`, `admin_access`,
 `authentication`, `session`, `token`, `credential`) and `actor_subject_id`
 must be a UUID, since the column is one — either answers `400` rather than
 reaching Postgres and failing there. `request_id` and `ip` are never
-filters: they default from the request that made the change
-(`withTenant`'s own `RequestContext`, `packages/db/src/tx.ts`), not from
-anything a caller states.
+filters. Both default from the request that made the change (`withTenant`'s
+own `RequestContext`, `packages/db/src/tx.ts`): `request_id` is the
+request's own id, which a caller may supply as `x-request-id` (truncated to
+128 characters), and `ip` is `request.ip`, which only `ODUDU_TRUST_PROXY`
+lets a forwarded header decide.
 
 **A third stack.** The examples below — this section only — were re-run
 against a third stack, brought up the same way from an empty volume, to
