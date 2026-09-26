@@ -1041,7 +1041,7 @@ code. Immediately: it expires in a minute.
 
 #### What a refused login leaves behind
 
-Every password submitted writes one `authentication` row, accepted or not,
+Every password submitted writes one `login.password` row, accepted or not,
 in the transaction that checked it. The two refusals below both answer
 `200`, in bytes [Brute-force lockout](#brute-force-lockout) shows are
 identical by hash; the rows are where they differ.
@@ -8471,12 +8471,16 @@ session lifecycle. A citation of either half here means that half.
   values, and nothing yet writes `session`, `token` or `credential`, nor
   `authentication`'s `client.authenticate`. **P4e**, whose criterion names
   the token, session and credential events themselves.
-- **Only `POST /clients` records a refused attempt.** `outcome` has three
-  values and every other mutation writes a row only when it succeeds, so
-  `?outcome=refused` against any other `resource_type` returns nothing —
-  which reads as "nothing was refused" and is not. **P4e**: what a refused
-  request writes is one question, and that phase is where it is asked for
-  authentication, which is the larger half of it.
+- **No refusal outside the login steps and the admin API is recorded.**
+  Every refused login step writes a `refused` row under
+  `resource_type: authentication_session`, and the admin API records the
+  refusals its own checks make (`client.create`'s, and the privilege
+  ceilings on subject, role, group and scope changes). A refused token
+  request, a client failing to authenticate (`client.authenticate`), and a
+  refused session or credential change write nothing, so `?event_type=token`,
+  `session` or `credential` with `?outcome=refused` returns nothing — which
+  reads as "nothing was refused" and is not. **P4e**, whose criterion names
+  those events and the refusals among them.
 - **A request refused for a cross-tenant issuer mismatch writes no row.** A
   bearer token naming an issuer that is neither this tenant nor the system
   tenant is refused before its signature can be checked, since an
