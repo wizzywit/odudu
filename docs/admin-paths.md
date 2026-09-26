@@ -2220,11 +2220,17 @@ curl -sS -D - -o openapi.json http://localhost:3000/admin/openapi.json
 
 ```
 HTTP/1.1 200 OK
+access-control-allow-origin: *
 content-type: application/json; charset=utf-8
 content-length: 122868
 ```
 
-120 KB and 33 paths, which is the whole route table. Its first bytes, and
+120 KB and 33 paths, which is the whole route table. It is the one admin
+response readable from any origin, so a viewer served from another port can
+load it — the local stack's optional Swagger UI does exactly that (see
+`README.md`, "Browsing the admin API"). No admin route carries that header,
+so a page on another origin can read the description but cannot call the
+API with it. Its first bytes, and
 the `bearerAuth` scheme it declares — `head -c 180 openapi.json` and the
 substring at `securitySchemes`:
 

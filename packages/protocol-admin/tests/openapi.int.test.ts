@@ -25,6 +25,25 @@ describe('the published OpenAPI document', () => {
     }
   });
 
+  it('lets a viewer on any origin read it, and only it', async () => {
+    const doc = await fixture.http.inject({
+      method: 'GET',
+      url: '/admin/openapi.json',
+      headers: { origin: 'http://localhost:3001' },
+    });
+    expect(doc.headers['access-control-allow-origin']).toBe('*');
+    expect(doc.headers['access-control-allow-credentials']).toBeUndefined();
+
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const route = await fixture.http.inject({
+      method: 'GET',
+      url: '/admin/tenants',
+      headers: { origin: 'http://localhost:3001', authorization: `Bearer ${token}` },
+    });
+    expect(route.statusCode).toBe(200);
+    expect(route.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
   it('tells a client creator that an unknown field is refused, not ignored', async () => {
     const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
     const body = JSON.stringify(

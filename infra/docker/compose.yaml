@@ -87,3 +87,17 @@ services:
       retries: 5
     ports:
       - '127.0.0.1:3000:3000'
+
+  # A browser for /admin/openapi.json, started only with
+  # `docker compose --profile swagger up`. It loads the document live from
+  # the server above, so a restarted server shows its new routes on reload.
+  swagger:
+    image: swaggerapi/swagger-ui:v5.33.0
+    profiles: ['swagger']
+    environment:
+      URL: http://localhost:3000/admin/openapi.json
+    depends_on:
+      odudu:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:3001:8080'
