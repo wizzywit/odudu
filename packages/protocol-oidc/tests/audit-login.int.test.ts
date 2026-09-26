@@ -489,7 +489,12 @@ describe('an audit table that refuses the write', () => {
     expect(await rowsFor(passwordTenant, unrecorded)).toEqual([]);
     const logged = errorLog.map((line) => JSON.parse(line) as unknown);
     expect(logged).toContainEqual(
-      expect.objectContaining({ level: 50, msg: 'could not record a refused login step' }),
+      expect.objectContaining({
+        level: 50,
+        msg: 'could not record a refused login step',
+        reqId: unrecorded.requestId,
+        authSessionId,
+      }),
     );
   });
 

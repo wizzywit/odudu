@@ -677,7 +677,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           (tx) =>
             advance(tx, authSessionId, input, clock, {
               ...(publicBaseUrl === undefined ? {} : { publicBaseUrl }),
-              logger: app.log,
+              logger: app.log.child({ reqId: request.requestId }),
             }),
           request,
         ),
