@@ -5366,8 +5366,10 @@ A session writes one `session` row when a login creates it and one when it
 ends, each in the transaction that did the work. A signed-in `/authorize`
 that reuses a session creates nothing and writes nothing. This run signs
 in with a fresh jar, fetches the confirmation page for the `session_id`
-it carries, and posts it back, each request with its own `x-request-id`,
-so the query below reads these two requests and nothing else:
+it carries, and posts it back. The sign-in and the confirming `POST` each
+carry their own `x-request-id` — the page fetch between them writes no row
+and carries none — so the query below reads those two requests and nothing
+else:
 
 ```bash
 AUTH_SESSION_ID=$(curl -sS --get \
