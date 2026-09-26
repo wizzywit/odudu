@@ -141,13 +141,8 @@ and showing six; and prose saying every request carried an `x-request-id`
 when one did not. Each would have survived a reader, because each was
 plausible, and review found all three.
 
-## Process
+## Comment compliance
 
-A user flagged, mid-run, two phase-number references in comments; from
-then on every task's instructions quoted `CLAUDE.md`'s comment rules
-verbatim rather than pointing at them.
-
-`verify` reached its 15-minute timeout after every test had passed and was
-cancelled; the timeout is 30 minutes now. That is a stopgap, and
-`docs/NEXT.md`'s CI entry records that its own trigger for caching has
-fired.
+A user flagged two phase-number references in comments partway through
+the phase. From then on `CLAUDE.md`'s comment rules were quoted verbatim in
+every instruction rather than pointed at.

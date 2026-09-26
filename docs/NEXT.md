@@ -259,21 +259,14 @@ blank — so it is reachable only by a hand-written `INSERT`, the class the
 - Trigger: the next migration touching `client_oidc_config` for an
   unrelated reason is where the tightened CHECK belongs.
 
-**Affected-package-only CI.** Turborepo and pnpm both support
-`--filter='...[<ref>]'`, so no tooling change is needed. `verify` now takes
-about 15 minutes, and during P4e reached its 15-minute timeout after every
-test had passed; the timeout is 30 minutes as a stopgap (`f2b9d4f`). `test`
-is a root-level `vitest run` rather than a per-package Turbo task, which is
-a prerequisite for either remedy. Prefer Turborepo **caching** first — an unchanged package replays
-its cached result rather than being skipped, which is the same wall-clock
-win without "we did not run those tests" semantics. Keep typecheck, lint,
-boundaries and unit tests always-full, and set `globalDependencies` at the
-same time.
+**Affected-package-only CI filtering.** Turborepo and pnpm both support
+`--filter='...[<ref>]'`, so no tooling change is needed. Not adopted:
+skipping a package's tests carries "we did not run those tests" semantics
+that caching, owed first (below), avoids. Typecheck, lint, boundaries and
+unit tests stay always-full either way.
 
-- Caching: its trigger, CI past roughly 5 minutes, has fired. **P4d**, in
-  its first increment, before Playwright makes the run longer still.
-- Trigger for filtering: slow suites dominate — **P8** SAML interop, **P9**
-  policy evaluation, or the nightly conformance suite.
+- Trigger: slow suites dominate — **P8** SAML interop, **P9** policy
+  evaluation, or the nightly conformance suite.
 
 **Three clause-table judgements, none of them a fix.**
 `docs/protocols/rfc6750.md`'s row "`scope` appears at most once" is
@@ -333,6 +326,15 @@ a phase note.
   Outside P4e's topic (client administration, P4c's, closed). **P4d**,
   whose console creates clients: refuse the field or accept it, for every
   field `PATCH` accepts and creation does not.
+
+- CI caching. `verify` takes about 15 minutes and during P4e reached its
+  15-minute timeout after every test had passed; the timeout is 30 minutes
+  as a stopgap (`f2b9d4f`), and the trigger this file set for caching, CI
+  past roughly 5 minutes, has fired. Turborepo **caching** replays an
+  unchanged package's result rather than skipping it; `test` must first
+  become a per-package Turbo task rather than one root-level `vitest run`,
+  and `globalDependencies` is set at the same time. **P4d**, in its first
+  increment, before Playwright makes the run longer still.
 
 ### Recorded judgements, where the code stands and nothing is owed
 
