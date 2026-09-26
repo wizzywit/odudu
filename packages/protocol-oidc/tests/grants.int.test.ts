@@ -31,10 +31,10 @@ let app: DatabaseHandle;
 
 const AUDIENCE = ['https://api.example'];
 
-// The grant under test here carries no session (issueRefreshToken never
-// sets one), so which pair this names never affects the outcome.
 const NO_LOG = { error: () => undefined };
 
+// The grant under test here carries no session (issueRefreshToken never
+// sets one), so which pair this names never affects the outcome.
 const LIFESPANS: SessionLifespans = {
   ssoSessionIdleSeconds: 1_800,
   ssoSessionMaxSeconds: 36_000,
