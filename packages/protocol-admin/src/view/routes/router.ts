@@ -112,7 +112,12 @@ async function handleRoute(
   });
   if (outcome.kind === 'unauthenticated') {
     const foreign = outcome.foreignIssuer;
-    if (foreign === undefined) {
+    if (outcome.foreignIssuerError !== undefined) {
+      request.log.error(
+        { err: outcome.foreignIssuerError, reason: outcome.reason },
+        'could not resolve the issuer of a refused admin request',
+      );
+    } else if (foreign === undefined) {
       request.log.warn({ reason: outcome.reason }, 'admin request unauthenticated');
     } else {
       await recordRefusal(deps.database, request, targetTenant.id, (tx) =>

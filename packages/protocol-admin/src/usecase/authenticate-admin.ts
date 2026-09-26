@@ -21,7 +21,14 @@ export type AdminAuthOutcome =
   | { kind: 'authenticated'; principal: AdminPrincipal }
   // `reason` is for logging only — the route never puts it in a response
   // body, so a caller cannot use it to learn which step refused them.
-  | { kind: 'unauthenticated'; reason: string; foreignIssuer?: ForeignIssuer };
+  | {
+      kind: 'unauthenticated';
+      reason: string;
+      foreignIssuer?: ForeignIssuer;
+      // Why a foreign issuer could not be resolved, for the log alone: the
+      // response is the same plain refusal whatever it was.
+      foreignIssuerError?: unknown;
+    };
 
 export interface AuthenticateAdminDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
@@ -169,7 +176,12 @@ export async function authenticateAdmin(
 
   const matched = await matchIssuer(deps, input, iss);
   if (matched === undefined) {
-    const foreignIssuer = await resolveForeignIssuer(deps, input, token, iss);
+    let foreignIssuer: ForeignIssuer | undefined;
+    try {
+      foreignIssuer = await resolveForeignIssuer(deps, input, token, iss);
+    } catch (foreignIssuerError) {
+      return { kind: 'unauthenticated', reason: 'issuer_mismatch', foreignIssuerError };
+    }
     return foreignIssuer === undefined
       ? unauthenticated('issuer_mismatch')
       : { kind: 'unauthenticated', reason: 'issuer_mismatch', foreignIssuer };
