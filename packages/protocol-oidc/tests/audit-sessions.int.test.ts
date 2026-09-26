@@ -34,6 +34,7 @@ const CLIENT_ID = 'audit-sessions-client';
 const CLIENT_SECRET = 'audit-sessions-secret';
 const REDIRECT_URI = 'https://app.example/callback';
 const USERNAME = 'ada';
+const OTHER_USERNAME = 'bob';
 const PASSWORD = 'correct horse battery staple';
 const KEK = Buffer.alloc(32, 17);
 const VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
@@ -44,6 +45,7 @@ interface SeededTenant {
   id: string;
   clientDbId: string;
   subjectId: string;
+  otherSubjectId: string;
 }
 
 async function seedTenant(maxSessionsPerBrowser = 5): Promise<SeededTenant> {
@@ -51,6 +53,7 @@ async function seedTenant(maxSessionsPerBrowser = 5): Promise<SeededTenant> {
   const id = newId();
   const clientDbId = newId();
   let subjectId = '';
+  let otherSubjectId = '';
   await withTenant(app.db, id, async (tx: TenantScopedDatabase) => {
     await tx.insert(tenants).values({ id, name, maxSessionsPerBrowser });
     await provisionTenant(tx, id);
@@ -73,16 +76,21 @@ async function seedTenant(maxSessionsPerBrowser = 5): Promise<SeededTenant> {
       accessTokenTtlSeconds: 300,
       refreshTokenTtlSeconds: 1_209_600,
     });
-    const subject = await subjectRepository(tx).create({ tenantId: id, type: 'user' });
-    subjectId = subject.id;
-    await tx.insert(users).values({ subjectId, tenantId: id, username: USERNAME });
-    await tx.insert(userCredentials).values({
-      id: newId(),
-      tenantId: id,
-      subjectId,
-      type: 'password',
-      secretData: { hash: await hashPassword(PASSWORD) },
-    });
+    const passwordHash = await hashPassword(PASSWORD);
+    const createUser = async (username: string): Promise<string> => {
+      const subject = await subjectRepository(tx).create({ tenantId: id, type: 'user' });
+      await tx.insert(users).values({ subjectId: subject.id, tenantId: id, username });
+      await tx.insert(userCredentials).values({
+        id: newId(),
+        tenantId: id,
+        subjectId: subject.id,
+        type: 'password',
+        secretData: { hash: passwordHash },
+      });
+      return subject.id;
+    };
+    subjectId = await createUser(USERNAME);
+    otherSubjectId = await createUser(OTHER_USERNAME);
     const generated = await generateSigningKey('ES256', KEK);
     await tx.insert(signingKeys).values({
       id: newId(),
@@ -94,7 +102,7 @@ async function seedTenant(maxSessionsPerBrowser = 5): Promise<SeededTenant> {
       privateJwkEncrypted: generated.privateJwkEncrypted,
     });
   });
-  return { name, id, clientDbId, subjectId };
+  return { name, id, clientDbId, subjectId, otherSubjectId };
 }
 
 function authorizeUrl(tenant: SeededTenant, prompt?: 'login'): string {
@@ -143,13 +151,14 @@ function submitLogin(
   authSessionId: string,
   jar: Map<string, string>,
   requestId: string,
+  username = USERNAME,
 ): Promise<LightMyRequestResponse> {
   return http.inject({
     method: 'POST',
     url: `/tenants/${tenant.name}/login-actions/authenticate`,
     payload: new URLSearchParams({
       auth_session_id: authSessionId,
-      username: USERNAME,
+      username,
       password: PASSWORD,
     }).toString(),
     headers: {
@@ -164,9 +173,10 @@ async function login(
   tenant: SeededTenant,
   jar: Map<string, string>,
   requestId = `audit-sessions-${newId()}`,
+  username = USERNAME,
 ): Promise<LightMyRequestResponse> {
   const authSessionId = await startAuthSession(tenant, jar);
-  const res = await submitLogin(tenant, authSessionId, jar, requestId);
+  const res = await submitLogin(tenant, authSessionId, jar, requestId, username);
   expect(res.statusCode).toBe(302);
   mergeCookies(jar, res);
   return res;
@@ -180,7 +190,7 @@ function codeFrom(res: LightMyRequestResponse): string {
   return code;
 }
 
-async function sidOfIdTokenFor(tenant: SeededTenant, code: string): Promise<unknown> {
+async function idTokenFor(tenant: SeededTenant, code: string): Promise<string> {
   const res = await http.inject({
     method: 'POST',
     url: `/tenants/${tenant.name}/protocol/openid-connect/token`,
@@ -196,7 +206,11 @@ async function sidOfIdTokenFor(tenant: SeededTenant, code: string): Promise<unkn
     },
   });
   expect(res.statusCode).toBe(200);
-  const payload = res.json<{ id_token: string }>().id_token.split('.')[1];
+  return res.json<{ id_token: string }>().id_token;
+}
+
+async function sidOfIdTokenFor(tenant: SeededTenant, code: string): Promise<unknown> {
+  const payload = (await idTokenFor(tenant, code)).split('.')[1];
   if (payload === undefined) throw new Error('malformed id_token');
   const claims: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
   if (typeof claims !== 'object' || claims === null || !('sid' in claims)) return undefined;
@@ -316,6 +330,53 @@ describe('session.ended', () => {
       resourceId: first,
       requestId,
       detail: { via: 'evicted' },
+    });
+  });
+
+  it('names the evicted session’s own subject, not the one logging in', async () => {
+    const tenant = await seedTenant(1);
+    const jar = new Map<string, string>();
+    await login(tenant, jar);
+    const [first] = (await sessionRows(tenant, 'session.created')).map((row) => row.resourceId);
+
+    await login(tenant, jar, undefined, OTHER_USERNAME);
+
+    const row = onlyRow(await sessionRows(tenant, 'session.ended'));
+    expect(row).toMatchObject({
+      actorSubjectId: tenant.subjectId,
+      resourceId: first,
+      detail: { via: 'evicted' },
+    });
+    const created = await sessionRows(tenant, 'session.created');
+    expect(created.map((r) => r.actorSubjectId).sort()).toEqual(
+      [tenant.subjectId, tenant.otherSubjectId].sort(),
+    );
+  });
+
+  it('is written with via logout when a matching id_token_hint ends the session at once', async () => {
+    const tenant = await seedTenant();
+    const jar = new Map<string, string>();
+    const res = await login(tenant, jar);
+    const idToken = await idTokenFor(tenant, codeFrom(res));
+    const [sessionId] = (await sessionRows(tenant, 'session.created')).map((row) => row.resourceId);
+
+    const requestId = `audit-sessions-logout-hint-${newId()}`;
+    const params = new URLSearchParams({ id_token_hint: idToken, client_id: CLIENT_ID });
+    const ended = await http.inject({
+      url: `/tenants/${tenant.name}/protocol/openid-connect/logout?${params.toString()}`,
+      headers: { 'x-request-id': requestId, ...cookieHeader(jar) },
+    });
+    expect(ended.statusCode).toBe(200);
+    expect(ended.body).not.toContain('name="session_id"');
+
+    const row = onlyRow(await sessionRows(tenant, 'session.ended'));
+    expect(row).toMatchObject({
+      outcome: 'allowed',
+      actorSubjectId: tenant.subjectId,
+      resourceType: 'session',
+      resourceId: sessionId,
+      requestId,
+      detail: { via: 'logout' },
     });
   });
 

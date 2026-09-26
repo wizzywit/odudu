@@ -1939,8 +1939,9 @@ reserved-`client_id` row shown above, on its own —
 
 Adding `event_type=admin_mutation` to the first query on this stack —
 `resource_type=client&action=client.create` — answers the same three rows
-byte for byte, every mutation this document shows writing an
-`admin_mutation` row and no admin endpoint yet writing any other kind:
+byte for byte, since every `client` mutation writes an `admin_mutation`
+row and no other kind. The session `DELETE` is the one admin endpoint that
+also writes a row of another kind, a `session` row beside its own:
 
 ```bash
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
