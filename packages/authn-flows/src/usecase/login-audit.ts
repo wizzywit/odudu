@@ -70,11 +70,12 @@ export async function loginAuditFor(
   logger: AuditFailureLogger,
 ): Promise<LoginAudit> {
   const client = await clientRepository(tx).byClientId(oauthClientId);
+  const resourceId = authenticationSessionDigest(authSessionId);
   const common = {
     eventType: 'authentication',
     actorClientId: client === null ? null : client.id,
     resourceType: 'authentication_session',
-    resourceId: authenticationSessionDigest(authSessionId),
+    resourceId,
   } as const;
   const audit = auditRepository(tx);
 
@@ -110,7 +111,7 @@ export async function loginAuditFor(
         await withSavepoint(tx, (inner) => auditRepository(inner).recordAll(events));
       } catch (error) {
         logger.error(
-          { err: error, authSessionId, action: loginActionFor(authenticator) },
+          { err: error, resourceId, action: loginActionFor(authenticator) },
           'could not record a refused login step',
         );
       }

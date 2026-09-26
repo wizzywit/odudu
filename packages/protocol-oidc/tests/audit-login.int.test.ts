@@ -496,9 +496,12 @@ describe('an audit table that refuses the write', () => {
         level: 50,
         msg: 'could not record a refused login step',
         reqId: unrecorded.requestId,
-        authSessionId,
+        resourceId: createHash('sha256').update(authSessionId).digest('hex'),
       }),
     );
+    const line = errorLog.find((entry) => entry.includes(unrecorded.requestId)) ?? '';
+    expect(line).not.toBe('');
+    expect(line).not.toContain(authSessionId);
   });
 
   it('fails a correct password whose success row cannot be written', async () => {
