@@ -9202,18 +9202,18 @@ session lifecycle. A citation of either half here means that half.
   which is a decision (the P4e spec's §2): each is a read a resource server
   makes per request, and the grant it reads was recorded when it was
   issued.
-- **A refused credential or session change writes no row.** A wrong code
-  offered while enrolling TOTP, a failed passkey ceremony, a password the
-  policy refuses at a change or a reset, an expired or spent reset or
-  verification link, a refused registration and a logout that ends
-  nothing all answer as before and leave `audit_events` untouched, so
-  `?event_type=credential&outcome=refused` returns nothing — which reads as
-  "nothing was refused" and is not. Login steps, `/token`, `/revoke`,
-  `/introspect` and the admin API's own checks do record their refusals,
-  within ADR 0037's bounds. **P4e**, whose topic this is: each of these
-  names a principal ADR 0037's rule can bound — an authentication session
-  that has already passed a password, or a route the per-origin throttle
-  already covers — and none is recorded yet.
+- **A refused credential or session change writes no row.** A spent,
+  expired or unknown reset or verification link, a password the policy
+  refuses, a wrong code or refused passkey at enrolment, a refused
+  registration and a logout that ends nothing all leave `audit_events`
+  untouched, so `?event_type=credential&outcome=refused` returns nothing.
+  A decision, in ADR 0037's amendment: a link's key is chosen by the
+  caller and bounds nothing, a refused change on an authenticated session
+  is form validation rather than an authentication decision, and a logout
+  that ends nothing changes nothing. Login steps, `/token`, `/revoke`,
+  `/introspect` and the admin API's own checks do record their refusals.
+  The request log shows each such request's path and status, not its
+  reason.
 
 **Endpoints that do not exist at all**
 

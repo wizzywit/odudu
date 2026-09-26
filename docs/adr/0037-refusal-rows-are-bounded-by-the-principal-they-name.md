@@ -114,3 +114,24 @@ the client's keys, not the client failing to authenticate.
 - **A row for an unregistered `client_id`, keyed by the claimed value.**
   The key is caller-chosen, so the budget bounds nothing: a caller rotating
   `client_id`s gets a fresh window with each one.
+
+## Amendment, 2026-09-26 — refused credential and session changes
+
+The table above lists the refusals that write a row; these write none, by
+the same principle.
+
+- **A refused reset or verification link** — spent, expired or unknown —
+  and a refused registration name no principal. The caller chooses the key
+  or the username, which is the unbounded append this ADR rejects for an
+  unregistered `client_id`.
+- **A password the policy refuses, a reused password, and a wrong TOTP code
+  or refused passkey at enrolment** are form validation on a session that
+  has already authenticated, not authentication decisions. The change that
+  succeeds writes its row.
+- **A logout that ends no session** changes nothing, so there is nothing
+  to record.
+
+Nothing logs why any of these was refused. The request log at `info`
+records each request's method, path without its query, status and request
+id, so an operator can see that one happened, but not that it was a refusal
+or its reason.
