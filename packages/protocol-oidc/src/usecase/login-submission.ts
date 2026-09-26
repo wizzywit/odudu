@@ -3,9 +3,10 @@ import {
   type AdvanceInput,
   type AdvanceOutcome,
   type PendingRequest,
+  type PresentedSession,
   type RequiredAction,
+  type SessionEntry,
   type SessionLifespans,
-  type SessionRecord,
 } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { type RequestContext } from '@odudu/domain-audit';
@@ -133,11 +134,11 @@ export type LoginSubmissionOutcome =
       location: string;
       sessionId: string;
       // What sessionCookies (the one authority for the cookie, @odudu/authn-flows)
-      // needs to write both lists: this login's session joined with the
+      // needs to write both lists: this login's entry joined with the
       // browser's other surviving ones, split by which cookie already
       // carries each.
-      ephemeralSessionIds: readonly string[];
-      persistentSessionIds: readonly string[];
+      ephemeralSessions: readonly SessionEntry[];
+      persistentSessions: readonly SessionEntry[];
       persistentMaxAgeSeconds: number;
     };
 
@@ -167,11 +168,12 @@ export interface CompleteLoginInput {
   // never needs a lookup of its own inside the transaction it runs in.
   lifespans: SessionLifespans;
   maxSessionsPerBrowser: number;
-  // The ids this browser's cookies name, read before completeLogin runs —
-  // admitSession evicts from exactly this list, never a subject-wide one:
-  // the cap is per browser, and a browser can hold sessions for more than
-  // one subject (see ADR 0033's amendment on why per-subject was rejected).
-  browserSessionIds: readonly string[];
+  // The entries this browser's cookies proved, read before completeLogin
+  // runs — admitSession evicts from exactly this list, never a subject-wide
+  // one: the cap is per browser, and a browser can hold sessions for more
+  // than one subject (see ADR 0033's amendment on why per-subject was
+  // rejected).
+  browserSessions: readonly SessionEntry[];
   // What `advance` reported ran, in order — copied onto the session
   // establishSession creates, so a later reuse of it states `amr`/`acr`
   // about what this login actually used rather than what the subject
@@ -199,7 +201,10 @@ export type CompleteLoginOutcome =
   // The conditional consume found the session already used — by an earlier
   // request, or by one that raced this one to the same UPDATE — so nothing
   // was established or issued.
-  { kind: 'already_consumed' } | { kind: 'issued'; sessionId: string; code: string };
+  | { kind: 'already_consumed' }
+  // `entry` is the freshly established session's, carrying the only copy of
+  // its secret; null when a reused session was touched instead.
+  | { kind: 'issued'; sessionId: string; code: string; entry: SessionEntry | null };
 
 // The gate is a property of completing a login, not of submitting a form.
 // A tenant requiring a verified address refuses a cookie-borne login for an
@@ -348,7 +353,7 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
       rememberMeMaxSeconds: number;
     },
     header: string | undefined,
-  ): Promise<SessionRecord[]>;
+  ): Promise<PresentedSession[]>;
 }
 
 // An authorization error response delivered to the parked request's own
@@ -442,7 +447,7 @@ export async function completeAuthorizedLogin(
     remembered: rememberMeRequested,
     lifespans,
     maxSessionsPerBrowser: tenant.maxSessionsPerBrowser,
-    browserSessionIds: before.map((session) => session.id),
+    browserSessions: before.map((session) => session.entry),
     authenticators,
     ...(reuseSession !== undefined ? { reuseSession } : {}),
     resource: pending.resource ?? [],
@@ -456,7 +461,7 @@ export async function completeAuthorizedLogin(
   if (completed.kind === 'already_consumed') {
     return { kind: 'unauthenticated' };
   }
-  const { sessionId, code } = completed;
+  const { sessionId, code, entry: issued } = completed;
 
   const location = new URL(pending.redirectUri);
   location.searchParams.set('code', code);
@@ -475,22 +480,23 @@ export async function completeAuthorizedLogin(
   );
   const survivors = existing.filter((session) => session.id !== sessionId);
   // A reused session was already in the browser's cookies, so `existing`
-  // carries its own `remembered` (read fresh, from the row); a freshly
-  // established one never was — nothing sent it back yet — so its bucket
-  // is exactly what was just asked for and gated.
-  const remembered =
-    reuseSession !== undefined
-      ? (existing.find((session) => session.id === sessionId)?.remembered ?? false)
-      : rememberMeRequested;
+  // carries its own `remembered` (read fresh, from the row) and the entry
+  // the browser proved it with; a freshly established one never was —
+  // nothing sent it back yet — so its bucket is exactly what was just asked
+  // for and gated, and its entry is the one just issued.
+  const reused = existing.find((session) => session.id === sessionId);
+  const remembered = issued === null ? (reused?.remembered ?? false) : rememberMeRequested;
+  const own = issued ?? reused?.entry;
+  const joined = own === undefined ? [] : [own];
   const bucket = (flag: boolean) =>
-    survivors.filter((session) => session.remembered === flag).map((session) => session.id);
+    survivors.filter((session) => session.remembered === flag).map((session) => session.entry);
 
   return {
     kind: 'redirect',
     location: location.toString(),
     sessionId,
-    ephemeralSessionIds: remembered ? bucket(false) : [...bucket(false), sessionId],
-    persistentSessionIds: remembered ? [...bucket(true), sessionId] : bucket(true),
+    ephemeralSessions: remembered ? bucket(false) : [...bucket(false), ...joined],
+    persistentSessions: remembered ? [...bucket(true), ...joined] : bucket(true),
     // The ceiling for whatever the persistent cookie carries, which may be
     // sessions this login never touched — never this login's own
     // `rememberMeRequested`, which says nothing about a survivor already

@@ -22,6 +22,10 @@ export const sessions = pgTable('sessions', {
   // the session is measured against and which cookie carries its id
   // (packages/db/drizzle/0048_sessions_remembered_and_cap.sql).
   remembered: boolean('remembered').notNull().default(false),
+  // sha256 hex of the secret half of this session's cookie entry; null only
+  // on a row that predates it, which is never live
+  // (packages/db/drizzle/0071_session_secret.sql).
+  secretHash: text('secret_hash'),
 }).enableRLS();
 
 export interface SessionRecord {

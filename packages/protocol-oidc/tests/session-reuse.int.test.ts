@@ -280,7 +280,7 @@ function jwtPayload(token: string): Record<string, unknown> {
 async function sessionRowFor(
   cookie: string,
 ): Promise<{ createdAt: Date; lastActiveAt: Date } | undefined> {
-  const sessionId = cookie.split('=')[1];
+  const sessionId = cookie.split('=')[1]?.split(':')[0];
   if (sessionId === undefined) throw new Error('expected a session id in the cookie');
   const rows = await owner.db
     .select({ createdAt: sessions.createdAt, lastActiveAt: sessions.lastActiveAt })
@@ -709,7 +709,7 @@ describe("a reused session's code expires from its own issuance, not the session
     const tenantName = `reuse-backdated-${newId()}`;
     await setupTenant(tenantName);
     const cookie = await signIn(tenantName, http, { code_challenge: CHALLENGE });
-    const sessionId = cookie.split('=')[1];
+    const sessionId = cookie.split('=')[1]?.split(':')[0];
     if (sessionId === undefined) throw new Error('expected a session id in the cookie');
 
     const backdated = new Date(Date.now() - 5 * 60_000);

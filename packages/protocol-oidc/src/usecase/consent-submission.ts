@@ -1,8 +1,9 @@
 import {
   nextRequiredAction,
   type PendingRequest,
+  type PresentedSession,
   type RequiredAction,
-  type SessionRecord,
+  type SessionEntry,
 } from '@odudu/authn-flows';
 import { type RequestContext } from '@odudu/domain-audit';
 import { isUuid } from '@odudu/kernel';
@@ -37,8 +38,8 @@ export type ConsentSubmissionOutcome =
       kind: 'redirect';
       location: string;
       sessionId: string;
-      ephemeralSessionIds: readonly string[];
-      persistentSessionIds: readonly string[];
+      ephemeralSessions: readonly SessionEntry[];
+      persistentSessions: readonly SessionEntry[];
       persistentMaxAgeSeconds: number;
     };
 
@@ -79,7 +80,7 @@ export interface ConsentSubmissionDeps {
       rememberMeMaxSeconds: number;
     },
     header: string | undefined,
-  ): Promise<SessionRecord[]>;
+  ): Promise<PresentedSession[]>;
   // The same two dependencies handleLoginSubmission reads to enforce its own
   // pre-consent gates — see refusedForUnverifiedEmail and nextRequiredAction
   // below, this endpoint's only callers of either.

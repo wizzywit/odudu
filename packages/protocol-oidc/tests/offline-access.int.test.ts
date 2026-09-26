@@ -255,12 +255,12 @@ async function signIn(
 async function completeFlow(
   tenantName: string,
   scope: string,
-): Promise<{ sessionId: string; access_token: string; refresh_token: string; scope: string }> {
+): Promise<{ sessionEntry: string; access_token: string; refresh_token: string; scope: string }> {
   const { cookie, code } = await signIn(tenantName, scope);
-  const sessionId = cookie.split('=')[1];
-  if (sessionId === undefined) throw new Error('expected a session id in the cookie');
+  const sessionEntry = cookie.split('=')[1];
+  if (sessionEntry === undefined) throw new Error('expected a session entry in the cookie');
   const redeemed = await redeemCode(tenantName, code);
-  return { sessionId, ...redeemed };
+  return { sessionEntry, ...redeemed };
 }
 
 // A live session cookie completes a second authorization request with no
@@ -427,7 +427,7 @@ describe('offline access', () => {
     await setupTenant(tenantName, ['openid', 'offline_access']);
 
     const first = await completeFlow(tenantName, 'openid');
-    const cookie = `${tenantName}-session=${first.sessionId}`;
+    const cookie = `${tenantName}-session=${first.sessionEntry}`;
     const offline = await reuseSession(tenantName, cookie, 'openid offline_access');
 
     await logoutViaConfirmation(tenantName, cookie);
@@ -474,7 +474,8 @@ describe('offline access', () => {
     // rest of the suite would stay green.
     const tenantName = `offline-touch-${newId()}`;
     await setupTenant(tenantName, ['openid']);
-    const { sessionId, refresh_token: refreshToken } = await completeFlow(tenantName, 'openid');
+    const { sessionEntry, refresh_token: refreshToken } = await completeFlow(tenantName, 'openid');
+    const sessionId = sessionEntry.split(':')[0] ?? '';
 
     // Back-dated so the two reads cannot tie on timer resolution alone,
     // and still well inside the default idle window so the refresh itself

@@ -498,6 +498,13 @@
       "when": 1789049381713,
       "tag": "0070_grant_userinfo_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1789049381714,
+      "tag": "0071_session_secret",
+      "breakpoints": true
     }
   ]
 }

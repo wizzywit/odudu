@@ -447,8 +447,18 @@ a client's own `max_age` check depends on — and `max_age` is honoured, so a
 client can demand a fresher authentication than the cookie represents. The
 email-verified gate guards this second door into completing a login exactly
 as it guards the password form. The cookie now holds a **list** of session
-ids, not one, and a fresh login joins a browser's existing set rather than
-replacing it.
+entries, not one, and a fresh login joins a browser's existing set rather
+than replacing it.
+
+**A session cookie is not its session's id.** Each entry is
+`<session id>:<secret>`, the secret 32 random bytes in base64url that the
+server keeps only as a sha256 hash (`sessions.secret_hash`), compared in
+constant time. The id half is public — it is the `sid` claim of every ID
+token and access token — so presenting it alone, or with any other secret,
+authenticates nobody, and costs the same statements as an id no session
+has. A cookie the server writes back carries the entries the browser
+presented, never entries rebuilt from ids. A session created before
+migration `0071_session_secret.sql` has no hash and is never live.
 
 **A tenant can now offer "remember me."** Three settings gate it:
 `remember_me_allowed` (off by default), and the pair
@@ -456,7 +466,7 @@ replacing it.
 days) a remembered login is measured against instead of
 `sso_session_idle_seconds`/`sso_session_max_seconds`. When the setting is
 on, the login form offers a `remember_me` checkbox; ticking it writes the
-new session's id into the `{tenant}-session-persistent` cookie, carrying
+new session's entry into the `{tenant}-session-persistent` cookie, carrying
 `Max-Age=remember_me_max_seconds`, instead of the ephemeral
 `{tenant}-session` cookie. **The tenant setting is the authority, not the
 field**: a tenant with `remember_me_allowed` off ignores a ticked box
@@ -466,7 +476,7 @@ ordinary login would.
 **A browser's session count is capped, and the cap is enforced.**
 `tenants.max_sessions_per_browser` (1–32, default 25) is the ceiling
 `admitSession` evicts a browser's own least recently active sessions down
-to — read from the ids its cookies already name, never by subject, since
+to — read from the entries its cookies already prove, never by subject, since
 one browser can hold sessions for more than one — in the same transaction
 it creates a new one. A lock on the tenant's own row serialises logins
 arriving at once, but does not make the cap exact under concurrency: `k`

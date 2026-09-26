@@ -1,4 +1,4 @@
-import { sessionRepository } from '@odudu/authn-flows';
+import { SessionEntry, sessionRepository } from '@odudu/authn-flows';
 import { hashPassword, subjectRepository } from '@odudu/domain-identity';
 import {
   clientRepository,
@@ -79,6 +79,7 @@ async function seedSessionWithGrant(
       subjectId,
       expiresAt: new Date(fixture.clock.now().getTime() + 3_600_000),
       authenticators: ['pwd'],
+      secretHash: SessionEntry.issue(sessionId).secretHash(),
     });
     await tokenGrantRepository(tx).create({
       id: newId(),
@@ -104,6 +105,7 @@ async function seedLiveSession(tenantId: string, subjectId: string): Promise<str
       subjectId,
       expiresAt: new Date(fixture.clock.now().getTime() + 3_600_000),
       authenticators: ['pwd'],
+      secretHash: SessionEntry.issue(sessionId).secretHash(),
     });
     return sessionId;
   });

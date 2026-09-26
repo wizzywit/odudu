@@ -1,5 +1,6 @@
 import formbody from '@fastify/formbody';
 import Fastify from 'fastify';
+import { SessionEntry } from '@odudu/authn-flows';
 import { describe, expect, it, vi } from 'vitest';
 import { registerLoginRoute, type LoginRouteDeps } from '#/view/routes/login';
 
@@ -46,9 +47,12 @@ function deps(): LoginRouteDeps {
     pendingActions: vi.fn().mockResolvedValue([]),
     resetAuthenticationProgress: vi.fn().mockResolvedValue(undefined),
     recordRememberMe: vi.fn().mockResolvedValue(undefined),
-    completeLogin: vi
-      .fn()
-      .mockResolvedValue({ kind: 'issued', sessionId: 'new-session', code: 'code-1' }),
+    completeLogin: vi.fn().mockResolvedValue({
+      kind: 'issued',
+      sessionId: 'new-session',
+      code: 'code-1',
+      entry: SessionEntry.issue('new-session'),
+    }),
     resolveSessions: vi.fn().mockResolvedValue([
       {
         id: 'remembered-session',
@@ -59,6 +63,7 @@ function deps(): LoginRouteDeps {
         lastActiveAt: new Date('2026-01-01T00:00:00Z'),
         authenticators: ['password'],
         remembered: true,
+        entry: SessionEntry.issue('remembered-session'),
       },
     ]),
     consentContext: vi.fn().mockResolvedValue({

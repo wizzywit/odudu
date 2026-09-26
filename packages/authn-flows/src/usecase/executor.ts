@@ -12,6 +12,7 @@ import { executionRepository } from '#/repository/executions';
 import { tenantSettingsRepository } from '#/repository/tenant-settings';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { sessionRepository } from '#/repository/sessions';
+import { SessionEntry } from '#/service/session-entry';
 import { oweRecoveryCodesIfNoneUnspent } from '#/usecase/recovery-codes';
 import { recordPasswordExpiryIfOwed } from '#/usecase/update-password';
 import { loginAuditFor, type AuditFailureLogger, type LoginAudit } from '#/usecase/login-audit';
@@ -1011,6 +1012,13 @@ export async function consumeAuthenticationSession(
   return authenticationSessionRepository(tx).consume(authSessionId, clock.now());
 }
 
+// `entry` is the only copy of the session's secret there will ever be: only
+// its hash is stored, so the Set-Cookie that carries it is written from this.
+export interface EstablishedSession {
+  sessionId: string;
+  entry: SessionEntry;
+}
+
 export async function establishSession(
   tx: TenantScopedDatabase,
   tenantId: string,
@@ -1022,21 +1030,22 @@ export async function establishSession(
   authenticators: readonly string[],
   // Whether this login was remembered — the tenant-gated decision the
   // caller already made, never re-derived here. Selects which cookie the
-  // session's id is later carried in and which lifespan pair `liveByIds`
-  // measures it against.
+  // session's entry is later carried in and which lifespan pair its
+  // liveness is measured against.
   remembered = false,
   clock: Clock = systemClock,
-): Promise<{ sessionId: string }> {
+): Promise<EstablishedSession> {
   // Always a fresh id, even for the same subject: reusing the pre-auth id
   // here is exactly the session-fixation hole this function exists to close.
-  const id = newId();
+  const entry = SessionEntry.issue(newId());
   await sessionRepository(tx).create({
-    id,
+    id: entry.id,
     tenantId,
     subjectId,
     authenticators: [...authenticators],
     expiresAt: new Date(clock.now().getTime() + maxSeconds * 1000),
     remembered,
+    secretHash: entry.secretHash(),
   });
-  return { sessionId: id };
+  return { sessionId: entry.id, entry };
 }

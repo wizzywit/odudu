@@ -13,7 +13,7 @@ export interface TenantLookup {
   // configured value, not a package-wide constant.
   ssoSessionMaxSeconds: number;
   // The idle window resolveSessions checks a browser's sessions against
-  // (sessionRepository(tx).liveByIds) — the tenant's own configured value,
+  // (sessionRepository(tx).liveByEntries) — the tenant's own configured value,
   // mirroring ssoSessionMaxSeconds.
   ssoSessionIdleSeconds: number;
   // The remembered-login pair `lifespanFor` picks between alongside

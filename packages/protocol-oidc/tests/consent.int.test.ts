@@ -200,6 +200,7 @@ async function submitConsent(
   authSessionId: string,
   decision: 'allow' | 'deny',
   scopes: string[] = [],
+  cookie?: string,
 ): Promise<LightMyRequestResponse> {
   const params = new URLSearchParams({ auth_session_id: authSessionId, decision });
   for (const scope of scopes) params.append('scope', scope);
@@ -207,7 +208,10 @@ async function submitConsent(
     method: 'POST',
     url: `/tenants/${tenantName}/login-actions/consent`,
     payload: params.toString(),
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      ...(cookie === undefined ? {} : { cookie }),
+    },
   });
 }
 
@@ -241,7 +245,7 @@ function jwtPayload(token: string): Record<string, unknown> {
 }
 
 function sessionIdFromCookie(cookie: string): string {
-  const value = cookie.split('=')[1];
+  const value = cookie.split('=')[1]?.split(':')[0];
   if (value === undefined) throw new Error('expected a session id in the cookie');
   return value;
 }
@@ -517,9 +521,13 @@ describe('the consent gate applies to a reused SSO session too', () => {
     });
     expect(reused.statusCode).toBe(200);
     const secondConsentAuthSessionId = extractAuthSessionId(reused.body);
-    const secondAllowed = await submitConsent(tenantName, secondConsentAuthSessionId, 'allow', [
-      'offline_access',
-    ]);
+    const secondAllowed = await submitConsent(
+      tenantName,
+      secondConsentAuthSessionId,
+      'allow',
+      ['offline_access'],
+      cookie,
+    );
     expect(secondAllowed.statusCode).toBe(302);
     const secondCookie = setCookieValue(secondAllowed);
     if (secondCookie === undefined) {
@@ -541,6 +549,7 @@ describe('the consent gate applies to a reused SSO session too', () => {
 
     expect(secondAuthTime).toBe(firstAuthTime);
     expect(sessionIdFromCookie(secondCookie)).toBe(sessionIdFromCookie(cookie));
+    expect(secondCookie).toBe(cookie);
   });
 
   // Two ids on one behaviour: OIDC Core states the same refusal twice, once

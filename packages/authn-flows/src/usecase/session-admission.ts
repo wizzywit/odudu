@@ -3,22 +3,23 @@ import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository, type AuditEventInput } from '@odudu/domain-audit';
 import { type Clock, systemClock } from '@odudu/kernel';
 import { sessionRepository } from '#/repository/sessions';
+import { type SessionEntry } from '#/service/session-entry';
 import { lifespanFor, type SessionLifespans } from '#/service/session-lifespan';
 import { chooseEvictions } from '#/service/session-set';
-import { establishSession } from '#/usecase/executor';
+import { establishSession, type EstablishedSession } from '#/usecase/executor';
 
 export interface AdmitSessionInput {
   tenantId: string;
   subjectId: string;
   authenticators: readonly string[];
   remembered: boolean;
-  // The ids this browser's cookies already name (both lists together,
-  // resolveSessions's own live read — see login-submission.ts) — the cap
-  // this bounds is `max_sessions_per_browser`, not a per-subject count: a
-  // browser can hold sessions for more than one subject (what
-  // `prompt=select_account` will choose among), and evicting by subject
-  // would let each one carry the cap on its own, unbounded in total.
-  browserSessionIds: readonly string[];
+  // The entries this browser's cookies present (both lists together),
+  // re-verified under the lock, so an entry with a wrong secret is never
+  // counted. The cap this bounds is `max_sessions_per_browser`, not a
+  // per-subject count: a browser can hold sessions for more than one
+  // subject (what `prompt=select_account` chooses among), and evicting by
+  // subject would let each one carry the cap on its own, unbounded in total.
+  browserSessions: readonly SessionEntry[];
   maxSessionsPerBrowser: number;
   lifespans: SessionLifespans;
 }
@@ -35,12 +36,12 @@ export async function admitSession(
   tx: TenantScopedDatabase,
   input: AdmitSessionInput,
   clock: Clock = systemClock,
-): Promise<{ sessionId: string }> {
+): Promise<EstablishedSession> {
   await tx.select().from(tenants).where(eq(tenants.id, input.tenantId)).for('no key update');
 
   const now = clock.now();
   const repo = sessionRepository(tx);
-  const live = await repo.liveByIds(input.browserSessionIds, input.lifespans, now);
+  const live = await repo.liveByEntries(input.browserSessions, input.lifespans, now);
   const evicted = new Set(chooseEvictions(live, input.maxSessionsPerBrowser));
   await repo.endMany([...evicted], now);
   await auditRepository(tx).recordAll(

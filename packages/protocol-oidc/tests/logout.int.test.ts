@@ -256,7 +256,7 @@ async function refreshWith(
 }
 
 function sessionIdFromCookie(cookie: string): string {
-  const id = cookie.split('=')[1];
+  const id = cookie.split('=')[1]?.split(':')[0];
   if (id === undefined) throw new Error('expected a session id in the cookie');
   return id;
 }
@@ -463,9 +463,9 @@ describe('a hint naming an older session, in a browser holding a newer one too',
     const subjectId = await subjectIdOf(tenantId, USERNAME);
     const hint = await mintIdToken(tenantName, subjectId, olderSessionId);
 
-    // One browser holding both: the two cookies' own ids, combined the way
-    // sessionCookies itself joins a list (session-cookie.ts's SEPARATOR).
-    const bothCookie = `${tenantName}-session=${olderSessionId}.${newerSessionId}`;
+    // One browser holding both: the two cookies' own entries, combined the
+    // way sessionCookies itself joins a list (session-cookie.ts's SEPARATOR).
+    const bothCookie = `${tenantName}-session=${olderCookie.split('=')[1] ?? ''}.${newerCookie.split('=')[1] ?? ''}`;
 
     const res = await http.inject({
       url: logoutUrl(tenantName, { id_token_hint: hint }),
@@ -822,11 +822,11 @@ describe('GET the logout endpoint with a foreign tenant session id', () => {
     await setupTenant(tenantBName);
 
     // Tenant B's cookie name is distinct, but nothing stops a raw request
-    // from carrying tenant A's session id under tenant B's cookie name — the
-    // scoping has to come from the lookup, not the header's own shape.
+    // from carrying tenant A's session entry under tenant B's cookie name —
+    // the scoping has to come from the lookup, not the header's own shape.
     const res = await http.inject({
       url: logoutUrl(tenantBName),
-      headers: { cookie: `${tenantBName}-session=${sessionIdA}` },
+      headers: { cookie: `${tenantBName}-session=${cookieA.split('=')[1] ?? ''}` },
     });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<title>Already signed out</title>');

@@ -274,7 +274,7 @@ async function loginAndGetToken(
   }
   const cookie = setCookieValue(submitted);
   if (cookie === undefined) throw new Error('expected a set-cookie header from a successful login');
-  const sessionId = cookie.split('=')[1];
+  const sessionId = cookie.split('=')[1]?.split(':')[0];
   if (sessionId === undefined) throw new Error('expected a session id in the cookie');
 
   const code = new URL(locationHeader(submitted)).searchParams.get('code');

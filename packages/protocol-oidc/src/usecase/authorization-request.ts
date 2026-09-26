@@ -148,7 +148,7 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // MUST, "an error is returned if reauthentication cannot be performed".
   initialChallenge(tenantId: string): Promise<AuthenticatorResult>;
   // The browser's session cookies, resolved to their live rows (never
-  // trusted for anything but that lookup) — sessionRepository(tx).liveByIds
+  // trusted for anything but that lookup) — sessionRepository(tx).liveByEntries
   // scoped to the tenant's own idle window. decideReuse decides over the
   // whole set resolved here, which may belong to more than one subject.
   resolveSessions(

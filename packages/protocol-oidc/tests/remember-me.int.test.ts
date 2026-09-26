@@ -136,7 +136,7 @@ async function postLogin(
 }
 
 async function rememberedFlagOf(cookieValue: string): Promise<boolean | undefined> {
-  const sessionId = cookieValue.split('=')[1]?.split(';')[0];
+  const sessionId = cookieValue.split('=')[1]?.split(';')[0]?.split(':')[0];
   if (sessionId === undefined) throw new Error('expected a session id in the cookie value');
   const rows = await owner.db
     .select({ remembered: sessions.remembered })

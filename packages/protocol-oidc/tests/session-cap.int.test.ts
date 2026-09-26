@@ -14,7 +14,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { provisionTenant, sessionRepository } from '@odudu/authn-flows';
+import { provisionTenant, SessionEntry, sessionRepository } from '@odudu/authn-flows';
 import { oidcRoutes } from '#/index';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
@@ -246,9 +246,15 @@ describe('the session cap, end to end', () => {
 
     const now = new Date();
     await withTenant(app.db, tenantId, async (tx) => {
-      const live = await sessionRepository(tx).liveByIds(allIssuedIds, TENANT_LIFESPANS, now);
+      const entries = allIssuedIds
+        .map((value) => SessionEntry.parse(value))
+        .filter((entry) => entry !== null);
+      expect(entries).toHaveLength(allIssuedIds.length);
+      const live = await sessionRepository(tx).liveByEntries(entries, TENANT_LIFESPANS, now);
       expect(live).toHaveLength(CAP);
-      expect(live.map((session) => session.id).sort()).toEqual([...finalIds].sort());
+      expect(live.map((session) => session.entry.cookieValue()).sort()).toEqual(
+        [...finalIds].sort(),
+      );
     });
   });
 });

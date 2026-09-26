@@ -45,6 +45,14 @@ through the endpoints below. Its `demo` is
 `ETag`s and timestamps refer to each other and to nothing in the sections
 above. Each such section says so. It was torn down the same way.
 
+**The third stack.** "Getting the token" was captured again, after the
+session cookie gained its secret (`0071_session_secret.sql`), against a
+stack brought up the same way from an empty volume with only
+`seed admin --username ada` run against it. Its password, ids, code and
+cookie are that run's own: its `ada` is
+`01a0de12-c116-70ee-9cc1-984429980dcc`, not the subject the sections after
+it name.
+
 ## The shape of it
 
 Most of the admin endpoint lives under `/admin/tenants/{tenant}/`, mirroring
@@ -168,9 +176,9 @@ docker compose exec -T odudu node dist/main.js seed admin --username ada
 ```
 
 ```
-qVWBqjTLZBlCgwfqTnFD7hWEURGc8yQ6
+27Kfg-JXR64ZjLc9FkJ_0kIERHv-EeuF
 This password is shown once and cannot be retrieved again.
-{"command":"admin","tenantId":"0199aa00-0000-7000-8000-000000000001","username":"ada","subjectId":"01a0d6fb-0918-7846-b430-0a714b8bf7bf"}
+{"command":"admin","tenantId":"0199aa00-0000-7000-8000-000000000001","username":"ada","subjectId":"01a0de12-c116-70ee-9cc1-984429980dcc"}
 ```
 
 The subject is created with an `update-password` required action, so the
@@ -186,7 +194,7 @@ the login form did:
 <h1>Change your password</h1>
 <p>This account needs a new password before you can continue.</p>
 <form method="post" action="/tenants/system/login-actions/required-action?action=update-password">
-  <input type="hidden" name="auth_session_id" value="01a0d6fb-45c9-750b-b189-c0f12cfed7b9">
+  <input type="hidden" name="auth_session_id" value="01a0de13-03cf-7df3-bd31-e5086f0926c1">
   <label>New password <input type="password" name="password" autocomplete="new-password"></label>
   <button type="submit">Update password</button>
 </form>
@@ -200,12 +208,12 @@ with the new password:
 
 ```bash
 curl -sS -c jar -b jar \
-  --data-urlencode "auth_session_id=01a0d6fb-45c9-750b-b189-c0f12cfed7b9" \
+  --data-urlencode "auth_session_id=01a0de13-03cf-7df3-bd31-e5086f0926c1" \
   --data-urlencode 'password=correct-horse-battery-staple-9' \
   'http://localhost:3000/tenants/system/login-actions/required-action?action=update-password'
 
 curl -sS -D - -c jar -b jar \
-  --data-urlencode "auth_session_id=01a0d6fb-45c9-750b-b189-c0f12cfed7b9" \
+  --data-urlencode "auth_session_id=01a0de13-03cf-7df3-bd31-e5086f0926c1" \
   --data-urlencode 'username=ada' \
   --data-urlencode 'password=correct-horse-battery-staple-9' \
   'http://localhost:3000/tenants/system/login-actions/authenticate'
@@ -213,9 +221,14 @@ curl -sS -D - -c jar -b jar \
 
 ```
 HTTP/1.1 302 Found
-set-cookie: system-session=01a0d6fb-a6c4-778d-90fb-d682fa5b0b5a; HttpOnly; SameSite=Lax; Path=/
-location: http://127.0.0.1:8080/callback?code=bloWwM1eqh9sRGtzxgsJDgLoEHz3zAwz-Nu9zIM-zLA&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fsystem
+set-cookie: system-session=01a0de13-04cb-70b0-8def-e2775efe7bd8:uCLBEyReeXErUxqMZDN-CsA_U44NWLcWDo2fylzaSOo; HttpOnly; SameSite=Lax; Path=/
+set-cookie: system-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: http://127.0.0.1:8080/callback?code=4uFhKJ34riRIjYzfr-EfMI8filnxus4w7pQe6H1wc6M&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fsystem
 ```
+
+The cookie's value is `<session id>:<secret>`. The id half is the `sid`
+the token below carries, so every client that receives a token holds it;
+only the secret, which the server keeps as a sha256 hash, signs anybody in.
 
 The code redeems at `/token` the way any `authorization_code` does. The
 access token's `aud` carries `urn:odudu:params:admin-api` **without the
@@ -228,15 +241,15 @@ the wire, because the bytes on the wire are a signed JWT:
 ```
 {
   "iss": "http://localhost:3000/tenants/system",
-  "sub": "01a0d6fb-0918-7846-b430-0a714b8bf7bf",
+  "sub": "01a0de12-c116-70ee-9cc1-984429980dcc",
   "aud": ["urn:odudu:params:admin-api", "http://localhost:3000/tenants/system"],
   "client_id": "odudu-admin",
   "scope": "openid",
-  "iat": 1790313220,
-  "exp": 1790313520,
-  "jti": "01a0d6fb-c892-746e-9a30-903b33b02697",
-  "sid": "01a0d6fb-a6c4-778d-90fb-d682fa5b0b5a",
-  "grant_id": "01a0d6fb-c892-746e-9a30-903a020bafe9"
+  "iat": 1790432192,
+  "exp": 1790432492,
+  "jti": "01a0de13-27db-7965-99e5-40acd8f67252",
+  "sid": "01a0de13-04cb-70b0-8def-e2775efe7bd8",
+  "grant_id": "01a0de13-27db-7965-99e5-40ab0704242c"
 }
 ```
 
@@ -250,7 +263,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"subjectId":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","issuerTenantId":"0199aa00-0000-7000-8000-000000000001"}
+{"subjectId":"01a0de12-c116-70ee-9cc1-984429980dcc","issuerTenantId":"0199aa00-0000-7000-8000-000000000001"}
 ```
 
 ## `GET /admin/tenants`
@@ -797,8 +810,9 @@ admin surface at all can call it.
 It answers `subjectId` (the token's `sub`) and `issuerTenantId` — the
 tenant that **issued** the token, not the tenant named in the URL. The
 captured run is under "Getting the token" above, against
-`/admin/tenants/system/whoami`; the same token against `demo` answers the
-identical body, `issuerTenantId` still naming `system`:
+`/admin/tenants/system/whoami`; the first stack's token against `demo`
+answers the same shape for its own `ada`, `issuerTenantId` still naming
+`system`:
 
 ```bash
 curl -sS \

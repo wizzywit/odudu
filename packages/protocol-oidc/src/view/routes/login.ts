@@ -254,8 +254,8 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
     const written = sessionCookies({
       tenant: request.params.tenant,
       tls: deps.tls,
-      ephemeral: outcome.ephemeralSessionIds,
-      persistent: outcome.persistentSessionIds,
+      ephemeral: outcome.ephemeralSessions,
+      persistent: outcome.persistentSessions,
       persistentMaxAgeSeconds: outcome.persistentMaxAgeSeconds,
     });
 

@@ -17,12 +17,13 @@ import {
   markSessionAuthenticated,
   pendingChallenge,
   pendingSession,
-  readSessionIds,
+  readSessionEntries,
   recordRememberMe,
   requiredActionRepository,
   resetAuthenticationProgress,
   sessionRepository,
   startAuthentication,
+  type SessionEntry,
   type SessionLifespans,
 } from '@odudu/authn-flows';
 import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
@@ -287,9 +288,13 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       },
       header: string | undefined,
     ) => {
-      const ids = readSessionIds(header, tenant.name, tls);
+      const entries = readSessionEntries(header, tenant.name, tls);
       return withTenant(deps.database.db, tenant.id, (tx) =>
-        sessionRepository(tx).liveByIds([...ids.ephemeral, ...ids.persistent], tenant, clock.now()),
+        sessionRepository(tx).liveByEntries(
+          [...entries.ephemeral, ...entries.persistent],
+          tenant,
+          clock.now(),
+        ),
       );
     };
 
@@ -365,6 +370,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           const reuseSession = input.reuseSession;
           let sessionId: string;
           let authTime: Date;
+          let entry: SessionEntry | null = null;
           if (reuseSession !== undefined) {
             await sessionRepository(tx).touch(reuseSession.sessionId, now);
             sessionId = reuseSession.sessionId;
@@ -377,13 +383,14 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
                 subjectId: input.subjectId,
                 authenticators: input.authenticators,
                 remembered: input.remembered,
-                browserSessionIds: input.browserSessionIds,
+                browserSessions: input.browserSessions,
                 maxSessionsPerBrowser: input.maxSessionsPerBrowser,
                 lifespans: input.lifespans,
               },
               clock,
             );
             sessionId = admitted.sessionId;
+            entry = admitted.entry;
             authTime = now;
             await auditRepository(tx).record({
               eventType: 'session',
@@ -411,7 +418,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             resource: input.resource,
             claims: input.claims,
           });
-          return { kind: 'issued', sessionId, code };
+          return { kind: 'issued', sessionId, code, entry };
         },
         input.request,
       );

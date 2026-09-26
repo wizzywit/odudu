@@ -1,3 +1,4 @@
+import { SessionEntry } from '@odudu/authn-flows';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
   handleLoginSubmission,
@@ -10,6 +11,7 @@ import {
 // refused as malformed and prove nothing about the path under test.
 const AUTH_SESSION_ID = '01a0a998-8326-7900-8fa6-dd06b842b269';
 const REQUEST = { requestId: 'req-login-1', ip: '203.0.113.9' };
+const ISSUED = SessionEntry.issue('session-1');
 
 const TENANT = {
   id: 'tenant-1',
@@ -56,7 +58,7 @@ function harness(): Harness {
     .mockResolvedValue({ kind: 'success', subjectId: 'subject-1', authenticators: ['password'] });
   const completeLogin = vi
     .fn()
-    .mockResolvedValue({ kind: 'issued', sessionId: 'session-1', code: 'code-1' });
+    .mockResolvedValue({ kind: 'issued', sessionId: 'session-1', code: 'code-1', entry: ISSUED });
   const checkEmailVerification = vi.fn().mockResolvedValue({ verified: true, hasEmail: true });
   const pendingActions = vi.fn().mockResolvedValue([]);
   const resetAuthenticationProgress = vi.fn().mockResolvedValue(undefined);
@@ -149,8 +151,8 @@ describe('handleLoginSubmission — the success path', () => {
       location:
         'https://app.example/callback?code=code-1&state=xyz&iss=https%3A%2F%2Fidp.example%2Ftenants%2Facme',
       sessionId: 'session-1',
-      ephemeralSessionIds: ['session-1'],
-      persistentSessionIds: [],
+      ephemeralSessions: [ISSUED],
+      persistentSessions: [],
       persistentMaxAgeSeconds: TENANT.rememberMeMaxSeconds,
     });
     expect(completeLogin).toHaveBeenCalledWith({
@@ -167,7 +169,7 @@ describe('handleLoginSubmission — the success path', () => {
       remembered: false,
       lifespans: TENANT_LIFESPANS,
       maxSessionsPerBrowser: TENANT.maxSessionsPerBrowser,
-      browserSessionIds: [],
+      browserSessions: [],
       authenticators: ['password'],
       resource: [],
       claims: { idToken: {}, userinfo: {} },

@@ -185,8 +185,8 @@ async function completeFlow(
     (c) => c.startsWith(`${tenantName}-session=`) && !c.includes('-persistent'),
   );
   const persistent = cookieList(submitted).find((c) => c.includes('-session-persistent='));
-  const fromEphemeral = ephemeral?.split('=')[1]?.split(';')[0];
-  const fromPersistent = persistent?.split('=')[1]?.split(';')[0];
+  const fromEphemeral = ephemeral?.split('=')[1]?.split(';')[0]?.split(':')[0];
+  const fromPersistent = persistent?.split('=')[1]?.split(';')[0]?.split(':')[0];
   const sessionId =
     fromEphemeral !== undefined && fromEphemeral !== '' ? fromEphemeral : fromPersistent;
   if (sessionId === undefined || sessionId === '') {

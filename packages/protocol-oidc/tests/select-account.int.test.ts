@@ -457,7 +457,10 @@ describe('the account chooser', () => {
 
     const ephemeral = jar.get(`${tenantName}-session`);
     if (ephemeral === undefined) throw new Error('expected an ephemeral session cookie');
-    const sessionIds = ephemeral.split('.').filter((id) => id.length > 0);
+    const sessionIds = ephemeral
+      .split('.')
+      .filter((entry) => entry.length > 0)
+      .map((entry) => entry.split(':')[0]);
     const aliceSessionId = await liveSessionIdOf(tenantId, alice);
     if (!sessionIds.includes(aliceSessionId)) {
       throw new Error('expected alice session id to be in the browser cookie');

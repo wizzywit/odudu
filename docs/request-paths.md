@@ -999,13 +999,22 @@ curl -sS -D - -o /dev/null \
 
 ```
 HTTP/1.1 302 Found
-set-cookie: demo-session=01a0cb09-7b25-…; HttpOnly; SameSite=Lax; Path=/
+set-cookie: demo-session=01a0de0f-e0c1-…:ymX2RgGntNQX…; HttpOnly; SameSite=Lax; Path=/
 set-cookie: demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:8080/callback?code=S3Ax4Fi7OrAT…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
+location: http://localhost:8080/callback?code=BHGxL9ZKCpm7…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
 
-(Session id and code truncated.)
+(Session entry and code truncated.)
+
+The cookie's value is an **entry**, `<session id>:<secret>`: the id of the
+session row, and 32 random bytes in base64url of which the server keeps
+only a sha256 hash (`sessions.secret_hash`). The id half is public — it is
+the `sid` claim of every ID token and access token this session issues —
+so it identifies the session and authenticates nothing: presenting it
+alone, or with any secret but this one, resolves to no session at all, at
+the same cost as an id that names none. A browser holding several sessions
+carries several entries, joined with `.`.
 
 Two `set-cookie` headers, not one: the ephemeral `demo-session` this login
 just established, and `demo-session-persistent` cleared to empty with
@@ -1129,8 +1138,8 @@ The login form renders a `remember_me` checkbox whenever the tenant's
 `demo`'s setting was turned on for this run —
 `odudu seed tenant --name demo --set remember_me_allowed=true` — since it is
 off for every other transcript in this document. Ticking the box and
-submitting the same form puts the new session's id in the **persistent**
-cookie instead:
+submitting the same form puts the new session's entry in the
+**persistent** cookie instead:
 
 ```bash
 curl -sS -D - -o /dev/null \
@@ -1144,14 +1153,14 @@ curl -sS -D - -o /dev/null \
 ```
 HTTP/1.1 302 Found
 set-cookie: demo-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: demo-session-persistent=01a0cb09-7e23-…; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000
-location: http://localhost:8080/callback?code=EgQF5EqNi16q…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
+set-cookie: demo-session-persistent=01a0de10-6e0f-…:_VOQ7Kojly1r…; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000
+location: http://localhost:8080/callback?code=8DehL4bWBMqb…&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
 ```
 
-(Session id and code truncated.) The two cookies swap roles from the
+(Session entry and code truncated.) The two cookies swap roles from the
 ordinary case above: `demo-session` is now the one cleared with
-`Max-Age=0`, and `demo-session-persistent` carries this session's id with
+`Max-Age=0`, and `demo-session-persistent` carries this session's entry with
 `Max-Age=2592000` — the tenant's `remember_me_max_seconds` (default 30
 days), not `sso_session_max_seconds`. The session this establishes is also
 measured against a different idle window while it lives,
@@ -3186,6 +3195,20 @@ set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Ag
 location: http://localhost:8080/callback?code=qLJc6jy_z9EFISBTU4WLjujP498MmuZ_TvPtCfq9YqQ&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 ```
 
+Run again from an empty volume after the session cookie gained its secret
+(`0071_session_secret.sql`), the same steps end in this — that run's own
+values throughout, the cookie now `<session id>:<secret>`:
+
+```
+HTTP/1.1 302 Found
+set-cookie: otp-demo-session=01a0de16-cef0-7a20-8596-48316e1ddd13:G4JLrmZkQCpvIOgXn4ZtyaaOE3l3HEz_aVEdA2-w3RM; HttpOnly; SameSite=Lax; Path=/
+set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: http://localhost:8080/callback?code=GpmtUiLT0pnxZ09_veMPvNmiOCwffRqGvK4mn8WT7sU&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
+content-length: 0
+```
+
+The rest of this section and the next continue the first run.
+
 ### What two factors do to the ID token
 
 ```bash
@@ -3402,6 +3425,18 @@ set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Ag
 location: http://localhost:8080/callback?code=zOxWHDFwzAqNIzzrBtz_NYjiMNrYEdqfJtQEYA-92yY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
 ```
 
+Run again from an empty volume after the session cookie gained its secret
+(`0071_session_secret.sql`), the same steps end in this — that run's own
+values throughout, the cookie now `<session id>:<secret>`:
+
+```
+HTTP/1.1 302 Found
+set-cookie: otp-demo-session=01a0de16-cf8a-7f82-8d04-2f218f9f5247:LMW3RRiOwkBfRlbtm4WMasLE6ZjAJqjvXg2s6V0wero; HttpOnly; SameSite=Lax; Path=/
+set-cookie: otp-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: http://localhost:8080/callback?code=QROXhrX5sUTvoQ51M80dT_N7LABiXqyLkjDuSQCqwts&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fotp-demo
+content-length: 0
+```
+
 The same success a password-and-code login gets: a session cookie and a code
 on the redirect. No code from the app was ever submitted, and the login was
 not asked for one — the OTP step stands down for the rest of an attempt that
@@ -3555,6 +3590,18 @@ HTTP/1.1 302 Found
 set-cookie: rc8-demo-session=01a0cb17-13e1-7bfb-baad-1fa67310afd0; HttpOnly; SameSite=Lax; Path=/
 set-cookie: rc8-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 location: http://localhost:8080/callback?code=LQElc84DzT7Xd0vWaaaeQSNYLHTcq-Wo6vSUVa0t71Y&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Frc8-demo
+content-length: 0
+```
+
+Run again from an empty volume after the session cookie gained its secret
+(`0071_session_secret.sql`), the same steps end in this — that run's own
+values throughout, the cookie now `<session id>:<secret>`:
+
+```
+HTTP/1.1 302 Found
+set-cookie: rc8-demo-session=01a0de1a-490d-773e-9b5e-cdedbb1afa25:eke56OH4KHliq1WIn0oZuIeDoxFbXUoWoQUStHr0Dcc; HttpOnly; SameSite=Lax; Path=/
+set-cookie: rc8-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: http://localhost:8080/callback?code=RtDYxF3GaEyctUrlTnkoTjXiHQLPbRPJBsT1dvv_9K8&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Frc8-demo
 content-length: 0
 ```
 
@@ -4388,6 +4435,18 @@ set-cookie: expiry-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max
 location: http://localhost:8080/callback?code=P1ZeKGbV9OteeKbw_gRs-D5IIiwuRjYVTnOaUOxxTqY&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fexpiry-demo
 ```
 
+Run again from an empty volume after the session cookie gained its secret
+(`0071_session_secret.sql`), the same steps end in this — that run's own
+values throughout, the cookie now `<session id>:<secret>`:
+
+```
+HTTP/1.1 302 Found
+set-cookie: expiry-demo-session=01a0de1b-17be-7fb4-b28e-d0248b3ce0b5:f_omtnt8VhDKR0eHmE9yeUUTnRnC2Uwa0HvZRi0eQC4; HttpOnly; SameSite=Lax; Path=/
+set-cookie: expiry-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: http://localhost:8080/callback?code=vSlHGH12cPSAt-UQ2VJTNdhRu_YE5ScUWM5wOi64xZk&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fexpiry-demo
+content-length: 0
+```
+
 Reset redemption shares only half of this. It refuses the password in
 force — otherwise a mailed link would restart the clock on an expired
 password without changing it — but it consults no history, so a password
@@ -4579,13 +4638,14 @@ attempt 5: 200
 status 200, location ''
 --- the same password, 125 seconds later ---
 HTTP/1.1 302 Found
-set-cookie: lockout-demo-session=01a0cb1b-7e7a-7bd6-9881-5981156a1260; HttpOnly; SameSite=Lax; Path=/
+set-cookie: lockout-demo-session=01a0de1d-56f0-752b-bdda-35fea9a3bd12:sSLOTtksH5BK5FC8ou5gmQ4cvjhvanx9_xokqpQ5w0k; HttpOnly; SameSite=Lax; Path=/
 set-cookie: lockout-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:8080/callback?code=5567J8rWmantteNzsWvQcLZdu8TeOViV84osa75F6Bc&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Flockout-demo
+location: http://localhost:8080/callback?code=QnWfcy1CggMc-sXu1mjrahD5SrkuKrVuVx8wdy7AYug&state=xyz-123&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Flockout-demo
 ```
 
 (`sid` is the `/authorize` request above with the hidden field read out of
-the page it renders, against `lockout-demo`. The wait is 125 seconds rather
+the page it renders, against `lockout-demo`. This block was captured again,
+against a fresh `lockout-demo`, after the session cookie gained its secret. The wait is 125 seconds rather
 than 60 because the refused right password counted as the sixth failure and
 re-locked for two minutes.)
 
@@ -5883,13 +5943,13 @@ curl -sS -b cookies2.txt \
 ```
 
 (`session_id` shortened, as elsewhere in this document.) Unlike the login
-form's `auth_session_id`, this hidden field _is_ the session cookie's own
-value — echoed back rather than a distinct one-time token — and the POST
-handler checks it again against what the cookie itself still resolves to
-before ending anything: a double-submit-cookie defence, not a single-use
-one. Only a browser holding that `HttpOnly` cookie can supply a match,
-which is what stops a forged cross-site POST from ending a session it
-cannot read the id of.
+form's `auth_session_id`, this hidden field is the session's **id** — the
+id half of the cookie's entry, and the `sid` every token for it carries, so
+not a secret — and the POST handler checks it against the sessions the
+cookie itself still resolves to before ending anything. A forged
+cross-site POST carries no cookie at all, because the cookie is
+`SameSite=Lax`, so it resolves no session and ends nothing; knowing the id
+is not enough without the secret half the browser holds.
 
 A `post_logout_redirect_uri` that is not an exact match to a registered
 value — a trailing slash, a query string, a different host — is refused,
@@ -6231,7 +6291,7 @@ content-length: 318
 </html>
 ```
 
-(`sid` shortened; it is the session cookie's own id, and `iss` is this
+(`sid` shortened; it is the id half of the session cookie's entry, and `iss` is this
 tenant's issuer.) `sid` is present because `reports-widget` registered
 `frontchannel_logout_session_required`; a client that had not would be
 framed with `iss` alone. `demo-spa` itself is not framed here — it
@@ -8159,8 +8219,9 @@ max-expired, prompt=none     302 …/callback?error=login_required&state=max2&is
 ```
 
 (The same four requests this section already ran, against the same cookie
-jar; the session id is the one `grep session cookies.txt` printed above, in
-full because a `psql` statement needs it whole.) A dead session is not an
+jar; the session id is the one `grep session cookies.txt` printed above —
+the id half of the entry — in full because a `psql` statement needs it
+whole.) A dead session is not an
 error: with no `prompt` the request is answered with the login form, exactly
 as a request carrying no cookie is, and it is `prompt=none` — the client
 saying it will not accept an interaction — that turns the same state into
@@ -8171,8 +8232,8 @@ refused on the same two terms.
 never rewritten, and a tenant carries `max_sessions_per_browser` (1–32,
 default 25) — a CHECK constraint bounding the **setting's own value**, and
 also the ceiling `admitSession` evicts a browser's own least recently
-active sessions down to before establishing a new one, read from the ids
-its cookies already name rather than by subject
+active sessions down to before establishing a new one, read from the
+entries its cookies already prove rather than by subject
 (`packages/authn-flows/src/usecase/session-admission.ts`, ADR 0033).
 `odudu seed tenant --set max_sessions_per_browser=10` changes the stored
 value the same way as every other tenant setting, and every login after
@@ -8214,8 +8275,11 @@ set-cookie: cap-demo-session=01a0cb28-710c-….01a0cb28-715b-…; HttpOnly; Same
 ```
 
 (Session ids truncated; each response also carried the cleared persistent
-cookie, `Max-Age=0`, omitted here since nothing about it changes.) The
-third login's list still holds two ids, not three: `70b2`, the first
+cookie, `Max-Age=0`, omitted here since nothing about it changes. This run
+predates the session cookie's secret, so each entry was then a bare id; an
+entry is now `<id>:<secret>`, and a login writes back the entries its
+browser presented, secrets unchanged.) The third login's list still holds
+two ids, not three: `70b2`, the first
 login's session, is gone, evicted by `admitSession` as the least recently
 active once a third session tried to join a browser already at the cap —
 the second and third logins' own ids are exactly what survive. Nothing

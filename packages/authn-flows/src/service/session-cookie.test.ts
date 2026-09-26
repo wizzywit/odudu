@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   clearedSessionCookies,
-  readSessionIds,
+  readSessionEntries,
   sessionCookieName,
   sessionCookies,
+  type SessionEntries,
 } from '#/service/session-cookie';
+import { SessionEntry } from '#/service/session-entry';
 
 describe('session cookie naming', () => {
   it('uses the __Host- prefix when TLS is on', () => {
@@ -16,8 +18,17 @@ describe('session cookie naming', () => {
   });
 });
 
-const A = '0192f2a0-0000-7000-8000-000000000001';
-const B = '0192f2a0-0000-7000-8000-000000000002';
+const A = SessionEntry.issue('0192f2a0-0000-7000-8000-000000000001');
+const B = SessionEntry.issue('0192f2a0-0000-7000-8000-000000000002');
+const a = A.cookieValue();
+const b = B.cookieValue();
+
+function values(read: SessionEntries): { ephemeral: string[]; persistent: string[] } {
+  return {
+    ephemeral: read.ephemeral.map((entry) => entry.cookieValue()),
+    persistent: read.persistent.map((entry) => entry.cookieValue()),
+  };
+}
 
 describe('sessionCookies', () => {
   it('writes the ephemeral list with no Max-Age and the persistent list with one', () => {
@@ -30,8 +41,8 @@ describe('sessionCookies', () => {
     });
 
     expect(written).toEqual([
-      `__Host-demo-session=${A}; HttpOnly; SameSite=Lax; Path=/; Secure`,
-      `__Host-demo-session-persistent=${B}; HttpOnly; SameSite=Lax; Path=/; Secure; Max-Age=2592000`,
+      `__Host-demo-session=${a}; HttpOnly; SameSite=Lax; Path=/; Secure`,
+      `__Host-demo-session-persistent=${b}; HttpOnly; SameSite=Lax; Path=/; Secure; Max-Age=2592000`,
     ]);
   });
 
@@ -44,7 +55,23 @@ describe('sessionCookies', () => {
       persistentMaxAgeSeconds: 2592000,
     });
 
-    expect(written[0]).toBe(`demo-session=${A}; HttpOnly; SameSite=Lax; Path=/`);
+    expect(written[0]).toBe(`demo-session=${a}; HttpOnly; SameSite=Lax; Path=/`);
+  });
+
+  it('joins several entries with a separator neither half of an entry can contain', () => {
+    const written = sessionCookies({
+      tenant: 'demo',
+      tls: false,
+      ephemeral: [A, B],
+      persistent: [],
+      persistentMaxAgeSeconds: 2592000,
+    });
+
+    expect(written[0]).toBe(`demo-session=${a}.${b}; HttpOnly; SameSite=Lax; Path=/`);
+    expect(values(readSessionEntries(`demo-session=${a}.${b}`, 'demo', false)).ephemeral).toEqual([
+      a,
+      b,
+    ]);
   });
 
   it('expires a list that has become empty rather than leaving it in the browser', () => {
@@ -60,33 +87,53 @@ describe('sessionCookies', () => {
   });
 });
 
-describe('readSessionIds', () => {
+describe('readSessionEntries', () => {
   it('reads both lists and keeps them apart', () => {
-    const header = `__Host-demo-session=${A}; __Host-demo-session-persistent=${B}`;
-    expect(readSessionIds(header, 'demo', true)).toEqual({ ephemeral: [A], persistent: [B] });
+    const header = `__Host-demo-session=${a}; __Host-demo-session-persistent=${b}`;
+    expect(values(readSessionEntries(header, 'demo', true))).toEqual({
+      ephemeral: [a],
+      persistent: [b],
+    });
   });
 
   it('is empty for an absent header', () => {
-    expect(readSessionIds(undefined, 'demo', true)).toEqual({ ephemeral: [], persistent: [] });
+    expect(values(readSessionEntries(undefined, 'demo', true))).toEqual({
+      ephemeral: [],
+      persistent: [],
+    });
   });
 
-  it('drops a value that is not a session id rather than failing the request', () => {
-    const header = `__Host-demo-session=${A}.not-a-uuid.`;
-    expect(readSessionIds(header, 'demo', true)).toEqual({ ephemeral: [A], persistent: [] });
+  it('drops a value that is not an entry rather than failing the request', () => {
+    const header = `__Host-demo-session=${a}.not-a-uuid.`;
+    expect(values(readSessionEntries(header, 'demo', true))).toEqual({
+      ephemeral: [a],
+      persistent: [],
+    });
+  });
+
+  it('drops a bare session id, which is the public sid and proves nothing', () => {
+    const header = `__Host-demo-session=${A.id}.${a}`;
+    expect(values(readSessionEntries(header, 'demo', true))).toEqual({
+      ephemeral: [a],
+      persistent: [],
+    });
   });
 
   it('ignores another tenant’s cookie in the same jar', () => {
-    const header = `__Host-other-session=${B}; __Host-demo-session=${A}`;
-    expect(readSessionIds(header, 'demo', true)).toEqual({ ephemeral: [A], persistent: [] });
+    const header = `__Host-other-session=${b}; __Host-demo-session=${a}`;
+    expect(values(readSessionEntries(header, 'demo', true))).toEqual({
+      ephemeral: [a],
+      persistent: [],
+    });
   });
 
   it('accepts an uppercase UUID, the way @odudu/kernel’s isUuid does', () => {
-    // Inert today — newId() emits lowercase only — and ironic in the
-    // module whose purpose is to be one authority for what a session
-    // cookie holds.
-    const upper = A.toUpperCase();
+    const upper = `${A.id.toUpperCase()}${a.slice(A.id.length)}`;
     const header = `__Host-demo-session=${upper}`;
-    expect(readSessionIds(header, 'demo', true)).toEqual({ ephemeral: [upper], persistent: [] });
+    expect(values(readSessionEntries(header, 'demo', true))).toEqual({
+      ephemeral: [upper],
+      persistent: [],
+    });
   });
 });
 

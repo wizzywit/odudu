@@ -8,7 +8,7 @@ import {
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
-import { sessionRepository, provisionTenant } from '@odudu/authn-flows';
+import { SessionEntry, sessionRepository, provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -78,6 +78,7 @@ describe('a grant and the session it belongs to', () => {
         subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
         authenticators: [],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
       }),
     );
 
@@ -134,6 +135,7 @@ describe('a grant and the session it belongs to', () => {
         subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
         authenticators: [],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
       });
       await tokenGrantRepository(tx).create({
         id: newId(),
@@ -166,6 +168,7 @@ describe('a grant and the session it belongs to', () => {
         subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
         authenticators: [],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
       }),
     );
 
@@ -226,6 +229,7 @@ describe('a grant and the session it belongs to', () => {
         subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
         authenticators: [],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
       });
       await tokenGrantRepository(tx).create({
         id: newId(),
@@ -258,6 +262,7 @@ describe('a grant and the session it belongs to', () => {
         subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
         authenticators: [],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
       });
       await clientOidcConfigRepository(tx).create({
         clientId: clientDbId,
@@ -311,6 +316,7 @@ describe('a grant and the session it belongs to', () => {
         subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
         authenticators: [],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
       });
       await clientOidcConfigRepository(tx).create({
         clientId: clientDbId,

@@ -10,9 +10,14 @@ import {
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
-import { PERSISTENT_SUFFIX, provisionTenant, sessionCookieName } from '@odudu/authn-flows';
+import {
+  PERSISTENT_SUFFIX,
+  provisionTenant,
+  SessionEntry,
+  sessionCookieName,
+} from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
-import { isUuid, newId } from '@odudu/kernel';
+import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import formbody from '@fastify/formbody';
 import { eq } from 'drizzle-orm';
@@ -359,12 +364,14 @@ describe('[RFC6750-5.2-04] no bearer token is ever put in a cookie', () => {
           : [pair.slice(0, separator), pair.slice(separator + 1)];
       })();
       if (isSessionCookie(name)) {
-        // The positive shape the cookie is defined to hold — every id
-        // readSessionIds would itself keep (session-cookie.ts filters on
-        // exactly this) — rather than a negative "not token-shaped" check,
-        // which a dot-separated list of several ids can satisfy by
-        // accident. Empty is the cleared-list cookie, not a session id.
-        for (const id of value.length === 0 ? [] : value.split('.')) expect(isUuid(id)).toBe(true);
+        // The positive shape the cookie is defined to hold — every entry
+        // readSessionEntries would itself keep (SessionEntry.parse filters
+        // on exactly this) — rather than a negative "not token-shaped"
+        // check, which a dot-separated list of several entries can satisfy
+        // by accident. Empty is the cleared-list cookie, not an entry.
+        for (const entry of value.length === 0 ? [] : value.split('.')) {
+          expect(SessionEntry.parse(entry)).not.toBeNull();
+        }
       } else {
         expect(value).not.toMatch(COMPACT_JWS);
       }

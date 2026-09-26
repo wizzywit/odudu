@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { generateSigningKey, signingKeys, type SigningKeyRecord } from '@odudu/crypto';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import {
@@ -31,6 +32,7 @@ let container: TestDatabase;
 let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let http: FastifyInstance;
+let captured: string[] | null = null;
 
 const CLIENT_ID = 'sid-claim-client';
 const CLIENT_SECRET = 'sid-claim-client-secret';
@@ -102,7 +104,11 @@ async function setupTenant(name: string): Promise<void> {
   });
 }
 
-function authorizeUrl(tenantName: string, scope = 'openid'): string {
+function authorizeUrl(
+  tenantName: string,
+  scope = 'openid',
+  extra: Record<string, string> = {},
+): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
@@ -111,6 +117,7 @@ function authorizeUrl(tenantName: string, scope = 'openid'): string {
     state: 'xyz',
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
+    ...extra,
   });
   return `/tenants/${tenantName}/protocol/openid-connect/auth?${params.toString()}`;
 }
@@ -163,13 +170,18 @@ async function redeemCode(
 }
 
 // Signs USERNAME/PASSWORD in against a fresh authorization request, all the
-// way through to a redeemed grant, and returns the tokens plus the session
-// id the login established (the cookie's own value) to compare `sid`
-// against.
+// way through to a redeemed grant, and returns the tokens, the cookie the
+// login set, and the session id its entry names to compare `sid` against.
 async function completeAuthorizationCodeFlow(
   tenantName: string,
   scope = 'openid',
-): Promise<{ accessToken: string; idToken: string; refreshToken: string; sessionId: string }> {
+): Promise<{
+  accessToken: string;
+  idToken: string;
+  refreshToken: string;
+  sessionId: string;
+  cookie: string;
+}> {
   const authorize = await http.inject({ url: authorizeUrl(tenantName, scope) });
   if (authorize.statusCode !== 200) {
     throw new Error(
@@ -194,7 +206,7 @@ async function completeAuthorizationCodeFlow(
   expect(submitted.statusCode).toBe(302);
   const cookie = setCookieValue(submitted);
   if (cookie === undefined) throw new Error('expected a set-cookie header from a successful login');
-  const sessionId = cookie.split('=')[1];
+  const sessionId = cookie.split('=')[1]?.split(':')[0];
   if (sessionId === undefined) throw new Error('expected a session id in the cookie');
 
   const code = new URL(locationHeader(submitted)).searchParams.get('code');
@@ -206,6 +218,7 @@ async function completeAuthorizationCodeFlow(
     idToken: redeemed.id_token,
     refreshToken: redeemed.refresh_token,
     sessionId,
+    cookie,
   };
 }
 
@@ -235,7 +248,7 @@ beforeAll(async () => {
   await runMigrations(owner.db, MIGRATIONS_DIR);
 
   const appUrl = await createAppRole(container.adminUrl);
-  appHandle = createDatabase(appUrl, { max: 5 });
+  appHandle = createDatabase(appUrl, { max: 5, onQuery: (query) => captured?.push(query) });
   app = appHandle;
 
   http = Fastify();
@@ -293,5 +306,100 @@ describe('the sid claim', () => {
     const refreshed = await refresh(tenantName, first.refreshToken);
 
     expect(jwtPayload(refreshed.accessToken).sid).toBe(first.sessionId);
+  });
+});
+
+function secretShaped(): string {
+  return randomBytes(32).toString('base64url');
+}
+
+async function silentAuthorize(tenantName: string, cookie: string): Promise<URL> {
+  const res = await http.inject({
+    url: authorizeUrl(tenantName, 'openid', { prompt: 'none' }),
+    headers: { cookie },
+  });
+  expect(res.statusCode).toBe(302);
+  return new URL(locationHeader(res));
+}
+
+async function statementsOf(tenantName: string, cookie: string): Promise<string[]> {
+  captured = [];
+  try {
+    expect((await silentAuthorize(tenantName, cookie)).searchParams.get('error')).toBe(
+      'login_required',
+    );
+    return captured;
+  } finally {
+    captured = null;
+  }
+}
+
+describe('the session cookie is not the sid', () => {
+  it("authenticates nobody from a token's sid presented as the cookie", async () => {
+    const tenantName = `sid-not-cookie-${newId()}`;
+    await setupTenant(tenantName);
+    const { idToken } = await completeAuthorizationCodeFlow(tenantName);
+    const sid = jwtPayload(idToken).sid;
+    if (typeof sid !== 'string') throw new Error('expected a sid claim');
+
+    const location = await silentAuthorize(tenantName, `${tenantName}-session=${sid}`);
+
+    expect(location.searchParams.get('error')).toBe('login_required');
+    expect(location.searchParams.get('code')).toBeNull();
+  });
+
+  it('authenticates nobody from the right id with a wrong secret, at the cost of an unknown id', async () => {
+    const tenantName = `sid-wrong-secret-${newId()}`;
+    await setupTenant(tenantName);
+    const { sessionId } = await completeAuthorizationCodeFlow(tenantName);
+    const unknown = `${tenantName}-session=${newId()}:${secretShaped()}`;
+    const wrong = `${tenantName}-session=${sessionId}:${secretShaped()}`;
+    await statementsOf(tenantName, unknown);
+
+    const forUnknown = await statementsOf(tenantName, unknown);
+    const forWrong = await statementsOf(tenantName, wrong);
+
+    expect(forWrong.length).toBeGreaterThan(0);
+    expect(forWrong).toEqual(forUnknown);
+  });
+
+  it('carries the first entry’s own secret forward when a second login joins it', async () => {
+    const tenantName = `sid-second-login-${newId()}`;
+    await setupTenant(tenantName);
+    const { cookie: first } = await completeAuthorizationCodeFlow(tenantName);
+
+    const authorize = await http.inject({
+      url: authorizeUrl(tenantName, 'openid', { prompt: 'login' }),
+      headers: { cookie: first },
+    });
+    const authSessionId = /name="auth_session_id" value="([^"]*)"/.exec(authorize.body)?.[1];
+    if (authSessionId === undefined) throw new Error('auth_session_id not found in the login form');
+    const submitted = await http.inject({
+      method: 'POST',
+      url: `/tenants/${tenantName}/login-actions/authenticate`,
+      payload: new URLSearchParams({
+        auth_session_id: authSessionId,
+        username: USERNAME,
+        password: PASSWORD,
+      }).toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: first },
+    });
+    expect(submitted.statusCode).toBe(302);
+
+    const entries = setCookieValue(submitted)?.split('=')[1]?.split('.') ?? [];
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toBe(first.split('=')[1]);
+    expect(entries[1]?.split(':')[0]).not.toBe(first.split('=')[1]?.split(':')[0]);
+  });
+
+  it('still signs in from the cookie the login set', async () => {
+    const tenantName = `sid-genuine-cookie-${newId()}`;
+    await setupTenant(tenantName);
+    const { cookie } = await completeAuthorizationCodeFlow(tenantName);
+
+    const location = await silentAuthorize(tenantName, cookie);
+
+    expect(location.searchParams.get('error')).toBeNull();
+    expect(location.searchParams.get('code')).not.toBeNull();
   });
 });

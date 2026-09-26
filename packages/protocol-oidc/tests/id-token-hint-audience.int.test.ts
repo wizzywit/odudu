@@ -192,7 +192,7 @@ function locationHeader(res: LightMyRequestResponse): string {
 }
 
 function sessionIdFromCookie(cookie: string): string {
-  const id = cookie.split('=')[1];
+  const id = cookie.split('=')[1]?.split(':')[0];
   if (id === undefined) throw new Error('expected a session id in the cookie');
   return id;
 }

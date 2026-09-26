@@ -2,7 +2,7 @@ import { type SessionRecord } from '@odudu/authn-flows';
 
 // decideReuse and decideLogout each decide over one session, while a
 // browser may hold several — this is what both stand in with until they
-// are widened to decide over the resolved set itself. `liveByIds` carries
+// are widened to decide over the resolved set itself. `liveByEntries` carries
 // no `ORDER BY`, so the tie-break on `id` (not just `lastActiveAt`) is
 // what makes the pick total rather than whatever order Postgres happened
 // to return equal timestamps in.

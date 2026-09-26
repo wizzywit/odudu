@@ -200,7 +200,7 @@ describe('remember me, carried across a consent-requiring client', () => {
     expect(persistent).toContain(`Max-Age=${String(REMEMBER_ME_MAX_SECONDS)}`);
     expect(ephemeral).toContain('Max-Age=0');
 
-    const sessionId = persistent.split('=')[1]?.split(';')[0];
+    const sessionId = persistent.split('=')[1]?.split(';')[0]?.split(':')[0];
     if (sessionId === undefined) throw new Error('expected a session id in the persistent cookie');
     const rows = await owner.db
       .select({ remembered: sessions.remembered })

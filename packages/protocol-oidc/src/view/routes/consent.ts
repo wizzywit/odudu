@@ -99,8 +99,8 @@ export function registerConsentRoute(app: FastifyInstance, deps: ConsentRouteDep
     const written = sessionCookies({
       tenant: request.params.tenant,
       tls: deps.tls,
-      ephemeral: outcome.ephemeralSessionIds,
-      persistent: outcome.persistentSessionIds,
+      ephemeral: outcome.ephemeralSessions,
+      persistent: outcome.persistentSessions,
       persistentMaxAgeSeconds: outcome.persistentMaxAgeSeconds,
     });
 

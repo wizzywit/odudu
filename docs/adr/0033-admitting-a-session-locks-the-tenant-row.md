@@ -91,9 +91,11 @@ one function, called from `completeLogin`
 `establishSession`. The test helper described above is deleted;
 `session-set.int.test.ts` calls the real usecase.
 
-Eviction reads `sessionRepository(tx).liveByIds` against the ids the
-browser's own cookies already name (`admitSession`'s `browserSessionIds`),
-never a subject- or tenant-wide scan. The cap is `max_sessions_per_browser`,
+Eviction reads `sessionRepository(tx).liveByEntries` against the entries
+the browser's own cookies already present (`admitSession`'s
+`browserSessions`; each entry is an id with its secret, spec §16 of
+`docs/superpowers/specs/2026-09-26-p4e-audit-events-design.md`), never a
+subject- or tenant-wide scan. The cap is `max_sessions_per_browser`,
 not per subject: a browser can hold sessions for more than one subject at
 once — the case `prompt=select_account` (a later increment) exists to
 choose among — so a per-subject predicate would let each subject on a
@@ -165,7 +167,7 @@ consequence of the same race, found in review: one of the two sessions a
 concurrent pair of logins creates can be **unreachable through logout**,
 not merely over-counted.
 
-Both logins read `browserSessionIds` from the same cookie snapshot, taken
+Both logins read `browserSessions` from the same cookie snapshot, taken
 before either admits. Each response then writes a fresh cookie naming its
 own new session alongside that snapshot — but a browser does not merge two
 `Set-Cookie` values for the same cookie name, it keeps whichever response

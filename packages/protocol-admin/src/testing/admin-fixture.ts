@@ -15,7 +15,7 @@ import {
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
-import { provisionTenant, sessionRepository } from '@odudu/authn-flows';
+import { provisionTenant, SessionEntry, sessionRepository } from '@odudu/authn-flows';
 import { roleRepository, subjectRoles } from '@odudu/domain-authz';
 import { hashPassword, subjectRepository, userRepository } from '@odudu/domain-identity';
 import {
@@ -376,6 +376,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
         subjectId: subject.id,
         expiresAt: new Date(clock.now().getTime() + 24 * 3600 * 1000),
         authenticators: ['pwd'],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
       });
       return mintTokenInTx(tx, ctx, {
         subjectId: subject.id,
@@ -607,6 +608,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
         subjectId: subject.id,
         expiresAt: new Date(clock.now().getTime() + 24 * 3600 * 1000),
         authenticators: ['pwd'],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
       });
       // The grant is minted through the built-in admin client, so the only
       // way this token differs from `adminToken`'s is where its role sits.

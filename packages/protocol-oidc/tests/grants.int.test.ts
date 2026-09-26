@@ -9,7 +9,12 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
-import { provisionTenant, sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
+import {
+  provisionTenant,
+  SessionEntry,
+  sessionRepository,
+  type SessionLifespans,
+} from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -186,6 +191,7 @@ describe('tokenGrantRepository', () => {
         subjectId,
         expiresAt: new Date(Date.now() + 3_600_000),
         authenticators: [],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
       }),
     );
 

@@ -13,6 +13,7 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sessionRepository } from '#/repository/sessions';
+import { SessionEntry } from '#/service/session-entry';
 import { type SessionLifespans } from '#/service/session-lifespan';
 
 const LIFESPANS: SessionLifespans = {
@@ -66,6 +67,7 @@ async function createSession(
     subjectId: subject.id,
     expiresAt: new Date(Date.now() + 36_000_000),
     authenticators: [],
+    secretHash: SessionEntry.issue(id).secretHash(),
   });
   await sessionRepository(tx).touch(id, lastActiveAt);
   return id;
