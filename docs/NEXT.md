@@ -2,8 +2,9 @@
 
 ## Start here
 
-**P0, P1, P2a, P2b, P3a, P3b, P4a and P4c are complete, and the tenant
-rename is done. P4 has been split five ways.** Phases are section 11 of
+**P0, P1, P2a, P2b, P3a, P3b, P4a and P4c are complete, P4e's exit
+criterion is delivered with one item in its topic still open, and the
+tenant rename is done. P4 has been split five ways.** Phases are section 11 of
 [the umbrella spec](superpowers/specs/2026-09-10-odudu-design.md), whose
 "P4 became four phases, then five" subsection has the reasoning.
 
@@ -12,9 +13,14 @@ do not read in execution order, because `P4b` was spent on theming before P4
 split and an accepted ADR cites it. P4a was token exchange
 ([spec](superpowers/specs/2026-09-23-p4a-token-exchange-design.md)); P4c was
 the admin API
-([spec](superpowers/specs/2026-09-24-p4c-admin-api-design.md)); **P4e is
-next** — authentication and token audit events; P4d is the consoles; P4b
-stays theming and stays last.
+([spec](superpowers/specs/2026-09-24-p4c-admin-api-design.md)); P4e was
+authentication and token audit events
+([spec](superpowers/specs/2026-09-26-p4e-audit-events-design.md)); **P4d is
+next** once P4e closes — the admin and account consoles; P4b stays theming
+and stays last. The open P4e item is refused credential and session changes,
+which write no row
+([request-paths.md](request-paths.md#what-is-not-implemented), under "The
+admin API").
 
 **P4c shipped the admin API**, at `/admin/tenants/{tenant}/` with
 `/admin/tenants` above it, authenticated by an ordinary access token whose
@@ -30,11 +36,19 @@ administrator with a single-use password and a forced change. The narrative
 is [docs/admin-paths.md](admin-paths.md), every transcript in it executed;
 the reference is the OpenAPI document at `/admin/openapi.json`.
 
-What turned out to be **wrong** while building it is in
-[docs/phases/p4c.md](phases/p4c.md), not here. Three of its themes are
-worth reading before P4e starts: a mechanism built with no caller, a test
-that passes by construction, and — again, as in P3b — a comment whose
-conclusion is right and whose stated reason is false.
+**P4e filled that audit trail.** Beside `admin_mutation`, it writes
+`admin_access`, `authentication`, `session`, `token` and `credential` rows,
+each in the transaction that did the work, each carrying the request's
+`request_id` and `ip`, none carrying a secret or an attempted username. A
+refusal is a row only where the principal it names bounds it, and is
+otherwise a `warn` line (ADR 0037). `requested_userinfo_claims` now rides
+on the grant, closing ADR 0036's follow-up.
+
+What turned out to be **wrong** while building each is in
+[docs/phases/p4c.md](phases/p4c.md) and [docs/phases/p4e.md](phases/p4e.md),
+not here. Two themes are worth reading before P4d starts: a mechanism built
+with no caller (P4c), and an audit write that changes what it records — an
+extra statement, an aborted transaction, a lock (P4e).
 
 **What P4c decided that other phases were waiting on.** ADR 0007 is amended
 and executed: the admin API is its first JSON surface, and the form-encoded
@@ -45,8 +59,8 @@ decides that `/userinfo`'s claims narrowing is the right reading of OIDC
 Core §5.5 and that losing `requested_userinfo_claims` on refresh is the
 defect; migration `0070` closes it (the ADR's amendment).
 
-**A bare `P4` below means P4e** unless it concerns token exchange, the grant
-allowlist, the admin API, the consoles, theming or client branding — the
+**A bare `P4` below means P4d** unless it concerns token exchange, the grant
+allowlist, the admin API, audit events, theming or client branding — the
 same disambiguation the P2 split used, and for the same reason: a citation
 renumbered wrongly is invisible for good. Nothing below is a plan for any of
 them, only what they inherit and what is still open.
@@ -70,6 +84,7 @@ tenant for a published window instead.
 The running records, split out of this file on 2026-09-17: P2b reached
 1,873 lines here, of which the part describing where the project stood was 58.
 
+- [P4e — authentication and token audit events](phases/p4e.md)
 - [P4c — the admin API](phases/p4c.md)
 - [P4a — token exchange](phases/p4a.md)
 - [Renaming the tenant concept](phases/tenant-rename.md) — not a phase; a
@@ -91,29 +106,21 @@ another paragraph. `tests/docs/next-budget.test.ts` holds the file to 400
 lines and any one section to 130, so an entry that has somewhere better to
 live is pushed there rather than accumulating here.
 
-## What P4e, P4d and P4b inherit
+## What P4d and P4b inherit
 
-**A table built for the events P4e writes.** `audit_events`
-(`0067_admin_audit.sql`) carries `event_type`, a **nullable**
-`actor_subject_id` and a nullable `actor_client_id` precisely so an
-authentication event — which has a subject it happened to, and often no
-administrator at all — fits the same table as an admin mutation, without a
-migration. `admin_mutation`, `authentication`, `session` and `token` rows
-are written today; `admin_access` and `credential` are not yet.
-Retention is the tenant's own `audit_retention_days` setting, already last
-in `REAP_ORDER`, so P4e inherits the window rather than adding a second one
-to keep in step. `GET /admin/tenants/{tenant}/audit` filters by
-`event_type`, `resource_type`, `action`, `outcome`, `actor_subject_id` and
-an `occurred_at` range.
-
-**Only `POST /clients` and the capability ceilings record a refusal.**
-`outcome` has three values; a ceiling refusal writes a row naming what the
-caller does not hold, because an attempted privilege escalation is worth
-recording whatever is decided about refusals in general. Every other admin
-mutation writes a row only when it succeeds, so `?outcome=refused` against
-a resource type with neither door answers nothing — not because nothing was
-refused. Whether that generalises is P4e's to decide, since it is the phase
-that decides what a refused **authentication** writes.
+**An audit trail with six kinds of row to show.** P4d's criterion shows the
+audit trail; `GET /admin/tenants/{tenant}/audit` is what it reads, filtered
+by `event_type` (`admin_mutation`, `admin_access`, `authentication`,
+`session`, `token`, `credential`), `actor_subject_id`, `resource_type`,
+`action`, `outcome` and an `occurred_at` range, newest first by opaque
+cursor. The vocabulary is `AUDIT_ACTIONS` in `@odudu/domain-audit`; what
+each row carries is in the README's P4e paragraph and
+[docs/request-paths.md](request-paths.md#one-sign-ins-audit-trail-read-through-the-admin-api).
+Three things a console showing it needs to know: `actor_tenant_id` differs
+from the row's own tenant only for a caller from elsewhere; `request_id`
+joins a login's step rows to its `session.created`; and a refresh whose
+rotation committed before a refusal leaves both an `allowed` and a
+`refused` row under one request id ([p4e.md](phases/p4e.md)).
 
 **Two recovery-code gaps that need the account console.** A subject cannot
 ask for a fresh set before running out, and nothing warns as the list gets
@@ -198,6 +205,7 @@ that should hold it, which is usually false.
 | RFC 7523 has no clause table, so the clauses of an implemented RFC are untracked by the system built for it             | [rfc7523.md](protocols/rfc7523.md)'s own header                                         | **P13**                                                 |
 | The session cap is per browser and admits `cap + (k - 1)` under `k` concurrent logins, orphaning one                    | [ADR 0033](adr/0033-admitting-a-session-locks-the-tenant-row.md)                        | **P4d**, wanting a session's device                     |
 | `CLAUDE.md` states an untagged-fence rule that `tests/docs/markdown.ts` cannot see, so no JSON response is byte-checked | [p3b.md](phases/p3b.md), "`CLAUDE.md` states a rule its own tests forbid"               | its own change; it untags every JSON transcript at once |
+| Tenant names are unconstrained, so a name holding `/` nests its issuer under another tenant's                           | [p4e.md](phases/p4e.md), "Guards, one that could never fire…"                           | **P4d**, whose console creates tenants                  |
 | Committed development credentials                                                                                       | [ADR 0014](adr/0014-committed-development-credentials.md)                               | the conditions that ADR names                           |
 
 ### Argued here, because there is nowhere else
@@ -235,19 +243,16 @@ as an `id_token_hint`, which it was before.
 - Trigger: an IANA registration for the media type, or a conformance suite
   objecting to the private one.
 
-**Two refusals on the refresh path are exercised by no test.** The
-post-rotation `resolveAudience` check is load-bearing only for ADR 0019's
-revocation race — a revocation landing between the pre-flight and the
-authoritative read — which no test drives. Separately, a refresh rotated
-past its `exp_ceiling` (P4a) is genuinely refused, by
-`refreshTokenRepository.consume`'s literal SQL `expires_at > now()`, but
-that reads PostgreSQL's clock rather than the injected `Clock`: a
-`FakeClock` moves every other time-dependent decision in the file and not
-this one, so nothing short of a real wait demonstrates it.
+**A refresh past its `exp_ceiling` is refused by the database's clock, and
+no test drives it.** `refreshTokenRepository.consume`'s literal SQL
+`expires_at > now()` refuses it (P4a), but reads PostgreSQL's clock rather
+than the injected `Clock`: a `FakeClock` moves every other time-dependent
+decision in the file and not this one, so nothing short of a real wait
+demonstrates it. Its sibling, the post-rotation `resolveAudience` check, is
+now driven by `audit-token-refusals.int.test.ts`.
 
-- Trigger: whichever task next touches refresh rotation, for the first; for
-  the second, a clock the refresh path controls end to end, or fixtures
-  that can move the database's own.
+- Trigger: a clock the refresh path controls end to end, or fixtures that
+  can move the database's own.
 
 **`client_oidc_config_tls_client_auth_needs_subject_dn` enforces `NOT
 NULL`, not non-blank.** A row with `tls_client_auth_subject_dn = ''` passes
@@ -260,17 +265,18 @@ blank — so it is reachable only by a hand-written `INSERT`, the class the
   unrelated reason is where the tightened CHECK belongs.
 
 **Affected-package-only CI.** Turborepo and pnpm both support
-`--filter='...[<ref>]'`, so no tooling change is needed. Not adopted: CI
-runs in about 50 seconds end to end, and `test` is a root-level `vitest run`
-rather than a per-package Turbo task, which is a prerequisite. When
-adopting, prefer Turborepo **caching** first — an unchanged package replays
+`--filter='...[<ref>]'`, so no tooling change is needed. `verify` now takes
+about 15 minutes, and during P4e reached its 15-minute timeout after every
+test had passed; the timeout is 30 minutes as a stopgap (`f2b9d4f`). `test`
+is a root-level `vitest run` rather than a per-package Turbo task, which is
+a prerequisite for either remedy. Prefer Turborepo **caching** first — an unchanged package replays
 its cached result rather than being skipped, which is the same wall-clock
 win without "we did not run those tests" semantics. Keep typecheck, lint,
 boundaries and unit tests always-full, and set `globalDependencies` at the
 same time.
 
-- Trigger for caching: CI exceeds roughly 5 minutes (likely **P4d**, when
-  Playwright arrives).
+- Caching: its trigger, CI past roughly 5 minutes, has fired. **P4d**, in
+  its first increment, before Playwright makes the run longer still.
 - Trigger for filtering: slow suites dominate — **P8** SAML interop, **P9**
   policy evaluation, or the nightly conformance suite.
 
@@ -322,6 +328,16 @@ a phase note.
   whoever reads it next. **P12**, whose criterion sources secrets from
   somewhere other than the process environment and so reworks the boot
   sequence in `apps/server/src/main.ts` that the test pins by offset.
+
+- `POST /admin/tenants/{tenant}/clients` silently drops `audiences`: the
+  body goes through `parseClientMetadata`, which knows RFC 7591's fields
+  and not the ones only `PATCH …/clients/{id}` amends, and creation writes
+  `audiences: []` (`packages/protocol-admin/src/usecase/clients.ts`), so
+  the answer is a `201` naming none. Found while
+  capturing P4e's admin-access transcript, which had to `PATCH` the field.
+  Outside P4e's topic (client administration, P4c's, closed). **P4d**,
+  whose console creates clients: refuse the field or accept it, for every
+  field `PATCH` accepts and creation does not.
 
 ### Recorded judgements, where the code stands and nothing is owed
 
