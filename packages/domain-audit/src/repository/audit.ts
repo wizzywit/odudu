@@ -36,8 +36,8 @@ function validatedRow(event: AuditEventInput): typeof auditEvents.$inferInsert {
     if (event.outcome === 'refused' && !isAuditReason(detail.reason)) {
       throw new Error(`audit event '${event.action}' is refused but has no valid reason`);
     }
+    assertDetailAllowed(event.action, detail);
   }
-  assertDetailAllowed(event.action, detail);
 
   return {
     id: newId(),

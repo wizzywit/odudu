@@ -189,10 +189,10 @@ export type AuditEventInput = AdminMutationInput | VocabularyEventInput;
 // Extra `detail` keys a vocabulary action allows, beyond `reason`. An
 // action absent here allows no extra keys at all. `admin_mutation`'s
 // actions are free-form and never appear in this table (nor in
-// `VocabularyAction`, so a misspelled key here is a compile error), so an
-// action this repository does not recognise falls through
-// `assertDetailAllowed` untouched — its own allowlist lives in
-// audit-detail.ts.
+// `VocabularyAction`, so a misspelled key here is a compile error).
+// `validatedRow` never calls `assertDetailAllowed` for an `admin_mutation`
+// event at all, even when its free-form action string collides with a
+// vocabulary one — its own allowlist lives in audit-detail.ts.
 const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> = {
   'capability.refused': ['capability'],
   'login.password': ['factor'],

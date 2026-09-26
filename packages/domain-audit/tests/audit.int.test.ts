@@ -225,6 +225,30 @@ describe('record and list', () => {
     );
     expect(rows).toHaveLength(0);
   });
+
+  it('writes an admin_mutation row whose action string collides with a vocabulary action', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await auditRepository(tx).record({
+        eventType: 'admin_mutation',
+        action: 'token.revoke',
+        outcome: 'allowed',
+        detail: { name: { before: 'old', after: 'new' } },
+      });
+    });
+
+    const rows = await withTenant(app.db, tenantId, (tx) =>
+      auditRepository(tx).list({ limit: 10 }),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      eventType: 'admin_mutation',
+      action: 'token.revoke',
+      outcome: 'allowed',
+      detail: { name: { before: 'old', after: 'new' } },
+    });
+  });
 });
 
 describe('recordAll', () => {
@@ -252,6 +276,27 @@ describe('recordAll', () => {
       auditRepository(tx).list({ limit: 10 }),
     );
     expect(rows.map((row) => row.action).sort()).toEqual(['lockout.tripped', 'login.password']);
+  });
+
+  it('writes an admin_mutation row whose action string collides with a vocabulary action', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await auditRepository(tx).recordAll([
+        {
+          eventType: 'admin_mutation',
+          action: 'token.revoke',
+          outcome: 'allowed',
+          detail: { name: { before: 'old', after: 'new' } },
+        },
+      ]);
+    });
+
+    const rows = await withTenant(app.db, tenantId, (tx) =>
+      auditRepository(tx).list({ limit: 10 }),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ eventType: 'admin_mutation', action: 'token.revoke' });
   });
 
   // The failure is caught inside the transaction so that it commits: a
