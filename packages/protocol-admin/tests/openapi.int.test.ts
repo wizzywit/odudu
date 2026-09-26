@@ -42,6 +42,8 @@ describe('the published OpenAPI document', () => {
     });
     expect(route.statusCode).toBe(200);
     expect(route.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
   it('tells a client creator that an unknown field is refused, not ignored', async () => {
     const res = await fixture.http.inject({ method: 'GET', url: '/admin/openapi.json' });
     const body = JSON.stringify(
