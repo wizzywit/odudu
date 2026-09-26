@@ -10,6 +10,7 @@ export {
   isAuditReason,
   AUDIT_ACTIONS,
   AUDIT_EVENT_TYPES,
+  type AuditAction,
   type AdminMutationInput,
   type AuditEventInput,
   type AuditEventType,

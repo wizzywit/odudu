@@ -36,7 +36,8 @@ export const AUDIT_ACTIONS = {
 
 export type VocabularyEventType = keyof typeof AUDIT_ACTIONS;
 export type AuditEventType = 'admin_mutation' | VocabularyEventType;
-type VocabularyAction = (typeof AUDIT_ACTIONS)[VocabularyEventType][number];
+export type AuditAction<T extends VocabularyEventType> = (typeof AUDIT_ACTIONS)[T][number];
+type VocabularyAction = AuditAction<VocabularyEventType>;
 
 export const AUDIT_EVENT_TYPES: readonly AuditEventType[] = [
   'admin_mutation',

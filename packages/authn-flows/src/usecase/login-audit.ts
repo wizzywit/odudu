@@ -1,5 +1,10 @@
 import { withSavepoint, type TenantScopedDatabase } from '@odudu/db';
-import { auditRepository, type AuditEventInput, type AuditReason } from '@odudu/domain-audit';
+import {
+  auditRepository,
+  type AuditAction,
+  type AuditEventInput,
+  type AuditReason,
+} from '@odudu/domain-audit';
 import { clientRepository } from '@odudu/domain-tenant';
 import { type Logger } from '@odudu/kernel';
 import {
@@ -10,7 +15,7 @@ import {
   type AuthenticatorName,
 } from '#/service/authenticators/names';
 
-type LoginAction = 'login.password' | 'login.otp' | 'login.recovery_code' | 'login.passkey';
+type LoginAction = Extract<AuditAction<'authentication'>, `login.${string}`>;
 
 const LOGIN_ACTIONS: Readonly<Record<AuthenticatorName, LoginAction>> = {
   [PASSWORD]: 'login.password',

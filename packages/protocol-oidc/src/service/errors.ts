@@ -1,8 +1,9 @@
-import { type AuditReason } from '@odudu/domain-audit';
+import { type AuditAction, type AuditReason } from '@odudu/domain-audit';
 
 export interface TokenRefusalAudit {
   readonly action:
-    'client.authenticate' | 'token.issue' | 'token.refresh' | 'token.exchange' | 'token.revoke';
+    | Extract<AuditAction<'authentication'>, `client.${string}`>
+    | Exclude<AuditAction<'token'>, `grant.${string}`>;
   readonly reason: AuditReason;
   readonly clientDbId: string;
   readonly subjectId?: string;
