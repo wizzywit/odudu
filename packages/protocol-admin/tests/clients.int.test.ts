@@ -61,6 +61,90 @@ describe('POST /admin/tenants/{t}/clients', () => {
     expect(listed.map((c) => c.client_id)).toContain(clientId);
   });
 
+  it('honours every admin field PATCH accepts, in the response and on a later read', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: `api-${newId()}`,
+        name: 'Orders API client',
+        redirect_uris: ['https://app.example/callback'],
+        token_endpoint_auth_method: 'none',
+        audiences: ['https://api.example'],
+        web_origins: ['https://app.example'],
+        post_logout_redirect_uris: ['https://app.example/bye'],
+        client_credentials_scopes: ['orders:read'],
+        access_token_ttl_seconds: 120,
+        refresh_token_ttl_seconds: 3600,
+        consent_required: true,
+        token_exchange_impersonation_allowed: true,
+        full_scope_allowed: true,
+        enabled: false,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const expected = {
+      name: 'Orders API client',
+      audiences: ['https://api.example'],
+      web_origins: ['https://app.example'],
+      post_logout_redirect_uris: ['https://app.example/bye'],
+      client_credentials_scopes: ['orders:read'],
+      access_token_ttl_seconds: 120,
+      refresh_token_ttl_seconds: 3600,
+      consent_required: true,
+      token_exchange_impersonation_allowed: true,
+      full_scope_allowed: true,
+      enabled: false,
+    };
+    const created = res.json<{ id: string }>();
+    expect(created).toMatchObject(expected);
+
+    const read = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients/${created.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(read.statusCode).toBe(200);
+    expect(read.json()).toMatchObject(expected);
+  });
+
+  it.each([
+    [{ audiences: 'https://api.example' }, 'audiences: audiences must be an array of strings'],
+    [{ web_origins: ['https://app.example/path'] }, 'web_origins entry "https://app.example/path"'],
+    [{ access_token_ttl_seconds: 1.5 }, 'access_token_ttl_seconds must be an integer'],
+    [{ type: 'confidential' }, "type silently changes a live client's security model"],
+    [{ colour: 'blue' }, 'colour: colour is not a client field'],
+    [{ name: 'One', client_name: 'Other' }, 'name and client_name disagree'],
+  ])('400s naming the field for %j and creates nothing', async (extra, detail) => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const clientId = `spa-${newId()}`;
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: clientId,
+        redirect_uris: ['https://app.example/callback'],
+        token_endpoint_auth_method: 'none',
+        ...extra,
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain(detail);
+
+    const list = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const listed = list.json<{ items: { client_id: string }[] }>().items;
+    expect(listed.map((c) => c.client_id)).not.toContain(clientId);
+  });
+
   it('returns a confidential client secret once, and never on a read', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-clients']);

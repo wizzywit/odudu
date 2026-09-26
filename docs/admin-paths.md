@@ -505,6 +505,72 @@ that collides with an existing client in the tenant is refused the same
 way, also `409`, rather than surfacing as the database's own unique-index
 violation.
 
+A create body may also carry any field `PATCH /clients/{id}` below
+amends — `audiences`, `web_origins`, `post_logout_redirect_uris`,
+`client_credentials_scopes`, `access_token_ttl_seconds`,
+`refresh_token_ttl_seconds`, `consent_required`,
+`token_exchange_impersonation_allowed`, `enabled`, `full_scope_allowed` and
+`name` — each checked by the identical validation `PATCH` runs. A field
+`PATCH` refuses to amend, such as `type`, is refused here with `PATCH`'s own
+reason; a key that names nothing on the client at all is refused with `400`
+and the detail `<field>: <field> is not a client field`, naming it rather
+than silently ignoring it; `name` sent alongside a different `client_name`
+is refused the same way.
+
+Creating a client that names both, against `demo`:
+
+```bash
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"client_id": "demo-fields-check", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_basic", "audiences": ["https://api.demo.example"], "web_origins": ["https://app.demo.example"]}' \
+  http://localhost:3000/admin/tenants/demo/clients
+```
+
+```
+HTTP/1.1 201 Created
+content-type: application/json; charset=utf-8
+content-length: 1718
+
+{"id":"01a0dee4-3a27-7076-b0d3-d3bd2db632e6","client_id":"demo-fields-check","name":"demo-fields-check","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-26T18:04:54.089Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}],"client_secret":"gS4SN94EZtV6Rd0W2GelBnN27ZfkWtdyXgAt1gZCjGA"}
+```
+
+`GET`ting it back shows both fields still set, from the row rather than the
+create response:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/clients/01a0dee4-3a27-7076-b0d3-d3bd2db632e6
+```
+
+```
+HTTP/1.1 200 OK
+etag: "b1e8c1b1b17c7677d4702d00df856af4901eefc1273b2399650b7dab8d4ac1a0"
+content-type: application/json; charset=utf-8
+content-length: 1656
+
+{"id":"01a0dee4-3a27-7076-b0d3-d3bd2db632e6","client_id":"demo-fields-check","name":"demo-fields-check","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-26T18:04:54.089Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}]}
+```
+
+An unknown field, on the same tenant:
+
+```bash
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"client_id": "demo-bad-field", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_basic", "colour": "blue"}' \
+  http://localhost:3000/admin/tenants/demo/clients
+```
+
+```
+HTTP/1.1 400 Bad Request
+content-type: application/problem+json; charset=utf-8
+content-length: 155
+
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"colour: colour is not a client field","instance":"01a0dee4-4e6c-73bf-a05e-86cf72f751a8"}
+```
+
 A tenant at its `max_clients` cap (`GET`/`PATCH /settings` above) refuses
 creation here with `403`, the same cap `registerClient`'s own
 `lockCapacity` enforces for dynamic registration — `manage-clients` and
@@ -2156,10 +2222,10 @@ curl -sS -D - -o openapi.json http://localhost:3000/admin/openapi.json
 HTTP/1.1 200 OK
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 112338
+content-length: 122868
 ```
 
-112 KB and 33 paths, which is the whole route table. It is the one admin
+120 KB and 33 paths, which is the whole route table. It is the one admin
 response readable from any origin, so a viewer served from another port can
 load it — the local stack's optional Swagger UI does exactly that (see
 `README.md`, "Browsing the admin API"). No admin route carries that header,
@@ -2177,9 +2243,15 @@ substring at `securitySchemes`:
 ```
 
 `security` is declared once at the top level, so every path inherits it
-rather than repeating it. `/admin/openapi.json` is not among those 32
+rather than repeating it. `/admin/openapi.json` is not among those 33
 paths: the document does not describe itself, which is why serving it
 unauthenticated does not contradict the blanket `security` above.
+
+Each operation also carries its `requestBody`, generated from the same body
+schema the router validates a request against, and its query parameters,
+generated from the same querystring schema — before, the document declared
+neither, so a generated client had the path and the response shape but not
+what to send.
 
 ## What to do next, from wherever you are
 

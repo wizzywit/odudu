@@ -179,6 +179,18 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
           request,
           problem(400, 'about:blank', 'Bad Request', outcome.description),
         );
+      case 'refused_field':
+        return sendProblem(
+          reply,
+          request,
+          problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+        );
+      case 'invalid_value':
+        return sendProblem(
+          reply,
+          request,
+          problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+        );
       case 'at_capacity':
         return sendProblem(
           reply,
