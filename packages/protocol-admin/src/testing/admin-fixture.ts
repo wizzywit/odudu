@@ -92,7 +92,12 @@ export interface AdminFixture {
   adminTokenAt(tenantName: string, capabilities: readonly string[], host: string): Promise<string>;
   // Signs arbitrary claims with the tenant's own active key, `iss` included,
   // so a test can present a genuine signature over an issuer it chose.
-  signWithTenantKey(tenantName: string, claims: Record<string, unknown>): Promise<string>;
+  // `typ` defaults to `at+jwt`.
+  signWithTenantKey(
+    tenantName: string,
+    claims: Record<string, unknown>,
+    options?: { typ?: string },
+  ): Promise<string>;
 
   // Subjects and clients.
   createSubject(tenantName: string, username: string): Promise<{ id: string }>;
@@ -473,10 +478,11 @@ export async function startAdminFixture(): Promise<AdminFixture> {
   async function signWithTenantKey(
     tenantName: string,
     claims: Record<string, unknown>,
+    options: { typ?: string } = {},
   ): Promise<string> {
     const ctx = requireTenant(tenantName);
     const key = await withTenant(app.db, ctx.id, (tx) => signingKeyRepository(tx).active());
-    return signJwt(claims, { key, kek: KEK, typ: 'at+jwt' });
+    return signJwt(claims, { key, kek: KEK, typ: options.typ ?? 'at+jwt' });
   }
 
   async function systemAdminToken(capabilities: readonly string[]): Promise<string> {

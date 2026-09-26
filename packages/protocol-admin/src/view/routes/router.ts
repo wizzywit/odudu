@@ -41,7 +41,6 @@ export interface AdminRouterDeps {
   readonly auth: AuthenticateAdminDeps;
   readonly authz: AuthorizeAdminDeps;
   readonly clock: Clock;
-  // Where a refused request's row goes: the tenant in the path.
   readonly database: Database;
 }
 
@@ -75,7 +74,7 @@ function targetTenantNameFor(route: AdminRoute, params: AdminRouteParams): strin
   return tenant;
 }
 
-// A refusal is sent whether or not its row could be written (ADR 0037).
+// A refusal is sent whether or not its row could be written.
 async function recordRefusal(
   database: Database,
   request: FastifyRequest,

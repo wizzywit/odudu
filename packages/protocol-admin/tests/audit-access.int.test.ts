@@ -1,8 +1,8 @@
 import { generateSigningKey, signJwt } from '@odudu/crypto';
-import { withTenant } from '@odudu/db';
-import { sql } from 'drizzle-orm';
+import { tenants, withTenant } from '@odudu/db';
+import { eq, sql } from 'drizzle-orm';
 import { auditEvents } from '@odudu/domain-audit';
-import { TENANT_CAPABILITIES } from '@odudu/domain-tenant';
+import { ADMIN_API_AUDIENCE, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -112,7 +112,7 @@ describe('a token issued by another tenant of this deployment', () => {
       requestId,
       detail: { reason: 'foreign_issuer' },
     });
-    expect(rows[0]?.actorClientId).not.toBeNull();
+    expect(rows[0]?.actorClientId).toBe((await fixture.builtinAdminClient(x.name)).id);
     expect(await rowsOf(x.id)).toHaveLength(0);
   });
 
@@ -157,6 +157,53 @@ describe('a token issued by another tenant of this deployment', () => {
     expect(await rowsOf(x.id)).toHaveLength(0);
   });
 
+  async function expectRefusedWithoutRow(
+    x: { id: string },
+    y: { id: string; name: string },
+    token: string,
+  ): Promise<void> {
+    const res = await call('GET', `/admin/tenants/${y.name}/subjects`, token, newId());
+    expect(res.statusCode).toBe(401);
+    expect(await rowsOf(y.id)).toHaveLength(0);
+    expect(await rowsOf(x.id)).toHaveLength(0);
+  }
+
+  it('writes nothing for a genuine token minted for another audience', async () => {
+    const { x, y } = await twoTenants();
+    const token = await fixture.applicationToken(x.name, { audience: 'https://api.example/' });
+
+    await expectRefusedWithoutRow(x, y, token);
+  });
+
+  it('writes nothing for a genuine signature over a token that is not an access token', async () => {
+    const { x, y } = await twoTenants();
+    const genuine = await fixture.adminToken(x.name, [...TENANT_CAPABILITIES]);
+    const idToken = await fixture.signWithTenantKey(x.name, claimsOf(genuine), { typ: 'JWT' });
+
+    await expectRefusedWithoutRow(x, y, idToken);
+  });
+
+  it('writes nothing when the issuing tenant is disabled', async () => {
+    const { x, y } = await twoTenants();
+    const token = await fixture.adminToken(x.name, [...TENANT_CAPABILITIES]);
+    await fixture.owner.db.update(tenants).set({ enabled: false }).where(eq(tenants.id, x.id));
+
+    await expectRefusedWithoutRow(x, y, token);
+  });
+
+  it('writes nothing for an issuer with a path below the tenant name', async () => {
+    const { x, y } = await twoTenants();
+    const genuine = await fixture.adminToken(x.name, [...TENANT_CAPABILITIES]);
+    const claims = claimsOf(genuine);
+    const extended = await fixture.signWithTenantKey(x.name, {
+      ...claims,
+      iss: `${String(claims.iss)}/extra`,
+      aud: [ADMIN_API_AUDIENCE],
+    });
+
+    await expectRefusedWithoutRow(x, y, extended);
+  });
+
   it('writes nothing when no bearer token is presented', async () => {
     const { y } = await twoTenants();
 
@@ -189,7 +236,7 @@ describe('a 403 to an authenticated caller', () => {
         requestId,
         detail: { capability: 'manage-clients', reason: 'missing_capability' },
       });
-      expect(rows[0]?.actorClientId).not.toBeNull();
+      expect(rows[0]?.actorClientId).toBe((await fixture.builtinAdminClient(t.name)).id);
     },
   );
 

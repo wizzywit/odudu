@@ -1,7 +1,7 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { ADMIN_API_AUDIENCE, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
-import { type TenantLookup, type TokenGrantRecord } from '@odudu/protocol-oidc';
+import { tenantIssuer, type TenantLookup, type TokenGrantRecord } from '@odudu/protocol-oidc';
 
 export interface AdminPrincipal {
   readonly subjectId: string;
@@ -127,10 +127,11 @@ async function resolveForeignIssuer(
   token: string,
   iss: string,
 ): Promise<ForeignIssuer | undefined> {
-  const prefix = `${input.issuerBase}/tenants/`;
+  const prefix = tenantIssuer(input.issuerBase, '');
   if (!iss.startsWith(prefix)) return undefined;
   const name = iss.slice(prefix.length);
   if (name.length === 0 || name.includes('/')) return undefined;
+  if (tenantIssuer(input.issuerBase, name) !== iss) return undefined;
 
   const tenant = await deps.findTenant(name);
   if (!tenant?.enabled) return undefined;
