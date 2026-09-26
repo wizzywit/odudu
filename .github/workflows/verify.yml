@@ -26,6 +26,7 @@ jobs:
     timeout-minutes: 30
     env:
       TURBO_CACHE_DIR: .turbo/cache
+      TURBO_RUN_SUMMARY: 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -49,6 +50,11 @@ jobs:
           restore-keys: turbo-${{ runner.os }}-
 
       - run: pnpm verify
+
+      # The cache step saves after this, so what it saves is only what this
+      # run's summaries in .turbo/runs name, not every earlier run's entries.
+      - name: Prune the Turborepo cache
+        run: node tools/turbo-cache/src/index.ts .turbo/cache .turbo/runs
 
   container:
     runs-on: ubuntu-latest

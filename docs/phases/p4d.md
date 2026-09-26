@@ -58,6 +58,14 @@ the sixteen reports and prints the same line as before.
   `packages/account/src/view/` turned `@odudu/protocol-oidc#test` into a
   `MISS`, though it does not depend on `@odudu/account`. `drizzle/**` is in
   every package's inputs, since `@odudu/db`'s own tests run its migrations.
+  A third such file is caught rather than remembered:
+  `tests/lint/cross-package-reads.test.ts` scans every package's and app's
+  `src/` and `tests/` for a `join`, `resolve` or `new URL` whose `..`
+  segments climb above the package root, and fails, naming the file, unless
+  turbo.json has a `<package>#test` override with a `$TURBO_ROOT$` input.
+  With both overrides removed it named exactly the two files above. An
+  override **replaces** the generic `test` task rather than merging with
+  it, so an edit to the generic task has to be copied into each override.
 - **The repository checks are never cached.** `tests/` became the
   workspace package `@odudu/repo-checks`, but its checks read documents,
   every package's source and the built server bundle, so their inputs are
@@ -79,3 +87,17 @@ the sixteen reports and prints the same line as before.
 commit with a prefix fallback to the newest earlier entry, and points
 `TURBO_CACHE_DIR` at it. The CI duration after the change is recorded here
 once the pull request has run twice.
+
+**The saved cache holds only what the run used.** Restoring the newest
+cache and saving it back under a new key would make every archive a
+superset of the last. So the job sets `TURBO_RUN_SUMMARY=true`, which has
+each `turbo run` write `.turbo/runs/<id>.json` listing every task's hash,
+and a step after `pnpm verify` runs `tools/turbo-cache`, which deletes every
+cache entry no summary names before the post-job save. Access times were
+the rejected alternative: a restored archive's atimes, and whether a
+cache hit updates them under `relatime`, are not something to rely on.
+Simulated locally over three runs against a copy of a 3,085-entry cache —
+`typecheck`, `build` and `test`, pruning after each — the first run kept
+35 entries and removed 3,085, and the next two, each changing one
+package's source, found 37 and kept 35. The cost is that a hash last used
+two runs ago is gone: reverting that change missed on the third run.
