@@ -34,7 +34,7 @@ caller can cause:
 | Login failure: bad credential, locked out, unknown subject               | yes                     | the per-IP throttle on `login-actions/authenticate`             |
 | Client authentication failure naming a **registered** client, any method | yes, while under budget | `auditRefusalBudget`, below                                     |
 | Client authentication failure naming an **unregistered** `client_id`     | no, a `warn` line       | nothing needed: no row                                          |
-| Refusal after the client authenticated                                   | yes                     | the client is authenticated, and the row names it               |
+| Refusal after the client authenticated                                   | yes, while under budget | `auditRefusalBudget`: a public client proves nothing but a name |
 | Admin `401`                                                              | no, a `warn` line       | nothing needed                                                  |
 | Admin `403` to an authenticated caller                                   | yes                     | the caller is authenticated, and the row names it               |
 | Foreign-issuer admin token, signature valid                              | yes                     | the caller holds a genuine token, and the row names its subject |
@@ -43,25 +43,37 @@ caller can cause:
 `auditRefusalBudget` is an in-memory sliding window keyed on
 `(tenant, client)`, built from the same `slidingWindow` helper as the
 client secret limiter (`apps/server/src/app.ts`): at most 20 rows per
-registered client per 60 seconds. The call that spends the window writes
-one `client.authenticate` row with `reason: rate_limited`; later refusals in
-the window are `warn` lines. It is separate from the client secret limiter
+registered client per 60 seconds. Every refusal row at `/token`, `/revoke`
+and `/introspect` spends it, not only failed client authentication: a
+public client authenticates by presenting its `client_id` and nothing else,
+so anyone who knows one could otherwise append a refused `token.refresh`
+row per request with a random refresh token. The call that spends the
+window writes one row with `reason: rate_limited`, under the action the
+refusal would have had; later refusals in the window are `warn` lines. It is separate from the client secret limiter
 because that limiter applies to password methods only, and counting
 `private_key_jwt` or `tls_client_auth` failures against it would turn a
 `400` or `401` into a `429`, a response change. The budget changes no
 response; it decides only whether a refusal is a row or a log line.
 
-A refusal at `/token` or `/revoke` carries its annotation on the thrown
-`TokenError`, and the route's `catch` records it in a sibling transaction
-of its own (`packages/protocol-oidc/src/view/routes/record-refusal.ts`). A
+A refusal at `/token`, `/revoke` or `/introspect` carries its annotation on
+the thrown `TokenError`, and the route's `catch` records it in a sibling
+transaction of its own (`packages/protocol-oidc/src/usecase/record-refusal.ts`).
+At `/introspect` only failed client authentication is a refusal: a
+successful introspection issues and changes nothing, and writes no row. A
 throw there is caught and logged at `error`; the response is the one the
 caller was always going to get. After authentication, `invalid_grant`,
 `invalid_scope`, `invalid_target` and `unauthorized_client` are recorded;
 `invalid_request` is not, since it describes a malformed request rather
-than a decision about the client.
+than a decision about the client. A public client asking for
+`client_credentials` answers `invalid_client` and is recorded as
+`unauthorized_client`. A `private_key_jwt` client whose `jwks_uri` cannot be
+fetched is a `warn` line, not a row: that is this server failing to reach
+the client's keys, not the client failing to authenticate.
 
 ## Consequences
 
+- No client, public or confidential, can put more than 20 refusal rows a
+  minute into `audit_events`, whatever it is refused for.
 - An unregistered `client_id` costs a log line, never a row, however often
   it is tried. The line names the tenant and the claimed `client_id`, which
   is not a secret.

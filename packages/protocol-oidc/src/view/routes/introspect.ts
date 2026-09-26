@@ -1,16 +1,19 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { type SigningKeyRecord } from '@odudu/crypto';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
+import { requestContextFrom } from '@odudu/domain-audit';
 import { type Clock, systemClock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
 import { type LiveClientLookup } from '#/service/client-enabled';
 import { type IntrospectionGrant } from '#/usecase/introspection';
+import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import {
   respondToIntrospectionRequest,
   type IntrospectionRequestDeps,
 } from '#/usecase/introspection-request';
+import { recordRefusal } from '#/usecase/record-refusal';
 import { tenantIssuerFor } from '#/view/issuer';
 
 export interface IntrospectRouteDeps {
@@ -26,6 +29,8 @@ export interface IntrospectRouteDeps {
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // Reused, never re-implemented — see #/usecase/client-authentication.ts.
   clientSecretLimiter: ClientSecretLimiter;
+  // ADR 0037: whether a refusal is a row or a log line.
+  auditRefusalBudget: AuditRefusalBudget;
   // Built at the composition root (index.ts), the same way every other
   // repository-backed lookup this package's routes consume is — a route
   // never imports a repository (dependency-cruiser's no-view-to-repository
@@ -75,18 +80,31 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
       liveClientLookup: deps.liveClientLookup,
     };
 
+    const context = requestContextFrom(request);
     try {
-      const response = await withTenant(deps.database.db, tenant.id, (tx) =>
-        respondToIntrospectionRequest(
-          tx,
-          requestDeps,
-          request.body,
-          request.headers.authorization,
-          now,
-        ),
+      const response = await withTenant(
+        deps.database.db,
+        tenant.id,
+        (tx) =>
+          respondToIntrospectionRequest(
+            tx,
+            requestDeps,
+            request.body,
+            request.headers.authorization,
+            now,
+          ),
+        context,
       );
       return await reply.code(200).header('cache-control', 'no-store').send(response);
     } catch (err) {
+      if (err instanceof TokenRateLimited || err instanceof TokenError) {
+        await recordRefusal(
+          { database: deps.database, logger: request.log, budget: deps.auditRefusalBudget },
+          tenant.id,
+          context,
+          err.audit,
+        );
+      }
       if (err instanceof TokenRateLimited) {
         return await reply
           .code(429)

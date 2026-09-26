@@ -41,7 +41,7 @@ import {
   jwksDocumentFor,
   signClientAssertion,
 } from '#/testing/private-key-jwt-fixture';
-import { recordRefusal } from '#/view/routes/record-refusal';
+import { recordRefusal } from '#/usecase/record-refusal';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -56,6 +56,10 @@ let logLines: unknown[] = [];
 const CLIENT_ID = 'refusals-client';
 const OTHER_CLIENT_ID = 'refusals-other';
 const PKJ_CLIENT_ID = 'refusals-pkj';
+const PKJ_URI_CLIENT_ID = 'refusals-pkj-uri';
+const PUBLIC_CLIENT_ID = 'refusals-public';
+const TLS_CLIENT_ID = 'refusals-tls';
+const TLS_SUBJECT_DN = 'CN=refusals-tls,O=Example';
 const CLIENT_SECRET = 'refusals-secret';
 const REDIRECT_URI = 'https://app.example/callback';
 const USERNAME = 'ada';
@@ -78,6 +82,9 @@ interface SeededTenant {
   clientDbId: string;
   otherClientDbId: string;
   pkjClientDbId: string;
+  pkjUriClientDbId: string;
+  publicClientDbId: string;
+  tlsClientDbId: string;
   subjectId: string;
 }
 
@@ -86,20 +93,24 @@ async function seedClient(
   tenantId: string,
   input: {
     clientId: string;
-    method: 'client_secret_basic' | 'private_key_jwt';
+    method: 'client_secret_basic' | 'private_key_jwt' | 'tls_client_auth' | 'none';
     grantTypes: string[];
+    jwksUri?: string;
   },
 ): Promise<string> {
   const dbId = newId();
-  const service = await subjectRepository(tx).create({ tenantId, type: 'service' });
+  const confidential = input.method !== 'none';
+  const service = confidential
+    ? await subjectRepository(tx).create({ tenantId, type: 'service' })
+    : null;
   await tx.insert(clients).values({
     id: dbId,
     tenantId,
     clientId: input.clientId,
     name: input.clientId,
-    type: 'confidential',
-    secretHash: await hashPassword(CLIENT_SECRET),
-    serviceSubjectId: service.id,
+    type: confidential ? 'confidential' : 'public',
+    secretHash: confidential ? await hashPassword(CLIENT_SECRET) : null,
+    serviceSubjectId: service?.id ?? null,
   });
   await provisionClientDefaults(tx, dbId);
   await clientOidcConfigRepository(tx).create({
@@ -112,7 +123,12 @@ async function seedClient(
     accessTokenTtlSeconds: 300,
     refreshTokenTtlSeconds: 1_209_600,
     clientCredentialsScopes: [SERVICE_SCOPE],
-    jwks: input.method === 'private_key_jwt' ? jwksDocumentFor(clientKey) : null,
+    jwks:
+      input.method === 'private_key_jwt' && input.jwksUri === undefined
+        ? jwksDocumentFor(clientKey)
+        : null,
+    jwksUri: input.jwksUri ?? null,
+    tlsClientAuthSubjectDn: input.method === 'tls_client_auth' ? TLS_SUBJECT_DN : null,
   });
   return dbId;
 }
@@ -139,6 +155,22 @@ async function seedTenant(): Promise<SeededTenant> {
       method: 'private_key_jwt',
       grantTypes: ['client_credentials'],
     });
+    const pkjUriClientDbId = await seedClient(tx, id, {
+      clientId: PKJ_URI_CLIENT_ID,
+      method: 'private_key_jwt',
+      grantTypes: ['client_credentials'],
+      jwksUri: 'https://keys.example/jwks.json',
+    });
+    const publicClientDbId = await seedClient(tx, id, {
+      clientId: PUBLIC_CLIENT_ID,
+      method: 'none',
+      grantTypes: ['authorization_code', 'refresh_token', 'client_credentials'],
+    });
+    const tlsClientDbId = await seedClient(tx, id, {
+      clientId: TLS_CLIENT_ID,
+      method: 'tls_client_auth',
+      grantTypes: ['client_credentials'],
+    });
     const subject = await subjectRepository(tx).create({ tenantId: id, type: 'user' });
     await tx.insert(users).values({ subjectId: subject.id, tenantId: id, username: USERNAME });
     await tx.insert(userCredentials).values({
@@ -158,7 +190,17 @@ async function seedTenant(): Promise<SeededTenant> {
       publicJwk: generated.publicJwk,
       privateJwkEncrypted: generated.privateJwkEncrypted,
     });
-    seeded = { name, id, clientDbId, otherClientDbId, pkjClientDbId, subjectId: subject.id };
+    seeded = {
+      name,
+      id,
+      clientDbId,
+      otherClientDbId,
+      pkjClientDbId,
+      pkjUriClientDbId,
+      publicClientDbId,
+      tlsClientDbId,
+      subjectId: subject.id,
+    };
   });
   if (seeded === undefined) throw new Error('tenant was not seeded');
   return seeded;
@@ -175,9 +217,9 @@ function requestIdFor(label: string): string {
 function post(
   target: FastifyInstance,
   tenant: SeededTenant,
-  endpoint: 'token' | 'revoke',
+  endpoint: 'token' | 'revoke' | 'token/introspect',
   fields: Record<string, string>,
-  options: { requestId: string; authorization?: string },
+  options: { requestId: string; authorization?: string; headers?: Record<string, string> },
 ): Promise<LightMyRequestResponse> {
   return target.inject({
     method: 'POST',
@@ -187,6 +229,7 @@ function post(
       'content-type': 'application/x-www-form-urlencoded',
       'x-request-id': options.requestId,
       ...(options.authorization === undefined ? {} : { authorization: options.authorization }),
+      ...options.headers,
     },
   });
 }
@@ -339,6 +382,7 @@ function scriptedBudget(answers: ('row' | 'last_row' | 'log')[]): AuditRefusalBu
 async function buildHttp(options: {
   budget: AuditRefusalBudget;
   limiter?: ClientSecretLimiter;
+  trustProxy?: boolean;
 }): Promise<FastifyInstance> {
   const logger: FastifyBaseLogger = pino(
     { level: 'info' },
@@ -354,6 +398,7 @@ async function buildHttp(options: {
       clientSecretLimiter: options.limiter ?? UNLIMITED_CLIENT_SECRET_LIMITER,
       clientKeySet: NO_CLIENT_KEY_FETCHER,
       auditRefusalBudget: options.budget,
+      trustProxy: options.trustProxy ?? false,
     }),
   );
   await instance.ready();
@@ -822,6 +867,157 @@ describe('/revoke', () => {
   });
 });
 
+describe('the budget after authentication', () => {
+  it("bounds a public client's refusals, which prove nothing about who sent them", async () => {
+    const tenant = await seedTenant();
+    const budgeted = await buildHttp({
+      budget: scriptedBudget(['row', 'row', 'last_row', 'log', 'log', 'log']),
+    });
+    extraApps.push(budgeted);
+
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const res = await post(
+        budgeted,
+        tenant,
+        'token',
+        {
+          grant_type: 'refresh_token',
+          refresh_token: `random-${newId()}`,
+          client_id: PUBLIC_CLIENT_ID,
+        },
+        { requestId: requestIdFor('public-spray') },
+      );
+      statuses.push(res.statusCode);
+    }
+
+    expect(statuses).toEqual([400, 400, 400, 400, 400, 400]);
+    const rows = await rowsIn(tenant);
+    expect(rows.map((row) => `${row.action}:${String(reasonOf(row))}`).sort()).toEqual([
+      'token.refresh:invalid_grant',
+      'token.refresh:invalid_grant',
+      'token.refresh:rate_limited',
+    ]);
+    expect(rows.every((row) => row.actorClientId === tenant.publicClientDbId)).toBe(true);
+  });
+
+  it('records a public client asking for client_credentials as unauthorized_client', async () => {
+    const tenant = await seedTenant();
+    const requestId = requestIdFor('public-cc');
+
+    const res = await post(
+      http,
+      tenant,
+      'token',
+      { grant_type: 'client_credentials', client_id: PUBLIC_CLIENT_ID },
+      { requestId },
+    );
+
+    expect(res.statusCode).toBe(401);
+    expect(await onlyRowFor(tenant, requestId)).toMatchObject({
+      action: 'token.issue',
+      outcome: 'refused',
+      actorClientId: tenant.publicClientDbId,
+      detail: { reason: 'unauthorized_client' },
+    });
+  });
+});
+
+describe('client authentication by other methods', () => {
+  it('records a certificate subject that does not match a registered tls_client_auth client', async () => {
+    const tenant = await seedTenant();
+    const trusted = await buildHttp({ budget: UNLIMITED_AUDIT_REFUSAL_BUDGET, trustProxy: true });
+    extraApps.push(trusted);
+    const requestId = requestIdFor('tls');
+
+    const res = await post(
+      trusted,
+      tenant,
+      'token',
+      { grant_type: 'client_credentials', client_id: TLS_CLIENT_ID },
+      { requestId, headers: { 'x-ssl-client-s-dn': 'CN=someone-else' } },
+    );
+
+    expect(res.statusCode).toBe(401);
+    expect(await onlyRowFor(tenant, requestId)).toMatchObject({
+      action: 'client.authenticate',
+      outcome: 'refused',
+      actorClientId: tenant.tlsClientDbId,
+      detail: { method: 'tls_client_auth', reason: 'bad_credential' },
+    });
+  });
+
+  it('writes no row when a jwks_uri cannot be fetched, which is not the client failing', async () => {
+    const tenant = await seedTenant();
+    const requestId = requestIdFor('pkj-uri');
+    logLines = [];
+    const assertion = await signClientAssertion({
+      key: clientKey,
+      clientId: PKJ_URI_CLIENT_ID,
+      audience: `http://localhost/tenants/${tenant.name}/protocol/openid-connect/token`,
+      kek: KEK,
+    });
+
+    const res = await post(
+      http,
+      tenant,
+      'token',
+      {
+        grant_type: 'client_credentials',
+        client_assertion_type: CLIENT_ASSERTION_TYPE,
+        client_assertion: assertion,
+      },
+      { requestId },
+    );
+
+    expect(res.statusCode).toBe(401);
+    expect(await rowsIn(tenant)).toEqual([]);
+    expect(loggedWith('private_key_jwt authentication refused')).toHaveLength(1);
+  });
+});
+
+describe('/introspect', () => {
+  it('records a wrong secret for a registered client', async () => {
+    const tenant = await seedTenant();
+    const requestId = requestIdFor('introspect-wrong-secret');
+
+    const res = await post(
+      http,
+      tenant,
+      'token/introspect',
+      { token: 'anything' },
+      { requestId, authorization: basicAuth(CLIENT_ID, 'not-the-secret') },
+    );
+
+    expect(res.statusCode).toBe(401);
+    expect(await onlyRowFor(tenant, requestId)).toMatchObject({
+      eventType: 'authentication',
+      action: 'client.authenticate',
+      outcome: 'refused',
+      actorClientId: tenant.clientDbId,
+      detail: { method: 'client_secret_basic', reason: 'bad_credential' },
+    });
+  });
+
+  it('writes nothing for an unregistered client_id', async () => {
+    const tenant = await seedTenant();
+
+    const res = await post(
+      http,
+      tenant,
+      'token/introspect',
+      { token: 'anything' },
+      {
+        requestId: requestIdFor('introspect-unknown'),
+        authorization: basicAuth('no-such-client', 'anything'),
+      },
+    );
+
+    expect(res.statusCode).toBe(401);
+    expect(await rowsIn(tenant)).toEqual([]);
+  });
+});
+
 describe('recordRefusal', () => {
   const context = { requestId: 'record-refusal', ip: '203.0.113.1' };
   const audit = {
@@ -863,6 +1059,21 @@ describe('recordRefusal', () => {
     expect(budget.take).not.toHaveBeenCalled();
     expect(logger.error).not.toHaveBeenCalled();
     expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('spends the budget for a refusal after authentication too', async () => {
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const budget = { take: vi.fn(() => 'log' as const) };
+
+    await recordRefusal({ database: unreachable, logger, budget }, newId(), context, {
+      action: 'token.refresh',
+      reason: 'invalid_grant',
+      clientDbId: newId(),
+    });
+
+    expect(budget.take).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledOnce();
+    expect(logger.error).not.toHaveBeenCalled();
   });
 
   it('logs at warn, without touching the database, once the budget is spent', async () => {

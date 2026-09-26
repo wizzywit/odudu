@@ -1,5 +1,5 @@
 /**
- * Decides whether a client authentication refusal naming a registered
+ * Decides whether a refusal naming a registered
  * client becomes an audit row or a log line (ADR 0037). `last_row` is the
  * answer that spends the window: its row says so with `rate_limited`. The
  * concrete instance wraps `apps/server/src/throttle.ts`'s `slidingWindow`.

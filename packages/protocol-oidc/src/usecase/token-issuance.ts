@@ -844,7 +844,13 @@ async function issueClientCredentialsTokens(
     requestedScope: request.scope,
   });
   if (!decision.ok) {
-    if (decision.reason === 'not_confidential') throw invalidClient(WWW_AUTHENTICATE);
+    if (decision.reason === 'not_confidential') {
+      throw withAudit(invalidClient(WWW_AUTHENTICATE), {
+        action: 'token.issue',
+        reason: 'unauthorized_client',
+        clientDbId: client.id,
+      });
+    }
     if (decision.reason === 'no_service_subject') throw unauthorizedClient();
     throw invalidScope();
   }
@@ -1000,7 +1006,9 @@ async function authenticatePrivateKeyJwt(
     try {
       jwks = await deps.clientKeySet.fetch(config.jwksUri, deps.tenantId);
     } catch (err) {
-      return fail(err instanceof Error ? err.message : 'jwks_uri fetch failed', badCredential);
+      // A fetch that fails is this server failing to reach the client's
+      // keys, not the client failing to authenticate, so it writes no row.
+      return fail(err instanceof Error ? err.message : 'jwks_uri fetch failed');
     }
   } else {
     return fail('client publishes no keys', badCredential);
@@ -1472,8 +1480,8 @@ const REFUSAL_REASONS: Readonly<Partial<Record<TokenErrorCode, AuditReason>>> = 
   unauthorized_client: 'unauthorized_client',
 };
 
-// ADR 0037: a refusal once the client has authenticated is recorded
-// unconditionally, since the client it names is proven.
+// ADR 0037: a refusal once the client has authenticated names that client,
+// and spends its audit budget like any other refusal.
 function annotatedAfterAuthentication(
   err: TokenError,
   grantType: StructuredRequest['grantType'],

@@ -124,9 +124,9 @@ export const DEFAULT_THROTTLE: ThrottleSettings = { limit: 10, windowSeconds: 60
 // operator to reason about than a third, unrelated pair of numbers.
 export const DEFAULT_CLIENT_SECRET_THROTTLE: ThrottleSettings = { limit: 5, windowSeconds: 60 };
 
-// ADR 0037: the most client authentication refusal rows one registered
-// client can put in the audit table per window, the last of them saying the
-// budget ran out. Past it, refusals are warn lines until the window reopens.
+// ADR 0037: the most refusal rows one registered client can put in the
+// audit table per window, the last of them saying the budget ran out. Past
+// it, refusals are warn lines until the window reopens.
 export const AUDIT_REFUSAL_ROWS_PER_CLIENT = 20;
 export const AUDIT_REFUSAL_WINDOW_SECONDS = 60;
 

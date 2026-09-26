@@ -4739,15 +4739,15 @@ correct redemption of the same code still returned 200.
 
 ### What a refused token request leaves in the audit log
 
-A refusal at `/token` or `/revoke` rolls its own transaction back, so its
-row is written afterwards, in a transaction of its own, and a failure to
-write it is logged rather than returned: the response is the one the caller
-would have had with no audit at all. Which refusals write a row is decided
-by what the request names ([ADR 0037](adr/0037-refusal-rows-are-bounded-by-the-principal-they-name.md)).
+A refusal at `/token`, `/revoke` or `/introspect` rolls its own transaction
+back, so its row is written afterwards, in a transaction of its own, and a
+failure to write it is logged rather than returned: the response is the one
+the caller would have had with no audit at all. Which refusals write a row
+is decided by what the request names ([ADR 0037](adr/0037-refusal-rows-are-bounded-by-the-principal-they-name.md)).
 Every command below carries its own `x-request-id` and every query is
-scoped to those ids, captured against the stack
-[what a refused login leaves behind](#what-a-refused-login-leaves-behind)
-was, with `demo-backend` seeded as in [Bootstrap](#bootstrap).
+scoped to those ids. All of it was captured against the same stack as
+[what a refused login leaves behind](#what-a-refused-login-leaves-behind),
+with `demo-backend` seeded as in [Bootstrap](#bootstrap).
 
 A wrong secret for a registered client, and a `client_id` nobody
 registered:
@@ -4784,12 +4784,11 @@ detail       | {"method": "client_secret_basic", "reason": "bad_credential"}
 ```
 
 - **The two answers are the same bytes; one wrote a row and one did not.**
-  A registered client is a principal the row can name, and at most twenty
-  of its refusals a minute become rows, the twentieth saying
-  `rate_limited`, before the rest become `warn` lines. A `client_id` nobody
+  A registered client is a principal the row can name. A `client_id` nobody
   registered names nobody, so it is a `warn` line from the first attempt:
   otherwise every guessed name would be a row. `method` is the method the
-  request attempted, never the one the client registered.
+  request attempted, never the one the client registered. How many rows a
+  registered client can cause is bounded below.
 
 Reusing a refresh token, and replaying the code it came from. `$R1` here is
 a refresh token already rotated once, and `$CODE` with `$VERIFIER` the code
@@ -4859,8 +4858,8 @@ detail           | {"reason": "replayed"}
   a failure to write it cannot undo the revocation; the refusal row names
   the same grant. The code replay revokes a grant the reuse had already
   revoked, which is why both name one `resource_id`.
-- **A refusal after the client authenticated is always a row**:
-  `invalid_grant`, `invalid_scope`, `invalid_target` and
+- **A refusal after the client authenticated is a row, while its client's
+  budget lasts**: `invalid_grant`, `invalid_scope`, `invalid_target` and
   `unauthorized_client`, under `token.issue`, `token.refresh` or
   `token.exchange` by grant type. `invalid_request` is not recorded; it
   describes the request, not a decision about the client.
@@ -4930,6 +4929,73 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
      0
 (1 row)
 ```
+
+`/introspect` records a failed client authentication the same way, and
+nothing else: a successful introspection issues and changes nothing.
+
+```bash
+curl -sS -w '\n%{http_code}\n' -H 'x-request-id: introspect-refused-wrong-secret' \
+  -u demo-backend:wrong-secret --data-urlencode 'token=anything' "$BASE/token/introspect"
+curl -sS -w '\n%{http_code}\n' -H 'x-request-id: introspect-refused-unknown-client' \
+  -u nobody-here:anything --data-urlencode 'token=anything' "$BASE/token/introspect"
+
+docker compose exec -T postgres psql -U odudu -d odudu -x -P 'null=(null)' -c \
+  "select e.event_type, e.action, e.outcome, c.client_id as actor_client, e.request_id, e.detail
+     from audit_events e left join clients c on c.id = e.actor_client_id
+    where e.request_id in ('introspect-refused-wrong-secret', 'introspect-refused-unknown-client');"
+```
+
+```
+{"error":"invalid_client"}
+401
+{"error":"invalid_client"}
+401
+-[ RECORD 1 ]+--------------------------------------------------------------
+event_type   | authentication
+action       | client.authenticate
+outcome      | refused
+actor_client | demo-backend
+request_id   | introspect-refused-wrong-secret
+detail       | {"method": "client_secret_basic", "reason": "bad_credential"}
+```
+
+Every one of these rows spends its client's budget: twenty rows per
+registered client per minute, the twentieth saying `rate_limited`, and a
+`warn` line for each refusal after that until the window reopens. That
+covers refusals after authentication as much as failed authentication,
+because a public client authenticates with its name alone. `demo-spa` is
+public, so anybody can post guessed refresh tokens under it; twenty-two of
+them, with no refusal from `demo-spa` in the minute before:
+
+```bash
+for n in $(seq 1 22); do
+  curl -sS -o /dev/null -w '%{http_code} ' -H "x-request-id: public-spray-$n" \
+    --data-urlencode 'grant_type=refresh_token' --data-urlencode "refresh_token=guess-$n" \
+    --data-urlencode 'client_id=demo-spa' "$BASE/token"
+done; echo
+docker compose exec -T postgres psql -U odudu -d odudu -c \
+  "select e.action, e.detail->>'reason' as reason, count(*)
+     from audit_events e
+    where e.request_id like 'public-spray-%'
+    group by 1, 2 order by 3 desc;"
+docker compose logs odudu --since 2m | grep -c 'audit budget for this client is spent'
+```
+
+```
+400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400 400
+    action     |    reason     | count
+---------------+---------------+-------
+ token.refresh | invalid_grant |    19
+ token.refresh | rate_limited  |     1
+(2 rows)
+
+2
+```
+
+Every answer is the same `400`; the budget decides only whether a refusal
+is a row or a log line. The budget lives in one process's memory, so each
+replica keeps its own ([ADR 0037](adr/0037-refusal-rows-are-bounded-by-the-principal-they-name.md)
+places the shared one on P11).
 
 ## Retention: what `odudu reap` removes
 
@@ -8777,14 +8843,14 @@ session lifecycle. A citation of either half here means that half.
   A credential enrolled, reset or changed leaves no trace — `?event_type=`
   narrows to any of the vocabulary's six values, and nothing yet writes
   `credential`. **P4e**, whose criterion names those events.
-- **No refused session or credential change is recorded.** Every refused login step
-  writes a `refused` row under `resource_type: authentication_session`, a
-  refused `/token` or `/revoke` request writes one under ADR 0037's bounds,
-  and the admin API records the refusals its own checks make
-  (`client.create`'s, and the privilege ceilings on subject, role, group and
-  scope changes). A refused session or credential change writes nothing,
-  so `?event_type=session` or `credential` with `?outcome=refused` returns
-  nothing — which reads as
+- **Refused session and credential changes are not recorded.** Every
+  refused login step writes a `refused` row under
+  `resource_type: authentication_session`, a refused `/token`, `/revoke` or
+  `/introspect` request writes one within ADR 0037's budget, and the admin
+  API records the refusals its own checks make (`client.create`'s, and the
+  privilege ceilings on subject, role, group and scope changes). A refused
+  session or credential change writes nothing, so `?event_type=session` or
+  `credential` with `?outcome=refused` returns nothing — which reads as
   "nothing was refused" and is not. **P4e**, whose criterion names those
   events and the refusals among them.
 - **A request refused for a cross-tenant issuer mismatch writes no row.** A

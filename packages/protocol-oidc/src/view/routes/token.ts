@@ -10,7 +10,7 @@ import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import { issueTokens, type ClientKeySet, type TokenResponse } from '#/usecase/token-issuance';
 import { tenantIssuerFor } from '#/view/issuer';
-import { recordRefusal } from '#/view/routes/record-refusal';
+import { recordRefusal } from '#/usecase/record-refusal';
 
 export interface TokenRouteDeps {
   database: DatabaseHandle;
@@ -43,7 +43,7 @@ export interface TokenRouteDeps {
   // ADR 0023's client-authentication budget, per client_id. See
   // token-issuance.ts's TokenIssuanceDeps for what it counts.
   clientSecretLimiter: ClientSecretLimiter;
-  // ADR 0037: whether a client authentication refusal is a row or a log line.
+  // ADR 0037: whether a refusal is a row or a log line.
   auditRefusalBudget: AuditRefusalBudget;
   // RFC 7523 §2.2's fetcher for a client's jwks_uri — see
   // token-issuance.ts's TokenIssuanceDeps for what calls it.

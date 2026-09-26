@@ -112,8 +112,8 @@ export interface OidcRoutesDeps {
   // (#/repository/client-keys.ts). `apps/server/src/app.ts` supplies the
   // real one, wired to `node:https` and `node:dns`.
   clientKeySet: ClientKeySet;
-  // Whether a client authentication refusal at /token or /revoke naming a
-  // registered client is an audit row or a log line (ADR 0037). Required
+  // Whether a refusal at /token, /revoke or /introspect naming a registered
+  // client is an audit row or a log line (ADR 0037). Required
   // for the same reason `clientSecretLimiter` is; a caller with no opinion
   // passes `UNLIMITED_AUDIT_REFUSAL_BUDGET`.
   auditRefusalBudget: AuditRefusalBudget;
@@ -471,6 +471,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       listPublishableKeys,
       verifyPassword,
       clientSecretLimiter,
+      auditRefusalBudget: deps.auditRefusalBudget,
       loadGrant: loadIntrospectionGrant,
       isSessionLive: isIntrospectionSessionLive,
       liveClientLookup,

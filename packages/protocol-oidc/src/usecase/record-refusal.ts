@@ -59,11 +59,11 @@ function write(tx: TenantScopedDatabase, audit: TokenRefusalAudit, reason: Audit
 }
 
 /**
- * Records a `/token` or `/revoke` refusal in a transaction of its own, since
- * the request's own rolled back when it threw. Never throws: the caller gets
- * the refusal it was always going to get, whatever happens here. Only client
- * authentication refusals spend the budget; a refusal after authentication
- * names a proven client and is always a row (ADR 0037).
+ * Records a `/token`, `/revoke` or `/introspect` refusal in a transaction of
+ * its own, since the request's own rolled back when it threw. Never throws:
+ * the caller gets the refusal it was always going to get, whatever happens
+ * here. Every refusal spends its client's budget, authenticated or not: a
+ * public client authenticates with its name alone (ADR 0037).
  */
 export async function recordRefusal(
   deps: RecordRefusalDeps,
@@ -73,18 +73,15 @@ export async function recordRefusal(
 ): Promise<void> {
   if (audit === undefined) return;
 
-  let reason = audit.reason;
-  if (audit.action === 'client.authenticate') {
-    const answer = deps.budget.take(auditRefusalBudgetKey(tenantId, audit.clientDbId));
-    if (answer === 'log') {
-      deps.logger.warn(
-        { tenantId, clientDbId: audit.clientDbId, reason: audit.reason },
-        'refusal not recorded: audit budget for this client is spent',
-      );
-      return;
-    }
-    if (answer === 'last_row') reason = 'rate_limited';
+  const answer = deps.budget.take(auditRefusalBudgetKey(tenantId, audit.clientDbId));
+  if (answer === 'log') {
+    deps.logger.warn(
+      { tenantId, clientDbId: audit.clientDbId, action: audit.action, reason: audit.reason },
+      'refusal not recorded: audit budget for this client is spent',
+    );
+    return;
   }
+  const reason = answer === 'last_row' ? 'rate_limited' : audit.reason;
 
   try {
     await withTenant(deps.database.db, tenantId, (tx) => write(tx, audit, reason), request);

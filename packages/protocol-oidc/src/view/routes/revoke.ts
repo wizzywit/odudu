@@ -8,7 +8,7 @@ import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import { respondToRevocationRequest, type RevocationDeps } from '#/usecase/revocation';
 import { tenantIssuerFor } from '#/view/issuer';
-import { recordRefusal } from '#/view/routes/record-refusal';
+import { recordRefusal } from '#/usecase/record-refusal';
 
 export interface RevokeRouteDeps {
   database: DatabaseHandle;
@@ -17,7 +17,7 @@ export interface RevokeRouteDeps {
   verifyPassword: (hash: string, secret: string) => Promise<boolean>;
   // Reused, never re-implemented — see #/usecase/client-authentication.ts.
   clientSecretLimiter: ClientSecretLimiter;
-  // ADR 0037: whether a client authentication refusal is a row or a log line.
+  // ADR 0037: whether a refusal is a row or a log line.
   auditRefusalBudget: AuditRefusalBudget;
   clock?: Clock;
 }
