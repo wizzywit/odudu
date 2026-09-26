@@ -7835,12 +7835,14 @@ curl -sS -o /dev/null -w '%{http_code}\n' -H 'x-request-id: trail-refresh' \
   --data-urlencode "refresh_token=$REFRESH_TOKEN" \
   --data-urlencode 'client_id=demo-spa' "$BASE/token"
 
-SESSION_ID=$(curl -sS -b cookies-trail.txt "$BASE/logout" \
-  | sed -n 's/.*name="session_id" value="\([^"]*\)".*/\1/p')
+PAGE=$(curl -sS -b cookies-trail.txt "$BASE/logout")
+SESSION_ID=$(printf '%s' "$PAGE" | sed -n 's/.*name="session_id" value="\([^"]*\)".*/\1/p')
+CSRF=$(printf '%s' "$PAGE" | sed -n 's/.*name="csrf" value="\([^"]*\)".*/\1/p')
 
 curl -sS -b cookies-trail.txt -o /dev/null -w '%{http_code}\n' \
   -H 'x-request-id: trail-logout' \
-  --data-urlencode "session_id=$SESSION_ID" "$BASE/logout"
+  --data-urlencode "session_id=$SESSION_ID" \
+  --data-urlencode "csrf=$CSRF" "$BASE/logout"
 
 for EVENT_TYPE in token session; do
   curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -7857,13 +7859,15 @@ The refresh's status, the logout's, then the `token` page and the
 ```
 200
 200
-{"items":[{"id":"01a0dca8-471a-7a73-b86e-aa6df0778eac","occurred_at":"2026-09-26T07:40:10.896Z","event_type":"token","action":"token.refresh","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"grant","resource_id":"01a0dca8-46e2-75fa-829c-e072eb0304b7","request_id":"trail-refresh","ip":"172.20.0.1","detail":{"scope":"openid"}},{"id":"01a0dca8-46f1-7773-80e9-0075084f4ef7","occurred_at":"2026-09-26T07:40:10.833Z","event_type":"token","action":"token.issue","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"grant","resource_id":"01a0dca8-46e2-75fa-829c-e072eb0304b7","request_id":"trail-code","ip":"172.20.0.1","detail":{"scope":"openid","grant_type":"authorization_code"}}]}
-{"items":[{"id":"01a0dca8-474a-7100-9a23-7b562be0bee7","occurred_at":"2026-09-26T07:40:10.952Z","event_type":"session","action":"session.ended","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":null,"resource_type":"session","resource_id":"01a0dca8-46bb-7a00-86ac-f034f41d5d39","request_id":"trail-logout","ip":"172.20.0.1","detail":{"via":"logout"}},{"id":"01a0dca8-46bd-783b-97cf-d6639a2d908e","occurred_at":"2026-09-26T07:40:10.808Z","event_type":"session","action":"session.created","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"session","resource_id":"01a0dca8-46bb-7a00-86ac-f034f41d5d39","request_id":"trail-sign-in","ip":"172.20.0.1","detail":{}}]}
+{"items":[{"id":"01a0de57-47f6-75ee-bd0c-397d8c07d8c1","occurred_at":"2026-09-26T15:30:57.138Z","event_type":"token","action":"token.refresh","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"grant","resource_id":"01a0de57-47d6-7a12-9446-5170a97d2ebd","request_id":"trail-refresh","ip":"172.20.0.1","detail":{"scope":"openid"}},{"id":"01a0de57-47de-7930-ae5b-63f55f8c41ab","occurred_at":"2026-09-26T15:30:57.100Z","event_type":"token","action":"token.issue","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"grant","resource_id":"01a0de57-47d6-7a12-9446-5170a97d2ebd","request_id":"trail-code","ip":"172.20.0.1","detail":{"scope":"openid","grant_type":"authorization_code"}}]}
+{"items":[{"id":"01a0de57-4822-7f4d-866e-9bc1eb70258c","occurred_at":"2026-09-26T15:30:57.185Z","event_type":"session","action":"session.ended","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":null,"resource_type":"session","resource_id":"01a0de57-47b6-73c8-ac09-420a582bac8e","request_id":"trail-logout","ip":"172.20.0.1","detail":{"via":"logout"}},{"id":"01a0de57-47b7-79a8-99b2-d2ba39295b21","occurred_at":"2026-09-26T15:30:57.077Z","event_type":"session","action":"session.created","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"session","resource_id":"01a0de57-47b6-73c8-ac09-420a582bac8e","request_id":"trail-sign-in","ip":"172.20.0.1","detail":{}}]}
 ```
 
 Captured against the same stack as
 [what a refused login leaves behind](#what-a-refused-login-leaves-behind),
-with the image rebuilt from the current tree. The ids the rows name:
+with the image rebuilt from the current tree after the logout confirmation
+gained its `csrf` token, which the logout above reads off the page it
+fetched and posts back. The ids the rows name:
 
 ```bash
 docker compose exec -T postgres psql -U odudu -d odudu -c \
@@ -7883,18 +7887,18 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
 
 The four requests sent with an `x-request-id` left one row each on these
 pages, under that id, and no row on either page carries any other — so
-nothing else in `demo` wrote a token or session row after `$SINCE`. The login also wrote a `login.password` row, as
-[what a refused login leaves behind](#what-a-refused-login-leaves-behind)
-shows for a refusal; it is an `authentication` row, so neither page above
-returns it. `token.issue` and `token.refresh` name one grant, which
-rotation reuses; `session.created` and `session.ended` name one session.
-`actor_tenant_id` is `demo` on all four: it names the tenant the actor
-belongs to, which differs from the row's own only when the caller came
-from elsewhere — a `system` administrator's admin rows, or a
-`token.foreign_issuer` refusal. `session.ended` names no client whichever
-way the session ends, since ending it ends it for every client that shared
-it. The confirmation page the logout fetched first wrote nothing, and
-carried no `x-request-id`.
+nothing else in `demo` wrote a token or session row after `$SINCE`. The
+login also wrote a `login.password` row, as [what a refused login leaves
+behind](#what-a-refused-login-leaves-behind) shows for a refusal; it is an
+`authentication` row, so neither page above returns it. `token.issue` and
+`token.refresh` name one grant, which rotation reuses; `session.created` and
+`session.ended` name one session. `actor_tenant_id` is `demo` on all four:
+it names the tenant the actor belongs to, which differs from the row's own
+only when the caller came from elsewhere — a `system` administrator's admin
+rows, or a `token.foreign_issuer` refusal. `session.ended` names no client
+whichever way the session ends, since ending it ends it for every client
+that shared it. The confirmation page the logout fetched first wrote
+nothing, and carried no `x-request-id`.
 
 ## The branches
 
