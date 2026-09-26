@@ -29,6 +29,30 @@ export interface AuditEventFilter {
   readonly limit: number;
 }
 
+function validatedRow(event: AuditEventInput): typeof auditEvents.$inferInsert {
+  const detail: Record<string, unknown> = event.detail ?? {};
+  if (event.eventType !== 'admin_mutation') {
+    assertActionKnown(event.eventType, event.action);
+    if (event.outcome === 'refused' && !isAuditReason(detail.reason)) {
+      throw new Error(`audit event '${event.action}' is refused but has no valid reason`);
+    }
+  }
+  assertDetailAllowed(event.action, detail);
+
+  return {
+    id: newId(),
+    eventType: event.eventType,
+    action: event.action,
+    outcome: event.outcome,
+    actorTenantId: event.actorTenantId ?? null,
+    actorSubjectId: event.actorSubjectId ?? null,
+    actorClientId: event.actorClientId ?? null,
+    resourceType: event.resourceType ?? null,
+    resourceId: event.resourceId ?? null,
+    detail,
+  };
+}
+
 export function auditRepository(tx: TenantScopedDatabase) {
   return {
     // No tenantId field: audit_events.tenant_id defaults to the same
@@ -36,27 +60,16 @@ export function auditRepository(tx: TenantScopedDatabase) {
     // transaction to — the tenant the event happened to, not whichever
     // tenant issued the caller's own token.
     async record(event: AuditEventInput): Promise<void> {
-      const detail: Record<string, unknown> = event.detail ?? {};
-      if (event.eventType !== 'admin_mutation') {
-        assertActionKnown(event.eventType, event.action);
-        if (event.outcome === 'refused' && !isAuditReason(detail.reason)) {
-          throw new Error(`audit event '${event.action}' is refused but has no valid reason`);
-        }
-      }
-      assertDetailAllowed(event.action, detail);
+      await tx.insert(auditEvents).values(validatedRow(event));
+    },
 
-      await tx.insert(auditEvents).values({
-        id: newId(),
-        eventType: event.eventType,
-        action: event.action,
-        outcome: event.outcome,
-        actorTenantId: event.actorTenantId ?? null,
-        actorSubjectId: event.actorSubjectId ?? null,
-        actorClientId: event.actorClientId ?? null,
-        resourceType: event.resourceType ?? null,
-        resourceId: event.resourceId ?? null,
-        detail,
-      });
+    // Every event is checked before any is written, and all of them go in
+    // one statement: a caller whose row count varies with what happened
+    // still issues the same number of statements either way.
+    async recordAll(events: readonly AuditEventInput[]): Promise<void> {
+      const rows = events.map(validatedRow);
+      if (rows.length === 0) return;
+      await tx.insert(auditEvents).values(rows);
     },
 
     // Ordered (occurred_at DESC, id DESC) — newest first, ties broken by id

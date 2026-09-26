@@ -226,3 +226,66 @@ describe('record and list', () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+describe('recordAll', () => {
+  it('writes every event it is given', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await auditRepository(tx).recordAll([
+        {
+          eventType: 'authentication',
+          action: 'login.password',
+          outcome: 'refused',
+          detail: { factor: 'password', reason: 'bad_credential' },
+        },
+        {
+          eventType: 'authentication',
+          action: 'lockout.tripped',
+          outcome: 'refused',
+          detail: { reason: 'locked_out' },
+        },
+      ]);
+    });
+
+    const rows = await withTenant(app.db, tenantId, (tx) =>
+      auditRepository(tx).list({ limit: 10 }),
+    );
+    expect(rows.map((row) => row.action).sort()).toEqual(['lockout.tripped', 'login.password']);
+  });
+
+  // The failure is caught inside the transaction so that it commits: a
+  // valid event written before the invalid one was checked would survive.
+  it('rejects the whole batch when one event is invalid, and writes none of it', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+
+    const refusal = await withTenant(app.db, tenantId, async (tx) => {
+      try {
+        await auditRepository(tx).recordAll([
+          {
+            eventType: 'authentication',
+            action: 'login.password',
+            outcome: 'allowed',
+            detail: { factor: 'password' },
+          },
+          {
+            eventType: 'authentication',
+            action: 'lockout.tripped',
+            outcome: 'refused',
+            detail: {},
+          },
+        ]);
+        return null;
+      } catch (error) {
+        return error;
+      }
+    });
+
+    expect(String(refusal)).toMatch(/reason/);
+    const rows = await withTenant(app.db, tenantId, (tx) =>
+      auditRepository(tx).list({ limit: 10 }),
+    );
+    expect(rows).toHaveLength(0);
+  });
+});
