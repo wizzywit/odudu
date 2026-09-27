@@ -53,6 +53,17 @@ cookie are that run's own: its `ada` is
 `01a0de12-c116-70ee-9cc1-984429980dcc`, not the subject the sections after
 it name.
 
+**The fourth stack.** "Getting the token"'s final probe and `GET /whoami`
+were recaptured together, after `whoami` started answering `capabilities`
+and `crossTenant`, against this branch's own already-running development
+stack rather than a fresh one — it carries tenants earlier sections here
+were captured against (`demo` among them) and was not torn down afterward.
+The subject behind both probes is `ada-whoami`, seeded into `system` for
+this purpose, `01a0e0a7-0ead-703a-ab34-22bcf5167d46`; its capabilities come
+from holding `tenant-admin`, which composites every capability plus
+`manage-tenants` (the same account "Getting the token" describes `ada`
+as).
+
 ## The shape of it
 
 Most of the admin endpoint lives under `/admin/tenants/{tenant}/`, mirroring
@@ -255,7 +266,9 @@ the wire, because the bytes on the wire are a signed JWT:
 
 `expires_in` is 300 seconds, so a capture session longer than five minutes
 refreshes with the `refresh_token` the same response carried. The probe
-that says the token works at all:
+that says the token works at all — captured against the fourth stack, so
+the subject is `ada-whoami` rather than the `ada` the token payload above
+belongs to:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -263,7 +276,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"subjectId":"01a0de12-c116-70ee-9cc1-984429980dcc","issuerTenantId":"0199aa00-0000-7000-8000-000000000001"}
+{"subjectId":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","tenant-admin","view-audit","view-users"],"crossTenant":false}
 ```
 
 ## `GET /admin/tenants`
@@ -898,14 +911,27 @@ The identity probe: what an operator reaches for when a token is not
 working and they need to know what the server thinks it is, before
 debugging anything else. It requires an authenticated caller and no
 capability beyond that — any admin token good enough to reach this tenant's
-admin surface at all can call it.
+admin surface at all can call it, the one route the capability matrix
+(`packages/protocol-admin/tests/capability-matrix.int.test.ts`) proves
+every `TenantCapability` admits.
 
-It answers `subjectId` (the token's `sub`) and `issuerTenantId` — the
-tenant that **issued** the token, not the tenant named in the URL. The
-captured run is under "Getting the token" above, against
-`/admin/tenants/system/whoami`; the first stack's token against `demo`
-answers the same shape for its own `ada`, `issuerTenantId` still naming
-`system`:
+It answers `subjectId` (the token's `sub`), `issuerTenantId` — the tenant
+that **issued** the token, not the tenant named in the URL — `capabilities`
+and `crossTenant`. `capabilities` is the caller's own effective capability
+roles, resolved on its issuing tenant's built-in admin client exactly the
+way `authorizeAdmin` resolves them (`callerCapabilities`,
+`packages/protocol-admin/src/index.ts`) — composites included, so a
+`manage-users` holder sees `view-users` alongside it — sorted, and the
+same set regardless of which tenant is named in the path: what a caller
+may do is fixed by where its roles live, not by what it is asking about.
+`crossTenant` is `true` when the path tenant differs from the issuing one,
+which is exactly when reaching a capability-gated route here also needs
+`manage-tenants` ("The shape of it" above).
+
+The captured run is under "Getting the token" above, against
+`/admin/tenants/system/whoami` (`crossTenant: false`, the caller's own
+tenant). The same token against `demo` — a tenant `ada-whoami` never
+issued from — answers identical `capabilities`, `crossTenant` now `true`:
 
 ```bash
 curl -sS \
@@ -914,7 +940,7 @@ curl -sS \
 ```
 
 ```
-{"subjectId":"01a0d6fb-0918-7846-b430-0a714b8bf7bf","issuerTenantId":"0199aa00-0000-7000-8000-000000000001"}
+{"subjectId":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","tenant-admin","view-audit","view-users"],"crossTenant":true}
 ```
 
 ## `GET /subjects`

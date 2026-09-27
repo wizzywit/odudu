@@ -54,6 +54,7 @@ import {
   signingKeySchema,
   subjectSchema,
   tenantSchema,
+  whoamiResponseSchema,
 } from '@odudu/contracts/admin';
 import { MANAGE_TENANTS, type TenantCapability } from '@odudu/domain-tenant';
 import { z } from 'zod';
@@ -99,7 +100,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     method: 'GET',
     pattern: '/admin/tenants/:tenant/whoami',
     capability: null,
-    responseSchema: z.object({ subjectId: z.string(), issuerTenantId: z.string() }),
+    responseSchema: whoamiResponseSchema,
   },
   {
     method: 'GET',

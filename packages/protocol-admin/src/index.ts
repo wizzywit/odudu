@@ -334,7 +334,7 @@ function buildAdminRoutes(
       cursorKey: deps.cursorKey,
     };
     const handlers: AdminRouteHandlers = {
-      'GET /admin/tenants/:tenant/whoami': whoamiHandler,
+      'GET /admin/tenants/:tenant/whoami': whoamiHandler({ callerCapabilities }),
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
       'POST /admin/tenants/:tenant/subjects': createSubjectHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id': readSubjectHandler(subjectsDeps),
