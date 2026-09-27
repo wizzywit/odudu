@@ -124,7 +124,9 @@ rebuild, as a new admin subject `ada-export`, in a tenant `export-demo`
 created for it, as that section says. `POST /admin/tenant-imports` was
 captured after one more rebuild, as a new admin subject `ada-import`, from
 a tenant `import-source` created for it into a tenant `import-demo`, as
-that section says.
+that section says. The range refusals under `PATCH /settings` were captured
+after a further rebuild, as the same `ada-import`, in a tenant
+`settings-range-demo`; the rest of that section was not re-run.
 
 ## The shape of it
 
@@ -1034,9 +1036,10 @@ The 29 columns `tenants` carries beyond identity — everything
 map, `@odudu/domain-tenant`'s `SETTINGS`
 (`packages/domain-tenant/src/service/tenant-settings.ts`): a name a caller
 writes and a column a migration owns, never restated a second time. Ranges
-are not in that map — they are `CHECK` constraints on `tenants`, so a value
-outside one is refused by the database itself, not by a second copy of the
-rule here.
+are `CHECK` constraints on `tenants`, restated beside that map as
+`tenantSettingProblems` so a value outside one is refused before the write;
+`packages/domain-tenant/tests/tenant-setting-checks.int.test.ts` holds the
+two in agreement, and the `CHECK` still stands behind it.
 
 Requires `manage-tenant` on the tenant named in the path — a tenant-local
 admin's own capability, so a system admin reaches it only by also holding
@@ -1108,11 +1111,40 @@ server itself:
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown tenant setting \"nonesuch\"; expected one of display_name, enabled, registration_allowed, verify_email, reset_password_allowed, sso_session_idle_seconds, sso_session_max_seconds, password_min_length, password_require_digit, password_require_uppercase, password_require_lowercase, password_require_special, password_not_username, password_not_email, password_history_depth, password_max_age_days, otp_required, brute_force_max_failures, brute_force_lockout_seconds, brute_force_max_lockout_seconds, brute_force_failure_reset_seconds, client_registration_policy, max_clients, max_sessions_per_browser, remember_me_allowed, remember_me_idle_seconds, remember_me_max_seconds, audit_retention_days, username_editable","instance":"01a0e37c-7b7c-7b93-a28d-6c6e358a7c92"}
 ```
 
-A value the map itself coerces but the database's `CHECK` still
-refuses — `password_min_length` outside `8..256`, for instance — is also
-`400`, naming the setting rather than the constraint that fired: the
-database stays the one authority for the range, and the caller still learns
-which value it refused. A setting's value may be sent as its JSON type
+A value the map coerces but outside its range — `password_min_length`
+outside `8..256`, for instance — is refused with `400` before anything is
+written, every such setting listed together under `errors` by its name. An
+idle lifetime is judged against the maximum it would sit under once the
+patch is applied, the stored one when the patch leaves it alone. Captured
+against the fourth stack after its `odudu` service was rebuilt from this
+branch, as `ada-import` (the admin `POST /admin/tenant-imports` was
+captured as), in a tenant `settings-range-demo` created for it — its stored
+values first:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/settings-range-demo/settings \
+  | jq -c '{password_min_length, max_sessions_per_browser, sso_session_idle_seconds, sso_session_max_seconds}'
+for body in '{"password_min_length": 4}' \
+            '{"password_min_length": 4, "max_sessions_per_browser": 99}' \
+            '{"sso_session_idle_seconds": 40000}'; do
+  curl -sS -X PATCH \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$body" \
+    http://localhost:3000/admin/tenants/settings-range-demo/settings
+  echo
+done
+```
+
+```
+{"password_min_length":8,"max_sessions_per_browser":25,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"1 tenant setting(s) outside the permitted range, listed under errors","errors":[{"path":"password_min_length","message":"must be between 8 and 256"}],"instance":"01a0e50e-af82-7d71-9707-90c95f5bc100"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"2 tenant setting(s) outside the permitted range, listed under errors","errors":[{"path":"password_min_length","message":"must be between 8 and 256"},{"path":"max_sessions_per_browser","message":"must be between 1 and 32"}],"instance":"01a0e50e-af99-7032-8cb9-ad764a4a3a15"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"1 tenant setting(s) outside the permitted range, listed under errors","errors":[{"path":"sso_session_idle_seconds","message":"must not exceed sso_session_max_seconds"}],"instance":"01a0e50e-afb0-72d3-a667-8e7576e63166"}
+```
+
+A setting's value may be sent as its JSON type
 (`true`, `14`) or as the equivalent string (`"true"`, `"14"`) — both reach
 the same `coerceTenantSetting` the CLI uses, which reads a string either
 way.

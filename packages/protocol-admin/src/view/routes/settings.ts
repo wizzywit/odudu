@@ -93,6 +93,16 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
               : `tenant setting ${outcome.name} must be one of ${outcome.values.join(', ')}`,
           ),
         );
+      case 'out_of_range':
+        return sendProblem(reply, request, {
+          ...problem(
+            400,
+            'about:blank',
+            'Bad Request',
+            `${String(outcome.problems.length)} tenant setting(s) outside the permitted range, listed under errors`,
+          ),
+          errors: outcome.problems.map(({ name, message }) => ({ path: name, message })),
+        });
       case 'system_tenant_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
       case 'precondition_failed':

@@ -6,6 +6,8 @@ import {
   TENANT_SETTING_NAMES,
   tenantSettingsRepository,
   TenantSettingCheckViolationError,
+  tenantSettingProblems,
+  type TenantSettingProblem,
   type TenantSettingsRecord,
 } from '@odudu/domain-tenant';
 import { etagOf, matches } from '#/service/etag';
@@ -65,17 +67,16 @@ export type AmendSettingsOutcome =
       expected: 'boolean' | 'integer' | 'text';
       values?: readonly string[];
     }
+  | { kind: 'out_of_range'; problems: readonly TenantSettingProblem[] }
   | { kind: 'system_tenant_guarded'; reason: string }
   | { kind: 'precondition_failed' };
 
-// Thrown, never returned: by the time the CHECK fires, the UPDATE has
-// already left Postgres refusing every further statement on this
-// connection until a ROLLBACK, which is what throwing out of `withTenant`'s
-// transaction triggers, rather than trying to recover and continue inside
-// an already-aborted one. `settingNames` is every name this request
-// supplied — a CHECK's own name does not reliably map back to one column
-// (some name more than one), so a request that touched more than one
-// setting cannot say which of them was refused.
+// A backstop: `tenantSettingProblems` refuses every range first. Thrown,
+// never returned: by the time the CHECK fires, the UPDATE has left Postgres
+// refusing every further statement until a ROLLBACK, which throwing out of
+// `withTenant`'s transaction triggers. `settingNames` is every name this
+// request supplied — a CHECK's own name does not reliably map back to one
+// column, so a request touching several cannot say which was refused.
 export class AmendSettingsRefusedError extends Error {
   readonly settingNames: readonly string[];
 
@@ -153,6 +154,14 @@ export async function amendSettings(
   if (coerced.settings.length === 0) {
     return { kind: 'amended', settings: current.settings, etag: current.etag };
   }
+
+  // Judged over the stored row with the patch laid on it, so a patch that
+  // moves only an idle lifetime is held to the maximum already stored.
+  const problems = tenantSettingProblems({
+    ...current.settings,
+    ...Object.fromEntries(coerced.settings.map((setting) => [setting.name, setting.value])),
+  });
+  if (problems.length > 0) return { kind: 'out_of_range', problems };
 
   const columns = Object.fromEntries(
     coerced.settings.map((setting) => [setting.column, setting.value]),

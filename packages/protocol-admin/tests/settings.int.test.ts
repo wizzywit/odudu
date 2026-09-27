@@ -61,18 +61,63 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it('lets the database refuse a value outside its CHECK', async () => {
-    // Ranges are CHECK constraints, deliberately not restated in the
-    // settings map — a policy no writer may bypass belongs at the database.
-    const t = await fixture.createTenant(`acme-${newId()}`);
-    const token = await fixture.adminToken(t.name, ['manage-tenant']);
-    const res = await fixture.http.inject({
+  interface RangeRefusal {
+    readonly detail: string;
+    readonly errors?: readonly { readonly path: string; readonly message: string }[];
+  }
+
+  async function patchSettings(tenantName: string, payload: Record<string, unknown>) {
+    const token = await fixture.adminToken(tenantName, ['manage-tenant']);
+    return fixture.http.inject({
       method: 'PATCH',
-      url: `/admin/tenants/${t.name}/settings`,
+      url: `/admin/tenants/${tenantName}/settings`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { password_min_length: -5 },
+      payload,
     });
+  }
+
+  it('refuses a value outside its range before writing, naming the setting', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+
+    const res = await patchSettings(t.name, { password_min_length: -5 });
+
     expect(res.statusCode).toBe(400);
+    expect(res.json<RangeRefusal>().errors).toEqual([
+      { path: 'password_min_length', message: 'must be between 8 and 256' },
+    ]);
+  });
+
+  it('reports every out-of-range value together', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+
+    const res = await patchSettings(t.name, {
+      password_min_length: 4,
+      max_sessions_per_browser: 99,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json<RangeRefusal>().errors ?? []).map((error) => error.path).sort()).toEqual([
+      'max_sessions_per_browser',
+      'password_min_length',
+    ]);
+  });
+
+  it('judges an idle lifetime against the stored maximum it would exceed', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const stored = await withTenant(fixture.app.db, t.id, (tx) =>
+      tenantSettingsRepository(tx).byId(t.id),
+    );
+    expect(stored?.sso_session_max_seconds).toBe(36_000);
+
+    const res = await patchSettings(t.name, { sso_session_idle_seconds: 40_000 });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<RangeRefusal>().errors).toEqual([
+      { path: 'sso_session_idle_seconds', message: 'must not exceed sso_session_max_seconds' },
+    ]);
+    await withTenant(fixture.app.db, t.id, async (tx) => {
+      expect((await tenantSettingsRepository(tx).byId(t.id))?.sso_session_idle_seconds).toBe(1800);
+    });
   });
 
   it('refuses a registration policy the database CHECK would also refuse, naming the three it allows', async () => {
