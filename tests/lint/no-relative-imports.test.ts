@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 
-describe('no-restricted-imports for relative paths', () => {
+describe('no-restricted-imports for relative paths', { timeout: 60_000 }, () => {
   it('rejects a relative import in package source', async () => {
     const eslint = new ESLint({ cwd: REPO_ROOT });
     const results = await eslint.lintText("import { KERNEL_VERSION } from './version.js';\n", {

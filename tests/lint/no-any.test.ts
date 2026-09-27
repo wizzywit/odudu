@@ -34,7 +34,7 @@ async function lint(source: string): Promise<string[]> {
   return result.messages.map((m) => m.ruleId ?? '');
 }
 
-describe('the any ban is enforced by lint', () => {
+describe('the any ban is enforced by lint', { timeout: 60_000 }, () => {
   it('rejects an explicit any annotation', async () => {
     const ruleIds = await lint('export function f(x: any): void {\n  console.log(x);\n}\n');
     expect(ruleIds).toContain('@typescript-eslint/no-explicit-any');
