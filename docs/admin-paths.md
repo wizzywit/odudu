@@ -340,7 +340,7 @@ the call above had just taken:
 ```
 
 And the DNS-label refusal, captured against a third stack — the request
-above with `Acme` in place of `demo`, which creates nothing:
+above with `Acme` in place of `demo`:
 
 ```bash
 curl -sS -D - -X POST \

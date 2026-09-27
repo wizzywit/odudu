@@ -5,4 +5,4 @@
 -- repeats this pattern exactly.
 ALTER TABLE tenants
   ADD CONSTRAINT tenants_name_dns_label
-  CHECK (name ~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$');
+  CHECK (name ~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$');

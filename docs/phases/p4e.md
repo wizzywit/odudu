@@ -114,13 +114,16 @@ session is form validation, and a logout that ends nothing changes nothing.
 A foreign-issuer check compared `tenantIssuer(base, name)` against `iss`
 after a `startsWith` that already guaranteed equality, and was added as
 defence in depth. It could not fail, and was deleted. The `/` check beside
-it looked equally redundant and is not: at the time, tenant names were
-unconstrained strings (`z.string().min(1)`, no `CHECK`), so a name
-containing `/` nested one tenant's issuer under another's. It had a test
-that failed without it. Constraining tenant names was not this phase's
-topic; P4d's `tenants_name_dns_label`
-(`packages/db/drizzle/0072_tenant_name_rule.sql`) closed it, and that test
-now proves the database refuses such a name outright.
+it (`resolveForeignIssuer`,
+`packages/protocol-admin/src/usecase/authenticate-admin.ts:140`) looked
+equally redundant and was not, at the time: tenant names were unconstrained
+strings (`z.string().min(1)`, no `CHECK`), so a name containing `/` nested
+one tenant's issuer under another's, and it had a test that failed without
+it. Constraining tenant names was not this phase's topic; P4d's
+`tenants_name_dns_label` (`packages/db/drizzle/0072_tenant_name_rule.sql`)
+closed it, so a `/`-bearing name can no longer reach a row at all — the
+check at line 140 is now defence in depth with no test that fails without
+it, the same shape as the one just above it.
 
 A throw inside foreign-issuer resolution turned the admin door's `401` into
 a `500`, which is the property P4c reverted its first attempt over. It now

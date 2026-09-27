@@ -314,6 +314,8 @@ async function resolveTenantId(ownerDb: Database, tenantName: string): Promise<R
     };
   }
 
+  refuseInvalidOrReservedTenantName(tenantName);
+
   const tenantId = newId();
   await lookup.create({ id: tenantId, name: tenantName });
   return { tenantId, created: true, passwordPolicy: await passwordPolicyFor(ownerDb, tenantId) };
@@ -471,11 +473,13 @@ async function performSeed(
 // own configuration and opens its own connections so that both the
 // container smoke test and CI can invoke it as a plain one-shot command.
 async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
-  // This form resolves a tenant by name and creates one under a fresh id
-  // when it finds none, which for `system` would leave `seed admin` — which
-  // keys that tenant on a fixed id — refusing to run afterward. The `seed
-  // tenant` subcommand and the admin API's `createTenant` refuse the same
-  // name through this same predicate.
+  // Checked here, before any database connection opens: resolving `system`
+  // by name would create it under a fresh id, leaving `seed admin` — which
+  // keys that tenant on a fixed id — refusing to run afterward. A reserved
+  // name that does not carry that particular failure mode, and an invalid
+  // shape, are refused the moment this call actually tries to create a row
+  // — resolveTenantId's create branch runs the same guard `seed tenant` and
+  // the admin API's `createTenant` do.
   refuseSystemTenantName(opts.tenant);
   assertAbsoluteRedirectUris(opts.redirectUris);
   assertUserOptionsPaired(opts);
@@ -862,16 +866,36 @@ interface ResolvedRole {
   id: string;
 }
 
-// Three doors refuse this name by the one predicate (isSystemTenantName,
-// @odudu/domain-tenant): `seed tenant`, the options form of `seed`, and the
-// admin API's `createTenant`, which answers 409 rather than the unique
-// index's constraint violation. Exported so a test can prove the answer is
-// identical without opening a database.
+// The options form of `seed` checks this before it opens a database
+// connection: resolving `system` here would create it under a fresh id,
+// leaving `seed admin` — which keys that tenant on a fixed id — refusing
+// to run afterward. Exported so a test can prove the answer without
+// opening a database. refuseInvalidOrReservedTenantName below covers the
+// rest of the rule, the moment this same door actually creates a row.
 export function refuseSystemTenantName(name: string): void {
   if (isSystemTenantName(name)) {
     throw new OduduError(
       'seed_system_tenant_conflict',
       `${name} is the reserved name of the system tenant`,
+    );
+  }
+}
+
+// The one guard every door that can create a tenant runs before writing the
+// row: `seed tenant`, the options form of `seed` (through resolveTenantId's
+// create branch below) and the admin API's `createTenant`
+// (@odudu/protocol-admin), which maps the same two predicates to 400 and
+// 409 rather than a raw CHECK violation or an unreserved shadow route. A
+// lookup of a tenant that already exists never reaches this — a name that
+// predates the rule still resolves.
+function refuseInvalidOrReservedTenantName(name: string): void {
+  if (!isValidTenantName(name)) {
+    throw new OduduError('seed_invalid_options', TENANT_NAME_RULE);
+  }
+  if (isReservedTenantName(name)) {
+    throw new OduduError(
+      'seed_system_tenant_conflict',
+      `${JSON.stringify(name)} is a reserved tenant name`,
     );
   }
 }
@@ -903,19 +927,10 @@ async function runTenantCommand(
     throw new OduduError('seed_invalid_options', 'seed tenant requires --name');
   }
   const tenantName = values.name;
-  // Unlike `seedClientBootstrap`, which only ever needs to keep `system`
-  // free for `seed admin`, this is the door an operator names a tenant
-  // through directly, so it owns the full rule: a shape a resolver would
-  // reject, and every name a later route would shadow.
-  if (!isValidTenantName(tenantName)) {
-    throw new OduduError('seed_invalid_options', TENANT_NAME_RULE);
-  }
-  if (isReservedTenantName(tenantName)) {
-    throw new OduduError(
-      'seed_system_tenant_conflict',
-      `${JSON.stringify(tenantName)} is a reserved tenant name`,
-    );
-  }
+  // Named directly by an operator, so refused up front rather than left to
+  // resolveTenantId's own call of the same guard below — a typo is reported
+  // before --set is even parsed, not after.
+  refuseInvalidOrReservedTenantName(tenantName);
   // Parsed before the tenant is touched, so a typo in the third --set does
   // not leave the first two applied.
   const settings = parseSettings(values.set ?? []);

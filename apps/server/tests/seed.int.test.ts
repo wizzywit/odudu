@@ -203,6 +203,27 @@ describe('seed', () => {
     await expect(seed({ ...options, redirectUris: ['/callback'] })).rejects.toThrow(/absolute/);
   });
 
+  // seedClientBootstrap is a third door that can create a tenant
+  // (resolveTenantId's create branch, when the name it is given resolves to
+  // no existing row) — the same rule createTenant and `seed tenant` refuse
+  // through applies here too, so this door cannot hand a caller a reserved
+  // or malformed tenant a raw CHECK violation would otherwise report.
+  it('refuses the reserved tenant name count, creating nothing', async () => {
+    const options = uniqueOptions();
+
+    await expect(seed({ ...options, tenant: 'count' })).rejects.toThrow(/reserved/);
+    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, 'count'));
+    expect(rows).toHaveLength(0);
+  });
+
+  it('refuses a tenant name that is not a DNS label, naming the rule', async () => {
+    const options = uniqueOptions();
+
+    await expect(seed({ ...options, tenant: 'Acme' })).rejects.toThrow(TENANT_NAME_RULE);
+    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, 'Acme'));
+    expect(rows).toHaveLength(0);
+  });
+
   it('refuses a second run with a different client secret for the same client', async () => {
     const options = uniqueOptions();
 
@@ -509,8 +530,10 @@ describe('seed tenant --set', () => {
     expect(result).not.toHaveProperty('settings');
   });
 
-  it('refuses a name that is not a DNS label, naming the rule', async () => {
+  it('refuses a name that is not a DNS label, naming the rule and creating nothing', async () => {
     await expect(seed(['tenant', '--name', 'Acme'])).rejects.toThrow(TENANT_NAME_RULE);
+    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, 'Acme'));
+    expect(rows).toHaveLength(0);
   });
 
   it('refuses the reserved name count, the same as system', async () => {
