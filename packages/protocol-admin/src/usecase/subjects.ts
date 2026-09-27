@@ -602,14 +602,14 @@ export async function amendSubject(
     return { kind: 'ok', subject: viewOfLocked(locked), etag: currentEtag };
   }
 
-  if (patch.username !== undefined) {
-    await userRepository(tx).updateUsername(input.subjectId, patch.username.value);
-  }
   if (patch.enabled !== undefined) {
     await subjectRepository(tx).setEnabled(input.subjectId, patch.enabled.value);
   }
   if (patch.email !== undefined) {
     await userRepository(tx).updateEmail(input.subjectId, patch.email.value);
+  }
+  if (patch.username !== undefined) {
+    await userRepository(tx).updateUsername(input.subjectId, patch.username.value);
   }
 
   const after = await readSubject(tx, input.subjectId);

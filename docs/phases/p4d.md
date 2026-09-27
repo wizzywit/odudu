@@ -689,3 +689,11 @@ because this write is an infrequent, single-subject admin action, never a
 per-request path; a tenant large enough to need one names it against the
 same `token_grants` an already-open PR could give a covering index without
 touching this call.
+
+## Leftovers on the shared development stack
+
+The `infra/docker` stack the admin-paths transcripts are captured on holds
+a tenant `probe-rename-access`, created while checking a system admin's
+reach before the rename capture; no transcript names it and no endpoint
+deletes a tenant, so it stays until that stack is next rebuilt from an
+empty volume.

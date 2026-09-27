@@ -923,7 +923,7 @@ function patchSubject(
 async function readSubjectBody(
   tenantName: string,
   id: string,
-): Promise<{ etag: string; username: string | null; email: string | null }> {
+): Promise<{ etag: string; username: string | null; email: string | null; enabled: boolean }> {
   const res = await fixture.http.inject({
     method: 'GET',
     url: `/admin/tenants/${tenantName}/subjects/${id}`,
@@ -932,8 +932,8 @@ async function readSubjectBody(
   expect(res.statusCode).toBe(200);
   const etag = res.headers.etag;
   if (typeof etag !== 'string') throw new Error('GET subject carried no ETag');
-  const body = res.json<{ username: string | null; email: string | null }>();
-  return { etag, username: body.username, email: body.email };
+  const body = res.json<{ username: string | null; email: string | null; enabled: boolean }>();
+  return { etag, username: body.username, email: body.email, enabled: body.enabled };
 }
 
 async function amendRows(tenantId: string, subjectId: string) {
@@ -1019,6 +1019,12 @@ describe('PATCH /admin/tenants/{t}/subjects/{id} — renaming a username', () =>
       headers: { authorization: `Bearer ${token}` },
     });
     expect(found.json<{ items: { id: string }[] }>().items.map((item) => item.id)).toEqual([id]);
+    const byOld = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects?username=${encodeURIComponent(before)}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(byOld.json<{ items: unknown[] }>().items).toEqual([]);
 
     const rows = await amendRows(t.id, id);
     expect(rows).toHaveLength(1);
@@ -1087,7 +1093,7 @@ describe('PATCH /admin/tenants/{t}/subjects/{id} — renaming a username', () =>
       t.name,
       id,
       token,
-      { username: taken, email: `new-${newId()}@example.com` },
+      { username: taken, enabled: false, email: `new-${newId()}@example.com` },
       etag,
     );
     expect(res.statusCode).toBe(409);
@@ -1095,7 +1101,7 @@ describe('PATCH /admin/tenants/{t}/subjects/{id} — renaming a username', () =>
       `the username ${JSON.stringify(taken)} is already in use`,
     );
     const now = await readSubjectBody(t.name, id);
-    expect(now).toEqual({ etag, username: mine, email });
+    expect(now).toEqual({ etag, username: mine, email, enabled: true });
     expect(await amendRows(t.id, id)).toHaveLength(0);
   });
 
@@ -1143,19 +1149,22 @@ describe('PATCH /admin/tenants/{t}/subjects/{id} — renaming a username', () =>
     expect((await readSubjectBody(t.name, id)).username).toBe(username);
   });
 
-  it('answers 409 for an email another subject holds, rather than failing', async () => {
+  it('answers 409 for an email another subject holds, and applies nothing else in the body', async () => {
     const t = await fixture.createTenant(`amend-email-409-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users']);
     const email = `taken-${newId()}@example.com`;
     const { id: holder } = await fixture.createSubject(t.name, `holder-${newId()}`);
     expect((await patchSubject(t.name, holder, token, { email })).statusCode).toBe(200);
     const { id } = await fixture.createSubject(t.name, `other-${newId()}`);
+    const before = await readSubjectBody(t.name, id);
 
-    const res = await patchSubject(t.name, id, token, { email });
+    const res = await patchSubject(t.name, id, token, { enabled: false, email });
     expect(res.statusCode).toBe(409);
     expect(res.json<{ detail: string }>().detail).toBe(
       `the email ${JSON.stringify(email)} is already in use`,
     );
+    expect(await readSubjectBody(t.name, id)).toEqual(before);
+    expect(before.enabled).toBe(true);
   });
 });
 

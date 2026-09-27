@@ -124,17 +124,18 @@ administrator rename a subject's username through
 `PATCH /admin/tenants/{tenant}/subjects/{id}`, always under `If-Match`
 ([docs/admin-paths.md](docs/admin-paths.md#renaming-a-username)); `sub` does
 not change, so sessions, refresh tokens and lockout counters survive it,
-and the old name stops signing in at once. Outgoing mail goes through `ODUDU_SMTP_HOST`,
-`ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`, `ODUDU_SMTP_USERNAME`,
-`ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`; leave `ODUDU_SMTP_HOST`
-unset and the server logs every message instead of sending it, which is what
-the compose stack does. A tenant can override all of it with its own
-transport — `PUT /admin/tenants/{tenant}/smtp`, whose password is stored
-under the same key-encryption envelope a signing key's private half uses —
-and `POST /admin/tenants/{tenant}/smtp/test` sends one message through it
-before a user's verification mail depends on it. A tenant's configuration
-that carries a username or a password is refused unless `starttls` is on,
-and its `host` is held to ADR 0028's address rules before any connection —
+and the old name stops signing in at once. Outgoing mail goes through
+`ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
+`ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`;
+leave `ODUDU_SMTP_HOST` unset and the server logs every message instead of
+sending it, which is what the compose stack does. A tenant can override all
+of it with its own transport — `PUT /admin/tenants/{tenant}/smtp`, whose
+password is stored under the same key-encryption envelope a signing key's
+private half uses — and `POST /admin/tenants/{tenant}/smtp/test` sends one
+message through it before a user's verification mail depends on it. A
+tenant's configuration that carries a username or a password is refused
+unless `starttls` is on, and its `host` is held to ADR 0028's address rules
+before any connection —
 `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS` re-admits the private ranges where a
 relay genuinely is internal, and loopback stays refused regardless. See
 [the address verification section of docs/request-paths.md](docs/request-paths.md#address-verification)
