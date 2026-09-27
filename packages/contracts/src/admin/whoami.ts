@@ -7,7 +7,7 @@ import { z } from 'zod';
 // TENANT_ADMIN and any other role defined on the built-in admin client —
 // those are composite roles, not members of the capability vocabulary
 // whoami reports.
-const ADMIN_CAPABILITIES = [
+export const ADMIN_CAPABILITIES = [
   'view-users',
   'manage-users',
   'manage-clients',

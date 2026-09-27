@@ -165,7 +165,7 @@ export {
   createKeyRequestSchema,
   type CreateKeyRequest,
 } from '#/admin/keys';
-export { whoamiResponseSchema, type WhoamiResponse } from '#/admin/whoami';
+export { whoamiResponseSchema, type WhoamiResponse, ADMIN_CAPABILITIES } from '#/admin/whoami';
 export {
   executionRequirementSchema,
   type ExecutionRequirement,
