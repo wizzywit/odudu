@@ -110,6 +110,17 @@ async function mintSigningKey(
 }
 
 /**
+ * Thrown by `insertProvisionedTenant` when the tenants row alone collides
+ * on its name — never for a violation anywhere in provisioning after it.
+ */
+export class TenantNameTakenError extends Error {
+  constructor() {
+    super('a tenant already holds that name');
+    this.name = 'TenantNameTakenError';
+  }
+}
+
+/**
  * The row, its browser flow, its built-in admin client and its signing key,
  * inside a transaction `withTenant` has already bound to `row.id` — shared
  * by creating a tenant and importing one, so the two cannot provision
@@ -120,7 +131,13 @@ export async function insertProvisionedTenant(
   kek: Uint8Array,
   row: { readonly id: string; readonly name: string; readonly displayName: string | null },
 ): Promise<TenantRecord> {
-  const rows = await tx.insert(tenants).values(row).returning(TENANT_COLUMNS);
+  let rows: TenantRecord[];
+  try {
+    rows = await tx.insert(tenants).values(row).returning(TENANT_COLUMNS);
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new TenantNameTakenError();
+    throw error;
+  }
   const created = rows[0];
   if (created === undefined) throw new Error('insert into tenants returned no row');
   await provisionTenant(tx, row.id);
@@ -190,7 +207,7 @@ export async function createTenant(
     // (#/usecase/clients.ts). Under row-level security a tenant holding
     // this name is not even visible to a lookup here, so the unique index
     // is the only thing that can answer.
-    if (isUniqueViolation(error)) return { kind: 'name_taken' };
+    if (error instanceof TenantNameTakenError) return { kind: 'name_taken' };
     throw error;
   }
 

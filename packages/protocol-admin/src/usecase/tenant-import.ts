@@ -12,7 +12,6 @@ import {
   type TenantDocument,
 } from '@odudu/contracts/admin';
 import {
-  isUniqueViolation,
   withTenant,
   type Database,
   type RequestContext,
@@ -40,7 +39,7 @@ import { tenantSmtpRepository } from '#/repository/tenant-smtp';
 import { CLAIM_KEY } from '#/usecase/profile';
 import { type MapperCatalogue } from '#/usecase/scope-mappers';
 import { roleKey, validateTenantImport } from '#/usecase/tenant-import-validation';
-import { insertProvisionedTenant, readTenant } from '#/usecase/tenants';
+import { insertProvisionedTenant, readTenant, TenantNameTakenError } from '#/usecase/tenants';
 
 export interface TenantImportAuditEvent {
   readonly action: 'tenant.import';
@@ -93,8 +92,6 @@ export type ImportTenantOutcome =
       readonly tenant: Tenant;
       readonly clientSecrets: readonly ImportedClientSecret[];
     };
-
-class TenantNameTakenError extends Error {}
 
 // Matches `generateClientSecret` in #/usecase/clients.ts: 256 bits.
 function generateClientSecret(): string {
@@ -422,16 +419,11 @@ export async function importTenant(
       deps.database,
       id,
       async (tx) => {
-        try {
-          await insertProvisionedTenant(tx, deps.kek, {
-            id,
-            name: input.name,
-            displayName: input.displayName ?? document.settings.display_name,
-          });
-        } catch (error) {
-          if (isUniqueViolation(error)) throw new TenantNameTakenError();
-          throw error;
-        }
+        await insertProvisionedTenant(tx, deps.kek, {
+          id,
+          name: input.name,
+          displayName: input.displayName ?? document.settings.display_name,
+        });
         const clientSecrets = await writeDocument(tx, deps, id, document, metadata);
 
         await deps.audit(tx, {
@@ -462,8 +454,8 @@ export async function importTenant(
     );
   } catch (error) {
     // Either leaves the transaction rolled back, with nothing of the tenant
-    // written. Setting ranges are CHECK constraints alone (migrations 0028,
-    // 0035, 0041 and 0049), the one problem only a write can find.
+    // written. The settings refusal is a backstop: `tenantSettingProblems`
+    // already refused every range its CHECKs hold, before any write.
     if (error instanceof TenantNameTakenError) return { kind: 'name_taken' };
     if (error instanceof TenantSettingCheckViolationError) {
       return {

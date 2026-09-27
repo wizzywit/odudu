@@ -14,8 +14,10 @@ import {
   isValidTenantName,
   TENANT_DEFAULT_SCOPE_NAMES,
   TENANT_NAME_RULE,
+  tenantSettingProblems,
 } from '@odudu/domain-tenant';
 import {
+  clientTokenTtlProblem,
   isWellFormedWebOrigin,
   parseClientMetadata,
   type ClientMetadata,
@@ -44,23 +46,6 @@ export type ValidateImportOutcome =
 const SCOPE_NAME = /^[\x21\x23-\x5B\x5D-\x7E]+$/u;
 const GROUP_PATH = /^(?:\/[^/]+)+$/u;
 
-// Longest first, so `jwks_uri` is matched before the `jwks` it starts with.
-const METADATA_FIELDS = [
-  'tls_client_auth_subject_dn',
-  'userinfo_encrypted_response_alg',
-  'userinfo_encrypted_response_enc',
-  'userinfo_signed_response_alg',
-  'backchannel_logout_session_required',
-  'frontchannel_logout_session_required',
-  'token_endpoint_auth_method',
-  'frontchannel_logout_uri',
-  'backchannel_logout_uri',
-  'redirect_uris',
-  'grant_types',
-  'jwks_uri',
-  'jwks',
-];
-
 export function roleKey(reference: RoleReference): string {
   return `${reference.client ?? ''}\u0000${reference.name}`;
 }
@@ -75,15 +60,6 @@ function pathOf(segments: readonly PropertyKey[]): string {
       typeof segment === 'number' ? `${path}[${String(segment)}]` : `${path}.${String(segment)}`,
     'document',
   );
-}
-
-// `parseClientMetadata` answers one description for the whole body; the
-// field it names first is where the problem is, or the client when none is.
-function metadataPath(clientPath: string, description: string): string {
-  const field = METADATA_FIELDS.find(
-    (name) => description.startsWith(name) && !/^[a-z_]/u.test(description.slice(name.length)),
-  );
-  return field === undefined ? clientPath : `${clientPath}.${field}`;
 }
 
 function metadataInput(client: ExportedClient): Record<string, unknown> {
@@ -453,7 +429,8 @@ function clientProblems(
       tlsClientAuthEnabled: environment.tlsClientAuthEnabled,
     });
     if (parsed.kind === 'invalid') {
-      problems.add(metadataPath(path, parsed.description), parsed.description);
+      const at = parsed.field === undefined ? path : `${path}.${parsed.field}`;
+      problems.add(at, parsed.description);
     } else {
       metadata.set(client.client_id, parsed.metadata);
       const type = parsed.metadata.tokenEndpointAuthMethod === 'none' ? 'public' : 'confidential';
@@ -463,6 +440,10 @@ function clientProblems(
           `token_endpoint_auth_method ${parsed.metadata.tokenEndpointAuthMethod} makes it ${type}`,
         );
       }
+    }
+    for (const field of ['access_token_ttl_seconds', 'refresh_token_ttl_seconds'] as const) {
+      const outOfRange = clientTokenTtlProblem(field, client[field]);
+      if (outOfRange !== null) problems.add(`${path}.${field}`, outOfRange);
     }
     client.web_origins.forEach((origin, originIndex) => {
       if (!isWellFormedWebOrigin(origin)) {
@@ -541,8 +522,9 @@ function invariantProblems(
 /**
  * Everything an import can be refused for, decided before anything is
  * written and reported together, each problem with its path: the schema,
- * then every cross-reference, then each client through
- * `parseClientMetadata`, then the rules the admin API holds every write to.
+ * then every cross-reference and setting range, then each client through
+ * `parseClientMetadata` and its token lifetimes, then the rules the admin
+ * API holds every write to.
  */
 export function validateTenantImport(
   name: string,
@@ -564,6 +546,9 @@ export function validateTenantImport(
   groupProblems(document, graph, problems);
   scopeProblems(document, graph, environment, problems);
   subjectProblems(document, graph, problems);
+  for (const problem of tenantSettingProblems(document.settings)) {
+    problems.add(`document.settings.${problem.name}`, problem.message);
+  }
   flowAndSmtpProblems(document, environment, problems);
   const metadata = clientProblems(document, graph, environment, problems);
   invariantProblems(document, graph, environment, problems);

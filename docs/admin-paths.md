@@ -818,11 +818,14 @@ grants may carry a capability the caller does not hold, the ceiling
 `PUT /subjects/:id/roles` applies. A reserved name is a `400` here rather
 than the `409` `POST /admin/tenants` answers, so that it is reported
 beside the document's own problems. A name another tenant holds is refused
-with `409` once the request is otherwise sound, still before any write. The one
-problem found by writing is a setting outside its permitted range, since
-those ranges are CHECK constraints alone: it is answered as a `400` at
-`document.settings`, and the transaction is rolled back with nothing of the
-tenant left.
+with `409` once the request is otherwise sound, still before any write.
+The ranges the database's CHECK constraints hold settings and client token
+lifetimes to are checked among the rest, each at its own path —
+`document.settings.password_min_length`, or
+`document.clients[0].access_token_ttl_seconds` above its ceiling of 3600
+(`tenantSettingProblems`, `@odudu/domain-tenant`, and
+`clientTokenTtlProblem`, `@odudu/protocol-oidc`, each held to its
+constraints by a test that writes the boundary values).
 
 What provisioning creates is matched, never created twice. A role marked
 `builtin` is matched by its name on `odudu-admin`, a scope marked `builtin`
@@ -1150,7 +1153,13 @@ amends — `audiences`, `web_origins`, `post_logout_redirect_uris`,
 reason; a key that names nothing on the client at all is refused with `400`
 and the detail `<field>: <field> is not a client field`, naming it rather
 than silently ignoring it; `name` sent alongside a different `client_name`
-is refused the same way.
+is refused the same way. `access_token_ttl_seconds` outside 1 to 3600 and
+`refresh_token_ttl_seconds` below 1 are refused with `400`, naming the field,
+on a create and a `PATCH` alike — the ranges the database's own CHECK
+constraints hold (`0013_access_token_ttl_ceiling.sql`,
+`0014_refresh_token_ttl_floor.sql`), which otherwise surfaced as a `500`.
+No transcript shows that refusal;
+`packages/protocol-admin/tests/client-ttl-check.int.test.ts` covers it.
 
 Creating a client that names both, against `demo`. Recaptured after a
 rebuild that added `builtin_admin` and `service_subject_id` to a client's

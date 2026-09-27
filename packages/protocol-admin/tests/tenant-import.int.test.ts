@@ -487,21 +487,97 @@ describe('POST /admin/tenant-imports', () => {
     );
   });
 
-  it('refuses a setting outside its range, leaving no tenant behind', async () => {
+  it('refuses out-of-range settings and token lifetimes together, each by its path', async () => {
     const source = await seededSource();
     const token = await operatorToken();
     const document = await exportOf(token, source.name);
+    const spaIndex = document.clients.findIndex((client) => client.client_id === 'spa');
     const name = `import-${newId()}`;
 
     const res = await postImport(token, {
       name,
-      document: { ...document, settings: { ...document.settings, password_min_length: 4 } },
+      document: {
+        ...document,
+        settings: {
+          ...document.settings,
+          password_min_length: 4,
+          sso_session_idle_seconds: 7200,
+          sso_session_max_seconds: 3600,
+        },
+        clients: document.clients.map((client, index) =>
+          index === spaIndex
+            ? { ...client, access_token_ttl_seconds: 7200, refresh_token_ttl_seconds: 0 }
+            : client,
+        ),
+      },
     });
 
     expect(res.statusCode, res.payload).toBe(400);
-    expect((res.json<ImportRefusal>().errors ?? []).map((error) => error.path)).toEqual([
-      'document.settings',
-    ]);
+    expect((res.json<ImportRefusal>().errors ?? []).map((error) => error.path).sort()).toEqual(
+      [
+        'document.settings.password_min_length',
+        'document.settings.sso_session_idle_seconds',
+        `document.clients[${String(spaIndex)}].access_token_ttl_seconds`,
+        `document.clients[${String(spaIndex)}].refresh_token_ttl_seconds`,
+      ].sort(),
+    );
+    expect(await tenantIdOf(name)).toBeNull();
+  });
+
+  it('refuses a grant of a capability the caller does not hold', async () => {
+    const source = await seededSource();
+    const document = await exportOf(await operatorToken(), source.name);
+    const confidentialIndex = document.clients.findIndex(
+      (client) => client.client_id === source.confidentialId,
+    );
+    const graceIndex = (document.subjects ?? []).findIndex(
+      (subject) => subject.username === 'grace',
+    );
+    const broken: TenantDocument = {
+      ...document,
+      roles: [
+        ...document.roles,
+        {
+          name: 'helpdesk',
+          client: null,
+          description: null,
+          default_for_new_subjects: false,
+          builtin: false,
+          composites: [{ name: 'manage-users', client: ADMIN_CLIENT_ID }],
+        },
+      ],
+      clients: document.clients.map((client, index) =>
+        index === confidentialIndex
+          ? {
+              ...client,
+              service_account_roles: [
+                ...client.service_account_roles,
+                { name: 'tenant-admin', client: ADMIN_CLIENT_ID },
+              ],
+            }
+          : client,
+      ),
+      subjects: (document.subjects ?? []).map((subject, index) =>
+        index === graceIndex
+          ? { ...subject, roles: [...subject.roles, { name: 'helpdesk', client: null }] }
+          : subject,
+      ),
+    };
+    const name = `import-${newId()}`;
+
+    const res = await postImport(await fixture.systemAdminToken(['manage-tenants']), {
+      name,
+      document: broken,
+    });
+
+    expect(res.statusCode, res.payload).toBe(400);
+    const paths = (res.json<ImportRefusal>().errors ?? []).map((error) => error.path);
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        `document.clients[${String(confidentialIndex)}].service_account_roles`,
+        `document.subjects[${String(graceIndex)}].roles`,
+      ]),
+    );
     expect(await tenantIdOf(name)).toBeNull();
   });
 

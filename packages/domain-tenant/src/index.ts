@@ -1,11 +1,16 @@
 export { verifyClientSecret } from '#/service/client';
 export {
   coerceTenantSetting,
+  tenantSettingProblems,
+  TENANT_SETTING_ORDERINGS,
+  TENANT_SETTING_RANGES,
   TENANT_SETTING_NAMES,
   TENANT_SETTING_COLUMNS,
   type CoerceOutcome,
   type TenantSettingName,
   type TenantSettingColumn,
+  type TenantSettingProblem,
+  type TenantSettingRange,
 } from '#/service/tenant-settings';
 export {
   tenantSettingsRepository,
