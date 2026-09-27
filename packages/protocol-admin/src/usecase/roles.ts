@@ -26,7 +26,8 @@ export interface RoleAuditEvent {
     | 'role.composite_remove'
     | 'role.default_set';
   readonly resourceType: 'role';
-  readonly resourceId: string;
+  /** Null only for a refused create, which never produced a role. */
+  readonly resourceId: string | null;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -170,7 +171,7 @@ export interface CreateRoleDeps {
 
 export type CreateRoleOutcome =
   | { kind: 'unknown_client' }
-  | { kind: 'default_role_capability'; capabilities: readonly string[] }
+  | { kind: 'default_on_admin_client'; adminClient: string }
   | { kind: 'ok'; role: Role };
 
 export async function createRole(
@@ -189,8 +190,21 @@ export async function createRole(
       .from(clients)
       .where(eq(clients.id, input.clientId));
     if (owner.length === 0) return { kind: 'unknown_client' };
-    if (input.defaultForNewSubjects && (await builtinAdminClientOf(tx, input.clientId)) !== null) {
-      return { kind: 'default_role_capability', capabilities: [input.name] };
+    const adminClient = input.defaultForNewSubjects
+      ? await builtinAdminClientOf(tx, input.clientId)
+      : null;
+    if (adminClient !== null) {
+      await deps.audit(tx, {
+        action: 'role.create',
+        resourceType: 'role',
+        resourceId: null,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { denied: [input.name], client_id: input.clientId },
+      });
+      return { kind: 'default_on_admin_client', adminClient };
     }
   }
 
@@ -434,10 +448,11 @@ async function lockRolesForComposite(
 
 // A default role is handed to every subject created afterwards — through
 // self-registration too, where the tenant allows it — so nothing it reaches
-// may be an admin capability, whoever the caller is. Two doors could break
-// that: setting the default on a role that reaches one, and nesting one
-// under a role a default already reaches. Both take this lock last, after
-// their row locks, so neither can pass its check while the other commits.
+// may be an admin capability, whoever the caller is. Every composite write
+// and every `true` default takes this lock, after its row locks and before
+// it reads the graph: an edge that reaches no capability yet can still
+// connect a default to one another writer is adding deeper down, so the
+// lock must serialise all of them, not only those whose child reaches one.
 async function lockDefaultRoleReach(tx: TenantScopedDatabase): Promise<void> {
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtext('role_default_reach'), hashtext(current_setting('app.tenant_id')))`,
@@ -470,6 +485,7 @@ export async function addRoleComposite(
   if (!isUuid(input.childRoleId)) return { kind: 'unknown_child_role' };
 
   await lockRolesForComposite(tx, input.parentRoleId, input.childRoleId);
+  await lockDefaultRoleReach(tx);
 
   const parent = await roleRepository(tx).byId(input.parentRoleId);
   if (parent === null) return { kind: 'not_found' };
@@ -493,7 +509,6 @@ export async function addRoleComposite(
   }
 
   if (requestedCapabilities.size > 0) {
-    await lockDefaultRoleReach(tx);
     if (await reachedByDefaultRole(tx, input.parentRoleId)) {
       const capabilities = [...requestedCapabilities].sort();
       await deps.audit(tx, {

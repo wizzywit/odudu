@@ -223,7 +223,7 @@ function buildAdminRoutes(
       event: {
         readonly action: string;
         readonly resourceType: string;
-        readonly resourceId: string;
+        readonly resourceId: string | null;
         readonly actorSubjectId: string;
         readonly actorTenantId: string;
         readonly actorClientId: string;

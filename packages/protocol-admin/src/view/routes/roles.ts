@@ -160,8 +160,17 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
         problem(400, 'about:blank', 'Bad Request', 'client_id names no client'),
       );
     }
-    if (outcome.kind === 'default_role_capability') {
-      return sendProblem(reply, request, defaultRoleCapabilityProblem(outcome.capabilities));
+    if (outcome.kind === 'default_on_admin_client') {
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          403,
+          'about:blank',
+          'Forbidden',
+          `a role of ${outcome.adminClient}, this tenant's built-in admin client, is an admin capability and cannot be handed to every new subject`,
+        ),
+      );
     }
     return reply.code(201).send(outcome.role);
   };

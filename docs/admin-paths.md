@@ -2151,8 +2151,11 @@ composites**: removing one answers `409`, naming the role and the client.
 Taking `manage-users` out of `tenant-admin`, or `view-users` out of
 `manage-users`, strips that capability from every administrator holding the
 parent — the same lockout `DELETE /roles/:id` refuses for the role itself,
-and read from the same `builtin_admin` column. An edge between ordinary
-roles is removed whatever it nests, a capability included.
+and read from the same `builtin_admin` column. That includes an edge an
+operator added under a built-in capability role through
+`POST /roles/:id/composites`: it cannot be removed, and goes only when its child is deleted.
+An edge between ordinary roles is removed whatever it nests, a capability
+included.
 
 Captured against the fourth stack in `composites-demo`, created through
 `POST /admin/tenants` for it. `billing-admin` nests `billing-viewer` and
@@ -2254,7 +2257,9 @@ role is handed to strangers when registration is open, and no caller can
 hold authority on their behalf. The same rule closes the other two doors
 into that state: `POST /roles/:id/composites` refuses to nest a capability
 under a role a default role reaches, and `POST /roles` refuses
-`default_for_new_subjects: true` on a role of the built-in admin client.
+`default_for_new_subjects: true` on a role of the built-in admin client,
+each with a `refused` row too — the create's with no `resource_id`, since
+no role came of it.
 `false` is never refused.
 
 Captured against the fourth stack in `composites-demo`. `member` marked

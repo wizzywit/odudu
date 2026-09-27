@@ -10,6 +10,7 @@ import { newId } from '@odudu/kernel';
 import { and, eq, or, sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { capabilitiesReachableFrom } from '#/service/capability-ceiling';
 import { etagOf } from '#/service/etag';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import {
@@ -1302,18 +1303,35 @@ describe('PUT /admin/tenants/{t}/roles/{id}/default', () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const adminClient = await fixture.builtinAdminClient(t.name);
     const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+    const name = `default-${newId()}`;
 
     const res = await fixture.http.inject({
       method: 'POST',
       url: `/admin/tenants/${t.name}/roles`,
       headers: auth(token),
       payload: {
-        name: `default-${newId()}`,
+        name,
         client_id: adminClient.id,
         default_for_new_subjects: true,
       },
     });
     expect(res.statusCode).toBe(403);
+    expect(res.json<{ detail: string }>().detail).toContain('built-in admin client');
+    const rows = await fixture.owner.db.execute<{
+      outcome: string;
+      resource_id: string | null;
+      detail: Record<string, unknown>;
+    }>(sql`
+      select outcome, resource_id, detail from audit_events
+       where action = 'role.create' and actor_tenant_id = ${t.id}
+    `);
+    expect(rows.map((row) => ({ ...row }))).toEqual([
+      {
+        outcome: 'refused',
+        resource_id: null,
+        detail: { denied: [name], client_id: adminClient.id },
+      },
+    ]);
   });
 
   it('is still refused by PATCH, which names this operation', async () => {
@@ -1331,5 +1349,97 @@ describe('PUT /admin/tenants/{t}/roles/{id}/default', () => {
     expect(res.json<{ detail: string }>().detail).toContain(
       'PUT /admin/tenants/{tenant}/roles/{id}/default',
     );
+  });
+});
+
+describe('POST /admin/tenants/{t}/roles/{id}/composites — a default reaching a capability two edges down', () => {
+  async function lockWaits(): Promise<number> {
+    const rows = await fixture.owner.db.execute<{ waiting: number }>(
+      sql`select count(*)::int as waiting from pg_locks where not granted`,
+    );
+    return rows[0]?.waiting ?? 0;
+  }
+
+  // Resolves once `other` has settled or is blocked on a lock, whichever
+  // comes first, so a writer that never waits is observed rather than hung on.
+  async function settledOrBlocked(other: Promise<unknown>): Promise<void> {
+    const state = { settled: false };
+    const settle = (): void => {
+      state.settled = true;
+    };
+    other.then(settle, settle);
+    for (let attempt = 0; attempt < 400; attempt += 1) {
+      if (state.settled || (await lockWaits()) > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error('the second write neither finished nor blocked');
+  }
+
+  it('refuses one of D→A and B→view-users run together, so D never reaches view-users', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const d = await plainRole(t.id);
+    const a = await plainRole(t.id);
+    const b = await plainRole(t.id);
+    await nest(t.id, a, b);
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      roleRepository(tx).setDefaultForNewSubjects(d, true),
+    );
+    const viewUsers = await capabilityRoleId(t.id, 'view-users');
+    const actor = { actorSubjectId: 'test', actorTenantId: 'test-tenant', actorClientId: 'test' };
+
+    let arrive = (): void => undefined;
+    let release = (): void => undefined;
+    const arrived = new Promise<void>((resolve) => (arrive = resolve));
+    const released = new Promise<void>((resolve) => (release = resolve));
+
+    const first = withTenant(fixture.app.db, t.id, (tx) =>
+      addRoleComposite(
+        tx,
+        {
+          audit: async () => {
+            arrive();
+            await released;
+          },
+        },
+        { parentRoleId: d, childRoleId: a, callerCapabilities: new Set(), ...actor },
+      ),
+    );
+    await arrived;
+
+    const refused: RoleAuditEvent[] = [];
+    const second = withTenant(fixture.app.db, t.id, (tx) =>
+      addRoleComposite(
+        tx,
+        {
+          audit: (_tx, event) => {
+            refused.push(event);
+            return Promise.resolve();
+          },
+        },
+        {
+          parentRoleId: b,
+          childRoleId: viewUsers,
+          callerCapabilities: new Set(['view-users']),
+          ...actor,
+        },
+      ),
+    );
+    await settledOrBlocked(second);
+    release();
+
+    expect((await first).kind).toBe('ok');
+    expect((await second).kind).toBe('default_role_capability');
+    expect(refused.map((event) => event.outcome)).toEqual(['refused']);
+
+    const defaults = await withTenant(fixture.app.db, t.id, (tx) =>
+      roleRepository(tx).defaultsForTenant(),
+    );
+    const reached = await withTenant(fixture.app.db, t.id, (tx) =>
+      capabilitiesReachableFrom(
+        tx,
+        defaults.map((role) => role.id),
+      ),
+    );
+    expect([...reached]).toEqual([]);
   });
 });
