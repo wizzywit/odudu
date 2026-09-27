@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
 import {
   bypassesRowLevelSecurity,
@@ -29,6 +30,11 @@ const CURSOR_KEY = new Uint8Array(32).fill(1);
 const PLANS_OUT = process.env.LIST_PLANS_OUT;
 const SCOPED_CLIENTS = 100;
 const ROLES_PER_CLIENT = 300;
+// A grant that has been refreshed thousands of times: refresh rotation,
+// token issuance and revocation each write a 'grant' row against the same
+// resource_id, so a busy grant's own trail is not the handful of rows a
+// resource ordinarily has.
+const BUSY_RESOURCE_ROWS = 5_000;
 
 interface Statement {
   readonly query: string;
@@ -49,6 +55,7 @@ let app: DatabaseHandle;
 let captured: Statement[] | undefined;
 let targetTenantId: string;
 let scopedClientId: string;
+let busyGrantId: string;
 
 function capture(query: string, parameters: readonly unknown[]): void {
   captured?.push({ query, parameters });
@@ -147,6 +154,15 @@ beforeAll(async () => {
     select id from clients where tenant_id = ${targetTenantId} order by id limit 1`;
   if (scoped === undefined) throw new Error('no client in the target tenant');
   scopedClientId = scoped.id;
+
+  busyGrantId = randomUUID();
+  await owner.sql`
+    insert into audit_events
+      (id, tenant_id, occurred_at, event_type, action, outcome, resource_type, resource_id)
+    select gen_random_uuid(), ${targetTenantId}, now() - (n || ' seconds')::interval,
+           'token', 'token.refresh', 'allowed', 'grant', ${busyGrantId}
+      from generate_series(1, ${BUSY_RESOURCE_ROWS}) n`;
+
   await owner.sql`analyze`;
 }, 300_000);
 
@@ -460,11 +476,13 @@ describe('the plan a roles search narrowed by ?client= is given', () => {
   });
 });
 
-// `audit_events_resource` (0067) orders on (tenant_id, resource_type,
-// resource_id), not on (occurred_at, id) the listing itself orders by, so
-// a per-resource read is bounded by the index and then sorted — measured
-// below rather than held to the sort-free shape a search column's own
-// index gives the other listings.
+// `audit_events_resource` (0076) orders on (tenant_id, resource_type,
+// resource_id, occurred_at DESC, id DESC) — the listing's own order — so a
+// per-resource read stops at LIMIT through the index alone, sort-free even
+// against a resource whose own trail runs to thousands of rows (a busy
+// grant's, across refresh rotation, token issuance and revocation). 0067's
+// predecessor index ordered on the first three columns only, which left
+// this to a Sort; see docs/phases/p4d.md for the measured difference.
 describe('the plan an audit trail narrowed by resource_type and resource_id is given', () => {
   it('reads through the resource index, never the whole table', async () => {
     const list = (cursor: string | undefined) =>
@@ -489,5 +507,55 @@ describe('the plan an audit trail narrowed by resource_type and resource_id is g
     expect(scan).toBeDefined();
     expect(scan?.indexCond).toContain('resource_id =');
     await recordPlan('audit ?resource_type=client&resource_id=<id>, the first page', statement);
+  });
+
+  it.each([
+    ['the first page', false],
+    ['a later page', true],
+  ])('is a sort-free index scan bounded by a busy resource, on %s', async (page, later) => {
+    const list = (cursor: string | undefined) =>
+      withTenant(app.db, targetTenantId, async (tx) => {
+        const outcome = await listAudit(tx, {
+          tenantId: targetTenantId,
+          limit: 50,
+          cursor,
+          cursorKey: CURSOR_KEY,
+          resourceType: 'grant',
+          resourceId: busyGrantId,
+        });
+        return outcome.kind === 'ok' ? outcome.next : null;
+      });
+    // Primes postgres.js's statement cache for this exact query shape: run
+    // uncaptured once first, or `issuedBy`'s /order by/ search can instead
+    // pick up the driver's own one-time pg_type introspection query, which
+    // also happens to contain those words, ahead of the real select.
+    const primed = await list(undefined);
+    if (later && primed === null) throw new Error('the busy grant fitted on one page');
+    const cursor = later ? (primed ?? undefined) : undefined;
+    const { statement } = await issuedBy(() => list(cursor));
+
+    const [json] = await explained(app, statement, 'FORMAT JSON', targetTenantId);
+    const nodes = allNodes(rootPlan(json));
+    const scan = nodes.find((node) => node.indexName === 'audit_events_resource');
+    expect(scan?.nodeType).toBe('Index Scan');
+    expect(scan?.indexCond).toContain("resource_type = 'grant'");
+    expect(scan?.indexCond).toContain('resource_id =');
+    if (later) expect(scan?.indexCond).toContain('ROW(occurred_at');
+    expect(nodes.map((node) => node.nodeType)).not.toContain('Sort');
+    expect(nodes.map((node) => node.nodeType)).not.toContain('Incremental Sort');
+
+    if (PLANS_OUT !== undefined) {
+      const text = await explained(app, statement, 'ANALYZE, BUFFERS', targetTenantId);
+      appendFileSync(
+        PLANS_OUT,
+        [
+          `### audit ?resource_type=grant&resource_id=<busy>, ${page}`,
+          statement.query,
+          `params: ${JSON.stringify(statement.parameters)}`,
+          ...text.map(String),
+          '',
+        ].join('\n'),
+      );
+    }
   });
 });

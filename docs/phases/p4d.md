@@ -539,34 +539,55 @@ fails the build if any non-test source file under `packages/*/src`,
 
 ## The plan `GET /audit?resource_type=&resource_id=` is given
 
-`audit_events_resource` (`packages/db/drizzle/0067_admin_audit.sql`) orders
-on `(tenant_id, resource_type, resource_id)`, not on `(occurred_at, id)` the
-listing itself orders by, so this is not the sort-free shape the six
-search columns above get: the index bounds the read to one resource, and a
-small `Sort` orders what is left. `list-plans.int.test.ts` seeds one audit
-row per client (30,000 per tenant) and holds the case to what that scan
-looks like — an `Index Scan` on `audit_events_resource`, no `Seq Scan` —
-rather than to a no-sort shape that is not there.
+0067's `audit_events_resource` ordered on `(tenant_id, resource_type,
+resource_id)` alone, not on `(occurred_at, id)` the listing itself orders
+by, so a per-resource read the index bounded still took a `Sort` to put
+what was left in order — measured cheap against a resource holding a
+single row, but wrong to generalize from: `resource_type='grant'` rows
+accumulate per grant id across refresh rotation
+(`packages/protocol-oidc/src/usecase/refresh-rotation.ts`), token issuance
+(`token-issuance.ts`) and revocation (`revocation.ts`), so a long-lived
+grant's own trail is not the handful of rows a resource ordinarily has,
+and a Sort over an unbounded working set is exactly the shape a keyset
+listing exists to avoid.
 
-verified: `cd packages/protocol-admin && LIST_PLANS_OUT=<file> pnpm vitest run --config ../../vitest.config.ts tests/list-plans.int.test.ts -t "resource index"`
-(1 passed in 24.2 s against `postgres:17-alpine`). The first (and only)
-page of `?resource_type=client&resource_id=<id>`, one row bounded entirely
-by the index condition:
+`packages/db/drizzle/0076_audit_events_resource_keyset.sql` replaces the
+index with one ordered `(tenant_id, resource_type, resource_id,
+occurred_at DESC, id DESC)` — the listing's own order appended after the
+equality columns — so the keyset condition on `(occurred_at, id)` is
+itself an index condition, and the read stops at `LIMIT` without touching
+a row outside the page. `list-plans.int.test.ts` seeds a busy resource
+(5,000 rows against one grant id, alongside the 30,000-row-per-tenant
+fixture the other cases share) and holds both its first and later page to
+an `Index Scan` on `audit_events_resource` with no `Sort` or `Incremental
+Sort` anywhere in the plan, the resource and keyset conditions both inside
+the one `Index Cond` — the same shape the six search columns get, not the
+weaker one 0067 gave a resource trail.
+
+verified: `cd packages/protocol-admin && LIST_PLANS_OUT=<file> pnpm vitest run --config ../../vitest.config.ts tests/list-plans.int.test.ts -t "sort-free"`
+(2 passed in 23.9 s against `postgres:17-alpine`). First and later page of
+`?resource_type=grant&resource_id=<busy>`, 51 rows read (`limit 50` plus
+one to learn whether another page follows) with nothing beyond the index
+condition itself:
 
 ```
-Limit  (cost=8.46..8.46 rows=1 width=238) (actual time=0.025..0.025 rows=1 loops=1)
-  Buffers: shared hit=4
-  ->  Sort  (cost=8.46..8.46 rows=1 width=238) (actual time=0.024..0.024 rows=1 loops=1)
-        Sort Key: occurred_at DESC, id DESC
-        Sort Method: quicksort  Memory: 25kB
-        Buffers: shared hit=4
-        ->  Index Scan using audit_events_resource on audit_events  (cost=0.43..8.45 rows=1 width=238) (actual time=0.018..0.018 rows=1 loops=1)
-              Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (resource_type = 'client'::text) AND (resource_id = '0000079a-6ea2-4929-951c-012d655b282f'::text))
-              Buffers: shared hit=4
-Planning Time: 0.049 ms
-Execution Time: 0.040 ms
+Limit  (cost=0.43..123.50 rows=51 width=236) (actual time=0.023..0.035 rows=51 loops=1)
+  Buffers: shared hit=6
+  ->  Index Scan using audit_events_resource on audit_events  (cost=0.43..241.74 rows=100 width=236) (actual time=0.023..0.031 rows=51 loops=1)
+        Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (resource_type = 'grant'::text) AND (resource_id = '485c82f9-b813-4bfa-bb70-9d16af7db53b'::text))
+        Buffers: shared hit=6
+Planning Time: 0.059 ms
+Execution Time: 0.053 ms
+
+Limit  (cost=0.43..123.66 rows=51 width=236) (actual time=0.024..0.035 rows=51 loops=1)
+  Buffers: shared hit=6
+  ->  Index Scan using audit_events_resource on audit_events  (cost=0.43..239.64 rows=99 width=236) (actual time=0.024..0.030 rows=51 loops=1)
+        Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (resource_type = 'grant'::text) AND (resource_id = '485c82f9-b813-4bfa-bb70-9d16af7db53b'::text) AND (ROW(occurred_at, id) < ROW('2026-09-27 05:43:39.644+00'::timestamp with time zone, 'f5bba009-ed68-4b1f-810c-93660b2ddc83'::uuid)))
+        Buffers: shared hit=6
+Planning Time: 0.039 ms
+Execution Time: 0.054 ms
 ```
 
-Acceptable for a per-resource trail: a resource's own rows are few enough
-that sorting them in memory costs nothing next to the index read that found
-them, and no tenant writes enough rows against one resource to change that.
+`0067_admin_audit.sql` is left as it first shipped — the migration history
+is what it is — and `0076` is the correction, not an edit to `0067` in
+place.

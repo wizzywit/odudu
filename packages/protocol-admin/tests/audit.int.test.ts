@@ -204,6 +204,20 @@ describe('audit', () => {
     expect(res.json<{ detail: string }>().detail).toBe('resource_id requires resource_type');
   });
 
+  it('refuses an action longer than the free-text filter bound', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-audit']);
+    const tooLong = 'a'.repeat(257);
+
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit?action=${tooLong}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
   it('refuses a cursor replayed with resource_id added to the filter set', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-clients', 'view-audit']);
