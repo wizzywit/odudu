@@ -466,27 +466,32 @@ command run and its output, so Parts 2 and 3 cite `verified:` instead of
 
 **Interfaces:**
 
-- Produces: `prefixRange(text: string): { lower: string; upper: string | null }`
-  — `lower` is `text.toLowerCase()`, `upper` the smallest string greater
-  than every string starting with `lower` in code-point order (the last
-  code point incremented, trailing U+10FFFF dropped first; `null` when
-  nothing remains). No `LIKE` anywhere, so `%`, `_` and `\` are literal by
-  construction. `listSubjectsQuerySchema = cursorQuerySchema.extend({ username, email, enabled, role, group })`
+- Produces: `prefixUpperBound(folded: string): string | null` — the
+  smallest string greater than every string starting with `folded` in
+  code-point order (the last code point incremented, trailing U+10FFFF
+  dropped first; `null` when nothing remains). Case-folding happens in the
+  database only: the query binds the raw prefix as `lower($1)` for the lower
+  bound — the same `lower()`, in the same default collation, that fills the
+  generated column — and reads it back (`select lower($1)`) to derive the
+  upper bound, so JavaScript never folds a string. No `LIKE` anywhere, so
+  `%`, `_` and `\` are literal by construction. `listSubjectsQuerySchema = cursorQuerySchema.extend({ username, email, enabled, role, group })`
   with `.strict()` so an unknown parameter is a `400`, and a refinement
   refusing `username` and `email` together ("search one field at a time");
   `enabled: z.enum(['true','false'])`, `role`/`group`: `z.uuid()`.
 
-- [ ] **Step 1: Write failing unit tests** for `prefixRange`: `ADA` →
-      `{ lower: 'ada', upper: 'adb' }`; `a_b` → `upper: 'a_c'`; `%` →
-      `upper: '&'`; `az` → `upper: 'a{'`; a string ending in U+10FFFF drops
-      it before incrementing; `\u{10FFFF}` alone → `upper: null`.
+- [ ] **Step 1: Write failing unit tests** for `prefixUpperBound`: `ada`
+      → `adb`; `a_b` → `a_c`; `%` → `&`; `az` → `a{`; a string ending in
+      U+10FFFF drops it before incrementing; `\u{10FFFF}` alone → `null`.
 
 - [ ] **Step 2: Implement; run** — PASS.
 
 - [ ] **Step 3: Write failing integration tests:** `?username=ADA` finds
       `ada.lovelace`; results are ordered by `lower(username)` then `id`;
       paging with `limit=1` across three matches returns each once in order;
-      `?username=a_b` does not find `axb`; `?email=grace@` finds by email;
+      `?username=a_b` does not find `axb`; `?username=ÄR` finds `ärger`,
+      `?username=İz` finds `İzmir`, and `?username=ß` finds `ßtraße` —
+      whatever PostgreSQL's `lower()` makes of each, the search agrees with
+      the column because both fold in the database; `?email=grace@` finds by email;
       `?enabled=false` returns only disabled subjects; `?role=<id>` returns
       subjects directly assigned it; `?group=<id>` its direct members;
       `?search=ada` answers `400` naming `search`; `?username=a&email=b` answers
@@ -557,7 +562,7 @@ command run and its output, so Parts 2 and 3 cite `verified:` instead of
       (indexed `(<col>_search, id)`; `tenants` is read through the owner
       connection), `clients.client_id` and `clients.name` (indexed
       `(tenant_id, <col>_search, id)`); implement both usecases with
-      `prefixRange` the way Task 8 did.
+      `prefixUpperBound` the way Task 8 did.
 
 - [ ] **Step 4: Run** — PASS; record the `EXPLAIN`s. Document; commit
       `Search and filter tenants and clients on the server`.

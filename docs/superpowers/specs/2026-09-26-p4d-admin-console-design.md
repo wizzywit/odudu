@@ -196,7 +196,10 @@ instead of guessing which field was meant.
 The existing `?search=` on subjects is replaced by `?username=`. It is
 case-sensitive today, and it passes `%` and `_` through to `LIKE` unescaped
 (`packages/protocol-admin/src/usecase/subjects.ts:115`), so a search for
-`a_b` matches `axb`. Every prefix search in this phase escapes both.
+`a_b` matches `axb`. No search in this phase uses `LIKE`: a prefix is a
+range between two bounds, so `%` and `_` are ordinary characters, and the
+prefix is case-folded by the same `lower()` that fills the column, in the
+database, so the bound and the stored key can never fold differently.
 
 **Ordering.** Unfiltered lists stay in creation order (`id`). A searched
 list is ordered by that column and `id`, and paged by a keyset over that
