@@ -220,6 +220,22 @@ describe('seed', () => {
     expect(rows).toHaveLength(0);
   });
 
+  // odudu-admin is reserved for the built-in admin client every tenant is
+  // provisioned with. Requesting it as a *new* tenant's client used to reach
+  // resolveTenantId first: the tenant row committed on the owner connection,
+  // then provisionAdminClient created the public odudu-admin client, then
+  // assertMatchesExisting rejected the requested confidential client inside
+  // the (rolled-back) provisioning transaction — leaving a tenant row with no
+  // flow, admin client or signing key for a retry to find.
+  it('refuses the reserved client id odudu-admin, creating no tenant', async () => {
+    const options = uniqueOptions();
+    const tenantName = options.tenant;
+
+    await expect(seed({ ...options, clientId: ADMIN_CLIENT_ID })).rejects.toThrow(/reserved/);
+    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, tenantName));
+    expect(rows).toHaveLength(0);
+  });
+
   it('refuses a tenant name that is not a DNS label, naming the rule', async () => {
     const options = uniqueOptions();
 

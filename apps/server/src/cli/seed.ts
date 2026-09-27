@@ -23,6 +23,7 @@ import {
   type ProfileUpdate,
 } from '@odudu/domain-identity';
 import {
+  ADMIN_CLIENT_ID,
   clientRegistrationTokenRepository,
   clientRepository,
   clientScopeRepository,
@@ -150,6 +151,22 @@ function assertAuthMethodPairedWithSecret(opts: SeedOptions): void {
     throw new OduduError(
       'seed_invalid_options',
       'tokenEndpointAuthMethod requires a client secret',
+    );
+  }
+}
+
+// `odudu-admin` is reserved for the built-in admin client every tenant is
+// provisioned with (createClient, @odudu/protocol-admin, `reserved_client_id`).
+// Refused here, before resolveTenantId runs: on a new tenant name,
+// provisionAdminClient would create that public client first and only then
+// have assertMatchesExisting reject the confidential client requested here,
+// by which point the tenant row was already committed on the owner
+// connection and the provisioning transaction's rollback cannot undo that.
+function assertClientIdNotReserved(clientId: string): void {
+  if (clientId === ADMIN_CLIENT_ID) {
+    throw new OduduError(
+      'seed_invalid_options',
+      `the client_id ${JSON.stringify(clientId)} is reserved`,
     );
   }
 }
@@ -482,6 +499,7 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
   // — resolveTenantId's create branch runs the same guard `seed tenant` and
   // the admin API's `createTenant` do.
   refuseSystemTenantName(opts.tenant);
+  assertClientIdNotReserved(opts.clientId);
   assertAbsoluteRedirectUris(opts.redirectUris);
   assertUserOptionsPaired(opts);
   assertEmailHasAUser(opts);
