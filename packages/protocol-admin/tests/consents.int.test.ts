@@ -3,7 +3,7 @@ import { auditRepository } from '@odudu/domain-audit';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
+import { clientOidcConfigRepository, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -426,5 +426,54 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/consents/{clientId}', () => {
       }),
     );
     expect(rowsAfter).toHaveLength(1);
+  });
+
+  it('counts only the grants this revoke actually revoked, not one a prior logout already had', async () => {
+    const t = await fixture.createTenant(`consents-audit-partial-${newId()}`);
+    const client = await createConsentRequiredClient(t.id);
+    const subjectId = await createPasswordSubject(t.id);
+    const authSessionId = await loginExpectingConsent(t.name, client.clientId, USERNAME);
+    const allowed = await submitConsent(t.name, authSessionId, ['offline_access']);
+    expect(allowed.statusCode).toBe(302);
+    const code = new URL(locationHeader(allowed)).searchParams.get('code');
+    if (code === null) throw new Error('expected a code from consent');
+    const redeemed = await redeemCode(t.name, client, code);
+    expect(redeemed.statusCode).toBe(200);
+
+    // A second grant against the same client, already revoked the way a
+    // session logout leaves one — the count this test asserts on must not
+    // include it.
+    const alreadyRevokedAt = new Date('2026-09-27T09:00:00Z');
+    await withTenant(fixture.app.db, t.id, async (tx) => {
+      const repository = tokenGrantRepository(tx);
+      const grant = await repository.create({
+        id: newId(),
+        tenantId: t.id,
+        clientId: client.id,
+        subjectId,
+        scope: 'openid offline_access',
+        audience: ['https://api.example'],
+      });
+      await repository.revoke(grant.id, alreadyRevokedAt);
+    });
+
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const revokeRes = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/subjects/${subjectId}/consents/${client.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(revokeRes.statusCode).toBe(204);
+
+    const rows = await withTenant(fixture.app.db, t.id, (tx) =>
+      auditRepository(tx).list({
+        resourceType: 'subject',
+        resourceId: subjectId,
+        action: 'consent.revoke',
+        limit: 10,
+      }),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.detail).toMatchObject({ grants_revoked: 1 });
   });
 });

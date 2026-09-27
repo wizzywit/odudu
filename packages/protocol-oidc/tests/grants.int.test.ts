@@ -250,11 +250,74 @@ describe('tokenGrantRepository', () => {
         new Date('2026-09-27T11:00:00Z'),
       ),
     );
-    expect(again).toBe(2);
+    expect(again).toBe(0);
     const stillFirst = await withTenant(app.db, tenantId, (tx) =>
       tokenGrantRepository(tx).byId(bound.id),
     );
     expect(stillFirst?.revokedAt).toEqual(first);
+  });
+
+  it('does not count a grant a session logout already revoked', async () => {
+    const tenantId = newId();
+    const { clientDbId, subjectId } = await withTenant(app.db, tenantId, (tx) =>
+      seedTenantClientSubject(tx, tenantId),
+    );
+    const sessionId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      sessionRepository(tx).create({
+        id: sessionId,
+        tenantId,
+        subjectId,
+        expiresAt: new Date(Date.now() + 3_600_000),
+        authenticators: [],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
+      }),
+    );
+    const [bound, offline] = await withTenant(app.db, tenantId, async (tx) => {
+      const repository = tokenGrantRepository(tx);
+      return [
+        await repository.create({
+          id: newId(),
+          tenantId,
+          clientId: clientDbId,
+          subjectId,
+          scope: 'openid',
+          audience: AUDIENCE,
+          sessionId,
+        }),
+        await repository.create({
+          id: newId(),
+          tenantId,
+          clientId: clientDbId,
+          subjectId,
+          scope: 'openid offline_access',
+          audience: AUDIENCE,
+        }),
+      ];
+    });
+
+    await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForSession(sessionId, new Date('2026-09-27T09:00:00Z')),
+    );
+
+    const revoked = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForSubjectClient(
+        subjectId,
+        clientDbId,
+        new Date('2026-09-27T10:00:00Z'),
+      ),
+    );
+    expect(revoked).toBe(1);
+
+    await withTenant(app.db, tenantId, async (tx) => {
+      const repository = tokenGrantRepository(tx);
+      expect((await repository.byId(bound.id))?.revokedAt).toEqual(
+        new Date('2026-09-27T09:00:00Z'),
+      );
+      expect((await repository.byId(offline.id))?.revokedAt).toEqual(
+        new Date('2026-09-27T10:00:00Z'),
+      );
+    });
   });
 
   it('does not revoke another subject’s grant against the same client', async () => {

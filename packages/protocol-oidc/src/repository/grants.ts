@@ -147,10 +147,14 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     ): Promise<number> {
       const rows = await tx
         .update(tokenGrants)
-        .set({
-          revokedAt: sql`coalesce(${tokenGrants.revokedAt}, ${revokedAt.toISOString()}::timestamptz)`,
-        })
-        .where(and(eq(tokenGrants.subjectId, subjectId), eq(tokenGrants.clientId, clientId)))
+        .set({ revokedAt })
+        .where(
+          and(
+            eq(tokenGrants.subjectId, subjectId),
+            eq(tokenGrants.clientId, clientId),
+            isNull(tokenGrants.revokedAt),
+          ),
+        )
         .returning({ id: tokenGrants.id });
       return rows.length;
     },
