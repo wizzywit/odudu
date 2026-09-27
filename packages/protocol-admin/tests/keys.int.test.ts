@@ -598,8 +598,12 @@ describe('GET /admin/tenants/{t}/keys — filters', () => {
 
   it('refuses a status or alg outside its enum, and an unknown parameter, naming it', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
-    expect((await listKeysAt(t.name, 'status=pending')).statusCode).toBe(400);
-    expect((await listKeysAt(t.name, 'alg=HS256')).statusCode).toBe(400);
+    const status = await listKeysAt(t.name, 'status=pending');
+    expect(status.statusCode).toBe(400);
+    expect(status.json<{ detail: string }>().detail).toContain('querystring/status');
+    const alg = await listKeysAt(t.name, 'alg=HS256');
+    expect(alg.statusCode).toBe(400);
+    expect(alg.json<{ detail: string }>().detail).toContain('querystring/alg');
     const unknown = await listKeysAt(t.name, 'kid=x');
     expect(unknown.statusCode).toBe(400);
     expect(unknown.json<{ detail: string }>().detail).toContain('kid');

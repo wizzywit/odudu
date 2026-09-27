@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 // so a caller that logs what it sees cannot ship.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
-const SOURCE_TREES = ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'];
+const SOURCE_TREES = ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts', 'tools/*/src/**/*.ts'];
 const DECLARED_IN = 'packages/db/src/client.ts';
 const HOOK = /\bonQuery\w*/u;
 

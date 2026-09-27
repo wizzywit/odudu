@@ -450,9 +450,10 @@ and `client_scopes`
 (`packages/db/drizzle/0075_list_indexes_roles_groups_scopes.sql`), matched
 through `prefixRangeConditions`. `GET /roles?client=` is an exact filter
 beside it: `tenant` for the tenant roles (`client_id IS NULL`), or a
-client's id for the roles scoped to that client. It is `AND`ed with a
-search and read as a `Filter` on the search index; nothing indexes it on
-its own.
+client's id for the roles scoped to that client, `AND`ed with a search.
+Combined with a search it is not held to the one-range-scan shape; what
+the planner does was measured, and is described below with the other
+roles plans.
 
 `GET /keys` takes `?status=` and `?alg=`, exact and `AND`ed, and gets **no
 index**: a tenant holds a handful of signing keys (one active, a few
@@ -470,29 +471,68 @@ that no response carries it, and `openapi.int.test.ts` that the published
 document names no `*_search` column.
 
 `packages/protocol-admin/tests/list-plans.int.test.ts` now seeds 30,000
-roles, groups and scopes in each of its three tenants too, and holds the
+tenant roles, groups and scopes in each of its three tenants too, plus
+30,000 client-scoped roles (300 on each of 100 clients), and holds the
 three searches to the same plan as the other six, first page and later
 page, as `odudu_svc` under row-level security. With the three `CREATE
 INDEX` lines of `0075` commented out, those six cases fail and the other
 thirteen still pass.
 
-verified: `cd packages/protocol-admin && pnpm vitest run --config ../../vitest.config.ts tests/list-plans.int.test.ts`
-(19 passed in 18.8 s against `postgres:17-alpine`). The later page of
-`roles ?name=A`, excerpted from the `LIST_PLANS_OUT` output of that run;
+A search narrowed by `?client=` gets two different plans, and the test
+holds each to what was measured rather than to the single-search shape.
+Under **`client=tenant`** no index orders tenant roles by `name_search`
+(`roles_tenant_name` is `(tenant_id, name) WHERE client_id IS NULL`), so the
+planner walks `roles_name_search` in order and applies
+`client_id IS NULL` as a `Filter`, discarding the client-scoped rows in
+the range — 65 on the first page, 71 on a later one, for 51 kept. The test
+asserts that shape (Index Scan, both bounds and the keyset in the `Index
+Cond`, the owner test in the `Filter`, no Sort), and it fails with
+`roles_name_search` dropped. Under **`client=<id>`** the planner prefers another plan: a `BitmapAnd` of `roles_client_name` (the
+client's 300 roles) with the search range, then a **Sort** of the 29 rows
+left. That is bounded by one client's role count rather than the tenant's,
+so it is left to the planner; the test asserts only that the plan reads
+through an index condition on `client_id` and has no `Seq Scan`.
+
+verified: `cd packages/protocol-admin && LIST_PLANS_OUT=<file> pnpm vitest run --config ../../vitest.config.ts tests/list-plans.int.test.ts`
+(22 passed in 23.5 s against `postgres:17-alpine`). Excerpted from that
+run's `LIST_PLANS_OUT` output: the later page of `roles ?name=A` (and
 `groups ?name=B` on `groups_name_search` and `scopes ?name=c` on
-`client_scopes_name_search` are the same plan:
+`client_scopes_name_search` are the same plan), then the later page of
+`?name=A&client=tenant`, then the first and only page of
+`?name=A&client=<id>`:
 
 ```
-Limit  (cost=0.43..134.90 rows=51 width=117) (actual time=0.014..0.037 rows=51 loops=1)
+Limit  (cost=0.43..132.00 rows=51 width=115) (actual time=0.021..0.057 rows=51 loops=1)
   Buffers: shared hit=54
-  ->  Index Scan using roles_name_search on roles  (cost=0.43..1711.60 rows=649 width=117) (actual time=0.014..0.033 rows=51 loops=1)
-        Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (name_search >= 'a'::text) AND (name_search < 'b'::text) AND (ROW(name_search, id) > ROW('a07c2f3b-450'::text, '19307ace-739b-48bf-8ba9-b02a90826696'::uuid)))
-Execution Time: 0.052 ms
+  ->  Index Scan using roles_name_search on roles  (cost=0.43..4058.43 rows=1573 width=115) (actual time=0.020..0.052 rows=51 loops=1)
+        Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (name_search >= 'a'::text) AND (name_search < 'b'::text) AND (ROW(name_search, id) > ROW('a0346531-15494'::text, '8c3ed9f5-a8c1-436a-9246-35c29c641229'::uuid)))
+Execution Time: 0.072 ms
+
+Limit  (cost=0.43..263.18 rows=51 width=115) (actual time=0.031..0.160 rows=51 loops=1)
+  Buffers: shared hit=126
+  ->  Index Scan using roles_name_search on roles  (cost=0.43..4055.07 rows=787 width=115) (actual time=0.030..0.155 rows=51 loops=1)
+        Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (name_search >= 'a'::text) AND (name_search < 'b'::text) AND (ROW(name_search, id) > ROW('a07c2f3b-450'::text, '5749f467-c908-40a3-8e60-e35937e0a453'::uuid)))
+        Filter: (client_id IS NULL)
+        Rows Removed by Filter: 71
+Execution Time: 0.206 ms
+
+Limit  (cost=274.26..274.28 rows=7 width=115) (actual time=0.512..0.517 rows=29 loops=1)
+  Buffers: shared hit=75
+  ->  Sort  (cost=274.26..274.28 rows=7 width=115) (actual time=0.512..0.514 rows=29 loops=1)
+        Sort Key: name_search COLLATE "C", id
+        ->  Bitmap Heap Scan on roles  (cost=247.09..274.16 rows=7 width=115) (actual time=0.419..0.497 rows=29 loops=1)
+              Recheck Cond: ((client_id = '00030058-a47f-4f2a-aa43-e1a2b438ef8b'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (name_search >= 'a'::text) AND (name_search < 'b'::text))
+              ->  BitmapAnd  (cost=247.09..247.09 rows=7 width=0) (actual time=0.410..0.410 rows=0 loops=1)
+                    ->  Bitmap Index Scan on roles_client_name  (cost=0.00..14.65 rows=298 width=0) (actual time=0.061..0.061 rows=300 loops=1)
+                          Index Cond: (client_id = '00030058-a47f-4f2a-aa43-e1a2b438ef8b'::uuid)
+                    ->  Bitmap Index Scan on roles_name_search  (cost=0.00..232.18 rows=4140 width=0) (actual time=0.333..0.333 rows=3734 loops=1)
+                          Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (name_search >= 'a'::text) AND (name_search < 'b'::text))
+Execution Time: 0.564 ms
 ```
 
 `createDatabase`'s statement hook, which that test uses to capture what a
 listing issues, hands every statement's parameters to its caller —
 password hashes, secret hashes, emails and TOTP seeds among them. It is
 now `onQueryForTests`, and `tests/lint/query-hook-tests-only.test.ts`
-fails the build if any non-test source file under `packages/*/src` or
-`apps/*/src` names it.
+fails the build if any non-test source file under `packages/*/src`,
+`apps/*/src` or `tools/*/src` names it.

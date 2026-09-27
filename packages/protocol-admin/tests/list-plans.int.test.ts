@@ -12,7 +12,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { listClients, type ClientFilters } from '#/usecase/clients';
 import { listGroups } from '#/usecase/groups';
-import { listRoles } from '#/usecase/roles';
+import { listRoles, type RoleFilters } from '#/usecase/roles';
 import { listScopes } from '#/usecase/scopes';
 import { listSubjects, type SubjectFilters } from '#/usecase/subjects';
 import { listTenants, type TenantFilters } from '#/usecase/tenants';
@@ -26,6 +26,8 @@ import { listTenants, type TenantFilters } from '#/usecase/tenants';
 const ROWS = 30_000;
 const CURSOR_KEY = new Uint8Array(32).fill(1);
 const PLANS_OUT = process.env.LIST_PLANS_OUT;
+const SCOPED_CLIENTS = 100;
+const ROLES_PER_CLIENT = 300;
 
 interface Statement {
   readonly query: string;
@@ -45,6 +47,7 @@ let owner: DatabaseHandle;
 let app: DatabaseHandle;
 let captured: Statement[] | undefined;
 let targetTenantId: string;
+let scopedClientId: string;
 
 function capture(query: string, parameters: readonly unknown[]): void {
   captured?.push({ query, parameters });
@@ -115,12 +118,24 @@ beforeAll(async () => {
           from generate_series(1, ${ROWS}) g`;
     }
     await owner.sql`
+      insert into roles (id, tenant_id, client_id, name)
+      select gen_random_uuid(), ${tenantId}, c.id,
+             case when g % 2 = 0 then upper(substr(md5((c.n * 1000 + g)::text), 1, 8))
+                  else substr(md5((c.n * 1000 + g)::text), 1, 8) end || '-' || g
+        from (select id, row_number() over (order by id) as n
+                from clients where tenant_id = ${tenantId} order by id limit ${SCOPED_CLIENTS}) c
+       cross join generate_series(1, ${ROLES_PER_CLIENT}) g`;
+    await owner.sql`
       insert into groups (id, tenant_id, name, path)
       select gen_random_uuid(), ${tenantId}, name, '/' || name
         from (select case when g % 2 = 0 then upper(substr(md5((g * 11)::text), 1, 8))
                           else substr(md5((g * 11)::text), 1, 8) end || '-' || g as name
                 from generate_series(1, ${ROWS}) g) named`;
   }
+  const [scoped] = await owner.sql<{ id: string }[]>`
+    select id from clients where tenant_id = ${targetTenantId} order by id limit 1`;
+  if (scoped === undefined) throw new Error('no client in the target tenant');
+  scopedClientId = scoped.id;
   await owner.sql`analyze`;
 }, 300_000);
 
@@ -263,7 +278,7 @@ function namedCase(
   };
 }
 
-function pageOf(cursor: string | undefined, filters: { readonly name: string }) {
+function pageOf(cursor: string | undefined, filters: RoleFilters) {
   return { limit: 50, cursor, cursorKey: CURSOR_KEY, tenantId: targetTenantId, filters };
 }
 
@@ -360,5 +375,76 @@ describe('the plan each searched listing is given', () => {
         );
       }
     });
+  });
+});
+
+// A search narrowed by ?client= is not held to one shape the way a bare
+// search is. Under `client=tenant` no index orders the tenant roles by
+// name_search, so the owner test is a Filter on the search index scan.
+// Under `client=<id>` the planner may instead intersect
+// `roles_client_name` with the search index and sort what is left, which
+// is bounded by that one client's roles.
+function combinedRolesCase(client: 'tenant' | 'scoped') {
+  const filters = (): RoleFilters => ({
+    name: 'A',
+    client: client === 'tenant' ? 'tenant' : scopedClientId,
+  });
+  return (cursor: string | undefined) =>
+    withTenant(app.db, targetTenantId, async (tx) =>
+      nextOf(await listRoles(tx, pageOf(cursor, filters()))),
+    );
+}
+
+async function recordPlan(label: string, statement: Statement): Promise<void> {
+  if (PLANS_OUT === undefined) return;
+  const text = await explained(app, statement, 'ANALYZE, BUFFERS', targetTenantId);
+  appendFileSync(
+    PLANS_OUT,
+    [
+      `### ${label}`,
+      statement.query,
+      `params: ${JSON.stringify(statement.parameters)}`,
+      ...text.map(String),
+      '',
+    ].join('\n'),
+  );
+}
+
+describe('the plan a roles search narrowed by ?client= is given', () => {
+  it.each([
+    ['the first page', false],
+    ['a later page', true],
+  ])(
+    'under client=tenant, is the search index scan with the owner test as a Filter, on %s',
+    async (page, later) => {
+      const list = combinedRolesCase('tenant');
+      const first = await list(undefined);
+      if (later && first === null) throw new Error('client=tenant fitted on one page');
+      const cursor = later && first !== null ? first : undefined;
+      const { statement } = await issuedBy(() => list(cursor));
+
+      const [json] = await explained(app, statement, 'FORMAT JSON', targetTenantId);
+      const nodes = allNodes(rootPlan(json));
+      const scan = nodes.find((node) => node.indexName === 'roles_name_search');
+      expect(scan?.nodeType).toBe('Index Scan');
+      expect(scan?.indexCond).toContain('name_search >=');
+      expect(scan?.indexCond).toContain('name_search <');
+      if (later) expect(scan?.indexCond).toContain('ROW(name_search');
+      expect(scan?.filter).toContain('client_id IS NULL');
+      expect(nodes.map((node) => node.nodeType)).not.toContain('Sort');
+      await recordPlan(`roles ?name=A&client=tenant, ${page}`, statement);
+    },
+  );
+
+  it('under client=<id>, reads only that client’s roles, and never the whole table', async () => {
+    const list = combinedRolesCase('scoped');
+    await list(undefined);
+    const { statement } = await issuedBy(() => list(undefined));
+
+    const [json] = await explained(app, statement, 'FORMAT JSON', targetTenantId);
+    const nodes = allNodes(rootPlan(json));
+    expect(nodes.map((node) => node.nodeType)).not.toContain('Seq Scan');
+    expect(nodes.some((node) => node.indexCond?.includes('client_id =') === true)).toBe(true);
+    await recordPlan('roles ?name=A&client=<id>, the first page', statement);
   });
 });

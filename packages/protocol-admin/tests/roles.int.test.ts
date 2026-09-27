@@ -833,9 +833,27 @@ describe('GET /admin/tenants/{t}/roles — search and filters', () => {
     expect(roleNamesOf(await listRolesAt(t.name, 'client=tenant&name=r-'))).toEqual(['r-tenant']);
   });
 
-  it('refuses a client that is neither tenant nor an id', async () => {
+  it('refuses a client that is neither tenant nor an id, naming the parameter', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
-    expect((await listRolesAt(t.name, 'client=shop')).statusCode).toBe(400);
+    const res = await listRolesAt(t.name, 'client=shop');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('querystring/client');
+  });
+
+  it('finds nothing under ?client= naming a client of another tenant, searched or not', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    const foreignClient = await seedClient(other.name, 'foreign-shop');
+    await seedRole(other.name, 'foreign-role', foreignClient);
+
+    for (const query of [`client=${foreignClient}`, `client=${foreignClient}&name=foreign`]) {
+      const res = await listRolesAt(t.name, query);
+      expect(res.statusCode, query).toBe(200);
+      expect(roleNamesOf(res), query).toEqual([]);
+    }
+    expect(roleNamesOf(await listRolesAt(other.name, `client=${foreignClient}`))).toEqual([
+      'foreign-role',
+    ]);
   });
 
   it('finds nothing searching for a role that belongs to another tenant', async () => {
