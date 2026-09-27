@@ -56,13 +56,16 @@ it name.
 **The fourth stack.** "Getting the token"'s final probe and `GET /whoami`
 were recaptured together, after `whoami` started answering `capabilities`
 and `crossTenant`, against this branch's own already-running development
-stack rather than a fresh one — it carries tenants earlier sections here
-were captured against (`demo` among them) and was not torn down afterward.
-The subject behind both probes is `ada-whoami`, seeded into `system` for
-this purpose, `01a0e0a7-0ead-703a-ab34-22bcf5167d46`; its capabilities come
-from holding `tenant-admin`, which composites every capability plus
-`manage-tenants` (the same account "Getting the token" describes `ada`
-as).
+stack rather than a fresh one — it was not brought up for this capture and
+was not torn down afterward. It carries a tenant also named `demo`, under
+its own id, `01a0db22-1c32-7d17-b351-697d7911033c` — a different tenant
+from the one the sections above and below this note refer to by that same
+name. `seed admin --username ada-whoami` run against it created the
+subject behind both probes, `01a0e0a7-0ead-703a-ab34-22bcf5167d46`, rather
+than reusing the existing `ada` whose password from this stack's own
+history is not known here; its capabilities come from holding
+`tenant-admin`, which composites every capability plus `manage-tenants`
+(the same account "Getting the token" describes `ada` as).
 
 ## The shape of it
 
@@ -276,7 +279,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"subjectId":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","tenant-admin","view-audit","view-users"],"crossTenant":false}
+{"subjectId":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-users"],"crossTenant":false}
 ```
 
 ## `GET /admin/tenants`
@@ -917,16 +920,20 @@ every `TenantCapability` admits.
 
 It answers `subjectId` (the token's `sub`), `issuerTenantId` — the tenant
 that **issued** the token, not the tenant named in the URL — `capabilities`
-and `crossTenant`. `capabilities` is the caller's own effective capability
-roles, resolved on its issuing tenant's built-in admin client exactly the
-way `authorizeAdmin` resolves them (`callerCapabilities`,
-`packages/protocol-admin/src/index.ts`) — composites included, so a
-`manage-users` holder sees `view-users` alongside it — sorted, and the
-same set regardless of which tenant is named in the path: what a caller
-may do is fixed by where its roles live, not by what it is asking about.
-`crossTenant` is `true` when the path tenant differs from the issuing one,
-which is exactly when reaching a capability-gated route here also needs
-`manage-tenants` ("The shape of it" above).
+and `crossTenant`. `capabilities` is the caller's own effective admin-client
+roles, resolved on its issuing tenant exactly the way `authorizeAdmin`
+resolves them (`callerCapabilities`, `packages/protocol-admin/src/index.ts`)
+— composites expanded, so a `manage-users` holder sees `view-users`
+alongside it — narrowed to the seven `TenantCapability` names plus
+`manage-tenants` and sorted. A composite role itself, `tenant-admin` among
+them, is never a member of that list: holding one expands to what it
+composites, never to its own name, and the published schema enforces the
+narrowing with a `z.enum` over that fixed vocabulary rather than an open
+`string[]`. The set is the same regardless of which tenant is named in the
+path: what a caller may do is fixed by where its roles live, not by what it
+is asking about. `crossTenant` is `true` when the path tenant differs from
+the issuing one, which is exactly when reaching a capability-gated route
+here also needs `manage-tenants` ("The shape of it" above).
 
 The captured run is under "Getting the token" above, against
 `/admin/tenants/system/whoami` (`crossTenant: false`, the caller's own
@@ -940,7 +947,7 @@ curl -sS \
 ```
 
 ```
-{"subjectId":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","tenant-admin","view-audit","view-users"],"crossTenant":true}
+{"subjectId":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-users"],"crossTenant":true}
 ```
 
 ## `GET /subjects`

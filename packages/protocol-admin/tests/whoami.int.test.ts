@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newId } from '@odudu/kernel';
-import { MANAGE_TENANTS } from '@odudu/domain-tenant';
+import { MANAGE_TENANTS, TENANT_ADMIN } from '@odudu/domain-tenant';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 
 let fixtureHandle: AdminFixture | undefined;
@@ -73,5 +73,50 @@ describe('GET /whoami', () => {
     const body = res.json<WhoamiBody>();
     expect(body.crossTenant).toBe(true);
     expect(body.capabilities).toEqual([MANAGE_TENANTS, 'view-audit']);
+  });
+
+  it("ties whoami's report to what authorizeAdmin itself admits", async () => {
+    const t = await fixture.createTenant(`whoami-${newId()}`);
+    const token = await fixture.systemAdminToken([MANAGE_TENANTS, 'view-audit']);
+
+    const admitted = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(admitted.statusCode).toBe(200);
+
+    const refused = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(refused.statusCode).toBe(403);
+
+    const res = await whoami(token, t.name);
+    expect(res.json<WhoamiBody>().capabilities).toEqual([MANAGE_TENANTS, 'view-audit']);
+  });
+
+  // TENANT_ADMIN is a composite role, not a member of the capability
+  // vocabulary the spec promises whoami reports — it must expand to its
+  // composited capabilities without appearing in the list itself.
+  it('expands tenant-admin to its composited capabilities without naming it', async () => {
+    const t = await fixture.createTenant(`whoami-${newId()}`);
+    const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+
+    const res = await whoami(token, t.name);
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<WhoamiBody>();
+    expect(body.capabilities).toEqual([
+      'manage-clients',
+      'manage-keys',
+      'manage-sessions',
+      'manage-tenant',
+      'manage-users',
+      'view-audit',
+      'view-users',
+    ]);
+    expect(body.capabilities).not.toContain(TENANT_ADMIN);
   });
 });
