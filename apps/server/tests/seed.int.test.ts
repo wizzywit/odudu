@@ -9,15 +9,17 @@ import {
   withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
-import { effectiveRoles } from '@odudu/domain-authz';
+import { effectiveRoles, roleRepository } from '@odudu/domain-authz';
 import { subjects, users } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
   clientRegistrationTokenRepository,
+  clientRepository,
   clients,
   clientScopeRepository,
   SYSTEM_TENANT_ID,
   SYSTEM_TENANT_NAME,
+  TENANT_ADMIN,
   TENANT_DEFAULT_SCOPE_NAMES,
   TENANT_NAME_RULE,
 } from '@odudu/domain-tenant';
@@ -178,7 +180,9 @@ describe('seed', () => {
 
     const first = await seed(options);
     await expect(seed(options)).resolves.toMatchObject({ created: false });
-    expect(await countClients(first.tenantId)).toBe(1);
+    // The requested client plus the built-in odudu-admin this tenant's
+    // creation now provisions alongside it.
+    expect(await countClients(first.tenantId)).toBe(2);
     expect(await countSigningKeys(first.tenantId)).toBe(1);
   });
 
@@ -585,6 +589,43 @@ describe('seed tenant --set', () => {
     await expect(
       seed(['tenant', '--name', `set-${newId()}`, '--set', 'otp_required']),
     ).rejects.toThrow(/expects name=value/u);
+  });
+});
+
+describe('seed tenant provisions the admin client', () => {
+  async function adminClientRoles(tenantId: string): Promise<{ builtinAdmin: boolean } | null> {
+    return withTenant(owner.db, tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      if (client === null) return null;
+      const admin = await roleRepository(tx).byName(TENANT_ADMIN, client.id);
+      expect(admin).not.toBeNull();
+      return { builtinAdmin: client.builtinAdmin };
+    });
+  }
+
+  it('creates the built-in admin client via `seed tenant`, once on a second run', async () => {
+    const name = `tenant-admin-${newId()}`;
+
+    const first = await seed(['tenant', '--name', name]);
+    if (first.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await adminClientRoles(first.tenantId)).toMatchObject({ builtinAdmin: true });
+    expect(await countAdminClients(first.tenantId)).toBe(1);
+
+    const second = await seed(['tenant', '--name', name]);
+    if (second.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await countAdminClients(second.tenantId)).toBe(1);
+  });
+
+  it('creates the built-in admin client via `seed --tenant`, once on a second run', async () => {
+    const options = uniqueOptions();
+
+    const first = await seed(options);
+    expect(await adminClientRoles(first.tenantId)).toMatchObject({ builtinAdmin: true });
+    expect(await countAdminClients(first.tenantId)).toBe(1);
+
+    const second = await seed(options);
+    expect(second.tenantId).toBe(first.tenantId);
+    expect(await countAdminClients(first.tenantId)).toBe(1);
   });
 });
 

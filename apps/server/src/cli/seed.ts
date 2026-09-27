@@ -359,6 +359,7 @@ async function performSeed(
   return withTenant(runtimeDb, tenantId, async (tx) => {
     if (tenantCreated) {
       await provisionTenant(tx, tenantId);
+      await provisionAdminClient(tx, tenantId);
     }
 
     const existingClient = await clientRepository(tx).byClientId(opts.clientId);
@@ -944,6 +945,7 @@ async function runTenantCommand(
     // true because tenant and client used to be seeded in the same call.
     await withTenant(runtimeDb, tenantId, async (tx) => {
       await provisionTenant(tx, tenantId);
+      await provisionAdminClient(tx, tenantId);
       const generated = await generateSigningKey('RS256', kek);
       await signingKeyRepository(tx).create({
         id: newId(),
