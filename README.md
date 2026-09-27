@@ -782,7 +782,9 @@ on its own does the same: whichever door creates the tenant provisions the
 signing key and the admin client together. Provisioning the admin client is
 idempotent, so either command also gives one to a tenant it finds rather
 than creates, if an earlier run predates the client's existence; the
-signing key stays creation-only.
+signing key stays creation-only. Seed refuses (`admin_client_not_builtin`)
+if the tenant already holds a client named `odudu-admin` that is not the
+built-in one, rather than adopting it.
 
 That tenant now serves the protocol. The discovery document is the one
 request every client makes first, and every URL below comes out of it:

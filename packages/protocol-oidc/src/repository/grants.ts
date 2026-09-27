@@ -138,8 +138,9 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // The admin API's consent-revoke write: every grant a subject holds
     // against one client, live or offline alike — narrower than
     // `revokeForSession`, which only ever reaches one session's own bound
-    // grants. Same `coalesce` idempotence: a second revoke keeps the
-    // first's timestamp rather than moving it later.
+    // grants. A second revoke matches no rows because of the
+    // `isNull(revokedAt)` predicate, so an already-revoked grant keeps its
+    // first timestamp and is not counted.
     async revokeForSubjectClient(
       subjectId: string,
       clientId: string,
