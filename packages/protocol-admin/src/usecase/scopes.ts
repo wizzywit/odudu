@@ -18,7 +18,11 @@ import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceili
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
-import { prefixRangeConditions, requireSearchKey } from '#/usecase/prefix-search';
+import {
+  prefixRangeConditions,
+  requireSearchKey,
+  type ListPosition,
+} from '#/usecase/prefix-search';
 import { type RoleAssignment } from '#/usecase/subjects';
 
 const COLLECTION = 'scopes';
@@ -70,6 +74,37 @@ export interface ListScopesInput {
 export type ListScopesOutcome =
   { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly ClientScope[]; next: string | null };
 
+/** The client scopes listing's order, which its keyset cursor and its count both follow. */
+export function scopeListOrder(filters: ScopeFilters): SQL[] {
+  return filters.name === undefined
+    ? [asc(clientScopes.id)]
+    : [asc(clientScopes.nameSearch), asc(clientScopes.id)];
+}
+
+/** The WHERE clause of the client scopes listing, and of its count, which passes no position. */
+export async function scopeListConditions(
+  tx: TenantScopedDatabase,
+  filters: ScopeFilters,
+  after: ListPosition | undefined,
+): Promise<SQL[]> {
+  const conditions: SQL[] = [];
+  if (filters.name === undefined) {
+    if (after !== undefined) conditions.push(gt(clientScopes.id, after.id));
+    return conditions;
+  }
+  const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+  conditions.push(
+    ...(await prefixRangeConditions(
+      tx,
+      clientScopes.nameSearch,
+      clientScopes.id,
+      filters.name,
+      position,
+    )),
+  );
+  return conditions;
+}
+
 // A searched listing is one range scan of `client_scopes_name_search`
 // (0075_list_indexes_roles_groups_scopes.sql), the way `listSubjects` is.
 export async function listScopes(
@@ -78,7 +113,7 @@ export async function listScopes(
 ): Promise<ListScopesOutcome> {
   const filters = filterDigest(input.filters);
   const prefix = input.filters.name;
-  let after: { readonly id: string; readonly sort: string | undefined } | undefined;
+  let after: ListPosition | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
       input.cursorKey,
@@ -92,31 +127,12 @@ export async function listScopes(
     after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const conditions: SQL[] = [];
-  if (prefix === undefined) {
-    if (after !== undefined) conditions.push(gt(clientScopes.id, after.id));
-  } else {
-    const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
-    conditions.push(
-      ...(await prefixRangeConditions(
-        tx,
-        clientScopes.nameSearch,
-        clientScopes.id,
-        prefix,
-        position,
-      )),
-    );
-  }
-
+  const conditions = await scopeListConditions(tx, input.filters, after);
   const rows = await tx
     .select()
     .from(clientScopes)
     .where(conditions.length === 0 ? undefined : and(...conditions))
-    .orderBy(
-      ...(prefix === undefined
-        ? [asc(clientScopes.id)]
-        : [asc(clientScopes.nameSearch), asc(clientScopes.id)]),
-    )
+    .orderBy(...scopeListOrder(input.filters))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;

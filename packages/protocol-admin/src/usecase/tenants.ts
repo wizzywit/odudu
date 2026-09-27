@@ -21,7 +21,12 @@ import { and, asc, eq, gt, sql, type SQL } from 'drizzle-orm';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_TENANT_FIELDS, refusalFor } from '#/service/tenant-patch';
-import { prefixRangeConditions, requireSearchKey } from '#/usecase/prefix-search';
+import {
+  prefixRangeConditions,
+  requireSearchKey,
+  type Executor,
+  type ListPosition,
+} from '#/usecase/prefix-search';
 
 const COLLECTION = 'tenants';
 
@@ -208,6 +213,34 @@ function tenantSearchOf(
   return undefined;
 }
 
+/** The WHERE clause of the tenants listing, and of its count, which passes no position. */
+export async function tenantListConditions(
+  database: Executor,
+  filters: TenantFilters,
+  after: ListPosition | undefined,
+): Promise<SQL[]> {
+  const conditions: SQL[] = [];
+  if (filters.enabled !== undefined) {
+    conditions.push(eq(tenants.enabled, filters.enabled === 'true'));
+  }
+  const search = tenantSearchOf(filters);
+  if (search === undefined) {
+    if (after !== undefined) conditions.push(gt(tenants.id, after.id));
+    return conditions;
+  }
+  const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+  conditions.push(
+    ...(await prefixRangeConditions(database, search.column, tenants.id, search.prefix, position)),
+  );
+  return conditions;
+}
+
+/** The tenants listing's order, which its keyset cursor and its count both follow. */
+export function tenantListOrder(filters: TenantFilters): SQL[] {
+  const search = tenantSearchOf(filters);
+  return search === undefined ? [asc(tenants.id)] : [asc(search.column), asc(tenants.id)];
+}
+
 // The system tenant appears in this listing like any other — hiding it
 // would make the one tenant an operator most needs to inspect the one they
 // cannot. A searched listing is one range scan of the search column's
@@ -218,7 +251,7 @@ export async function listTenants(
 ): Promise<ListTenantsOutcome> {
   const filters = filterDigest(input.filters);
   const search = tenantSearchOf(input.filters);
-  let after: { readonly id: string; readonly sort: string | undefined } | undefined;
+  let after: ListPosition | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
       input.cursorKey,
@@ -232,30 +265,12 @@ export async function listTenants(
     after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const conditions: SQL[] = [];
-  if (input.filters.enabled !== undefined) {
-    conditions.push(eq(tenants.enabled, input.filters.enabled === 'true'));
-  }
-  if (search === undefined) {
-    if (after !== undefined) conditions.push(gt(tenants.id, after.id));
-  } else {
-    const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
-    conditions.push(
-      ...(await prefixRangeConditions(
-        database,
-        search.column,
-        tenants.id,
-        search.prefix,
-        position,
-      )),
-    );
-  }
-
+  const conditions = await tenantListConditions(database, input.filters, after);
   const rows = await database
     .select({ record: TENANT_COLUMNS, searchKey: search?.column ?? sql<null>`null` })
     .from(tenants)
     .where(conditions.length === 0 ? undefined : and(...conditions))
-    .orderBy(...(search === undefined ? [asc(tenants.id)] : [asc(search.column), asc(tenants.id)]))
+    .orderBy(...tenantListOrder(input.filters))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;

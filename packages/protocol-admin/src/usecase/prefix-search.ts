@@ -8,7 +8,13 @@ export interface SearchPosition {
   readonly sort: string;
 }
 
-type Executor = Pick<TenantScopedDatabase, 'execute'>;
+/** Where a listing resumes: the last row's id, and its search key when searched. */
+export interface ListPosition {
+  readonly id: string;
+  readonly sort: string | undefined;
+}
+
+export type Executor = Pick<TenantScopedDatabase, 'execute'>;
 
 // Folded by PostgreSQL, in the collation that filled the search column, so
 // the bound and the stored key cannot fold differently.

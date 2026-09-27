@@ -72,7 +72,9 @@ rebuilt from this branch; the searches under `GET /admin/tenants` and
 `GET /clients` after a further rebuild that applied `0074`; and those under
 `GET /roles`, `GET /groups`, `GET /scopes` and `GET /keys` after one that
 applied `0075`, against roles and groups created in `demo` for them
-through the endpoints below, as each of those sections shows.
+through the endpoints below, as each of those sections shows. The counts
+under `GET /admin/tenants/count` were captured against it after a further
+rebuild, as that section says.
 
 ## The shape of it
 
@@ -124,11 +126,13 @@ shape of what it is filling.
 | Method   | Path                                                             | What it is                                |
 | -------- | ---------------------------------------------------------------- | ----------------------------------------- |
 | `GET`    | `/admin/tenants`                                                 | List tenants                              |
+| `GET`    | `/admin/tenants/count`                                           | Count tenants                             |
 | `POST`   | `/admin/tenants`                                                 | Create a tenant                           |
 | `GET`    | `/admin/tenants/{tenant}`                                        | Read one tenant                           |
 | `PATCH`  | `/admin/tenants/{tenant}`                                        | Amend one tenant                          |
 | `GET`    | `/admin/tenants/{tenant}/whoami`                                 | Identity probe                            |
 | `GET`    | `/admin/tenants/{tenant}/subjects`                               | List subjects                             |
+| `GET`    | `/admin/tenants/{tenant}/subjects/count`                         | Count subjects                            |
 | `POST`   | `/admin/tenants/{tenant}/subjects`                               | Create a subject                          |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id`                           | Read a subject                            |
 | `PATCH`  | `/admin/tenants/{tenant}/subjects/:id`                           | Amend a subject                           |
@@ -144,18 +148,21 @@ shape of what it is filling.
 | `GET`    | `/admin/tenants/{tenant}/settings`                               | Read a tenant's settings                  |
 | `PATCH`  | `/admin/tenants/{tenant}/settings`                               | Amend a tenant's settings                 |
 | `GET`    | `/admin/tenants/{tenant}/clients`                                | List clients                              |
+| `GET`    | `/admin/tenants/{tenant}/clients/count`                          | Count clients                             |
 | `POST`   | `/admin/tenants/{tenant}/clients`                                | Create a client                           |
 | `GET`    | `/admin/tenants/{tenant}/clients/:id`                            | Read a client                             |
 | `PATCH`  | `/admin/tenants/{tenant}/clients/:id`                            | Amend a client                            |
 | `DELETE` | `/admin/tenants/{tenant}/clients/:id`                            | Delete a client                           |
 | `POST`   | `/admin/tenants/{tenant}/clients/:id/secret`                     | Rotate a client's secret                  |
 | `GET`    | `/admin/tenants/{tenant}/roles`                                  | List roles                                |
+| `GET`    | `/admin/tenants/{tenant}/roles/count`                            | Count roles                               |
 | `POST`   | `/admin/tenants/{tenant}/roles`                                  | Create a role                             |
 | `GET`    | `/admin/tenants/{tenant}/roles/:id`                              | Read a role                               |
 | `PATCH`  | `/admin/tenants/{tenant}/roles/:id`                              | Amend a role                              |
 | `DELETE` | `/admin/tenants/{tenant}/roles/:id`                              | Delete a role                             |
 | `POST`   | `/admin/tenants/{tenant}/roles/:id/composites`                   | Add a role composite                      |
 | `GET`    | `/admin/tenants/{tenant}/groups`                                 | List groups                               |
+| `GET`    | `/admin/tenants/{tenant}/groups/count`                           | Count groups                              |
 | `POST`   | `/admin/tenants/{tenant}/groups`                                 | Create a group                            |
 | `GET`    | `/admin/tenants/{tenant}/groups/:id`                             | Read a group                              |
 | `PATCH`  | `/admin/tenants/{tenant}/groups/:id`                             | Amend a group (reparent)                  |
@@ -163,6 +170,7 @@ shape of what it is filling.
 | `GET`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Read a group's roles                      |
 | `PUT`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Replace a group's roles                   |
 | `GET`    | `/admin/tenants/{tenant}/scopes`                                 | List client scopes                        |
+| `GET`    | `/admin/tenants/{tenant}/scopes/count`                           | Count client scopes                       |
 | `POST`   | `/admin/tenants/{tenant}/scopes`                                 | Create a client scope                     |
 | `GET`    | `/admin/tenants/{tenant}/scopes/:id`                             | Read a client scope                       |
 | `PATCH`  | `/admin/tenants/{tenant}/scopes/:id`                             | Amend a client scope                      |
@@ -297,7 +305,8 @@ Requires `manage-tenants`, which only a system admin holds, so this is the
 one collection with no tenant-local view. Pages by an opaque cursor, `?limit=`
 and `?cursor=`, ordered by `id`; a further page is announced by a
 `Link: rel="next"` header and a `next` member in the body, both absent once
-the collection fits in one page. The response carries no total.
+the collection fits in one page. The response carries no total;
+`GET /admin/tenants/count` below answers one.
 
 **Search** works the way `GET /subjects` below describes it: a prefix of one
 named field, `?name=` or `?display_name=`, never both, folded by
@@ -762,8 +771,9 @@ The reserved `client_id`, refused against the same tenant:
 
 Listing pages the same way `GET /admin/tenants` does — `?limit=`, `?cursor=`,
 ordered by `id`, a `Link: rel="next"` header and a `next` body member once a
-further page exists, no total. On this stack the page held two clients, the
-tenant's own `odudu-admin` and `demo-backend` above:
+further page exists, no total (`GET /clients/count` below has one). On this
+stack the page held two clients, the tenant's own `odudu-admin` and
+`demo-backend` above:
 
 ```bash
 curl -sS \
@@ -2841,6 +2851,136 @@ Keep-Alive: timeout=72
 
 {"type":"about:blank","title":"Forbidden","status":403,"instance":"capability-refused-doc"}
 {"items":[{"id":"01a0dc0d-82ec-7888-ab05-4e8c931ffd35","occurred_at":"2026-09-26T04:51:08.139Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
+```
+
+## `GET /admin/tenants/count`, `GET /subjects/count`, `GET /clients/count`, `GET /roles/count`, `GET /groups/count` and `GET /scopes/count`
+
+How many rows a listing would page through, without paging through them.
+Each count takes its list's own parameters minus `?cursor=` and `?limit=`,
+under the same rules — a search is one field at a time, every filter is
+`AND`ed, anything else is refused with `400` naming it — and requires its
+list's own capability: `manage-tenants` for the tenant collection, which
+carries no `{tenant}` segment for the same reason `GET /admin/tenants`
+does; `view-users` for subjects, which `manage-users` also reaches;
+`manage-clients` for clients; and `manage-tenant` for roles, groups and
+scopes. `count` is a reserved tenant name, so `/admin/tenants/count` never
+names a tenant, and a subject or client id is a uuid, so `/count` never
+names one either.
+
+The answer is `{"count": n, "capped": false}`, or
+`{"count": 10000, "capped": true}` once more than ten thousand rows match:
+counting stops one row past that ceiling, so a count costs one bounded
+read of the same index its list uses rather than a pass over the table
+(`tests/list-plans.int.test.ts` in `@odudu/protocol-admin` holds the
+plan). A capped count says only that there are more; it is never an
+estimate. No capped response is shown here, since nothing on this stack
+holds ten thousand of anything —
+`packages/protocol-admin/tests/counts.int.test.ts` covers it with a
+lowered ceiling.
+
+Captured against the fourth stack (the note at the top of this document)
+as `ada-whoami`, after its `odudu` service was rebuilt from this branch,
+with the roles, groups, subjects and clients the sections above created in
+its `demo`. The tenant collection first, then the list the second count
+agrees with:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/count"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/count?name=demo"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants?name=demo"
+```
+
+```
+{"count":8,"capped":false}
+{"count":1,"capped":false}
+{"items":[{"id":"01a0db22-1c32-7d17-b351-697d7911033c","name":"demo","display_name":null,"enabled":true,"created_at":"2026-09-26T00:34:00.885Z"}]}
+```
+
+Subjects, unfiltered and then under `?username=ADA` — the three the search
+under `GET /subjects` returns — and under `?enabled=false`, which nothing
+in `demo` is:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects/count"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects/count?username=ADA"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects/count?enabled=false"
+```
+
+```
+{"count":7,"capped":false}
+{"count":3,"capped":false}
+{"count":0,"capped":false}
+```
+
+Clients, roles, groups and scopes, each unfiltered or under the searches
+their own sections ran:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/clients/count"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/clients/count?type=public"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/roles/count?name=billing"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/roles/count?name=billing&client=tenant"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/groups/count?name=eng"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/scopes/count"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/scopes/count?name=o"
+```
+
+```
+{"count":5,"capped":false}
+{"count":1,"capped":false}
+{"count":3,"capped":false}
+{"count":2,"capped":false}
+{"count":2,"capped":false}
+{"count":8,"capped":false}
+{"count":2,"capped":false}
+```
+
+A page control is not a count parameter, and two search fields are refused
+as the list refuses them. The first two refusals are the generated
+schema's, hence their generic `title`; the third is the handler's:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects/count?limit=5"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects/count?cursor=x"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects/count?username=a&email=b"
+```
+
+```
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: limit","instance":"01a0e17e-02ce-71f8-a88e-ff57e563be16"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: cursor","instance":"01a0e17e-02d9-79ae-b3a9-5273bfa53781"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: username or email, not both","instance":"01a0e17e-02e3-75e6-a189-82af26471b1b"}
 ```
 
 ## `GET /admin/openapi.json`

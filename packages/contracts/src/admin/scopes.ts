@@ -12,10 +12,13 @@ export const clientScopeSchema = z.object({
 });
 export type ClientScope = z.infer<typeof clientScopeSchema>;
 
-export const listScopesQuerySchema = cursorQuerySchema
-  .extend({ name: searchPrefixSchema.optional() })
-  .strict();
+const scopeFilters = { name: searchPrefixSchema.optional() };
+
+export const listScopesQuerySchema = cursorQuerySchema.extend(scopeFilters).strict();
 export type ListScopesQuery = z.infer<typeof listScopesQuerySchema>;
+
+export const countScopesQuerySchema = z.object(scopeFilters).strict();
+export type CountScopesQuery = z.infer<typeof countScopesQuerySchema>;
 
 export const listScopesResponseSchema = z.object({
   items: z.array(clientScopeSchema),

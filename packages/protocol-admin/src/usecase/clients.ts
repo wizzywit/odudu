@@ -28,7 +28,11 @@ import {
   refusalFor,
 } from '#/service/client-patch';
 import { etagOf, matches } from '#/service/etag';
-import { prefixRangeConditions, requireSearchKey } from '#/usecase/prefix-search';
+import {
+  prefixRangeConditions,
+  requireSearchKey,
+  type ListPosition,
+} from '#/usecase/prefix-search';
 
 const COLLECTION = 'clients';
 
@@ -225,6 +229,34 @@ function exactClientConditions(filters: ClientFilters): SQL[] {
   ];
 }
 
+/**
+ * The WHERE clause of the clients listing, over `clients` joined to
+ * `client_oidc_config`, and so also of its count, which passes no position.
+ */
+export async function clientListConditions(
+  tx: TenantScopedDatabase,
+  filters: ClientFilters,
+  after: ListPosition | undefined,
+): Promise<SQL[]> {
+  const conditions = exactClientConditions(filters);
+  const search = clientSearchOf(filters);
+  if (search === undefined) {
+    if (after !== undefined) conditions.push(gt(clients.id, after.id));
+    return conditions;
+  }
+  const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+  conditions.push(
+    ...(await prefixRangeConditions(tx, search.column, clients.id, search.prefix, position)),
+  );
+  return conditions;
+}
+
+/** The clients listing's order, which its keyset cursor and its count both follow. */
+export function clientListOrder(filters: ClientFilters): SQL[] {
+  const search = clientSearchOf(filters);
+  return search === undefined ? [asc(clients.id)] : [asc(search.column), asc(clients.id)];
+}
+
 // A searched listing is one range scan of the search column's index
 // (0074_list_indexes_tenants_clients.sql), the way `listSubjects` is.
 export async function listClients(
@@ -233,7 +265,7 @@ export async function listClients(
 ): Promise<ListClientsOutcome> {
   const filters = filterDigest(input.filters);
   const search = clientSearchOf(input.filters);
-  let after: { readonly id: string; readonly sort: string | undefined } | undefined;
+  let after: ListPosition | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
       input.cursorKey,
@@ -247,22 +279,13 @@ export async function listClients(
     after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const conditions = exactClientConditions(input.filters);
-  if (search === undefined) {
-    if (after !== undefined) conditions.push(gt(clients.id, after.id));
-  } else {
-    const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
-    conditions.push(
-      ...(await prefixRangeConditions(tx, search.column, clients.id, search.prefix, position)),
-    );
-  }
-
+  const conditions = await clientListConditions(tx, input.filters, after);
   const rows = await tx
     .select({ view: CLIENT_VIEW_COLUMNS, searchKey: search?.column ?? sql<null>`null` })
     .from(clients)
     .innerJoin(clientOidcConfig, eq(clients.id, clientOidcConfig.clientId))
     .where(conditions.length === 0 ? undefined : and(...conditions))
-    .orderBy(...(search === undefined ? [asc(clients.id)] : [asc(search.column), asc(clients.id)]))
+    .orderBy(...clientListOrder(input.filters))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;

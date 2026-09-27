@@ -21,7 +21,11 @@ import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceili
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SUBJECT_FIELDS, refusalFor } from '#/service/subjects-patch';
-import { prefixRangeConditions, requireSearchKey } from '#/usecase/prefix-search';
+import {
+  prefixRangeConditions,
+  requireSearchKey,
+  type ListPosition,
+} from '#/usecase/prefix-search';
 
 const COLLECTION = 'subjects';
 
@@ -132,6 +136,34 @@ function exactFilterConditions(filters: SubjectFilters, tx: TenantScopedDatabase
   return conditions;
 }
 
+/**
+ * The WHERE clause of the subjects listing, over `subjects` left-joined to
+ * `users`, and so also of its count, which passes no position.
+ */
+export async function subjectListConditions(
+  tx: TenantScopedDatabase,
+  filters: SubjectFilters,
+  after: ListPosition | undefined,
+): Promise<SQL[]> {
+  const conditions = exactFilterConditions(filters, tx);
+  const search = searchOf(filters);
+  if (search === undefined) {
+    if (after !== undefined) conditions.push(gt(subjects.id, after.id));
+    return conditions;
+  }
+  const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+  conditions.push(
+    ...(await prefixRangeConditions(tx, search.column, users.subjectId, search.prefix, position)),
+  );
+  return conditions;
+}
+
+/** The subjects listing's order, which its keyset cursor and its count both follow. */
+export function subjectListOrder(filters: SubjectFilters): SQL[] {
+  const search = searchOf(filters);
+  return search === undefined ? [asc(subjects.id)] : [asc(search.column), asc(users.subjectId)];
+}
+
 // A searched listing is one range scan of the search column's index
 // (0073_list_indexes_subjects.sql): both bounds and the keyset are
 // leakproof comparisons on that column, so row-level security leaves them
@@ -142,7 +174,7 @@ export async function listSubjects(
 ): Promise<ListSubjectsOutcome> {
   const filters = filterDigest(input.filters);
   const search = searchOf(input.filters);
-  let after: { readonly id: string; readonly sort: string | undefined } | undefined;
+  let after: ListPosition | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
       input.cursorKey,
@@ -156,26 +188,14 @@ export async function listSubjects(
     after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const conditions = exactFilterConditions(input.filters, tx);
-  let searchKey: SearchKeyColumn | undefined;
-  if (search === undefined) {
-    if (after !== undefined) conditions.push(gt(subjects.id, after.id));
-  } else {
-    searchKey = search.column;
-    const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
-    conditions.push(
-      ...(await prefixRangeConditions(tx, search.column, users.subjectId, search.prefix, position)),
-    );
-  }
-
+  const conditions = await subjectListConditions(tx, input.filters, after);
+  const searchKey = search?.column;
   const rows = await tx
     .select({ ...SUBJECT_VIEW_COLUMNS, searchKey: searchKey ?? sql<null>`null` })
     .from(subjects)
     .leftJoin(users, eq(subjects.id, users.subjectId))
     .where(conditions.length === 0 ? undefined : and(...conditions))
-    .orderBy(
-      ...(searchKey === undefined ? [asc(subjects.id)] : [asc(searchKey), asc(users.subjectId)]),
-    )
+    .orderBy(...subjectListOrder(input.filters))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;

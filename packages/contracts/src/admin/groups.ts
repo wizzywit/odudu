@@ -11,10 +11,13 @@ export const groupSchema = z.object({
 });
 export type Group = z.infer<typeof groupSchema>;
 
-export const listGroupsQuerySchema = cursorQuerySchema
-  .extend({ name: searchPrefixSchema.optional() })
-  .strict();
+const groupFilters = { name: searchPrefixSchema.optional() };
+
+export const listGroupsQuerySchema = cursorQuerySchema.extend(groupFilters).strict();
 export type ListGroupsQuery = z.infer<typeof listGroupsQuerySchema>;
+
+export const countGroupsQuerySchema = z.object(groupFilters).strict();
+export type CountGroupsQuery = z.infer<typeof countGroupsQuerySchema>;
 
 export const listGroupsResponseSchema = z.object({
   items: z.array(groupSchema),

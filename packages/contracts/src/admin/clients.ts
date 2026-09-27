@@ -67,18 +67,29 @@ export const createClientRequestSchema = z
   );
 export type CreateClientRequest = z.infer<typeof createClientRequestSchema>;
 
+const clientFilters = {
+  client_id: searchPrefixSchema.optional(),
+  name: searchPrefixSchema.optional(),
+  type: clientTypeSchema.optional(),
+  enabled: enabledFilterSchema.optional(),
+};
+const oneClientSearch = [
+  (query: { client_id?: string | undefined; name?: string | undefined }) =>
+    query.client_id === undefined || query.name === undefined,
+  { message: 'search one field at a time: client_id or name, not both' },
+] as const;
+
 export const listClientsQuerySchema = cursorQuerySchema
-  .extend({
-    client_id: searchPrefixSchema.optional(),
-    name: searchPrefixSchema.optional(),
-    type: clientTypeSchema.optional(),
-    enabled: enabledFilterSchema.optional(),
-  })
+  .extend(clientFilters)
   .strict()
-  .refine((query) => query.client_id === undefined || query.name === undefined, {
-    message: 'search one field at a time: client_id or name, not both',
-  });
+  .refine(...oneClientSearch);
 export type ListClientsQuery = z.infer<typeof listClientsQuerySchema>;
+
+export const countClientsQuerySchema = z
+  .object(clientFilters)
+  .strict()
+  .refine(...oneClientSearch);
+export type CountClientsQuery = z.infer<typeof countClientsQuerySchema>;
 
 export const listClientsResponseSchema = z.object({
   items: z.array(clientSchema),

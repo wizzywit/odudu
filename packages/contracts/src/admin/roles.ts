@@ -16,13 +16,16 @@ export type Role = z.infer<typeof roleSchema>;
 
 // `client` narrows to one owner: `tenant` for the tenant roles, or a
 // client's id for the roles scoped to it.
-export const listRolesQuerySchema = cursorQuerySchema
-  .extend({
-    name: searchPrefixSchema.optional(),
-    client: z.union([z.literal('tenant'), z.uuid()]).optional(),
-  })
-  .strict();
+const roleFilters = {
+  name: searchPrefixSchema.optional(),
+  client: z.union([z.literal('tenant'), z.uuid()]).optional(),
+};
+
+export const listRolesQuerySchema = cursorQuerySchema.extend(roleFilters).strict();
 export type ListRolesQuery = z.infer<typeof listRolesQuerySchema>;
+
+export const countRolesQuerySchema = z.object(roleFilters).strict();
+export type CountRolesQuery = z.infer<typeof countRolesQuerySchema>;
 
 export const listRolesResponseSchema = z.object({
   items: z.array(roleSchema),

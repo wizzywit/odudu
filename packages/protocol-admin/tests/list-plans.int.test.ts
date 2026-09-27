@@ -13,6 +13,16 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { listAudit } from '#/usecase/audit';
 import { listClients, type ClientFilters } from '#/usecase/clients';
+import {
+  COUNT_CAP,
+  countClients,
+  countGroups,
+  countRoles,
+  countScopes,
+  countSubjects,
+  countTenants,
+  type CountOptions,
+} from '#/usecase/counts';
 import { listGroups } from '#/usecase/groups';
 import { listRoles, type RoleFilters } from '#/usecase/roles';
 import { listScopes } from '#/usecase/scopes';
@@ -43,6 +53,7 @@ interface Statement {
 
 interface PlanNode {
   readonly nodeType: string;
+  readonly relationName: string | undefined;
   readonly indexName: string | undefined;
   readonly indexCond: string | undefined;
   readonly filter: string | undefined;
@@ -184,6 +195,7 @@ function planNode(value: unknown): PlanNode {
   const plans = node.Plans;
   return {
     nodeType,
+    relationName: optionalString(node['Relation Name']),
     indexName: optionalString(node['Index Name']),
     indexCond: optionalString(node['Index Cond']),
     filter: optionalString(node.Filter),
@@ -557,5 +569,147 @@ describe('the plan an audit trail narrowed by resource_type and resource_id is g
         ].join('\n'),
       );
     }
+  });
+});
+
+interface CountPlanCase {
+  readonly label: string;
+  readonly table: string;
+  readonly index: string;
+  readonly column: string;
+  readonly throughOwner: boolean;
+  readonly count: (options: CountOptions) => Promise<unknown>;
+}
+
+function scopedCount(count: (tx: TenantScopedDatabase, options: CountOptions) => Promise<unknown>) {
+  return (options: CountOptions) => withTenant(app.db, targetTenantId, (tx) => count(tx, options));
+}
+
+const COUNT_CASES: readonly CountPlanCase[] = [
+  {
+    label: 'subjects/count ?username=A',
+    table: 'users',
+    index: 'users_username_search',
+    column: 'username_search',
+    throughOwner: false,
+    count: scopedCount((tx, options) => countSubjects(tx, { username: 'A' }, options)),
+  },
+  {
+    label: 'subjects/count ?email=a',
+    table: 'users',
+    index: 'users_email_search',
+    column: 'email_search',
+    throughOwner: false,
+    count: scopedCount((tx, options) => countSubjects(tx, { email: 'a' }, options)),
+  },
+  {
+    label: 'tenants/count ?name=T3',
+    table: 'tenants',
+    index: 'tenants_name_search',
+    column: 'name_search',
+    throughOwner: true,
+    count: (options) => countTenants(owner.db, { name: 'T3' }, options),
+  },
+  {
+    label: 'clients/count ?client_id=B',
+    table: 'clients',
+    index: 'clients_client_id_search',
+    column: 'client_id_search',
+    throughOwner: false,
+    count: scopedCount((tx, options) => countClients(tx, { client_id: 'B' }, options)),
+  },
+  {
+    label: 'roles/count ?name=A',
+    table: 'roles',
+    index: 'roles_name_search',
+    column: 'name_search',
+    throughOwner: false,
+    count: scopedCount((tx, options) => countRoles(tx, { name: 'A' }, options)),
+  },
+  {
+    label: 'groups/count ?name=B',
+    table: 'groups',
+    index: 'groups_name_search',
+    column: 'name_search',
+    throughOwner: false,
+    count: scopedCount((tx, options) => countGroups(tx, { name: 'B' }, options)),
+  },
+  {
+    label: 'scopes/count ?name=c',
+    table: 'client_scopes',
+    index: 'client_scopes_name_search',
+    column: 'name_search',
+    throughOwner: false,
+    count: scopedCount((tx, options) => countScopes(tx, { name: 'c' }, options)),
+  },
+];
+
+// Each prefix matches a few hundred to a few thousand rows here. Under a
+// ceiling inside the range the read stops at the ceiling: an ordered scan
+// of the search index beneath the LIMIT, any join probing per row, no
+// sort. Under COUNT_CAP the whole range is read and sorted, which the
+// planner may do as a bitmap scan, and a joined table it costs cheaper to
+// hash than to probe it may read in full — never the searched table.
+const COUNT_REGIMES = [
+  {
+    regime: 'a ceiling above the range',
+    cap: COUNT_CAP,
+    bounded: false,
+    scans: ['Index Scan', 'Index Only Scan', 'Bitmap Index Scan'],
+  },
+  {
+    regime: 'a ceiling inside the range',
+    cap: 100,
+    bounded: true,
+    scans: ['Index Scan', 'Index Only Scan'],
+  },
+] as const;
+
+describe('the plan each searched count is given', () => {
+  describe.each(COUNT_CASES)('$label', (countCase) => {
+    it.each(COUNT_REGIMES)(
+      'reads one range of its index, never the table, under $regime',
+      async ({ regime, cap, bounded, scans }) => {
+        await countCase.count({ cap });
+        captured = [];
+        await countCase.count({ cap });
+        const statements = captured;
+        captured = undefined;
+        const statement = statements.find((s) => /\bcount\(/iu.test(s.query));
+        if (statement === undefined) throw new Error(`${countCase.label} issued no count`);
+        const handle = countCase.throughOwner ? owner : app;
+        const tenantId = countCase.throughOwner ? undefined : targetTenantId;
+
+        const [json] = await explained(handle, statement, 'FORMAT JSON', tenantId);
+        const nodes = allNodes(rootPlan(json));
+        const types = nodes.map((node) => node.nodeType);
+        const scan = nodes.find((node) => node.indexName === countCase.index);
+
+        if (PLANS_OUT !== undefined) {
+          const text = await explained(handle, statement, 'ANALYZE, BUFFERS', tenantId);
+          appendFileSync(
+            PLANS_OUT,
+            [
+              `### ${countCase.label}, ${regime}`,
+              statement.query,
+              `params: ${JSON.stringify(statement.parameters)}`,
+              ...text.map(String),
+              '',
+            ].join('\n'),
+          );
+        }
+
+        expect(scans).toContain(scan?.nodeType);
+        expect(scan?.indexCond).toContain(`${countCase.column} >=`);
+        expect(scan?.indexCond).toContain(`${countCase.column} <`);
+        expect(types).toContain('Limit');
+        const seqScanned = nodes.filter((node) => node.nodeType === 'Seq Scan');
+        expect(seqScanned.map((node) => node.relationName)).not.toContain(countCase.table);
+        if (bounded) {
+          expect(types).not.toContain('Seq Scan');
+          expect(types).not.toContain('Sort');
+        }
+      },
+    );
   });
 });

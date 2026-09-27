@@ -7,7 +7,11 @@ import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceili
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
-import { prefixRangeConditions, requireSearchKey } from '#/usecase/prefix-search';
+import {
+  prefixRangeConditions,
+  requireSearchKey,
+  type ListPosition,
+} from '#/usecase/prefix-search';
 import { type RoleAssignment } from '#/usecase/subjects';
 
 // The admin-client capability names a group would hand a subject placed
@@ -77,6 +81,29 @@ export interface ListGroupsInput {
 export type ListGroupsOutcome =
   { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly Group[]; next: string | null };
 
+/** The groups listing's order, which its keyset cursor and its count both follow. */
+export function groupListOrder(filters: GroupFilters): SQL[] {
+  return filters.name === undefined ? [asc(groups.id)] : [asc(groups.nameSearch), asc(groups.id)];
+}
+
+/** The WHERE clause of the groups listing, and of its count, which passes no position. */
+export async function groupListConditions(
+  tx: TenantScopedDatabase,
+  filters: GroupFilters,
+  after: ListPosition | undefined,
+): Promise<SQL[]> {
+  const conditions: SQL[] = [];
+  if (filters.name === undefined) {
+    if (after !== undefined) conditions.push(gt(groups.id, after.id));
+    return conditions;
+  }
+  const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+  conditions.push(
+    ...(await prefixRangeConditions(tx, groups.nameSearch, groups.id, filters.name, position)),
+  );
+  return conditions;
+}
+
 // A searched listing is one range scan of `groups_name_search`
 // (0075_list_indexes_roles_groups_scopes.sql), the way `listSubjects` is.
 export async function listGroups(
@@ -85,7 +112,7 @@ export async function listGroups(
 ): Promise<ListGroupsOutcome> {
   const filters = filterDigest(input.filters);
   const prefix = input.filters.name;
-  let after: { readonly id: string; readonly sort: string | undefined } | undefined;
+  let after: ListPosition | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
       input.cursorKey,
@@ -99,23 +126,12 @@ export async function listGroups(
     after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const conditions: SQL[] = [];
-  if (prefix === undefined) {
-    if (after !== undefined) conditions.push(gt(groups.id, after.id));
-  } else {
-    const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
-    conditions.push(
-      ...(await prefixRangeConditions(tx, groups.nameSearch, groups.id, prefix, position)),
-    );
-  }
-
+  const conditions = await groupListConditions(tx, input.filters, after);
   const rows = await tx
     .select()
     .from(groups)
     .where(conditions.length === 0 ? undefined : and(...conditions))
-    .orderBy(
-      ...(prefix === undefined ? [asc(groups.id)] : [asc(groups.nameSearch), asc(groups.id)]),
-    )
+    .orderBy(...groupListOrder(input.filters))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;

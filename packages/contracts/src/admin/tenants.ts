@@ -34,14 +34,25 @@ export const listTenantsResponseSchema = z.object({
 });
 export type ListTenantsResponse = z.infer<typeof listTenantsResponseSchema>;
 
+const tenantFilters = {
+  name: searchPrefixSchema.optional(),
+  display_name: searchPrefixSchema.optional(),
+  enabled: enabledFilterSchema.optional(),
+};
+const oneTenantSearch = [
+  (query: { name?: string | undefined; display_name?: string | undefined }) =>
+    query.name === undefined || query.display_name === undefined,
+  { message: 'search one field at a time: name or display_name, not both' },
+] as const;
+
 export const listTenantsQuerySchema = cursorQuerySchema
-  .extend({
-    name: searchPrefixSchema.optional(),
-    display_name: searchPrefixSchema.optional(),
-    enabled: enabledFilterSchema.optional(),
-  })
+  .extend(tenantFilters)
   .strict()
-  .refine((query) => query.name === undefined || query.display_name === undefined, {
-    message: 'search one field at a time: name or display_name, not both',
-  });
+  .refine(...oneTenantSearch);
 export type ListTenantsQuery = z.infer<typeof listTenantsQuerySchema>;
+
+export const countTenantsQuerySchema = z
+  .object(tenantFilters)
+  .strict()
+  .refine(...oneTenantSearch);
+export type CountTenantsQuery = z.infer<typeof countTenantsQuerySchema>;

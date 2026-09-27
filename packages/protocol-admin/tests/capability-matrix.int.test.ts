@@ -100,7 +100,7 @@ function requiredCapabilityOf(route: AdminRoute): AdminCapability {
   return capability;
 }
 
-// `tenantScopedRoutes` (below) already excludes the two manage-tenants-only
+// `tenantScopedRoutes` (below) already excludes the manage-tenants-only
 // routes, so every capability reaching here is a `TenantCapability` —
 // narrowed by a runtime check because `requiredCapabilityOf`'s return type
 // cannot say so on its own.
@@ -220,8 +220,8 @@ describe('the capability matrix', () => {
     },
   );
 
-  // The two routes with no `:tenant` segment: the tenant collection itself,
-  // reached only by a system-tenant admin holding manage-tenants.
+  // The routes with no `:tenant` segment: the tenant collection and its
+  // count, reached only by a system-tenant admin holding manage-tenants.
   const systemRoutes = ADMIN_ROUTES.filter((route) => !route.pattern.includes(':tenant'));
 
   it.each(systemRoutes)('$method $pattern admits only manage-tenants', async (route) => {

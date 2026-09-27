@@ -65,6 +65,15 @@ import {
   type KeysRouteDeps,
 } from '#/view/routes/keys';
 import { listAuditHandler, type AuditRouteDeps } from '#/view/routes/audit';
+import {
+  countClientsHandler,
+  countGroupsHandler,
+  countRolesHandler,
+  countScopesHandler,
+  countSubjectsHandler,
+  countTenantsHandler,
+  type CountsRouteDeps,
+} from '#/view/routes/counts';
 import { registerOpenApiRoute } from '#/view/routes/openapi';
 import {
   addRoleCompositeHandler,
@@ -333,9 +342,14 @@ function buildAdminRoutes(
       database: deps.database.db,
       cursorKey: deps.cursorKey,
     };
+    const countsDeps: CountsRouteDeps = {
+      database: deps.database.db,
+      ownerDatabase: deps.ownerDatabase.db,
+    };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler({ callerCapabilities }),
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/count': countSubjectsHandler(countsDeps),
       'POST /admin/tenants/:tenant/subjects': createSubjectHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id': readSubjectHandler(subjectsDeps),
       'PATCH /admin/tenants/:tenant/subjects/:id': amendSubjectHandler(subjectsDeps),
@@ -353,24 +367,28 @@ function buildAdminRoutes(
       'DELETE /admin/tenants/:tenant/subjects/:id/sessions/:sid':
         deleteSessionHandler(sessionsDeps),
       'GET /admin/tenants': listTenantsHandler(tenantsDeps),
+      'GET /admin/tenants/count': countTenantsHandler(countsDeps),
       'POST /admin/tenants': createTenantHandler(tenantsDeps),
       'GET /admin/tenants/:tenant': readTenantHandler(tenantsDeps),
       'PATCH /admin/tenants/:tenant': amendTenantHandler(tenantsDeps),
       'GET /admin/tenants/:tenant/settings': getSettingsHandler(settingsDeps),
       'PATCH /admin/tenants/:tenant/settings': amendSettingsHandler(settingsDeps),
       'GET /admin/tenants/:tenant/clients': listClientsHandler(clientsDeps),
+      'GET /admin/tenants/:tenant/clients/count': countClientsHandler(countsDeps),
       'POST /admin/tenants/:tenant/clients': createClientHandler(clientsDeps),
       'GET /admin/tenants/:tenant/clients/:id': readClientHandler(clientsDeps),
       'PATCH /admin/tenants/:tenant/clients/:id': amendClientHandler(clientsDeps),
       'DELETE /admin/tenants/:tenant/clients/:id': deleteClientHandler(clientsDeps),
       'POST /admin/tenants/:tenant/clients/:id/secret': rotateClientSecretHandler(clientsDeps),
       'GET /admin/tenants/:tenant/roles': listRolesHandler(rolesDeps),
+      'GET /admin/tenants/:tenant/roles/count': countRolesHandler(countsDeps),
       'POST /admin/tenants/:tenant/roles': createRoleHandler(rolesDeps),
       'GET /admin/tenants/:tenant/roles/:id': readRoleHandler(rolesDeps),
       'PATCH /admin/tenants/:tenant/roles/:id': amendRoleHandler(rolesDeps),
       'DELETE /admin/tenants/:tenant/roles/:id': deleteRoleHandler(rolesDeps),
       'POST /admin/tenants/:tenant/roles/:id/composites': addRoleCompositeHandler(rolesDeps),
       'GET /admin/tenants/:tenant/groups': listGroupsHandler(groupsDeps),
+      'GET /admin/tenants/:tenant/groups/count': countGroupsHandler(countsDeps),
       'POST /admin/tenants/:tenant/groups': createGroupHandler(groupsDeps),
       'GET /admin/tenants/:tenant/groups/:id': readGroupHandler(groupsDeps),
       'PATCH /admin/tenants/:tenant/groups/:id': amendGroupHandler(groupsDeps),
@@ -378,6 +396,7 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/groups/:id/roles': readGroupRolesHandler(groupsDeps),
       'PUT /admin/tenants/:tenant/groups/:id/roles': setGroupRolesHandler(groupsDeps),
       'GET /admin/tenants/:tenant/scopes': listScopesHandler(scopesDeps),
+      'GET /admin/tenants/:tenant/scopes/count': countScopesHandler(countsDeps),
       'POST /admin/tenants/:tenant/scopes': createScopeHandler(scopesDeps),
       'GET /admin/tenants/:tenant/scopes/:id': readScopeHandler(scopesDeps),
       'PATCH /admin/tenants/:tenant/scopes/:id': amendScopeHandler(scopesDeps),

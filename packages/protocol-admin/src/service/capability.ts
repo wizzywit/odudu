@@ -24,10 +24,14 @@ import {
   listExecutionsResponseSchema,
   replaceExecutionsRequestSchema,
   listClientsQuerySchema,
+  countClientsQuerySchema,
   listGroupsQuerySchema,
+  countGroupsQuerySchema,
   listKeysQuerySchema,
   listRolesQuerySchema,
+  countRolesQuerySchema,
   listScopesQuerySchema,
+  countScopesQuerySchema,
   listClientsResponseSchema,
   listCredentialsResponseSchema,
   listGroupsResponseSchema,
@@ -36,8 +40,10 @@ import {
   listScopesResponseSchema,
   listSessionsResponseSchema,
   listSubjectsQuerySchema,
+  countSubjectsQuerySchema,
   listSubjectsResponseSchema,
   listTenantsQuerySchema,
+  countTenantsQuerySchema,
   listTenantsResponseSchema,
   roleSchema,
   rotateClientSecretResponseSchema,
@@ -61,6 +67,7 @@ import {
   subjectSchema,
   tenantSchema,
   whoamiResponseSchema,
+  countResponseSchema,
 } from '@odudu/contracts/admin';
 import { MANAGE_TENANTS, type TenantCapability } from '@odudu/domain-tenant';
 import { z } from 'zod';
@@ -98,9 +105,10 @@ export interface AdminRoute {
 // The single list the router registers from (view/routes/router.ts): a
 // route with no entry here fails at startup rather than shipping
 // reachable and unguarded. `capability: null` means authentication
-// alone — `whoami` is the only one. `/admin/tenants` carries no `:tenant`
-// segment — it administers the tenant collection itself, which only a
-// system-tenant admin reaches (router.ts resolves its target explicitly).
+// alone — `whoami` is the only one. `/admin/tenants` and its `/count`
+// carry no `:tenant` segment — they administer the tenant collection
+// itself, which only a system-tenant admin reaches (router.ts resolves
+// its target explicitly).
 export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'GET',
@@ -114,6 +122,13 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'view-users',
     responseSchema: listSubjectsResponseSchema,
     querystringSchema: listSubjectsQuerySchema,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/count',
+    capability: 'view-users',
+    responseSchema: countResponseSchema,
+    querystringSchema: countSubjectsQuerySchema,
   },
   {
     method: 'POST',
@@ -219,6 +234,13 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     querystringSchema: listTenantsQuerySchema,
   },
   {
+    method: 'GET',
+    pattern: '/admin/tenants/count',
+    capability: MANAGE_TENANTS,
+    responseSchema: countResponseSchema,
+    querystringSchema: countTenantsQuerySchema,
+  },
+  {
     method: 'POST',
     pattern: '/admin/tenants',
     capability: MANAGE_TENANTS,
@@ -266,6 +288,13 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     querystringSchema: listClientsQuerySchema,
   },
   {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/clients/count',
+    capability: 'manage-clients',
+    responseSchema: countResponseSchema,
+    querystringSchema: countClientsQuerySchema,
+  },
+  {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/clients',
     capability: 'manage-clients',
@@ -308,6 +337,13 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: listRolesResponseSchema,
     querystringSchema: listRolesQuerySchema,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/roles/count',
+    capability: 'manage-tenant',
+    responseSchema: countResponseSchema,
+    querystringSchema: countRolesQuerySchema,
   },
   {
     method: 'POST',
@@ -354,6 +390,13 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: listGroupsResponseSchema,
     querystringSchema: listGroupsQuerySchema,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/groups/count',
+    capability: 'manage-tenant',
+    responseSchema: countResponseSchema,
+    querystringSchema: countGroupsQuerySchema,
   },
   {
     method: 'POST',
@@ -404,6 +447,13 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: listScopesResponseSchema,
     querystringSchema: listScopesQuerySchema,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/scopes/count',
+    capability: 'manage-tenant',
+    responseSchema: countResponseSchema,
+    querystringSchema: countScopesQuerySchema,
   },
   {
     method: 'POST',

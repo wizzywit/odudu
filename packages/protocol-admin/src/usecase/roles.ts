@@ -8,7 +8,11 @@ import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceili
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_ROLE_FIELDS, refusalFor } from '#/service/role-patch';
-import { prefixRangeConditions, requireSearchKey } from '#/usecase/prefix-search';
+import {
+  prefixRangeConditions,
+  requireSearchKey,
+  type ListPosition,
+} from '#/usecase/prefix-search';
 
 const COLLECTION = 'roles';
 
@@ -65,6 +69,29 @@ function roleOwnerConditions(filters: RoleFilters): SQL[] {
   ];
 }
 
+/** The roles listing's order, which its keyset cursor and its count both follow. */
+export function roleListOrder(filters: RoleFilters): SQL[] {
+  return filters.name === undefined ? [asc(roles.id)] : [asc(roles.nameSearch), asc(roles.id)];
+}
+
+/** The WHERE clause of the roles listing, and of its count, which passes no position. */
+export async function roleListConditions(
+  tx: TenantScopedDatabase,
+  filters: RoleFilters,
+  after: ListPosition | undefined,
+): Promise<SQL[]> {
+  const conditions: SQL[] = roleOwnerConditions(filters);
+  if (filters.name === undefined) {
+    if (after !== undefined) conditions.push(gt(roles.id, after.id));
+    return conditions;
+  }
+  const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+  conditions.push(
+    ...(await prefixRangeConditions(tx, roles.nameSearch, roles.id, filters.name, position)),
+  );
+  return conditions;
+}
+
 // A searched listing is one range scan of `roles_name_search`
 // (0075_list_indexes_roles_groups_scopes.sql), the way `listSubjects` is.
 export async function listRoles(
@@ -73,7 +100,7 @@ export async function listRoles(
 ): Promise<ListRolesOutcome> {
   const filters = filterDigest(input.filters);
   const prefix = input.filters.name;
-  let after: { readonly id: string; readonly sort: string | undefined } | undefined;
+  let after: ListPosition | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
       input.cursorKey,
@@ -87,21 +114,12 @@ export async function listRoles(
     after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const conditions = roleOwnerConditions(input.filters);
-  if (prefix === undefined) {
-    if (after !== undefined) conditions.push(gt(roles.id, after.id));
-  } else {
-    const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
-    conditions.push(
-      ...(await prefixRangeConditions(tx, roles.nameSearch, roles.id, prefix, position)),
-    );
-  }
-
+  const conditions = await roleListConditions(tx, input.filters, after);
   const rows = await tx
     .select()
     .from(roles)
     .where(conditions.length === 0 ? undefined : and(...conditions))
-    .orderBy(...(prefix === undefined ? [asc(roles.id)] : [asc(roles.nameSearch), asc(roles.id)]))
+    .orderBy(...roleListOrder(input.filters))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;

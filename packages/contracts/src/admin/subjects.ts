@@ -7,19 +7,30 @@ import {
   searchPrefixSchema,
 } from '#/admin/shared';
 
+const subjectFilters = {
+  username: searchPrefixSchema.optional(),
+  email: searchPrefixSchema.optional(),
+  enabled: enabledFilterSchema.optional(),
+  role: z.uuid().optional(),
+  group: z.uuid().optional(),
+};
+const oneSubjectSearch = [
+  (query: { username?: string | undefined; email?: string | undefined }) =>
+    query.username === undefined || query.email === undefined,
+  { message: 'search one field at a time: username or email, not both' },
+] as const;
+
 export const listSubjectsQuerySchema = cursorQuerySchema
-  .extend({
-    username: searchPrefixSchema.optional(),
-    email: searchPrefixSchema.optional(),
-    enabled: enabledFilterSchema.optional(),
-    role: z.uuid().optional(),
-    group: z.uuid().optional(),
-  })
+  .extend(subjectFilters)
   .strict()
-  .refine((query) => query.username === undefined || query.email === undefined, {
-    message: 'search one field at a time: username or email, not both',
-  });
+  .refine(...oneSubjectSearch);
 export type ListSubjectsQuery = z.infer<typeof listSubjectsQuerySchema>;
+
+export const countSubjectsQuerySchema = z
+  .object(subjectFilters)
+  .strict()
+  .refine(...oneSubjectSearch);
+export type CountSubjectsQuery = z.infer<typeof countSubjectsQuerySchema>;
 
 export const subjectTypeSchema = z.enum(['user', 'service', 'agent_instance']);
 
