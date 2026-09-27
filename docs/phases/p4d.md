@@ -166,26 +166,31 @@ polyfill setting is irrelevant to it.
 
 ### React Aria under a strict CSP
 
-Pending the browser check. The app renders a React Aria Components 1.21.1
-`Dialog` (in a `Modal`) and, from a lazily imported chunk, a `ComboBox`,
-and lists every `securitypolicyviolation` event on the page itself as well
-as in the console. Serve it with
-`node .superpowers/spikes/vite-csp/serve.mjs`, which answers every file of
-`dist/` at `http://127.0.0.1:4174/` with exactly
-`content-security-policy: default-src 'self'; style-src 'self'; script-src 'self'`.
+`verified:` served by `node .superpowers/spikes/vite-csp/serve.mjs` with
+`content-security-policy: default-src 'self'; style-src 'self'; script-src 'self'`,
+opened in Chromium, the React Aria Components 1.21.1 `Dialog` opened and
+closed with Escape, and the lazily loaded `ComboBox` typed into and its
+options listed. Both behave correctly. The page and the console report
+exactly one violation, on first render, before either is opened:
 
-What reading the source predicts, to be confirmed or refuted there —
-`assumption:`, not yet verified. `usePress`
-(`react-aria/dist/private/interactions/usePress.mjs:585`) prepends a
-`<style id="react-aria-pressable-style">` to `<head>` the first time any
-pressable mounts, in every browser, and `usePreventScroll` does the same
-on iOS WebKit when a modal opens. Both give the element a nonce read from
-`<meta name="csp-nonce">` (or `__webpack_nonce__`) when one exists
-(`react-aria/dist/private/utils/getNonce.mjs`). So a `style-src`
-violation is expected on first render, and a nonce is the likely fallback:
-`PORT=4175 node .superpowers/spikes/vite-csp/serve.mjs --nonce` adds a
-per-response `'nonce-…'` to `style-src` and the matching
-`<meta name="csp-nonce">` to `index.html`, for comparison.
+```
+Applying inline style violates the following Content Security Policy directive 'style-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked.
+```
+
+It is `usePress` prepending `<style id="react-aria-pressable-style">`
+(`react-aria/dist/private/interactions/usePress.mjs:592`), whose whole text
+is one rule, `touch-action: pan-x pan-y pinch-zoom` on
+`[data-react-aria-pressable]`. Styles set through the CSSOM — React's
+`style` prop and React Aria's positioning — raise nothing, as `style-src`
+does not govern them. `usePreventScroll` injects a second element on iOS
+WebKit only, which this check could not exercise.
+
+So the SPA's shell stays static: the constant stylesheet is allowed by its
+hash, `style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o='`,
+with a test that recomputes the hash from the pinned React Aria's source so
+an upgrade that changes the text fails the build rather than the page. The
+iOS element's hash is taken the same way from its source and added beside
+it. A per-response nonce is not needed.
 
 ### Prefix search as one range scan
 
