@@ -23,12 +23,19 @@ export interface ClientMetadata {
   tlsClientAuthSubjectDn: string | null;
 }
 
+// `field` names the metadata member at fault, when one member is.
 export type ClientMetadataOutcome =
   | { kind: 'ok'; metadata: ClientMetadata }
-  | { kind: 'invalid'; error: ClientMetadataError; description: string };
+  | { kind: 'invalid'; error: ClientMetadataError; description: string; field?: string };
 
-function invalid(error: ClientMetadataError, description: string): ClientMetadataOutcome {
-  return { kind: 'invalid', error, description };
+function invalid(
+  error: ClientMetadataError,
+  description: string,
+  field?: string,
+): ClientMetadataOutcome {
+  return field === undefined
+    ? { kind: 'invalid', error, description }
+    : { kind: 'invalid', error, description, field };
 }
 
 // client_oidc_config_grant_types_check (migration 0007_client_oidc_config.sql).
@@ -213,14 +220,17 @@ export function parseClientMetadata(
 
   const assigned = SERVER_ASSIGNED_FIELDS.find((field) => field in raw);
   if (assigned !== undefined) {
-    return invalid('invalid_client_metadata', `${assigned} is assigned by the server`);
+    return invalid('invalid_client_metadata', `${assigned} is assigned by the server`, assigned);
   }
 
   const shape = metadataShape.safeParse(raw);
   if (!shape.success) {
+    const issue = shape.error.issues[0];
+    const member = issue?.path[0];
     return invalid(
       'invalid_client_metadata',
-      shape.error.issues[0]?.message ?? 'malformed client metadata',
+      issue?.message ?? 'malformed client metadata',
+      typeof member === 'string' ? member : undefined,
     );
   }
   const metadata = shape.data;
@@ -228,7 +238,11 @@ export function parseClientMetadata(
   const grantTypes = metadata.grant_types ?? ['authorization_code'];
   const unknownGrant = grantTypes.find((grant) => !GRANT_TYPES_PERMITTED.has(grant));
   if (unknownGrant !== undefined) {
-    return invalid('invalid_client_metadata', `grant_types must not include ${unknownGrant}`);
+    return invalid(
+      'invalid_client_metadata',
+      `grant_types must not include ${unknownGrant}`,
+      'grant_types',
+    );
   }
 
   const tokenEndpointAuthMethod = metadata.token_endpoint_auth_method ?? 'client_secret_basic';
@@ -236,6 +250,7 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       `token_endpoint_auth_method must not be ${tokenEndpointAuthMethod}`,
+      'token_endpoint_auth_method',
     );
   }
   // docs/superpowers/specs/2026-09-18-p3a-clients-registration-consent-design.md:596-598:
@@ -246,6 +261,7 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       'tls_client_auth is unavailable: ODUDU_TRUST_PROXY is off on this deployment',
+      'token_endpoint_auth_method',
     );
   }
 
@@ -262,6 +278,7 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       'tls_client_auth_subject_dn is required when token_endpoint_auth_method is tls_client_auth',
+      'tls_client_auth_subject_dn',
     );
   }
   const tlsClientAuthSubjectDn =
@@ -272,6 +289,7 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       `userinfo_signed_response_alg must not be ${userinfoSignedResponseAlg}`,
+      'userinfo_signed_response_alg',
     );
   }
 
@@ -283,6 +301,7 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       `userinfo_encrypted_response_alg must not be ${userinfoEncryptedResponseAlg}`,
+      'userinfo_encrypted_response_alg',
     );
   }
 
@@ -291,6 +310,7 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       `userinfo_encrypted_response_enc must not be ${providedEnc}`,
+      'userinfo_encrypted_response_enc',
     );
   }
   // client_oidc_config_userinfo_enc_needs_alg (migration
@@ -301,6 +321,7 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       'userinfo_encrypted_response_enc requires userinfo_encrypted_response_alg',
+      'userinfo_encrypted_response_enc',
     );
   }
   const userinfoEncryptedResponseEnc =
@@ -309,7 +330,11 @@ export function parseClientMetadata(
   const redirectUris = metadata.redirect_uris ?? [];
   const badRedirectUri = redirectUris.find((uri) => !isValidRedirectUri(uri));
   if (badRedirectUri !== undefined) {
-    return invalid('invalid_redirect_uri', `redirect_uris entry ${badRedirectUri} is not valid`);
+    return invalid(
+      'invalid_redirect_uri',
+      `redirect_uris entry ${badRedirectUri} is not valid`,
+      'redirect_uris',
+    );
   }
   // client_oidc_config_redirect_uris_present: exact array equality, not
   // "contains" — adding refresh_token still needs an interactive grant to
@@ -319,16 +344,17 @@ export function parseClientMetadata(
     return invalid(
       'invalid_redirect_uri',
       'redirect_uris is required unless grant_types is exactly ["client_credentials"]',
+      'redirect_uris',
     );
   }
 
   if (metadata.jwks !== undefined && metadata.jwks_uri !== undefined) {
-    return invalid('invalid_client_metadata', 'jwks and jwks_uri are mutually exclusive');
+    return invalid('invalid_client_metadata', 'jwks and jwks_uri are mutually exclusive', 'jwks');
   }
 
   if (metadata.jwks !== undefined) {
     const refusal = privateMemberRefusal(metadata.jwks.keys);
-    if (refusal !== null) return invalid('invalid_client_metadata', refusal);
+    if (refusal !== null) return invalid('invalid_client_metadata', refusal, 'jwks');
   }
 
   let jwksUri: string | null = null;
@@ -338,7 +364,7 @@ export function parseClientMetadata(
       jwksUri = metadata.jwks_uri;
     } catch (error) {
       if (!(error instanceof RemoteAddressRefused)) throw error;
-      return invalid('invalid_client_metadata', `jwks_uri: ${error.reason}`);
+      return invalid('invalid_client_metadata', `jwks_uri: ${error.reason}`, 'jwks_uri');
     }
   }
 
@@ -349,6 +375,7 @@ export function parseClientMetadata(
     return invalid(
       'invalid_client_metadata',
       'backchannel_logout_uri must be an absolute https URI with no fragment',
+      'backchannel_logout_uri',
     );
   }
 
@@ -357,12 +384,14 @@ export function parseClientMetadata(
       return invalid(
         'invalid_client_metadata',
         'frontchannel_logout_uri must be an absolute https URI with no fragment',
+        'frontchannel_logout_uri',
       );
     }
     if (!sharesOriginWithRegisteredRedirectUri(metadata.frontchannel_logout_uri, redirectUris)) {
       return invalid(
         'invalid_client_metadata',
         'frontchannel_logout_uri must share its domain, port and scheme with a registered redirect_uri',
+        'frontchannel_logout_uri',
       );
     }
   }

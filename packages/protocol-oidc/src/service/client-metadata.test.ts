@@ -486,3 +486,23 @@ describe('[ODUDU-TLS-CLIENT-AUTH-REGISTRATION-GATE-01] tls_client_auth registrat
     expect(outcome.kind).toBe('ok');
   });
 });
+
+describe('the field an invalid outcome names', () => {
+  it.each([
+    ['redirect_uris', { redirect_uris: ['http://rp.example/cb'] }],
+    ['grant_types', { grant_types: ['password'] }],
+    ['token_endpoint_auth_method', { token_endpoint_auth_method: 'client_secret_jwt' }],
+    ['jwks', { jwks: { keys: [{ kty: 'oct', k: 'c2VjcmV0' }] } }],
+    ['jwks_uri', { jwks_uri: 'http://127.0.0.1/jwks' }],
+    ['userinfo_encrypted_response_enc', { userinfo_encrypted_response_enc: 'A128GCM' }],
+    ['backchannel_logout_uri', { backchannel_logout_uri: 'http://rp.example/logout' }],
+  ])('is %s', (field, over) => {
+    const outcome = parseClientMetadata(ok(over), { tlsClientAuthEnabled: false });
+    expect(outcome).toMatchObject({ kind: 'invalid', field });
+  });
+
+  it('is absent for a body that is not an object', () => {
+    const outcome = parseClientMetadata([], { tlsClientAuthEnabled: false });
+    expect(outcome.kind === 'invalid' && 'field' in outcome).toBe(false);
+  });
+});
