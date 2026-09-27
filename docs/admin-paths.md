@@ -2554,13 +2554,21 @@ made by someone outside it.
 Paginated the same way every other list here is, over
 `(occurred_at, id)` descending rather than ascending `id`: newest first.
 Filters narrow the page rather than requiring one: `event_type`,
-`actor_subject_id`, `resource_type`, `action`, `outcome`, and a `from`/`to`
-range on `occurred_at` (ISO 8601, with an offset). `event_type` must be one
-of the vocabulary's own six values (`admin_mutation`, `admin_access`,
-`authentication`, `session`, `token`, `credential`) and `actor_subject_id`
-must be a UUID, since the column is one — either answers `400` rather than
-reaching Postgres and failing there. `request_id` and `ip` are never
-filters. Both default from the request that made the change (`withTenant`'s
+`actor_subject_id`, `resource_type`, `resource_id`, `action`, `outcome`, and
+a `from`/`to` range on `occurred_at` (ISO 8601, with an offset). `event_type`
+must be one of the vocabulary's own six values (`admin_mutation`,
+`admin_access`, `authentication`, `session`, `token`, `credential`) and
+`actor_subject_id` must be a UUID, since the column is one — either answers
+`400` rather than reaching Postgres and failing there. `resource_id` is
+text, not a UUID: a reserved-`client_id` refusal names it by the string the
+caller sent, and an `authentication_session` row by a sha256 digest, so the
+column is never narrower than what it holds
+([What a refused login leaves behind](request-paths.md#what-a-refused-login-leaves-behind)).
+`resource_id` alone is ambiguous — a client, a role and a group can all
+happen to share an id — so it answers `400` naming both fields unless
+`resource_type` is given alongside it, the same way a cursor minted under
+one filter set is refused when `resource_id` is added to it on replay.
+`request_id` and `ip` are never filters. Both default from the request that made the change (`withTenant`'s
 own `RequestContext`, `packages/db/src/tx.ts`): `request_id` is the
 request's own id, which a caller may supply as `x-request-id` (truncated to
 128 characters), and `ip` is `request.ip`, which only `ODUDU_TRUST_PROXY`
@@ -2665,6 +2673,38 @@ curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 {"type":"about:blank","title":"Error","status":400,"detail":"querystring/event_type must be equal to one of the allowed values","instance":"01a0daf0-0d53-75f1-97d2-504e2737e2f5"}
+```
+
+`resource_id` narrows further, and requires `resource_type` alongside it —
+captured on the same third stack, rebuilt for this branch, with a fresh
+system-tenant admin (`resource-doc`) and a tenant created only for this
+subsection, `resource-audit-1790486559`, so its trail holds nothing but
+what it did: two clients, `resource-doc-a` and `resource-doc-b`.
+
+```bash
+curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "resource_type=client" \
+  --data-urlencode "resource_id=01a0e150-b9ec-70a9-8e34-663280fa0514" \
+  http://localhost:3000/admin/tenants/resource-audit-1790486559/audit
+```
+
+Only `resource-doc-a`'s own row, not `resource-doc-b`'s:
+
+```
+{"items":[{"id":"01a0e150-b9fa-7928-8c6c-fffb14508355","occurred_at":"2026-09-27T05:22:39.206Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e150-9e32-7d69-9f91-82315e2f6bf2","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"client","resource_id":"01a0e150-b9ec-70a9-8e34-663280fa0514","request_id":"01a0e150-b9d5-7a65-8c0a-11474588ecf3","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"resource-doc-a"},"type":{"after":"public"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"none"}}}]}
+```
+
+`resource_id` alone, with no `resource_type`, is refused — a client, a
+role and a group could all happen to share this id, so which table it
+names is not optional:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/resource-audit-1790486559/audit?resource_id=01a0e150-b9ec-70a9-8e34-663280fa0514"
+```
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"resource_id requires resource_type","instance":"01a0e150-d143-7a2e-83fb-d67891c4fb3f"}
 ```
 
 No page above needed a `next`: the stack never had more than twenty rows of

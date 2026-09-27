@@ -13,17 +13,26 @@ const AUDIT_EVENT_TYPES = [
   'credential',
 ] as const;
 
-export const listAuditQuerySchema = cursorQuerySchema.extend({
-  event_type: z.enum(AUDIT_EVENT_TYPES).optional(),
-  // A `uuid` column: anything else reaches Postgres and fails on syntax
-  // rather than filtering to nothing.
-  actor_subject_id: z.uuid().optional(),
-  resource_type: z.string().optional(),
-  action: z.string().optional(),
-  outcome: z.enum(['allowed', 'refused', 'failed']).optional(),
-  from: z.iso.datetime({ offset: true }).optional(),
-  to: z.iso.datetime({ offset: true }).optional(),
-});
+export const listAuditQuerySchema = cursorQuerySchema
+  .extend({
+    event_type: z.enum(AUDIT_EVENT_TYPES).optional(),
+    // A `uuid` column: anything else reaches Postgres and fails on syntax
+    // rather than filtering to nothing.
+    actor_subject_id: z.uuid().optional(),
+    resource_type: z.string().optional(),
+    // Not a `uuid` column like `actor_subject_id`: resource_id also holds a
+    // reserved client_id string (the `client.create` refusal) and a sha256
+    // session digest (`authentication_session` rows) alongside a resource's
+    // own id, so anything narrower than text would refuse a real filter.
+    resource_id: z.string().optional(),
+    action: z.string().optional(),
+    outcome: z.enum(['allowed', 'refused', 'failed']).optional(),
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
+  })
+  .refine((query) => query.resource_id === undefined || query.resource_type !== undefined, {
+    message: 'resource_id requires resource_type',
+  });
 export type ListAuditQuery = z.infer<typeof listAuditQuerySchema>;
 
 export const auditEventSchema = z.object({

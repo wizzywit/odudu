@@ -13,6 +13,7 @@ export interface ListAuditInput {
   readonly eventType?: AuditEventType | undefined;
   readonly actorSubjectId?: string | undefined;
   readonly resourceType?: string | undefined;
+  readonly resourceId?: string | undefined;
   readonly action?: string | undefined;
   readonly outcome?: 'allowed' | 'refused' | 'failed' | undefined;
   readonly from?: Date | undefined;
@@ -61,6 +62,7 @@ export async function listAudit(
     event_type: input.eventType,
     actor_subject_id: input.actorSubjectId,
     resource_type: input.resourceType,
+    resource_id: input.resourceId,
     action: input.action,
     outcome: input.outcome,
     from: input.from?.toISOString(),
@@ -85,6 +87,7 @@ export async function listAudit(
     ...(input.eventType !== undefined ? { eventType: input.eventType } : {}),
     ...(input.actorSubjectId !== undefined ? { actorSubjectId: input.actorSubjectId } : {}),
     ...(input.resourceType !== undefined ? { resourceType: input.resourceType } : {}),
+    ...(input.resourceId !== undefined ? { resourceId: input.resourceId } : {}),
     ...(input.action !== undefined ? { action: input.action } : {}),
     ...(input.outcome !== undefined ? { outcome: input.outcome } : {}),
     ...(input.from !== undefined ? { from: input.from } : {}),

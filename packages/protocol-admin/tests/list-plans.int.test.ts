@@ -10,6 +10,7 @@ import {
 } from '@odudu/db';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { listAudit } from '#/usecase/audit';
 import { listClients, type ClientFilters } from '#/usecase/clients';
 import { listGroups } from '#/usecase/groups';
 import { listRoles, type RoleFilters } from '#/usecase/roles';
@@ -131,6 +132,16 @@ beforeAll(async () => {
         from (select case when g % 2 = 0 then upper(substr(md5((g * 11)::text), 1, 8))
                           else substr(md5((g * 11)::text), 1, 8) end || '-' || g as name
                 from generate_series(1, ${ROWS}) g) named`;
+    // One audit row per client, resource_id the client's own id: enough
+    // rows that a per-resource read has something to be bounded against,
+    // and exactly one match for the resource_type+resource_id case below.
+    await owner.sql`
+      insert into audit_events
+        (id, tenant_id, occurred_at, event_type, action, outcome, resource_type, resource_id)
+      select gen_random_uuid(), tenant_id, now() - (n || ' seconds')::interval,
+             'admin_mutation', 'client.create', 'allowed', 'client', id::text
+        from (select id, tenant_id, row_number() over () as n
+                from clients where tenant_id = ${tenantId}) c`;
   }
   const [scoped] = await owner.sql<{ id: string }[]>`
     select id from clients where tenant_id = ${targetTenantId} order by id limit 1`;
@@ -446,5 +457,37 @@ describe('the plan a roles search narrowed by ?client= is given', () => {
     expect(nodes.map((node) => node.nodeType)).not.toContain('Seq Scan');
     expect(nodes.some((node) => node.indexCond?.includes('client_id =') === true)).toBe(true);
     await recordPlan('roles ?name=A&client=<id>, the first page', statement);
+  });
+});
+
+// `audit_events_resource` (0067) orders on (tenant_id, resource_type,
+// resource_id), not on (occurred_at, id) the listing itself orders by, so
+// a per-resource read is bounded by the index and then sorted — measured
+// below rather than held to the sort-free shape a search column's own
+// index gives the other listings.
+describe('the plan an audit trail narrowed by resource_type and resource_id is given', () => {
+  it('reads through the resource index, never the whole table', async () => {
+    const list = (cursor: string | undefined) =>
+      withTenant(app.db, targetTenantId, async (tx) => {
+        const outcome = await listAudit(tx, {
+          tenantId: targetTenantId,
+          limit: 50,
+          cursor,
+          cursorKey: CURSOR_KEY,
+          resourceType: 'client',
+          resourceId: scopedClientId,
+        });
+        return outcome.kind === 'ok' ? outcome.next : null;
+      });
+    await list(undefined);
+    const { statement } = await issuedBy(() => list(undefined));
+
+    const [json] = await explained(app, statement, 'FORMAT JSON', targetTenantId);
+    const nodes = allNodes(rootPlan(json));
+    expect(nodes.map((node) => node.nodeType)).not.toContain('Seq Scan');
+    const scan = nodes.find((node) => node.indexName === 'audit_events_resource');
+    expect(scan).toBeDefined();
+    expect(scan?.indexCond).toContain('resource_id =');
+    await recordPlan('audit ?resource_type=client&resource_id=<id>, the first page', statement);
   });
 });

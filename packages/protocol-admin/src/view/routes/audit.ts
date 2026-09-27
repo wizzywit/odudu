@@ -22,9 +22,16 @@ export function listAuditHandler(deps: AuditRouteDeps): AdminRouteHandler {
     if (tenantName === undefined) {
       throw new Error('protocol-admin: GET audit route received no :tenant');
     }
-    // Same narrowing as listGroupsHandler (#/view/routes/groups.ts):
-    // ADMIN_ROUTES' `querystringSchema` already validated shape.
-    const query = listAuditQuerySchema.parse(request.query);
+    // ADMIN_ROUTES' `querystringSchema` already validated each parameter's
+    // shape; the resource_id-requires-resource_type refinement has no JSON
+    // Schema form, so it is only enforced here (listSubjectsHandler,
+    // #/view/routes/subjects.ts, is the same pattern).
+    const parsed = listAuditQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      const detail = parsed.error.issues[0]?.message ?? 'invalid query';
+      return sendProblem(reply, request, problem(400, 'about:blank', 'Bad Request', detail));
+    }
+    const query = parsed.data;
     const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
@@ -36,6 +43,7 @@ export function listAuditHandler(deps: AuditRouteDeps): AdminRouteHandler {
         ...(query.event_type !== undefined ? { eventType: query.event_type } : {}),
         ...(query.actor_subject_id !== undefined ? { actorSubjectId: query.actor_subject_id } : {}),
         ...(query.resource_type !== undefined ? { resourceType: query.resource_type } : {}),
+        ...(query.resource_id !== undefined ? { resourceId: query.resource_id } : {}),
         ...(query.action !== undefined ? { action: query.action } : {}),
         ...(query.outcome !== undefined ? { outcome: query.outcome } : {}),
         ...(parseDate(query.from) !== undefined ? { from: parseDate(query.from) } : {}),

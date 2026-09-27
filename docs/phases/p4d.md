@@ -536,3 +536,37 @@ password hashes, secret hashes, emails and TOTP seeds among them. It is
 now `onQueryForTests`, and `tests/lint/query-hook-tests-only.test.ts`
 fails the build if any non-test source file under `packages/*/src`,
 `apps/*/src` or `tools/*/src` names it.
+
+## The plan `GET /audit?resource_type=&resource_id=` is given
+
+`audit_events_resource` (`packages/db/drizzle/0067_admin_audit.sql`) orders
+on `(tenant_id, resource_type, resource_id)`, not on `(occurred_at, id)` the
+listing itself orders by, so this is not the sort-free shape the six
+search columns above get: the index bounds the read to one resource, and a
+small `Sort` orders what is left. `list-plans.int.test.ts` seeds one audit
+row per client (30,000 per tenant) and holds the case to what that scan
+looks like — an `Index Scan` on `audit_events_resource`, no `Seq Scan` —
+rather than to a no-sort shape that is not there.
+
+verified: `cd packages/protocol-admin && LIST_PLANS_OUT=<file> pnpm vitest run --config ../../vitest.config.ts tests/list-plans.int.test.ts -t "resource index"`
+(1 passed in 24.2 s against `postgres:17-alpine`). The first (and only)
+page of `?resource_type=client&resource_id=<id>`, one row bounded entirely
+by the index condition:
+
+```
+Limit  (cost=8.46..8.46 rows=1 width=238) (actual time=0.025..0.025 rows=1 loops=1)
+  Buffers: shared hit=4
+  ->  Sort  (cost=8.46..8.46 rows=1 width=238) (actual time=0.024..0.024 rows=1 loops=1)
+        Sort Key: occurred_at DESC, id DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=4
+        ->  Index Scan using audit_events_resource on audit_events  (cost=0.43..8.45 rows=1 width=238) (actual time=0.018..0.018 rows=1 loops=1)
+              Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (resource_type = 'client'::text) AND (resource_id = '0000079a-6ea2-4929-951c-012d655b282f'::text))
+              Buffers: shared hit=4
+Planning Time: 0.049 ms
+Execution Time: 0.040 ms
+```
+
+Acceptable for a per-resource trail: a resource's own rows are few enough
+that sorting them in memory costs nothing next to the index read that found
+them, and no tenant writes enough rows against one resource to change that.
