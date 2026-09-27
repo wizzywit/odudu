@@ -34,6 +34,7 @@ import {
   capabilitiesOfGroupsAndAncestors,
   capabilitiesReachableFrom,
   overreach,
+  targetOverreach,
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
@@ -107,6 +108,56 @@ export interface SubjectAuditEvent {
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: SubjectAuditEvent) => Promise<void>;
+
+export interface TargetCeilingInput {
+  readonly subjectId: string;
+  /** The caller's own admin capabilities, resolved in the tenant its token was issued from. */
+  readonly callerCapabilities: ReadonlySet<string>;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface TargetCeilingRefusal {
+  readonly kind: 'capability_ceiling';
+  readonly requested: readonly string[];
+}
+
+// `targetOverreach` (#/service/capability-ceiling.ts), with the refused row
+// an attempted privilege escalation always gets, filed under the action the
+// caller attempted. Null when the caller covers the target.
+export async function refuseOverTargetCeiling<A extends string>(
+  tx: TenantScopedDatabase,
+  audit: (
+    tx: TenantScopedDatabase,
+    event: {
+      action: A;
+      resourceType: 'subject';
+      resourceId: string;
+      actorSubjectId: string;
+      actorTenantId: string;
+      actorClientId: string;
+      outcome: 'refused';
+      detail: Record<string, unknown>;
+    },
+  ) => Promise<void>,
+  action: A,
+  input: TargetCeilingInput,
+): Promise<TargetCeilingRefusal | null> {
+  const denied = await targetOverreach(tx, input.subjectId, input.callerCapabilities);
+  if (denied.length === 0) return null;
+  await audit(tx, {
+    action,
+    resourceType: 'subject',
+    resourceId: input.subjectId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'refused',
+    detail: { denied },
+  });
+  return { kind: 'capability_ceiling', requested: denied };
+}
 
 /** Every `listSubjectsQuerySchema` parameter except the page controls. */
 export type SubjectFilters = Omit<ListSubjectsQuery, 'cursor' | 'limit'>;
@@ -352,6 +403,7 @@ export interface AmendSubjectInput {
   readonly subjectId: string;
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -366,6 +418,7 @@ export type AmendSubjectOutcome =
   | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
   | { kind: 'precondition_failed' }
+  | TargetCeilingRefusal
   | { kind: 'ok'; subject: SubjectView; etag: string };
 
 // Wrapped in `{ value }` rather than the bare type, so a present-but-null
@@ -484,6 +537,18 @@ export async function amendSubject(
     patch.email = { value };
   }
 
+  // Disabling an account locks its holder out, and changing its email
+  // redirects its password reset — so either, as a change, is held to the
+  // target ceiling. Resubmitting what is already stored changes nothing.
+  const current = viewOfLocked(locked);
+  const changes =
+    (patch.enabled !== undefined && patch.enabled.value !== current.enabled) ||
+    (patch.email !== undefined && patch.email.value !== current.email);
+  if (changes) {
+    const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.amend', input);
+    if (refused !== null) return refused;
+  }
+
   if (patch.enabled !== undefined) {
     await subjectRepository(tx).setEnabled(input.subjectId, patch.enabled.value);
   }
@@ -510,6 +575,7 @@ export async function amendSubject(
 
 export interface DeleteSubjectInput {
   readonly subjectId: string;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -519,7 +585,8 @@ export interface DeleteSubjectDeps {
   readonly audit: Audit;
 }
 
-export type DeleteSubjectOutcome = { kind: 'not_found' } | { kind: 'deleted' };
+export type DeleteSubjectOutcome =
+  { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'deleted' };
 
 // The delete itself is one statement: every table that names a subject
 // (users, user_credentials, sessions, token_grants, subject_roles, …)
@@ -530,6 +597,15 @@ export async function deleteSubject(
   deps: DeleteSubjectDeps,
   input: DeleteSubjectInput,
 ): Promise<DeleteSubjectOutcome> {
+  const locked = await tx
+    .select({ id: subjects.id })
+    .from(subjects)
+    .where(eq(subjects.id, input.subjectId))
+    .for('update');
+  if (locked.length === 0) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.delete', input);
+  if (refused !== null) return refused;
+
   const rows = await tx.delete(subjects).where(eq(subjects.id, input.subjectId)).returning({
     id: subjects.id,
   });
@@ -645,6 +721,7 @@ export function credentialWireShape(view: CredentialView): Credential {
 export interface DeleteCredentialInput {
   readonly subjectId: string;
   readonly credentialId: string;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -655,7 +732,10 @@ export interface DeleteCredentialDeps {
 }
 
 export type DeleteCredentialOutcome =
-  { kind: 'not_found' } | { kind: 'refused'; reason: string } | { kind: 'deleted' };
+  | { kind: 'not_found' }
+  | { kind: 'refused'; reason: string }
+  | TargetCeilingRefusal
+  | { kind: 'deleted' };
 
 // `password` and `password-history` are refused: the first has its own
 // rotation surface (a password change, never a bare delete — a subject
@@ -683,6 +763,9 @@ export async function deleteCredential(
       reason: `a ${row.type} credential cannot be removed through this door`,
     };
   }
+
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.credential_delete', input);
+  if (refused !== null) return refused;
 
   await credentialRepository(tx).deleteOne(row.id);
 

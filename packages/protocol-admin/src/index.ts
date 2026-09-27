@@ -198,6 +198,10 @@ export interface AdminRoutesDeps {
   // ADR 0028's escape hatch, applied to the relay a tenant configures for
   // itself. Off by default; loopback stays refused either way.
   allowPrivateSmtpHosts?: boolean;
+  // Spends a subject's outstanding reset-password links when an
+  // administrator issues it a one-time password. The links belong to
+  // @odudu/account, which the composition root wires this to.
+  retireResetLinks: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
 }
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
@@ -382,6 +386,8 @@ function buildAdminRoutes(
     const accountRecoveryDeps: AccountRecoveryRouteDeps = {
       database: deps.database.db,
       audit: accountRecoveryAudit,
+      callerCapabilities,
+      retireResetLinks: deps.retireResetLinks,
     };
     const auditDeps: AuditRouteDeps = {
       database: deps.database.db,

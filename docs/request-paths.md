@@ -9309,6 +9309,14 @@ session lifecycle. A citation of either half here means that half.
   key behind, and `resolveSender` falling back to the deployment's own
   `ODUDU_SMTP_*` where a tenant configures none. What is not there yet: a UI
   to configure it, which is **P4d**'s.
+- **A password change or reset leaves every other session alive.** Neither
+  the `update-password` action nor a redeemed reset link ends the subject's
+  other sessions, and neither offers to — ASVS V3.3.3 asks that a subject be
+  given that option after changing their password. Planned: **P4f**, whose
+  self-service password change and "me" session list are where the offer
+  belongs. An administrator can already end them all with
+  `DELETE /admin/tenants/{tenant}/subjects/{id}/sessions`
+  ([Admin paths](admin-paths.md#delete-subjectsidsessions)).
 
 - **Every page this server renders is hardcoded HTML**, dependency-free with
   every interpolated value escaped: twelve `*-html.ts` renderers across the

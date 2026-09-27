@@ -1,3 +1,4 @@
+import { actionTokenRepository } from '@odudu/account';
 import { requiredActionRepository } from '@odudu/authn-flows';
 import { withTenant } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
@@ -150,6 +151,47 @@ describe('POST /admin/tenants/{t}/subjects/{id}/password', () => {
     expect((leaked as unknown as { n: number }[])[0]?.n).toBe(0);
   });
 
+  it('clears a lockout, so the issued password signs in at once', async () => {
+    const t = await fixture.createTenant(`otp-locked-${newId()}`);
+    const client = await createSignInClient(fixture, t.id);
+    const username = `ian-${newId()}`;
+    const subjectId = await createPasswordSubject(fixture, t.id, username, PASSWORD);
+    await lockOut(t.name, client.clientId, username);
+
+    const issued = await issuePassword(t.name, subjectId);
+    expect(issued.statusCode).toBe(201);
+
+    const login = await submitPassword(
+      fixture,
+      t.name,
+      client.clientId,
+      username,
+      issued.password ?? '',
+    );
+    expect(login.body).toContain('Change your password');
+  });
+
+  it('retires every outstanding reset-password link', async () => {
+    const t = await fixture.createTenant(`otp-links-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `jo-${newId()}`);
+    const { token: link } = await withTenant(fixture.app.db, t.id, (tx) =>
+      actionTokenRepository(tx).issue({
+        tenantId: t.id,
+        subjectId,
+        type: 'reset_password',
+        email: 'jo@example.test',
+        ttlSeconds: 3600,
+      }),
+    );
+
+    expect((await issuePassword(t.name, subjectId)).statusCode).toBe(201);
+
+    const peeked = await withTenant(fixture.app.db, t.id, (tx) =>
+      actionTokenRepository(tx).peek(link),
+    );
+    expect(peeked).toBeNull();
+  });
+
   it('answers 404 for a service subject, which has no password to sign in with', async () => {
     const t = await fixture.createTenant(`otp-service-${newId()}`);
     const serviceId = await withTenant(fixture.app.db, t.id, async (tx) => {
@@ -243,6 +285,16 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/lockout', () => {
         { resourceId: subjectId, detail: { cleared: true } },
       ]),
     );
+  });
+
+  it('answers 404 for a service subject, which has no sign-in to be locked out of', async () => {
+    const t = await fixture.createTenant(`unlock-service-${newId()}`);
+    const serviceId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const subject = await subjectRepository(tx).create({ tenantId: t.id, type: 'service' });
+      return subject.id;
+    });
+
+    expect(await clearLockout(t.name, serviceId)).toBe(404);
   });
 
   it('answers 404 for an unknown subject, and leaves another tenant’s lockout alone', async () => {

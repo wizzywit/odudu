@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { ancestorsOf, groupRoles, rolesReachableFrom } from '@odudu/domain-authz';
-import { ADMIN_CLIENT_ID } from '@odudu/domain-tenant';
+import { ancestorsOf, effectiveRoles, groupRoles, rolesReachableFrom } from '@odudu/domain-authz';
+import { ADMIN_CLIENT_ID, MANAGE_TENANTS, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { inArray } from 'drizzle-orm';
 
 /**
@@ -55,4 +55,28 @@ export function overreach(
   held: ReadonlySet<string>,
 ): readonly string[] {
   return [...requested].filter((capability) => !held.has(capability));
+}
+
+const CAPABILITY_NAMES: ReadonlySet<string> = new Set([...TENANT_CAPABILITIES, MANAGE_TENANTS]);
+
+/**
+ * The target ceiling: what the admin capabilities `subjectId` holds name that
+ * `held` does not. An operation that can take over or remove an account —
+ * issuing its password, disabling it or changing its email, removing a
+ * credential, deleting it — is refused unless this is empty, so holding
+ * `manage-users` never reaches an account with more authority than the
+ * caller's own. Resolved through `effectiveRoles`, as the caller's are.
+ */
+export async function targetOverreach(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+  held: ReadonlySet<string>,
+): Promise<readonly string[]> {
+  const roles = await effectiveRoles(tx, subjectId);
+  const targetHolds = new Set(
+    roles
+      .filter((role) => role.clientKey === ADMIN_CLIENT_ID && CAPABILITY_NAMES.has(role.name))
+      .map((role) => role.name),
+  );
+  return overreach(targetHolds, held);
 }

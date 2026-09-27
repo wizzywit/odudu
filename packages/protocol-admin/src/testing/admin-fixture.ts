@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import formbody from '@fastify/formbody';
+import { actionTokenRepository } from '@odudu/account';
 import {
   generateSigningKey,
   signingKeyRepository,
@@ -235,6 +236,8 @@ export async function startAdminFixture(): Promise<AdminFixture> {
         cursorKey: KEK,
         kek: KEK,
         claimMappers,
+        retireResetLinks: (tx, subjectId) =>
+          actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
       },
       () => {
         if (!failNextAuditWrite) return Promise.resolve();

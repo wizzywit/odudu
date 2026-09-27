@@ -9,6 +9,7 @@ import {
   users,
 } from '@odudu/domain-identity';
 import { eq } from 'drizzle-orm';
+import { refuseOverTargetCeiling, type TargetCeilingRefusal } from '#/usecase/subjects';
 
 export interface AccountRecoveryAuditEvent {
   readonly action: 'subject.password_issue' | 'subject.lockout_clear';
@@ -32,21 +33,35 @@ export interface AccountRecoveryInput {
   readonly actorClientId: string;
 }
 
+export interface IssuePasswordInput extends AccountRecoveryInput {
+  readonly callerCapabilities: ReadonlySet<string>;
+}
+
 export interface AccountRecoveryDeps {
   readonly audit: Audit;
 }
 
-// The subject row is locked, so two concurrent issues serialize and the
-// password the later one answers is the one in force. A subject with no
-// `users` row — a service or agent_instance subject — has no sign-in to
-// recover, and is not found here.
-async function lockUserSubject(tx: TenantScopedDatabase, subjectId: string): Promise<boolean> {
-  const locked = await tx
-    .select({ id: subjects.id })
-    .from(subjects)
-    .where(eq(subjects.id, subjectId))
-    .for('update');
-  if (locked.length === 0) return false;
+export interface IssuePasswordDeps extends AccountRecoveryDeps {
+  /**
+   * Spends every reset-password link still outstanding for the subject, as
+   * a redeemed reset does. Injected because the links belong to
+   * `@odudu/account`, which this package does not depend on.
+   */
+  readonly retireResetLinks: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
+}
+
+// A subject with no `users` row — a service or agent_instance subject — has
+// no sign-in to recover, and is not found here. `lock` takes the subject
+// row, so two concurrent issues serialize and the password the later one
+// answers is the one in force.
+async function isUserSubject(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+  lock: boolean,
+): Promise<boolean> {
+  const query = tx.select({ id: subjects.id }).from(subjects).where(eq(subjects.id, subjectId));
+  const found = lock ? await query.for('update') : await query;
+  if (found.length === 0) return false;
   const user = await tx
     .select({ subjectId: users.subjectId })
     .from(users)
@@ -54,21 +69,24 @@ async function lockUserSubject(tx: TenantScopedDatabase, subjectId: string): Pro
   return user.length > 0;
 }
 
-export type IssuePasswordOutcome = { kind: 'not_found' } | { kind: 'issued'; password: string };
+export type IssuePasswordOutcome =
+  { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'issued'; password: string };
 
 // The same write a redeemed reset link makes (`credentialRepository.setPassword`),
-// with `update-password` owed so the subject replaces it at the next sign-in —
-// the shape `odudu seed admin` gives a first administrator. Like a reset, it
-// ends no session and revokes no grant; `DELETE …/subjects/{id}/sessions` is
-// the separate door for that. Never checked against the tenant's password
-// policy: the policy governs a password somebody chooses, and the login
+// with `update-password` owed and every other reset link retired, as a reset
+// retires its siblings. The lockout is cleared: an administrator restoring
+// access is not the attacker a lockout exists to slow down. Like a reset, it
+// ends no session and revokes no grant. Never checked against the password
+// policy: the policy governs a password somebody chooses, and the sign-in
 // that spends this one only verifies it before parking on the change.
 export async function issuePassword(
   tx: TenantScopedDatabase,
-  deps: AccountRecoveryDeps,
-  input: AccountRecoveryInput,
+  deps: IssuePasswordDeps,
+  input: IssuePasswordInput,
 ): Promise<IssuePasswordOutcome> {
-  if (!(await lockUserSubject(tx, input.subjectId))) return { kind: 'not_found' };
+  if (!(await isUserSubject(tx, input.subjectId, true))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.password_issue', input);
+  if (refused !== null) return refused;
 
   const password = generateOneTimePassword();
   const hash = await hashPassword(password);
@@ -84,6 +102,8 @@ export async function issuePassword(
     await credentials.setPassword(input.subjectId, hash);
   }
   await requiredActionRepository(tx).add(input.tenantId, input.subjectId, 'update-password');
+  await loginFailureRepository(tx).clear(input.subjectId);
+  await deps.retireResetLinks(tx, input.subjectId);
 
   await deps.audit(tx, {
     action: 'subject.password_issue',
@@ -110,11 +130,7 @@ export async function clearLockout(
   deps: AccountRecoveryDeps,
   input: AccountRecoveryInput,
 ): Promise<ClearLockoutOutcome> {
-  const found = await tx
-    .select({ id: subjects.id })
-    .from(subjects)
-    .where(eq(subjects.id, input.subjectId));
-  if (found.length === 0) return { kind: 'not_found' };
+  if (!(await isUserSubject(tx, input.subjectId, false))) return { kind: 'not_found' };
 
   const cleared = await loginFailureRepository(tx).clear(input.subjectId);
 

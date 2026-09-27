@@ -252,7 +252,26 @@ function amendmentProblem(
         request,
         problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches'),
       );
+    case 'capability_ceiling':
+      return targetCeilingProblem(reply, request, outcome.requested);
   }
+}
+
+export function targetCeilingProblem(
+  reply: FastifyReply,
+  request: AdminRequest,
+  denied: readonly string[],
+): FastifyReply {
+  return sendProblem(
+    reply,
+    request,
+    problem(
+      403,
+      'about:blank',
+      'Forbidden',
+      `the subject holds what the caller does not: ${denied.join(', ')}`,
+    ),
+  );
 }
 
 export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
@@ -263,6 +282,11 @@ export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
     }
     const values = amendSubjectRequestSchema.parse(request.body);
 
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       amendSubject(
         tx,
@@ -271,6 +295,7 @@ export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
           subjectId: id,
           values,
           ifMatch: ifMatchHeader(request),
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -391,12 +416,18 @@ export function deleteSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
       throw new Error('protocol-admin: DELETE subject route received no :id');
     }
 
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteSubject(
         tx,
         { audit: deps.audit },
         {
           subjectId: id,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -407,6 +438,8 @@ export function deleteSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
     switch (outcome.kind) {
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'capability_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'deleted':
         return reply.code(204).send();
     }
@@ -443,6 +476,11 @@ export function deleteCredentialHandler(deps: SubjectsRouteDeps): AdminRouteHand
       throw new Error('protocol-admin: DELETE credential route received no :id/:credentialId');
     }
 
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteCredential(
         tx,
@@ -450,6 +488,7 @@ export function deleteCredentialHandler(deps: SubjectsRouteDeps): AdminRouteHand
         {
           subjectId: id,
           credentialId,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -462,6 +501,8 @@ export function deleteCredentialHandler(deps: SubjectsRouteDeps): AdminRouteHand
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'refused':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'capability_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'deleted':
         return reply.code(204).send();
     }

@@ -174,6 +174,12 @@ export function registerAdminRoutes(
         ...(route.querystringSchema !== undefined ? { querystring: route.querystringSchema } : {}),
         ...(route.bodySchema !== undefined ? { body: route.bodySchema } : {}),
       },
+      // Every admin response is specific to its caller, and several carry a
+      // secret shown once; set before validation, so a refusal carries it too.
+      onRequest: (_request, reply, done) => {
+        reply.header('cache-control', 'no-store');
+        done();
+      },
       handler: (request, reply) => handleRoute(route, handler, deps, request, reply),
     });
   }

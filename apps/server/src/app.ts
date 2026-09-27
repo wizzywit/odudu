@@ -1,6 +1,7 @@
 import cookie from '@fastify/cookie';
 import formbody from '@fastify/formbody';
 import {
+  actionTokenRepository,
   tenantSettingsRepository,
   registerActionTokenRoute,
   registerRegistrationRoute,
@@ -260,6 +261,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       trustProxy: deps.trustProxy ?? false,
       claimMappers,
       allowPrivateSmtpHosts: deps.allowPrivateSmtpHosts ?? false,
+      retireResetLinks: (tx, subjectId) =>
+        actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
     }),
   );
   app.register(

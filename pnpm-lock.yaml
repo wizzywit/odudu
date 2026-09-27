@@ -517,6 +517,9 @@ importers:
       '@fastify/formbody':
         specifier: 9.0.0
         version: 9.0.0
+      '@odudu/account':
+        specifier: workspace:*
+        version: link:../account
       '@odudu/testkit':
         specifier: workspace:*
         version: link:../testkit

@@ -20,11 +20,7 @@ export interface SessionView {
   readonly clientIds: readonly string[];
 }
 
-// `session.end_all` is filed on the subject, since it names no one session;
-// each session it ended also carries its own `session.ended` row.
-export interface SessionAuditEvent {
-  readonly action: 'session.end' | 'session.end_all';
-  readonly resourceType: 'session' | 'subject';
+interface SessionAuditFields {
   readonly resourceId: string;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
@@ -32,6 +28,15 @@ export interface SessionAuditEvent {
   readonly outcome: 'allowed' | 'refused' | 'failed';
   readonly detail?: Record<string, unknown>;
 }
+
+// `session.end_all` is filed on the subject, since it names no one session;
+// each session it ended also carries its own `session.ended` row.
+export type SessionAuditEvent =
+  | (SessionAuditFields & { readonly action: 'session.end'; readonly resourceType: 'session' })
+  | (SessionAuditFields & {
+      readonly action: 'session.end_all';
+      readonly resourceType: 'subject';
+    });
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: SessionAuditEvent) => Promise<void>;

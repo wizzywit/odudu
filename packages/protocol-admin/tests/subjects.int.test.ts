@@ -1269,6 +1269,7 @@ describe('audit', () => {
         tx,
         { audit: ok.audit },
         {
+          callerCapabilities: new Set<string>(),
           subjectId: id,
           values: { enabled: false },
           ifMatch: undefined,
@@ -1287,6 +1288,7 @@ describe('audit', () => {
         tx,
         { audit: refused.audit },
         {
+          callerCapabilities: new Set<string>(),
           subjectId: id,
           values: { not_a_field: true },
           ifMatch: undefined,
@@ -1310,6 +1312,7 @@ describe('audit', () => {
         tx,
         { audit: ok.audit },
         {
+          callerCapabilities: new Set<string>(),
           subjectId: id,
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -1326,6 +1329,7 @@ describe('audit', () => {
         tx,
         { audit: refused.audit },
         {
+          callerCapabilities: new Set<string>(),
           subjectId: newId(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -1358,6 +1362,7 @@ describe('audit', () => {
         tx,
         { audit: ok.audit },
         {
+          callerCapabilities: new Set<string>(),
           subjectId: id,
           credentialId,
           actorSubjectId: 'test',
@@ -1375,6 +1380,7 @@ describe('audit', () => {
         tx,
         { audit: refused.audit },
         {
+          callerCapabilities: new Set<string>(),
           subjectId: id,
           credentialId: newId(),
           actorSubjectId: 'test',
