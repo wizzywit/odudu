@@ -1,5 +1,10 @@
 import { requiredActionRepository, type RequiredAction } from '@odudu/authn-flows';
-import { type Credential, type ListSubjectsQuery, type Subject } from '@odudu/contracts/admin';
+import {
+  type Credential,
+  type Group,
+  type ListSubjectsQuery,
+  type Subject,
+} from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
   groupRepository,
@@ -7,7 +12,6 @@ import {
   roles,
   subjectGroups,
   subjectRoles,
-  type GroupRecord,
 } from '@odudu/domain-authz';
 import {
   credentialRepository,
@@ -33,6 +37,7 @@ import {
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
+import { groupWireShape } from '#/service/group-wire';
 import { AMENDABLE_SUBJECT_FIELDS, refusalFor } from '#/service/subjects-patch';
 import {
   prefixRangeConditions,
@@ -944,13 +949,19 @@ export type SetSubjectGroupsOutcome =
   | { kind: 'capability_ceiling'; requested: readonly string[] }
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
-  | { kind: 'ok'; groups: readonly GroupRecord[]; etag: string };
+  | { kind: 'ok'; groups: readonly Group[]; etag: string };
 
 export type ReadSubjectGroupsOutcome =
-  { kind: 'not_found' } | { kind: 'ok'; groups: readonly GroupRecord[]; etag: string };
+  { kind: 'not_found' } | { kind: 'ok'; groups: readonly Group[]; etag: string };
 
-function subjectGroupsEtag(memberships: readonly GroupRecord[]): string {
-  return etagOf({ items: memberships.map((group) => group.id) });
+// The tag is over the body GET answers, so a reparent that rewrites a
+// member's `path` changes it even though the membership did not.
+function subjectGroupsEtag(memberships: readonly Group[]): string {
+  return etagOf({ items: memberships });
+}
+
+async function memberGroups(tx: TenantScopedDatabase, subjectId: string): Promise<Group[]> {
+  return (await groupRepository(tx).groupsOfSubject(subjectId)).map(groupWireShape);
 }
 
 export async function readSubjectGroups(
@@ -959,7 +970,7 @@ export async function readSubjectGroups(
 ): Promise<ReadSubjectGroupsOutcome> {
   const subject = await subjectRepository(tx).byId(subjectId);
   if (subject === null) return { kind: 'not_found' };
-  const memberships = await groupRepository(tx).groupsOfSubject(subjectId);
+  const memberships = await memberGroups(tx, subjectId);
   return { kind: 'ok', groups: memberships, etag: subjectGroupsEtag(memberships) };
 }
 
@@ -981,7 +992,7 @@ export async function setSubjectGroups(
     .for('update');
   if (subjectRows.length === 0) return { kind: 'not_found' };
 
-  const current = await groupRepository(tx).groupsOfSubject(input.subjectId);
+  const current = await memberGroups(tx, input.subjectId);
   const precondition = requiredPrecondition(input.ifMatch, subjectGroupsEtag(current));
   if (precondition !== 'ok') {
     return precondition === 'required'
@@ -989,14 +1000,19 @@ export async function setSubjectGroups(
       : { kind: 'precondition_failed' };
   }
 
-  const uniqueGroupIds = [...new Set(input.groupIds)];
   const repository = groupRepository(tx);
   const missing: string[] = [];
-  for (const groupId of uniqueGroupIds) {
+  // Keyed by the id the row holds: a uuid matches in either letter case,
+  // so two spellings of one id are one membership.
+  const found = new Set<string>();
+  for (const groupId of input.groupIds) {
     // `groups.id` is a `uuid` column; a non-uuid id is missing, not a 500.
-    if (!isUuid(groupId) || (await repository.byId(groupId)) === null) missing.push(groupId);
+    const group = isUuid(groupId) ? await repository.byId(groupId) : null;
+    if (group === null) missing.push(groupId);
+    else found.add(group.id);
   }
-  if (missing.length > 0) return { kind: 'unknown_group', groupIds: missing };
+  if (missing.length > 0) return { kind: 'unknown_group', groupIds: [...new Set(missing)] };
+  const uniqueGroupIds = [...found];
 
   const requestedCapabilities = await capabilitiesOfGroupsAndAncestors(tx, uniqueGroupIds);
   const denied = overreach(requestedCapabilities, input.callerCapabilities);
@@ -1015,7 +1031,7 @@ export async function setSubjectGroups(
   }
 
   await repository.setSubjectGroups(input.subjectId, uniqueGroupIds);
-  const updated = await repository.groupsOfSubject(input.subjectId);
+  const updated = await memberGroups(tx, input.subjectId);
 
   await deps.audit(tx, {
     action: 'subject.groups_set',

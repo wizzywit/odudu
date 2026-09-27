@@ -595,6 +595,17 @@ describe('setSubjectGroups', () => {
     expect(await tenant.effectiveGroupPaths(subject)).toEqual(['/a']);
   });
 
+  it('accepts an id repeated in another letter case as one membership', async () => {
+    const tenant = await tenantFixture();
+    const subject = await tenant.insertSubject();
+    const a = await tenant.createGroup('a', null);
+
+    await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).setSubjectGroups(subject, [a.id, a.id.toUpperCase()]),
+    );
+    expect(await tenant.effectiveGroupPaths(subject)).toEqual(['/a']);
+  });
+
   it('cannot clear another tenant’s subject’s memberships', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {

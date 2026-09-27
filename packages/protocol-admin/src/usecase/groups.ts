@@ -10,6 +10,7 @@ import {
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
+import { groupWireShape } from '#/service/group-wire';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
 import {
   prefixRangeConditions,
@@ -33,22 +34,6 @@ export interface GroupAuditEvent {
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: GroupAuditEvent) => Promise<void>;
-
-export function groupWireShape(group: {
-  id: string;
-  name: string;
-  parentId: string | null;
-  path: string;
-  createdAt: Date;
-}): Group {
-  return {
-    id: group.id,
-    name: group.name,
-    parent_id: group.parentId,
-    path: group.path,
-    created_at: group.createdAt.toISOString(),
-  };
-}
 
 /** Every `listGroupsQuerySchema` parameter except the page controls. */
 export type GroupFilters = Omit<ListGroupsQuery, 'cursor' | 'limit'>;

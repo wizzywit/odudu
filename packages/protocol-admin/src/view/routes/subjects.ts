@@ -35,7 +35,6 @@ import {
   type Audit,
   type SubjectView,
 } from '#/usecase/subjects';
-import { groupWireShape } from '#/usecase/groups';
 import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
@@ -535,7 +534,7 @@ export function readSubjectGroupsHandler(deps: SubjectsRouteDeps): AdminRouteHan
     }
 
     reply.header('etag', outcome.etag);
-    const wire: SetSubjectGroupsResponse = { items: outcome.groups.map(groupWireShape) };
+    const wire: SetSubjectGroupsResponse = { items: [...outcome.groups] };
     return reply.code(200).send(wire);
   };
 }
@@ -604,7 +603,7 @@ export function setSubjectGroupsHandler(deps: SubjectsRouteDeps): AdminRouteHand
         return sendProblem(reply, request, ifMatchStale());
       case 'ok': {
         reply.header('etag', outcome.etag);
-        const wire: SetSubjectGroupsResponse = { items: outcome.groups.map(groupWireShape) };
+        const wire: SetSubjectGroupsResponse = { items: [...outcome.groups] };
         return reply.code(200).send(wire);
       }
     }

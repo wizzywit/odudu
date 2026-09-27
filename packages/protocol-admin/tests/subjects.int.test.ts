@@ -1585,9 +1585,58 @@ describe('GET|PUT /admin/tenants/{t}/subjects/{id}/groups', () => {
     const other = await fixture.createTenant(`other-${newId()}`);
     const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users']);
-    const foreign = await createGroupMapped(other.id, []);
+    // Mapped to tenant-admin in its own tenant: were it resolved at all, the
+    // ceiling would refuse it with 403, so a 400 shows it was never found.
+    const foreign = await createGroupMapped(other.id, [
+      await capabilityRoleId(other.id, TENANT_ADMIN),
+    ]);
 
-    expect((await putGroups(t.name, targetId, token, [foreign])).statusCode).toBe(400);
+    const res = await putGroups(t.name, targetId, token, [foreign]);
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toContain(foreign);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([]);
+  });
+
+  it('treats an id repeated in another letter case as one membership', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const a = await createGroupMapped(t.id, []);
+
+    const res = await putGroups(t.name, targetId, token, [a, a.toUpperCase()]);
+    expect(res.statusCode).toBe(200);
+    expect(groupIdsOf(res)).toEqual([a]);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([a]);
+  });
+
+  it('changes the ETag when a member group is reparented, and refuses the old one', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+    const member = await createGroupMapped(t.id, []);
+    const newParent = await createGroupMapped(t.id, []);
+    expect((await putGroups(t.name, targetId, token, [member])).statusCode).toBe(200);
+    const before = await getGroups(t.name, targetId, token);
+
+    const moved = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/groups/${member}`,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        'if-match': '*',
+      },
+      payload: { parent_id: newParent },
+    });
+    expect(moved.statusCode).toBe(200);
+
+    const after = await getGroups(t.name, targetId, token);
+    expect(after.json<{ items: { path: string }[] }>().items[0]?.path).not.toBe(
+      before.json<{ items: { path: string }[] }>().items[0]?.path,
+    );
+    expect(after.headers.etag).not.toBe(before.headers.etag);
+    const stale = await putGroups(t.name, targetId, token, [], String(before.headers.etag));
+    expect(stale.statusCode).toBe(412);
   });
 
   it('404s a subject no one holds', async () => {

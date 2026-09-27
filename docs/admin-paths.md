@@ -1700,14 +1700,16 @@ removal lands only when what remains is within its reach.
 
 **`If-Match` is mandatory here, not optional**, for the reason it is on
 `PUT /subjects/:id/roles`: absent, `428`; stale, `412`. The tag is over
-the list of group ids, so an empty membership answers the same
-`"eef46741…"` every empty list here does.
+the list exactly as the `GET` answers it, so reparenting a member group,
+which rewrites its `path`, changes the tag even though the membership did
+not; an empty membership answers the same `"eef46741…"` every empty list
+here does.
 
 Captured against the fourth stack after a rebuild from this branch, in a
 tenant `groups-demo` created through `POST /admin/tenants` for it. There,
 `platform-admins` is mapped to `tenant-admin` through
 `PUT /groups/:id/roles`, `oncall` is its child with no role of its own,
-`support` has none either, and `lin` is a subject created through
+`support` has none either, and `mei` is a subject created through
 `POST /subjects`. `$HELPDESK_TOKEN` belongs to `helpdesk`, a user of that
 tenant created with `seed user` and granted `manage-users` alone through
 `PUT /subjects/:id/roles`; `$ADMIN_TOKEN` is `ada-whoami`'s. The refusal
@@ -1731,30 +1733,30 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"items":[{"id":"01a0e1e2-20a3-743d-823b-1e7f502ce11b","name":"tenant-admin"}]}
 ```
 
-The read, then a write with no `If-Match`, then `helpdesk` putting `lin`
+The read, then a write with no `If-Match`, then `helpdesk` putting `mei`
 in `oncall`:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $HELPDESK_TOKEN" \
-  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1e2-c46a-789f-835c-e9a01973a630/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1eb-ffde-78c4-a87d-7da336c3763a/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"group_ids": ["01a0e1e2-c454-7927-aedb-05021d226885"]}' \
-  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1e2-c46a-789f-835c-e9a01973a630/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1eb-ffde-78c4-a87d-7da336c3763a/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
   -d '{"group_ids": ["01a0e1e2-e2e0-7809-8ac4-debf2d93bc4e"]}' \
-  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1e2-c46a-789f-835c-e9a01973a630/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1eb-ffde-78c4-a87d-7da336c3763a/groups
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e1e3-2018-7255-89c1-a0168da9cb33
+x-request-id: 01a0e1ec-004a-74cf-8807-f7aeec5e0f93
 etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
 content-type: application/json; charset=utf-8
 content-length: 12
@@ -1762,48 +1764,48 @@ content-length: 12
 {"items":[]}
 
 HTTP/1.1 428 Precondition Required
-x-request-id: 01a0e1e3-202b-7852-a6c6-956a10c252b4
+x-request-id: 01a0e1ec-0062-76c9-9cee-9a82fde460d7
 content-type: application/problem+json; charset=utf-8
 content-length: 181
 
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a subject’s groups","instance":"01a0e1e3-202b-7852-a6c6-956a10c252b4"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a subject’s groups","instance":"01a0e1ec-0062-76c9-9cee-9a82fde460d7"}
 
 HTTP/1.1 403 Forbidden
-x-request-id: 01a0e1e3-2043-7afc-894d-1f7901667fc0
+x-request-id: 01a0e1ec-0083-737b-8c88-ac45ffbcc960
 content-type: application/problem+json; charset=utf-8
 content-length: 228
 
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0e1e3-2043-7afc-894d-1f7901667fc0"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0e1ec-0083-737b-8c88-ac45ffbcc960"}
 ```
 
 `oncall` names no role, and is refused for everything `tenant-admin`
 composites that `helpdesk` does not hold — reached through its parent.
 The membership is still empty, under the same tag, so the same `If-Match`
-then puts `lin` in `support`, and replaying it once that has landed is
+then puts `mei` in `support`, and replaying it once that has landed is
 stale:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $HELPDESK_TOKEN" \
-  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1e2-c46a-789f-835c-e9a01973a630/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1eb-ffde-78c4-a87d-7da336c3763a/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
   -d '{"group_ids": ["01a0e1e2-c454-7927-aedb-05021d226885"]}' \
-  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1e2-c46a-789f-835c-e9a01973a630/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1eb-ffde-78c4-a87d-7da336c3763a/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
   -d '{"group_ids": []}' \
-  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1e2-c46a-789f-835c-e9a01973a630/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1eb-ffde-78c4-a87d-7da336c3763a/groups
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e1e3-205c-758f-a16c-fb2530c30ab5
+x-request-id: 01a0e1ec-00b4-7fd3-a752-1f265427d705
 etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
 content-type: application/json; charset=utf-8
 content-length: 12
@@ -1811,32 +1813,32 @@ content-length: 12
 {"items":[]}
 
 HTTP/1.1 200 OK
-x-request-id: 01a0e1e3-206e-7ac2-8e2d-fd9906f2ee36
-etag: "46caa2cdee0f861f914ad6945996d44cac89004f561198d9b203ab1a0c83ad98"
+x-request-id: 01a0e1ec-00ce-74fa-b206-52e8358e4bfd
+etag: "aaafe7626c56bdd2b2064141ca8f224733f7aa8d3b87a77ac22357774cb65700"
 content-type: application/json; charset=utf-8
 content-length: 149
 
 {"items":[{"id":"01a0e1e2-c454-7927-aedb-05021d226885","name":"support","parent_id":null,"path":"/support","created_at":"2026-09-27T08:02:10.132Z"}]}
 
 HTTP/1.1 412 Precondition Failed
-x-request-id: 01a0e1e3-2090-7dbf-9fb3-e6963cc67a62
+x-request-id: 01a0e1ec-00ed-7f35-b795-f915e209b3ed
 content-type: application/problem+json; charset=utf-8
 content-length: 153
 
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0e1e3-2090-7dbf-9fb3-e6963cc67a62"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0e1ec-00ed-7f35-b795-f915e209b3ed"}
 ```
 
 Both writes that reached the ceiling are in the trail, scoped here to
-`lin` — the refusal naming what was denied, the replacement the ids
+`mei` — the refusal naming what was denied, the replacement the ids
 before and after:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3000/admin/tenants/groups-demo/audit?action=subject.groups_set&resource_type=subject&resource_id=01a0e1e2-c46a-789f-835c-e9a01973a630'
+  'http://localhost:3000/admin/tenants/groups-demo/audit?action=subject.groups_set&resource_type=subject&resource_id=01a0e1eb-ffde-78c4-a87d-7da336c3763a'
 ```
 
 ```
-{"items":[{"id":"01a0e1e3-2082-7281-8b6d-20e4d612c6f5","occurred_at":"2026-09-27T08:02:33.721Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"allowed","actor_tenant_id":"01a0e1e2-208f-7b7e-a30f-a2ce461cd164","actor_subject_id":"01a0e1e2-5d2c-7676-8177-2fb711b0eac0","actor_client_id":"01a0e1e2-209b-7b1d-9bc2-07b9bec41a60","resource_type":"subject","resource_id":"01a0e1e2-c46a-789f-835c-e9a01973a630","request_id":"01a0e1e3-206e-7ac2-8e2d-fd9906f2ee36","ip":"172.20.0.1","detail":{"group_ids":{"after":["01a0e1e2-c454-7927-aedb-05021d226885"],"before":[]}}},{"id":"01a0e1e3-2050-7c84-9ca3-cfc82647fb62","occurred_at":"2026-09-27T08:02:33.677Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"refused","actor_tenant_id":"01a0e1e2-208f-7b7e-a30f-a2ce461cd164","actor_subject_id":"01a0e1e2-5d2c-7676-8177-2fb711b0eac0","actor_client_id":"01a0e1e2-209b-7b1d-9bc2-07b9bec41a60","resource_type":"subject","resource_id":"01a0e1e2-c46a-789f-835c-e9a01973a630","request_id":"01a0e1e3-2043-7afc-894d-1f7901667fc0","ip":"172.20.0.1","detail":{"denied":["tenant-admin","manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}]}
+{"items":[{"id":"01a0e1ec-00e1-72a2-840f-f28c436542ea","occurred_at":"2026-09-27T08:12:15.449Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"allowed","actor_tenant_id":"01a0e1e2-208f-7b7e-a30f-a2ce461cd164","actor_subject_id":"01a0e1e2-5d2c-7676-8177-2fb711b0eac0","actor_client_id":"01a0e1e2-209b-7b1d-9bc2-07b9bec41a60","resource_type":"subject","resource_id":"01a0e1eb-ffde-78c4-a87d-7da336c3763a","request_id":"01a0e1ec-00ce-74fa-b206-52e8358e4bfd","ip":"172.20.0.1","detail":{"group_ids":{"after":["01a0e1e2-c454-7927-aedb-05021d226885"],"before":[]}}},{"id":"01a0e1ec-00a7-7ae1-9e42-6597227c7148","occurred_at":"2026-09-27T08:12:15.392Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"refused","actor_tenant_id":"01a0e1e2-208f-7b7e-a30f-a2ce461cd164","actor_subject_id":"01a0e1e2-5d2c-7676-8177-2fb711b0eac0","actor_client_id":"01a0e1e2-209b-7b1d-9bc2-07b9bec41a60","resource_type":"subject","resource_id":"01a0e1eb-ffde-78c4-a87d-7da336c3763a","request_id":"01a0e1ec-0083-737b-8c88-ac45ffbcc960","ip":"172.20.0.1","detail":{"denied":["tenant-admin","manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}]}
 ```
 
 ## `GET /subjects/:id/sessions` and `DELETE /subjects/:id/sessions/:sid`

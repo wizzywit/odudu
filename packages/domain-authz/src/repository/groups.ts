@@ -221,12 +221,18 @@ export function groupRepository(tx: TenantScopedDatabase) {
     },
 
     // Delete-then-insert under the caller's own row lock, never a diff —
-    // the same shape as `setRoles` above.
+    // the same shape as `setRoles` above. Deduplicated on the id the row
+    // holds, not the string given: a uuid matches in either letter case.
     async setSubjectGroups(subjectId: string, groupIds: readonly string[]): Promise<void> {
       await tx.delete(subjectGroups).where(eq(subjectGroups.subjectId, subjectId));
-      for (const groupId of new Set(groupIds)) {
+      const joined = new Set<string>();
+      for (const groupId of groupIds) {
         const group = await requireById(tx, groupId);
-        await tx.insert(subjectGroups).values({ tenantId: group.tenantId, subjectId, groupId });
+        if (joined.has(group.id)) continue;
+        joined.add(group.id);
+        await tx
+          .insert(subjectGroups)
+          .values({ tenantId: group.tenantId, subjectId, groupId: group.id });
       }
     },
   };
