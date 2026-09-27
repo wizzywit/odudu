@@ -63,7 +63,7 @@ export {
   type ConsentRecord,
   type ConsentScopeRecord,
 } from '#/schema/consents';
-export { consentRepository } from '#/repository/consents';
+export { consentRepository, type SubjectConsent } from '#/repository/consents';
 export {
   clientRegistrationTokens,
   type ClientRegistrationTokenRecord,

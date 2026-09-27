@@ -93,7 +93,11 @@ tenant `profile-demo2`, on a new subject also named `grace`; the two
 resubmit-the-same-number calls at the end of it were added after one more
 rebuild narrowed the reset rule to a different number, against that same
 `profile-demo2` tenant and subject, continuing where the recapture left
-off.
+off. `GET /subjects/:id/consents` and `DELETE /subjects/:id/consents/:clientId`
+were captured after a further rebuild, as a new admin subject
+`ada-consents` in the system tenant, in a tenant `consents-demo` created
+for it, on a subject `grace` seeded there with `odudu seed user` and a
+confidential client `consents-demo-app` created with `consent_required`.
 
 ## The shape of it
 
@@ -160,6 +164,8 @@ shape of what it is filling.
 | `PATCH`  | `/admin/tenants/{tenant}/subjects/:id/profile`                   | Amend a subject's profile                 |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/credentials`               | List a subject's credentials              |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/credentials/:credentialId` | Remove a credential                       |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/consents`                  | List a subject's consents                 |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/consents/:clientId`        | Revoke a consent                          |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Read a subject's required actions         |
 | `PUT`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Set a subject's required actions          |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Read a subject's roles                    |
@@ -1763,6 +1769,205 @@ longer offers or requires it. Refuses a `password` or `password-history`
 row with `409`: a password has its own rotation surface, never a bare
 delete, and history is not a credential this door exposes at all. An
 unknown id, or one belonging to a different subject, answers `404`.
+
+## `GET /subjects/:id/consents` and `DELETE /subjects/:id/consents/:clientId`
+
+The read requires `view-users`, the delete `manage-users`. A consent is what
+the consent screen (`packages/protocol-oidc/src/usecase/consent-submission.ts`)
+records when a `consent_required` client asks and a subject allows — bounded
+per subject the same way `GET /subjects/:id/credentials` is, so this list
+carries no cursor either. Each entry names the client by both ids: `client_id`
+is its row id, what `:clientId` on the delete names, and `client_key` its own
+OAuth `client_id` string, the one an operator actually recognises.
+`scope_names` is every scope currently granted, and `granted_at` is when the
+grant, as it now reads, was last written — the consent screen replaces the
+whole granted set on every submission (`consentRepository.record`'s own
+comment, `packages/domain-tenant/src/repository/consents.ts`), so this is
+never older than the most recent consent decision. `DELETE` withdraws the
+grant outright: the row and every scope under it are gone, `consent_scopes`
+cascading on `consents.id` (`packages/db/drizzle/0046_consents.sql`), and the
+next `/authorize` that reaches this client finds nothing recorded and asks
+again. An unknown subject on the read, or a subject with no consent to that
+client on the delete, answers `404`.
+
+**Revoking a consent never revokes a token already issued under it.** An
+access token already minted keeps working until it expires, and a refresh
+token keeps working until it expires or is revoked on its own door — this
+route only clears what `/authorize` consults on its next run, the same way
+ending a session (`DELETE /subjects/:id/sessions/:sid`) leaves existing
+grants alone until the reaper or an explicit revoke reaches them. Demonstrated
+below, on the same stack.
+
+Captured against a tenant `consents-demo` made for this section, on a
+confidential client `consents-demo-app` created with `consent_required` true
+and a subject `grace` seeded with a real password (`odudu seed user`, so no
+`update-password` detour is needed first). `/authorize`, asking for
+`offline_access` too, followed by logging in:
+
+```bash
+curl -sS \
+  'http://localhost:3000/tenants/consents-demo/protocol/openid-connect/auth?response_type=code&client_id=consents-demo-app&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid%20offline_access&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+
+curl -sS \
+  --data-urlencode "auth_session_id=01a0e2a5-02d0-727e-afb9-73f93605b3a7" \
+  --data-urlencode "username=grace" \
+  --data-urlencode "password=correct horse battery staple" \
+  'http://localhost:3000/tenants/consents-demo/login-actions/authenticate'
+```
+
+The consent screen, `openid` shown as already implied and `offline_access`
+the one box the subject can tick:
+
+```
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Allow access?</title></head>
+<body>
+<h1>consents-demo-app is asking for access</h1>
+<form method="post" action="/tenants/consents-demo/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="01a0e2a5-02d0-727e-afb9-73f93605b3a7">
+  <ul>
+  <li>openid</li>
+  </ul>
+  <label><input type="checkbox" name="scope" value="offline_access"> offline_access — grants ongoing access, even while you are not present</label>
+  <button type="submit" name="decision" value="allow">Allow</button>
+  <button type="submit" name="decision" value="deny">Deny</button>
+</form>
+</body>
+</html>
+```
+
+Allowing both scopes, then redeeming the code for an access and refresh
+token:
+
+```bash
+curl -sS -D - -c jar -b jar \
+  --data-urlencode "auth_session_id=01a0e2a5-02d0-727e-afb9-73f93605b3a7" \
+  --data-urlencode "decision=allow" \
+  --data-urlencode "scope=offline_access" \
+  'http://localhost:3000/tenants/consents-demo/login-actions/consent'
+
+curl -sS -X POST \
+  --data-urlencode "grant_type=authorization_code" \
+  --data-urlencode "code=aAaplBoOirPjW0t8MU12UhIg5k6IyJPrrjJi9Bedg4M" \
+  --data-urlencode "redirect_uri=https://app.example/callback" \
+  --data-urlencode "code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk" \
+  -u "consents-demo-app:8dsZmkmZzpmW7cYdWa8DEFELCKf3Vkn1HTYAXZLL7Fc" \
+  'http://localhost:3000/tenants/consents-demo/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a0e2a5-32ba-7316-bf26-70a5ca4f2c76
+set-cookie: consents-demo-session=01a0e2a5-32dc-715c-a7a3-0e0f5e5ce96c:a0HQMQIQRKOs0mZho0nf0iEq16RbmqgEiGLS0Xs-7DA; HttpOnly; SameSite=Lax; Path=/
+set-cookie: consents-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: https://app.example/callback?code=aAaplBoOirPjW0t8MU12UhIg5k6IyJPrrjJi9Bedg4M&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsents-demo
+content-length: 0
+Date: Sun, 27 Sep 2026 11:34:32 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"access_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmE0LTNjYWQtNzRjYS05ZTcxLTQyNGJhYjg0ZjNmZiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vIiwic3ViIjoiMDFhMGUyYTQtZWQ2MC03OTMxLTk5OGEtNGM2YzI3NTM4MzRlIiwiYXVkIjpbImh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC90ZW5hbnRzL2NvbnNlbnRzLWRlbW8iXSwiY2xpZW50X2lkIjoiY29uc2VudHMtZGVtby1hcHAiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MDUwODg4MCwiZXhwIjoxNzkwNTA5MTgwLCJqdGkiOiIwMWEwZTJhNS01MGRlLTc5ZTctYjk0Zi0wZTZiZmEwMDg4MTEiLCJncmFudF9pZCI6IjAxYTBlMmE1LTUwZGQtN2JjYS05Njc0LTJjMGNlNjkxMzlhNiJ9.U2HYnXlEkmWzZKhDMn6NC4BHvt9s7G8d5zBKSImdED9gVSP3Gwk_RwFAGxTvd8_hUj6VDEoyas-kD9c_UIOOHg","id_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmE0LTNjYWQtNzRjYS05ZTcxLTQyNGJhYjg0ZjNmZiJ9.eyJzdWIiOiIwMWEwZTJhNC1lZDYwLTc5MzEtOTk4YS00YzZjMjc1MzgzNGUiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vIiwiYXVkIjoiY29uc2VudHMtZGVtby1hcHAiLCJpYXQiOjE3OTA1MDg4ODAsImV4cCI6MTc5MDUwOTE4MH0.UsFaafQG9A3JXD82zY35PlIpCJoI5JmrCL4RpmRz35dfDAJHdDIMAC9XaORDRnkQsmsXtS-mopx3uWcfVQlKJg","refresh_token":"ld_3d4_CpgB9qInSYa9wCgIWhZkQ7-9SCXXMAK9j7J8","token_type":"Bearer","expires_in":300,"scope":"openid offline_access"}
+```
+
+`GET /subjects/:id/consents` shows exactly what was ticked, both scopes:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/consents-demo/subjects/01a0e2a4-ed60-7931-998a-4c6c2753834e/consents
+```
+
+```
+{"items":[{"client_id":"01a0e2a4-d278-71b4-bfca-3698d4ee9feb","client_key":"consents-demo-app","scope_names":["openid","offline_access"],"granted_at":"2026-09-27T11:34:32.401Z"}]}
+```
+
+Revoking it, then the same read again — the list is empty, and a repeat of
+the delete answers `404`:
+
+```bash
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/consents-demo/subjects/01a0e2a4-ed60-7931-998a-4c6c2753834e/consents/01a0e2a4-d278-71b4-bfca-3698d4ee9feb
+
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/consents-demo/subjects/01a0e2a4-ed60-7931-998a-4c6c2753834e/consents
+
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/consents-demo/subjects/01a0e2a4-ed60-7931-998a-4c6c2753834e/consents/01a0e2a4-d278-71b4-bfca-3698d4ee9feb
+```
+
+```
+HTTP/1.1 204 No Content
+x-request-id: 01a0e2a5-7849-7576-8449-9d19e4ba6fdc
+Date: Sun, 27 Sep 2026 11:34:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[]}
+HTTP/1.1 404 Not Found
+x-request-id: 01a0e2a5-8e88-7a6f-adea-e59a22fc5dd0
+content-type: application/problem+json; charset=utf-8
+content-length: 105
+Date: Sun, 27 Sep 2026 11:34:55 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0e2a5-8e88-7a6f-adea-e59a22fc5dd0"}
+```
+
+The refresh token minted before the revoke still redeems — nothing here
+touches an already-issued grant:
+
+```bash
+curl -sS -X POST \
+  --data-urlencode "grant_type=refresh_token" \
+  --data-urlencode "refresh_token=ld_3d4_CpgB9qInSYa9wCgIWhZkQ7-9SCXXMAK9j7J8" \
+  -u "consents-demo-app:8dsZmkmZzpmW7cYdWa8DEFELCKf3Vkn1HTYAXZLL7Fc" \
+  'http://localhost:3000/tenants/consents-demo/protocol/openid-connect/token'
+```
+
+```
+{"access_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmE0LTNjYWQtNzRjYS05ZTcxLTQyNGJhYjg0ZjNmZiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vIiwic3ViIjoiMDFhMGUyYTQtZWQ2MC03OTMxLTk5OGEtNGM2YzI3NTM4MzRlIiwiYXVkIjpbImh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC90ZW5hbnRzL2NvbnNlbnRzLWRlbW8iXSwiY2xpZW50X2lkIjoiY29uc2VudHMtZGVtby1hcHAiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MDUwODkwMiwiZXhwIjoxNzkwNTA5MjAyLCJqdGkiOiIwMWEwZTJhNS1hODliLTcxYWYtYWVkMi1iNWI5NjRhZjkyNjkiLCJncmFudF9pZCI6IjAxYTBlMmE1LTUwZGQtN2JjYS05Njc0LTJjMGNlNjkxMzlhNiJ9.BRb0EiVHy2l3lyv5RmX4lxMzxP_ISWRJIB9q4viUFn4brEbJ30WJBb4OIKYSdIwRGHBNX9UACYkeaCgx4oVrSw","refresh_token":"6CG5jyOGQt5D0oDIgjF-Ob0l4dAoJ44M-hFOs-z7Ip8","token_type":"Bearer","expires_in":300,"scope":"openid offline_access"}
+```
+
+And a fresh login for the same client, after the revoke, stops at the
+consent screen again rather than redirecting straight to a code:
+
+```bash
+curl -sS \
+  'http://localhost:3000/tenants/consents-demo/protocol/openid-connect/auth?response_type=code&client_id=consents-demo-app&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid%20offline_access&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+
+curl -sS \
+  --data-urlencode "auth_session_id=01a0e2a5-c133-7e21-82e5-37dbd25d9270" \
+  --data-urlencode "username=grace" \
+  --data-urlencode "password=correct horse battery staple" \
+  'http://localhost:3000/tenants/consents-demo/login-actions/authenticate'
+```
+
+```
+<form method="post" action="/tenants/consents-demo/login-actions/consent">
+```
+
+An unknown subject on the read answers `404`:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/consents-demo/subjects/0199aa00-0000-7000-8000-0000000000ff/consents
+```
+
+```
+HTTP/1.1 404 Not Found
+x-request-id: 01a0e2a5-f15a-7230-a416-f09161ff0cb4
+content-type: application/problem+json; charset=utf-8
+content-length: 164
+Date: Sun, 27 Sep 2026 11:35:21 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no subject 0199aa00-0000-7000-8000-0000000000ff","instance":"01a0e2a5-f15a-7230-a416-f09161ff0cb4"}
+```
 
 ## `GET /subjects/:id/required-actions` and `PUT /subjects/:id/required-actions`
 

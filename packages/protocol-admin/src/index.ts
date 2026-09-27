@@ -20,6 +20,7 @@ import { type Audit as ScopeAudit } from '#/usecase/scopes';
 import { type Audit as ScopeMapperAudit, type MapperCatalogue } from '#/usecase/scope-mappers';
 import { type Audit as SettingsAudit } from '#/usecase/settings';
 import { type Audit as SmtpAudit } from '#/usecase/smtp';
+import { type Audit as ConsentAudit } from '#/usecase/consents';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
 import { type Audit as SubjectAudit } from '#/usecase/subjects';
 import { type Audit } from '#/usecase/tenants';
@@ -35,6 +36,11 @@ import {
   rotateClientSecretHandler,
   type ClientsRouteDeps,
 } from '#/view/routes/clients';
+import {
+  deleteConsentHandler,
+  listConsentsHandler,
+  type ConsentsRouteDeps,
+} from '#/view/routes/consents';
 import {
   amendGroupHandler,
   createGroupHandler,
@@ -255,6 +261,7 @@ function buildAdminRoutes(
     const registrationTokenAudit: RegistrationTokenAudit = recordAudit;
     const subjectAudit: SubjectAudit = recordAudit;
     const sessionAudit: SessionAudit = recordAudit;
+    const consentAudit: ConsentAudit = recordAudit;
     const roleAudit: RoleAudit = recordAudit;
     const groupAudit: GroupAudit = recordAudit;
     const scopeAudit: ScopeAudit = recordAudit;
@@ -359,6 +366,10 @@ function buildAdminRoutes(
       now: () => clock.now(),
       findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
     };
+    const consentsDeps: ConsentsRouteDeps = {
+      database: deps.database.db,
+      audit: consentAudit,
+    };
     const auditDeps: AuditRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
@@ -380,6 +391,9 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/subjects/:id/credentials': listCredentialsHandler(subjectsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/credentials/:credentialId':
         deleteCredentialHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/consents': listConsentsHandler(consentsDeps),
+      'DELETE /admin/tenants/:tenant/subjects/:id/consents/:clientId':
+        deleteConsentHandler(consentsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/required-actions':
         readRequiredActionsHandler(subjectsDeps),
       'PUT /admin/tenants/:tenant/subjects/:id/required-actions':

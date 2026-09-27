@@ -131,6 +131,140 @@ describe('grantedScopeIds', () => {
   });
 });
 
+describe('forSubject', () => {
+  it('lists nothing for a subject with no consents', async () => {
+    const { tenantId, subjectId } = await seedFixture();
+
+    const items = await withTenant(app.db, tenantId, (tx) =>
+      consentRepository(tx).forSubject(subjectId),
+    );
+
+    expect(items).toEqual([]);
+  });
+
+  it('lists a recorded consent with the client’s own client_id string and scope names', async () => {
+    const fixture = await seedFixture();
+    await withTenant(app.db, fixture.tenantId, (tx) =>
+      consentRepository(tx).record(fixture.tenantId, fixture.subjectId, fixture.clientId, [
+        fixture.scopeAId,
+        fixture.scopeBId,
+      ]),
+    );
+
+    const items = await withTenant(app.db, fixture.tenantId, (tx) =>
+      consentRepository(tx).forSubject(fixture.subjectId),
+    );
+
+    expect(items).toHaveLength(1);
+    const item = items[0];
+    if (item === undefined) throw new Error('expected one consent');
+    expect(item.clientId).toBe(fixture.clientId);
+    expect(item.clientKey).toBe(`client-${fixture.clientId}`);
+    expect([...item.scopeNames].sort()).toEqual(['openid', 'profile']);
+    expect(item.grantedAt).toBeInstanceOf(Date);
+  });
+
+  it('lists one entry per client, bounded to the subject', async () => {
+    const fixture = await seedFixture();
+    const secondClientId = await withTenant(app.db, fixture.tenantId, (tx) =>
+      insertClient(tx, fixture.tenantId),
+    );
+    await withTenant(app.db, fixture.tenantId, async (tx) => {
+      await consentRepository(tx).record(fixture.tenantId, fixture.subjectId, fixture.clientId, [
+        fixture.scopeAId,
+      ]);
+      await consentRepository(tx).record(fixture.tenantId, fixture.subjectId, secondClientId, []);
+    });
+
+    const items = await withTenant(app.db, fixture.tenantId, (tx) =>
+      consentRepository(tx).forSubject(fixture.subjectId),
+    );
+
+    expect(items).toHaveLength(2);
+    const bySecondClient = items.find((item) => item.clientId === secondClientId);
+    expect(bySecondClient?.scopeNames).toEqual([]);
+  });
+
+  it('does not list another tenant’s consents, even given that tenant’s own subject id', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await insertSubject(tx, tenantId);
+        const clientId = await insertClient(tx, tenantId);
+        const scope = await clientScopeRepository(tx).create({ tenantId, name: 'openid' });
+        await consentRepository(tx).record(tenantId, subjectId, clientId, [scope.id]);
+        return { subjectId };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const items = await consentRepository(tx).forSubject(seeded.subjectId);
+        expect(items).toHaveLength(1);
+      },
+      attempt: async (tx, seeded) => consentRepository(tx).forSubject(seeded.subjectId),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('revoke', () => {
+  it('returns false for a subject/client pair with no consent', async () => {
+    const { tenantId, subjectId, clientId } = await seedFixture();
+
+    const removed = await withTenant(app.db, tenantId, (tx) =>
+      consentRepository(tx).revoke(subjectId, clientId),
+    );
+
+    expect(removed).toBe(false);
+  });
+
+  it('removes a recorded consent and its granted scopes', async () => {
+    const fixture = await seedFixture();
+    await withTenant(app.db, fixture.tenantId, (tx) =>
+      consentRepository(tx).record(fixture.tenantId, fixture.subjectId, fixture.clientId, [
+        fixture.scopeAId,
+      ]),
+    );
+
+    const removed = await withTenant(app.db, fixture.tenantId, (tx) =>
+      consentRepository(tx).revoke(fixture.subjectId, fixture.clientId),
+    );
+    expect(removed).toBe(true);
+
+    const items = await withTenant(app.db, fixture.tenantId, (tx) =>
+      consentRepository(tx).forSubject(fixture.subjectId),
+    );
+    expect(items).toEqual([]);
+
+    const granted = await withTenant(app.db, fixture.tenantId, (tx) =>
+      consentRepository(tx).grantedScopeIds(fixture.tenantId, fixture.subjectId, fixture.clientId),
+    );
+    expect(granted).toEqual(new Set());
+  });
+
+  it('does not revoke another tenant’s consent, even given that tenant’s own ids', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await insertSubject(tx, tenantId);
+        const clientId = await insertClient(tx, tenantId);
+        const scope = await clientScopeRepository(tx).create({ tenantId, name: 'openid' });
+        await consentRepository(tx).record(tenantId, subjectId, clientId, [scope.id]);
+        return { subjectId, clientId };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const items = await consentRepository(tx).forSubject(seeded.subjectId);
+        expect(items).toHaveLength(1);
+      },
+      attempt: async (tx, seeded) =>
+        consentRepository(tx).revoke(seeded.subjectId, seeded.clientId),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+    });
+  });
+});
+
 describe('record', () => {
   it('round-trips the granted set through grantedScopeIds', async () => {
     const fixture = await seedFixture();

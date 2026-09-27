@@ -36,6 +36,7 @@ import {
   listScopesQuerySchema,
   countScopesQuerySchema,
   listClientsResponseSchema,
+  listConsentsResponseSchema,
   listCredentialsResponseSchema,
   listGroupsResponseSchema,
   listRegistrationTokensQuerySchema,
@@ -202,6 +203,23 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: z.void(),
     successStatus: 204,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/consents',
+    capability: 'view-users',
+    responseSchema: listConsentsResponseSchema,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/subjects/:id/consents/:clientId',
+    capability: 'manage-users',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Withdraws the grant so the next `/authorize` for this client asks again. Never ' +
+      'revokes a token already issued under it — an outstanding refresh token keeps working ' +
+      'until it expires or is revoked on its own door.',
   },
   {
     method: 'GET',

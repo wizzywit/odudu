@@ -112,6 +112,12 @@ export {
   type ListSessionsResponse,
 } from '#/admin/sessions';
 export {
+  consentSchema,
+  type Consent,
+  listConsentsResponseSchema,
+  type ListConsentsResponse,
+} from '#/admin/consents';
+export {
   roleSchema,
   type Role,
   listRolesQuerySchema,

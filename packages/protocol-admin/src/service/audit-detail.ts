@@ -90,6 +90,10 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     address_postal_code: 'sensitive',
     address_country: 'sensitive',
   },
+  consent: {
+    client_key: 'value',
+    scope_names: 'value',
+  },
   registration_token: {
     remaining_uses: 'value',
     expires_at: 'value',
