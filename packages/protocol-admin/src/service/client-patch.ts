@@ -30,6 +30,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
   type: "type silently changes a live client's security model in both directions",
   builtin_admin:
     "builtin_admin marks the client a tenant's administration roles hang from; changing it needs its own operation, not a general amendment",
+  client_id_search: 'client_id_search is derived from client_id by the database',
+  name_search: 'name_search is derived from name by the database; amend name instead',
 };
 
 export function refusalFor(field: string): string | null {

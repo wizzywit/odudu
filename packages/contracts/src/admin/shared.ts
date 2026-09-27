@@ -13,6 +13,16 @@ export const cursorQuerySchema = z.object({
 });
 export type CursorQuery = z.infer<typeof cursorQuerySchema>;
 
+// A search is a prefix of one named field, matched case-insensitively;
+// the exact filters AND with it and with each other. A prefix is text
+// PostgreSQL can hold, which excludes NUL.
+export const searchPrefixSchema = z
+  .string()
+  .min(1)
+  .regex(/^[^\u0000]*$/);
+
+export const enabledFilterSchema = z.enum(['true', 'false']);
+
 export const problemDetailsSchema = z.object({
   type: z.string(),
   title: z.string(),

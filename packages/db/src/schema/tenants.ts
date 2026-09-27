@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // Policies are hand-authored SQL in drizzle/, never declared with pgPolicy():
@@ -79,4 +80,8 @@ export const tenants = pgTable('tenants', {
   // (packages/db/drizzle/0068_audit_retention.sql). 90 days by default, so
   // an upgraded tenant is bounded rather than growing the table forever.
   auditRetentionDays: integer('audit_retention_days').notNull().default(90),
+  // Search keys, in the C collation, filled by the database
+  // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
+  nameSearch: text('name_search').generatedAlwaysAs(sql`lower(name)`),
+  displayNameSearch: text('display_name_search').generatedAlwaysAs(sql`lower(display_name)`),
 }).enableRLS();

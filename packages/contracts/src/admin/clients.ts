@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { clientScopeAssignmentViewSchema } from '#/admin/scopes';
-import { createdAtSchema, idSchema } from '#/admin/shared';
+import {
+  createdAtSchema,
+  cursorQuerySchema,
+  enabledFilterSchema,
+  idSchema,
+  searchPrefixSchema,
+} from '#/admin/shared';
 
 export const clientTypeSchema = z.enum(['public', 'confidential']);
 export const registrationOriginSchema = z.enum(['seeded', 'anonymous', 'token', 'operator']);
@@ -60,6 +66,19 @@ export const createClientRequestSchema = z
       'refused with 400 naming it, never ignored.',
   );
 export type CreateClientRequest = z.infer<typeof createClientRequestSchema>;
+
+export const listClientsQuerySchema = cursorQuerySchema
+  .extend({
+    client_id: searchPrefixSchema.optional(),
+    name: searchPrefixSchema.optional(),
+    type: clientTypeSchema.optional(),
+    enabled: enabledFilterSchema.optional(),
+  })
+  .strict()
+  .refine((query) => query.client_id === undefined || query.name === undefined, {
+    message: 'search one field at a time: client_id or name, not both',
+  });
+export type ListClientsQuery = z.infer<typeof listClientsQuerySchema>;
 
 export const listClientsResponseSchema = z.object({
   items: z.array(clientSchema),

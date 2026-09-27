@@ -519,6 +519,13 @@
       "when": 1789049381716,
       "tag": "0073_list_indexes_subjects",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1789049381717,
+      "tag": "0074_list_indexes_tenants_clients",
+      "breakpoints": true
     }
   ]
 }

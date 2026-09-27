@@ -68,7 +68,8 @@ history is not known here; its capabilities come from holding
 (the same account "Getting the token" describes `ada` as). The searches
 under `GET /subjects` and the two refusals under `POST /subjects` were
 captured against it later, as `ada-whoami`, after its `odudu` service was
-rebuilt from this branch.
+rebuilt from this branch; the searches under `GET /admin/tenants` and
+`GET /clients` after a further rebuild that applied `0074`.
 
 ## The shape of it
 
@@ -295,6 +296,16 @@ and `?cursor=`, ordered by `id`; a further page is announced by a
 `Link: rel="next"` header and a `next` member in the body, both absent once
 the collection fits in one page. The response carries no total.
 
+**Search** works the way `GET /subjects` below describes it: a prefix of one
+named field, `?name=` or `?display_name=`, never both, folded by
+PostgreSQL's `lower()` and matched as a range over the stored `name_search`
+and `display_name_search` columns (`0074_list_indexes_tenants_clients.sql`),
+so `%`, `_` and `\` are ordinary characters. A searched listing is ordered
+by that folded column, then by `id`; a tenant with no display name never
+matches `?display_name=`. **`?enabled=true|false`** is the one exact filter,
+`AND`ed with a search. A cursor is bound to every filter it was minted
+under, and any other parameter is refused with `400` naming it.
+
 ```bash
 curl -sS \
   -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN" \
@@ -307,6 +318,87 @@ there is no `next`:
 
 ```
 {"items":[{"id":"0199aa00-0000-7000-8000-000000000001","name":"system","display_name":"System","enabled":true,"created_at":"2026-09-25T05:12:51.138Z"},{"id":"01a0d6fc-3626-7e23-94d7-3b1b666e278f","name":"demo","display_name":"Demo","enabled":true,"created_at":"2026-09-25T05:14:08.294Z"}]}
+```
+
+The searches below ran against the fourth stack (the note at the top of
+this document), as `ada-whoami`, after its `odudu` service was rebuilt from
+this branch with `0074` applied. Its tenants were `acme`, `demo`,
+`register-audit`, `registration-audit`, `reset-audit`, `signup-audit` and
+`system`, only `system` carrying a display name. `RE` finds three, in
+folded order:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants?name=RE"
+```
+
+```
+{"items":[{"id":"01a0dc4f-d714-7bef-a239-11d5bd1f2a72","name":"register-audit","display_name":null,"enabled":true,"created_at":"2026-09-26T06:03:35.061Z"},{"id":"01a0dc5e-697a-722f-bbd7-be4e5bbcecf9","name":"registration-audit","display_name":null,"enabled":true,"created_at":"2026-09-26T06:19:30.043Z"},{"id":"01a0dc50-7654-75c9-a070-33faf7d67368","name":"reset-audit","display_name":null,"enabled":true,"created_at":"2026-09-26T06:04:15.831Z"}]}
+```
+
+One at a time, the `Link` header carries the search forward:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants?name=re&limit=1"
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e111-060b-7ac9-ae56-fa8aa1ba87ae
+link: </admin/tenants?limit=1&name=re&cursor=eyJhZnRlciI6IjAxYTBkYzRmLWQ3MTQtN2JlZi1hMjM5LTExZDViZDFmMmE3MiIsInNvcnQiOiJyZWdpc3Rlci1hdWRpdCIsImNvbGxlY3Rpb24iOiJ0ZW5hbnRzIiwidGVuYW50SWQiOiIwMTk5YWEwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDEiLCJmaWx0ZXJzIjoiMUo1ZVF0UmJjX2QtVnhmRjUzNEUzekYtbDVwMGZfVUxMa0JWRm1xNXVjWSJ9.p9t40iB1ExaYswHRfklYb0tEVuUEstFAYbb5vOsM8AE>; rel="next"
+content-type: application/json; charset=utf-8
+content-length: 478
+Date: Sun, 27 Sep 2026 04:13:04 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0dc4f-d714-7bef-a239-11d5bd1f2a72","name":"register-audit","display_name":null,"enabled":true,"created_at":"2026-09-26T06:03:35.061Z"}],"next":"eyJhZnRlciI6IjAxYTBkYzRmLWQ3MTQtN2JlZi1hMjM5LTExZDViZDFmMmE3MiIsInNvcnQiOiJyZWdpc3Rlci1hdWRpdCIsImNvbGxlY3Rpb24iOiJ0ZW5hbnRzIiwidGVuYW50SWQiOiIwMTk5YWEwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDEiLCJmaWx0ZXJzIjoiMUo1ZVF0UmJjX2QtVnhmRjUzNEUzekYtbDVwMGZfVUxMa0JWRm1xNXVjWSJ9.p9t40iB1ExaYswHRfklYb0tEVuUEstFAYbb5vOsM8AE"}
+```
+
+Following that link, then replaying its cursor with `?enabled=true` added:
+
+```bash
+CURSOR='eyJhZnRlciI6IjAxYTBkYzRmLWQ3MTQtN2JlZi1hMjM5LTExZDViZDFmMmE3MiIsInNvcnQiOiJyZWdpc3Rlci1hdWRpdCIsImNvbGxlY3Rpb24iOiJ0ZW5hbnRzIiwidGVuYW50SWQiOiIwMTk5YWEwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDEiLCJmaWx0ZXJzIjoiMUo1ZVF0UmJjX2QtVnhmRjUzNEUzekYtbDVwMGZfVUxMa0JWRm1xNXVjWSJ9.p9t40iB1ExaYswHRfklYb0tEVuUEstFAYbb5vOsM8AE'
+curl -sS \
+  -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants?limit=1&name=re&cursor=$CURSOR"
+curl -sS \
+  -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants?limit=1&name=re&enabled=true&cursor=$CURSOR"
+```
+
+```
+{"items":[{"id":"01a0dc5e-697a-722f-bbd7-be4e5bbcecf9","name":"registration-audit","display_name":null,"enabled":true,"created_at":"2026-09-26T06:19:30.043Z"}],"next":"eyJhZnRlciI6IjAxYTBkYzVlLTY5N2EtNzIyZi1iYmQ3LWJlNGU1YmJjZWNmOSIsInNvcnQiOiJyZWdpc3RyYXRpb24tYXVkaXQiLCJjb2xsZWN0aW9uIjoidGVuYW50cyIsInRlbmFudElkIjoiMDE5OWFhMDAtMDAwMC03MDAwLTgwMDAtMDAwMDAwMDAwMDAxIiwiZmlsdGVycyI6IjFKNWVRdFJiY19kLVZ4ZkY1MzRFM3pGLWw1cDBmX1VMTGtCVkZtcTV1Y1kifQ.2b_mHSKhKJFf35rqU4TUNk7_a8uW_CMukEsHGaeft-4"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","instance":"01a0e111-2f33-763c-8b75-1b3bca9b9516"}
+```
+
+`?display_name=SYS`, then three refusals: two search fields at once (the
+handler's), an `enabled` that is not `true` or `false`, and an unknown
+parameter (both the generated schema's):
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants?display_name=SYS"
+curl -sS \
+  -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants?name=a&display_name=b"
+curl -sS \
+  -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants?enabled=yes"
+curl -sS \
+  -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants?search=demo"
+```
+
+```
+{"items":[{"id":"0199aa00-0000-7000-8000-000000000001","name":"system","display_name":"System","enabled":true,"created_at":"2026-09-26T04:49:29.367Z"}]}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: name or display_name, not both","instance":"01a0e111-2f5b-7fdc-80a0-19721d415ece"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/enabled must be equal to one of the allowed values","instance":"01a0e111-2f6e-797c-93a4-97125df202c8"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: search","instance":"01a0e111-2f77-744a-a2f4-25ff48780b0b"}
 ```
 
 ## `POST /admin/tenants`
@@ -676,6 +768,76 @@ curl -sS \
   http://localhost:3000/admin/tenants/demo/clients?limit=50
 ```
 
+**Search and filters** follow `GET /admin/tenants` above: a prefix of
+`?client_id=` or `?name=`, never both, over the stored `client_id_search`
+and `name_search` columns (`0074_list_indexes_tenants_clients.sql`),
+ordered by that folded column then by `id`; exact filters
+`?type=public|confidential` and `?enabled=true|false`, `AND`ed with it and
+with each other; a cursor bound to every filter; any other parameter
+refused with `400` naming it. Captured against the fourth stack, whose
+`demo` held `demo-backend`, `demo-exchanger`, `demo-fields-check` and
+`demo-operator` (confidential) and `demo-spa` (public):
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/clients?client_id=DEMO&type=confidential&limit=1"
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e111-4389-77ad-8af7-83fe5e2a746c
+link: </admin/tenants/demo/clients?limit=1&client_id=DEMO&type=confidential&cursor=eyJhZnRlciI6IjAxYTBkYmQ0LTAxZjgtNzVmZC05YWZmLTFhYmI4NDFjYjRiOSIsInNvcnQiOiJkZW1vLWJhY2tlbmQiLCJjb2xsZWN0aW9uIjoiY2xpZW50cyIsInRlbmFudElkIjoiMDFhMGRiMjItMWMzMi03ZDE3LWIzNTEtNjk3ZDc5MTEwMzNjIiwiZmlsdGVycyI6Ik9BZENoUUxJNEt5UGtUMUhLc05ESld5WDM4NS1YaWFsQktSbkNXOUNPZHMifQ.5eRgvj6hT2_V1Lq6V21m9mTuyo4-4DlrHiWpahxFiIU>; rel="next"
+content-type: application/json; charset=utf-8
+content-length: 1993
+Date: Sun, 27 Sep 2026 04:13:20 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0dbd4-01f8-75fd-9aff-1abb841cb4b9","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"seeded","created_at":"2026-09-26T03:48:19.537Z","redirect_uris":["http://localhost:8080/callback"],"grant_types":["authorization_code","refresh_token","client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}]}],"next":"eyJhZnRlciI6IjAxYTBkYmQ0LTAxZjgtNzVmZC05YWZmLTFhYmI4NDFjYjRiOSIsInNvcnQiOiJkZW1vLWJhY2tlbmQiLCJjb2xsZWN0aW9uIjoiY2xpZW50cyIsInRlbmFudElkIjoiMDFhMGRiMjItMWMzMi03ZDE3LWIzNTEtNjk3ZDc5MTEwMzNjIiwiZmlsdGVycyI6Ik9BZENoUUxJNEt5UGtUMUhLc05ESld5WDM4NS1YaWFsQktSbkNXOUNPZHMifQ.5eRgvj6hT2_V1Lq6V21m9mTuyo4-4DlrHiWpahxFiIU"}
+```
+
+Following that link, then `?name=Demo-S`, each cut down with `jq` to the
+fields that show the point; then the same cursor replayed with `?type=`
+dropped:
+
+```bash
+CURSOR='eyJhZnRlciI6IjAxYTBkYmQ0LTAxZjgtNzVmZC05YWZmLTFhYmI4NDFjYjRiOSIsInNvcnQiOiJkZW1vLWJhY2tlbmQiLCJjb2xsZWN0aW9uIjoiY2xpZW50cyIsInRlbmFudElkIjoiMDFhMGRiMjItMWMzMi03ZDE3LWIzNTEtNjk3ZDc5MTEwMzNjIiwiZmlsdGVycyI6Ik9BZENoUUxJNEt5UGtUMUhLc05ESld5WDM4NS1YaWFsQktSbkNXOUNPZHMifQ.5eRgvj6hT2_V1Lq6V21m9mTuyo4-4DlrHiWpahxFiIU'
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/clients?limit=1&client_id=DEMO&type=confidential&cursor=$CURSOR" \
+  | jq -c '{items: [.items[] | {client_id, name, type}], next}'
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/clients?name=Demo-S" \
+  | jq -c '{items: [.items[] | {client_id, name, type}], next}'
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/clients?limit=1&client_id=DEMO&cursor=$CURSOR"
+```
+
+```
+{"items":[{"client_id":"demo-exchanger","name":"demo-exchanger","type":"confidential"}],"next":"eyJhZnRlciI6IjAxYTBkZTU2LTE4NDYtN2NjMS04ZGUxLWFiODYyMDU1YjhkNiIsInNvcnQiOiJkZW1vLWV4Y2hhbmdlciIsImNvbGxlY3Rpb24iOiJjbGllbnRzIiwidGVuYW50SWQiOiIwMWEwZGIyMi0xYzMyLTdkMTctYjM1MS02OTdkNzkxMTAzM2MiLCJmaWx0ZXJzIjoiT0FkQ2hRTEk0S3lQa1QxSEtzTkRKV3lYMzg1LVhpYWxCS1JuQ1c5Q09kcyJ9.qbB7dvI7emp9gnf9ie4ODmJGJARA4ecoZoex6qda1OQ"}
+{"items":[{"client_id":"demo-spa","name":"demo-spa","type":"public"}],"next":null}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","instance":"01a0e111-934b-7365-b961-ad77d71f76e6"}
+```
+
+A `type` outside the enum, then two search fields at once:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/clients?type=service"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/clients?client_id=a&name=b"
+```
+
+```
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/type must be equal to one of the allowed values","instance":"01a0e111-6b64-759a-9718-bc9846e1f418"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id or name, not both","instance":"01a0e111-6b6e-7aa0-89ab-8b62a99cd765"}
+```
+
 Reading one client by its internal id carries an `ETag` and never the
 secret, whether or not one was ever generated:
 
@@ -1036,21 +1198,46 @@ Keep-Alive: timeout=72
 {"items":[{"id":"01a0db22-1c92-7730-9d37-4085f28eca2c","type":"user","username":"ada","email":"ada@example.com","enabled":true,"created_at":"2026-09-26T00:34:00.903Z"}],"next":"eyJhZnRlciI6IjAxYTBkYjIyLTFjOTItNzczMC05ZDM3LTQwODVmMjhlY2EyYyIsInNvcnQiOiJhZGEiLCJjb2xsZWN0aW9uIjoic3ViamVjdHMiLCJ0ZW5hbnRJZCI6IjAxYTBkYjIyLTFjMzItN2QxNy1iMzUxLTY5N2Q3OTExMDMzYyIsImZpbHRlcnMiOiJzWGl1TzdkZGVoRzhlYVUyUWkySWotRnJjVVAyMWVwTUJBWmxEc3FQYUVVIn0.B6FJzxJCoNTpoBieeq3YyEMKs61JZhl0gdcXVbNv8m0"}
 ```
 
-Following that link, then replaying its cursor under `?username=b`:
+Following that link, then replaying its cursor under `?username=b`,
+captured later against the same stack once its `odudu` service had been
+rebuilt again (the cursor is the `next` above, unchanged, since the rows it
+points past had not changed):
+
+```bash
+CURSOR='eyJhZnRlciI6IjAxYTBkYjIyLTFjOTItNzczMC05ZDM3LTQwODVmMjhlY2EyYyIsInNvcnQiOiJhZGEiLCJjb2xsZWN0aW9uIjoic3ViamVjdHMiLCJ0ZW5hbnRJZCI6IjAxYTBkYjIyLTFjMzItN2QxNy1iMzUxLTY5N2Q3OTExMDMzYyIsImZpbHRlcnMiOiJzWGl1TzdkZGVoRzhlYVUyUWkySWotRnJjVVAyMWVwTUJBWmxEc3FQYUVVIn0.B6FJzxJCoNTpoBieeq3YyEMKs61JZhl0gdcXVbNv8m0'
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects?limit=1&username=ADA&cursor=$CURSOR"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects?limit=1&username=b&cursor=$CURSOR"
+```
 
 ```
 {"items":[{"id":"01a0e0eb-90c0-75a7-96ec-4694cd78a76a","type":"user","username":"Adaline","email":null,"enabled":true,"created_at":"2026-09-27T03:32:09.534Z"}],"next":"eyJhZnRlciI6IjAxYTBlMGViLTkwYzAtNzVhNy05NmVjLTQ2OTRjZDc4YTc2YSIsInNvcnQiOiJhZGFsaW5lIiwiY29sbGVjdGlvbiI6InN1YmplY3RzIiwidGVuYW50SWQiOiIwMWEwZGIyMi0xYzMyLTdkMTctYjM1MS02OTdkNzkxMTAzM2MiLCJmaWx0ZXJzIjoic1hpdU83ZGRlaEc4ZWFVMlFpMklqLUZyY1VQMjFlcE1CQVpsRHNxUGFFVSJ9.pBJNTcIKfIaq2jODL-u1jbjCB0X6CajQ5Nq3UWCwYMY"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","instance":"01a0e0eb-cf82-7eea-b5b2-f219f6ea86be"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","instance":"01a0e110-6f89-715f-865c-a0d6ac67383c"}
 ```
 
-`?email=ADA%40`, then the retired `?search=ada`, then `?username=a&email=b`.
-The first refusal is the generated schema's, hence its generic `title`; the
-second is the handler's:
+`?email=ADA%40`, then the retired `?search=ada`, then `?username=a&email=b`,
+in the same later run. The first refusal is the generated schema's, hence
+its generic `title`; the second is the handler's:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects?email=ADA%40"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects?search=ada"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects?username=a&email=b"
+```
 
 ```
 {"items":[{"id":"01a0db22-1c92-7730-9d37-4085f28eca2c","type":"user","username":"ada","email":"ada@example.com","enabled":true,"created_at":"2026-09-26T00:34:00.903Z"}]}
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: search","instance":"01a0e0eb-aeac-711d-885b-96a4bb038f57"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: username or email, not both","instance":"01a0e0eb-aebe-7b09-9217-a73b985a392b"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: search","instance":"01a0e110-6fb6-7795-84e2-b1ea313de848"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: username or email, not both","instance":"01a0e110-6fc2-7de3-8d00-d3537702334f"}
 ```
 
 ## `POST /subjects`

@@ -1,7 +1,7 @@
 import {
   amendTenantRequestSchema,
   createTenantRequestSchema,
-  cursorQuerySchema,
+  listTenantsQuerySchema,
 } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
@@ -153,14 +153,19 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
 
 export function listTenantsHandler(deps: TenantsRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
-    // Same narrowing as above: ADMIN_ROUTES' `querystringSchema` already
-    // validated `limit`/`cursor`'s shape (coerceTypes turns "10" into 10),
-    // but refuses none above MAX_LIMIT — an over-large page size is coerced
-    // down, not rejected (design spec §9). coerceLimit is the one place
-    // that clamps, so the shape it already checked is re-stated as a
-    // string rather than duplicated as a second bound.
-    const query = cursorQuerySchema.parse(request.query);
-    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+    // ADMIN_ROUTES' `querystringSchema` already validated each parameter's
+    // shape (coerceTypes turns "10" into 10) but refuses no `limit` above
+    // MAX_LIMIT — an over-large page size is coerced down, not rejected
+    // (design spec §9), by coerceLimit alone. The one-search-field
+    // refinement has no JSON Schema form, so it is only enforced here.
+    const parsed = listTenantsQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      const detail = parsed.error.issues[0]?.message ?? 'invalid query';
+      return sendProblem(reply, request, problem(400, 'about:blank', 'Bad Request', detail));
+    }
+    const query = parsed.data;
+    const { cursor, limit: requestedLimit, ...filters } = query;
+    const limit = coerceLimit(requestedLimit === undefined ? undefined : String(requestedLimit));
 
     // Listing the collection is inherently cross-tenant, so it reads
     // through the owner connection — the same bypass `createTenant` and
@@ -168,9 +173,10 @@ export function listTenantsHandler(deps: TenantsRouteDeps): AdminRouteHandler {
     // RLS-scoped one, which would see no `app.tenant_id` to filter by.
     const outcome = await listTenants(deps.ownerDatabase, {
       limit,
-      cursor: query.cursor,
+      cursor,
       cursorKey: deps.cursorKey,
       tenantId: targetTenantId,
+      filters,
     });
     if (outcome.kind === 'invalid_cursor') {
       return sendProblem(

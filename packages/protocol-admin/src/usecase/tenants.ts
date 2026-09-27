@@ -1,5 +1,5 @@
 import { provisionTenant } from '@odudu/authn-flows';
-import { type Tenant } from '@odudu/contracts/admin';
+import { type ListTenantsQuery, type Tenant } from '@odudu/contracts/admin';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import {
   isUniqueViolation,
@@ -17,10 +17,11 @@ import {
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { provisionAdminClient } from '@odudu/protocol-oidc';
-import { asc, eq, gt } from 'drizzle-orm';
+import { and, asc, eq, gt, sql, type SQL } from 'drizzle-orm';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_TENANT_FIELDS, refusalFor } from '#/service/tenant-patch';
+import { prefixRangeConditions, requireSearchKey } from '#/usecase/prefix-search';
 
 const COLLECTION = 'tenants';
 
@@ -178,6 +179,9 @@ export async function createTenant(
   return { kind: 'created', tenant };
 }
 
+/** Every `listTenantsQuerySchema` parameter except the page controls. */
+export type TenantFilters = Omit<ListTenantsQuery, 'cursor' | 'limit'>;
+
 export interface ListTenantsInput {
   readonly limit: number;
   readonly cursor: string | undefined;
@@ -186,20 +190,35 @@ export interface ListTenantsInput {
   // since only a system admin ever reaches this collection — so one minted
   // here cannot be replayed against a list bound to another tenant's path.
   readonly tenantId: string;
+  readonly filters: TenantFilters;
 }
 
 export type ListTenantsOutcome =
   { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly TenantRecord[]; next: string | null };
 
+type TenantSearchKey = typeof tenants.nameSearch | typeof tenants.displayNameSearch;
+
+function tenantSearchOf(
+  filters: TenantFilters,
+): { readonly column: TenantSearchKey; readonly prefix: string } | undefined {
+  if (filters.name !== undefined) return { column: tenants.nameSearch, prefix: filters.name };
+  if (filters.display_name !== undefined) {
+    return { column: tenants.displayNameSearch, prefix: filters.display_name };
+  }
+  return undefined;
+}
+
 // The system tenant appears in this listing like any other — hiding it
 // would make the one tenant an operator most needs to inspect the one they
-// cannot.
+// cannot. A searched listing is one range scan of the search column's
+// index (0074_list_indexes_tenants_clients.sql).
 export async function listTenants(
   database: Database,
   input: ListTenantsInput,
 ): Promise<ListTenantsOutcome> {
-  const filters = filterDigest({});
-  let after: string | undefined;
+  const filters = filterDigest(input.filters);
+  const search = tenantSearchOf(input.filters);
+  let after: { readonly id: string; readonly sort: string | undefined } | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
       input.cursorKey,
@@ -209,30 +228,51 @@ export async function listTenants(
       input.cursor,
     );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
-    after = decoded.after;
+    if (search !== undefined && decoded.sort === undefined) return { kind: 'invalid_cursor' };
+    after = { id: decoded.after, sort: decoded.sort };
+  }
+
+  const conditions: SQL[] = [];
+  if (input.filters.enabled !== undefined) {
+    conditions.push(eq(tenants.enabled, input.filters.enabled === 'true'));
+  }
+  if (search === undefined) {
+    if (after !== undefined) conditions.push(gt(tenants.id, after.id));
+  } else {
+    const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+    conditions.push(
+      ...(await prefixRangeConditions(
+        database,
+        search.column,
+        tenants.id,
+        search.prefix,
+        position,
+      )),
+    );
   }
 
   const rows = await database
-    .select(TENANT_COLUMNS)
+    .select({ record: TENANT_COLUMNS, searchKey: search?.column ?? sql<null>`null` })
     .from(tenants)
-    .where(after === undefined ? undefined : gt(tenants.id, after))
-    .orderBy(asc(tenants.id))
+    .where(conditions.length === 0 ? undefined : and(...conditions))
+    .orderBy(...(search === undefined ? [asc(tenants.id)] : [asc(search.column), asc(tenants.id)]))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;
-  const items = hasMore ? rows.slice(0, input.limit) : rows;
-  const last = items[items.length - 1];
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
   const next =
     hasMore && last !== undefined
       ? encodeCursor(input.cursorKey, {
-          after: last.id,
+          after: last.record.id,
+          ...(search === undefined ? {} : { sort: requireSearchKey(last.searchKey) }),
           collection: COLLECTION,
           tenantId: input.tenantId,
           filters,
         })
       : null;
 
-  return { kind: 'ok', items, next };
+  return { kind: 'ok', items: page.map((row) => row.record), next };
 }
 
 export function tenantWireShape(record: TenantRecord): Tenant {

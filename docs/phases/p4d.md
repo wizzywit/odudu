@@ -335,8 +335,10 @@ drizzle logged from `listSubjects` itself, run under
 (`rolbypassrls false`, `rolsuper false`).
 
 verified: `cd packages/protocol-admin && pnpm vitest run --config ../../vitest.config.ts tests/zz-explain-scratch.int.test.ts`
-(the file was deleted afterwards; a copy and its full output are in
-`.superpowers/spikes/subjects-search/`)
+(the scratch file that produced the numbers below, since deleted). The
+plan shape is now held by a committed test,
+`packages/protocol-admin/tests/list-plans.int.test.ts` (see "Field-scoped
+search on tenants and clients" below), which re-derives it on every run.
 
 The statement, then its plan for the second page of `?username=A`
 (excerpted from the saved output: the join to `subjects` and the planning
@@ -380,3 +382,60 @@ filters them by the bounds and sorts the 52 left (2 ms, 4,227 buffers).
 It chose that plan because the role is small next to the prefix's 2,923
 estimated matches; a combined filter is left to the planner rather than
 given a composite index, and only a single search is held to one scan.
+
+## Field-scoped search on tenants and clients
+
+`GET /admin/tenants?name=`/`?display_name=` and
+`GET /clients?client_id=`/`?name=` repeat the subjects shape exactly:
+stored `text COLLATE "C"` columns over `lower(<column>)`, a bound derived
+from PostgreSQL's own `lower($1)`, the keyset `(key, id) > (sort, after)`
+(`packages/db/drizzle/0074_list_indexes_tenants_clients.sql`,
+`packages/protocol-admin/src/usecase/prefix-search.ts`, which the subjects
+listing now uses too). `tenants` has no `tenant_id` and is listed through
+the owner connection, so its indexes are `(name_search, id)` and a partial
+`(display_name_search, id) WHERE display_name_search IS NOT NULL`;
+`clients` is under row-level security and indexed
+`(tenant_id, <column>_search, id)`. The generated `clients` columns are
+also refused by `PATCH /clients/{id}`'s allowlist, which is derived from
+the table's columns and would otherwise have offered them as amendable.
+
+The plans are asserted rather than recorded:
+`packages/protocol-admin/tests/list-plans.int.test.ts` seeds 30,000 rows
+per table in each of three tenants (plus 30,000 extra tenants), `ANALYZE`s,
+runs each listing through its own usecase to capture the statement it
+issues, and `EXPLAIN (FORMAT JSON)`s that statement — as `odudu_svc`
+(`rolbypassrls` and `rolsuper` both false, asserted) under
+`set_config('app.tenant_id', …, true)` for subjects and clients, through
+the owner connection for tenants, since that is the one the listing uses.
+For the first page and a later page of each search it requires an
+`Index Scan` of the search index whose `Index Cond` holds both bounds (and
+`ROW(<key>, id) > …` past the first page), no `Filter` on the key, and no
+`Sort` or `Incremental Sort` anywhere in the plan. Swapping the range for
+`lower(key) like lower($1) || '%'` fails all twelve.
+
+verified: `cd packages/protocol-admin && pnpm vitest run --config ../../vitest.config.ts tests/list-plans.int.test.ts`
+(13 passed in 15.6 s against `postgres:17-alpine`). With
+`LIST_PLANS_OUT=<file>` the same run appends each statement and its
+`EXPLAIN (ANALYZE, BUFFERS)`. Excerpted from that output, the later page
+of `tenants ?name=T3` (through the owner connection) and of
+`clients ?client_id=B` (as `odudu_svc`); the other two follow the same
+shape on `tenants_display_name_search` and `clients_name_search`:
+
+```
+Limit  (cost=0.29..108.03 rows=51 width=72) (actual time=0.032..0.079 rows=51 loops=1)
+  Buffers: shared hit=54
+  ->  Index Scan using tenants_name_search on tenants  (cost=0.29..3048.75 rows=1443 width=72) (actual time=0.031..0.074 rows=51 loops=1)
+        Index Cond: ((name_search >= 't3'::text) AND (name_search < 't4'::text) AND (ROW(name_search, id) > ROW('t305ec2f9-14865'::text, 'fe333f4d-c58d-4885-9f1f-566f357ddf7a'::uuid)))
+Execution Time: 0.095 ms
+
+Limit  (cost=0.84..417.89 rows=51 width=503) (actual time=0.029..0.279 rows=51 loops=1)
+  ->  Nested Loop  (cost=0.84..4416.59 rows=540 width=503) (actual time=0.029..0.274 rows=51 loops=1)
+        ->  Index Scan using clients_client_id_search on clients  (cost=0.43..861.18 rows=535 width=84) (actual time=0.017..0.077 rows=51 loops=1)
+              Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (client_id_search >= 'b'::text) AND (client_id_search < 'c'::text) AND (ROW(client_id_search, id) > ROW('b060700f-8238'::text, 'ca9dfe92-445f-4d6f-b3e3-8b5207707c6d'::uuid)))
+        ->  Index Scan using client_oidc_config_pkey on client_oidc_config  (cost=0.42..6.65 rows=1 width=435) (actual time=0.004..0.004 rows=1 loops=51)
+              Index Cond: (client_id = clients.id)
+Execution Time: 0.311 ms
+```
+
+Every one of the twelve, subjects included, ran in under 0.35 ms and read
+51 rows of its search index for a page of 50.

@@ -12,9 +12,9 @@ export interface DatabaseHandle {
 
 export interface DatabaseOptions {
   max?: number;
-  // Sees the text of every statement sent, never its parameters; for a test
-  // asserting that two paths issue the same statements.
-  onQuery?: (query: string) => void;
+  // Sees every statement sent, with its parameters; for a test asserting
+  // what a path issues, or explaining the statement it issued.
+  onQuery?: (query: string, parameters: readonly unknown[]) => void;
 }
 
 export function createDatabase(url: string, options: DatabaseOptions = {}): DatabaseHandle {
@@ -25,8 +25,8 @@ export function createDatabase(url: string, options: DatabaseOptions = {}): Data
     ...(onQuery === undefined
       ? {}
       : {
-          debug: (_connection: number, query: string) => {
-            onQuery(query);
+          debug: (_connection: number, query: string, parameters: readonly unknown[]) => {
+            onQuery(query, parameters);
           },
         }),
   });

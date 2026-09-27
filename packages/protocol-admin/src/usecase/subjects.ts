@@ -16,12 +16,12 @@ import {
 } from '@odudu/domain-identity';
 import { tenantSettingsRepository } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
-import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, ne, sql, type SQL } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
-import { prefixUpperBound } from '#/service/list-query';
 import { AMENDABLE_SUBJECT_FIELDS, refusalFor } from '#/service/subjects-patch';
+import { prefixRangeConditions, requireSearchKey } from '#/usecase/prefix-search';
 
 const COLLECTION = 'subjects';
 
@@ -111,15 +111,6 @@ function searchOf(
   return undefined;
 }
 
-// Folded by PostgreSQL, in the collation that filled the search column, so
-// the bound and the stored key cannot fold differently.
-async function foldedByDatabase(tx: TenantScopedDatabase, prefix: string): Promise<string> {
-  const rows = await tx.execute(sql`select lower(${prefix}) as folded`);
-  const folded: unknown = rows[0]?.folded;
-  if (typeof folded !== 'string') throw new Error('protocol-admin: lower() returned no text');
-  return folded;
-}
-
 function exactFilterConditions(filters: SubjectFilters, tx: TenantScopedDatabase): SQL[] {
   const conditions: SQL[] = [];
   if (filters.enabled === 'true') conditions.push(isNull(subjects.disabledAt));
@@ -171,12 +162,10 @@ export async function listSubjects(
     if (after !== undefined) conditions.push(gt(subjects.id, after.id));
   } else {
     searchKey = search.column;
-    const upper = prefixUpperBound(await foldedByDatabase(tx, search.prefix));
-    conditions.push(sql`${search.column} >= lower(${search.prefix})`);
-    if (upper !== null) conditions.push(lt(search.column, upper));
-    if (after !== undefined) {
-      conditions.push(sql`(${search.column}, ${users.subjectId}) > (${after.sort}, ${after.id})`);
-    }
+    const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+    conditions.push(
+      ...(await prefixRangeConditions(tx, search.column, users.subjectId, search.prefix, position)),
+    );
   }
 
   const rows = await tx
@@ -204,11 +193,6 @@ export async function listSubjects(
       : null;
 
   return { kind: 'ok', items: page.map(narrowRow), next };
-}
-
-function requireSearchKey(value: string | null): string {
-  if (value === null) throw new Error('protocol-admin: a searched row carried no search key');
-  return value;
 }
 
 export type ReadSubjectOutcome = { kind: 'not_found' } | { kind: 'ok'; subject: SubjectView };

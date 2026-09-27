@@ -1,7 +1,7 @@
 import {
   amendClientRequestSchema,
   createClientRequestSchema,
-  cursorQuerySchema,
+  listClientsQuerySchema,
   type Client,
   type CreateClientResponse,
   type RotateClientSecretResponse,
@@ -50,10 +50,15 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
 
 export function listClientsHandler(deps: ClientsRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
-    // Same narrowing as listTenantsHandler (#/view/routes/tenants.ts):
-    // ADMIN_ROUTES' `querystringSchema` already validated shape.
-    const query = cursorQuerySchema.parse(request.query);
-    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+    // Same narrowing as listTenantsHandler (#/view/routes/tenants.ts).
+    const parsed = listClientsQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      const detail = parsed.error.issues[0]?.message ?? 'invalid query';
+      return sendProblem(reply, request, problem(400, 'about:blank', 'Bad Request', detail));
+    }
+    const query = parsed.data;
+    const { cursor, limit: requestedLimit, ...filters } = query;
+    const limit = coerceLimit(requestedLimit === undefined ? undefined : String(requestedLimit));
     const tenantName = request.params.tenant;
     if (tenantName === undefined) {
       throw new Error('protocol-admin: clients route received no :tenant');
@@ -62,9 +67,10 @@ export function listClientsHandler(deps: ClientsRouteDeps): AdminRouteHandler {
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listClients(tx, {
         limit,
-        cursor: query.cursor,
+        cursor,
         cursorKey: deps.cursorKey,
         tenantId: targetTenantId,
+        filters,
       }),
     );
     if (outcome.kind === 'invalid_cursor') {

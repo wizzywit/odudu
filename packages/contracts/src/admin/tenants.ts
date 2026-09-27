@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { createdAtSchema, idSchema } from '#/admin/shared';
+import {
+  createdAtSchema,
+  cursorQuerySchema,
+  enabledFilterSchema,
+  idSchema,
+  searchPrefixSchema,
+} from '#/admin/shared';
 
 export const createTenantRequestSchema = z.object({
   name: z.string().min(1),
@@ -27,3 +33,15 @@ export const listTenantsResponseSchema = z.object({
   next: z.string().optional(),
 });
 export type ListTenantsResponse = z.infer<typeof listTenantsResponseSchema>;
+
+export const listTenantsQuerySchema = cursorQuerySchema
+  .extend({
+    name: searchPrefixSchema.optional(),
+    display_name: searchPrefixSchema.optional(),
+    enabled: enabledFilterSchema.optional(),
+  })
+  .strict()
+  .refine((query) => query.name === undefined || query.display_name === undefined, {
+    message: 'search one field at a time: name or display_name, not both',
+  });
+export type ListTenantsQuery = z.infer<typeof listTenantsQuerySchema>;

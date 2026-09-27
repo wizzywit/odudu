@@ -1,7 +1,9 @@
 import { withTenant, type TenantScopedDatabase } from '@odudu/db';
-import { ClientIdConflictError, clientRepository } from '@odudu/domain-tenant';
+import { ClientIdConflictError, clientRepository, clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
+import { eq, sql } from 'drizzle-orm';
+import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -425,6 +427,176 @@ describe('GET /admin/tenants/{t}/clients and /clients/{id}', () => {
     expect(secondBody.items).toHaveLength(1);
     // The cursor moved: the second page's row is not the first page's row.
     expect(secondBody.items[0]?.client_id).not.toBe(firstBody.items[0]?.client_id);
+  });
+});
+
+async function seedClient(
+  tenantName: string,
+  clientId: string,
+  options: { readonly name?: string; readonly confidential?: boolean } = {},
+): Promise<string> {
+  const token = await fixture.adminToken(tenantName, ['manage-clients']);
+  const res = await fixture.http.inject({
+    method: 'POST',
+    url: `/admin/tenants/${tenantName}/clients`,
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    payload: {
+      client_id: clientId,
+      ...(options.name === undefined ? {} : { client_name: options.name }),
+      redirect_uris: ['https://app.example/cb'],
+      token_endpoint_auth_method: options.confidential === true ? 'client_secret_basic' : 'none',
+    },
+  });
+  if (res.statusCode !== 201) throw new Error(`could not create ${clientId}: ${res.body}`);
+  return res.json<{ id: string }>().id;
+}
+
+async function listClientsAt(tenantName: string, query: string): Promise<LightMyRequestResponse> {
+  const token = await fixture.adminToken(tenantName, ['manage-clients']);
+  return fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants/${tenantName}/clients?${query}`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+function clientIdsOf(res: LightMyRequestResponse): string[] {
+  return res.json<{ items: { client_id: string }[] }>().items.map((c) => c.client_id);
+}
+
+// PostgreSQL's own answer, in the order a searched listing promises, so no
+// expectation here folds a string in JavaScript.
+async function nameMatches(tenantId: string, prefix: string): Promise<string[]> {
+  const rows = await fixture.owner.db.execute<{ client_id: string }>(sql`
+    select client_id from clients
+     where tenant_id = ${tenantId} and starts_with(lower(name), lower(${prefix}))
+     order by lower(name) collate "C", id
+  `);
+  return rows.map((row) => row.client_id);
+}
+
+describe('GET /admin/tenants/{t}/clients — search and exact filters', () => {
+  it('finds a client_id case-insensitively', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedClient(t.name, 'Portal-Web');
+    await seedClient(t.name, 'billing');
+
+    const res = await listClientsAt(t.name, 'client_id=portal');
+    expect(res.statusCode).toBe(200);
+    expect(clientIdsOf(res)).toEqual(['Portal-Web']);
+  });
+
+  it('orders name matches by the folded name, then by id', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedClient(t.name, 'c1', { name: 'Shop c' });
+    await seedClient(t.name, 'c2', { name: 'SHOP A' });
+    await seedClient(t.name, 'c3', { name: 'shop b' });
+    await seedClient(t.name, 'c4', { name: 'Shop a' });
+    await seedClient(t.name, 'c5', { name: 'Stock' });
+
+    const res = await listClientsAt(t.name, 'name=shop');
+    expect(res.statusCode).toBe(200);
+    const expected = await nameMatches(t.id, 'shop');
+    expect(expected).toHaveLength(4);
+    expect(clientIdsOf(res)).toEqual(expected);
+  });
+
+  it('pages a client_id search one row at a time, each match once and in order', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const clientId of ['app-b', 'APP-a', 'app-c', 'other']) await seedClient(t.name, clientId);
+
+    const seen: string[] = [];
+    let query = 'client_id=app&limit=1';
+    for (let page = 0; page < 5; page += 1) {
+      const res = await listClientsAt(t.name, query);
+      expect(res.statusCode).toBe(200);
+      const body = res.json<{ items: { client_id: string }[]; next?: string }>();
+      seen.push(...body.items.map((c) => c.client_id));
+      if (body.next === undefined) break;
+      query = `client_id=app&limit=1&cursor=${encodeURIComponent(body.next)}`;
+    }
+    expect(seen).toEqual(['APP-a', 'app-b', 'app-c']);
+  });
+
+  it('reads _ and % as ordinary characters', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedClient(t.name, 'axb');
+    await seedClient(t.name, 'a_b');
+    await seedClient(t.name, 'a%b');
+
+    expect(clientIdsOf(await listClientsAt(t.name, 'client_id=a_b'))).toEqual(['a_b']);
+    expect(clientIdsOf(await listClientsAt(t.name, 'client_id=a%25'))).toEqual(['a%b']);
+  });
+
+  it('filters by ?type= and ?enabled=, ANDed with a search', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedClient(t.name, 'svc-a', { confidential: true });
+    const off = await seedClient(t.name, 'svc-b', { confidential: true });
+    await seedClient(t.name, 'spa');
+    await fixture.owner.db.update(clients).set({ enabled: false }).where(eq(clients.id, off));
+
+    expect(clientIdsOf(await listClientsAt(t.name, 'client_id=s&type=public'))).toEqual(['spa']);
+    expect(clientIdsOf(await listClientsAt(t.name, 'client_id=s&type=confidential'))).toEqual([
+      'svc-a',
+      'svc-b',
+    ]);
+    expect(clientIdsOf(await listClientsAt(t.name, 'enabled=false'))).toEqual(['svc-b']);
+    expect(clientIdsOf(await listClientsAt(t.name, 'type=confidential&enabled=true'))).toEqual(
+      expect.arrayContaining(['svc-a']),
+    );
+    expect(
+      clientIdsOf(await listClientsAt(t.name, 'type=confidential&enabled=true')),
+    ).not.toContain('svc-b');
+  });
+
+  it('finds nothing searching for a client that belongs to another tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    await seedClient(other.name, 'foreign-app');
+
+    const res = await listClientsAt(t.name, 'client_id=foreign');
+    expect(res.statusCode).toBe(200);
+    expect(clientIdsOf(res)).toEqual([]);
+  });
+
+  it('refuses an unknown parameter with 400 naming it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await listClientsAt(t.name, 'search=app');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('search');
+  });
+
+  it('refuses a search over client_id and name at once', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await listClientsAt(t.name, 'client_id=a&name=b');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('one field at a time');
+  });
+
+  it('refuses a type other than public or confidential, and an enabled other than true or false', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    expect((await listClientsAt(t.name, 'type=service')).statusCode).toBe(400);
+    expect((await listClientsAt(t.name, 'enabled=yes')).statusCode).toBe(400);
+  });
+
+  it.each([
+    ['another search', 'client_id=a&limit=1', 'client_id=b&limit=1'],
+    ['a filter added', 'client_id=a&limit=1', 'client_id=a&type=public&limit=1'],
+    ['a filter dropped', 'client_id=a&type=public&limit=1', 'client_id=a&limit=1'],
+  ])('refuses a cursor replayed under %s', async (_label, minted, replayedUnder) => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const clientId of ['a-1', 'a-2', 'b-1', 'b-2']) await seedClient(t.name, clientId);
+
+    const first = await listClientsAt(t.name, minted);
+    const next = first.json<{ next?: string }>().next;
+    if (next === undefined) throw new Error('expected a next cursor');
+
+    const replayed = await listClientsAt(
+      t.name,
+      `${replayedUnder}&cursor=${encodeURIComponent(next)}`,
+    );
+    expect(replayed.statusCode).toBe(400);
+    expect(replayed.json<{ detail: string }>().detail).toBe('cursor is invalid or expired');
   });
 });
 

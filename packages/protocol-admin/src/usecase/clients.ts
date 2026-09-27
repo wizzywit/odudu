@@ -1,4 +1,4 @@
-import { type Client } from '@odudu/contracts/admin';
+import { type Client, type ListClientsQuery } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import {
@@ -18,7 +18,7 @@ import {
   parseClientMetadata,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
-import { asc, eq, gt, inArray } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { redactedDiff } from '#/service/audit-detail';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
@@ -28,6 +28,7 @@ import {
   refusalFor,
 } from '#/service/client-patch';
 import { etagOf, matches } from '#/service/etag';
+import { prefixRangeConditions, requireSearchKey } from '#/usecase/prefix-search';
 
 const COLLECTION = 'clients';
 
@@ -191,22 +192,48 @@ export interface ClientAuditEvent {
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: ClientAuditEvent) => Promise<void>;
 
+/** Every `listClientsQuerySchema` parameter except the page controls. */
+export type ClientFilters = Omit<ListClientsQuery, 'cursor' | 'limit'>;
+
 export interface ListClientsInput {
   readonly limit: number;
   readonly cursor: string | undefined;
   readonly cursorKey: Uint8Array;
   readonly tenantId: string;
+  readonly filters: ClientFilters;
 }
 
 export type ListClientsOutcome =
   { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly ClientView[]; next: string | null };
 
+type ClientSearchKey = typeof clients.clientIdSearch | typeof clients.nameSearch;
+
+function clientSearchOf(
+  filters: ClientFilters,
+): { readonly column: ClientSearchKey; readonly prefix: string } | undefined {
+  if (filters.client_id !== undefined) {
+    return { column: clients.clientIdSearch, prefix: filters.client_id };
+  }
+  if (filters.name !== undefined) return { column: clients.nameSearch, prefix: filters.name };
+  return undefined;
+}
+
+function exactClientConditions(filters: ClientFilters): SQL[] {
+  return [
+    ...(filters.type === undefined ? [] : [eq(clients.type, filters.type)]),
+    ...(filters.enabled === undefined ? [] : [eq(clients.enabled, filters.enabled === 'true')]),
+  ];
+}
+
+// A searched listing is one range scan of the search column's index
+// (0074_list_indexes_tenants_clients.sql), the way `listSubjects` is.
 export async function listClients(
   tx: TenantScopedDatabase,
   input: ListClientsInput,
 ): Promise<ListClientsOutcome> {
-  const filters = filterDigest({});
-  let after: string | undefined;
+  const filters = filterDigest(input.filters);
+  const search = clientSearchOf(input.filters);
+  let after: { readonly id: string; readonly sort: string | undefined } | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
       input.cursorKey,
@@ -216,22 +243,40 @@ export async function listClients(
       input.cursor,
     );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
-    after = decoded.after;
+    if (search !== undefined && decoded.sort === undefined) return { kind: 'invalid_cursor' };
+    after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const rows = await clientsJoinedWithConfig(tx)
-    .where(after === undefined ? undefined : gt(clients.id, after))
-    .orderBy(asc(clients.id))
+  const conditions = exactClientConditions(input.filters);
+  if (search === undefined) {
+    if (after !== undefined) conditions.push(gt(clients.id, after.id));
+  } else {
+    const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+    conditions.push(
+      ...(await prefixRangeConditions(tx, search.column, clients.id, search.prefix, position)),
+    );
+  }
+
+  const rows = await tx
+    .select({ view: CLIENT_VIEW_COLUMNS, searchKey: search?.column ?? sql<null>`null` })
+    .from(clients)
+    .innerJoin(clientOidcConfig, eq(clients.id, clientOidcConfig.clientId))
+    .where(conditions.length === 0 ? undefined : and(...conditions))
+    .orderBy(...(search === undefined ? [asc(clients.id)] : [asc(search.column), asc(clients.id)]))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;
-  const bareItems = (hasMore ? rows.slice(0, input.limit) : rows).map(narrowRow);
-  const items = await attachScopesMany(tx, bareItems);
-  const last = items[items.length - 1];
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
+  const items = await attachScopesMany(
+    tx,
+    page.map((row) => narrowRow(row.view)),
+  );
   const next =
     hasMore && last !== undefined
       ? encodeCursor(input.cursorKey, {
-          after: last.id,
+          after: last.view.id,
+          ...(search === undefined ? {} : { sort: requireSearchKey(last.searchKey) }),
           collection: COLLECTION,
           tenantId: input.tenantId,
           filters,

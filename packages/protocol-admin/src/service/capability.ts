@@ -23,6 +23,7 @@ import {
   groupSchema,
   listExecutionsResponseSchema,
   replaceExecutionsRequestSchema,
+  listClientsQuerySchema,
   listClientsResponseSchema,
   listCredentialsResponseSchema,
   listGroupsResponseSchema,
@@ -32,6 +33,7 @@ import {
   listSessionsResponseSchema,
   listSubjectsQuerySchema,
   listSubjectsResponseSchema,
+  listTenantsQuerySchema,
   listTenantsResponseSchema,
   roleSchema,
   rotateClientSecretResponseSchema,
@@ -210,7 +212,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants',
     capability: MANAGE_TENANTS,
     responseSchema: listTenantsResponseSchema,
-    querystringSchema: cursorQuerySchema,
+    querystringSchema: listTenantsQuerySchema,
   },
   {
     method: 'POST',
@@ -257,7 +259,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/clients',
     capability: 'manage-clients',
     responseSchema: listClientsResponseSchema,
-    querystringSchema: cursorQuerySchema,
+    querystringSchema: listClientsQuerySchema,
   },
   {
     method: 'POST',

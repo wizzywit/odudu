@@ -1,19 +1,17 @@
 import { z } from 'zod';
-import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
-
-// A search is a prefix of one named field, matched case-insensitively;
-// the exact filters AND with it and with each other. A prefix is text
-// PostgreSQL can hold, which excludes NUL.
-const searchPrefixSchema = z
-  .string()
-  .min(1)
-  .regex(/^[^\u0000]*$/);
+import {
+  createdAtSchema,
+  cursorQuerySchema,
+  enabledFilterSchema,
+  idSchema,
+  searchPrefixSchema,
+} from '#/admin/shared';
 
 export const listSubjectsQuerySchema = cursorQuerySchema
   .extend({
     username: searchPrefixSchema.optional(),
     email: searchPrefixSchema.optional(),
-    enabled: z.enum(['true', 'false']).optional(),
+    enabled: enabledFilterSchema.optional(),
     role: z.uuid().optional(),
     group: z.uuid().optional(),
   })

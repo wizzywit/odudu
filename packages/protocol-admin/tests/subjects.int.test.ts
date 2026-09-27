@@ -524,6 +524,49 @@ describe('GET /admin/tenants/{t}/subjects — search and exact filters', () => {
     expect(replayed.statusCode).toBe(400);
     expect(replayed.json<{ detail: string }>().detail).toBe('cursor is invalid or expired');
   });
+
+  it.each([
+    ['a filter added', 'username=a&limit=1', 'username=a&enabled=true&limit=1'],
+    ['a filter dropped', 'username=a&enabled=true&limit=1', 'username=a&limit=1'],
+  ])('refuses a cursor replayed with %s', async (_label, minted, replayedUnder) => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedUser(t.id, 'ab-1');
+    await seedUser(t.id, 'ab-2');
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const first = await listSubjectsAt(t.name, token, minted);
+    const next = first.json<{ next?: string }>().next;
+    if (next === undefined) throw new Error('expected a next cursor');
+
+    const replayed = await listSubjectsAt(
+      t.name,
+      token,
+      `${replayedUnder}&cursor=${encodeURIComponent(next)}`,
+    );
+    expect(replayed.statusCode).toBe(400);
+    expect(replayed.json<{ detail: string }>().detail).toBe('cursor is invalid or expired');
+  });
+
+  it('finds nothing for a group id that belongs to another tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    await seedUser(t.id, 'here');
+    const foreignGroupId = await withTenant(fixture.app.db, other.id, async (tx) => {
+      const subject = await subjectRepository(tx).create({ tenantId: other.id, type: 'user' });
+      const group = await groupRepository(tx).create({
+        tenantId: other.id,
+        name: `g-${newId()}`,
+        parentId: null,
+      });
+      await groupRepository(tx).addToSubject(subject.id, group.id);
+      return group.id;
+    });
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await listSubjectsAt(t.name, token, `group=${foreignGroupId}`);
+    expect(res.statusCode).toBe(200);
+    expect(usernamesOf(res)).toEqual([]);
+  });
 });
 
 describe('GET /admin/tenants/{t}/subjects/{id}', () => {

@@ -24,6 +24,8 @@ export {
   type AmendTenantRequest,
   tenantSchema,
   type Tenant,
+  listTenantsQuerySchema,
+  type ListTenantsQuery,
   listTenantsResponseSchema,
   type ListTenantsResponse,
 } from '#/admin/tenants';
@@ -42,6 +44,8 @@ export {
   type CreateClientResponse,
   createClientRequestSchema,
   type CreateClientRequest,
+  listClientsQuerySchema,
+  type ListClientsQuery,
   listClientsResponseSchema,
   type ListClientsResponse,
   amendClientRequestSchema,
