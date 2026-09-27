@@ -80,6 +80,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'tenants.tenants_max_clients_range': 'CHECK ((max_clients >= 0))',
   'tenants.tenants_max_sessions_per_browser_range':
     'CHECK (((max_sessions_per_browser >= 1) AND (max_sessions_per_browser <= 32)))',
+  'tenants.tenants_name_dns_label': "CHECK ((name ~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'::text))",
   'tenants.tenants_password_history_bounds':
     'CHECK (((password_history_depth >= 0) AND (password_history_depth <= 24)))',
   'tenants.tenants_password_max_age_bounds':

@@ -5,6 +5,7 @@ import {
 } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
+import { TENANT_NAME_RULE } from '@odudu/domain-tenant';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import {
   amendTenant,
@@ -111,6 +112,14 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
       },
       requestContextFrom(request),
     );
+
+    if (outcome.kind === 'name_invalid') {
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', TENANT_NAME_RULE),
+      );
+    }
 
     if (outcome.kind === 'name_refused') {
       return sendProblem(

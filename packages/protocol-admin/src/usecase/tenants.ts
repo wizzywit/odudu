@@ -10,7 +10,8 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import {
-  isSystemTenantName,
+  isReservedTenantName,
+  isValidTenantName,
   SYSTEM_TENANT_DISABLE_REFUSED,
   SYSTEM_TENANT_NAME,
 } from '@odudu/domain-tenant';
@@ -76,7 +77,10 @@ export interface CreateTenantDeps {
 }
 
 export type CreateTenantOutcome =
-  { kind: 'created'; tenant: TenantRecord } | { kind: 'name_refused' } | { kind: 'name_taken' };
+  | { kind: 'created'; tenant: TenantRecord }
+  | { kind: 'name_invalid' }
+  | { kind: 'name_refused' }
+  | { kind: 'name_taken' };
 
 // Mirrors `ensureSigningKey` (apps/server/src/cli/seed.ts): a freshly
 // inserted tenant has none yet, so there is nothing to check first — a
@@ -113,11 +117,16 @@ export async function createTenant(
   input: CreateTenantInput,
   context: RequestContext,
 ): Promise<CreateTenantOutcome> {
+  // Checked before the reserved-name door: an invalid shape and a reserved
+  // name can both be true of the same input, and the shape is the more
+  // specific complaint.
+  if (!isValidTenantName(input.name)) return { kind: 'name_invalid' };
+
   // Left to the unique index, this would surface as a constraint violation
-  // with no reason attached. `apps/server/src/cli/seed.ts`'s
-  // `refuseSystemTenantName` refuses the identical name through the same
-  // predicate, so the two doors cannot disagree.
-  if (isSystemTenantName(input.name)) return { kind: 'name_refused' };
+  // with no reason attached. `seed tenant`'s equivalent guard refuses the
+  // identical names through the same predicate, so the two doors cannot
+  // disagree.
+  if (isReservedTenantName(input.name)) return { kind: 'name_refused' };
 
   const id = newId();
   let tenant: TenantRecord;

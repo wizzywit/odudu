@@ -206,7 +206,6 @@ that should hold it, which is usually false.
 | RFC 7523 has no clause table, so the clauses of an implemented RFC are untracked by the system built for it             | [rfc7523.md](protocols/rfc7523.md)'s own header                                         | **P13**                                                 |
 | The session cap is per browser and admits `cap + (k - 1)` under `k` concurrent logins, orphaning one                    | [ADR 0033](adr/0033-admitting-a-session-locks-the-tenant-row.md)                        | **P4f**, wanting a session's device                     |
 | `CLAUDE.md` states an untagged-fence rule that `tests/docs/markdown.ts` cannot see, so no JSON response is byte-checked | [p3b.md](phases/p3b.md), "`CLAUDE.md` states a rule its own tests forbid"               | its own change; it untags every JSON transcript at once |
-| Tenant names are unconstrained, so a name holding `/` nests its issuer under another tenant's                           | [p4e.md](phases/p4e.md), "Guards, one that could never fire…"                           | **P4d**, whose console creates tenants                  |
 | Committed development credentials                                                                                       | [ADR 0014](adr/0014-committed-development-credentials.md)                               | the conditions that ADR names                           |
 
 ### Argued here, because there is nowhere else

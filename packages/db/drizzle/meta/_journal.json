@@ -505,6 +505,13 @@
       "when": 1789049381714,
       "tag": "0071_session_secret",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1789049381715,
+      "tag": "0072_tenant_name_rule",
+      "breakpoints": true
     }
   ]
 }

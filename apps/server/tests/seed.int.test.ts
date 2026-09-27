@@ -19,6 +19,7 @@ import {
   SYSTEM_TENANT_ID,
   SYSTEM_TENANT_NAME,
   TENANT_DEFAULT_SCOPE_NAMES,
+  TENANT_NAME_RULE,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
@@ -506,6 +507,14 @@ describe('seed tenant --set', () => {
     const result = await seed(['tenant', '--name', `set-${newId()}`]);
 
     expect(result).not.toHaveProperty('settings');
+  });
+
+  it('refuses a name that is not a DNS label, naming the rule', async () => {
+    await expect(seed(['tenant', '--name', 'Acme'])).rejects.toThrow(TENANT_NAME_RULE);
+  });
+
+  it('refuses the reserved name count, the same as system', async () => {
+    await expect(seed(['tenant', '--name', 'count'])).rejects.toThrow(/reserved/);
   });
 
   // The ranges live in CHECK constraints (migrations 0028, 0035, 0041), and

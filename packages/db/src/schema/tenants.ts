@@ -9,6 +9,9 @@ import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg
 // without a policy, schema-drift.int.test.ts stops the view drifting.
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey(),
+  // An RFC 1123 DNS label (packages/db/drizzle/0072_tenant_name_rule.sql):
+  // minted straight into an issuer host segment, so a shape a resolver
+  // would reject is refused here rather than reaching one.
   name: text('name').notNull().unique(),
   displayName: text('display_name'),
   enabled: boolean('enabled').notNull().default(true),

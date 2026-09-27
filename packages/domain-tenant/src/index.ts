@@ -26,6 +26,12 @@ export {
   viewCounterpart,
   type TenantCapability,
 } from '#/service/admin-capabilities';
+export {
+  isReservedTenantName,
+  isValidTenantName,
+  RESERVED_TENANT_NAMES,
+  TENANT_NAME_RULE,
+} from '#/service/tenant-name';
 export { clients, type ClientRecord } from '#/schema/clients';
 export {
   clientRepository,

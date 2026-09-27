@@ -328,7 +328,7 @@ describe('the consent gate on the form path', () => {
   // closes on a test that could pass under a build honouring only the
   // client flag.
   it('[OIDC-CORE-3.1.2.1-14] redirects with access_denied when consent is denied under prompt=consent', async () => {
-    const tenantName = `consent-deny-prompt-consent-${newId()}`;
+    const tenantName = `consent-deny-prompt-${newId()}`;
     // consentRequired: false — the only thing asking here is prompt=consent.
     await setupTenant(tenantName, { consentRequired: false });
 
@@ -583,7 +583,7 @@ describe('the consent gate applies to a reused SSO session too', () => {
   });
 
   it('[OIDC-CORE-3.1.2.6-07] returns consent_required as the prompt=none error, naming what specifically was missing', async () => {
-    const tenantName = `consent-reuse-prompt-none-mayrow-${newId()}`;
+    const tenantName = `consent-reuse-none-mayrow-${newId()}`;
     await setupTenant(tenantName);
 
     const authSessionId = await startAuthSession(tenantName, CONSENT_CLIENT_ID);

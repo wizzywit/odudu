@@ -26,12 +26,15 @@ import {
   clientRegistrationTokenRepository,
   clientRepository,
   clientScopeRepository,
+  isReservedTenantName,
   isSystemTenantName,
+  isValidTenantName,
   provisionClientDefaults,
   verifyClientSecret,
   SYSTEM_TENANT_ID,
   SYSTEM_TENANT_NAME,
   TENANT_ADMIN,
+  TENANT_NAME_RULE,
   type ClientRecord,
   type ClientScopeAssignment,
   coerceTenantSetting,
@@ -900,7 +903,19 @@ async function runTenantCommand(
     throw new OduduError('seed_invalid_options', 'seed tenant requires --name');
   }
   const tenantName = values.name;
-  refuseSystemTenantName(tenantName);
+  // Unlike `seedClientBootstrap`, which only ever needs to keep `system`
+  // free for `seed admin`, this is the door an operator names a tenant
+  // through directly, so it owns the full rule: a shape a resolver would
+  // reject, and every name a later route would shadow.
+  if (!isValidTenantName(tenantName)) {
+    throw new OduduError('seed_invalid_options', TENANT_NAME_RULE);
+  }
+  if (isReservedTenantName(tenantName)) {
+    throw new OduduError(
+      'seed_system_tenant_conflict',
+      `${JSON.stringify(tenantName)} is a reserved tenant name`,
+    );
+  }
   // Parsed before the tenant is touched, so a typo in the third --set does
   // not leave the first two applied.
   const settings = parseSettings(values.set ?? []);

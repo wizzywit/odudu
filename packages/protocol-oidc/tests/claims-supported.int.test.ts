@@ -50,7 +50,9 @@ interface Tenant {
 }
 
 async function seedTenant(label: string): Promise<Tenant> {
-  const tenantName = `claims-supported-${label}-${newId()}`;
+  // Short enough to leave room under the DNS-label length limit even for
+  // the longest label this file passes ('discovery-entitlements').
+  const tenantName = `${label}-${newId()}`;
   const tenantId = newId();
   const clientDbId = newId();
 

@@ -296,11 +296,20 @@ Creates a tenant: the row, its browser authentication flow
 (`provisionTenant`, `@odudu/authn-flows`) and its built-in admin client
 (`provisionAdminClient`, `@odudu/protocol-oidc`) in one call, so a tenant
 this endpoint returns is one an operator can immediately provision an admin
-for. `manage-tenants` is required, the same as the listing above. The name
-`system` is refused with `409` — reserved for the tenant this API itself
-administers from — rather than left to surface as a unique-index conflict;
-`odudu seed tenant --name system` is refused for the identical reason
-(`refuseSystemTenantName`, `apps/server/src/cli/seed.ts`), as is
+for. `manage-tenants` is required, the same as the listing above.
+
+A tenant name is a DNS label — 1-63 lowercase letters, digits or hyphens,
+never starting or ending with one — because it is minted straight into an
+issuer host segment; a shape a resolver would reject is refused with `400`
+before it ever becomes one (`isValidTenantName`, `@odudu/domain-tenant`),
+and the same CHECK stands behind it at the database
+(`tenants_name_dns_label`, `packages/db/drizzle/0072_tenant_name_rule.sql`).
+`system` and `count` are refused with `409` on top of that — reserved for
+the tenant this API itself administers from, and for the collection route
+`GET /admin/tenants/count` would otherwise shadow — rather than left to
+surface as a unique-index conflict; `odudu seed tenant --name system` and
+`--name count` are refused for the identical reasons
+(`isReservedTenantName`, `@odudu/domain-tenant`), as is
 `seed({ tenant: 'system', … })`, the options form of the same command. A
 name another tenant already holds is refused with `409` too — under
 row-level security a tenant carrying it is not visible to this call, so the
@@ -328,6 +337,24 @@ the call above had just taken:
 ```
 {"type":"about:blank","title":"Conflict","status":409,"detail":"the name \"system\" is reserved","instance":"01a0d6ff-87ec-7a40-b65e-a2b6205f4428"}
 {"type":"about:blank","title":"Conflict","status":409,"detail":"the name \"demo\" is already in use","instance":"01a0d6ff-87ff-7621-bf57-d9d1cdf24dfd"}
+```
+
+And the DNS-label refusal, captured against a third stack — the request
+above with `Acme` in place of `demo`, which creates nothing:
+
+```bash
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $SYSTEM_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Acme"}' \
+  http://localhost:3000/admin/tenants
+```
+
+```
+HTTP/1.1 400 Bad Request
+content-type: application/problem+json; charset=utf-8
+
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"a tenant name must be 1-63 lowercase letters, digits or hyphens, and must not start or end with a hyphen","instance":"01a0e05c-e39b-7443-965e-2c1ac9f260ff"}
 ```
 
 ## `GET /admin/tenants/{tenant}` and `PATCH /admin/tenants/{tenant}`

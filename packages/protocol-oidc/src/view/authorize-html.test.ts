@@ -55,4 +55,17 @@ describe('renderLoginForm', () => {
     const page = renderLoginForm('acme', 'session-id', 'password', false, false);
     expect(page.body).not.toContain('remember_me');
   });
+
+  // The tenant name is the one request-derived value this page interpolates
+  // into markup at all — the form's own `action` — so it is escaped like any
+  // other. Exercised here directly against the pure renderer rather than
+  // through a stored tenant, since a name shaped like this can no longer
+  // reach a row (tenants_name_dns_label,
+  // packages/db/drizzle/0072_tenant_name_rule.sql).
+  it('escapes a tenant name that is not a DNS label', () => {
+    const page = renderLoginForm('esc"><script>alert(1)<x', 'session-id', 'password');
+    expect(page.body).not.toContain('<script>');
+    expect(page.body).toContain('&lt;script&gt;');
+    expect(page.body).toContain('&quot;&gt;');
+  });
 });

@@ -2,7 +2,7 @@ import { executionRepository } from '@odudu/authn-flows';
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { signingKeyRepository } from '@odudu/crypto';
 import { tenants, withTenant, type RequestContext } from '@odudu/db';
-import { clientRepository, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
+import { clientRepository, TENANT_CAPABILITIES, TENANT_NAME_RULE } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -108,6 +108,39 @@ describe('POST /admin/tenants', () => {
       payload: { name: 'system' },
     });
     expect(res.statusCode).toBe(409);
+  });
+
+  it('refuses the name count, which a tenant collection route would shadow', async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'count' },
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
+  it('refuses a name that is not a DNS label, creating nothing', async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const name = 'Acme';
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toBe(TENANT_NAME_RULE);
+
+    const listed = await fixture.http.inject({
+      method: 'GET',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(listed.json<{ items: { name: string }[] }>().items).not.toContainEqual(
+      expect.objectContaining({ name }),
+    );
   });
 
   it('refuses a tenant-local admin holding every tenant capability', async () => {
@@ -274,6 +307,29 @@ describe('createTenant', () => {
       NO_CONTEXT,
     );
     expect(outcome.kind).toBe('name_refused');
+    expect(events).toHaveLength(0);
+  });
+
+  it('does not call audit when it refuses a name that is not a DNS label', async () => {
+    const events: unknown[] = [];
+    const outcome = await createTenant(
+      {
+        database: fixture.app.db,
+        kek: KEK,
+        audit: (_tx, event) => {
+          events.push(event);
+          return Promise.resolve();
+        },
+      },
+      {
+        name: 'Acme',
+        actorSubjectId: 'test-subject',
+        actorTenantId: 'test-tenant',
+        actorClientId: 'test-client',
+      },
+      NO_CONTEXT,
+    );
+    expect(outcome.kind).toBe('name_invalid');
     expect(events).toHaveLength(0);
   });
 
