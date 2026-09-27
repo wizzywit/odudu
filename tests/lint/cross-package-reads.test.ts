@@ -13,9 +13,12 @@ import { describe, expect, it } from 'vitest';
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const PATH_BUILDERS = new Set(['join', 'resolve']);
 
+// Normalised first: a literal like 'fixtures/../../../shared/../../../../a'
+// does not start with '..', but resolves to five levels above its own
+// directory, and a plain leading-segment count would miss that entirely.
 function leadingParentSegments(text: string): number {
   let count = 0;
-  for (const segment of text.split('/')) {
+  for (const segment of path.posix.normalize(text).split('/')) {
     if (segment !== '..') break;
     count += 1;
   }
@@ -93,6 +96,12 @@ describe('deepestClimb', () => {
   it('ignores a traversal string that no path is built from', () => {
     expect(deepestClimb("const payloads = ['../../../etc/passwd'];")).toBe(0);
   });
+
+  it('normalises a literal before counting its climb, catching segments a cancelled prefix hides', () => {
+    expect(
+      deepestClimb("join(import.meta.dirname, 'fixtures/../../../shared/../../../../a');"),
+    ).toBe(5);
+  });
 });
 
 describe('escapesPackage', () => {
@@ -104,6 +113,21 @@ describe('escapesPackage', () => {
 
   it('allows a climb that stays inside the package', () => {
     expect(escapesPackage("new URL('../drizzle', import.meta.url)", 'src/migrate.ts')).toBe(false);
+  });
+
+  it('flags a climb a cancelled-looking literal hides', () => {
+    expect(
+      escapesPackage(
+        "join(import.meta.dirname, 'fixtures/../../../shared/../../../../a')",
+        'src/view/x.test.ts',
+      ),
+    ).toBe(true);
+  });
+
+  it('does not flag a literal that climbs and returns inside the package', () => {
+    expect(
+      escapesPackage("join(import.meta.dirname, '../../fixtures/..')", 'src/view/x.test.ts'),
+    ).toBe(false);
   });
 });
 
