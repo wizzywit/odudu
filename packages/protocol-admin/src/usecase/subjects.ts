@@ -1,7 +1,7 @@
 import { requiredActionRepository, type RequiredAction } from '@odudu/authn-flows';
-import { type Credential, type Subject } from '@odudu/contracts/admin';
+import { type Credential, type ListSubjectsQuery, type Subject } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { roleRepository, roles, subjectRoles } from '@odudu/domain-authz';
+import { roleRepository, roles, subjectGroups, subjectRoles } from '@odudu/domain-authz';
 import {
   credentialRepository,
   isEmailAddress,
@@ -16,10 +16,11 @@ import {
 } from '@odudu/domain-identity';
 import { tenantSettingsRepository } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
-import { and, asc, eq, gt, inArray, like, ne } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
+import { prefixUpperBound } from '#/service/list-query';
 import { AMENDABLE_SUBJECT_FIELDS, refusalFor } from '#/service/subjects-patch';
 
 const COLLECTION = 'subjects';
@@ -83,24 +84,74 @@ export interface SubjectAuditEvent {
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: SubjectAuditEvent) => Promise<void>;
 
+/** Every `listSubjectsQuerySchema` parameter except the page controls. */
+export type SubjectFilters = Omit<ListSubjectsQuery, 'cursor' | 'limit'>;
+
 export interface ListSubjectsInput {
   readonly limit: number;
   readonly cursor: string | undefined;
   readonly cursorKey: Uint8Array;
   readonly tenantId: string;
-  /** A username prefix. A subject with no `users` row never matches one. */
-  readonly search: string | undefined;
+  /** A subject with no `users` row never matches a username or email search. */
+  readonly filters: SubjectFilters;
 }
 
 export type ListSubjectsOutcome =
   { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly SubjectView[]; next: string | null };
 
+type SearchKeyColumn = typeof users.usernameSearch | typeof users.emailSearch;
+
+function searchOf(
+  filters: SubjectFilters,
+): { readonly column: SearchKeyColumn; readonly prefix: string } | undefined {
+  if (filters.username !== undefined) {
+    return { column: users.usernameSearch, prefix: filters.username };
+  }
+  if (filters.email !== undefined) return { column: users.emailSearch, prefix: filters.email };
+  return undefined;
+}
+
+// Folded by PostgreSQL, in the collation that filled the search column, so
+// the bound and the stored key cannot fold differently.
+async function foldedByDatabase(tx: TenantScopedDatabase, prefix: string): Promise<string> {
+  const rows = await tx.execute(sql`select lower(${prefix}) as folded`);
+  const folded: unknown = rows[0]?.folded;
+  if (typeof folded !== 'string') throw new Error('protocol-admin: lower() returned no text');
+  return folded;
+}
+
+function exactFilterConditions(filters: SubjectFilters, tx: TenantScopedDatabase): SQL[] {
+  const conditions: SQL[] = [];
+  if (filters.enabled === 'true') conditions.push(isNull(subjects.disabledAt));
+  if (filters.enabled === 'false') conditions.push(isNotNull(subjects.disabledAt));
+  if (filters.role !== undefined) {
+    const holders = tx
+      .select({ id: subjectRoles.subjectId })
+      .from(subjectRoles)
+      .where(eq(subjectRoles.roleId, filters.role));
+    conditions.push(inArray(subjects.id, holders));
+  }
+  if (filters.group !== undefined) {
+    const members = tx
+      .select({ id: subjectGroups.subjectId })
+      .from(subjectGroups)
+      .where(eq(subjectGroups.groupId, filters.group));
+    conditions.push(inArray(subjects.id, members));
+  }
+  return conditions;
+}
+
+// A searched listing is one range scan of the search column's index
+// (0073_list_indexes_subjects.sql): both bounds and the keyset are
+// leakproof comparisons on that column, so row-level security leaves them
+// in the index condition. `docs/phases/p4d.md` records the plan.
 export async function listSubjects(
   tx: TenantScopedDatabase,
   input: ListSubjectsInput,
 ): Promise<ListSubjectsOutcome> {
-  const filters = filterDigest({ search: input.search });
-  let after: string | undefined;
+  const filters = filterDigest(input.filters);
+  const search = searchOf(input.filters);
+  let after: { readonly id: string; readonly sort: string | undefined } | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
       input.cursorKey,
@@ -110,37 +161,54 @@ export async function listSubjects(
       input.cursor,
     );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
-    after = decoded.after;
+    if (search !== undefined && decoded.sort === undefined) return { kind: 'invalid_cursor' };
+    after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const conditions = [
-    ...(after === undefined ? [] : [gt(subjects.id, after)]),
-    // `like` with no wildcard in the operand escapes nothing, so a
-    // caller's `_`/`%` is honoured as a wildcard rather than literal text —
-    // acceptable here because the result is still scoped to this tenant by
-    // row-level security, never a query a caller can widen past that.
-    ...(input.search === undefined ? [] : [like(users.username, `${input.search}%`)]),
-  ];
+  const conditions = exactFilterConditions(input.filters, tx);
+  let searchKey: SearchKeyColumn | undefined;
+  if (search === undefined) {
+    if (after !== undefined) conditions.push(gt(subjects.id, after.id));
+  } else {
+    searchKey = search.column;
+    const upper = prefixUpperBound(await foldedByDatabase(tx, search.prefix));
+    conditions.push(sql`${search.column} >= lower(${search.prefix})`);
+    if (upper !== null) conditions.push(lt(search.column, upper));
+    if (after !== undefined) {
+      conditions.push(sql`(${search.column}, ${users.subjectId}) > (${after.sort}, ${after.id})`);
+    }
+  }
 
-  const rows = await subjectsJoinedWithUsers(tx)
+  const rows = await tx
+    .select({ ...SUBJECT_VIEW_COLUMNS, searchKey: searchKey ?? sql<null>`null` })
+    .from(subjects)
+    .leftJoin(users, eq(subjects.id, users.subjectId))
     .where(conditions.length === 0 ? undefined : and(...conditions))
-    .orderBy(asc(subjects.id))
+    .orderBy(
+      ...(searchKey === undefined ? [asc(subjects.id)] : [asc(searchKey), asc(users.subjectId)]),
+    )
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;
-  const items = (hasMore ? rows.slice(0, input.limit) : rows).map(narrowRow);
-  const last = items[items.length - 1];
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
   const next =
     hasMore && last !== undefined
       ? encodeCursor(input.cursorKey, {
           after: last.id,
+          ...(searchKey === undefined ? {} : { sort: requireSearchKey(last.searchKey) }),
           collection: COLLECTION,
           tenantId: input.tenantId,
           filters,
         })
       : null;
 
-  return { kind: 'ok', items, next };
+  return { kind: 'ok', items: page.map(narrowRow), next };
+}
+
+function requireSearchKey(value: string | null): string {
+  if (value === null) throw new Error('protocol-admin: a searched row carried no search key');
+  return value;
 }
 
 export type ReadSubjectOutcome = { kind: 'not_found' } | { kind: 'ok'; subject: SubjectView };

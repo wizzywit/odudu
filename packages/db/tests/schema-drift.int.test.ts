@@ -132,6 +132,7 @@ interface ColumnRow {
   sql_type: string;
   not_null: boolean;
   has_default: boolean;
+  generated: boolean;
 }
 
 interface CheckRow {
@@ -167,10 +168,17 @@ function schemaFiles(): string[] {
 }
 
 // `${type} NOT NULL` and `${type} NULL`, plus ` DEFAULT` when the column
-// declares one — one comparable string per column, so a mismatch reports
-// what differs rather than just that something does.
-function describeColumn(sqlType: string, notNull: boolean, hasDefault: boolean): string {
-  return `${sqlType} ${notNull ? 'NOT NULL' : 'NULL'}${hasDefault ? ' DEFAULT' : ''}`;
+// declares one or ` GENERATED` when it is a stored generated column — one
+// comparable string per column, so a mismatch reports what differs rather
+// than just that something does.
+function describeColumn(
+  sqlType: string,
+  notNull: boolean,
+  hasDefault: boolean,
+  generated: boolean,
+): string {
+  const suffix = generated ? ' GENERATED' : hasDefault ? ' DEFAULT' : '';
+  return `${sqlType} ${notNull ? 'NOT NULL' : 'NULL'}${suffix}`;
 }
 
 async function declaredTables(): Promise<DeclaredTable[]> {
@@ -192,7 +200,12 @@ async function declaredTables(): Promise<DeclaredTable[]> {
         columns: new Map(
           config.columns.map((column) => [
             column.name,
-            describeColumn(column.getSQLType(), column.notNull, column.hasDefault),
+            describeColumn(
+              column.getSQLType(),
+              column.notNull,
+              column.hasDefault,
+              column.generated !== undefined,
+            ),
           ]),
         ),
       });
@@ -224,7 +237,8 @@ beforeAll(async () => {
            a.attname                                as column_name,
            format_type(a.atttypid, a.atttypmod)     as sql_type,
            a.attnotnull                             as not_null,
-           a.atthasdef                              as has_default
+           a.atthasdef and a.attgenerated = ''     as has_default,
+           a.attgenerated <> ''                     as generated
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
       join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
@@ -264,7 +278,7 @@ describe('TypeScript schema against the migrated database', () => {
       const fromDatabase = Object.fromEntries(
         migratedColumns.map((row) => [
           row.column_name,
-          describeColumn(row.sql_type, row.not_null, row.has_default),
+          describeColumn(row.sql_type, row.not_null, row.has_default, row.generated),
         ]),
       );
       const fromTypeScript = Object.fromEntries([...table.columns].sort());

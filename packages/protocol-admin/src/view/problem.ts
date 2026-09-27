@@ -42,6 +42,15 @@ export function sendProblem(
     .send({ ...body, instance: request.id });
 }
 
+// ajv's message for a closed schema says only that something extra was
+// sent; the name of what was sent is what a caller needs to fix it.
+export function refusalDetail(error: Pick<FastifyError, 'message' | 'validation'>): string {
+  const first = error.validation?.[0];
+  const extra: unknown =
+    first?.keyword === 'additionalProperties' ? first.params.additionalProperty : undefined;
+  return typeof extra === 'string' ? `${error.message}: ${extra}` : error.message;
+}
+
 /** Scoped to this plugin's encapsulation context, never the root instance, so RFC 6749 error bodies on the OIDC routes are untouched. */
 export function installProblemDetailsHandler(app: FastifyInstance): void {
   app.setErrorHandler<FastifyError>((error, request, reply) => {
@@ -50,7 +59,7 @@ export function installProblemDetailsHandler(app: FastifyInstance): void {
       sendProblem(reply, request, problem(status, 'about:blank', 'Internal Server Error'));
       return;
     }
-    sendProblem(reply, request, problem(status, 'about:blank', error.name, error.message));
+    sendProblem(reply, request, problem(status, 'about:blank', error.name, refusalDetail(error)));
   });
 
   app.setNotFoundHandler((request, reply) => {

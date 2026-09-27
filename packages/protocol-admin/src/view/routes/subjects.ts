@@ -74,10 +74,17 @@ function isUniqueViolationNaming(err: unknown, constraint: string): boolean {
 
 export function listSubjectsHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
-    // Same narrowing as listClientsHandler (#/view/routes/clients.ts):
-    // ADMIN_ROUTES' `querystringSchema` already validated shape.
-    const query = listSubjectsQuerySchema.parse(request.query);
-    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+    // ADMIN_ROUTES' `querystringSchema` already validated each parameter's
+    // shape; the one-search-field refinement has no JSON Schema form, so it
+    // is only enforced here.
+    const parsed = listSubjectsQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      const detail = parsed.error.issues[0]?.message ?? 'invalid query';
+      return sendProblem(reply, request, problem(400, 'about:blank', 'Bad Request', detail));
+    }
+    const query = parsed.data;
+    const { cursor, limit: requestedLimit, ...filters } = query;
+    const limit = coerceLimit(requestedLimit === undefined ? undefined : String(requestedLimit));
     const tenantName = request.params.tenant;
     if (tenantName === undefined) {
       throw new Error('protocol-admin: subjects route received no :tenant');
@@ -86,10 +93,10 @@ export function listSubjectsHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listSubjects(tx, {
         limit,
-        cursor: query.cursor,
+        cursor,
         cursorKey: deps.cursorKey,
         tenantId: targetTenantId,
-        search: query.search,
+        filters,
       }),
     );
     if (outcome.kind === 'invalid_cursor') {

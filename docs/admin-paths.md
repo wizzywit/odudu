@@ -65,7 +65,10 @@ subject behind both probes, `01a0e0a7-0ead-703a-ab34-22bcf5167d46`, rather
 than reusing the existing `ada` whose password from this stack's own
 history is not known here; its capabilities come from holding
 `tenant-admin`, which composites every capability plus `manage-tenants`
-(the same account "Getting the token" describes `ada` as).
+(the same account "Getting the token" describes `ada` as). The searches
+under `GET /subjects` and the two refusals under `POST /subjects` were
+captured against it later, as `ada-whoami`, after its `odudu` service was
+rebuilt from this branch.
 
 ## The shape of it
 
@@ -959,9 +962,26 @@ so a caller holding only `manage-users` already holds `view-users` by the
 time `authorizeAdmin` resolves its effective roles — nothing in the route
 special-cases it. Pages by an opaque cursor, `?limit=` and `?cursor=`,
 ordered by `id`, the same convention every other listing in this API
-follows. `?search=` filters by a username prefix; a subject with no `users`
-row (`type: "service"`, provisioned for a confidential client's service
-account) never matches one and is only ever reached by an unfiltered page.
+follows.
+
+**Search** is a prefix of one named field, case-insensitive: `?username=`
+or `?email=`, never both at once. The prefix is folded by PostgreSQL's
+`lower()`, the same function that fills the stored `username_search` and
+`email_search` columns (`0073_list_indexes_subjects.sql`), and matched as a
+range between two bounds rather than with `LIKE`, so `%`, `_` and `\` are
+ordinary characters. A searched listing is ordered by that folded column,
+in code-point order, then by `id`, and its cursor carries the folded value
+of the last row. A subject with no `users` row (`type: "service"`,
+provisioned for a confidential client's service account) never matches a
+search and is only ever reached by an unsearched page.
+
+**Exact filters** are `?enabled=true|false`, `?role=<id>` (subjects the
+role is assigned to directly, not through a group or a composite) and
+`?group=<id>` (the group's direct members). Every parameter given is
+`AND`ed. A cursor is bound to the filters it was minted under, so replaying
+it with any other set is refused, and any parameter not named here is
+refused with `400` naming it — `?search=`, which this listing once took,
+among them.
 
 ```bash
 curl -sS \
@@ -971,12 +991,66 @@ curl -sS \
 
 Three subjects by the time this ran, and the first is the point of the
 paragraph above: `demo-backend`'s service account, created with the client
-and carrying no `users` row, so `username` and `email` are `null` and
-`?search=` would never return it. `ada` is `POST /subjects` below; `bob` is
+and carrying no `users` row, so `username` and `email` are `null` and no
+search would ever return it. `ada` is `POST /subjects` below; `bob` is
 the seeded user the sessions section needs:
 
 ```
 {"items":[{"id":"01a0d6fc-e571-7685-b843-00be9303dd03","type":"service","username":null,"email":null,"enabled":true,"created_at":"2026-09-25T05:14:53.164Z"},{"id":"01a0d6fd-9453-7bf0-9823-a5fc6ea34836","type":"user","username":"ada","email":"ada@demo.example","enabled":true,"created_at":"2026-09-25T05:15:37.939Z"},{"id":"01a0d6fd-ede7-704b-8d83-fa3801d427a0","type":"user","username":"bob","email":"bob@demo.example","enabled":true,"created_at":"2026-09-25T05:16:00.867Z"}]}
+```
+
+The searches below ran against the fourth stack (the note at the top of
+this document), whose `demo` held `ada` (`ada@example.com`) and four
+service subjects; `Adaline` and `adam` were created through
+`POST /subjects` just before, with no email. `ADA` finds all three, in
+folded order:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects?username=ADA"
+```
+
+```
+{"items":[{"id":"01a0db22-1c92-7730-9d37-4085f28eca2c","type":"user","username":"ada","email":"ada@example.com","enabled":true,"created_at":"2026-09-26T00:34:00.903Z"},{"id":"01a0e0eb-90c0-75a7-96ec-4694cd78a76a","type":"user","username":"Adaline","email":null,"enabled":true,"created_at":"2026-09-27T03:32:09.534Z"},{"id":"01a0e0eb-90e2-743b-9d26-6507c4c813f6","type":"user","username":"adam","email":null,"enabled":true,"created_at":"2026-09-27T03:32:09.569Z"}]}
+```
+
+One at a time, the `Link` header carries the search forward:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/subjects?username=ADA&limit=1"
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e0eb-ae5c-797f-b148-b9216b567fab
+link: </admin/tenants/demo/subjects?limit=1&username=ADA&cursor=eyJhZnRlciI6IjAxYTBkYjIyLTFjOTItNzczMC05ZDM3LTQwODVmMjhlY2EyYyIsInNvcnQiOiJhZGEiLCJjb2xsZWN0aW9uIjoic3ViamVjdHMiLCJ0ZW5hbnRJZCI6IjAxYTBkYjIyLTFjMzItN2QxNy1iMzUxLTY5N2Q3OTExMDMzYyIsImZpbHRlcnMiOiJzWGl1TzdkZGVoRzhlYVUyUWkySWotRnJjVVAyMWVwTUJBWmxEc3FQYUVVIn0.B6FJzxJCoNTpoBieeq3YyEMKs61JZhl0gdcXVbNv8m0>; rel="next"
+content-type: application/json; charset=utf-8
+content-length: 478
+Date: Sun, 27 Sep 2026 03:32:17 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0db22-1c92-7730-9d37-4085f28eca2c","type":"user","username":"ada","email":"ada@example.com","enabled":true,"created_at":"2026-09-26T00:34:00.903Z"}],"next":"eyJhZnRlciI6IjAxYTBkYjIyLTFjOTItNzczMC05ZDM3LTQwODVmMjhlY2EyYyIsInNvcnQiOiJhZGEiLCJjb2xsZWN0aW9uIjoic3ViamVjdHMiLCJ0ZW5hbnRJZCI6IjAxYTBkYjIyLTFjMzItN2QxNy1iMzUxLTY5N2Q3OTExMDMzYyIsImZpbHRlcnMiOiJzWGl1TzdkZGVoRzhlYVUyUWkySWotRnJjVVAyMWVwTUJBWmxEc3FQYUVVIn0.B6FJzxJCoNTpoBieeq3YyEMKs61JZhl0gdcXVbNv8m0"}
+```
+
+Following that link, then replaying its cursor under `?username=b`:
+
+```
+{"items":[{"id":"01a0e0eb-90c0-75a7-96ec-4694cd78a76a","type":"user","username":"Adaline","email":null,"enabled":true,"created_at":"2026-09-27T03:32:09.534Z"}],"next":"eyJhZnRlciI6IjAxYTBlMGViLTkwYzAtNzVhNy05NmVjLTQ2OTRjZDc4YTc2YSIsInNvcnQiOiJhZGFsaW5lIiwiY29sbGVjdGlvbiI6InN1YmplY3RzIiwidGVuYW50SWQiOiIwMWEwZGIyMi0xYzMyLTdkMTctYjM1MS02OTdkNzkxMTAzM2MiLCJmaWx0ZXJzIjoic1hpdU83ZGRlaEc4ZWFVMlFpMklqLUZyY1VQMjFlcE1CQVpsRHNxUGFFVSJ9.pBJNTcIKfIaq2jODL-u1jbjCB0X6CajQ5Nq3UWCwYMY"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","instance":"01a0e0eb-cf82-7eea-b5b2-f219f6ea86be"}
+```
+
+`?email=ADA%40`, then the retired `?search=ada`, then `?username=a&email=b`.
+The first refusal is the generated schema's, hence its generic `title`; the
+second is the handler's:
+
+```
+{"items":[{"id":"01a0db22-1c92-7730-9d37-4085f28eca2c","type":"user","username":"ada","email":"ada@example.com","enabled":true,"created_at":"2026-09-26T00:34:00.903Z"}]}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: search","instance":"01a0e0eb-aeac-711d-885b-96a4bb038f57"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: username or email, not both","instance":"01a0e0eb-aebe-7b09-9217-a73b985a392b"}
 ```
 
 ## `POST /subjects`
@@ -1009,15 +1083,29 @@ content-type: application/json; charset=utf-8
 {"id":"01a0d6fd-9453-7bf0-9823-a5fc6ea34836","type":"user","username":"ada","email":"ada@demo.example","enabled":true,"created_at":"2026-09-25T05:15:37.939Z"}
 ```
 
-A body carrying `password` and a username already in use, in that order.
-The first refusal is the generated schema's, so its `title` is the
-framework's generic one rather than a `Bad Request` the usecase chose —
-that is what "refused before the usecase ever runs" looks like from
-outside:
+A body carrying `password` and a username already in use, in that order,
+recaptured against the fourth stack once a closed schema's refusal started
+naming the field it refused. The first refusal is the generated schema's,
+so its `title` is the framework's generic one rather than a `Bad Request`
+the usecase chose — that is what "refused before the usecase ever runs"
+looks like from outside:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"username": "ada", "password": "hunter2"}' \
+  http://localhost:3000/admin/tenants/demo/subjects
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"username": "ada"}' \
+  http://localhost:3000/admin/tenants/demo/subjects
+```
 
 ```
-{"type":"about:blank","title":"Error","status":400,"detail":"body must NOT have additional properties","instance":"01a0d6ff-882c-7a29-9f9d-84ab6c764a51"}
-{"type":"about:blank","title":"Conflict","status":409,"detail":"the username \"ada\" is already in use","instance":"01a0d6ff-8837-7c5d-8b83-bc41dd9f6ced"}
+{"type":"about:blank","title":"Error","status":400,"detail":"body must NOT have additional properties: password","instance":"01a0e0eb-ee9f-710d-8825-4b816bc13ae3"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the username \"ada\" is already in use","instance":"01a0e0eb-eeac-786d-a01a-3c5ee8028b64"}
 ```
 
 ## `GET /subjects/:id`

@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { boolean, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { subjects } from '#/schema/subjects';
 
@@ -38,6 +39,10 @@ export const users = pgTable('users', {
   addressRegion: text('address_region'),
   addressPostalCode: text('address_postal_code'),
   addressCountry: text('address_country'),
+  // Search keys, in the C collation, filled by the database
+  // (packages/db/drizzle/0073_list_indexes_subjects.sql).
+  usernameSearch: text('username_search').generatedAlwaysAs(sql`lower(username)`),
+  emailSearch: text('email_search').generatedAlwaysAs(sql`lower(email)`),
 }).enableRLS();
 
 export interface UserRecord {

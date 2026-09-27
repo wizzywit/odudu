@@ -312,3 +312,71 @@ refresh keeps the grant's audience with or without `resource`
 `odudu-admin` registers only the admin API as its audience, even a code
 exchange naming no `resource` gets it. A refresh token is issued on
 `scope=openid` alone.
+
+## Field-scoped search on subjects
+
+`GET /subjects?username=` and `?email=` are the shape the spike above
+passed: stored generated columns `username_search` and `email_search`,
+`text COLLATE "C"` over `lower(<column>)`, indexed
+`(tenant_id, <column>_search, subject_id)`
+(`packages/db/drizzle/0073_list_indexes_subjects.sql`). `listSubjects`
+first asks the database for `lower($1)`, derives the exclusive upper bound
+from that answer with `prefixUpperBound`, and binds the raw prefix as
+`lower($1)` again for the lower bound, so no string is folded in
+JavaScript.
+
+`postgres:17-alpine` through `startTestDatabase()` (17.11, `datcollate`
+`en_US.utf8`), every migration, 250,000 users over 5 tenants (50,000 in
+the queried one; usernames half upper-case, a third with no email, one
+subject in 97 disabled, one role held by one subject in 50 and one group
+holding one in 40), `ANALYZE`d. The statement explained is the one
+drizzle logged from `listSubjects` itself, run under
+`set_config('app.tenant_id', …, true)` as `odudu_svc`
+(`rolbypassrls false`, `rolsuper false`).
+
+verified: `cd packages/protocol-admin && pnpm vitest run --config ../../vitest.config.ts tests/zz-explain-scratch.int.test.ts`
+(the file was deleted afterwards; a copy and its full output are in
+`.superpowers/spikes/subjects-search/`)
+
+The statement, then its plan for the second page of `?username=A`
+(excerpted from the saved output: the join to `subjects` and the planning
+lines are left out):
+
+```
+select … from "subjects" left join "users" on "subjects"."id" = "users"."subject_id" where ("users"."username_search" >= lower($1) and "users"."username_search" < $2 and ("users"."username_search", "users"."subject_id") > ($3, $4)) order by "users"."username_search" asc, "users"."subject_id" asc limit $5
+params: ["A","b","a03caec5-8671","a7b8c801-560c-4092-9bee-208309a722ae",51]
+
+Limit  (cost=0.85..2394.37 rows=51 width=106) (actual time=0.019..0.172 rows=51 loops=1)
+  Buffers: shared hit=259
+  ->  Nested Loop  (cost=0.85..10325.85 rows=220 width=106) (actual time=0.018..0.168 rows=51 loops=1)
+        Buffers: shared hit=259
+        ->  Index Scan using users_username_search on users  (cost=0.43..3334.95 rows=1082 width=69) (actual time=0.011..0.044 rows=51 loops=1)
+              Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (username_search >= 'a'::text) AND (username_search < 'b'::text) AND (ROW(username_search, subject_id) > ROW('a03caec5-8671'::text, 'a7b8c801-560c-4092-9bee-208309a722ae'::uuid)))
+              Buffers: shared hit=55
+Execution Time: 0.192 ms
+```
+
+The second page of `?email=a`, the same way:
+
+```
+->  Index Scan using users_email_search on users  (cost=0.43..1607.68 rows=487 width=80) (actual time=0.016..0.048 rows=51 loops=1)
+      Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (email_search >= 'a'::text) AND (email_search < 'b'::text) AND (ROW(email_search, subject_id) > ROW('a05cdb8440637@example.com'::text, '5107a942-e28a-4aa5-b3f4-93a3837f0ace'::uuid)))
+Execution Time: 0.214 ms
+```
+
+Both first pages, and a prefix matching nothing (`ab12`, 3 buffers), are
+the same Index Scan with the bounds alone in the `Index Cond`; none of the
+single-search plans has a Sort or a Filter on `users`. A prepared statement run under
+`plan_cache_mode = force_generic_plan` keeps the same plan with
+`username_search >= lower($1)`, `< $2` and `ROW($3, $4)` in the
+`Index Cond`, so a driver that switches to a generic plan loses nothing.
+`?enabled=false` with no search is `Index Scan using subjects_disabled`,
+in `id` order; `?role=` and `?group=` are `Index Scan using
+subject_roles_by_role` and `subject_groups_by_group` (`Index Cond:
+role_id = …`), joined to `subjects_pkey` in `id` order, 51 rows read for a
+page of 50. A search combined with a role is not one range scan: the
+planner reads the role's 1,000 holders through `subject_roles_by_role`,
+filters them by the bounds and sorts the 52 left (2 ms, 4,227 buffers).
+It chose that plan because the role is small next to the prefix's 2,923
+estimated matches; a combined filter is left to the planner rather than
+given a composite index, and only a single search is held to one scan.
