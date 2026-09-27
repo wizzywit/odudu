@@ -1,12 +1,13 @@
-import { type Group } from '@odudu/contracts/admin';
+import { type Group, type ListGroupsQuery } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { ancestorsOf, groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
 import { isUuid, OduduError } from '@odudu/kernel';
-import { asc, eq, gt, inArray } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, type SQL } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
+import { prefixRangeConditions, requireSearchKey } from '#/usecase/prefix-search';
 import { type RoleAssignment } from '#/usecase/subjects';
 
 // The admin-client capability names a group would hand a subject placed
@@ -62,22 +63,29 @@ export function groupWireShape(group: {
   };
 }
 
+/** Every `listGroupsQuerySchema` parameter except the page controls. */
+export type GroupFilters = Omit<ListGroupsQuery, 'cursor' | 'limit'>;
+
 export interface ListGroupsInput {
   readonly limit: number;
   readonly cursor: string | undefined;
   readonly cursorKey: Uint8Array;
   readonly tenantId: string;
+  readonly filters: GroupFilters;
 }
 
 export type ListGroupsOutcome =
   { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly Group[]; next: string | null };
 
+// A searched listing is one range scan of `groups_name_search`
+// (0075_list_indexes_roles_groups_scopes.sql), the way `listSubjects` is.
 export async function listGroups(
   tx: TenantScopedDatabase,
   input: ListGroupsInput,
 ): Promise<ListGroupsOutcome> {
-  const filters = filterDigest({});
-  let after: string | undefined;
+  const filters = filterDigest(input.filters);
+  const prefix = input.filters.name;
+  let after: { readonly id: string; readonly sort: string | undefined } | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
       input.cursorKey,
@@ -87,30 +95,44 @@ export async function listGroups(
       input.cursor,
     );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
-    after = decoded.after;
+    if (prefix !== undefined && decoded.sort === undefined) return { kind: 'invalid_cursor' };
+    after = { id: decoded.after, sort: decoded.sort };
+  }
+
+  const conditions: SQL[] = [];
+  if (prefix === undefined) {
+    if (after !== undefined) conditions.push(gt(groups.id, after.id));
+  } else {
+    const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+    conditions.push(
+      ...(await prefixRangeConditions(tx, groups.nameSearch, groups.id, prefix, position)),
+    );
   }
 
   const rows = await tx
     .select()
     .from(groups)
-    .where(after === undefined ? undefined : gt(groups.id, after))
-    .orderBy(asc(groups.id))
+    .where(conditions.length === 0 ? undefined : and(...conditions))
+    .orderBy(
+      ...(prefix === undefined ? [asc(groups.id)] : [asc(groups.nameSearch), asc(groups.id)]),
+    )
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;
-  const items = (hasMore ? rows.slice(0, input.limit) : rows).map(groupWireShape);
-  const last = items[items.length - 1];
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
   const next =
     hasMore && last !== undefined
       ? encodeCursor(input.cursorKey, {
           after: last.id,
+          ...(prefix === undefined ? {} : { sort: requireSearchKey(last.nameSearch) }),
           collection: COLLECTION,
           tenantId: input.tenantId,
           filters,
         })
       : null;
 
-  return { kind: 'ok', items, next };
+  return { kind: 'ok', items: page.map((row) => groupWireShape(row)), next };
 }
 
 export type ReadGroupOutcome = { kind: 'not_found' } | { kind: 'ok'; group: Group };

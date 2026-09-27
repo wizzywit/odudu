@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
+import { createdAtSchema, cursorQuerySchema, idSchema, searchPrefixSchema } from '#/admin/shared';
 
 // `client_id` null means a tenant role; non-null means one scoped to that
 // client, whose qualified name (packages/domain-authz's qualifiedRoleName)
@@ -14,7 +14,14 @@ export const roleSchema = z.object({
 });
 export type Role = z.infer<typeof roleSchema>;
 
-export const listRolesQuerySchema = cursorQuerySchema;
+// `client` narrows to one owner: `tenant` for the tenant roles, or a
+// client's id for the roles scoped to it.
+export const listRolesQuerySchema = cursorQuerySchema
+  .extend({
+    name: searchPrefixSchema.optional(),
+    client: z.union([z.literal('tenant'), z.uuid()]).optional(),
+  })
+  .strict();
 export type ListRolesQuery = z.infer<typeof listRolesQuerySchema>;
 
 export const listRolesResponseSchema = z.object({

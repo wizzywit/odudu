@@ -43,7 +43,8 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
 export function listRolesHandler(deps: RolesRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
     const query = listRolesQuerySchema.parse(request.query);
-    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+    const { cursor, limit: requestedLimit, ...filters } = query;
+    const limit = coerceLimit(requestedLimit === undefined ? undefined : String(requestedLimit));
     const tenantName = request.params.tenant;
     if (tenantName === undefined) {
       throw new Error('protocol-admin: roles route received no :tenant');
@@ -52,9 +53,10 @@ export function listRolesHandler(deps: RolesRouteDeps): AdminRouteHandler {
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listRoles(tx, {
         limit,
-        cursor: query.cursor,
+        cursor,
         cursorKey: deps.cursorKey,
         tenantId: targetTenantId,
+        filters,
       }),
     );
     if (outcome.kind === 'invalid_cursor') {

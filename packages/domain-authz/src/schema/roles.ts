@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { boolean, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 
@@ -16,6 +17,9 @@ export const roles = pgTable('roles', {
   description: text('description'),
   defaultForNewSubjects: boolean('default_for_new_subjects').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  // Search key, in the C collation, filled by the database
+  // (packages/db/drizzle/0075_list_indexes_roles_groups_scopes.sql).
+  nameSearch: text('name_search').generatedAlwaysAs(sql`lower(name)`),
 }).enableRLS();
 
 // Lives beside the table, not in the repository, so that `service` can

@@ -1,4 +1,8 @@
-import { type AssignScopeToClientResponse, type ClientScope } from '@odudu/contracts/admin';
+import {
+  type AssignScopeToClientResponse,
+  type ClientScope,
+  type ListScopesQuery,
+} from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clientScopeRoles, roleRepository, roles } from '@odudu/domain-authz';
 import {
@@ -9,11 +13,12 @@ import {
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
-import { asc, eq, gt, inArray } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, type SQL } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
+import { prefixRangeConditions, requireSearchKey } from '#/usecase/prefix-search';
 import { type RoleAssignment } from '#/usecase/subjects';
 
 const COLLECTION = 'scopes';
@@ -51,22 +56,29 @@ export function scopeWireShape(scope: {
   };
 }
 
+/** Every `listScopesQuerySchema` parameter except the page controls. */
+export type ScopeFilters = Omit<ListScopesQuery, 'cursor' | 'limit'>;
+
 export interface ListScopesInput {
   readonly limit: number;
   readonly cursor: string | undefined;
   readonly cursorKey: Uint8Array;
   readonly tenantId: string;
+  readonly filters: ScopeFilters;
 }
 
 export type ListScopesOutcome =
   { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly ClientScope[]; next: string | null };
 
+// A searched listing is one range scan of `client_scopes_name_search`
+// (0075_list_indexes_roles_groups_scopes.sql), the way `listSubjects` is.
 export async function listScopes(
   tx: TenantScopedDatabase,
   input: ListScopesInput,
 ): Promise<ListScopesOutcome> {
-  const filters = filterDigest({});
-  let after: string | undefined;
+  const filters = filterDigest(input.filters);
+  const prefix = input.filters.name;
+  let after: { readonly id: string; readonly sort: string | undefined } | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
       input.cursorKey,
@@ -76,39 +88,65 @@ export async function listScopes(
       input.cursor,
     );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
-    after = decoded.after;
+    if (prefix !== undefined && decoded.sort === undefined) return { kind: 'invalid_cursor' };
+    after = { id: decoded.after, sort: decoded.sort };
+  }
+
+  const conditions: SQL[] = [];
+  if (prefix === undefined) {
+    if (after !== undefined) conditions.push(gt(clientScopes.id, after.id));
+  } else {
+    const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+    conditions.push(
+      ...(await prefixRangeConditions(
+        tx,
+        clientScopes.nameSearch,
+        clientScopes.id,
+        prefix,
+        position,
+      )),
+    );
   }
 
   const rows = await tx
     .select()
     .from(clientScopes)
-    .where(after === undefined ? undefined : gt(clientScopes.id, after))
-    .orderBy(asc(clientScopes.id))
+    .where(conditions.length === 0 ? undefined : and(...conditions))
+    .orderBy(
+      ...(prefix === undefined
+        ? [asc(clientScopes.id)]
+        : [asc(clientScopes.nameSearch), asc(clientScopes.id)]),
+    )
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;
-  const items = (hasMore ? rows.slice(0, input.limit) : rows).map((row) =>
-    scopeWireShape({
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      includeInIdToken: row.includeInIdToken,
-      includeInAccessToken: row.includeInAccessToken,
-      createdAt: row.createdAt,
-    }),
-  );
-  const last = items[items.length - 1];
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
   const next =
     hasMore && last !== undefined
       ? encodeCursor(input.cursorKey, {
           after: last.id,
+          ...(prefix === undefined ? {} : { sort: requireSearchKey(last.nameSearch) }),
           collection: COLLECTION,
           tenantId: input.tenantId,
           filters,
         })
       : null;
 
-  return { kind: 'ok', items, next };
+  return {
+    kind: 'ok',
+    items: page.map((row) =>
+      scopeWireShape({
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        includeInIdToken: row.includeInIdToken,
+        includeInAccessToken: row.includeInAccessToken,
+        createdAt: row.createdAt,
+      }),
+    ),
+    next,
+  };
 }
 
 export type ReadScopeOutcome = { kind: 'not_found' } | { kind: 'ok'; scope: ClientScope };

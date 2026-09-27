@@ -6,10 +6,14 @@ import {
   runMigrations,
   withTenant,
   type DatabaseHandle,
+  type TenantScopedDatabase,
 } from '@odudu/db';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { listClients, type ClientFilters } from '#/usecase/clients';
+import { listGroups } from '#/usecase/groups';
+import { listRoles } from '#/usecase/roles';
+import { listScopes } from '#/usecase/scopes';
 import { listSubjects, type SubjectFilters } from '#/usecase/subjects';
 import { listTenants, type TenantFilters } from '#/usecase/tenants';
 
@@ -48,9 +52,12 @@ function capture(query: string, parameters: readonly unknown[]): void {
 
 beforeAll(async () => {
   container = await startTestDatabase();
-  owner = createDatabase(container.adminUrl, { max: 2, onQuery: capture });
+  owner = createDatabase(container.adminUrl, { max: 2, onQueryForTests: capture });
   await runMigrations(owner.db, MIGRATIONS_DIR);
-  app = createDatabase(await createAppRole(container.adminUrl), { max: 2, onQuery: capture });
+  app = createDatabase(await createAppRole(container.adminUrl), {
+    max: 2,
+    onQueryForTests: capture,
+  });
 
   const tenantIds: string[] = [];
   for (const name of ['plan-target', 'plan-other-a', 'plan-other-b']) {
@@ -99,6 +106,20 @@ beforeAll(async () => {
         (client_id, tenant_id, redirect_uris, grant_types, token_endpoint_auth_method)
       select id, tenant_id, '{https://app.example/cb}', '{authorization_code}', 'none'
         from clients where tenant_id = ${tenantId}`;
+    for (const table of ['roles', 'client_scopes']) {
+      await owner.sql`
+        insert into ${owner.sql(table)} (id, tenant_id, name)
+        select gen_random_uuid(), ${tenantId},
+               case when g % 2 = 0 then upper(substr(md5((g * 5)::text), 1, 8))
+                    else substr(md5((g * 5)::text), 1, 8) end || '-' || g
+          from generate_series(1, ${ROWS}) g`;
+    }
+    await owner.sql`
+      insert into groups (id, tenant_id, name, path)
+      select gen_random_uuid(), ${tenantId}, name, '/' || name
+        from (select case when g % 2 = 0 then upper(substr(md5((g * 11)::text), 1, 8))
+                          else substr(md5((g * 11)::text), 1, 8) end || '-' || g as name
+                from generate_series(1, ${ROWS}) g) named`;
   }
   await owner.sql`analyze`;
 }, 300_000);
@@ -227,6 +248,29 @@ function clientsCase(label: string, index: string, column: string, filters: Clie
   };
 }
 
+function namedCase(
+  label: string,
+  index: string,
+  list: (tx: TenantScopedDatabase, cursor: string | undefined) => Promise<string | null>,
+) {
+  return {
+    label,
+    index,
+    column: 'name_search',
+    throughOwner: false,
+    list: (cursor: string | undefined) =>
+      withTenant(app.db, targetTenantId, (tx) => list(tx, cursor)),
+  };
+}
+
+function pageOf(cursor: string | undefined, filters: { readonly name: string }) {
+  return { limit: 50, cursor, cursorKey: CURSOR_KEY, tenantId: targetTenantId, filters };
+}
+
+function nextOf(outcome: { readonly kind: string; readonly next?: string | null }): string | null {
+  return outcome.kind === 'ok' ? (outcome.next ?? null) : null;
+}
+
 function tenantsCase(label: string, index: string, column: string, filters: TenantFilters) {
   return {
     label,
@@ -259,6 +303,15 @@ const CASES: readonly PlanCase[] = [
     client_id: 'B',
   }),
   clientsCase('clients ?name=C', 'clients_name_search', 'name_search', { name: 'C' }),
+  namedCase('roles ?name=A', 'roles_name_search', async (tx, cursor) =>
+    nextOf(await listRoles(tx, pageOf(cursor, { name: 'A' }))),
+  ),
+  namedCase('groups ?name=B', 'groups_name_search', async (tx, cursor) =>
+    nextOf(await listGroups(tx, pageOf(cursor, { name: 'B' }))),
+  ),
+  namedCase('scopes ?name=c', 'client_scopes_name_search', async (tx, cursor) =>
+    nextOf(await listScopes(tx, pageOf(cursor, { name: 'c' }))),
+  ),
 ];
 
 describe('the plan each searched listing is given', () => {

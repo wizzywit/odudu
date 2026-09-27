@@ -69,7 +69,10 @@ history is not known here; its capabilities come from holding
 under `GET /subjects` and the two refusals under `POST /subjects` were
 captured against it later, as `ada-whoami`, after its `odudu` service was
 rebuilt from this branch; the searches under `GET /admin/tenants` and
-`GET /clients` after a further rebuild that applied `0074`.
+`GET /clients` after a further rebuild that applied `0074`; and those under
+`GET /roles`, `GET /groups`, `GET /scopes` and `GET /keys` after one that
+applied `0075`, against roles and groups created in `demo` for them
+through the endpoints below, as each of those sections shows.
 
 ## The shape of it
 
@@ -1643,6 +1646,139 @@ curl -sS -X POST \
 {"id":"01a0d6fd-9471-7012-89c1-36ac3403705f","name":"billing-viewer","description":"read-only access to invoices","client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-25T05:15:37.968Z"}
 ```
 
+**Search and filters** follow `GET /subjects`: `?name=` is a prefix,
+matched case-insensitively as a range over the stored `name_search` column
+(`0075_list_indexes_roles_groups_scopes.sql`), and a searched listing is
+ordered by that folded name, then by `id`. **`?client=`** is the one exact
+filter, `AND`ed with it: `tenant` for the tenant roles alone, or a client's
+id for the roles scoped to that client. A cursor is bound to every filter
+it was minted under, and any other parameter is refused with `400` naming
+it. Captured against the fourth stack, whose `demo` held no roles until
+these four were created, the last scoped to `demo-spa`
+(`01a0db22-1c61-714b-be3a-3d5234477dff`):
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "billing-viewer"}' \
+  http://localhost:3000/admin/tenants/demo/roles
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Billing-Admin"}' \
+  http://localhost:3000/admin/tenants/demo/roles
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "support"}' \
+  http://localhost:3000/admin/tenants/demo/roles
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "billing-spa", "client_id": "01a0db22-1c61-714b-be3a-3d5234477dff"}' \
+  http://localhost:3000/admin/tenants/demo/roles
+```
+
+```
+{"id":"01a0e12f-22df-73e7-9575-977e1bd046a7","name":"billing-viewer","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T04:45:57.853Z"}
+{"id":"01a0e12f-2305-79ce-a215-9178cd2965f3","name":"Billing-Admin","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T04:45:57.892Z"}
+{"id":"01a0e12f-2338-742f-b4d2-d6cb846f2416","name":"support","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T04:45:57.943Z"}
+{"id":"01a0e12f-2358-79bd-874b-430a64b26b8c","name":"billing-spa","description":null,"client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","default_for_new_subjects":false,"created_at":"2026-09-27T04:45:57.975Z"}
+```
+
+`BILLING` finds all three `billing` roles in folded order, tenant and
+client alike; `?client=tenant` keeps the two tenant roles, and the client's
+id keeps its one:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/roles?name=BILLING"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/roles?name=billing&client=tenant"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/roles?client=01a0db22-1c61-714b-be3a-3d5234477dff"
+```
+
+```
+{"items":[{"id":"01a0e12f-2305-79ce-a215-9178cd2965f3","name":"Billing-Admin","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T04:45:57.892Z"},{"id":"01a0e12f-2358-79bd-874b-430a64b26b8c","name":"billing-spa","description":null,"client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","default_for_new_subjects":false,"created_at":"2026-09-27T04:45:57.975Z"},{"id":"01a0e12f-22df-73e7-9575-977e1bd046a7","name":"billing-viewer","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T04:45:57.853Z"}]}
+{"items":[{"id":"01a0e12f-2305-79ce-a215-9178cd2965f3","name":"Billing-Admin","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T04:45:57.892Z"},{"id":"01a0e12f-22df-73e7-9575-977e1bd046a7","name":"billing-viewer","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T04:45:57.853Z"}]}
+{"items":[{"id":"01a0e12f-2358-79bd-874b-430a64b26b8c","name":"billing-spa","description":null,"client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","default_for_new_subjects":false,"created_at":"2026-09-27T04:45:57.975Z"}]}
+```
+
+One at a time, the `Link` header carries the search forward:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/roles?name=billing&limit=1"
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e12f-56f7-713c-a7ad-f34cf6e53d6e
+link: </admin/tenants/demo/roles?limit=1&name=billing&cursor=eyJhZnRlciI6IjAxYTBlMTJmLTIzMDUtNzljZS1hMjE1LTkxNzhjZDI5NjVmMyIsInNvcnQiOiJiaWxsaW5nLWFkbWluIiwiY29sbGVjdGlvbiI6InJvbGVzIiwidGVuYW50SWQiOiIwMWEwZGIyMi0xYzMyLTdkMTctYjM1MS02OTdkNzkxMTAzM2MiLCJmaWx0ZXJzIjoiM0w4aEJkRGMyWVZnelVseHhtSlVYZGluWHJDMG10NHZMTXF1TlNTdEdOdyJ9.iZoSKcoDG6ddEPmuwpJz9_8HnSzithN61rivI_t-R24>; rel="next"
+content-type: application/json; charset=utf-8
+content-length: 507
+Date: Sun, 27 Sep 2026 04:46:11 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0e12f-2305-79ce-a215-9178cd2965f3","name":"Billing-Admin","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T04:45:57.892Z"}],"next":"eyJhZnRlciI6IjAxYTBlMTJmLTIzMDUtNzljZS1hMjE1LTkxNzhjZDI5NjVmMyIsInNvcnQiOiJiaWxsaW5nLWFkbWluIiwiY29sbGVjdGlvbiI6InJvbGVzIiwidGVuYW50SWQiOiIwMWEwZGIyMi0xYzMyLTdkMTctYjM1MS02OTdkNzkxMTAzM2MiLCJmaWx0ZXJzIjoiM0w4aEJkRGMyWVZnelVseHhtSlVYZGluWHJDMG10NHZMTXF1TlNTdEdOdyJ9.iZoSKcoDG6ddEPmuwpJz9_8HnSzithN61rivI_t-R24"}
+```
+
+Following that link, then replaying its cursor with `?client=tenant` added:
+
+```bash
+CURSOR='eyJhZnRlciI6IjAxYTBlMTJmLTIzMDUtNzljZS1hMjE1LTkxNzhjZDI5NjVmMyIsInNvcnQiOiJiaWxsaW5nLWFkbWluIiwiY29sbGVjdGlvbiI6InJvbGVzIiwidGVuYW50SWQiOiIwMWEwZGIyMi0xYzMyLTdkMTctYjM1MS02OTdkNzkxMTAzM2MiLCJmaWx0ZXJzIjoiM0w4aEJkRGMyWVZnelVseHhtSlVYZGluWHJDMG10NHZMTXF1TlNTdEdOdyJ9.iZoSKcoDG6ddEPmuwpJz9_8HnSzithN61rivI_t-R24'
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/roles?limit=1&name=billing&cursor=$CURSOR"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/roles?limit=1&name=billing&client=tenant&cursor=$CURSOR"
+```
+
+```
+{"items":[{"id":"01a0e12f-2358-79bd-874b-430a64b26b8c","name":"billing-spa","description":null,"client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","default_for_new_subjects":false,"created_at":"2026-09-27T04:45:57.975Z"}],"next":"eyJhZnRlciI6IjAxYTBlMTJmLTIzNTgtNzliZC04NzRiLTQzMGE2NGIyNmI4YyIsInNvcnQiOiJiaWxsaW5nLXNwYSIsImNvbGxlY3Rpb24iOiJyb2xlcyIsInRlbmFudElkIjoiMDFhMGRiMjItMWMzMi03ZDE3LWIzNTEtNjk3ZDc5MTEwMzNjIiwiZmlsdGVycyI6IjNMOGhCZERjMllWZ3pVbHh4bUpVWGRpblhyQzBtdDR2TE1xdU5TU3RHTncifQ.WYWPqmvKgH2Pw5TWztjAOSya171GQixAbOmKQhTvTJw"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","instance":"01a0e12f-817a-7083-ae48-1df59515116b"}
+```
+
+A `client` that is neither `tenant` nor an id, an unknown parameter, and
+the stored `name_search` column named in a create body and in an amendment
+— the first three refused by the generated schema, the last by the
+amendment allowlist, which knows only the fields a role's wire shape
+carries:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/roles?client=spa"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/roles?search=billing"
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "auditor", "name_search": "x"}' \
+  http://localhost:3000/admin/tenants/demo/roles
+curl -sS -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name_search": "x"}' \
+  http://localhost:3000/admin/tenants/demo/roles/01a0e12f-2338-742f-b4d2-d6cb846f2416
+```
+
+```
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/client must be equal to constant, querystring/client must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\", querystring/client must match a schema in anyOf","instance":"01a0e12f-8196-78a0-abe4-04aea4c3b03c"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: search","instance":"01a0e12f-81a5-7fea-a0f6-f0e2afbbf559"}
+{"type":"about:blank","title":"Error","status":400,"detail":"body must NOT have additional properties: name_search","instance":"01a0e12f-81b0-7042-bb99-b72fddaa2b6a"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"name_search: name_search is not a role field","instance":"01a0e12f-81c0-7b76-822a-dab3fa665a43"}
+```
+
 ## `POST /roles/:id/composites`
 
 Requires `manage-tenant`, and enforces the same capability ceiling
@@ -1718,6 +1854,66 @@ reverse, refused:
 {"type":"about:blank","title":"Conflict","status":409,"detail":"would create a group reparent cycle","instance":"01a0d708-2ed8-73c7-905f-bb2adf113b10"}
 ```
 
+**Search** is `?name=`, the same prefix match `GET /roles` above describes,
+over `groups.name_search`; it matches a group's own name, not its `path`.
+Captured against the fourth stack after `engineering`, `Engineering-Ops` and
+`finance` were created there as roots:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "engineering"}' \
+  http://localhost:3000/admin/tenants/demo/groups
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Engineering-Ops"}' \
+  http://localhost:3000/admin/tenants/demo/groups
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "finance"}' \
+  http://localhost:3000/admin/tenants/demo/groups
+```
+
+```
+{"id":"01a0e12f-237a-7042-8b45-23eaeda52dfc","name":"engineering","parent_id":null,"path":"/engineering","created_at":"2026-09-27T04:45:58.009Z"}
+{"id":"01a0e12f-23a6-7156-bbe1-2faf51f13283","name":"Engineering-Ops","parent_id":null,"path":"/Engineering-Ops","created_at":"2026-09-27T04:45:58.053Z"}
+{"id":"01a0e12f-23eb-7f9e-953e-0ba8fbc6118c","name":"finance","parent_id":null,"path":"/finance","created_at":"2026-09-27T04:45:58.121Z"}
+```
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/groups?name=ENG"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/groups?name=eng&limit=1"
+```
+
+```
+{"items":[{"id":"01a0e12f-237a-7042-8b45-23eaeda52dfc","name":"engineering","parent_id":null,"path":"/engineering","created_at":"2026-09-27T04:45:58.009Z"},{"id":"01a0e12f-23a6-7156-bbe1-2faf51f13283","name":"Engineering-Ops","parent_id":null,"path":"/Engineering-Ops","created_at":"2026-09-27T04:45:58.053Z"}]}
+{"items":[{"id":"01a0e12f-237a-7042-8b45-23eaeda52dfc","name":"engineering","parent_id":null,"path":"/engineering","created_at":"2026-09-27T04:45:58.009Z"}],"next":"eyJhZnRlciI6IjAxYTBlMTJmLTIzN2EtNzA0Mi04YjQ1LTIzZWFlZGE1MmRmYyIsInNvcnQiOiJlbmdpbmVlcmluZyIsImNvbGxlY3Rpb24iOiJncm91cHMiLCJ0ZW5hbnRJZCI6IjAxYTBkYjIyLTFjMzItN2QxNy1iMzUxLTY5N2Q3OTExMDMzYyIsImZpbHRlcnMiOiJzTVFsYy1tTnM3SUxXZHhsYk9YOUJKRlA0dzlSb05MMXlpSVJ0bmxrQnZNIn0.EHY24DUY_3F9Ab5ePyknKZzSnbCTblK5Iso4z3QWztQ"}
+```
+
+Following that cursor, then replaying it with `?name=` dropped:
+
+```bash
+CURSOR='eyJhZnRlciI6IjAxYTBlMTJmLTIzN2EtNzA0Mi04YjQ1LTIzZWFlZGE1MmRmYyIsInNvcnQiOiJlbmdpbmVlcmluZyIsImNvbGxlY3Rpb24iOiJncm91cHMiLCJ0ZW5hbnRJZCI6IjAxYTBkYjIyLTFjMzItN2QxNy1iMzUxLTY5N2Q3OTExMDMzYyIsImZpbHRlcnMiOiJzTVFsYy1tTnM3SUxXZHhsYk9YOUJKRlA0dzlSb05MMXlpSVJ0bmxrQnZNIn0.EHY24DUY_3F9Ab5ePyknKZzSnbCTblK5Iso4z3QWztQ'
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/groups?limit=1&name=eng&cursor=$CURSOR"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/groups?limit=1&cursor=$CURSOR"
+```
+
+```
+{"items":[{"id":"01a0e12f-23a6-7156-bbe1-2faf51f13283","name":"Engineering-Ops","parent_id":null,"path":"/Engineering-Ops","created_at":"2026-09-27T04:45:58.053Z"}]}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","instance":"01a0e12f-d650-7e6b-bf64-6990fa57907e"}
+```
+
 ## `GET /groups/:id/roles` and `PUT /groups/:id/roles`
 
 Both require `manage-tenant`. The write replaces the group's role mapping
@@ -1786,6 +1982,44 @@ curl -sS -X POST \
 
 ```
 {"id":"01a0d708-2ef8-7963-8d7a-3df5dff7cdf6","name":"billing","description":null,"include_in_id_token":false,"include_in_access_token":true,"created_at":"2026-09-25T05:27:12.887Z"}
+```
+
+**Search** is `?name=`, the same prefix match `GET /roles` describes, over
+`client_scopes.name_search`. Captured against the fourth stack, whose
+`demo` held the eight scopes a tenant is provisioned with, each cut down
+with `jq` to the fields that show the point; then a cursor minted under
+`?name=p` replayed under `?name=o`:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/scopes?name=O" \
+  | jq -c '{items: [.items[] | {name}]}'
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/scopes?name=p&limit=1" \
+  | jq -c '{items: [.items[] | {name}], next}'
+```
+
+```
+{"items":[{"name":"offline_access"},{"name":"openid"}]}
+{"items":[{"name":"phone"}],"next":"eyJhZnRlciI6IjAxYTBkYjIyLTFjNTItNzI1MC05Y2Y4LTY0ZjFmYTQ4YjI0YiIsInNvcnQiOiJwaG9uZSIsImNvbGxlY3Rpb24iOiJzY29wZXMiLCJ0ZW5hbnRJZCI6IjAxYTBkYjIyLTFjMzItN2QxNy1iMzUxLTY5N2Q3OTExMDMzYyIsImZpbHRlcnMiOiJBbkY0THhTZFRNWjMxMEJpUjZFN3pGYWFCQ1hDcnZIMGFDVjZ2ZzJRUmg4In0.h-Sdj0aRD8W4AhKtRRjnn6bvQRItsYH15_Myn9ykXwg"}
+```
+
+```bash
+CURSOR='eyJhZnRlciI6IjAxYTBkYjIyLTFjNTItNzI1MC05Y2Y4LTY0ZjFmYTQ4YjI0YiIsInNvcnQiOiJwaG9uZSIsImNvbGxlY3Rpb24iOiJzY29wZXMiLCJ0ZW5hbnRJZCI6IjAxYTBkYjIyLTFjMzItN2QxNy1iMzUxLTY5N2Q3OTExMDMzYyIsImZpbHRlcnMiOiJBbkY0THhTZFRNWjMxMEJpUjZFN3pGYWFCQ1hDcnZIMGFDVjZ2ZzJRUmg4In0.h-Sdj0aRD8W4AhKtRRjnn6bvQRItsYH15_Myn9ykXwg'
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/scopes?limit=1&name=p&cursor=$CURSOR" \
+  | jq -c '{items: [.items[] | {name}], next}'
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/scopes?limit=1&name=o&cursor=$CURSOR"
+```
+
+```
+{"items":[{"name":"profile"}],"next":null}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","instance":"01a0e12f-d69a-7961-97c2-7e6bc0dfdfa1"}
 ```
 
 ## `GET /scopes/:id/roles` and `PUT /scopes/:id/roles`
@@ -2000,6 +2234,34 @@ The second `409` — a client registered with a
 `userinfo_signed_response_alg` no remaining key produces — was not
 captured: `demo` held no such client, and creating one to provoke it would
 have needed a key of an algorithm this tenant was then to lose.
+
+**Filters.** `?status=active|rotating|retired` and `?alg=RS256|ES256` are
+exact, `AND`ed with each other, and bound into the cursor like every other
+listing's filters; any other parameter is refused with `400` naming it.
+Neither has an index: a tenant holds a handful of keys. Captured against
+the fourth stack, whose `demo` held one key, `active` and `RS256`:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/keys?status=active&alg=RS256"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/keys?alg=ES256"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/keys?status=pending"
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/keys?kid=x"
+```
+
+```
+{"items":[{"id":"01a0db22-1c8f-7cd9-b338-6e8b1c6189af","status":"active","kid":"01a0db22-1c8e-7315-b327-6a0baba69321","alg":"RS256","created_at":"2026-09-26T00:34:00.903Z","not_after":null}]}
+{"items":[]}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/status must be equal to one of the allowed values","instance":"01a0e12f-a446-7d4d-95c9-1ac772941b02"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: kid","instance":"01a0e12f-a453-74b5-bcc8-174e755e4db8"}
+```
 
 ## `GET /flow/executions` and `PUT /flow/executions`
 

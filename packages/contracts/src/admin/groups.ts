@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { roleAssignmentSchema } from '#/admin/subjects';
-import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
+import { createdAtSchema, cursorQuerySchema, idSchema, searchPrefixSchema } from '#/admin/shared';
 
 export const groupSchema = z.object({
   id: idSchema,
@@ -11,7 +11,9 @@ export const groupSchema = z.object({
 });
 export type Group = z.infer<typeof groupSchema>;
 
-export const listGroupsQuerySchema = cursorQuerySchema;
+export const listGroupsQuerySchema = cursorQuerySchema
+  .extend({ name: searchPrefixSchema.optional() })
+  .strict();
 export type ListGroupsQuery = z.infer<typeof listGroupsQuerySchema>;
 
 export const listGroupsResponseSchema = z.object({

@@ -16,6 +16,11 @@ describe('the role amendment allowlist', () => {
     expect(refusalFor('description')).toBeNull();
   });
 
+  it('never offers the stored search key, which the table has and the wire shape does not', () => {
+    expect(ROLE_FIELDS).not.toContain('name_search');
+    expect(AMENDABLE_ROLE_FIELDS).not.toContain('name_search');
+  });
+
   it('gives a field this resource has never heard of no refusal either', () => {
     expect(refusalFor('secret_hash')).toBeNull();
   });

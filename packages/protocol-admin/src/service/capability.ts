@@ -24,6 +24,10 @@ import {
   listExecutionsResponseSchema,
   replaceExecutionsRequestSchema,
   listClientsQuerySchema,
+  listGroupsQuerySchema,
+  listKeysQuerySchema,
+  listRolesQuerySchema,
+  listScopesQuerySchema,
   listClientsResponseSchema,
   listCredentialsResponseSchema,
   listGroupsResponseSchema,
@@ -303,7 +307,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/roles',
     capability: 'manage-tenant',
     responseSchema: listRolesResponseSchema,
-    querystringSchema: cursorQuerySchema,
+    querystringSchema: listRolesQuerySchema,
   },
   {
     method: 'POST',
@@ -349,7 +353,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/groups',
     capability: 'manage-tenant',
     responseSchema: listGroupsResponseSchema,
-    querystringSchema: cursorQuerySchema,
+    querystringSchema: listGroupsQuerySchema,
   },
   {
     method: 'POST',
@@ -399,7 +403,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/scopes',
     capability: 'manage-tenant',
     responseSchema: listScopesResponseSchema,
-    querystringSchema: cursorQuerySchema,
+    querystringSchema: listScopesQuerySchema,
   },
   {
     method: 'POST',
@@ -481,7 +485,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/keys',
     capability: 'manage-keys',
     responseSchema: listKeysResponseSchema,
-    querystringSchema: cursorQuerySchema,
+    querystringSchema: listKeysQuerySchema,
     description: 'Lists status, kid, alg, created_at and not_after — never the private half.',
   },
   {

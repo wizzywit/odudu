@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 import { roles } from '#/schema/roles';
@@ -17,6 +18,9 @@ export const groups = pgTable('groups', {
   // recursive walk.
   path: text('path').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  // Search key, in the C collation, filled by the database
+  // (packages/db/drizzle/0075_list_indexes_roles_groups_scopes.sql).
+  nameSearch: text('name_search').generatedAlwaysAs(sql`lower(name)`),
 }).enableRLS();
 
 export interface GroupRecord {

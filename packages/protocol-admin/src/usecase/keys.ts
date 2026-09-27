@@ -4,7 +4,7 @@ import {
   signingKeys,
   type SigningKeyRecord,
 } from '@odudu/crypto';
-import { type SigningKey, type SigningKeyAlg } from '@odudu/contracts/admin';
+import { type ListKeysQuery, type SigningKey, type SigningKeyAlg } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clients } from '@odudu/domain-tenant';
 import { clientOidcConfig } from '@odudu/protocol-oidc';
@@ -58,11 +58,15 @@ function toSigningKeyRecord(row: typeof signingKeys.$inferSelect): SigningKeyRec
   };
 }
 
+/** Every `listKeysQuerySchema` parameter except the page controls. */
+export type KeyFilters = Omit<ListKeysQuery, 'cursor' | 'limit'>;
+
 export interface ListKeysInput {
   readonly limit: number;
   readonly cursor: string | undefined;
   readonly cursorKey: Uint8Array;
   readonly tenantId: string;
+  readonly filters: KeyFilters;
 }
 
 export type ListKeysOutcome =
@@ -72,7 +76,7 @@ export async function listKeys(
   tx: TenantScopedDatabase,
   input: ListKeysInput,
 ): Promise<ListKeysOutcome> {
-  const filters = filterDigest({});
+  const filters = filterDigest(input.filters);
   let after: string | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
@@ -86,10 +90,17 @@ export async function listKeys(
     after = decoded.after;
   }
 
+  // A tenant holds a handful of keys, so these filters read the table
+  // rather than an index of their own.
+  const conditions = [
+    ...(input.filters.status === undefined ? [] : [eq(signingKeys.status, input.filters.status)]),
+    ...(input.filters.alg === undefined ? [] : [eq(signingKeys.alg, input.filters.alg)]),
+    ...(after === undefined ? [] : [gt(signingKeys.id, after)]),
+  ];
   const rows = await tx
     .select()
     .from(signingKeys)
-    .where(after === undefined ? undefined : gt(signingKeys.id, after))
+    .where(conditions.length === 0 ? undefined : and(...conditions))
     .orderBy(asc(signingKeys.id))
     .limit(input.limit + 1);
 

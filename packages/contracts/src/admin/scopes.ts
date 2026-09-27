@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { roleAssignmentSchema } from '#/admin/subjects';
-import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
+import { createdAtSchema, cursorQuerySchema, idSchema, searchPrefixSchema } from '#/admin/shared';
 
 export const clientScopeSchema = z.object({
   id: idSchema,
@@ -12,7 +12,9 @@ export const clientScopeSchema = z.object({
 });
 export type ClientScope = z.infer<typeof clientScopeSchema>;
 
-export const listScopesQuerySchema = cursorQuerySchema;
+export const listScopesQuerySchema = cursorQuerySchema
+  .extend({ name: searchPrefixSchema.optional() })
+  .strict();
 export type ListScopesQuery = z.infer<typeof listScopesQuerySchema>;
 
 export const listScopesResponseSchema = z.object({

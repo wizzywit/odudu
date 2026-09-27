@@ -7,7 +7,8 @@ import {
   TENANT_CAPABILITIES,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { and, eq, or } from 'drizzle-orm';
+import { and, eq, or, sql } from 'drizzle-orm';
+import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -713,5 +714,212 @@ describe('audit', () => {
     // An attempted privilege escalation is the one refusal this phase
     // records, so the row is the assertion rather than its absence.
     expect(refused.events.map((event) => event.outcome)).toEqual(['refused']);
+  });
+});
+
+async function seedRole(
+  tenantName: string,
+  name: string,
+  clientId?: string,
+): Promise<{ id: string; name: string }> {
+  const token = await fixture.adminToken(tenantName, ['manage-tenant']);
+  const res = await fixture.http.inject({
+    method: 'POST',
+    url: `/admin/tenants/${tenantName}/roles`,
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    payload: { name, ...(clientId === undefined ? {} : { client_id: clientId }) },
+  });
+  if (res.statusCode !== 201) throw new Error(`could not create role ${name}: ${res.body}`);
+  return res.json<{ id: string; name: string }>();
+}
+
+async function seedClient(tenantName: string, clientId: string): Promise<string> {
+  const token = await fixture.adminToken(tenantName, ['manage-clients']);
+  const res = await fixture.http.inject({
+    method: 'POST',
+    url: `/admin/tenants/${tenantName}/clients`,
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    payload: {
+      client_id: clientId,
+      redirect_uris: ['https://app.example/cb'],
+      token_endpoint_auth_method: 'none',
+    },
+  });
+  if (res.statusCode !== 201) throw new Error(`could not create ${clientId}: ${res.body}`);
+  return res.json<{ id: string }>().id;
+}
+
+async function listRolesAt(tenantName: string, query: string): Promise<LightMyRequestResponse> {
+  const token = await fixture.adminToken(tenantName, ['manage-tenant']);
+  return fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants/${tenantName}/roles?${query}`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+function roleNamesOf(res: LightMyRequestResponse): string[] {
+  return res.json<{ items: { name: string }[] }>().items.map((r) => r.name);
+}
+
+// PostgreSQL's own answer, in the order a searched listing promises, so no
+// expectation here folds a string in JavaScript.
+async function roleNameMatches(tenantId: string, prefix: string): Promise<string[]> {
+  const rows = await fixture.owner.db.execute<{ name: string }>(sql`
+    select name from roles
+     where tenant_id = ${tenantId} and starts_with(lower(name), lower(${prefix}))
+     order by lower(name) collate "C", id
+  `);
+  return rows.map((row) => row.name);
+}
+
+describe('GET /admin/tenants/{t}/roles — search and filters', () => {
+  it('finds a name case-insensitively, ordered by the folded name, then by id', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const name of ['Billing-c', 'BILLING-A', 'billing-b', 'Billing-a2', 'other']) {
+      await seedRole(t.name, name);
+    }
+
+    const res = await listRolesAt(t.name, 'name=billing');
+    expect(res.statusCode).toBe(200);
+    const expected = await roleNameMatches(t.id, 'billing');
+    expect(expected).toHaveLength(4);
+    expect(roleNamesOf(res)).toEqual(expected);
+  });
+
+  it('pages a name search one row at a time, each match once and in order', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const name of ['ops-b', 'OPS-a', 'ops-c', 'other']) await seedRole(t.name, name);
+
+    const seen: string[] = [];
+    let query = 'name=ops&limit=1';
+    for (let page = 0; page < 5; page += 1) {
+      const res = await listRolesAt(t.name, query);
+      expect(res.statusCode).toBe(200);
+      const body = res.json<{ items: { name: string }[]; next?: string }>();
+      seen.push(...body.items.map((r) => r.name));
+      if (body.next === undefined) break;
+      query = `name=ops&limit=1&cursor=${encodeURIComponent(body.next)}`;
+    }
+    expect(seen).toEqual(['OPS-a', 'ops-b', 'ops-c']);
+  });
+
+  it('reads _ and % as ordinary characters', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const name of ['axb', 'a_b', 'a%b']) await seedRole(t.name, name);
+
+    expect(roleNamesOf(await listRolesAt(t.name, 'name=a_b'))).toEqual(['a_b']);
+    expect(roleNamesOf(await listRolesAt(t.name, 'name=a%25'))).toEqual(['a%b']);
+  });
+
+  it('?client=tenant answers only tenant roles, ?client=<id> only that client’s', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const shop = await seedClient(t.name, 'shop');
+    const blog = await seedClient(t.name, 'blog');
+    await seedRole(t.name, 'r-tenant');
+    await seedRole(t.name, 'r-shop', shop);
+    await seedRole(t.name, 'r-blog', blog);
+
+    const tenantOnly = await listRolesAt(t.name, 'client=tenant&limit=200');
+    expect(tenantOnly.statusCode).toBe(200);
+    const tenantItems = tenantOnly.json<{ items: { name: string; client_id: string | null }[] }>()
+      .items;
+    expect(tenantItems.map((r) => r.name)).toContain('r-tenant');
+    expect(tenantItems.every((r) => r.client_id === null)).toBe(true);
+
+    const shopOnly = await listRolesAt(t.name, `client=${shop}`);
+    expect(roleNamesOf(shopOnly)).toEqual(['r-shop']);
+    expect(roleNamesOf(await listRolesAt(t.name, `client=${blog}&name=R-`))).toEqual(['r-blog']);
+    expect(roleNamesOf(await listRolesAt(t.name, 'client=tenant&name=r-'))).toEqual(['r-tenant']);
+  });
+
+  it('refuses a client that is neither tenant nor an id', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    expect((await listRolesAt(t.name, 'client=shop')).statusCode).toBe(400);
+  });
+
+  it('finds nothing searching for a role that belongs to another tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    await seedRole(other.name, 'foreign-role');
+
+    const res = await listRolesAt(t.name, 'name=foreign');
+    expect(res.statusCode).toBe(200);
+    expect(roleNamesOf(res)).toEqual([]);
+  });
+
+  it('refuses an unknown parameter with 400 naming it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await listRolesAt(t.name, 'search=r');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('search');
+  });
+
+  it.each([
+    ['another search', 'name=a&limit=1', 'name=b&limit=1'],
+    ['a filter added', 'name=a&limit=1', 'name=a&client=tenant&limit=1'],
+    ['a filter dropped', 'name=a&client=tenant&limit=1', 'name=a&limit=1'],
+  ])('refuses a cursor replayed under %s', async (_label, minted, replayedUnder) => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const name of ['a-1', 'a-2', 'b-1', 'b-2']) await seedRole(t.name, name);
+
+    const first = await listRolesAt(t.name, minted);
+    const next = first.json<{ next?: string }>().next;
+    if (next === undefined) throw new Error('expected a next cursor');
+
+    const replayed = await listRolesAt(
+      t.name,
+      `${replayedUnder}&cursor=${encodeURIComponent(next)}`,
+    );
+    expect(replayed.statusCode).toBe(400);
+    expect(replayed.json<{ detail: string }>().detail).toBe('cursor is invalid or expired');
+  });
+});
+
+describe('the roles name_search column', () => {
+  it('is refused on create, filled by the database, and never answered', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const create = (payload: Record<string, unknown>) =>
+      fixture.http.inject({
+        method: 'POST',
+        url: `/admin/tenants/${t.name}/roles`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload,
+      });
+    const forged = await create({ name: 'Mixed-Case', name_search: 'forged' });
+    expect(forged.statusCode).toBe(400);
+    expect(forged.json<{ detail: string }>().detail).toContain('name_search');
+
+    const res = await create({ name: 'Mixed-Case' });
+    expect(res.statusCode).toBe(201);
+    const created = res.json<Record<string, unknown>>();
+    expect(created).not.toHaveProperty('name_search');
+
+    const rows = await fixture.owner.db.execute<{ name_search: string }>(
+      sql`select name_search from roles where id = ${String(created.id)}`,
+    );
+    expect(rows.map((row) => row.name_search)).toEqual(['mixed-case']);
+
+    const read = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/roles/${String(created.id)}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(read.json<Record<string, unknown>>()).not.toHaveProperty('name_search');
+  });
+
+  it('is refused by PATCH with a reason', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const id = await plainRole(t.id);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/roles/${id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { name_search: 'forged' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('name_search');
   });
 });

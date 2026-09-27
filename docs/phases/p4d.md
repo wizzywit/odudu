@@ -334,11 +334,12 @@ drizzle logged from `listSubjects` itself, run under
 `set_config('app.tenant_id', …, true)` as `odudu_svc`
 (`rolbypassrls false`, `rolsuper false`).
 
-verified: `cd packages/protocol-admin && pnpm vitest run --config ../../vitest.config.ts tests/zz-explain-scratch.int.test.ts`
-(the scratch file that produced the numbers below, since deleted). The
-plan shape is now held by a committed test,
-`packages/protocol-admin/tests/list-plans.int.test.ts` (see "Field-scoped
-search on tenants and clients" below), which re-derives it on every run.
+verified: `cd packages/protocol-admin && pnpm vitest run --config ../../vitest.config.ts tests/list-plans.int.test.ts`
+(see "Field-scoped search on tenants and clients" below), which asserts
+the plan shape on every run at 30,000 rows per tenant. The 250,000-row
+figures in this section are not its output: they came from a scratch run
+whose file is no longer in the repository, so they are a record of that
+run rather than something the command above reproduces.
 
 The statement, then its plan for the second page of `?username=A`
 (excerpted from the saved output: the join to `subjects` and the planning
@@ -439,3 +440,59 @@ Execution Time: 0.311 ms
 
 Every one of the twelve, subjects included, ran in under 0.35 ms and read
 51 rows of its search index for a page of 50.
+
+## Search and filters on roles, groups, scopes and keys
+
+`GET /roles?name=`, `GET /groups?name=` and `GET /scopes?name=` are the
+same shape again: a stored `name_search` column, `text COLLATE "C"` over
+`lower(name)`, indexed `(tenant_id, name_search, id)` on `roles`, `groups`
+and `client_scopes`
+(`packages/db/drizzle/0075_list_indexes_roles_groups_scopes.sql`), matched
+through `prefixRangeConditions`. `GET /roles?client=` is an exact filter
+beside it: `tenant` for the tenant roles (`client_id IS NULL`), or a
+client's id for the roles scoped to that client. It is `AND`ed with a
+search and read as a `Filter` on the search index; nothing indexes it on
+its own.
+
+`GET /keys` takes `?status=` and `?alg=`, exact and `AND`ed, and gets **no
+index**: a tenant holds a handful of signing keys (one active, a few
+staged or retired), so a filter over them reads the table and is never
+worth an index to maintain. The status values are the ones
+`signing_keys_status_check` admits — `active`, `rotating`, `retired` —
+since a staged key is `rotating`; there is no `pending`.
+
+The three allowlists `PATCH` reads for these resources
+(`role-patch.ts`, `group-patch.ts`, `scope-patch.ts`) derive from the
+contract's wire shape rather than the table's columns, so, unlike
+`clients`, the new column never became amendable; each resource's tests
+hold that `PATCH` and `POST` refuse `name_search` with `400` naming it and
+that no response carries it, and `openapi.int.test.ts` that the published
+document names no `*_search` column.
+
+`packages/protocol-admin/tests/list-plans.int.test.ts` now seeds 30,000
+roles, groups and scopes in each of its three tenants too, and holds the
+three searches to the same plan as the other six, first page and later
+page, as `odudu_svc` under row-level security. With the three `CREATE
+INDEX` lines of `0075` commented out, those six cases fail and the other
+thirteen still pass.
+
+verified: `cd packages/protocol-admin && pnpm vitest run --config ../../vitest.config.ts tests/list-plans.int.test.ts`
+(19 passed in 18.8 s against `postgres:17-alpine`). The later page of
+`roles ?name=A`, excerpted from the `LIST_PLANS_OUT` output of that run;
+`groups ?name=B` on `groups_name_search` and `scopes ?name=c` on
+`client_scopes_name_search` are the same plan:
+
+```
+Limit  (cost=0.43..134.90 rows=51 width=117) (actual time=0.014..0.037 rows=51 loops=1)
+  Buffers: shared hit=54
+  ->  Index Scan using roles_name_search on roles  (cost=0.43..1711.60 rows=649 width=117) (actual time=0.014..0.033 rows=51 loops=1)
+        Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (name_search >= 'a'::text) AND (name_search < 'b'::text) AND (ROW(name_search, id) > ROW('a07c2f3b-450'::text, '19307ace-739b-48bf-8ba9-b02a90826696'::uuid)))
+Execution Time: 0.052 ms
+```
+
+`createDatabase`'s statement hook, which that test uses to capture what a
+listing issues, hands every statement's parameters to its caller —
+password hashes, secret hashes, emails and TOTP seeds among them. It is
+now `onQueryForTests`, and `tests/lint/query-hook-tests-only.test.ts`
+fails the build if any non-test source file under `packages/*/src` or
+`apps/*/src` names it.

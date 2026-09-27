@@ -12,13 +12,14 @@ export interface DatabaseHandle {
 
 export interface DatabaseOptions {
   max?: number;
-  // Sees every statement sent, with its parameters; for a test asserting
-  // what a path issues, or explaining the statement it issued.
-  onQuery?: (query: string, parameters: readonly unknown[]) => void;
+  // Tests only (tests/lint/query-hook-tests-only.test.ts): sees every
+  // statement sent with its parameters, which carry password hashes, secret
+  // hashes, emails and TOTP seeds. Never log what it is handed.
+  onQueryForTests?: (query: string, parameters: readonly unknown[]) => void;
 }
 
 export function createDatabase(url: string, options: DatabaseOptions = {}): DatabaseHandle {
-  const onQuery = options.onQuery;
+  const onQuery = options.onQueryForTests;
   const sql = postgres(url, {
     max: options.max ?? 10,
     onnotice: () => undefined,
