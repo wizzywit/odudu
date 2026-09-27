@@ -77,3 +77,15 @@ describe('POST /clients', () => {
     expect(res.json<{ detail: string }>().detail).toContain('access_token_ttl_seconds');
   });
 });
+
+describe('PATCH /clients', () => {
+  it('refuses an access token lifetime above the ceiling with 400, naming the field', async () => {
+    const t = await fixture.createTenant(`ttl-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {});
+
+    const res = await fixture.patchClient(t.name, client.id, { access_token_ttl_seconds: 7200 });
+
+    expect(res.statusCode, res.payload).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toMatch(/^access_token_ttl_seconds: /u);
+  });
+});

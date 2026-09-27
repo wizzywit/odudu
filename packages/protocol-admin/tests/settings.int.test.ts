@@ -102,6 +102,26 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
     ]);
   });
 
+  it('answers a stale If-Match with 412 before judging a range', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const url = `/admin/tenants/${t.name}/settings`;
+    const headers = { authorization: `Bearer ${token}` };
+    const read = await fixture.http.inject({ method: 'GET', url, headers });
+    const etag = read.headers.etag;
+    if (typeof etag !== 'string') throw new Error('expected GET to answer an etag');
+    await fixture.http.inject({ method: 'PATCH', url, headers, payload: { verify_email: true } });
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url,
+      headers: { ...headers, 'if-match': etag },
+      payload: { password_min_length: 4 },
+    });
+
+    expect(res.statusCode).toBe(412);
+  });
+
   it('judges an idle lifetime against the stored maximum it would exceed', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const stored = await withTenant(fixture.app.db, t.id, (tx) =>

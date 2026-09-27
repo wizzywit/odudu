@@ -1115,7 +1115,11 @@ A value the map coerces but outside its range — `password_min_length`
 outside `8..256`, for instance — is refused with `400` before anything is
 written, every such setting listed together under `errors` by its name. An
 idle lifetime is judged against the maximum it would sit under once the
-patch is applied, the stored one when the patch leaves it alone. Captured
+patch is applied, the stored one when the patch leaves it alone. The
+refusals come in a fixed order: a malformed or unknown setting answers
+`400` first, then a stale `If-Match` answers `412`, and only then is an
+out-of-range value refused with `400` — so a stale header on an
+out-of-range patch is told `412`. Captured
 against the fourth stack after its `odudu` service was rebuilt from this
 branch, as `ada-import` (the admin `POST /admin/tenant-imports` was
 captured as), in a tenant `settings-range-demo` created for it — its stored
