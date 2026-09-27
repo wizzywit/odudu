@@ -20,6 +20,7 @@ import {
   tenantSettingProblems,
   type TenantSettingName,
 } from '#/service/tenant-settings';
+import { readSettingCheck } from '#/testing/setting-check-coverage';
 
 let container: TestDatabase;
 let owner: DatabaseHandle;
@@ -127,31 +128,30 @@ describe('tenantSettingProblems agrees with the CHECK constraints on tenants', (
     expect(settingColumns.filter((name) => !covered.has(name)).sort()).toEqual([]);
   });
 
-  // Every comparison of one setting column with another, as
-  // pg_get_constraintdef prints it, keyed `lower<=upper` — a strict or
-  // reversed comparison keys differently, so it cannot pass for an ordering.
-  it('restates every ordering a CHECK on tenants holds between two settings', async () => {
-    const rows = await owner.sql<{ expression: string }[]>`
-      select pg_get_constraintdef(con.oid) as expression
+  // Fails closed: a CHECK naming a setting in any shape `readSettingCheck`
+  // does not read is reported with what was left, rather than dropped.
+  it('reads every CHECK on tenants, and restates each ordering it holds', async () => {
+    const rows = await owner.sql<{ name: string; expression: string }[]>`
+      select con.conname as name, pg_get_constraintdef(con.oid) as expression
         from pg_constraint con
         join pg_class c on c.oid = con.conrelid
        where c.relname = 'tenants' and con.contype = 'c'
     `;
-    const isSetting = (word: string): boolean =>
-      TENANT_SETTING_COLUMNS.some((column) => column.name === word);
-    const fromDatabase = rows.flatMap((row) =>
-      [...row.expression.matchAll(/\(([a-z_]+) (<=|>=|<|>|=|<>) ([a-z_]+)\)/gu)].flatMap((m) => {
-        const [, left = '', operator = '', right = ''] = m;
-        if (!isSetting(left) || !isSetting(right)) return [];
-        if (operator === '<=') return [`${left}<=${right}`];
-        if (operator === '>=') return [`${right}<=${left}`];
-        return [`${left}${operator}${right}`];
-      }),
-    );
+    const columns = new Set(TENANT_SETTING_COLUMNS.map((column) => column.name));
+    const readings = rows.map((row) => ({
+      name: row.name,
+      ...readSettingCheck(row.expression, columns),
+    }));
     const fromPredicate = TENANT_SETTING_ORDERINGS.map(([lower, upper]) => `${lower}<=${upper}`);
 
-    expect(fromDatabase.length).toBeGreaterThan(0);
-    expect([...new Set(fromDatabase)].sort()).toEqual([...fromPredicate].sort());
+    expect(
+      readings.flatMap(({ name, leftovers }) =>
+        leftovers.length === 0 ? [] : [`${name}: ${leftovers.join(', ')}`],
+      ),
+    ).toEqual([]);
+    expect([...new Set(readings.flatMap((reading) => reading.orderings))].sort()).toEqual(
+      [...fromPredicate].sort(),
+    );
   });
 
   it.each(rangeCases)('$name = $value', async ({ change }) => {
