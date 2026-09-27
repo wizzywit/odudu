@@ -1,6 +1,6 @@
 import { actionTokens } from '@odudu/account';
-import { requiredActionRepository } from '@odudu/authn-flows';
-import { signingKeyRepository, signingKeys } from '@odudu/crypto';
+import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
+import { generateSigningKey, signingKeyRepository, signingKeys } from '@odudu/crypto';
 import {
   createDatabase,
   MIGRATIONS_DIR,
@@ -24,7 +24,7 @@ import {
   TENANT_NAME_RULE,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
+import { clientOidcConfigRepository, tenantLookupRepository } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -609,6 +609,28 @@ describe('seed tenant --set', () => {
 });
 
 describe('seed tenant provisions the admin client', () => {
+  // Simulates a tenant seeded before this behaviour existed: provisioned
+  // and keyed, the way `performSeed`/`runTenantCommand` leave a new tenant,
+  // but without the admin client either of them now provisions alongside it.
+  async function createTenantWithoutAdminClient(name: string): Promise<string> {
+    const tenantId = newId();
+    await tenantLookupRepository(owner.db).create({ id: tenantId, name });
+    await withTenant(owner.db, tenantId, async (tx) => {
+      await provisionTenant(tx, tenantId);
+      const generated = await generateSigningKey('RS256', Buffer.alloc(32, 7));
+      await signingKeyRepository(tx).create({
+        id: newId(),
+        tenantId,
+        kid: generated.kid,
+        alg: generated.alg,
+        status: 'active',
+        publicJwk: generated.publicJwk,
+        privateJwkEncrypted: generated.privateJwkEncrypted,
+      });
+    });
+    return tenantId;
+  }
+
   async function adminClientRoles(tenantId: string): Promise<{ builtinAdmin: boolean } | null> {
     return withTenant(owner.db, tenantId, async (tx) => {
       const client = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
@@ -642,6 +664,35 @@ describe('seed tenant provisions the admin client', () => {
     const second = await seed(options);
     expect(second.tenantId).toBe(first.tenantId);
     expect(await countAdminClients(first.tenantId)).toBe(1);
+  });
+
+  it('gives a tenant seeded before this existed an admin client via `seed tenant`, once on a second run', async () => {
+    const name = `tenant-preexisting-${newId()}`;
+    const tenantId = await createTenantWithoutAdminClient(name);
+    expect(await countAdminClients(tenantId)).toBe(0);
+
+    const first = await seed(['tenant', '--name', name]);
+    if (first.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(first.created).toBe(false);
+    expect(await countAdminClients(tenantId)).toBe(1);
+
+    const second = await seed(['tenant', '--name', name]);
+    if (second.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await countAdminClients(tenantId)).toBe(1);
+  });
+
+  it('gives a tenant seeded before this existed an admin client via `seed --tenant`, once on a second run', async () => {
+    const options = uniqueOptions();
+    const tenantId = await createTenantWithoutAdminClient(options.tenant);
+    expect(await countAdminClients(tenantId)).toBe(0);
+
+    const first = await seed(options);
+    expect(first.tenantId).toBe(tenantId);
+    expect(await countAdminClients(tenantId)).toBe(1);
+
+    const second = await seed(options);
+    expect(second.tenantId).toBe(tenantId);
+    expect(await countAdminClients(tenantId)).toBe(1);
   });
 });
 

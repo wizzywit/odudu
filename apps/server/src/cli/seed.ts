@@ -376,8 +376,11 @@ async function performSeed(
   return withTenant(runtimeDb, tenantId, async (tx) => {
     if (tenantCreated) {
       await provisionTenant(tx, tenantId);
-      await provisionAdminClient(tx, tenantId);
     }
+    // Idempotent, so a tenant seeded before this client existed gains one
+    // here rather than being left without — only the flow and signing key
+    // above are creation-only.
+    await provisionAdminClient(tx, tenantId);
 
     const existingClient = await clientRepository(tx).byClientId(opts.clientId);
     if (existingClient !== null) {
@@ -957,7 +960,6 @@ async function runTenantCommand(
     // true because tenant and client used to be seeded in the same call.
     await withTenant(runtimeDb, tenantId, async (tx) => {
       await provisionTenant(tx, tenantId);
-      await provisionAdminClient(tx, tenantId);
       const generated = await generateSigningKey('RS256', kek);
       await signingKeyRepository(tx).create({
         id: newId(),
@@ -970,6 +972,9 @@ async function runTenantCommand(
       });
     });
   }
+  // Idempotent, so a tenant this command finds rather than creates still
+  // gets one if an earlier run predates the admin client's existence.
+  await withTenant(runtimeDb, tenantId, (tx) => provisionAdminClient(tx, tenantId));
 
   if (settings.length > 0) {
     // Whatever the CHECK constraints refuse (migrations 0028, 0035, 0041)

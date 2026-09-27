@@ -779,8 +779,10 @@ public client `seed admin` provisions for the system tenant — every tenant
 gets one the moment it exists, not just the one an operator logs into,
 since a tenant's own administrators need it too. `seed tenant --name demo`
 on its own does the same: whichever door creates the tenant provisions the
-signing key and the admin client together, and a tenant this command finds
-rather than creates is left alone.
+signing key and the admin client together. Provisioning the admin client is
+idempotent, so either command also gives one to a tenant it finds rather
+than creates, if an earlier run predates the client's existence; the
+signing key stays creation-only.
 
 That tenant now serves the protocol. The discovery document is the one
 request every client makes first, and every URL below comes out of it:
