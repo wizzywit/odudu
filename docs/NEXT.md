@@ -323,15 +323,6 @@ a phase note.
   somewhere other than the process environment and so reworks the boot
   sequence in `apps/server/src/main.ts` that the test pins by offset.
 
-- CI caching. `verify` takes about 15 minutes and during P4e reached its
-  15-minute timeout after every test had passed; the timeout is 30 minutes
-  as a stopgap (`f2b9d4f`), and the trigger this file set for caching, CI
-  past roughly 5 minutes, has fired. Turborepo **caching** replays an
-  unchanged package's result rather than skipping it; `test` must first
-  become a per-package Turbo task rather than one root-level `vitest run`,
-  and `globalDependencies` is set at the same time. **P4d**, in its first
-  increment, before Playwright makes the run longer still.
-
 ### Recorded judgements, where the code stands and nothing is owed
 
 - Six migration-filename citations under `docs/superpowers/plans/` are off

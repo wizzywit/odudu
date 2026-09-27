@@ -24,6 +24,12 @@ with nothing changed, takes 4.7s: 29 of 30 tasks replay from cache and
 the one that does not is the repository checks (below). `pnpm trace` reads
 the sixteen reports and prints the same line as before.
 
+**On CI.** The `verify` job ran 11m57s, 11m50s and 10m30s on the branch's
+first three pushes, each of which changed a migration or `@odudu/db`, so
+nearly every package missed the cache; that is what caching cannot help.
+Against the pre-branch 15 minutes, the gain there comes from running
+packages side by side. A push touching one leaf package replays the rest.
+
 ### What the verification showed
 
 - **`vitest --dir .` does not narrow the root config's projects.** Run from
