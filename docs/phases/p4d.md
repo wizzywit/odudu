@@ -696,10 +696,30 @@ per-request path; a tenant large enough to need one names it against the
 same `token_grants` an already-open PR could give a covering index without
 touching this call.
 
+## What export and import found
+
+Building the export turned up a registration gap: client metadata accepted a
+`jwks` whose keys carried private members (`d`, `p`, `q`, `dp`, `dq`, `qi`,
+`k`), so a pasted keypair was stored and then served back by `GET /clients`
+and by the export. Registration and amendment now refuse them, on the admin
+API and on dynamic registration alike, and the export strips any stored
+before that and lists each under `omitted`.
+
+Building the import turned up two ranges only the database enforced. A
+client token lifetime outside CHECK 0013/0014 answered `500` from
+`POST`/`PATCH /clients`, and a tenant setting outside its CHECK was found
+only by writing it. Both are now refused before any write — by the import's
+single `400`, by `PATCH /settings` and by the client routes — from one
+predicate beside `SETTINGS`, held to the constraints by
+`tenant-setting-checks.int.test.ts`, which probes every bound against the
+real database and fails on any tenants CHECK shape it cannot read.
+
 ## Leftovers on the shared development stack
 
 The `infra/docker` stack the admin-paths transcripts are captured on holds
 a tenant `probe-rename-access`, created while checking a system admin's
 reach before the rename capture; no transcript names it and no endpoint
 deletes a tenant, so it stays until that stack is next rebuilt from an
-empty volume.
+empty volume. The export, import and settings-range transcripts left
+`export-demo`, `import-source`, `import-demo` and `settings-range-demo`
+beside it, for the same reason.
