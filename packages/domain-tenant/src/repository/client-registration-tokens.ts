@@ -61,7 +61,16 @@ export function clientRegistrationTokenRepository(tx: TenantScopedDatabase) {
 
     // Excludes a spent or expired token — the admin console's list is a
     // list of what still redeems, not an archive of everything ever minted.
-    async list(): Promise<RegistrationTokenRecord[]> {
+    // Paged in SQL like every sibling list (`listKeys`,
+    // #/usecase/keys.ts in @odudu/protocol-admin): `after` is the last id
+    // of the previous page, never an id this method requires still exist —
+    // a page anchored on a token that has since expired, been spent out or
+    // been revoked still resumes correctly, since `gt(id, after)` reads
+    // only the ordering, not the row itself.
+    async list(input: {
+      after?: string | undefined;
+      limit: number;
+    }): Promise<RegistrationTokenRecord[]> {
       return tx
         .select({
           id: clientRegistrationTokens.id,
@@ -74,17 +83,36 @@ export function clientRegistrationTokenRepository(tx: TenantScopedDatabase) {
           and(
             gt(clientRegistrationTokens.remainingUses, 0),
             gt(clientRegistrationTokens.expiresAt, new Date()),
+            ...(input.after === undefined ? [] : [gt(clientRegistrationTokens.id, input.after)]),
           ),
         )
-        .orderBy(asc(clientRegistrationTokens.id));
+        .orderBy(asc(clientRegistrationTokens.id))
+        .limit(input.limit);
     },
 
-    async revoke(id: string): Promise<boolean> {
+    // Live rows only: a token already spent to zero uses or expired is
+    // already unusable, and `list()` would already have hidden it — a
+    // revoke of one answers `not_found` (mapped to `404` by the route) the
+    // same way revoking an id nothing ever minted does, rather than a
+    // hollow `204` for a row `DELETE ... RETURNING` still finds and
+    // removes but that no longer redeemed anything.
+    async revoke(id: string): Promise<RegistrationTokenRecord | null> {
       const rows = await tx
         .delete(clientRegistrationTokens)
-        .where(eq(clientRegistrationTokens.id, id))
-        .returning({ id: clientRegistrationTokens.id });
-      return rows.length > 0;
+        .where(
+          and(
+            eq(clientRegistrationTokens.id, id),
+            gt(clientRegistrationTokens.remainingUses, 0),
+            gt(clientRegistrationTokens.expiresAt, new Date()),
+          ),
+        )
+        .returning({
+          id: clientRegistrationTokens.id,
+          remainingUses: clientRegistrationTokens.remainingUses,
+          createdAt: clientRegistrationTokens.createdAt,
+          expiresAt: clientRegistrationTokens.expiresAt,
+        });
+      return rows[0] ?? null;
     },
 
     // One UPDATE decides the winner between concurrent registrations

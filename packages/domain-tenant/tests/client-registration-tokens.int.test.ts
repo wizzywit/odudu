@@ -209,7 +209,7 @@ describe('list', () => {
     );
 
     const items = await withTenant(app.db, tenantId, (tx) =>
-      clientRegistrationTokenRepository(tx).list(),
+      clientRegistrationTokenRepository(tx).list({ limit: 50 }),
     );
 
     expect(items).toHaveLength(1);
@@ -229,7 +229,7 @@ describe('list', () => {
     );
 
     const items = await withTenant(app.db, tenantId, (tx) =>
-      clientRegistrationTokenRepository(tx).list(),
+      clientRegistrationTokenRepository(tx).list({ limit: 50 }),
     );
 
     expect(items).toEqual([]);
@@ -243,7 +243,7 @@ describe('list', () => {
     await backdateExpiry(hashOf(token), new Date(Date.now() - 1000));
 
     const items = await withTenant(app.db, tenantId, (tx) =>
-      clientRegistrationTokenRepository(tx).list(),
+      clientRegistrationTokenRepository(tx).list({ limit: 50 }),
     );
 
     expect(items).toEqual([]);
@@ -257,10 +257,10 @@ describe('list', () => {
         return { tenantId };
       },
       verifySeeded: async (tx) => {
-        const items = await clientRegistrationTokenRepository(tx).list();
+        const items = await clientRegistrationTokenRepository(tx).list({ limit: 50 });
         expect(items).toHaveLength(1);
       },
-      attempt: async (tx) => clientRegistrationTokenRepository(tx).list(),
+      attempt: async (tx) => clientRegistrationTokenRepository(tx).list({ limit: 50 }),
       expectBlocked: (result) => {
         expect(result).toEqual([]);
       },
@@ -278,7 +278,8 @@ describe('revoke', () => {
     const revoked = await withTenant(app.db, tenantId, (tx) =>
       clientRegistrationTokenRepository(tx).revoke(id),
     );
-    expect(revoked).toBe(true);
+    expect(revoked?.id).toBe(id);
+    expect(revoked?.remainingUses).toBe(1);
 
     const spent = await withTenant(app.db, tenantId, (tx) =>
       clientRegistrationTokenRepository(tx).spend(tenantId, token),
@@ -286,14 +287,44 @@ describe('revoke', () => {
     expect(spent).toBe(false);
   });
 
-  it('answers false for an id that names no token', async () => {
+  it('answers null for an id that names no token', async () => {
     const tenantId = await newTenant();
 
     const revoked = await withTenant(app.db, tenantId, (tx) =>
       clientRegistrationTokenRepository(tx).revoke(newId()),
     );
 
-    expect(revoked).toBe(false);
+    expect(revoked).toBeNull();
+  });
+
+  it('answers null for a token already spent to zero uses', async () => {
+    const tenantId = await newTenant();
+    const { id, token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+    );
+    await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).spend(tenantId, token),
+    );
+
+    const revoked = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).revoke(id),
+    );
+
+    expect(revoked).toBeNull();
+  });
+
+  it('answers null for an already-expired token', async () => {
+    const tenantId = await newTenant();
+    const { id, token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+    );
+    await backdateExpiry(hashOf(token), new Date(Date.now() - 1000));
+
+    const revoked = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).revoke(id),
+    );
+
+    expect(revoked).toBeNull();
   });
 
   it('does not revoke a token minted in another tenant, even given that token’s own id', async () => {
@@ -308,13 +339,75 @@ describe('revoke', () => {
         return { tenantId, id };
       },
       verifySeeded: async (tx, seeded) => {
-        const items = await clientRegistrationTokenRepository(tx).list();
+        const items = await clientRegistrationTokenRepository(tx).list({ limit: 50 });
         expect(items.map((item) => item.id)).toContain(seeded.id);
       },
       attempt: async (tx, seeded) => clientRegistrationTokenRepository(tx).revoke(seeded.id),
       expectBlocked: (result) => {
-        expect(result).toBe(false);
+        expect(result).toBeNull();
       },
     });
+  });
+});
+
+describe('list pagination', () => {
+  it('pages at the given limit, in id order', async () => {
+    const tenantId = await newTenant();
+    const minted = [];
+    for (let i = 0; i < 3; i++) {
+      minted.push(
+        await withTenant(app.db, tenantId, (tx) =>
+          clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+        ),
+      );
+    }
+    const [first, second, third] = [...minted.map((m) => m.id)].sort();
+    if (first === undefined || second === undefined || third === undefined) {
+      throw new Error('expected three minted ids');
+    }
+
+    const firstPage = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ limit: 1 }),
+    );
+    expect(firstPage.map((item) => item.id)).toEqual([first]);
+
+    const secondPage = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ after: first, limit: 1 }),
+    );
+    expect(secondPage.map((item) => item.id)).toEqual([second]);
+
+    const thirdPage = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ after: second, limit: 1 }),
+    );
+    expect(thirdPage.map((item) => item.id)).toEqual([third]);
+  });
+
+  it('resumes past an anchor that has since been revoked', async () => {
+    const tenantId = await newTenant();
+    const minted = [];
+    for (let i = 0; i < 3; i++) {
+      minted.push(
+        await withTenant(app.db, tenantId, (tx) =>
+          clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+        ),
+      );
+    }
+    const [, second] = [...minted.map((m) => m.id)].sort();
+    if (second === undefined) throw new Error('expected a second minted id');
+
+    const firstPage = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ limit: 1 }),
+    );
+    const anchor = firstPage[0]?.id;
+    if (anchor === undefined) throw new Error('expected a first page');
+
+    await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).revoke(anchor),
+    );
+
+    const secondPage = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list({ after: anchor, limit: 1 }),
+    );
+    expect(secondPage.map((item) => item.id)).toEqual([second]);
   });
 });

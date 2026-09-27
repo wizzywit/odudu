@@ -6,10 +6,8 @@ import {
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
   clientRegistrationTokenRepository,
-  clientRegistrationTokens,
   type RegistrationTokenRecord,
 } from '@odudu/domain-tenant';
-import { eq } from 'drizzle-orm';
 import { redactedDiff } from '#/service/audit-detail';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 
@@ -48,17 +46,17 @@ export type ListRegistrationTokensOutcome =
   | { kind: 'invalid_cursor' }
   | { kind: 'ok'; items: readonly RegistrationToken[]; next: string | null };
 
-// `list()` (@odudu/domain-tenant) already excludes a spent or expired token
-// and answers no more than a tenant's own handful of live ones, so this
-// pages the array it returns rather than adding a second, SQL-side cursor
-// query — the same trade `filterDigest`'s empty filter set signals with no
-// search field to bind into it.
+// Paged the same way `listKeys` (#/usecase/keys.ts) pages signing keys:
+// `after` is a plain `gt(id, after)` in `list()`'s own SQL, so a page
+// anchored on a token that has since expired, been spent out or been
+// revoked still resumes from the same place — nothing here re-reads the
+// anchor row itself.
 export async function listRegistrationTokens(
   tx: TenantScopedDatabase,
   input: ListRegistrationTokensInput,
 ): Promise<ListRegistrationTokensOutcome> {
   const filters = filterDigest({});
-  let afterId: string | undefined;
+  let after: string | undefined;
   if (input.cursor !== undefined) {
     const decoded = decodeCursor(
       input.cursorKey,
@@ -68,19 +66,15 @@ export async function listRegistrationTokens(
       input.cursor,
     );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
-    afterId = decoded.after;
+    after = decoded.after;
   }
 
-  const all = await clientRegistrationTokenRepository(tx).list();
-  let startIndex = 0;
-  if (afterId !== undefined) {
-    const index = all.findIndex((row) => row.id === afterId);
-    startIndex = index === -1 ? all.length : index + 1;
-  }
-
-  const rest = all.slice(startIndex);
-  const hasMore = rest.length > input.limit;
-  const page = hasMore ? rest.slice(0, input.limit) : rest;
+  const rows = await clientRegistrationTokenRepository(tx).list({
+    after,
+    limit: input.limit + 1,
+  });
+  const hasMore = rows.length > input.limit;
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
   const last = page[page.length - 1];
   const next =
     hasMore && last !== undefined
@@ -156,30 +150,18 @@ export interface RevokeRegistrationTokenDeps {
 
 export type RevokeRegistrationTokenOutcome = { kind: 'not_found' } | { kind: 'deleted' };
 
-async function currentRegistrationToken(
-  tx: TenantScopedDatabase,
-  id: string,
-): Promise<RegistrationTokenRecord | null> {
-  const rows = await tx
-    .select({
-      id: clientRegistrationTokens.id,
-      remainingUses: clientRegistrationTokens.remainingUses,
-      createdAt: clientRegistrationTokens.createdAt,
-      expiresAt: clientRegistrationTokens.expiresAt,
-    })
-    .from(clientRegistrationTokens)
-    .where(eq(clientRegistrationTokens.id, id));
-  return rows[0] ?? null;
-}
-
 export async function revokeRegistrationToken(
   tx: TenantScopedDatabase,
   deps: RevokeRegistrationTokenDeps,
   input: RevokeRegistrationTokenInput,
 ): Promise<RevokeRegistrationTokenOutcome> {
-  const before = await currentRegistrationToken(tx, input.tokenId);
+  // `revoke()`'s own `DELETE ... RETURNING` is both the mutation and the
+  // read the audit diff needs — restricted to a live row, so a token
+  // already spent out or expired answers `not_found` the same way an id
+  // nothing ever minted does, rather than a hollow success for a row
+  // `list()` would never have shown the caller in the first place.
   const revoked = await clientRegistrationTokenRepository(tx).revoke(input.tokenId);
-  if (!revoked) return { kind: 'not_found' };
+  if (revoked === null) return { kind: 'not_found' };
 
   await deps.audit(tx, {
     action: 'registration_token.revoke',
@@ -189,11 +171,7 @@ export async function revokeRegistrationToken(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
-    detail: redactedDiff(
-      'registration_token',
-      before === null ? null : registrationTokenWireShape(before),
-      null,
-    ),
+    detail: redactedDiff('registration_token', registrationTokenWireShape(revoked), null),
   });
 
   return { kind: 'deleted' };

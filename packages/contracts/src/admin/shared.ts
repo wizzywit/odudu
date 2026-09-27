@@ -32,5 +32,11 @@ export const problemDetailsSchema = z.object({
 export type ProblemDetails = z.infer<typeof problemDetailsSchema>;
 
 export const idSchema = z.string();
-export const createdAtSchema = z.string();
+// An ISO 8601 instant, wire-shaped as a bare string — never validated more
+// strictly than that, since every producer here is this server's own
+// `Date#toISOString()`. `createdAtSchema` is this under the name most call
+// sites reach for; a field that isn't a `created_at` uses this one instead
+// of borrowing a name that would say otherwise.
+export const dateTimeSchema = z.string();
+export const createdAtSchema = dateTimeSchema;
 export const etagSchema = z.string();
