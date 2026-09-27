@@ -246,8 +246,9 @@ export type EndAllSessionsOutcome =
 // Every live session through the same `endSession` one session's `DELETE`
 // makes, so each has its grants revoked and its back-channel deliveries
 // enqueued exactly as ending it alone would — rather than `endMany`, which
-// moves the ceilings and nothing else. The sessions are locked first, in
-// `id` order, so a concurrent single end serializes against this one.
+// moves the ceilings and nothing else. The subject row is locked first,
+// as it is for a single end, so the two serialize against each other; the
+// session rows are then locked in `id` order.
 export async function endAllSessions(
   tx: TenantScopedDatabase,
   deps: EndSessionDeps,

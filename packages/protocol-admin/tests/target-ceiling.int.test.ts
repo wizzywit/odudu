@@ -2,8 +2,13 @@ import { requiredActionRepository } from '@odudu/authn-flows';
 import { generateTotpSecret } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
-import { roleRepository, subjectRoles } from '@odudu/domain-authz';
-import { credentialRepository, subjectRepository, userRepository } from '@odudu/domain-identity';
+import { groupRepository, roleRepository, subjectRoles } from '@odudu/domain-authz';
+import {
+  credentialRepository,
+  loginFailureRepository,
+  subjectRepository,
+  userRepository,
+} from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
   clientRepository,
@@ -12,7 +17,7 @@ import {
   TENANT_ADMIN,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ADMIN_ROUTES } from '#/service/capability';
@@ -36,7 +41,8 @@ interface Target {
 }
 
 // A user subject holding `roleNames` on its tenant's built-in admin client,
-// with a TOTP credential so the credential route has something to remove.
+// with something for every mutating route to change: a TOTP credential, a
+// group membership, a nickname and a run of failed logins.
 async function createTarget(
   tenant: { id: string; name: string },
   roleNames: readonly string[],
@@ -56,6 +62,18 @@ async function createTarget(
       type: 'totp',
       secret: { kind: 'totp', secret: generateTotpSecret(), digits: 6, lastStep: 0 },
     });
+    const group = await groupRepository(tx).create({
+      tenantId: tenant.id,
+      name: `g-${newId()}`,
+      parentId: null,
+    });
+    await groupRepository(tx).addToSubject(subjectId, group.id);
+    await userRepository(tx).updateProfile(subjectId, { nickname: 'before' });
+    await tx.execute(sql`
+      INSERT INTO login_failures
+        (tenant_id, subject_id, failure_count, first_failure_at, last_failure_at, locked_until)
+      VALUES (${tenant.id}, ${subjectId}, 5, now(), now(), now() + interval '1 minute')
+    `);
     const [row] = await credentialRepository(tx).listFor(subjectId, 'totp');
     if (row === undefined) throw new Error('fixture: no totp credential after insert');
     return row.id;
@@ -106,6 +124,9 @@ function perform(
 
 interface TargetState {
   readonly roles: readonly string[];
+  readonly groups: readonly string[];
+  readonly nickname: string | null;
+  readonly failureCount: number;
   readonly exists: boolean;
   readonly enabled: boolean;
   readonly credentials: number;
@@ -123,6 +144,9 @@ async function stateOf(target: Target): Promise<TargetState> {
           .from(subjectRoles)
           .where(eq(subjectRoles.subjectId, target.subjectId))
       ).map((row) => row.roleId),
+      groups: (await groupRepository(tx).groupsOfSubject(target.subjectId)).map((g) => g.id),
+      nickname: user?.nickname ?? null,
+      failureCount: (await loginFailureRepository(tx).forSubject(target.subjectId)).failureCount,
       exists: subject !== null && user !== null,
       enabled: subject?.disabledAt === null,
       credentials: (await credentialRepository(tx).listFor(target.subjectId, 'totp')).length,

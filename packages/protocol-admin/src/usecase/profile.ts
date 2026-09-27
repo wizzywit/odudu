@@ -176,11 +176,10 @@ export async function amendProfile(
     }
   }
 
-  // Locked, not merely read: two concurrent PATCHes reading the same row
-  // would both compute the same `ETag`, both pass `If-Match`, and the
-  // second's audit `before` would already be stale by the time it writes.
-  // `FOR UPDATE` serialises them the same way `lockSubjectForAmend`
-  // (#/usecase/subjects.ts) serialises a subject amendment.
+  // The subject row first, as every mutation of one subject takes it, then
+  // the `users` row `FOR UPDATE`: two concurrent PATCHes reading the row
+  // unlocked would both compute the same `ETag`, both pass `If-Match`, and
+  // the second's audit `before` would be stale by the time it writes.
   if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
   const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.profile_amend', input);
   if (refused !== null) return refused;

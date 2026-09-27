@@ -1529,9 +1529,12 @@ Requires `manage-users`. Amends `email` and `enabled` — the only two
 general fields a subject exposes; everything else about a subject
 (credentials, required actions, roles) has its own door below. Honours
 `If-Match`, answering `412` on a mismatch, the same convention every other
-amendment in this API follows — locked with `SELECT … FOR UPDATE` before
-the `ETag` is computed, so two concurrent amendments cannot both pass the
-precondition. Held to the target ceiling
+amendment in this API follows — locked with `SELECT … FOR NO KEY UPDATE`
+before the `ETag` is computed, so two concurrent amendments cannot both
+pass the precondition. `NO KEY UPDATE` rather than `UPDATE`, as on every
+admin route that mutates a subject: it still queues a second admin
+mutation, but not a sign-in inserting a row that names the subject, which
+takes a key-share lock and would otherwise deadlock against it. Held to the target ceiling
 ([`POST /subjects/:id/password`](#the-target-ceiling)), as every route that
 mutates a subject is: refused with `403` when the subject holds an admin
 capability the caller does not.

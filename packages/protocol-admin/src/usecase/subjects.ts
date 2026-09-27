@@ -162,7 +162,12 @@ export async function refuseOverTargetCeiling<A extends string, R extends string
   return { kind: 'target_ceiling', requested: denied };
 }
 
-/** Locks the subject row every mutation of one subject serialises on; false when there is none. */
+// The lock every mutation of one subject serialises on; false when there is
+// none. `no key update` conflicts with itself, so two admin mutations still
+// queue, but not with the key-share lock every insert referencing the
+// subject takes: `FOR UPDATE` here deadlocks against a login that touched
+// a session, or cleared its failures, and then inserts a row naming the
+// subject. `deleteSubject`'s own delete still takes the full lock.
 export async function lockSubjectRow(
   tx: TenantScopedDatabase,
   subjectId: string,
@@ -171,7 +176,7 @@ export async function lockSubjectRow(
     .select({ id: subjects.id })
     .from(subjects)
     .where(eq(subjects.id, subjectId))
-    .for('update');
+    .for('no key update');
   return rows.length > 0;
 }
 
@@ -460,11 +465,12 @@ async function lockSubjectForAmend(
   subject: typeof subjects.$inferSelect;
   user: typeof users.$inferSelect | null;
 } | null> {
+  // `no key update`, for the reason `lockSubjectRow` gives.
   const subjectRows = await tx
     .select()
     .from(subjects)
     .where(eq(subjects.id, subjectId))
-    .for('update');
+    .for('no key update');
   const subject = subjectRows[0];
   if (subject === undefined) return null;
   const userRows = await tx

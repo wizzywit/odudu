@@ -61,11 +61,11 @@ const CAPABILITY_NAMES: ReadonlySet<string> = new Set([...TENANT_CAPABILITIES, M
 
 /**
  * The target ceiling: what the admin capabilities `subjectId` holds name that
- * `held` does not. An operation that can take over or remove an account —
- * issuing its password, disabling it or changing its email, removing a
- * credential, deleting it — is refused unless this is empty, so holding
- * `manage-users` never reaches an account with more authority than the
- * caller's own. Resolved through `effectiveRoles`, as the caller's are.
+ * `held` does not. Every route that mutates one subject is refused unless
+ * this is empty — its roles and groups included, so a target cannot be
+ * demoted out from under the check first — and holding `manage-users`
+ * never reaches an account with more authority than the caller's own.
+ * Resolved through `effectiveRoles`, as the caller's are.
  */
 export async function targetOverreach(
   tx: TenantScopedDatabase,

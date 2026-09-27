@@ -115,6 +115,11 @@ export interface AdminRoute {
   readonly description?: string;
 }
 
+// Appended to the description of every route that mutates one subject.
+const TARGET_CEILING =
+  ' Refused with `403` when the subject holds an admin capability the caller does not ' +
+  '(the target ceiling).';
+
 // The single list the router registers from (view/routes/router.ts): a
 // route with no entry here fails at startup rather than shipping
 // reachable and unguarded. `capability: null` means authentication
@@ -122,11 +127,6 @@ export interface AdminRoute {
 // carry no `:tenant` segment — they administer the tenant collection
 // itself, which only a system-tenant admin reaches (router.ts resolves
 // its target explicitly).
-// Appended to the description of every route that mutates one subject.
-const TARGET_CEILING =
-  ' Refused with `403` when the subject holds an admin capability the caller does not ' +
-  '(the target ceiling).';
-
 export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'GET',
