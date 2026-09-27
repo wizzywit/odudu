@@ -886,9 +886,9 @@ export function refuseSystemTenantName(name: string): void {
 // row: `seed tenant`, the options form of `seed` (through resolveTenantId's
 // create branch below) and the admin API's `createTenant`
 // (@odudu/protocol-admin), which maps the same two predicates to 400 and
-// 409 rather than a raw CHECK violation or an unreserved shadow route. A
-// lookup of a tenant that already exists never reaches this — a name that
-// predates the rule still resolves.
+// 409 rather than a raw CHECK violation or an unreserved shadow route.
+// Only the create branch calls it — looking up an existing tenant never
+// re-checks its name.
 function refuseInvalidOrReservedTenantName(name: string): void {
   if (!isValidTenantName(name)) {
     throw new OduduError('seed_invalid_options', TENANT_NAME_RULE);

@@ -106,7 +106,16 @@ and every other tenant setting, by the column name the schema uses:
 starting or ending with one, since it is minted straight into an issuer
 host segment — and `system` and `count` are reserved; `POST /admin/tenants`
 enforces the identical rule, and the database's own CHECK stands behind
-both doors.
+both doors. Migration `0072_tenant_name_rule.sql` adds that CHECK without
+`NOT VALID`, so it aborts naming `tenants_name_dns_label` on a database that
+already holds a name outside the rule; find the offending rows with
+
+```sql
+select id, name from tenants where name !~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$';
+```
+
+and recreate each one under a valid name — renaming changes a tenant's
+issuer, so the admin API refuses it (ADR 0039).
 `GET`/`PATCH /admin/tenants/{tenant}/settings` changes the same set through
 the admin API, by the same column names; the ranges the numeric ones accept
 are CHECK constraints either way, so neither door has a way past a policy
