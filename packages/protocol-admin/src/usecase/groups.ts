@@ -4,7 +4,7 @@ import { ancestorsOf, groupRepository, groupRoles, groups, roles } from '@odudu/
 import { isUuid, OduduError } from '@odudu/kernel';
 import { asc, eq, gt, inArray } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
 import { type RoleAssignment } from '#/usecase/subjects';
@@ -76,9 +76,16 @@ export async function listGroups(
   tx: TenantScopedDatabase,
   input: ListGroupsInput,
 ): Promise<ListGroupsOutcome> {
+  const filters = filterDigest({});
   let after: string | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
     after = decoded.after;
   }
@@ -99,6 +106,7 @@ export async function listGroups(
           after: last.id,
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 

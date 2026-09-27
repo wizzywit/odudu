@@ -5,7 +5,7 @@ import { clients } from '@odudu/domain-tenant';
 import { isUuid, OduduError } from '@odudu/kernel';
 import { asc, eq, gt, inArray } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_ROLE_FIELDS, refusalFor } from '#/service/role-patch';
 
@@ -57,9 +57,16 @@ export async function listRoles(
   tx: TenantScopedDatabase,
   input: ListRolesInput,
 ): Promise<ListRolesOutcome> {
+  const filters = filterDigest({});
   let after: string | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
     after = decoded.after;
   }
@@ -80,6 +87,7 @@ export async function listRoles(
           after: last.id,
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 

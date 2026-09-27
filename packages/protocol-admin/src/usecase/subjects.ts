@@ -18,7 +18,7 @@ import { tenantSettingsRepository } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, like, ne } from 'drizzle-orm';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SUBJECT_FIELDS, refusalFor } from '#/service/subjects-patch';
 
@@ -99,9 +99,16 @@ export async function listSubjects(
   tx: TenantScopedDatabase,
   input: ListSubjectsInput,
 ): Promise<ListSubjectsOutcome> {
+  const filters = filterDigest({ search: input.search });
   let after: string | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
     after = decoded.after;
   }
@@ -129,6 +136,7 @@ export async function listSubjects(
           after: last.id,
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 

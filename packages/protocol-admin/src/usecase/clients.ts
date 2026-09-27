@@ -21,7 +21,7 @@ import {
 import { asc, eq, gt, inArray } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { redactedDiff } from '#/service/audit-detail';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import {
   AMENDABLE_CLIENT_FIELDS,
   BUILTIN_ADMIN_AMENDABLE_FIELDS,
@@ -205,9 +205,16 @@ export async function listClients(
   tx: TenantScopedDatabase,
   input: ListClientsInput,
 ): Promise<ListClientsOutcome> {
+  const filters = filterDigest({});
   let after: string | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
     after = decoded.after;
   }
@@ -227,6 +234,7 @@ export async function listClients(
           after: last.id,
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 

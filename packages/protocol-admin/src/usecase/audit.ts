@@ -1,7 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { type AuditEvent } from '@odudu/contracts/admin';
 import { auditRepository, type AuditEventRecord, type AuditEventType } from '@odudu/domain-audit';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 
 const COLLECTION = 'audit';
 
@@ -57,9 +57,24 @@ export async function listAudit(
   tx: TenantScopedDatabase,
   input: ListAuditInput,
 ): Promise<ListAuditOutcome> {
+  const filters = filterDigest({
+    event_type: input.eventType,
+    actor_subject_id: input.actorSubjectId,
+    resource_type: input.resourceType,
+    action: input.action,
+    outcome: input.outcome,
+    from: input.from?.toISOString(),
+    to: input.to?.toISOString(),
+  });
   let after: { occurredAt: Date; id: string } | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
     const parsed = cursorAfter(decoded.after);
     if (parsed === null) return { kind: 'invalid_cursor' };
@@ -87,6 +102,7 @@ export async function listAudit(
           after: `${last.occurredAt.toISOString()}|${last.id}`,
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 

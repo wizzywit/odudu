@@ -18,7 +18,7 @@ import {
 import { newId } from '@odudu/kernel';
 import { provisionAdminClient } from '@odudu/protocol-oidc';
 import { asc, eq, gt } from 'drizzle-orm';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_TENANT_FIELDS, refusalFor } from '#/service/tenant-patch';
 
@@ -198,9 +198,16 @@ export async function listTenants(
   database: Database,
   input: ListTenantsInput,
 ): Promise<ListTenantsOutcome> {
+  const filters = filterDigest({});
   let after: string | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
     after = decoded.after;
   }
@@ -221,6 +228,7 @@ export async function listTenants(
           after: last.id,
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 

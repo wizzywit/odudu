@@ -7,7 +7,7 @@ import {
 import { type TenantScopedDatabase } from '@odudu/db';
 import { endSession as endOidcSession, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { eq } from 'drizzle-orm';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 
 const COLLECTION = 'sessions';
 
@@ -91,9 +91,16 @@ export async function listSessions(
   tx: TenantScopedDatabase,
   input: ListSessionsInput,
 ): Promise<ListSessionsOutcome> {
+  const filters = filterDigest({});
   let after: string | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
     after = decoded.after;
   }
@@ -120,6 +127,7 @@ export async function listSessions(
           after: last.id,
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 

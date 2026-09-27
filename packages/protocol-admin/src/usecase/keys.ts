@@ -10,7 +10,7 @@ import { clients } from '@odudu/domain-tenant';
 import { clientOidcConfig } from '@odudu/protocol-oidc';
 import { newId } from '@odudu/kernel';
 import { and, asc, eq, gt, ne } from 'drizzle-orm';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 
 const COLLECTION = 'keys';
 
@@ -72,9 +72,16 @@ export async function listKeys(
   tx: TenantScopedDatabase,
   input: ListKeysInput,
 ): Promise<ListKeysOutcome> {
+  const filters = filterDigest({});
   let after: string | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
     after = decoded.after;
   }
@@ -97,6 +104,7 @@ export async function listKeys(
           after: last.id,
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 

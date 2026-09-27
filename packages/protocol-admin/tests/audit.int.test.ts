@@ -124,4 +124,38 @@ describe('audit', () => {
     expect(rotated?.detail).toEqual({ secret_hash: { changed: true } });
     expect(JSON.stringify(rotated?.detail ?? {})).not.toContain(secret);
   });
+
+  it('refuses a cursor replayed under a different filter, and pages under the same one', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients', 'view-audit']);
+    for (let i = 0; i < 3; i += 1) {
+      await createClientRequest(token, t.name, {
+        client_id: `filtered-${String(i)}-${newId()}`,
+        redirect_uris: ['https://app.example/cb'],
+        token_endpoint_auth_method: 'none',
+      });
+    }
+
+    const getAudit = (query: string) =>
+      fixture.http.inject({
+        method: 'GET',
+        url: `/admin/tenants/${t.name}/audit${query}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+    const first = await getAudit('?event_type=admin_mutation&limit=1');
+    expect(first.statusCode).toBe(200);
+    const firstBody = first.json<{ items: { id: string }[]; next?: string }>();
+    expect(firstBody.next).toBeDefined();
+    const cursor = encodeURIComponent(firstBody.next ?? '');
+
+    const wrongFilter = await getAudit(`?event_type=token&limit=1&cursor=${cursor}`);
+    expect(wrongFilter.statusCode).toBe(400);
+
+    const sameFilter = await getAudit(`?event_type=admin_mutation&limit=1&cursor=${cursor}`);
+    expect(sameFilter.statusCode).toBe(200);
+    const sameFilterBody = sameFilter.json<{ items: { id: string }[] }>();
+    expect(sameFilterBody.items).toHaveLength(1);
+    expect(sameFilterBody.items[0]?.id).not.toBe(firstBody.items[0]?.id);
+  });
 });
