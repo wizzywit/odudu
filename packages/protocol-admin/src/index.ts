@@ -19,6 +19,7 @@ import { type Audit as RoleAudit } from '#/usecase/roles';
 import { type Audit as ScopeAudit } from '#/usecase/scopes';
 import { type Audit as ScopeMapperAudit, type MapperCatalogue } from '#/usecase/scope-mappers';
 import { type Audit as SettingsAudit } from '#/usecase/settings';
+import { type Audit as TenantExportAudit } from '#/usecase/tenant-export';
 import { type Audit as SmtpAudit } from '#/usecase/smtp';
 import { type Audit as AccountRecoveryAudit } from '#/usecase/account-recovery';
 import { type Audit as ConsentAudit } from '#/usecase/consents';
@@ -130,6 +131,7 @@ import {
   getSettingsHandler,
   type SettingsRouteDeps,
 } from '#/view/routes/settings';
+import { exportTenantHandler, type TenantExportRouteDeps } from '#/view/routes/tenant-export';
 import {
   amendProfileHandler,
   amendSubjectHandler,
@@ -282,6 +284,7 @@ function buildAdminRoutes(
     const scopeMapperAudit: ScopeMapperAudit = recordAudit;
     const smtpAudit: SmtpAudit = recordAudit;
     const settingsAudit: SettingsAudit = recordAudit;
+    const tenantExportAudit: TenantExportAudit = recordAudit;
     // Same call `authzDeps.effectiveRoles` makes below, scoped to whichever
     // tenant the caller's own token was issued from — never the target
     // tenant a cross-tenant system admin is reaching into. Shared by
@@ -353,6 +356,11 @@ function buildAdminRoutes(
       cursorKey: deps.cursorKey,
       kek: deps.kek,
       audit: tenantAudit,
+    };
+    const tenantExportDeps: TenantExportRouteDeps = {
+      database: deps.database.db,
+      audit: tenantExportAudit,
+      callerCapabilities,
     };
     const settingsDeps: SettingsRouteDeps = {
       database: deps.database.db,
@@ -436,6 +444,7 @@ function buildAdminRoutes(
       'POST /admin/tenants': createTenantHandler(tenantsDeps),
       'GET /admin/tenants/:tenant': readTenantHandler(tenantsDeps),
       'PATCH /admin/tenants/:tenant': amendTenantHandler(tenantsDeps),
+      'GET /admin/tenants/:tenant/export': exportTenantHandler(tenantExportDeps),
       'GET /admin/tenants/:tenant/settings': getSettingsHandler(settingsDeps),
       'PATCH /admin/tenants/:tenant/settings': amendSettingsHandler(settingsDeps),
       'GET /admin/tenants/:tenant/clients': listClientsHandler(clientsDeps),

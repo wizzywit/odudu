@@ -112,7 +112,11 @@ function operationFor(route: AdminRoute): OpenApiOperation {
   const responses: Record<string, OpenApiResponse> = {
     [status]: {
       description: status === '201' ? 'Created' : 'OK',
-      content: { 'application/json': { schema: jsonSchemaFor(route.responseSchema) } },
+      content: {
+        [route.successMediaType ?? 'application/json']: {
+          schema: jsonSchemaFor(route.responseSchema),
+        },
+      },
     },
     '401': PROBLEM_DETAILS_RESPONSE,
   };

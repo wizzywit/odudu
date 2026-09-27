@@ -76,7 +76,7 @@ function targetTenantNameFor(route: AdminRoute, params: AdminRouteParams): strin
 }
 
 // A refusal is sent whether or not its row could be written.
-async function recordRefusal(
+export async function recordRefusal(
   database: Database,
   request: FastifyRequest,
   tenantId: string,

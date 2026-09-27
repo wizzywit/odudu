@@ -119,7 +119,9 @@ id, secret and timestamp are later than the rest of this section's.
 `PATCH /subjects/:id`, were recaptured after one more rebuild that applied
 `0077_username_editable.sql`, as a new admin subject `ada-rename` in the
 system tenant, in tenants `settings-demo` and `rename-demo` created for
-them, as each section says.
+them, as each section says. `GET /export` was captured after one more
+rebuild, as a new admin subject `ada-export`, in a tenant `export-demo`
+created for it, as that section says.
 
 ## The shape of it
 
@@ -189,6 +191,7 @@ captured before it does not show the line; the ones under
 | `POST`   | `/admin/tenants`                                                 | Create a tenant                           |
 | `GET`    | `/admin/tenants/{tenant}`                                        | Read one tenant                           |
 | `PATCH`  | `/admin/tenants/{tenant}`                                        | Amend one tenant                          |
+| `GET`    | `/admin/tenants/{tenant}/export`                                 | Export a tenant's configuration           |
 | `GET`    | `/admin/tenants/{tenant}/whoami`                                 | Identity probe                            |
 | `GET`    | `/admin/tenants/{tenant}/subjects`                               | List subjects                             |
 | `GET`    | `/admin/tenants/{tenant}/subjects/count`                         | Count subjects                            |
@@ -626,6 +629,158 @@ amendment — is refused and changes nothing:
 
 ```
 {"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0d7ef-0287-7c9d-a24c-9fdbc8b1f5d6"}
+```
+
+## `GET /export`
+
+`GET /admin/tenants/{tenant}/export` requires `manage-tenant` and answers
+the tenant's configuration as one document of media type
+`application/vnd.odudu.tenant+json`, carrying `"version": 1`: its settings,
+its authentication flow, its clients, its roles and their composites, its
+groups and their roles, its scopes with their role mappings, claim mapper
+bindings and client assignments, its registration policy, and its SMTP
+host, port, sender, username and STARTTLS. Every reference inside it is by
+name — a role as its name and the `client_id` it belongs to, `null` for a
+tenant role; a group by its path; a scope by its name; a client by its
+`client_id` — and no row id, tenant id or timestamp appears anywhere, so
+the document means the same thing in whichever tenant it is imported into.
+`registration_allowed`, `verify_email` and `client_registration_policy`
+travel under `registration_policy`; every other tenant setting is under
+`settings`.
+
+No secret is in it: no client secret, SMTP password, password hash, TOTP
+seed, passkey, recovery code or private signing key, and no session,
+consent, grant, registration token or audit row. Each secret a reader would
+expect is named under `omitted` by its JSON path instead —
+`clients[<i>].secret` for each confidential client, `smtp.password` when
+one is set and `subjects[<i>].credentials` for each exported subject that
+has any — so the gap is visible in the file rather than silent.
+
+What a new tenant provisions for itself is marked rather than left out:
+each role on the built-in `odudu-admin` client and each default scope
+(`openid` and the rest) carries `"builtin": true`, so an import can merge
+onto its own copies. The `odudu-admin` client itself is not among
+`clients`, and no scope lists an assignment to it: an import provisions
+its own. A role on it is still referenced as
+`{"name": …, "client": "odudu-admin"}`, because a tenant role may carry the
+same name as a capability, and a reference that dropped the client would
+not tell the two apart.
+
+`?include=subjects` adds `subjects` — each user with a sign-in, its
+profile claims and verification flags, its direct roles, its groups by
+path and its required actions — and additionally requires `view-users`
+(which `manage-users` also reaches), refused with `403` otherwise. Above
+10,000 such subjects it is refused with `413` and
+`"type": "about:blank#export-too-large"`, naming P7, whose inbound
+provisioning is the tool for moving users in bulk; nothing on this stack
+holds that many, so that refusal is not shown here —
+`packages/protocol-admin/tests/tenant-export.int.test.ts` covers it. Any
+other `include` is refused with `400`. Every export writes a
+`tenant.export` row into the tenant's trail whose `detail` says whether
+subjects were included.
+
+Captured against the fourth stack (the note at the top of this document)
+after its `odudu` service was rebuilt from this branch, as a new admin
+subject `ada-export` in the system tenant, in a tenant `export-demo`
+created for it. Before the capture, `export-demo` was given a confidential
+client `billing-app`, a tenant role `billing-reader`, a group `finance`
+holding that role, a subject `grace` who belongs to it, and an SMTP relay
+whose password was `relay-password-shown-nowhere`; then a subject
+`tenant-operator` holding only `manage-tenant`, issued a one-time password
+through `POST /subjects/:id/password` and signed in through the tenant's
+own `odudu-admin` client, whose token is `$OPERATOR_TOKEN` below. The
+trail read near the end lists five exports: two trial calls made before
+this capture, the first export below, an export with subjects run straight
+after it whose output is not shown, and `tenant-operator`'s. The two
+`grep -c` calls and the closing `jq` selection were run after the trail was
+read, so it does not list them.
+
+The export, without subjects:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/export-demo/export
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e4c3-b782-705b-8925-dd23453ed5b5
+cache-control: no-store
+content-type: application/vnd.odudu.tenant+json; charset=utf-8
+content-length: 5408
+Date: Sun, 27 Sep 2026 21:27:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"version":1,"settings":{"display_name":null,"enabled":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":8,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false},"flow":[{"authenticator":"passkey","requirement":"alternative"},{"authenticator":"password","requirement":"alternative"},{"authenticator":"otp","requirement":"conditional"},{"authenticator":"recovery-code","requirement":"conditional"}],"clients":[{"client_id":"billing-app","name":"Billing","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","redirect_uris":["https://billing.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"service_account_roles":[]}],"roles":[{"name":"billing-reader","client":null,"description":null,"default_for_new_subjects":false,"builtin":false,"composites":[]},{"name":"manage-clients","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-keys","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-sessions","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-tenant","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-users","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[{"name":"view-users","client":"odudu-admin"}]},{"name":"tenant-admin","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[{"name":"manage-clients","client":"odudu-admin"},{"name":"manage-keys","client":"odudu-admin"},{"name":"manage-sessions","client":"odudu-admin"},{"name":"manage-tenant","client":"odudu-admin"},{"name":"manage-users","client":"odudu-admin"},{"name":"view-audit","client":"odudu-admin"},{"name":"view-users","client":"odudu-admin"}]},{"name":"view-audit","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"view-users","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]}],"groups":[{"path":"/finance","roles":[{"name":"billing-reader","client":null}]}],"scopes":[{"name":"address","description":null,"include_in_id_token":true,"include_in_access_token":false,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"email","description":null,"include_in_id_token":true,"include_in_access_token":false,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"groups","description":null,"include_in_id_token":false,"include_in_access_token":true,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"offline_access","description":null,"include_in_id_token":false,"include_in_access_token":false,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"optional"}]},{"name":"openid","description":null,"include_in_id_token":true,"include_in_access_token":false,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"phone","description":null,"include_in_id_token":true,"include_in_access_token":false,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"profile","description":null,"include_in_id_token":true,"include_in_access_token":false,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"roles","description":null,"include_in_id_token":false,"include_in_access_token":true,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]}],"registration_policy":{"registration_allowed":false,"verify_email":false,"client_registration_policy":"disabled"},"smtp":{"host":"smtp.gmail.com","port":587,"from_address":"noreply@example.com","username":"mailer","starttls":true},"omitted":["clients[0].secret","smtp.password"]}
+```
+
+The SMTP password appears nowhere in it, nor in the export with subjects:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/export-demo/export | grep -c relay-password-shown-nowhere
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/export-demo/export?include=subjects" | grep -c relay-password-shown-nowhere
+```
+
+```
+0
+0
+```
+
+`tenant-operator` holds `manage-tenant` and nothing else, as `whoami`
+shows, so `?include=subjects` is refused and the export without it is not:
+
+```bash
+curl -sS -H "Authorization: Bearer $OPERATOR_TOKEN" \
+  http://localhost:3000/admin/tenants/export-demo/whoami
+curl -sS -H "Authorization: Bearer $OPERATOR_TOKEN" \
+  "http://localhost:3000/admin/tenants/export-demo/export?include=subjects"
+curl -sS -o /dev/null -w '%{http_code} %{content_type}\n' \
+  -H "Authorization: Bearer $OPERATOR_TOKEN" \
+  http://localhost:3000/admin/tenants/export-demo/export
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/export-demo/export?include=sessions"
+```
+
+```
+{"subjectId":"01a0e4c3-4083-7293-8831-26a05de70216","issuerTenantId":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","capabilities":["manage-tenant"],"crossTenant":false}
+{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0e4c3-b7f6-765f-9ad6-f77e02f7f1e5"}
+200 application/vnd.odudu.tenant+json; charset=utf-8
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/include must be equal to constant","instance":"01a0e4c3-b828-76de-8fc9-a064ceb6e5be"}
+```
+
+The trail, first the exports and then the refusal, which names the
+capability that was missing:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/export-demo/audit?action=tenant.export"
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/export-demo/audit?action=capability.refused"
+```
+
+```
+{"items":[{"id":"01a0e4c3-b81b-7364-a840-507b8f77fada","occurred_at":"2026-09-27T21:27:07.028Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","actor_subject_id":"01a0e4c3-4083-7293-8831-26a05de70216","actor_client_id":"01a0e4c2-de61-7157-af81-7cd142b62099","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e4c3-b80c-7d51-a22f-66588618fb81","ip":"172.20.0.1","detail":{"include_subjects":false}},{"id":"01a0e4c3-b7d1-7c2a-a899-e7f2e76b40c2","occurred_at":"2026-09-27T21:27:06.946Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e4c2-b3c4-71dd-9d83-aa36e12b3d85","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e4c3-b7b6-767f-bb8a-e7c6a3f82444","ip":"172.20.0.1","detail":{"include_subjects":true}},{"id":"01a0e4c3-b7a7-7025-be1b-ad62e3f51cc9","occurred_at":"2026-09-27T21:27:06.904Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e4c2-b3c4-71dd-9d83-aa36e12b3d85","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e4c3-b782-705b-8925-dd23453ed5b5","ip":"172.20.0.1","detail":{"include_subjects":false}},{"id":"01a0e4c3-1b87-7d6f-8015-24298824356a","occurred_at":"2026-09-27T21:26:26.936Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e4c2-b3c4-71dd-9d83-aa36e12b3d85","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e4c3-1b6d-7044-8f67-6b61b081421c","ip":"172.20.0.1","detail":{"include_subjects":true}},{"id":"01a0e4c3-1b61-7168-946e-50f28ea158ff","occurred_at":"2026-09-27T21:26:26.900Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e4c2-b3c4-71dd-9d83-aa36e12b3d85","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e4c3-1b45-799e-a1b7-013f564685e9","ip":"172.20.0.1","detail":{"include_subjects":false}}]}
+{"items":[{"id":"01a0e4c3-b801-7f33-822b-035ee9140fbb","occurred_at":"2026-09-27T21:27:07.009Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","actor_subject_id":"01a0e4c3-4083-7293-8831-26a05de70216","actor_client_id":"01a0e4c2-de61-7157-af81-7cd142b62099","resource_type":null,"resource_id":null,"request_id":"01a0e4c3-b7f6-765f-9ad6-f77e02f7f1e5","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
+```
+
+The subjects and `omitted` of the export with subjects, selected with
+`jq` — `grace` has no credential yet, and `tenant-operator`'s password is
+named rather than carried:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/export-demo/export?include=subjects" \
+  | jq -c '.subjects[], .omitted'
+```
+
+```
+{"username":"grace","email":"grace@example.com","enabled":true,"profile":{"name":null,"given_name":null,"family_name":null,"middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null},"roles":[],"groups":["/finance"],"required_actions":["update-password"]}
+{"username":"tenant-operator","email":null,"enabled":true,"profile":{"name":null,"given_name":null,"family_name":null,"middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null},"roles":[{"name":"manage-tenant","client":"odudu-admin"}],"groups":[],"required_actions":[]}
+["clients[0].secret","smtp.password","subjects[1].credentials"]
 ```
 
 ## `GET /settings` and `PATCH /settings`

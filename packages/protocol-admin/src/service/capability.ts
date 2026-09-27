@@ -81,6 +81,9 @@ import {
   tenantSchema,
   whoamiResponseSchema,
   countResponseSchema,
+  exportTenantQuerySchema,
+  TENANT_DOCUMENT_MEDIA_TYPE,
+  tenantDocumentSchema,
 } from '@odudu/contracts/admin';
 import { MANAGE_TENANTS, type TenantCapability } from '@odudu/domain-tenant';
 import { z } from 'zod';
@@ -102,6 +105,10 @@ export interface AdminRoute {
   // The status a successful response carries — omitted, it is 200. Only a
   // route whose success is something else (a create's 201) sets it.
   readonly successStatus?: number;
+  // The media type of a successful response — omitted, it is
+  // application/json. Only a route answering a document of its own kind
+  // sets it.
+  readonly successMediaType?: string;
   // Fastify's ajv compiler (installAdminValidator) validates and coerces
   // against these when present, so a handler reads an already-shaped
   // request rather than parsing the wire format itself — the one authority
@@ -388,6 +395,19 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Amends display_name and enabled. `name` is refused with 400: it is already in the ' +
       'issuer URL of every token this tenant has minted. Disabling the system tenant is ' +
       'refused with 409, since every cross-tenant administrator authenticates against it.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/export',
+    capability: 'manage-tenant',
+    responseSchema: tenantDocumentSchema,
+    successMediaType: TENANT_DOCUMENT_MEDIA_TYPE,
+    querystringSchema: exportTenantQuerySchema,
+    description:
+      'The tenant\u2019s configuration, every reference by name, with no secret in it: each ' +
+      'secret a reader would expect is named under `omitted` by its JSON path. ' +
+      '`?include=subjects` adds subjects and additionally requires `view-users`, refused ' +
+      'with `403` otherwise and with `413` above 10,000 subjects.',
   },
   {
     method: 'GET',

@@ -27,15 +27,21 @@ describe('buildAdminOpenApiDocument', () => {
     }
   });
 
-  it('still documents a successful response as application/json', () => {
+  it('documents a successful response as application/json unless the route names its own type', () => {
     const document = buildAdminOpenApiDocument();
     for (const route of ADMIN_ROUTES) {
       const path = route.pattern.replace(/:(\w+)/gu, '{$1}');
       const status = String(route.successStatus ?? 200);
       const response = document.paths[path]?.[route.method.toLowerCase()]?.responses[status];
-      expect(response?.content, `${route.method} ${path} ${status}`).toHaveProperty(
-        'application/json',
-      );
+      expect(response?.content, `${route.method} ${path} ${status}`).toHaveProperty([
+        route.successMediaType ?? 'application/json',
+      ]);
     }
+  });
+
+  it('documents the tenant export as its own media type', () => {
+    const response =
+      buildAdminOpenApiDocument().paths['/admin/tenants/{tenant}/export']?.get?.responses['200'];
+    expect(Object.keys(response?.content ?? {})).toEqual(['application/vnd.odudu.tenant+json']);
   });
 });

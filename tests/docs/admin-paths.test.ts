@@ -26,12 +26,13 @@ const DENIED_BY_THE_DOCUMENT = ['view-clients', 'view-sessions'];
 // callers construct. Written out rather than read from those call sites,
 // deliberately: a check that derives its expectation from the code it checks
 // agrees by construction and can no longer fail. Extending this by hand when
-// a fifth type is added is the point, not an omission to tidy away.
+// another type is added is the point, not an omission to tidy away.
 const EMITTABLE_PROBLEM_TYPES = new Set([
   'about:blank',
   'about:blank#unauthorized',
   'about:blank#forbidden',
   'about:blank#not-found',
+  'about:blank#export-too-large',
 ]);
 
 const CAPABILITY_SHAPED = /^(?:view|manage)-[a-z]+(?:-[a-z]+)*$/u;
