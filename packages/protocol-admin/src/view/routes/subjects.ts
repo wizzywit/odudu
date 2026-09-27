@@ -4,6 +4,8 @@ import {
   listSubjectsQuerySchema,
   setRequiredActionsRequestSchema,
   setRolesRequestSchema,
+  setSubjectGroupsRequestSchema,
+  type SetSubjectGroupsResponse,
   type SetRequiredActionsResponse,
   type SetRolesResponse,
   type Subject,
@@ -23,14 +25,17 @@ import {
   listSubjects,
   readRequiredActions,
   readSubject,
+  readSubjectGroups,
   readSubjectRoles,
   setRequiredActions,
   setRoles,
+  setSubjectGroups,
   subjectWireShape,
   type AmendSubjectOutcome,
   type Audit,
   type SubjectView,
 } from '#/usecase/subjects';
+import { groupWireShape } from '#/usecase/groups';
 import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
@@ -505,6 +510,101 @@ export function setRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
       case 'ok': {
         reply.header('etag', outcome.etag);
         const wire: SetRolesResponse = { items: [...outcome.roles] };
+        return reply.code(200).send(wire);
+      }
+    }
+  };
+}
+
+export function readSubjectGroupsHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET groups route received no :id');
+    }
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      readSubjectGroups(tx, id),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(
+        reply,
+        request,
+        problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+      );
+    }
+
+    reply.header('etag', outcome.etag);
+    const wire: SetSubjectGroupsResponse = { items: outcome.groups.map(groupWireShape) };
+    return reply.code(200).send(wire);
+  };
+}
+
+export function setSubjectGroupsHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: PUT groups route received no :id');
+    }
+    const body = setSubjectGroupsRequestSchema.parse(request.body);
+
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      setSubjectGroups(
+        tx,
+        { audit: deps.audit },
+        {
+          subjectId: id,
+          groupIds: body.group_ids,
+          callerCapabilities,
+          ifMatch: ifMatchHeader(request),
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+        );
+      case 'unknown_group':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            400,
+            'about:blank',
+            'Bad Request',
+            `unknown group id(s): ${outcome.groupIds.join(', ')}`,
+          ),
+        );
+      case 'capability_ceiling':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            403,
+            'about:blank',
+            'Forbidden',
+            `the caller does not hold: ${outcome.requested.join(', ')}`,
+          ),
+        );
+      case 'precondition_required':
+        return sendProblem(reply, request, ifMatchRequired('a subject\u2019s groups'));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
+      case 'ok': {
+        reply.header('etag', outcome.etag);
+        const wire: SetSubjectGroupsResponse = { items: outcome.groups.map(groupWireShape) };
         return reply.code(200).send(wire);
       }
     }

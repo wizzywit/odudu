@@ -1,7 +1,14 @@
 import { requiredActionRepository, type RequiredAction } from '@odudu/authn-flows';
 import { type Credential, type ListSubjectsQuery, type Subject } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { roleRepository, roles, subjectGroups, subjectRoles } from '@odudu/domain-authz';
+import {
+  groupRepository,
+  roleRepository,
+  roles,
+  subjectGroups,
+  subjectRoles,
+  type GroupRecord,
+} from '@odudu/domain-authz';
 import {
   credentialRepository,
   isEmailAddress,
@@ -18,7 +25,12 @@ import { tenantSettingsRepository } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, isNotNull, isNull, ne, sql, type SQL } from 'drizzle-orm';
 import { type SelectedFields } from 'drizzle-orm/pg-core';
-import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
+import { redactedDiff } from '#/service/audit-detail';
+import {
+  capabilitiesOfGroupsAndAncestors,
+  capabilitiesReachableFrom,
+  overreach,
+} from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SUBJECT_FIELDS, refusalFor } from '#/service/subjects-patch';
@@ -76,7 +88,8 @@ export interface SubjectAuditEvent {
     | 'subject.delete'
     | 'subject.credential_delete'
     | 'subject.required_actions_set'
-    | 'subject.roles_set';
+    | 'subject.roles_set'
+    | 'subject.groups_set';
   readonly resourceType: 'subject';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -912,4 +925,112 @@ export async function setRoles(
 
   const assigned = await assignedRoles(tx, input.subjectId);
   return { kind: 'ok', roles: assigned, etag: etagOf({ items: assigned }) };
+}
+
+export interface SetSubjectGroupsInput {
+  readonly subjectId: string;
+  readonly groupIds: readonly string[];
+  /** See `SetRolesInput.callerCapabilities` — the same ceiling. */
+  readonly callerCapabilities: ReadonlySet<string>;
+  readonly ifMatch: string | undefined;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export type SetSubjectGroupsOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'unknown_group'; groupIds: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'precondition_required' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; groups: readonly GroupRecord[]; etag: string };
+
+export type ReadSubjectGroupsOutcome =
+  { kind: 'not_found' } | { kind: 'ok'; groups: readonly GroupRecord[]; etag: string };
+
+function subjectGroupsEtag(memberships: readonly GroupRecord[]): string {
+  return etagOf({ items: memberships.map((group) => group.id) });
+}
+
+export async function readSubjectGroups(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+): Promise<ReadSubjectGroupsOutcome> {
+  const subject = await subjectRepository(tx).byId(subjectId);
+  if (subject === null) return { kind: 'not_found' };
+  const memberships = await groupRepository(tx).groupsOfSubject(subjectId);
+  return { kind: 'ok', groups: memberships, etag: subjectGroupsEtag(memberships) };
+}
+
+// The capability ceiling (CWE-269) over membership rather than assignment:
+// joining a group grants every role mapped to it or its ancestors, so the
+// whole resulting set is measured the way `effectiveRoles` would resolve it
+// and compared against the caller's own — the same rule `setRoles` applies.
+export async function setSubjectGroups(
+  tx: TenantScopedDatabase,
+  deps: SetRolesDeps,
+  input: SetSubjectGroupsInput,
+): Promise<SetSubjectGroupsOutcome> {
+  // Locked for the same reason `setRoles` locks it: the delete-then-insert
+  // below is serialised against a concurrent replacement.
+  const subjectRows = await tx
+    .select({ id: subjects.id })
+    .from(subjects)
+    .where(eq(subjects.id, input.subjectId))
+    .for('update');
+  if (subjectRows.length === 0) return { kind: 'not_found' };
+
+  const current = await groupRepository(tx).groupsOfSubject(input.subjectId);
+  const precondition = requiredPrecondition(input.ifMatch, subjectGroupsEtag(current));
+  if (precondition !== 'ok') {
+    return precondition === 'required'
+      ? { kind: 'precondition_required' }
+      : { kind: 'precondition_failed' };
+  }
+
+  const uniqueGroupIds = [...new Set(input.groupIds)];
+  const repository = groupRepository(tx);
+  const missing: string[] = [];
+  for (const groupId of uniqueGroupIds) {
+    // `groups.id` is a `uuid` column; a non-uuid id is missing, not a 500.
+    if (!isUuid(groupId) || (await repository.byId(groupId)) === null) missing.push(groupId);
+  }
+  if (missing.length > 0) return { kind: 'unknown_group', groupIds: missing };
+
+  const requestedCapabilities = await capabilitiesOfGroupsAndAncestors(tx, uniqueGroupIds);
+  const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'subject.groups_set',
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
+    return { kind: 'capability_ceiling', requested: denied };
+  }
+
+  await repository.setSubjectGroups(input.subjectId, uniqueGroupIds);
+  const updated = await repository.groupsOfSubject(input.subjectId);
+
+  await deps.audit(tx, {
+    action: 'subject.groups_set',
+    resourceType: 'subject',
+    resourceId: input.subjectId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: redactedDiff(
+      'subject',
+      { group_ids: current.map((group) => group.id) },
+      { group_ids: updated.map((group) => group.id) },
+    ),
+  });
+
+  return { kind: 'ok', groups: updated, etag: subjectGroupsEtag(updated) };
 }

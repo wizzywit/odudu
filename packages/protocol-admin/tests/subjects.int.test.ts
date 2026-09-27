@@ -28,6 +28,7 @@ import {
   deleteSubject,
   setRequiredActions,
   setRoles,
+  setSubjectGroups,
   type SubjectAuditEvent,
 } from '#/usecase/subjects';
 
@@ -1474,5 +1475,304 @@ describe('audit', () => {
     // An attempted privilege escalation is the one refusal this phase
     // records, so the row is the assertion rather than its absence.
     expect(refused.events.map((event) => event.outcome)).toEqual(['refused']);
+  });
+});
+
+async function createGroupMapped(
+  tenantId: string,
+  roleIds: readonly string[],
+  parentId: string | null = null,
+): Promise<string> {
+  return withTenant(fixture.app.db, tenantId, async (tx) => {
+    const group = await groupRepository(tx).create({ tenantId, name: `g-${newId()}`, parentId });
+    for (const roleId of roleIds) await groupRepository(tx).mapRole(group.id, roleId);
+    return group.id;
+  });
+}
+
+function getGroups(
+  tenantName: string,
+  subjectId: string,
+  token: string,
+): Promise<LightMyRequestResponse> {
+  return fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants/${tenantName}/subjects/${subjectId}/groups`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+function putGroups(
+  tenantName: string,
+  subjectId: string,
+  token: string,
+  groupIds: string[],
+  ifMatch: string | null = '*',
+): Promise<LightMyRequestResponse> {
+  return fixture.http.inject({
+    method: 'PUT',
+    url: `/admin/tenants/${tenantName}/subjects/${subjectId}/groups`,
+    headers: {
+      ...(ifMatch === null ? {} : { 'if-match': ifMatch }),
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
+    payload: { group_ids: groupIds },
+  });
+}
+
+function groupIdsOf(res: LightMyRequestResponse): string[] {
+  return res.json<{ items: { id: string }[] }>().items.map((group) => group.id);
+}
+
+describe('GET|PUT /admin/tenants/{t}/subjects/{id}/groups', () => {
+  it('replaces the membership set and reads it back under an ETag', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const a = await createGroupMapped(t.id, []);
+    const b = await createGroupMapped(t.id, []);
+
+    const empty = await getGroups(t.name, targetId, token);
+    expect(empty.statusCode).toBe(200);
+    expect(groupIdsOf(empty)).toEqual([]);
+    const emptyEtag = empty.headers.etag;
+    expect(typeof emptyEtag).toBe('string');
+
+    const first = await putGroups(t.name, targetId, token, [a, b], String(emptyEtag));
+    expect(first.statusCode).toBe(200);
+    expect(groupIdsOf(first)).toEqual([a, b].sort());
+    expect(first.json<{ items: { path: string }[] }>().items[0]?.path).toMatch(/^\/g-/);
+
+    const read = await getGroups(t.name, targetId, token);
+    expect(groupIdsOf(read)).toEqual([a, b].sort());
+    expect(read.headers.etag).toBe(first.headers.etag);
+
+    const second = await putGroups(t.name, targetId, token, [b], String(read.headers.etag));
+    expect(second.statusCode).toBe(200);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([b]);
+  });
+
+  it('answers 428 without If-Match and 412 for a stale one, and writes nothing', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const a = await createGroupMapped(t.id, []);
+    const staleEtag = String((await getGroups(t.name, targetId, token)).headers.etag);
+    expect((await putGroups(t.name, targetId, token, [a])).statusCode).toBe(200);
+
+    expect((await putGroups(t.name, targetId, token, [], null)).statusCode).toBe(428);
+    expect((await putGroups(t.name, targetId, token, [], staleEtag)).statusCode).toBe(412);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([a]);
+  });
+
+  it('400s an unknown group id, and one that is not an id at all', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const a = await createGroupMapped(t.id, []);
+    const missing = newId();
+
+    const unknown = await putGroups(t.name, targetId, token, [a, missing]);
+    expect(unknown.statusCode).toBe(400);
+    expect(unknown.body).toContain(missing);
+    expect((await putGroups(t.name, targetId, token, ['not-a-uuid'])).statusCode).toBe(400);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([]);
+  });
+
+  it('400s a group that belongs to another tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`other-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const foreign = await createGroupMapped(other.id, []);
+
+    expect((await putGroups(t.name, targetId, token, [foreign])).statusCode).toBe(400);
+  });
+
+  it('404s a subject no one holds', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    expect((await getGroups(t.name, newId(), token)).statusCode).toBe(404);
+    expect((await putGroups(t.name, newId(), token, [])).statusCode).toBe(404);
+  });
+
+  it('is read by view-users, and refuses view-users a replacement', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    expect((await getGroups(t.name, targetId, token)).statusCode).toBe(200);
+    expect((await putGroups(t.name, targetId, token, [])).statusCode).toBe(403);
+  });
+
+  it('reaches the groups claim of the subject’s next token', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {
+      grantTypes: ['client_credentials'],
+    });
+    const serviceSubjectId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const record = await clientRepository(tx).byClientId(client.clientId);
+      return record?.serviceSubjectId ?? null;
+    });
+    if (serviceSubjectId === null) throw new Error('fixture: client has no service subject');
+    const patched = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${client.id}`,
+      headers: {
+        authorization: `Bearer ${await fixture.adminToken(t.name, ['manage-clients'])}`,
+        'content-type': 'application/json',
+        'if-match': '*',
+      },
+      payload: { client_credentials_scopes: ['groups'] },
+    });
+    expect(patched.statusCode).toBe(200);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const groupId = await createGroupMapped(t.id, []);
+    const path = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const group = await groupRepository(tx).byId(groupId);
+      return group?.path;
+    });
+
+    const claimOf = async (): Promise<unknown> => {
+      const res = await fixture.tokenRequest(t.name, client, {
+        grant_type: 'client_credentials',
+        scope: 'groups',
+      });
+      expect(res.statusCode).toBe(200);
+      const accessToken = res.json<{ access_token: string }>().access_token;
+      const payload: unknown = JSON.parse(
+        Buffer.from(accessToken.split('.')[1] ?? '', 'base64url').toString('utf8'),
+      );
+      return (payload as Record<string, unknown>).groups;
+    };
+
+    expect(await claimOf()).toBeUndefined();
+    expect((await putGroups(t.name, serviceSubjectId, token, [groupId])).statusCode).toBe(200);
+    expect(await claimOf()).toEqual([path]);
+  });
+});
+
+// The ceiling looks at the whole resulting membership set, not only the
+// groups being added — the same rule `PUT .../roles` applies to a role set.
+describe('PUT /admin/tenants/{t}/subjects/{id}/groups — the capability ceiling', () => {
+  it('refuses a manage-users-only caller joining a group mapped to tenant-admin, with a refused audit row, and leaves the membership unchanged', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users', 'view-audit']);
+    const adminGroup = await createGroupMapped(t.id, [await capabilityRoleId(t.id, TENANT_ADMIN)]);
+
+    const res = await putGroups(t.name, targetId, token, [adminGroup]);
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toContain(TENANT_ADMIN);
+
+    const audit = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const rows = audit
+      .json<{ items: { action: string; outcome: string; resource_id: string }[] }>()
+      .items.filter((item) => item.action === 'subject.groups_set');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ outcome: 'refused', resource_id: targetId });
+
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([]);
+  });
+
+  it('refuses a group that inherits tenant-admin from an ancestor', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const parent = await createGroupMapped(t.id, [await capabilityRoleId(t.id, TENANT_ADMIN)]);
+    const child = await createGroupMapped(t.id, [], parent);
+
+    expect((await putGroups(t.name, targetId, token, [child])).statusCode).toBe(403);
+  });
+
+  it('refuses a group whose role nests tenant-admin through a composite', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const nesting = await createGroupMapped(t.id, [await roleNestingTenantAdmin(t.id)]);
+
+    expect((await putGroups(t.name, targetId, token, [nesting])).statusCode).toBe(403);
+  });
+
+  it('refuses a set that keeps a membership the caller could not grant, and allows removing it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const adminGroup = await createGroupMapped(t.id, [await capabilityRoleId(t.id, TENANT_ADMIN)]);
+    const plain = await createGroupMapped(t.id, []);
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      groupRepository(tx).addToSubject(targetId, adminGroup),
+    );
+
+    expect((await putGroups(t.name, targetId, token, [adminGroup, plain])).statusCode).toBe(403);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([adminGroup]);
+
+    expect((await putGroups(t.name, targetId, token, [plain])).statusCode).toBe(200);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([plain]);
+  });
+
+  it('lets a tenant-admin holder join a group mapped to tenant-admin', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+    const adminGroup = await createGroupMapped(t.id, [await capabilityRoleId(t.id, TENANT_ADMIN)]);
+
+    expect((await putGroups(t.name, targetId, token, [adminGroup])).statusCode).toBe(200);
+  });
+
+  it('refuses joining a group mapped to manage-tenants in the system tenant', async () => {
+    const { id: targetId } = await fixture.createSubject(SYSTEM_TENANT_NAME, `target-${newId()}`);
+    const token = await fixture.systemAdminToken(['manage-users']);
+    const group = await createGroupMapped(fixture.systemTenantId, [
+      await capabilityRoleId(fixture.systemTenantId, MANAGE_TENANTS),
+    ]);
+
+    expect((await putGroups(SYSTEM_TENANT_NAME, targetId, token, [group])).statusCode).toBe(403);
+  });
+});
+
+describe('setSubjectGroups audit', () => {
+  it('calls audit exactly once on a replacement, and records a refusal on the ceiling', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `groups-${newId()}`);
+    const plain = await createGroupMapped(t.id, []);
+    const adminGroup = await createGroupMapped(t.id, [await capabilityRoleId(t.id, TENANT_ADMIN)]);
+    const actor = {
+      ifMatch: '*',
+      actorSubjectId: 'test',
+      actorTenantId: 'test-tenant',
+      actorClientId: 'test-client',
+      callerCapabilities: new Set(['manage-users']),
+    };
+
+    const ok: SubjectAuditEvent[] = [];
+    const set = await withTenant(fixture.app.db, t.id, (tx) =>
+      setSubjectGroups(
+        tx,
+        { audit: (_tx, event) => Promise.resolve(ok.push(event)).then(() => undefined) },
+        { ...actor, subjectId: id, groupIds: [plain] },
+      ),
+    );
+    expect(set.kind).toBe('ok');
+    expect(ok.map((event) => [event.action, event.outcome])).toEqual([
+      ['subject.groups_set', 'allowed'],
+    ]);
+    expect(ok[0]?.detail).toEqual({ group_ids: { before: [], after: [plain] } });
+
+    const refused: SubjectAuditEvent[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      setSubjectGroups(
+        tx,
+        { audit: (_tx, event) => Promise.resolve(refused.push(event)).then(() => undefined) },
+        { ...actor, subjectId: id, groupIds: [adminGroup] },
+      ),
+    );
+    expect(outcome.kind).toBe('capability_ceiling');
+    expect(refused.map((event) => event.outcome)).toEqual(['refused']);
   });
 });

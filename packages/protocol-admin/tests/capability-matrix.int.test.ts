@@ -47,6 +47,7 @@ const SAMPLE_BODIES: Readonly<Partial<Record<string, unknown>>> = {
   'POST /admin/tenants/:tenant/subjects': { username: 'sample' },
   'PUT /admin/tenants/:tenant/subjects/:id/required-actions': { actions: [] },
   'PUT /admin/tenants/:tenant/subjects/:id/roles': { role_ids: [] },
+  'PUT /admin/tenants/:tenant/subjects/:id/groups': { group_ids: [] },
   'POST /admin/tenants': { name: `sample-${newId()}` },
   'POST /admin/tenants/:tenant/clients': { client_id: `sample-${newId()}` },
   'POST /admin/tenants/:tenant/roles': { name: 'sample' },

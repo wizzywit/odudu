@@ -74,7 +74,9 @@ rebuilt from this branch; the searches under `GET /admin/tenants` and
 applied `0075`, against roles and groups created in `demo` for them
 through the endpoints below, as each of those sections shows. The counts
 under `GET /admin/tenants/count` were captured against it after a further
-rebuild, as that section says.
+rebuild, as that section says. The memberships under `GET /subjects/:id/groups` were captured
+against it after one more rebuild, in a tenant of their own, as that
+section says.
 
 ## The shape of it
 
@@ -143,6 +145,8 @@ shape of what it is filling.
 | `PUT`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Set a subject's required actions          |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Read a subject's roles                    |
 | `PUT`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Replace a subject's roles                 |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/groups`                    | Read a subject's groups                   |
+| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/groups`                    | Replace a subject's groups                |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/sessions`                  | List a subject's live sessions            |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/sessions/:sid`             | End one session                           |
 | `GET`    | `/admin/tenants/{tenant}/settings`                               | Read a tenant's settings                  |
@@ -1672,6 +1676,168 @@ hashes to `"eef46741…"` whichever subject, group or scope it belongs to —
 the three sections that follow show the same value — so a tag is not an
 identifier and carries no authority to write anywhere. It still does its
 one job: a write only lands when the list is what its holder last read.
+
+## `GET /subjects/:id/groups` and `PUT /subjects/:id/groups`
+
+The read requires `view-users`; the write requires `manage-users`. Both
+answer the groups the subject **directly** belongs to — the same set the
+`groups` claim of its next token carries
+([ADR 0022](adr/0022-group-claims-carry-direct-memberships.md)) — and the
+write replaces that set wholesale: a group left out is one the subject
+leaves. An unknown group id, or one from another tenant, answers `400`
+naming it.
+
+**Joining a group is granting its roles**, and its ancestors' too, since
+role resolution walks up the tree. So the write carries the same
+capability ceiling `PUT /subjects/:id/roles` does: every role mapped to a
+requested group or any of its ancestors, expanded through
+`role_composites`, is compared with the caller's own capabilities, and a
+set reaching past them is refused with `403`, leaves the membership
+unchanged, and writes a `refused` row to the audit trail. The ceiling is
+measured over the whole resulting set, as it is for roles — a caller
+cannot resubmit a membership it could not itself have granted, and a
+removal lands only when what remains is within its reach.
+
+**`If-Match` is mandatory here, not optional**, for the reason it is on
+`PUT /subjects/:id/roles`: absent, `428`; stale, `412`. The tag is over
+the list of group ids, so an empty membership answers the same
+`"eef46741…"` every empty list here does.
+
+Captured against the fourth stack after a rebuild from this branch, in a
+tenant `groups-demo` created through `POST /admin/tenants` for it. There,
+`platform-admins` is mapped to `tenant-admin` through
+`PUT /groups/:id/roles`, `oncall` is its child with no role of its own,
+`support` has none either, and `lin` is a subject created through
+`POST /subjects`. `$HELPDESK_TOKEN` belongs to `helpdesk`, a user of that
+tenant created with `seed user` and granted `manage-users` alone through
+`PUT /subjects/:id/roles`; `$ADMIN_TOKEN` is `ada-whoami`'s. The refusal
+below turns on two facts, shown first — what `helpdesk` holds, and that
+`oncall` carries nothing itself while its parent carries `tenant-admin`:
+
+```bash
+curl -sS -H "Authorization: Bearer $HELPDESK_TOKEN" \
+  http://localhost:3000/admin/tenants/groups-demo/whoami
+
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/groups-demo/groups/01a0e1e2-e2e0-7809-8ac4-debf2d93bc4e/roles
+
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/groups-demo/groups/01a0e1e2-c43e-7bd8-bd89-bdd9b8a88245/roles
+```
+
+```
+{"subjectId":"01a0e1e2-5d2c-7676-8177-2fb711b0eac0","issuerTenantId":"01a0e1e2-208f-7b7e-a30f-a2ce461cd164","capabilities":["manage-users","view-users"],"crossTenant":false}
+{"items":[]}
+{"items":[{"id":"01a0e1e2-20a3-743d-823b-1e7f502ce11b","name":"tenant-admin"}]}
+```
+
+The read, then a write with no `If-Match`, then `helpdesk` putting `lin`
+in `oncall`:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $HELPDESK_TOKEN" \
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1e2-c46a-789f-835c-e9a01973a630/groups
+
+curl -sS -D - -X PUT \
+  -H "Authorization: Bearer $HELPDESK_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"group_ids": ["01a0e1e2-c454-7927-aedb-05021d226885"]}' \
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1e2-c46a-789f-835c-e9a01973a630/groups
+
+curl -sS -D - -X PUT \
+  -H "Authorization: Bearer $HELPDESK_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
+  -d '{"group_ids": ["01a0e1e2-e2e0-7809-8ac4-debf2d93bc4e"]}' \
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1e2-c46a-789f-835c-e9a01973a630/groups
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e1e3-2018-7255-89c1-a0168da9cb33
+etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
+content-type: application/json; charset=utf-8
+content-length: 12
+
+{"items":[]}
+
+HTTP/1.1 428 Precondition Required
+x-request-id: 01a0e1e3-202b-7852-a6c6-956a10c252b4
+content-type: application/problem+json; charset=utf-8
+content-length: 181
+
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a subject’s groups","instance":"01a0e1e3-202b-7852-a6c6-956a10c252b4"}
+
+HTTP/1.1 403 Forbidden
+x-request-id: 01a0e1e3-2043-7afc-894d-1f7901667fc0
+content-type: application/problem+json; charset=utf-8
+content-length: 228
+
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0e1e3-2043-7afc-894d-1f7901667fc0"}
+```
+
+`oncall` names no role, and is refused for everything `tenant-admin`
+composites that `helpdesk` does not hold — reached through its parent.
+The membership is still empty, under the same tag, so the same `If-Match`
+then puts `lin` in `support`, and replaying it once that has landed is
+stale:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $HELPDESK_TOKEN" \
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1e2-c46a-789f-835c-e9a01973a630/groups
+
+curl -sS -D - -X PUT \
+  -H "Authorization: Bearer $HELPDESK_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
+  -d '{"group_ids": ["01a0e1e2-c454-7927-aedb-05021d226885"]}' \
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1e2-c46a-789f-835c-e9a01973a630/groups
+
+curl -sS -D - -X PUT \
+  -H "Authorization: Bearer $HELPDESK_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
+  -d '{"group_ids": []}' \
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1e2-c46a-789f-835c-e9a01973a630/groups
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e1e3-205c-758f-a16c-fb2530c30ab5
+etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
+content-type: application/json; charset=utf-8
+content-length: 12
+
+{"items":[]}
+
+HTTP/1.1 200 OK
+x-request-id: 01a0e1e3-206e-7ac2-8e2d-fd9906f2ee36
+etag: "46caa2cdee0f861f914ad6945996d44cac89004f561198d9b203ab1a0c83ad98"
+content-type: application/json; charset=utf-8
+content-length: 149
+
+{"items":[{"id":"01a0e1e2-c454-7927-aedb-05021d226885","name":"support","parent_id":null,"path":"/support","created_at":"2026-09-27T08:02:10.132Z"}]}
+
+HTTP/1.1 412 Precondition Failed
+x-request-id: 01a0e1e3-2090-7dbf-9fb3-e6963cc67a62
+content-type: application/problem+json; charset=utf-8
+content-length: 153
+
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0e1e3-2090-7dbf-9fb3-e6963cc67a62"}
+```
+
+Both writes that reached the ceiling are in the trail, scoped here to
+`lin` — the refusal naming what was denied, the replacement the ids
+before and after:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3000/admin/tenants/groups-demo/audit?action=subject.groups_set&resource_type=subject&resource_id=01a0e1e2-c46a-789f-835c-e9a01973a630'
+```
+
+```
+{"items":[{"id":"01a0e1e3-2082-7281-8b6d-20e4d612c6f5","occurred_at":"2026-09-27T08:02:33.721Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"allowed","actor_tenant_id":"01a0e1e2-208f-7b7e-a30f-a2ce461cd164","actor_subject_id":"01a0e1e2-5d2c-7676-8177-2fb711b0eac0","actor_client_id":"01a0e1e2-209b-7b1d-9bc2-07b9bec41a60","resource_type":"subject","resource_id":"01a0e1e2-c46a-789f-835c-e9a01973a630","request_id":"01a0e1e3-206e-7ac2-8e2d-fd9906f2ee36","ip":"172.20.0.1","detail":{"group_ids":{"after":["01a0e1e2-c454-7927-aedb-05021d226885"],"before":[]}}},{"id":"01a0e1e3-2050-7c84-9ca3-cfc82647fb62","occurred_at":"2026-09-27T08:02:33.677Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"refused","actor_tenant_id":"01a0e1e2-208f-7b7e-a30f-a2ce461cd164","actor_subject_id":"01a0e1e2-5d2c-7676-8177-2fb711b0eac0","actor_client_id":"01a0e1e2-209b-7b1d-9bc2-07b9bec41a60","resource_type":"subject","resource_id":"01a0e1e2-c46a-789f-835c-e9a01973a630","request_id":"01a0e1e3-2043-7afc-894d-1f7901667fc0","ip":"172.20.0.1","detail":{"denied":["tenant-admin","manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}]}
+```
 
 ## `GET /subjects/:id/sessions` and `DELETE /subjects/:id/sessions/:sid`
 

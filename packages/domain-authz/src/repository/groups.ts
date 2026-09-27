@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { eq, sql } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { groupRoles, groups, subjectGroups, type GroupRecord } from '#/schema/groups';
 
@@ -206,6 +206,28 @@ export function groupRepository(tx: TenantScopedDatabase) {
     async addToSubject(subjectId: string, groupId: string): Promise<void> {
       const group = await requireById(tx, groupId);
       await tx.insert(subjectGroups).values({ tenantId: group.tenantId, subjectId, groupId });
+    },
+
+    // Direct memberships only, like effectiveGroupPaths; ordered by id so a
+    // hash over the list is the same on every read of an unchanged set.
+    async groupsOfSubject(subjectId: string): Promise<GroupRecord[]> {
+      const rows = await tx
+        .select({ group: groups })
+        .from(subjectGroups)
+        .innerJoin(groups, eq(subjectGroups.groupId, groups.id))
+        .where(eq(subjectGroups.subjectId, subjectId))
+        .orderBy(asc(groups.id));
+      return rows.map((row) => toRecord(row.group));
+    },
+
+    // Delete-then-insert under the caller's own row lock, never a diff —
+    // the same shape as `setRoles` above.
+    async setSubjectGroups(subjectId: string, groupIds: readonly string[]): Promise<void> {
+      await tx.delete(subjectGroups).where(eq(subjectGroups.subjectId, subjectId));
+      for (const groupId of new Set(groupIds)) {
+        const group = await requireById(tx, groupId);
+        await tx.insert(subjectGroups).values({ tenantId: group.tenantId, subjectId, groupId });
+      }
     },
   };
 }

@@ -878,6 +878,13 @@ access token's payload carries it:
 [docs/request-paths.md](docs/request-paths.md#roles-once-a-scope-reaches-it)
 shows the whole payload.)
 
+The admin API reaches the same state without the CLI:
+`PUT /admin/tenants/{tenant}/subjects/:id/roles` and
+`PUT /admin/tenants/{tenant}/subjects/:id/groups` replace a subject's
+direct roles and group memberships, each under a capability ceiling that
+refuses authority the caller does not hold itself
+([docs/admin-paths.md](docs/admin-paths.md)).
+
 **"I created a role and it is not in my token."** Three things gate a role
 onto a token, independently: it must be granted to the subject
 (`grant-role`), mapped to a scope (`map-role`), and that scope must both be

@@ -58,6 +58,7 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     username: 'value',
     email: 'value',
     enabled: 'value',
+    group_ids: 'value',
   },
   registration_token: {
     remaining_uses: 'value',

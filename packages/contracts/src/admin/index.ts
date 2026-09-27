@@ -138,6 +138,10 @@ export {
   type SetGroupRolesRequest,
   setGroupRolesResponseSchema,
   type SetGroupRolesResponse,
+  setSubjectGroupsRequestSchema,
+  type SetSubjectGroupsRequest,
+  setSubjectGroupsResponseSchema,
+  type SetSubjectGroupsResponse,
 } from '#/admin/groups';
 export {
   clientScopeSchema,

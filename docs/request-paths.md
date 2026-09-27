@@ -1592,7 +1592,10 @@ through the group) onto the same access token:
 own membership is `/engineering/backend`, not `/engineering` too — but
 `roles` carries what those memberships and their ancestors reach, which is
 why `engineering-lead` appears even though nothing ever joined `ada` to
-`/engineering` itself.
+`/engineering` itself. `seed join-group` is one way in; the admin API's
+`PUT /admin/tenants/{tenant}/subjects/:id/groups` is the other, and refuses
+a membership whose roles reach past its caller's own
+([docs/admin-paths.md](admin-paths.md)).
 
 ### 5. `/userinfo`
 

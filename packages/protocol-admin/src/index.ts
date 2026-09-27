@@ -122,9 +122,11 @@ import {
   listSubjectsHandler,
   readRequiredActionsHandler,
   readSubjectHandler,
+  readSubjectGroupsHandler,
   readSubjectRolesHandler,
   setRequiredActionsHandler,
   setRolesHandler,
+  setSubjectGroupsHandler,
   type SubjectsRouteDeps,
 } from '#/view/routes/subjects';
 import {
@@ -376,6 +378,8 @@ function buildAdminRoutes(
         setRequiredActionsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/roles': readSubjectRolesHandler(subjectsDeps),
       'PUT /admin/tenants/:tenant/subjects/:id/roles': setRolesHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/groups': readSubjectGroupsHandler(subjectsDeps),
+      'PUT /admin/tenants/:tenant/subjects/:id/groups': setSubjectGroupsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/sessions': listSessionsHandler(sessionsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/sessions/:sid':
         deleteSessionHandler(sessionsDeps),

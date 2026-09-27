@@ -58,6 +58,8 @@ import {
   setRequiredActionsResponseSchema,
   setRolesRequestSchema,
   setRolesResponseSchema,
+  setSubjectGroupsRequestSchema,
+  setSubjectGroupsResponseSchema,
   setScopeMappersRequestSchema,
   setScopeRolesRequestSchema,
   setScopeRolesResponseSchema,
@@ -209,6 +211,25 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: setRolesRequestSchema,
     description:
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
+  },
+  // Joining a group grants its roles and its ancestors', so this route's
+  // capability ceiling (`setSubjectGroups`, #/usecase/subjects.ts) is the
+  // same one `PUT .../roles` enforces, checked in the usecase for the same
+  // reason.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/groups',
+    capability: 'view-users',
+    responseSchema: setSubjectGroupsResponseSchema,
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/subjects/:id/groups',
+    capability: 'manage-users',
+    responseSchema: setSubjectGroupsResponseSchema,
+    bodySchema: setSubjectGroupsRequestSchema,
+    description:
+      'Replaces the subject\u2019s direct memberships. `If-Match` is mandatory (`428` absent, `412` stale). Refused with `403` when the groups, their ancestors or the composites their roles nest reach an admin capability the caller does not hold.',
   },
   // No `view-sessions`: reached only by an operator who can also end one,
   // the same reasoning that leaves clients with no `view-clients`.

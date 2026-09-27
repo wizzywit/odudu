@@ -47,3 +47,15 @@ export const setGroupRolesResponseSchema = z.object({
   items: z.array(roleAssignmentSchema),
 });
 export type SetGroupRolesResponse = z.infer<typeof setGroupRolesResponseSchema>;
+
+// A subject's direct memberships. Lives beside `groupSchema` rather than in
+// #/admin/subjects, which this module already imports from.
+export const setSubjectGroupsRequestSchema = z.object({
+  group_ids: z.array(idSchema),
+});
+export type SetSubjectGroupsRequest = z.infer<typeof setSubjectGroupsRequestSchema>;
+
+export const setSubjectGroupsResponseSchema = z.object({
+  items: z.array(groupSchema),
+});
+export type SetSubjectGroupsResponse = z.infer<typeof setSubjectGroupsResponseSchema>;

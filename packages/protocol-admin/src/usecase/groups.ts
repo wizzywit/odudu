@@ -1,9 +1,13 @@
 import { type Group, type ListGroupsQuery } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { ancestorsOf, groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
+import { groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
 import { isUuid, OduduError } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, type SQL } from 'drizzle-orm';
-import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
+import {
+  capabilitiesOfGroupsAndAncestors,
+  capabilitiesReachableFrom,
+  overreach,
+} from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
@@ -13,27 +17,6 @@ import {
   type ListPosition,
 } from '#/usecase/prefix-search';
 import { type RoleAssignment } from '#/usecase/subjects';
-
-// The admin-client capability names a group would hand a subject placed
-// under it — everything mapped to `groupId` or any of its ancestors,
-// `group_closure` (`effectiveRoles`, @odudu/domain-authz) is what actually
-// grants inherited roles, so the ceiling has to reach as far up as that
-// does, not just the group named directly.
-async function capabilitiesOfGroupAndAncestors(
-  tx: TenantScopedDatabase,
-  groupId: string,
-): Promise<ReadonlySet<string>> {
-  const chain = await ancestorsOf(tx, groupId);
-  if (chain.size === 0) return new Set();
-  const mapped = await tx
-    .select({ roleId: groupRoles.roleId })
-    .from(groupRoles)
-    .where(inArray(groupRoles.groupId, [...chain]));
-  return capabilitiesReachableFrom(
-    tx,
-    mapped.map((row) => row.roleId),
-  );
-}
 
 const COLLECTION = 'groups';
 
@@ -202,7 +185,7 @@ export async function createGroup(
     if (!isUuid(input.parentId)) {
       throw new OduduError('group_not_found', `no group with id ${input.parentId}`);
     }
-    const requestedCapabilities = await capabilitiesOfGroupAndAncestors(tx, input.parentId);
+    const requestedCapabilities = await capabilitiesOfGroupsAndAncestors(tx, [input.parentId]);
     const denied = overreach(requestedCapabilities, input.callerCapabilities);
     if (denied.length > 0) {
       await deps.audit(tx, {
@@ -321,7 +304,7 @@ export async function amendGroup(
     if (!isUuid(parentId) || (await groupRepository(tx).byId(parentId)) === null) {
       return { kind: 'unknown_parent' };
     }
-    const requestedCapabilities = await capabilitiesOfGroupAndAncestors(tx, parentId);
+    const requestedCapabilities = await capabilitiesOfGroupsAndAncestors(tx, [parentId]);
     const denied = overreach(requestedCapabilities, input.callerCapabilities);
     if (denied.length > 0) {
       await deps.audit(tx, {
