@@ -184,9 +184,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Amends the OIDC claim columns a subject carries — every `profileSchema` member ' +
       'except `profile_updated_at`, which the write stamps itself. `email` and `username` ' +
       'are refused here, naming `PATCH /admin/tenants/{tenant}/subjects/{id}`, which owns ' +
-      'each. Changing `phone_number` without also setting `phone_number_verified` in the ' +
-      'same request resets it to `false` — a new number is not a verified one, the way ' +
-      'amending `email` through the subjects route resets `email_verified`. `If-Match` is ' +
+      'each. Submitting a different `phone_number` without also setting ' +
+      '`phone_number_verified` in the same request resets it to `false` — a different number ' +
+      'is not a verified one, the way amending `email` through the subjects route resets ' +
+      '`email_verified`; resubmitting the same number leaves it untouched. `If-Match` is ' +
       'optional: honoured when present, never required.',
   },
   {

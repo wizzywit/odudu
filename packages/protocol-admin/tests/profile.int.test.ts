@@ -295,6 +295,41 @@ describe('PATCH /admin/tenants/{t}/subjects/{id}/profile', () => {
     expect(body.phone_number_verified).toBe(false);
   });
 
+  it('leaves phone_number_verified untouched when the same number is resubmitted', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users', 'view-users', 'view-audit']);
+
+    const verify = await patchProfile(t.name, id, token, {
+      phone_number: '+14155552671',
+      phone_number_verified: true,
+    });
+    expect(verify.statusCode).toBe(200);
+
+    // An echoed full-object PATCH carries `phone_number` on every call,
+    // whether or not it changed — the reset must compare the submitted
+    // value against the stored one, not merely notice the field was sent.
+    const res = await patchProfile(t.name, id, token, { phone_number: '+14155552671' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ phone_number: string | null; phone_number_verified: boolean }>();
+    expect(body.phone_number).toBe('+14155552671');
+    expect(body.phone_number_verified).toBe(true);
+
+    const audit = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const rows = audit
+      .json<{ items: { action: string; resource_id: string; detail: Record<string, unknown> }[] }>()
+      .items.filter((item) => item.action === 'subject.profile_amend' && item.resource_id === id);
+    // Two amendments were made: the initial verify, then the resubmit
+    // that changed nothing — newest first, so rows[0] is the resubmit.
+    // Its diff is empty: neither the number nor the flag actually moved.
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.detail).toEqual({});
+  });
+
   it('honours If-Match when present, and refuses a stale one with 412', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);

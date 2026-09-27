@@ -89,7 +89,11 @@ a new admin subject `ada-profile` in the system tenant, in a tenant
 `profile-demo` created for them, on a subject `grace` created there; the
 same section was recaptured after a further rebuild fixed the write-order
 and locking review found in it, as the same `ada-profile`, in a fresh
-tenant `profile-demo2`, on a new subject also named `grace`.
+tenant `profile-demo2`, on a new subject also named `grace`; the two
+resubmit-the-same-number calls at the end of it were added after one more
+rebuild narrowed the reset rule to a different number, against that same
+`profile-demo2` tenant and subject, continuing where the recapture left
+off.
 
 ## The shape of it
 
@@ -1531,10 +1535,12 @@ field, so nothing here can reinstate what a concurrent write removed. An
 id naming a service or `agent_instance` subject — one with no `users`
 row — answers `404`, the same as one that does not exist at all.
 
-**Changing `phone_number` without also setting `phone_number_verified` in
-the same request resets it to `false`.** A new number is not a verified
-one — the same reasoning `updateEmail` resets `email_verified` to `false`
-whenever `PATCH /subjects/:id` changes the address.
+**Submitting a different `phone_number` without also setting
+`phone_number_verified` in the same request resets it to `false`.** A
+different number is not a verified one — the same reasoning `updateEmail`
+resets `email_verified` to `false` whenever `PATCH /subjects/:id` changes
+the address. Resubmitting the same number — an echoed full-object
+`PATCH`, say — leaves a verified flag exactly as it was.
 
 Captured against the fourth stack, after a further rebuild, in a tenant of
 its own, `profile-demo2`, on a fresh subject `grace`:
@@ -1626,8 +1632,8 @@ content-type: application/json; charset=utf-8
 {"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+14155552671","phone_number_verified":true,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:45:25.787Z"}
 ```
 
-Changing the number alone, with no `phone_number_verified` in the body,
-resets it — the rule stated above, shown rather than only asserted:
+Submitting a different number, with no `phone_number_verified` in the
+body, resets it — the rule stated above, shown rather than only asserted:
 
 ```bash
 curl -sS -D - -X PATCH \
@@ -1644,6 +1650,48 @@ content-type: application/json; charset=utf-8
 
 {"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+442083661177","phone_number_verified":false,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:45:30.682Z"}
 ```
+
+After re-verifying that same number, resubmitting it — an echoed
+full-object `PATCH`, say, which carries `phone_number` on every call
+whether or not it changed — leaves `phone_number_verified` exactly as it
+was, because the submitted value is compared against the stored one, not
+merely checked for presence:
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"phone_number_verified": true}' \
+  http://localhost:3000/admin/tenants/profile-demo2/subjects/01a0e277-e90a-7876-926a-b433ce61d250/profile
+```
+
+```
+HTTP/1.1 200 OK
+etag: "beb25e78969b977eb2d09cd7bbae060b8b8139e8a11b6b84b3f456c8444792a3"
+content-type: application/json; charset=utf-8
+
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+442083661177","phone_number_verified":true,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:57:41.729Z"}
+```
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"phone_number": "+442083661177"}' \
+  http://localhost:3000/admin/tenants/profile-demo2/subjects/01a0e277-e90a-7876-926a-b433ce61d250/profile
+```
+
+```
+HTTP/1.1 200 OK
+etag: "beb25e78969b977eb2d09cd7bbae060b8b8139e8a11b6b84b3f456c8444792a3"
+content-type: application/json; charset=utf-8
+
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+442083661177","phone_number_verified":true,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:57:41.729Z"}
+```
+
+The `ETag` and `profile_updated_at` are unchanged from the call before —
+nothing was written at all, `phone_number` included, since the value it
+carried was already there.
 
 `amendProfile` (`packages/protocol-admin/src/usecase/profile.ts`) computes
 the row's final state — this patch's values layered over what is already

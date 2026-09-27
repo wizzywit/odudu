@@ -211,13 +211,17 @@ export async function amendProfile(
     profilePatch[claimKey] = raw;
   }
 
-  // A new number is not a verified one — the same reasoning
-  // `updateEmail` (@odudu/domain-identity) resets `emailVerified` on
-  // every address change. Forced here, in the patch itself, rather than
-  // left to whatever `phone_number_verified` on the row already said,
-  // so a caller who changes the number without saying otherwise cannot
-  // leave a stale verification standing over a number nobody checked.
-  if ('phone_number' in input.values && !('phone_number_verified' in input.values)) {
+  // A different number is not a verified one — the same reasoning
+  // `updateEmail` resets `emailVerified` on every address change.
+  // Compared against the stored value, not merely "the field was sent":
+  // an echoed full-object PATCH that resubmits the same `phone_number`
+  // must not cost a subject its verification, only an actual change of
+  // number does, when the caller leaves `phone_number_verified` unsaid.
+  if (
+    'phone_number' in input.values &&
+    !('phone_number_verified' in input.values) &&
+    (profilePatch.phoneNumber ?? null) !== current.phoneNumber
+  ) {
     verificationPatch.phoneNumberVerified = false;
   }
 
