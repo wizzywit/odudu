@@ -29,7 +29,12 @@ const COLLECTION = 'scopes';
 
 export interface ScopeAuditEvent {
   readonly action:
-    'scope.create' | 'scope.amend' | 'scope.delete' | 'scope.roles_set' | 'scope.assign_to_client';
+    | 'scope.create'
+    | 'scope.amend'
+    | 'scope.delete'
+    | 'scope.roles_set'
+    | 'scope.assign_to_client'
+    | 'scope.unassign_from_client';
   readonly resourceType: 'scope';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -623,4 +628,58 @@ export async function assignScopeToClient(
       })),
     },
   };
+}
+
+export interface UnassignScopeFromClientInput {
+  readonly scopeId: string;
+  readonly clientId: string;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface UnassignScopeFromClientDeps {
+  readonly audit: Audit;
+}
+
+export type UnassignScopeFromClientOutcome =
+  | { kind: 'scope_not_found' }
+  | { kind: 'client_not_found' }
+  | { kind: 'not_assigned' }
+  | { kind: 'removed' };
+
+/**
+ * Removes a client's assignment of a scope — the inverse of
+ * `assignScopeToClient`. Neither a `default` nor an `optional` assignment is
+ * privileged over the other: both go, and `unassign` (@odudu/domain-tenant)
+ * does not distinguish them.
+ */
+export async function unassignScopeFromClient(
+  tx: TenantScopedDatabase,
+  deps: UnassignScopeFromClientDeps,
+  input: UnassignScopeFromClientInput,
+): Promise<UnassignScopeFromClientOutcome> {
+  const scope = await clientScopeRepository(tx).byId(input.scopeId);
+  if (scope === null) return { kind: 'scope_not_found' };
+
+  const clientRows = await tx
+    .select({ id: clients.id })
+    .from(clients)
+    .where(eq(clients.id, input.clientId));
+  if (clientRows.length === 0) return { kind: 'client_not_found' };
+
+  const removed = await clientScopeRepository(tx).unassign(input.clientId, input.scopeId);
+  if (!removed) return { kind: 'not_assigned' };
+
+  await deps.audit(tx, {
+    action: 'scope.unassign_from_client',
+    resourceType: 'scope',
+    resourceId: input.scopeId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+  });
+
+  return { kind: 'removed' };
 }

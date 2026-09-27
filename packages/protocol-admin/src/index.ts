@@ -104,6 +104,7 @@ import {
   readScopeHandler,
   readScopeRolesHandler,
   setScopeRolesHandler,
+  unassignScopeFromClientHandler,
   type ScopesRouteDeps,
 } from '#/view/routes/scopes';
 import {
@@ -435,6 +436,8 @@ function buildAdminRoutes(
       'PUT /admin/tenants/:tenant/scopes/:id/roles': setScopeRolesHandler(scopesDeps),
       'PUT /admin/tenants/:tenant/scopes/:id/clients/:clientId':
         assignScopeToClientHandler(scopesDeps),
+      'DELETE /admin/tenants/:tenant/scopes/:id/clients/:clientId':
+        unassignScopeFromClientHandler(scopesDeps),
       'GET /admin/tenants/:tenant/scopes/:id/mappers': readScopeMappersHandler(scopeMappersDeps),
       'PUT /admin/tenants/:tenant/scopes/:id/mappers': setScopeMappersHandler(scopeMappersDeps),
       'GET /admin/tenants/:tenant/smtp': readSmtpHandler(smtpDeps),

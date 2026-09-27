@@ -3,6 +3,7 @@ import { roleRepository } from '@odudu/domain-authz';
 import {
   ADMIN_CLIENT_ID,
   clientRepository,
+  clientScopeRepository,
   TENANT_ADMIN,
   TENANT_CAPABILITIES,
 } from '@odudu/domain-tenant';
@@ -17,6 +18,7 @@ import {
   createScope,
   deleteScope,
   setScopeRoles,
+  unassignScopeFromClient,
   type ScopeAuditEvent,
 } from '#/usecase/scopes';
 
@@ -402,6 +404,130 @@ describe('PUT /admin/tenants/{t}/scopes/{id}/clients/{clientId}', () => {
   });
 });
 
+const VERIFIER_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+const AUTHORIZE_REDIRECT_URI = 'https://app.example/callback';
+
+async function scopeIdByName(tenantId: string, name: string): Promise<string> {
+  const scope = await withTenant(fixture.app.db, tenantId, (tx) =>
+    clientScopeRepository(tx).byName(name),
+  );
+  if (scope === null) throw new Error(`fixture: no scope named ${JSON.stringify(name)}`);
+  return scope.id;
+}
+
+describe('DELETE /admin/tenants/{t}/scopes/{id}/clients/{clientId}', () => {
+  it('removes the assignment: GET /clients/:id no longer lists it, and /authorize refuses it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+    const client = await fixture.createConfidentialClient(t.name, {
+      grantTypes: ['authorization_code'],
+      redirectUris: [AUTHORIZE_REDIRECT_URI],
+    });
+    // provisionClientDefaults (called by createConfidentialClient's own
+    // client row) assigns the tenant's default vocabulary, openid included.
+    const openidId = await scopeIdByName(t.id, 'openid');
+
+    const authorizeUrl = () => {
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: client.clientId,
+        redirect_uri: AUTHORIZE_REDIRECT_URI,
+        scope: 'openid',
+        state: 'xyz',
+        code_challenge: VERIFIER_CHALLENGE,
+        code_challenge_method: 'S256',
+      });
+      return `/tenants/${t.name}/protocol/openid-connect/auth?${params.toString()}`;
+    };
+
+    const before = await fixture.http.inject({ url: authorizeUrl() });
+    expect(before.statusCode).toBe(200);
+
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/scopes/${openidId}/clients/${client.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(204);
+
+    const read = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients/${client.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const readScopes = read.json<{ scopes: { id: string }[] }>().scopes;
+    expect(readScopes.find((s) => s.id === openidId)).toBeUndefined();
+
+    const after = await fixture.http.inject({ url: authorizeUrl() });
+    expect(after.statusCode).toBe(302);
+    expect(after.headers.location).toContain('error=invalid_scope');
+  });
+
+  it('repeating the removal answers 404', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const client = await fixture.createConfidentialClient(t.name, {});
+    const openidId = await scopeIdByName(t.id, 'openid');
+
+    const first = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/scopes/${openidId}/clients/${client.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(first.statusCode).toBe(204);
+
+    const second = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/scopes/${openidId}/clients/${client.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(second.statusCode).toBe(404);
+  });
+
+  it('404s a scope id no scope holds', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const client = await fixture.createConfidentialClient(t.name, {});
+
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/scopes/${newId()}/clients/${client.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('404s a client id no client holds', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const openidId = await scopeIdByName(t.id, 'openid');
+
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/scopes/${openidId}/clients/${newId()}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('is refused for every capability but manage-tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {});
+    const openidId = await scopeIdByName(t.id, 'openid');
+
+    for (const capability of TENANT_CAPABILITIES) {
+      if (capability === 'manage-tenant') continue;
+      const token = await fixture.adminToken(t.name, [capability]);
+      const res = await fixture.http.inject({
+        method: 'DELETE',
+        url: `/admin/tenants/${t.name}/scopes/${openidId}/clients/${client.id}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode, `DELETE /scopes/:id/clients/:id as ${capability}`).toBe(403);
+    }
+  });
+});
+
 // client_scope_assignments_scope_fk and client_scope_roles_scope_fk
 // (packages/db/drizzle/0016_client_scopes.sql, 0017_roles.sql) both name
 // ON DELETE CASCADE, not RESTRICT — so deleting an assigned, role-mapped
@@ -713,6 +839,65 @@ describe('audit', () => {
       ),
     );
     expect(outcome.kind).toBe('not_found');
+    expect(refused.events).toHaveLength(0);
+  });
+
+  it('calls audit exactly once unassigning a scope from a client, and not on not_found', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const scope = await withTenant(fixture.app.db, t.id, (tx) =>
+      createScope(
+        tx,
+        { audit: () => Promise.resolve() },
+        {
+          tenantId: t.id,
+          name: `s-${newId()}`,
+          description: null,
+          includeInIdToken: undefined,
+          includeInAccessToken: undefined,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
+    );
+    const client = await fixture.createConfidentialClient(t.name, {});
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      clientScopeRepository(tx).assignOrUpdate(client.id, scope.id, 'default'),
+    );
+
+    const ok = collector();
+    const removed = await withTenant(fixture.app.db, t.id, (tx) =>
+      unassignScopeFromClient(
+        tx,
+        { audit: ok.audit },
+        {
+          scopeId: scope.id,
+          clientId: client.id,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
+    );
+    expect(removed.kind).toBe('removed');
+    expect(ok.events).toHaveLength(1);
+    expect(ok.events[0]?.action).toBe('scope.unassign_from_client');
+
+    const refused = collector();
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      unassignScopeFromClient(
+        tx,
+        { audit: refused.audit },
+        {
+          scopeId: scope.id,
+          clientId: client.id,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
+    );
+    expect(outcome.kind).toBe('not_assigned');
     expect(refused.events).toHaveLength(0);
   });
 

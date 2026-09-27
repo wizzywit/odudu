@@ -20,6 +20,7 @@ import {
   readScope,
   readScopeRoles,
   setScopeRoles,
+  unassignScopeFromClient,
   type AmendScopeOutcome,
   type Audit,
 } from '#/usecase/scopes';
@@ -365,6 +366,58 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
         );
       case 'ok':
         return reply.code(200).send(outcome.assignments);
+    }
+  };
+}
+
+export function unassignScopeFromClientHandler(deps: ScopesRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    const clientId = request.params.clientId;
+    if (id === undefined || clientId === undefined) {
+      throw new Error('protocol-admin: DELETE scope client route received no :id/:clientId');
+    }
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      unassignScopeFromClient(
+        tx,
+        { audit: deps.audit },
+        {
+          scopeId: id,
+          clientId,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'scope_not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no scope ${id}`),
+        );
+      case 'client_not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no client ${clientId}`),
+        );
+      case 'not_assigned':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            404,
+            'about:blank',
+            'Not Found',
+            `scope ${id} is not assigned to client ${clientId}`,
+          ),
+        );
+      case 'removed':
+        return reply.code(204).send();
     }
   };
 }

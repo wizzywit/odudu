@@ -609,6 +609,14 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Assigns the scope to the client as default or optional, replacing any existing assignment.',
   },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/scopes/:id/clients/:clientId',
+    capability: 'manage-tenant',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description: 'Removes the client’s assignment of the scope, whether default or optional.',
+  },
   // Signing keys: manage-keys, not manage-tenant — a tenant admin who may
   // reconfigure clients need not also be trusted to rotate what signs
   // their tokens. No amend: a key is created, promoted or retired, never

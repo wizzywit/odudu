@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
   clientScopeAssignments,
   clientScopes,
@@ -174,6 +174,22 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
           target: [clientScopeAssignments.clientId, clientScopeAssignments.clientScopeId],
           set: { assignment },
         });
+    },
+
+    // RLS filters both keys to this tenant, so a foreign clientId or
+    // clientScopeId simply matches no row rather than needing its own check
+    // — the same reasoning `delete` above rests on.
+    async unassign(clientId: string, clientScopeId: string): Promise<boolean> {
+      const rows = await tx
+        .delete(clientScopeAssignments)
+        .where(
+          and(
+            eq(clientScopeAssignments.clientId, clientId),
+            eq(clientScopeAssignments.clientScopeId, clientScopeId),
+          ),
+        )
+        .returning({ clientId: clientScopeAssignments.clientId });
+      return rows.length > 0;
     },
   };
 }

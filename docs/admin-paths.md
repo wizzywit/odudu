@@ -78,7 +78,9 @@ rebuild, as that section says. The memberships under `GET /subjects/:id/groups` 
 against it after one more rebuild, in a tenant of their own, as that
 section says. So were the composites under `GET /roles/:id/composites` and
 the defaults under `PUT /roles/:id/default`, after a further rebuild, in a
-tenant `composites-demo`.
+tenant `composites-demo`. `DELETE /scopes/:id/clients/:clientId` was
+captured against it after one more rebuild, as a new admin subject
+`ada-scope-unassign`, in a tenant `scope-unassign-demo` created for it.
 
 ## The shape of it
 
@@ -190,6 +192,7 @@ shape of what it is filling.
 | `GET`    | `/admin/tenants/{tenant}/scopes/:id/roles`                       | Read a scope's roles                      |
 | `PUT`    | `/admin/tenants/{tenant}/scopes/:id/roles`                       | Replace a scope's roles                   |
 | `PUT`    | `/admin/tenants/{tenant}/scopes/:id/clients/:clientId`           | Assign a scope to a client                |
+| `DELETE` | `/admin/tenants/{tenant}/scopes/:id/clients/:clientId`           | Unassign a scope from a client            |
 | `GET`    | `/admin/tenants/{tenant}/scopes/:id/mappers`                     | Read a scope's claim mapper bindings      |
 | `PUT`    | `/admin/tenants/{tenant}/scopes/:id/mappers`                     | Replace a scope's claim mapper bindings   |
 | `GET`    | `/admin/tenants/{tenant}/keys`                                   | List signing keys                         |
@@ -2695,6 +2698,86 @@ carries, and nothing besides:
 
 ```
 {"client_id":"01a0d767-a054-7a00-b96d-eea9492c4e4d","scopes":[{"id":"01a0d764-e837-75cb-b5eb-bf56c1193e85","name":"openid","assignment":"default"},{"id":"01a0d764-e83b-7c1c-84cc-624bbbe5947d","name":"profile","assignment":"default"},{"id":"01a0d764-e83c-76ee-976a-14b79a5f8c8b","name":"email","assignment":"default"},{"id":"01a0d764-e83d-74c0-a341-bfc8dc17ece7","name":"address","assignment":"default"},{"id":"01a0d764-e83d-74c0-a341-bfc97cd8d0bd","name":"phone","assignment":"default"},{"id":"01a0d764-e83e-778c-8fe8-0b8122e3d178","name":"roles","assignment":"default"},{"id":"01a0d764-e83f-7e65-bb51-c62daaadd27d","name":"groups","assignment":"default"},{"id":"01a0d764-e83f-7e65-bb51-c62e4d176cc8","name":"offline_access","assignment":"optional"},{"id":"01a0d767-b5e6-74f8-89a0-f3afa7e2f6c0","name":"billing","assignment":"default"}]}
+```
+
+## `DELETE /scopes/:id/clients/:clientId`
+
+Requires `manage-tenant`. Removes the client's assignment of the scope,
+whether it was `default` or `optional` — the inverse of
+`PUT /scopes/:id/clients/:clientId` above, and the only way to take a scope
+back off a client once assigned; `clientScopeRepository.unassign`
+(`packages/domain-tenant/src/repository/client-scopes.ts`) deletes the row
+outright rather than narrowing it. Answers `204`; a scope not currently
+assigned to the client, an unknown scope id or an unknown client id all
+answer `404`. Removing a client's `openid` narrows what `/authorize` grants
+it next, exactly as an unknown scope would — nothing about the admin API
+itself depends on any client's own scope assignments, built-in admin client
+included, so there is no guard here beyond the ordinary capability check.
+
+Captured against a tenant `scope-unassign-demo` made for this section, on a
+public client `scope-unassign-app` registered for `authorization_code`.
+`POST /clients` assigned it the tenant's default vocabulary, `openid`
+included, so `/authorize` first renders the login form:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  'http://localhost:3000/tenants/scope-unassign-demo/protocol/openid-connect/auth?response_type=code&client_id=scope-unassign-app&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+```
+
+```
+200
+```
+
+Unassigning `openid`, then reading the client back — the scope is gone from
+`scopes`, `profile` now first — then the same removal repeated:
+
+```bash
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/scope-unassign-demo/scopes/01a0e227-2504-77b3-8bb0-880aa7cb21fb/clients/01a0e227-7650-759d-af14-bc3503b8344d
+
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/scope-unassign-demo/clients/01a0e227-7650-759d-af14-bc3503b8344d
+
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/scope-unassign-demo/scopes/01a0e227-2504-77b3-8bb0-880aa7cb21fb/clients/01a0e227-7650-759d-af14-bc3503b8344d
+```
+
+```
+HTTP/1.1 204 No Content
+x-request-id: 01a0e227-a129-7105-b91d-53ce8566a8c7
+Date: Sun, 27 Sep 2026 09:17:23 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a0e227-7650-759d-af14-bc3503b8344d","client_id":"scope-unassign-app","name":"scope-unassign-app","type":"public","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T09:17:12.141Z","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0e227-2505-73bb-8089-4caaa4028c12","name":"profile","assignment":"default"},{"id":"01a0e227-2506-783e-b180-60acaed1c1c9","name":"email","assignment":"default"},{"id":"01a0e227-250a-7a06-a417-18a9e4d8b123","name":"address","assignment":"default"},{"id":"01a0e227-250b-73a5-ae11-e114da20987b","name":"phone","assignment":"default"},{"id":"01a0e227-250c-7d5c-8063-9d2518215319","name":"roles","assignment":"default"},{"id":"01a0e227-250d-7438-aed1-a1f8da08f107","name":"groups","assignment":"default"},{"id":"01a0e227-250e-7407-9493-402eaec43c8b","name":"offline_access","assignment":"optional"}]}
+HTTP/1.1 404 Not Found
+x-request-id: 01a0e227-b89a-7db8-9c8b-78707a938f58
+content-type: application/problem+json; charset=utf-8
+content-length: 222
+Date: Sun, 27 Sep 2026 09:17:29 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Not Found","status":404,"detail":"scope 01a0e227-2504-77b3-8bb0-880aa7cb21fb is not assigned to client 01a0e227-7650-759d-af14-bc3503b8344d","instance":"01a0e227-b89a-7db8-9c8b-78707a938f58"}
+```
+
+`/authorize`, asked for `openid` again, now refuses it the same way an
+unregistered scope would — `state` and `iss` still carried back, the same
+as any other redirect-side refusal:
+
+```bash
+curl -sS -D - -o /dev/null \
+  'http://localhost:3000/tenants/scope-unassign-demo/protocol/openid-connect/auth?response_type=code&client_id=scope-unassign-app&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a0e227-b8b2-7c4b-b6bb-960a5578210a
+location: https://app.example/callback?error=invalid_scope&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fscope-unassign-demo
+content-length: 0
+Date: Sun, 27 Sep 2026 09:17:29 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 ```
 
 ## `GET /scopes/:id/mappers` and `PUT /scopes/:id/mappers`
