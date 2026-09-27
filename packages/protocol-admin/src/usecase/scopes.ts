@@ -6,6 +6,7 @@ import {
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clientScopeRoles, roleRepository, roles } from '@odudu/domain-authz';
 import {
+  clientRepository,
   clientScopeAssignments,
   clientScopeRepository,
   clientScopes,
@@ -382,17 +383,38 @@ export interface DeleteScopeDeps {
   readonly audit: Audit;
 }
 
-export type DeleteScopeOutcome = { kind: 'not_found' } | { kind: 'deleted' };
+export type DeleteScopeOutcome =
+  { kind: 'not_found' } | { kind: 'openid_guarded'; reason: string } | { kind: 'deleted' };
 
 // `client_scope_assignments_scope_fk` and `client_scope_roles_scope_fk`
 // (0016_client_scopes.sql, 0017_roles.sql) both cascade: deleting a scope
 // silently takes every client assignment and role mapping naming it with
-// it, never refusing on either.
+// it, never refusing on either — except `openid` itself, guarded below.
 export async function deleteScope(
   tx: TenantScopedDatabase,
   deps: DeleteScopeDeps,
   input: DeleteScopeInput,
 ): Promise<DeleteScopeOutcome> {
+  const scope = await clientScopeRepository(tx).byId(input.scopeId);
+  if (scope === null) return { kind: 'not_found' };
+
+  // The cascade above takes `openid` off every client in the tenant in one
+  // stroke, the built-in admin client included — and that client supports
+  // no grant but `authorization_code`/`refresh_token` (`provisionAdminClient`,
+  // packages/protocol-oidc/src/usecase/provision-admin-client.ts), whose
+  // default requested scope is `openid` (`scopesAreGrantable`,
+  // authorize-validation.ts). Losing it there locks every administrator of
+  // this tenant out of a fresh login once their refresh token expires.
+  if (scope.name === 'openid') {
+    return {
+      kind: 'openid_guarded',
+      reason:
+        'openid is deleted along with every client’s assignment of it, ' +
+        'this tenant’s built-in admin client’s included, and could lock ' +
+        'out every administrator of this tenant',
+    };
+  }
+
   const deleted = await clientScopeRepository(tx).delete(input.scopeId);
   if (!deleted) return { kind: 'not_found' };
 
@@ -645,6 +667,7 @@ export interface UnassignScopeFromClientDeps {
 export type UnassignScopeFromClientOutcome =
   | { kind: 'scope_not_found' }
   | { kind: 'client_not_found' }
+  | { kind: 'builtin_admin_guarded'; reason: string }
   | { kind: 'not_assigned' }
   | { kind: 'removed' };
 
@@ -662,11 +685,27 @@ export async function unassignScopeFromClient(
   const scope = await clientScopeRepository(tx).byId(input.scopeId);
   if (scope === null) return { kind: 'scope_not_found' };
 
-  const clientRows = await tx
-    .select({ id: clients.id })
-    .from(clients)
-    .where(eq(clients.id, input.clientId));
-  if (clientRows.length === 0) return { kind: 'client_not_found' };
+  // `byId`, not a raw select: the one read that serves both the 404 below
+  // and the guard that follows it, on the same row.
+  const client = await clientRepository(tx).byId(input.clientId);
+  if (client === null) return { kind: 'client_not_found' };
+
+  // Reads `builtinAdmin`, never `client_id` — the same check `amendClient`
+  // (#/usecase/clients.ts) makes. The built-in admin client supports no
+  // grant but `authorization_code`/`refresh_token`
+  // (`provisionAdminClient`, protocol-oidc), and `/authorize` refuses any
+  // scope this client is not assigned, `openid` included, its own default
+  // (`scopesAreGrantable`) — so unassigning here can lock every
+  // administrator of this tenant out of a fresh login.
+  if (client.builtinAdmin) {
+    return {
+      kind: 'builtin_admin_guarded',
+      reason:
+        `the scope ${scope.name} on ${client.clientId}, this tenant’s built-in ` +
+        'admin client, cannot be unassigned: it could leave every administrator ' +
+        'of this tenant locked out of /authorize',
+    };
+  }
 
   const removed = await clientScopeRepository(tx).unassign(input.clientId, input.scopeId);
   if (!removed) return { kind: 'not_assigned' };

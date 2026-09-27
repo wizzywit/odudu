@@ -235,6 +235,8 @@ export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
     switch (outcome.kind) {
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'openid_guarded':
+        return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
       case 'deleted':
         return reply.code(204).send();
     }
@@ -405,6 +407,8 @@ export function unassignScopeFromClientHandler(deps: ScopesRouteDeps): AdminRout
           request,
           problem(404, 'about:blank', 'Not Found', `no client ${clientId}`),
         );
+      case 'builtin_admin_guarded':
+        return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
       case 'not_assigned':
         return sendProblem(
           reply,

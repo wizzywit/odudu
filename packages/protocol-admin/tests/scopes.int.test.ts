@@ -528,6 +528,34 @@ describe('DELETE /admin/tenants/{t}/scopes/{id}/clients/{clientId}', () => {
   });
 });
 
+// The built-in admin client's own assignments: `odudu-admin` supports no
+// grant but authorization_code/refresh_token, and /authorize refuses any
+// scope it is not assigned, its own default `openid` included — unassigning
+// here can lock every administrator of the tenant out of a fresh login.
+describe('DELETE /admin/tenants/{t}/scopes/{id}/clients/{clientId} — the built-in admin client', () => {
+  it('refuses unassigning openid from odudu-admin with 409, and the assignment survives', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const adminClient = await withTenant(fixture.app.db, t.id, (tx) =>
+      clientRepository(tx).byClientId(ADMIN_CLIENT_ID),
+    );
+    if (adminClient === null) throw new Error('fixture: tenant has no built-in admin client');
+    const openidId = await scopeIdByName(t.id, 'openid');
+
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/scopes/${openidId}/clients/${adminClient.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(409);
+
+    const scopes = await withTenant(fixture.app.db, t.id, (tx) =>
+      clientScopeRepository(tx).forClient(adminClient.id),
+    );
+    expect(scopes.map((s) => s.name)).toContain('openid');
+  });
+});
+
 // client_scope_assignments_scope_fk and client_scope_roles_scope_fk
 // (packages/db/drizzle/0016_client_scopes.sql, 0017_roles.sql) both name
 // ON DELETE CASCADE, not RESTRICT — so deleting an assigned, role-mapped
@@ -582,6 +610,30 @@ describe('DELETE /admin/tenants/{t}/scopes/{id} — cascades to its assignment a
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  // openid is provisioned into every tenant, and its cascade would strip it
+  // from every client's assignment in one stroke, the built-in admin
+  // client included — the one guard this route makes tenant-wide rather
+  // than built-in-client-specific.
+  it('refuses deleting the scope named openid with 409, and it survives', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const openidId = await scopeIdByName(t.id, 'openid');
+
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/scopes/${openidId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(409);
+
+    const read = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/scopes/${openidId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(read.statusCode).toBe(200);
   });
 });
 
@@ -842,6 +894,32 @@ describe('audit', () => {
     expect(refused.events).toHaveLength(0);
   });
 
+  it('calls audit zero times refusing to delete the scope named openid', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const openidId = await scopeIdByName(t.id, 'openid');
+
+    const refused = collector();
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      deleteScope(
+        tx,
+        { audit: refused.audit },
+        {
+          scopeId: openidId,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
+    );
+    expect(outcome.kind).toBe('openid_guarded');
+    expect(refused.events).toHaveLength(0);
+
+    const stillThere = await withTenant(fixture.app.db, t.id, (tx) =>
+      clientScopeRepository(tx).byId(openidId),
+    );
+    expect(stillThere).not.toBeNull();
+  });
+
   it('calls audit exactly once unassigning a scope from a client, and not on not_found', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const scope = await withTenant(fixture.app.db, t.id, (tx) =>
@@ -898,6 +976,32 @@ describe('audit', () => {
       ),
     );
     expect(outcome.kind).toBe('not_assigned');
+    expect(refused.events).toHaveLength(0);
+  });
+
+  it('calls audit zero times refusing to unassign a scope from the built-in admin client', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const adminClient = await withTenant(fixture.app.db, t.id, (tx) =>
+      clientRepository(tx).byClientId(ADMIN_CLIENT_ID),
+    );
+    if (adminClient === null) throw new Error('fixture: tenant has no built-in admin client');
+    const openidId = await scopeIdByName(t.id, 'openid');
+
+    const refused = collector();
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      unassignScopeFromClient(
+        tx,
+        { audit: refused.audit },
+        {
+          scopeId: openidId,
+          clientId: adminClient.id,
+          actorSubjectId: 'test',
+          actorTenantId: 'test-tenant',
+          actorClientId: 'test-client',
+        },
+      ),
+    );
+    expect(outcome.kind).toBe('builtin_admin_guarded');
     expect(refused.events).toHaveLength(0);
   });
 

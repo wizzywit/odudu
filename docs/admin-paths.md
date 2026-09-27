@@ -80,7 +80,10 @@ section says. So were the composites under `GET /roles/:id/composites` and
 the defaults under `PUT /roles/:id/default`, after a further rebuild, in a
 tenant `composites-demo`. `DELETE /scopes/:id/clients/:clientId` was
 captured against it after one more rebuild, as a new admin subject
-`ada-scope-unassign`, in a tenant `scope-unassign-demo` created for it.
+`ada-scope-unassign`, in a tenant `scope-unassign-demo` created for it; its
+built-in admin client guard and `DELETE /scopes/:id`'s `openid` guard were
+captured together after a further rebuild, as the same subject, in a
+tenant `scope-guard-demo` created for them.
 
 ## The shape of it
 
@@ -2569,7 +2572,13 @@ carries. A duplicate name answers `409`. `DELETE` cascades:
 `client_scope_assignments_scope_fk` and `client_scope_roles_scope_fk`
 (`packages/db/drizzle/0016_client_scopes.sql`, `0017_roles.sql`) both name
 `ON DELETE CASCADE`, not `RESTRICT`, so deleting an assigned, role-mapped
-scope removes it and both dependent rows together rather than refusing.
+scope removes it and both dependent rows together rather than refusing —
+**except the scope named `openid`**, refused with `409`: the same cascade
+would strip it from every client's assignment in the tenant in one stroke,
+the built-in admin client's included, which
+`DELETE /scopes/:id/clients/:clientId` below refuses for that one client
+alone. Every other scope stays deletable whatever it is assigned to or
+mapped from — a tenant-wide decision, not a per-client one.
 
 ```bash
 curl -sS -X POST \
@@ -2581,6 +2590,26 @@ curl -sS -X POST \
 
 ```
 {"id":"01a0d708-2ef8-7963-8d7a-3df5dff7cdf6","name":"billing","description":null,"include_in_id_token":false,"include_in_access_token":true,"created_at":"2026-09-25T05:27:12.887Z"}
+```
+
+The `openid` guard, against `scope-guard-demo` made for it, on the same
+`openid` scope the built-in admin client section above names:
+
+```bash
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/scope-guard-demo/scopes/01a0e236-f087-7c6a-946d-7aa6aea279bc
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a0e237-278a-70a6-b813-5dffb42046c5
+content-type: application/problem+json; charset=utf-8
+content-length: 285
+Date: Sun, 27 Sep 2026 09:34:20 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"openid is deleted along with every client’s assignment of it, this tenant’s built-in admin client’s included, and could lock out every administrator of this tenant","instance":"01a0e237-278a-70a6-b813-5dffb42046c5"}
 ```
 
 **Search** is `?name=`, the same prefix match `GET /roles` describes, over
@@ -2709,10 +2738,44 @@ back off a client once assigned; `clientScopeRepository.unassign`
 (`packages/domain-tenant/src/repository/client-scopes.ts`) deletes the row
 outright rather than narrowing it. Answers `204`; a scope not currently
 assigned to the client, an unknown scope id or an unknown client id all
-answer `404`. Removing a client's `openid` narrows what `/authorize` grants
-it next, exactly as an unknown scope would — nothing about the admin API
-itself depends on any client's own scope assignments, built-in admin client
-included, so there is no guard here beyond the ordinary capability check.
+answer `404`.
+
+**The tenant's built-in admin client keeps every scope assignment**:
+unassigning one answers `409`, naming the scope and the client. That
+client is public, with no secret, and supports no grant but
+`authorization_code`/`refresh_token` (`provisionAdminClient`,
+`packages/protocol-oidc/src/usecase/provision-admin-client.ts`) — an
+administrator's only path to a fresh admin token is `/authorize`, and
+`scopesAreGrantable` (`packages/protocol-oidc/src/service/authorize-validation.ts`)
+refuses any scope the client is not assigned, `openid` included, which a
+request naming no `scope` asks for by default. Unassigning `openid` from
+this one client, or any of the others, would lock every administrator of
+the tenant out of a fresh login once their existing refresh token expired
+— the same lockout `PATCH /clients/{id}` and `DELETE /roles/:id` refuse for
+the same client, read from the same `builtin_admin` column. An ordinary
+client's own assignments carry no such guard: unassigning its `openid`
+narrows what `/authorize` grants it next, exactly as an unknown scope
+would.
+
+The guard, against a tenant `scope-guard-demo` made for it, on its
+built-in admin client `odudu-admin` and its own `openid` assignment:
+
+```bash
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/scope-guard-demo/scopes/01a0e236-f087-7c6a-946d-7aa6aea279bc/clients/01a0e236-f091-7ca4-a3f4-33841c633cf6
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a0e237-17bb-77d0-9961-5a14d3c4198e
+content-type: application/problem+json; charset=utf-8
+content-length: 284
+Date: Sun, 27 Sep 2026 09:34:16 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the scope openid on odudu-admin, this tenant’s built-in admin client, cannot be unassigned: it could leave every administrator of this tenant locked out of /authorize","instance":"01a0e237-17bb-77d0-9961-5a14d3c4198e"}
+```
 
 Captured against a tenant `scope-unassign-demo` made for this section, on a
 public client `scope-unassign-app` registered for `authorization_code`.

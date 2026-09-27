@@ -565,6 +565,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: z.void(),
     successStatus: 204,
+    description:
+      'Cascades to every client’s assignment and role mapping naming the scope. ' +
+      'Refused with 409 for the scope named `openid`, which every client’s ' +
+      'assignment of it — the tenant’s built-in admin client included — would ' +
+      'otherwise be stripped of in the same stroke.',
   },
   {
     method: 'GET',
@@ -615,7 +620,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: z.void(),
     successStatus: 204,
-    description: 'Removes the client’s assignment of the scope, whether default or optional.',
+    description:
+      'Removes the client’s assignment of the scope, whether default or optional. Refused ' +
+      'with 409 on the tenant’s built-in admin client, which could otherwise lock every ' +
+      'administrator of the tenant out of /authorize.',
   },
   // Signing keys: manage-keys, not manage-tenant — a tenant admin who may
   // reconfigure clients need not also be trusted to rotate what signs
