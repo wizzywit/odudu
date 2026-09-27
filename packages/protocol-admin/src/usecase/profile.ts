@@ -250,14 +250,13 @@ export async function amendProfile(
   }
 
   // `updateProfile` and `setVerification` are two separate `UPDATE`
-  // statements, each checked immediately — a `CHECK` is never deferred in
-  // PostgreSQL — so their *order* decides what the row briefly looks like
+  // statements, each checked immediately (`CHECK` is never deferred in
+  // PostgreSQL), so their *order* decides what the row briefly looks like
   // between them, not only what it ends as. Ending unverified is written
-  // first: dropping `phone_number_verified` before the number changes
-  // means neither statement ever holds `true` against a number that is
-  // mid-change. Ending verified keeps the original order, since a final
-  // state already known to be valid (checked above) makes either
-  // statement pass regardless of what still holds the old value.
+  // first — dropping `phone_number_verified` before the number changes —
+  // so neither statement holds `true` against a number mid-change. Ending
+  // verified keeps the original order: the final state is already known
+  // valid (checked above), so either statement passes regardless of order.
   let updated = current;
   if (finalPhoneNumberVerified) {
     if (Object.keys(profilePatch).length > 0) {

@@ -67,14 +67,13 @@ export type RevokeConsentOutcome =
   { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'revoked' };
 
 // Withdraws the grant and every token issued under it in the same
-// transaction — an offline_access family rotates indefinitely
-// (`refresh-rotation.ts`'s own comment: bounded only by its own TTL per
-// rotation, never by the consent that first authorized it), so leaving
-// its grants alone would mean a subject who revoked access keeps being
-// impersonated by whatever token that client already held. The same
-// reasoning `endSession` already applies to a session's own grants
-// (`tokenGrantRepository.revokeForSession`) — this is that pattern's
-// consent-scoped sibling.
+// transaction — an offline_access family rotates indefinitely, bounded
+// only by its own TTL per rotation (`refresh-rotation.ts`), never by the
+// consent that authorized it. Leaving its grants alone would let a
+// subject who revoked access stay impersonated by a token the client
+// already held. `endSession` applies the same reasoning to a session's
+// own grants (`tokenGrantRepository.revokeForSession`); this is that
+// pattern's consent-scoped sibling.
 export async function revokeConsent(
   tx: TenantScopedDatabase,
   deps: RevokeConsentDeps,

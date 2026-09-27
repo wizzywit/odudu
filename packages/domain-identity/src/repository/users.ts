@@ -191,16 +191,14 @@ export function userRepository(tx: TenantScopedDatabase) {
       return toUser(row);
     },
 
-    // The admin profile route's other write: `email_verified` and
-    // `phone_number_verified` are claims about the current value of
-    // `email`/`phone_number`, not profile data, so they are set here rather
-    // than folded into `updateProfile` — the same reasoning that keeps
-    // `markEmailVerified` a write of its own. An operator setting either
-    // flag is asserting they have verified it by some means outside this
-    // server; `users_verified_phone_is_e164` still refuses a verified
-    // number that is not E.164-shaped. Both flags are themselves claims, so
-    // `profile_updated_at` moves when one actually changes — the same
-    // dirty check `updateProfile` runs, against the same column.
+    // `email_verified` and `phone_number_verified` are claims about the
+    // current value of `email`/`phone_number`, not profile data, so they're
+    // set here rather than folded into `updateProfile` — the same reasoning
+    // that keeps `markEmailVerified` a write of its own. Setting either flag
+    // asserts the operator verified it by some means outside this server;
+    // `users_verified_phone_is_e164` still refuses a verified number that
+    // isn't E.164-shaped. Both are claims too, so `profile_updated_at` moves
+    // when one actually changes — the same dirty check as `updateProfile`.
     async setVerification(subjectId: string, patch: VerificationUpdate): Promise<UserRecord> {
       const currentRows = await tx.select().from(users).where(eq(users.subjectId, subjectId));
       const current = currentRows[0];
