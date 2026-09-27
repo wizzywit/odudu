@@ -118,12 +118,14 @@ import {
   type SettingsRouteDeps,
 } from '#/view/routes/settings';
 import {
+  amendProfileHandler,
   amendSubjectHandler,
   createSubjectHandler,
   deleteCredentialHandler,
   deleteSubjectHandler,
   listCredentialsHandler,
   listSubjectsHandler,
+  readProfileHandler,
   readRequiredActionsHandler,
   readSubjectHandler,
   readSubjectGroupsHandler,
@@ -373,6 +375,8 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/subjects/:id': readSubjectHandler(subjectsDeps),
       'PATCH /admin/tenants/:tenant/subjects/:id': amendSubjectHandler(subjectsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id': deleteSubjectHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/profile': readProfileHandler(subjectsDeps),
+      'PATCH /admin/tenants/:tenant/subjects/:id/profile': amendProfileHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/credentials': listCredentialsHandler(subjectsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/credentials/:credentialId':
         deleteCredentialHandler(subjectsDeps),

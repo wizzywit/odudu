@@ -883,7 +883,10 @@ The admin API reaches the same state without the CLI:
 `PUT /admin/tenants/{tenant}/subjects/:id/groups` replace a subject's
 direct roles and group memberships, each under a capability ceiling that
 refuses authority the caller does not hold itself
-([docs/admin-paths.md](docs/admin-paths.md)).
+([docs/admin-paths.md](docs/admin-paths.md)). A subject's OIDC profile
+claims — everything `odudu seed profile` sets — are no longer a CLI-only
+surface either: `GET`/`PATCH /admin/tenants/{tenant}/subjects/:id/profile`
+read and amend them, `email_verified`/`phone_number_verified` included.
 
 **"I created a role and it is not in my token."** Three things gate a role
 onto a token, independently: it must be granted to the subject

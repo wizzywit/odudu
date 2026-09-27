@@ -61,6 +61,35 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     enabled: 'value',
     group_ids: 'value',
   },
+  // `birthdate`, `phone_number` and every `address_*` member are a
+  // stronger identifier than the rest of a profile, on the same order as
+  // `client`'s `secret_hash` above — diffed as `{ changed: true }`, never
+  // by value. `profile_updated_at` names no member here: it is stamped by
+  // the write, never a patch input, so it never appears in a diff at all.
+  subject_profile: {
+    name: 'value',
+    given_name: 'value',
+    family_name: 'value',
+    middle_name: 'value',
+    nickname: 'value',
+    preferred_username: 'value',
+    profile: 'value',
+    picture: 'value',
+    website: 'value',
+    gender: 'value',
+    zoneinfo: 'value',
+    locale: 'value',
+    email_verified: 'value',
+    phone_number_verified: 'value',
+    birthdate: 'sensitive',
+    phone_number: 'sensitive',
+    address_formatted: 'sensitive',
+    address_street: 'sensitive',
+    address_locality: 'sensitive',
+    address_region: 'sensitive',
+    address_postal_code: 'sensitive',
+    address_country: 'sensitive',
+  },
   registration_token: {
     remaining_uses: 'value',
     expires_at: 'value',

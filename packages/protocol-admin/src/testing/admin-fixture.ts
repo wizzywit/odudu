@@ -143,6 +143,17 @@ export interface AdminFixture {
   // minted directly, the same way `adminToken` is, so a test can reach
   // `/userinfo` without driving a full authorization_code exchange.
   mintUserinfoAccessToken(tenantName: string, client: TestClient, scope: string): Promise<string>;
+  // Like `mintUserinfoAccessToken`, but for a subject that already exists —
+  // an admin-amended profile's own subject, say — rather than a fresh one
+  // minted alongside the token. So a test can read the claims an admin
+  // write actually reaches, through the same `/userinfo` door a client
+  // does, rather than reading the write back through the admin API itself.
+  mintUserinfoAccessTokenForSubject(
+    tenantName: string,
+    client: TestClient,
+    subjectId: string,
+    scope: string,
+  ): Promise<string>;
 
   // State changes a test needs but no endpoint offers, written directly.
   revokeGrantsFor(tenantName: string): Promise<void>;
@@ -722,6 +733,28 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     });
   }
 
+  async function mintUserinfoAccessTokenForSubject(
+    tenantName: string,
+    client: TestClient,
+    subjectId: string,
+    scope: string,
+  ): Promise<string> {
+    const ctx = requireTenant(tenantName);
+    return withTenant(app.db, ctx.id, async (tx) => {
+      const clientRecord = await clientRepository(tx).byClientId(client.clientId);
+      if (clientRecord === null) {
+        throw new Error(`fixture: unknown client ${client.clientId}`);
+      }
+      return mintTokenInTx(tx, ctx, {
+        subjectId,
+        client: clientRecord,
+        sessionId: null,
+        audience: [ctx.issuer],
+        scope,
+      });
+    });
+  }
+
   async function revokeGrantsFor(tenantName: string): Promise<void> {
     const ctx = requireTenant(tenantName);
     const ids = grantsByTenant.get(ctx.id) ?? [];
@@ -808,6 +841,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     tokenRequest,
     callUserinfo,
     mintUserinfoAccessToken,
+    mintUserinfoAccessTokenForSubject,
     revokeGrantsFor,
     revokeCapability,
     disableClientOf,

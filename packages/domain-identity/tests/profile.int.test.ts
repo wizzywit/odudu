@@ -7,6 +7,7 @@ import {
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -318,6 +319,78 @@ describe('markEmailVerified', () => {
       userRepository(tx).bySubjectId(subjectInA),
     );
     expect(stillA?.emailVerified).toBe(false);
+  });
+});
+
+describe('setVerification', () => {
+  it('sets emailVerified alone, leaving phoneNumberVerified untouched', async () => {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+
+    const updated = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).setVerification(subjectId, { emailVerified: true }),
+    );
+    expect(updated.emailVerified).toBe(true);
+    expect(updated.phoneNumberVerified).toBe(false);
+  });
+
+  it('sets phoneNumberVerified alone against a verified-shaped phone number', async () => {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+    await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).updateProfile(subjectId, { phoneNumber: '+14155552671' }),
+    );
+
+    const updated = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).setVerification(subjectId, { phoneNumberVerified: true }),
+    );
+    expect(updated.phoneNumberVerified).toBe(true);
+    expect(updated.emailVerified).toBe(false);
+  });
+
+  it('sets both flags in one call', async () => {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+    await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).updateProfile(subjectId, { phoneNumber: '+14155552671' }),
+    );
+
+    const updated = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).setVerification(subjectId, {
+        emailVerified: true,
+        phoneNumberVerified: true,
+      }),
+    );
+    expect(updated.emailVerified).toBe(true);
+    expect(updated.phoneNumberVerified).toBe(true);
+  });
+
+  it('cannot verify a user in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subjectId = await seedUser(tx, tenantId);
+        return subjectId;
+      },
+      verifySeeded: async (tx, subjectId) => {
+        const found = await userRepository(tx).bySubjectId(subjectId);
+        expect(found?.emailVerified).toBe(false);
+      },
+      attempt: async (tx, subjectId) => {
+        try {
+          await userRepository(tx).setVerification(subjectId, { emailVerified: true });
+          return 'succeeded';
+        } catch {
+          return 'blocked';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyTenantAUnaffected: async (tx, subjectId) => {
+        const found = await userRepository(tx).bySubjectId(subjectId);
+        expect(found?.emailVerified).toBe(false);
+      },
+    });
   });
 });
 

@@ -1,4 +1,5 @@
 import {
+  amendProfileRequestSchema,
   amendSubjectRequestSchema,
   createSubjectRequestSchema,
   listSubjectsQuerySchema,
@@ -10,11 +11,12 @@ import {
   type SetRolesResponse,
   type Subject,
 } from '@odudu/contracts/admin';
-import { isUniqueViolation, type Database } from '@odudu/db';
+import { isCheckViolation, isUniqueViolation, type Database } from '@odudu/db';
 import { OduduError } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
+import { amendProfile, readProfile } from '#/usecase/profile';
 import {
   amendSubject,
   createSubject,
@@ -71,6 +73,17 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
 // reads for self-registration's own identical constraints.
 function isUniqueViolationNaming(err: unknown, constraint: string): boolean {
   if (!isUniqueViolation(err)) return false;
+  const cause = err instanceof Error ? err.cause : undefined;
+  const message = cause instanceof Error ? cause.message : err instanceof Error ? err.message : '';
+  return message.includes(constraint);
+}
+
+// Same shape, for `users_verified_phone_is_e164` (0024_verified_phone_is_
+// e164.sql) — the one CHECK `amendProfile` cannot pre-validate with a
+// TypeScript predicate, since E.164 is only required once
+// `phone_number_verified` is true.
+function isCheckViolationNaming(err: unknown, constraint: string): boolean {
+  if (!isCheckViolation(err)) return false;
   const cause = err instanceof Error ? err.cause : undefined;
   const message = cause instanceof Error ? cause.message : err instanceof Error ? err.message : '';
   return message.includes(constraint);
@@ -270,6 +283,109 @@ export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
     }
     reply.header('etag', outcome.etag);
     return reply.code(200).send(subjectWireShape(outcome.subject));
+  };
+}
+
+export function readProfileHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET profile route received no :id');
+    }
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      readProfile(tx, id),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(
+        reply,
+        request,
+        problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+      );
+    }
+
+    reply.header('etag', outcome.etag);
+    return reply.code(200).send(outcome.view);
+  };
+}
+
+function profileAmendmentProblem(
+  reply: FastifyReply,
+  request: AdminRequest,
+  outcome: Exclude<Awaited<ReturnType<typeof amendProfile>>, { kind: 'ok' }>,
+): FastifyReply {
+  switch (outcome.kind) {
+    case 'not_found':
+      return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+    case 'refused_field':
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+      );
+    case 'invalid_value':
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+      );
+    case 'precondition_failed':
+      return sendProblem(
+        reply,
+        request,
+        problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches'),
+      );
+  }
+}
+
+export function amendProfileHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: PATCH profile route received no :id');
+    }
+    const values = amendProfileRequestSchema.parse(request.body);
+
+    let outcome: Awaited<ReturnType<typeof amendProfile>>;
+    try {
+      outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+        amendProfile(
+          tx,
+          { audit: deps.audit },
+          {
+            subjectId: id,
+            values,
+            ifMatch: ifMatchHeader(request),
+            actorSubjectId: principal.subjectId,
+            actorTenantId: principal.issuerTenantId,
+            actorClientId: principal.clientDbId,
+          },
+        ),
+      );
+    } catch (error) {
+      // The transaction has already rolled back by the time this is
+      // caught — the same shape createSubjectHandler leaves a unique
+      // violation in above.
+      if (isCheckViolationNaming(error, 'users_verified_phone_is_e164')) {
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            400,
+            'about:blank',
+            'Bad Request',
+            'phone_number must be E.164-shaped for phone_number_verified to be true',
+          ),
+        );
+      }
+      throw error;
+    }
+
+    if (outcome.kind !== 'ok') {
+      return profileAmendmentProblem(reply, request, outcome);
+    }
+    reply.header('etag', outcome.etag);
+    return reply.code(200).send(outcome.view);
   };
 }
 

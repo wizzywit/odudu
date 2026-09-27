@@ -94,7 +94,8 @@ export interface SubjectAuditEvent {
     | 'subject.credential_delete'
     | 'subject.required_actions_set'
     | 'subject.roles_set'
-    | 'subject.groups_set';
+    | 'subject.groups_set'
+    | 'subject.profile_amend';
   readonly resourceType: 'subject';
   readonly resourceId: string;
   readonly actorSubjectId: string;

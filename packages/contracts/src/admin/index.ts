@@ -38,6 +38,12 @@ export {
   type Settings,
 } from '#/admin/settings';
 export {
+  profileSchema,
+  type Profile,
+  amendProfileRequestSchema,
+  type AmendProfileRequest,
+} from '#/admin/profile';
+export {
   clientTypeSchema,
   registrationOriginSchema,
   clientSchema,

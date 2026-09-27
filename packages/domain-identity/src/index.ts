@@ -29,5 +29,12 @@ export {
   type NewUser,
   type ProfileUpdate,
   type UserWithSubject,
+  type VerificationUpdate,
 } from '#/repository/users';
+export {
+  isValidBirthdate,
+  isValidLocale,
+  isValidProfileUrl,
+  isValidZoneinfo,
+} from '#/service/profile';
 export { credentialRepository, type NewCredential } from '#/repository/credentials';

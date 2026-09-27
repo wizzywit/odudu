@@ -9,6 +9,7 @@ import {
   amendRoleRequestSchema,
   amendScopeRequestSchema,
   amendSettingsRequestSchema,
+  amendProfileRequestSchema,
   amendSubjectRequestSchema,
   assignScopeToClientRequestSchema,
   clientSchema,
@@ -72,6 +73,7 @@ import {
   testSmtpRequestSchema,
   testSmtpResponseSchema,
   signingKeySchema,
+  profileSchema,
   subjectSchema,
   tenantSchema,
   whoamiResponseSchema,
@@ -165,6 +167,24 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: z.void(),
     successStatus: 204,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/profile',
+    capability: 'view-users',
+    responseSchema: profileSchema,
+  },
+  {
+    method: 'PATCH',
+    pattern: '/admin/tenants/:tenant/subjects/:id/profile',
+    capability: 'manage-users',
+    responseSchema: profileSchema,
+    bodySchema: amendProfileRequestSchema,
+    description:
+      'Amends the OIDC claim columns a subject carries — every `profileSchema` member ' +
+      'except `profile_updated_at`, which the write stamps itself. `email` and `username` ' +
+      'are refused here, naming `PATCH /admin/tenants/{tenant}/subjects/{id}`, which owns ' +
+      'each. `If-Match` is optional: honoured when present, never required.',
   },
   {
     method: 'GET',

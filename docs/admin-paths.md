@@ -83,7 +83,10 @@ captured against it after one more rebuild, as a new admin subject
 `ada-scope-unassign`, in a tenant `scope-unassign-demo` created for it; its
 built-in admin client guard and `DELETE /scopes/:id`'s `openid` guard were
 captured together after a further rebuild, as the same subject, in a
-tenant `scope-guard-demo` created for them.
+tenant `scope-guard-demo` created for them. `GET /subjects/:id/profile`
+and `PATCH /subjects/:id/profile` were captured after one more rebuild, as
+a new admin subject `ada-profile` in the system tenant, in a tenant
+`profile-demo` created for them, on a subject `grace` created there.
 
 ## The shape of it
 
@@ -146,6 +149,8 @@ shape of what it is filling.
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id`                           | Read a subject                            |
 | `PATCH`  | `/admin/tenants/{tenant}/subjects/:id`                           | Amend a subject                           |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id`                           | Delete a subject                          |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/profile`                   | Read a subject's profile                  |
+| `PATCH`  | `/admin/tenants/{tenant}/subjects/:id/profile`                   | Amend a subject's profile                 |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/credentials`               | List a subject's credentials              |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/credentials/:credentialId` | Remove a credential                       |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Read a subject's required actions         |
@@ -1506,6 +1511,116 @@ content-type: application/json; charset=utf-8
 
 The `ETag` is the one `GET /subjects/:id` above returned, recomputed — a
 caller that read before this write holds a stale one.
+
+## `GET /subjects/:id/profile` and `PATCH /subjects/:id/profile`
+
+The read requires `view-users`, the write `manage-users`. Every OIDC
+Core §5.1 claim column `users` carries, in the snake_case a claim itself
+uses — `email_verified` and `phone_number_verified` beside them, both
+writable here, and `profile_updated_at` last, stamped by the write and
+never accepted from one. `email` and `username` are refused with `400`,
+naming `PATCH /subjects/:id` above, which is the door that owns each; any
+other member this schema does not carry is refused the same way, by ajv,
+before either usecase runs. `If-Match` is optional, not mandatory: honoured
+against a stale value with `412`, but never required with `428` the way a
+replace-the-whole-list route requires it — a profile patches field by
+field, so nothing here can reinstate what a concurrent write removed. An
+id naming a service or `agent_instance` subject — one with no `users`
+row — answers `404`, the same as one that does not exist at all.
+
+Captured against the fourth stack, after a further rebuild, in a tenant of
+its own, `profile-demo`, on a fresh subject `grace`:
+
+```bash
+curl -sS -D - \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/profile-demo/subjects/01a0e261-1fba-77f2-a400-3de9aa6f8e5c/profile
+```
+
+```
+HTTP/1.1 200 OK
+etag: "267a109a381700700ebf7e25c03d8727def9ea86f79aec8bb6d014b4c3843e43"
+content-type: application/json; charset=utf-8
+
+{"name":null,"given_name":null,"family_name":null,"middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":null}
+```
+
+Amending `given_name` and `family_name` stamps `profile_updated_at`:
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"given_name": "Grace", "family_name": "Hopper"}' \
+  http://localhost:3000/admin/tenants/profile-demo/subjects/01a0e261-1fba-77f2-a400-3de9aa6f8e5c/profile
+```
+
+```
+HTTP/1.1 200 OK
+etag: "b9196c6ae0dfb104830188c8a5a37f73571539aa9d606f78e8256f3dd0d636b9"
+content-type: application/json; charset=utf-8
+
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:20:19.295Z"}
+```
+
+`email_verified` is set the same way, against the address `PATCH
+/subjects/:id` owns:
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email_verified": true}' \
+  http://localhost:3000/admin/tenants/profile-demo/subjects/01a0e261-1fba-77f2-a400-3de9aa6f8e5c/profile
+```
+
+```
+HTTP/1.1 200 OK
+etag: "09ab4400a3bc442e876c6ad6c1ea09f64ff54a38811f2faabe753f89abdb427b"
+content-type: application/json; charset=utf-8
+
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:20:19.295Z"}
+```
+
+`email` in the same body is refused, naming the route that owns it instead
+of `about:blank`'s usual bare wording:
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "grace@example.com"}' \
+  http://localhost:3000/admin/tenants/profile-demo/subjects/01a0e261-1fba-77f2-a400-3de9aa6f8e5c/profile
+```
+
+```
+HTTP/1.1 400 Bad Request
+content-type: application/problem+json; charset=utf-8
+
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"email: email is amended through PATCH /admin/tenants/{tenant}/subjects/{id}, not a subject’s profile","instance":"01a0e261-5417-7c89-b062-db672a6682a0"}
+```
+
+`users_verified_phone_is_e164` (`packages/db/drizzle/
+0024_verified_phone_is_e164.sql`) still refuses a verified number that is
+not E.164-shaped — caught outside the transaction the same way a duplicate
+username is, and answered the same `400` a birthdate or a locale the shape
+does not admit gets from the predicate that mirrors this CHECK
+(`packages/domain-identity/src/service/profile.ts`):
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"phone_number": "(415) 555-2671", "phone_number_verified": true}' \
+  http://localhost:3000/admin/tenants/profile-demo/subjects/01a0e261-1fba-77f2-a400-3de9aa6f8e5c/profile
+```
+
+```
+HTTP/1.1 400 Bad Request
+content-type: application/problem+json; charset=utf-8
+
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"phone_number must be E.164-shaped for phone_number_verified to be true","instance":"01a0e261-7ba8-741d-bb5e-8e556e86451c"}
+```
 
 ## `DELETE /subjects/:id`
 
