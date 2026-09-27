@@ -353,6 +353,64 @@ describe('GET /admin/tenants/{t}/clients and /clients/{id}', () => {
     expect(res.statusCode).toBe(404);
   });
 
+  it('reads builtin_admin: true for the built-in admin client, false for an ordinary one', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const admin = await fixture.builtinAdminClient(t.name);
+
+    const adminRead = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients/${admin.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(adminRead.json<{ builtin_admin: boolean }>().builtin_admin).toBe(true);
+
+    const create = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: `spa-${newId()}`,
+        redirect_uris: ['https://app.example/callback'],
+        token_endpoint_auth_method: 'none',
+      },
+    });
+    expect(create.json<{ builtin_admin: boolean }>().builtin_admin).toBe(false);
+  });
+
+  it('reads a confidential client’s service_subject_id, and null for a public client', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+
+    const confidential = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: `backend-${newId()}`,
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'client_secret_basic',
+      },
+    });
+    expect(
+      typeof confidential.json<{ service_subject_id: string | null }>().service_subject_id,
+    ).toBe('string');
+
+    const publicClient = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: `spa-${newId()}`,
+        redirect_uris: ['https://app.example/callback'],
+        token_endpoint_auth_method: 'none',
+      },
+    });
+    expect(
+      publicClient.json<{ service_subject_id: string | null }>().service_subject_id,
+    ).toBeNull();
+  });
+
   it('refuses a caller holding only manage-users', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users']);

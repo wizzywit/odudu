@@ -1005,7 +1005,9 @@ function parseSettings(assignments: readonly string[]): ParsedSetting[] {
     if (outcome.kind === 'invalid_value') {
       throw new OduduError(
         'seed_invalid_options',
-        `tenant setting ${name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`,
+        outcome.values === undefined
+          ? `tenant setting ${name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`
+          : `tenant setting ${name} must be one of ${outcome.values.join(', ')}`,
       );
     }
     return { name, column: outcome.column, value: outcome.value };

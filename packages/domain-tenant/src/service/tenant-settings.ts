@@ -31,14 +31,24 @@ const SETTINGS = {
   brute_force_lockout_seconds: { column: 'bruteForceLockoutSeconds', type: 'integer' },
   brute_force_max_lockout_seconds: { column: 'bruteForceMaxLockoutSeconds', type: 'integer' },
   brute_force_failure_reset_seconds: { column: 'bruteForceFailureResetSeconds', type: 'integer' },
-  client_registration_policy: { column: 'clientRegistrationPolicy', type: 'text' },
+  client_registration_policy: {
+    column: 'clientRegistrationPolicy',
+    type: 'text',
+    values: ['disabled', 'open', 'token'],
+  },
   max_clients: { column: 'maxClients', type: 'integer' },
   max_sessions_per_browser: { column: 'maxSessionsPerBrowser', type: 'integer' },
   remember_me_allowed: { column: 'rememberMeAllowed', type: 'boolean' },
   remember_me_idle_seconds: { column: 'rememberMeIdleSeconds', type: 'integer' },
   remember_me_max_seconds: { column: 'rememberMeMaxSeconds', type: 'integer' },
   audit_retention_days: { column: 'auditRetentionDays', type: 'integer' },
-} as const satisfies Record<string, { column: TenantColumn; type: 'boolean' | 'integer' | 'text' }>;
+} as const satisfies Record<string, TenantSetting>;
+
+interface TenantSetting {
+  readonly column: TenantColumn;
+  readonly type: 'boolean' | 'integer' | 'text';
+  readonly values?: readonly string[];
+}
 
 export type TenantSettingName = keyof typeof SETTINGS;
 
@@ -60,7 +70,7 @@ export const TENANT_SETTING_COLUMNS: readonly TenantSettingColumn[] = Object.ent
 export type CoerceOutcome =
   | { kind: 'coerced'; column: TenantColumn; value: boolean | number | string }
   | { kind: 'unknown_setting'; known: readonly string[] }
-  | { kind: 'invalid_value'; expected: 'boolean' | 'integer' | 'text' };
+  | { kind: 'invalid_value'; expected: 'boolean' | 'integer' | 'text'; values?: readonly string[] };
 
 function isSettingName(value: string): value is TenantSettingName {
   return Object.hasOwn(SETTINGS, value);
@@ -85,8 +95,12 @@ export function coerceTenantSetting(name: string, raw: string): CoerceOutcome {
   if (!isSettingName(name)) {
     return { kind: 'unknown_setting', known: TENANT_SETTING_NAMES };
   }
-  const setting = SETTINGS[name];
+  const setting: TenantSetting = SETTINGS[name];
   if (setting.type === 'text') {
+    const values = setting.values;
+    if (values !== undefined && !values.includes(raw)) {
+      return { kind: 'invalid_value', expected: 'text', values };
+    }
     return { kind: 'coerced', column: setting.column, value: raw };
   }
   const value = setting.type === 'boolean' ? coerceBoolean(raw) : coerceInteger(raw);

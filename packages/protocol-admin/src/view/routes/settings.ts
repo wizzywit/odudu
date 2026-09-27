@@ -88,7 +88,9 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
             400,
             'about:blank',
             'Bad Request',
-            `tenant setting ${outcome.name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`,
+            outcome.values === undefined
+              ? `tenant setting ${outcome.name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`
+              : `tenant setting ${outcome.name} must be one of ${outcome.values.join(', ')}`,
           ),
         );
       case 'system_tenant_guarded':

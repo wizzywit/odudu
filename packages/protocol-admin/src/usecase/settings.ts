@@ -59,7 +59,12 @@ export interface AmendSettingsDeps {
 export type AmendSettingsOutcome =
   | { kind: 'amended'; settings: TenantSettingsRecord; etag: string }
   | { kind: 'unknown_setting'; name: string; known: readonly string[] }
-  | { kind: 'invalid_value'; name: string; expected: 'boolean' | 'integer' | 'text' }
+  | {
+      kind: 'invalid_value';
+      name: string;
+      expected: 'boolean' | 'integer' | 'text';
+      values?: readonly string[];
+    }
   | { kind: 'system_tenant_guarded'; reason: string }
   | { kind: 'precondition_failed' };
 
@@ -100,7 +105,12 @@ function coerceAll(values: Readonly<Record<string, boolean | number | string>>):
       return { kind: 'unknown_setting', name, known: TENANT_SETTING_NAMES };
     }
     if (outcome.kind === 'invalid_value') {
-      return { kind: 'invalid_value', name, expected: outcome.expected };
+      return {
+        kind: 'invalid_value',
+        name,
+        expected: outcome.expected,
+        ...(outcome.values === undefined ? {} : { values: outcome.values }),
+      };
     }
     settings.push({ name, column: outcome.column, value: outcome.value });
   }

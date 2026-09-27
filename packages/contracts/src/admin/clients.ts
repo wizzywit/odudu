@@ -41,6 +41,8 @@ export const clientSchema = z.object({
   userinfo_encrypted_response_alg: z.string().nullable(),
   userinfo_encrypted_response_enc: z.string().nullable(),
   tls_client_auth_subject_dn: z.string().nullable(),
+  builtin_admin: z.boolean(),
+  service_subject_id: z.uuid().nullable(),
   scopes: z.array(clientScopeAssignmentViewSchema),
 });
 export type Client = z.infer<typeof clientSchema>;

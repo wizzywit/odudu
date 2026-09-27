@@ -109,7 +109,12 @@ system tenant, in a tenant `recovery-demo` created for them, on a subject
 `hana` seeded there with `odudu seed user`, and, for the target ceiling,
 subjects `mo` and `lin` seeded beside it. The service was restarted
 without that override afterwards, so the stack is back to its default
-throttle of ten.
+throttle of ten. The `demo-fields-check` create and read under
+`POST /clients` were recaptured after a further rebuild added
+`builtin_admin` and `service_subject_id` to a client's representation, as
+`field-facts-admin`, a new admin subject in the system tenant — the client
+was deleted and recreated under the same `client_id` in `demo`, so its row
+id, secret and timestamp are later than the rest of this section's.
 
 ## The shape of it
 
@@ -168,7 +173,9 @@ once — a registration token, a client secret, a one-time password. It was
 added after most of the transcripts below were captured, so a header block
 captured before it does not show the line; the ones under
 `DELETE /subjects/:id/lockout`, `POST /subjects/:id/password` and
-`DELETE /subjects/:id/sessions` were captured after, and do.
+`DELETE /subjects/:id/sessions` were captured after, and do — as are the
+`demo-fields-check` and filtered-listing blocks under `POST /clients` and
+`GET /clients`, recaptured for `builtin_admin` and `service_subject_id`.
 
 | Method   | Path                                                             | What it is                                |
 | -------- | ---------------------------------------------------------------- | ----------------------------------------- |
@@ -730,7 +737,10 @@ and the detail `<field>: <field> is not a client field`, naming it rather
 than silently ignoring it; `name` sent alongside a different `client_name`
 is refused the same way.
 
-Creating a client that names both, against `demo`:
+Creating a client that names both, against `demo`. Recaptured after a
+rebuild that added `builtin_admin` and `service_subject_id` to a client's
+representation, so this id and secret are a later run's than the rest of
+this section:
 
 ```bash
 curl -sS -D - -X POST \
@@ -743,27 +753,28 @@ curl -sS -D - -X POST \
 ```
 HTTP/1.1 201 Created
 content-type: application/json; charset=utf-8
-content-length: 1718
+content-length: 1800
 
-{"id":"01a0dee4-3a27-7076-b0d3-d3bd2db632e6","client_id":"demo-fields-check","name":"demo-fields-check","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-26T18:04:54.089Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}],"client_secret":"gS4SN94EZtV6Rd0W2GelBnN27ZfkWtdyXgAt1gZCjGA"}
+{"id":"01a0e356-de3a-7fb4-8a1a-d03943296a95","client_id":"demo-fields-check","name":"demo-fields-check","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T14:48:36.097Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e356-de06-7bdf-b08c-bf09f5f3d01c","scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}],"client_secret":"sMNd6TboNud0pmJulbT_YBA1FWS4fgmkhb6OKnthX24"}
 ```
 
 `GET`ting it back shows both fields still set, from the row rather than the
-create response:
+create response — and now also carries `builtin_admin` and
+`service_subject_id`, read from the same row a create response is:
 
 ```bash
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/clients/01a0dee4-3a27-7076-b0d3-d3bd2db632e6
+  http://localhost:3000/admin/tenants/demo/clients/01a0e356-de3a-7fb4-8a1a-d03943296a95
 ```
 
 ```
 HTTP/1.1 200 OK
-etag: "b1e8c1b1b17c7677d4702d00df856af4901eefc1273b2399650b7dab8d4ac1a0"
+etag: "2f056d52fc3fd934af102da0a3ece8e079a474677ae96f33b4fc0a592f1feb9a"
 content-type: application/json; charset=utf-8
-content-length: 1656
+content-length: 1738
 
-{"id":"01a0dee4-3a27-7076-b0d3-d3bd2db632e6","client_id":"demo-fields-check","name":"demo-fields-check","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-26T18:04:54.089Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}]}
+{"id":"01a0e356-de3a-7fb4-8a1a-d03943296a95","client_id":"demo-fields-check","name":"demo-fields-check","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T14:48:36.097Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e356-de06-7bdf-b08c-bf09f5f3d01c","scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}]}
 ```
 
 An unknown field, on the same tenant:
@@ -802,31 +813,46 @@ given a generated secret, returned **exactly once, in the creation
 response**. Nothing reads it back afterward — `clients.secret_hash` is the
 only thing stored.
 
+The disable and delete guards further down read `builtin_admin`, and a
+client's representation now carries it and `service_subject_id` too. This
+create, the psql listing and the disable/delete/rotate blocks under
+`PATCH /clients/{id}`, `DELETE /clients/{id}` and `POST /clients/{id}/secret`
+below were recaptured together for that, against a tenant of their own,
+`client-facts-demo`, created for them the same way `GET /admin/tenants`
+above shows, as a new admin subject `field-facts-admin` in the system
+tenant; the `demo`-tenant blocks between them (the amendment and
+`If-Match` narrative) are unchanged, from an earlier, already-torn-down
+stack, and say so where they appear:
+
 ```bash
 curl -sS -D - -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"client_id": "demo-backend", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_basic"}' \
-  http://localhost:3000/admin/tenants/demo/clients
+  http://localhost:3000/admin/tenants/client-facts-demo/clients
 ```
 
 `201`, the whole client, the tenant's default scope assignments, and the
-one-time secret. The `scopes` ids are `demo`'s own, created with the tenant
-above:
+one-time secret. The `scopes` ids are `client-facts-demo`'s own, created
+with the tenant above:
 
 ```
 HTTP/1.1 201 Created
 content-type: application/json; charset=utf-8
+content-length: 1738
 
-{"id":"01a0d6fc-e5b4-73d4-9162-e2a9893d64b0","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-25T05:14:53.164Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0d6fc-3628-7829-8b29-5697c271d92e","name":"openid","assignment":"default"},{"id":"01a0d6fc-3629-7e64-a89c-2804355f56cf","name":"profile","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0ed3f11a86","name":"email","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0f8bb7530a","name":"address","assignment":"default"},{"id":"01a0d6fc-362b-7e0c-8a4d-4d3d27f20576","name":"phone","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af72e19f1886","name":"roles","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af737fd4358b","name":"groups","assignment":"default"},{"id":"01a0d6fc-362d-7533-bab9-7ea5ea57ba8d","name":"offline_access","assignment":"optional"}],"client_secret":"8ifZC73Id0zHBaQ05QgjVsKl7fTaMHPo6_M92X-Zp1A"}
+{"id":"01a0e35a-8bd9-7f9c-81f9-e251c8d25583","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T14:52:37.170Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e35a-8bb5-7719-8322-4d8e7949f15f","scopes":[{"id":"01a0e358-cee4-7fba-a335-268c8ab959e9","name":"openid","assignment":"default"},{"id":"01a0e358-cee5-75f5-a535-c5338eb7f2de","name":"profile","assignment":"default"},{"id":"01a0e358-cee6-7128-8632-ee78c48f0871","name":"email","assignment":"default"},{"id":"01a0e358-cee7-7bac-80a9-699c01de36bc","name":"address","assignment":"default"},{"id":"01a0e358-cee8-79a4-bfa3-ccd3f3a6f617","name":"phone","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d123f51b6827","name":"roles","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d1240fcd752d","name":"groups","assignment":"default"},{"id":"01a0e358-ceea-7434-ac57-90739d28612e","name":"offline_access","assignment":"optional"}],"client_secret":"6Kf4ZAxcvlfvnC4EkWL1bMhTMwEizm2FYme1U_zIy-E"}
 ```
 
-`client_secret` is the only member of that object nothing reads back. Note
-what is **not** there: `builtin_admin`. The column the disable and delete
-guards below read is not part of a client's representation, so the psql
-listing under `PATCH /clients/{id}` is what shows it.
+`client_secret` is the only member of that object nothing reads back.
+`service_subject_id` is a confidential client's own service account,
+created alongside it; `builtin_admin` is `false` here and `true` on the
+tenant's own `odudu-admin`, read from the same column the disable and
+delete guards below check, not asserted — the psql listing under
+`PATCH /clients/{id}` shows both rows.
 
-The reserved `client_id`, refused against the same tenant:
+The reserved `client_id`, refused against `demo` (this tenant's own history,
+captured separately):
 
 ```
 {"type":"about:blank","title":"Conflict","status":409,"detail":"the client_id \"odudu-admin\" is reserved","instance":"01a0d6ff-8816-7f15-827d-118b7b6ee5ed"}
@@ -852,7 +878,9 @@ ordered by that folded column then by `id`; exact filters
 with each other; a cursor bound to every filter; any other parameter
 refused with `400` naming it. Captured against the fourth stack, whose
 `demo` held `demo-backend`, `demo-exchanger`, `demo-fields-check` and
-`demo-operator` (confidential) and `demo-spa` (public):
+`demo-operator` (confidential) and `demo-spa` (public); recaptured after the
+rebuild that added `builtin_admin` and `service_subject_id`, which is also
+why this block, unlike most below it, shows `cache-control: no-store`:
 
 ```bash
 curl -sS -D - \
@@ -862,15 +890,16 @@ curl -sS -D - \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e111-4389-77ad-8af7-83fe5e2a746c
+x-request-id: 01a0e357-d283-7de4-88d7-766fdeb326d1
+cache-control: no-store
 link: </admin/tenants/demo/clients?limit=1&client_id=DEMO&type=confidential&cursor=eyJhZnRlciI6IjAxYTBkYmQ0LTAxZjgtNzVmZC05YWZmLTFhYmI4NDFjYjRiOSIsInNvcnQiOiJkZW1vLWJhY2tlbmQiLCJjb2xsZWN0aW9uIjoiY2xpZW50cyIsInRlbmFudElkIjoiMDFhMGRiMjItMWMzMi03ZDE3LWIzNTEtNjk3ZDc5MTEwMzNjIiwiZmlsdGVycyI6Ik9BZENoUUxJNEt5UGtUMUhLc05ESld5WDM4NS1YaWFsQktSbkNXOUNPZHMifQ.5eRgvj6hT2_V1Lq6V21m9mTuyo4-4DlrHiWpahxFiIU>; rel="next"
 content-type: application/json; charset=utf-8
-content-length: 1993
-Date: Sun, 27 Sep 2026 04:13:20 GMT
+content-length: 2075
+Date: Sun, 27 Sep 2026 14:49:38 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a0dbd4-01f8-75fd-9aff-1abb841cb4b9","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"seeded","created_at":"2026-09-26T03:48:19.537Z","redirect_uris":["http://localhost:8080/callback"],"grant_types":["authorization_code","refresh_token","client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}]}],"next":"eyJhZnRlciI6IjAxYTBkYmQ0LTAxZjgtNzVmZC05YWZmLTFhYmI4NDFjYjRiOSIsInNvcnQiOiJkZW1vLWJhY2tlbmQiLCJjb2xsZWN0aW9uIjoiY2xpZW50cyIsInRlbmFudElkIjoiMDFhMGRiMjItMWMzMi03ZDE3LWIzNTEtNjk3ZDc5MTEwMzNjIiwiZmlsdGVycyI6Ik9BZENoUUxJNEt5UGtUMUhLc05ESld5WDM4NS1YaWFsQktSbkNXOUNPZHMifQ.5eRgvj6hT2_V1Lq6V21m9mTuyo4-4DlrHiWpahxFiIU"}
+{"items":[{"id":"01a0dbd4-01f8-75fd-9aff-1abb841cb4b9","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"seeded","created_at":"2026-09-26T03:48:19.537Z","redirect_uris":["http://localhost:8080/callback"],"grant_types":["authorization_code","refresh_token","client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0dbd4-01d5-70b7-9523-150335086259","scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}]}],"next":"eyJhZnRlciI6IjAxYTBkYmQ0LTAxZjgtNzVmZC05YWZmLTFhYmI4NDFjYjRiOSIsInNvcnQiOiJkZW1vLWJhY2tlbmQiLCJjb2xsZWN0aW9uIjoiY2xpZW50cyIsInRlbmFudElkIjoiMDFhMGRiMjItMWMzMi03ZDE3LWIzNTEtNjk3ZDc5MTEwMzNjIiwiZmlsdGVycyI6Ik9BZENoUUxJNEt5UGtUMUhLc05ESld5WDM4NS1YaWFsQktSbkNXOUNPZHMifQ.5eRgvj6hT2_V1Lq6V21m9mTuyo4-4DlrHiWpahxFiIU"}
 ```
 
 Following that link, then `?name=Demo-S`, each cut down with `jq` to the
@@ -931,7 +960,9 @@ content-length: 1594
 ```
 
 The create response above was 1656 bytes and this one is 1594: the
-difference is the secret, present there and absent here.
+difference is the secret, present there and absent here. (This read shows
+headers only, from `demo` — a different, already-torn-down stack than
+`client-facts-demo` above; the two never share an id.)
 
 ## `PATCH /clients/{id}`
 
@@ -1052,36 +1083,35 @@ stale — is refused and changes nothing:
 
 **The two `409`s that disabling produces are told apart by one column, and
 the admin API does not expose it**, so it is read from the database beside
-them rather than asserted. The three clients are `demo`'s own built-in one,
-`demo-backend` above, and `demo-app`, which the sessions section below
-creates:
+them rather than asserted. `client-facts-demo` holds the two clients this
+guard needs: its own built-in one, and `demo-backend` above:
 
 ```bash
 docker compose exec -T postgres psql -U odudu -d odudu -c \
   "select client_id, builtin_admin, enabled from clients
-     where tenant_id = '01a0d6fc-3626-7e23-94d7-3b1b666e278f' order by client_id;"
+     where tenant_id = '01a0e358-cee0-763b-8273-558be62ebebb' order by client_id;"
 ```
 
 ```
   client_id   | builtin_admin | enabled
 --------------+---------------+---------
- demo-app     | f             | t
  demo-backend | f             | t
  odudu-admin  | t             | t
-(3 rows)
+(2 rows)
 ```
 
 `demo-backend`, `builtin_admin` false, disables — and the response is the
-whole client, so `enabled` can be read back from it:
+whole client, so `enabled` can be read back from it, alongside
+`builtin_admin` itself:
 
 ```bash
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -d '{"enabled": false}' \
-  http://localhost:3000/admin/tenants/demo/clients/01a0d6fc-e5b4-73d4-9162-e2a9893d64b0
+  http://localhost:3000/admin/tenants/client-facts-demo/clients/01a0e35a-8bd9-7f9c-81f9-e251c8d25583
 ```
 
 ```
-{"id":"01a0d6fc-e5b4-73d4-9162-e2a9893d64b0","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-25T05:14:53.164Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0d6fc-3628-7829-8b29-5697c271d92e","name":"openid","assignment":"default"},{"id":"01a0d6fc-3629-7e64-a89c-2804355f56cf","name":"profile","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0ed3f11a86","name":"email","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0f8bb7530a","name":"address","assignment":"default"},{"id":"01a0d6fc-362b-7e0c-8a4d-4d3d27f20576","name":"phone","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af72e19f1886","name":"roles","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af737fd4358b","name":"groups","assignment":"default"},{"id":"01a0d6fc-362d-7533-bab9-7ea5ea57ba8d","name":"offline_access","assignment":"optional"}]}
+{"id":"01a0e35a-8bd9-7f9c-81f9-e251c8d25583","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T14:52:37.170Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e35a-8bb5-7719-8322-4d8e7949f15f","scopes":[{"id":"01a0e358-cee4-7fba-a335-268c8ab959e9","name":"openid","assignment":"default"},{"id":"01a0e358-cee5-75f5-a535-c5338eb7f2de","name":"profile","assignment":"default"},{"id":"01a0e358-cee6-7128-8632-ee78c48f0871","name":"email","assignment":"default"},{"id":"01a0e358-cee7-7bac-80a9-699c01de36bc","name":"address","assignment":"default"},{"id":"01a0e358-cee8-79a4-bfa3-ccd3f3a6f617","name":"phone","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d123f51b6827","name":"roles","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d1240fcd752d","name":"groups","assignment":"default"},{"id":"01a0e358-ceea-7434-ac57-90739d28612e","name":"offline_access","assignment":"optional"}]}
 ```
 
 `odudu-admin`, `builtin_admin` true, the same request against the other id
@@ -1090,11 +1120,11 @@ in that listing, does not:
 ```bash
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -d '{"enabled": false}' \
-  http://localhost:3000/admin/tenants/demo/clients/01a0d6fc-3632-7d66-b7c1-71695bd9e71f
+  http://localhost:3000/admin/tenants/client-facts-demo/clients/01a0e358-cef6-78c2-a3fd-51399e4e1b48
 ```
 
 ```
-{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be disabled","instance":"01a0d703-358b-7e86-8398-16a5d3936196"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be disabled","instance":"01a0e359-65c4-754f-afeb-7b0258104fa7"}
 ```
 
 ## `DELETE /clients/{id}`
@@ -1107,22 +1137,24 @@ here deletes the config row a second time. `204` with no body on success,
 guard `PATCH` uses: the built-in client cannot be deleted any more than it
 can be disabled.
 
-All three outcomes against `demo`, in that order: the built-in client, an
-id nothing holds, then `demo-backend`. A `404` carries no `detail` at all,
-only the status and the request id:
+All three outcomes against `client-facts-demo`, in that order: the built-in
+client, an id nothing holds, then `demo-backend` — its secret rotated
+below first, since this is the same instance the rest of this section
+disabled and rotated. A `404` carries no `detail` at all, only the status
+and the request id:
 
 ```bash
 curl -sS -D - -X DELETE \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/clients/01a0d6fc-e5b4-73d4-9162-e2a9893d64b0
+  http://localhost:3000/admin/tenants/client-facts-demo/clients/01a0e358-cef6-78c2-a3fd-51399e4e1b48
 ```
 
 ```
-{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be deleted","instance":"01a0d708-7b5e-7443-b462-7af170e24808"}
-{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0d708-7b71-7e3b-8a95-a58ed9456ef2"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be deleted","instance":"01a0e35a-dd82-77ba-b7b1-7e1b27a2538b"}
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0e35a-dd99-7509-be6e-6aca2e0d2a2e"}
 
 HTTP/1.1 204 No Content
-x-request-id: 01a0d708-7b86-7dfe-9913-5ea326976017
+x-request-id: 01a0e35a-ddae-70a2-b313-94a2be85aa60
 ```
 
 ## `POST /clients/{id}/secret`
@@ -1138,15 +1170,16 @@ has no secret to rotate, refused with `409`.
 ```bash
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/clients/01a0d6fc-e5b4-73d4-9162-e2a9893d64b0/secret
+  http://localhost:3000/admin/tenants/client-facts-demo/clients/01a0e35a-8bd9-7f9c-81f9-e251c8d25583/secret
 ```
 
 Captured immediately after the disable above, which is why `enabled` reads
 `false` here: rotating a disabled client's secret is allowed, the guard
-being on the built-in client rather than on a disabled one.
+being on the built-in client rather than on a disabled one. `demo-backend`
+was deleted afterward, in the `DELETE` section above.
 
 ```
-{"id":"01a0d6fc-e5b4-73d4-9162-e2a9893d64b0","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-25T05:14:53.164Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0d6fc-3628-7829-8b29-5697c271d92e","name":"openid","assignment":"default"},{"id":"01a0d6fc-3629-7e64-a89c-2804355f56cf","name":"profile","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0ed3f11a86","name":"email","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0f8bb7530a","name":"address","assignment":"default"},{"id":"01a0d6fc-362b-7e0c-8a4d-4d3d27f20576","name":"phone","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af72e19f1886","name":"roles","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af737fd4358b","name":"groups","assignment":"default"},{"id":"01a0d6fc-362d-7533-bab9-7ea5ea57ba8d","name":"offline_access","assignment":"optional"}],"client_secret":"_0B83ooNdhzevzQk9fj_7VuvRSFhldgaE6kdDd8Zy4Y"}
+{"id":"01a0e35a-8bd9-7f9c-81f9-e251c8d25583","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T14:52:37.170Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e35a-8bb5-7719-8322-4d8e7949f15f","scopes":[{"id":"01a0e358-cee4-7fba-a335-268c8ab959e9","name":"openid","assignment":"default"},{"id":"01a0e358-cee5-75f5-a535-c5338eb7f2de","name":"profile","assignment":"default"},{"id":"01a0e358-cee6-7128-8632-ee78c48f0871","name":"email","assignment":"default"},{"id":"01a0e358-cee7-7bac-80a9-699c01de36bc","name":"address","assignment":"default"},{"id":"01a0e358-cee8-79a4-bfa3-ccd3f3a6f617","name":"phone","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d123f51b6827","name":"roles","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d1240fcd752d","name":"groups","assignment":"default"},{"id":"01a0e358-ceea-7434-ac57-90739d28612e","name":"offline_access","assignment":"optional"}],"client_secret":"tLlFbFQrUuAFpiT3BB10CwaL3l5zpEM8UIgguZH-1ME"}
 ```
 
 ## `GET /registration-tokens`, `POST /registration-tokens` and `DELETE /registration-tokens/:id`
@@ -3678,7 +3711,10 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 ```
 
 Unassigning `openid`, then reading the client back — the scope is gone from
-`scopes`, `profile` now first — then the same removal repeated:
+`scopes`, `profile` now first — then the same removal repeated. The read
+was recaptured after a rebuild added `builtin_admin` and
+`service_subject_id` to a client's representation; `scope-unassign-app` is
+public, so `service_subject_id` reads `null`:
 
 ```bash
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -3698,7 +3734,7 @@ Date: Sun, 27 Sep 2026 09:17:23 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a0e227-7650-759d-af14-bc3503b8344d","client_id":"scope-unassign-app","name":"scope-unassign-app","type":"public","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T09:17:12.141Z","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0e227-2505-73bb-8089-4caaa4028c12","name":"profile","assignment":"default"},{"id":"01a0e227-2506-783e-b180-60acaed1c1c9","name":"email","assignment":"default"},{"id":"01a0e227-250a-7a06-a417-18a9e4d8b123","name":"address","assignment":"default"},{"id":"01a0e227-250b-73a5-ae11-e114da20987b","name":"phone","assignment":"default"},{"id":"01a0e227-250c-7d5c-8063-9d2518215319","name":"roles","assignment":"default"},{"id":"01a0e227-250d-7438-aed1-a1f8da08f107","name":"groups","assignment":"default"},{"id":"01a0e227-250e-7407-9493-402eaec43c8b","name":"offline_access","assignment":"optional"}]}
+{"id":"01a0e227-7650-759d-af14-bc3503b8344d","client_id":"scope-unassign-app","name":"scope-unassign-app","type":"public","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T09:17:12.141Z","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":null,"scopes":[{"id":"01a0e227-2505-73bb-8089-4caaa4028c12","name":"profile","assignment":"default"},{"id":"01a0e227-2506-783e-b180-60acaed1c1c9","name":"email","assignment":"default"},{"id":"01a0e227-250a-7a06-a417-18a9e4d8b123","name":"address","assignment":"default"},{"id":"01a0e227-250b-73a5-ae11-e114da20987b","name":"phone","assignment":"default"},{"id":"01a0e227-250c-7d5c-8063-9d2518215319","name":"roles","assignment":"default"},{"id":"01a0e227-250d-7438-aed1-a1f8da08f107","name":"groups","assignment":"default"},{"id":"01a0e227-250e-7407-9493-402eaec43c8b","name":"offline_access","assignment":"optional"}]}
 HTTP/1.1 404 Not Found
 x-request-id: 01a0e227-b89a-7db8-9c8b-78707a938f58
 content-type: application/problem+json; charset=utf-8

@@ -75,6 +75,19 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('refuses a registration policy the database CHECK would also refuse, naming the three it allows', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/settings`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { client_registration_policy: 'sometimes' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('disabled, open, token');
+  });
+
   it('answers 412 when If-Match is stale', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);

@@ -45,6 +45,8 @@ const CLIENT_VIEW_COLUMNS = {
   createdAt: clients.createdAt,
   fullScopeAllowed: clients.fullScopeAllowed,
   registrationOrigin: clients.registrationOrigin,
+  builtinAdmin: clients.builtinAdmin,
+  serviceSubjectId: clients.serviceSubjectId,
   redirectUris: clientOidcConfig.redirectUris,
   grantTypes: clientOidcConfig.grantTypes,
   tokenEndpointAuthMethod: clientOidcConfig.tokenEndpointAuthMethod,
@@ -80,6 +82,8 @@ export interface ClientView {
   readonly createdAt: Date;
   readonly fullScopeAllowed: boolean;
   readonly registrationOrigin: ClientRecord['registrationOrigin'];
+  readonly builtinAdmin: boolean;
+  readonly serviceSubjectId: string | null;
   readonly redirectUris: string[];
   readonly grantTypes: string[];
   readonly tokenEndpointAuthMethod: ClientOidcConfig['tokenEndpointAuthMethod'];
@@ -381,6 +385,8 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): Omit<Clie
     createdAt: client.createdAt,
     fullScopeAllowed: client.fullScopeAllowed,
     registrationOrigin: client.registrationOrigin,
+    builtinAdmin: client.builtinAdmin,
+    serviceSubjectId: client.serviceSubjectId,
     redirectUris: config.redirectUris,
     grantTypes: config.grantTypes,
     tokenEndpointAuthMethod: config.tokenEndpointAuthMethod,
@@ -601,6 +607,8 @@ export function clientWireShape(view: ClientView): Client {
     userinfo_encrypted_response_alg: view.userinfoEncryptedResponseAlg,
     userinfo_encrypted_response_enc: view.userinfoEncryptedResponseEnc,
     tls_client_auth_subject_dn: view.tlsClientAuthSubjectDn,
+    builtin_admin: view.builtinAdmin,
+    service_subject_id: view.serviceSubjectId,
     scopes: view.scopes.map((scope) => ({
       id: scope.id,
       name: scope.name,
