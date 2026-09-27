@@ -87,8 +87,11 @@ import {
   amendRoleHandler,
   createRoleHandler,
   deleteRoleHandler,
+  listRoleCompositesHandler,
   listRolesHandler,
   readRoleHandler,
+  removeRoleCompositeHandler,
+  setRoleDefaultHandler,
   type RolesRouteDeps,
 } from '#/view/routes/roles';
 import { type AdminRouteHandlers, registerAdminRoutes } from '#/view/routes/router';
@@ -410,6 +413,10 @@ function buildAdminRoutes(
       'PATCH /admin/tenants/:tenant/roles/:id': amendRoleHandler(rolesDeps),
       'DELETE /admin/tenants/:tenant/roles/:id': deleteRoleHandler(rolesDeps),
       'POST /admin/tenants/:tenant/roles/:id/composites': addRoleCompositeHandler(rolesDeps),
+      'GET /admin/tenants/:tenant/roles/:id/composites': listRoleCompositesHandler(rolesDeps),
+      'DELETE /admin/tenants/:tenant/roles/:id/composites/:childId':
+        removeRoleCompositeHandler(rolesDeps),
+      'PUT /admin/tenants/:tenant/roles/:id/default': setRoleDefaultHandler(rolesDeps),
       'GET /admin/tenants/:tenant/groups': listGroupsHandler(groupsDeps),
       'GET /admin/tenants/:tenant/groups/count': countGroupsHandler(countsDeps),
       'POST /admin/tenants/:tenant/groups': createGroupHandler(groupsDeps),

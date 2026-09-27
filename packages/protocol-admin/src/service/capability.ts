@@ -1,5 +1,7 @@
 import {
   addRoleCompositeRequestSchema,
+  listRoleCompositesResponseSchema,
+  setRoleDefaultRequestSchema,
   amendClientRequestSchema,
   listAuditQuerySchema,
   listAuditResponseSchema,
@@ -436,6 +438,34 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: z.void(),
     successStatus: 204,
     bodySchema: addRoleCompositeRequestSchema,
+    description:
+      'Nests `child_role_id` under this role. Refused with `403` when the child reaches an admin capability the caller does not hold, or any admin capability at all while a default role reaches this one; `409` on a cycle.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/roles/:id/composites',
+    capability: 'manage-tenant',
+    responseSchema: listRoleCompositesResponseSchema,
+    description:
+      'The role\u2019s direct children only, not what they in turn include. Unpaged, like `GET /groups/:id/roles`: the list is one role\u2019s own edges, which an operator edits edge by edge, not a tenant-wide collection.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/roles/:id/composites/:childId',
+    capability: 'manage-tenant',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Removes one edge; `404` when there is none. Refused with `409` when the parent belongs to the tenant\u2019s built-in admin client, since every administrator holding it would lose the child.',
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/roles/:id/default',
+    capability: 'manage-tenant',
+    responseSchema: roleSchema,
+    bodySchema: setRoleDefaultRequestSchema,
+    description:
+      'Sets whether every subject created afterwards, self-registered ones included, is granted this role. `true` is refused with `403` when the role reaches any admin capability, whoever the caller is; `false` is never refused.',
   },
   {
     method: 'GET',

@@ -51,3 +51,13 @@ export const addRoleCompositeRequestSchema = z.object({
   child_role_id: idSchema,
 });
 export type AddRoleCompositeRequest = z.infer<typeof addRoleCompositeRequestSchema>;
+
+export const listRoleCompositesResponseSchema = z.object({
+  items: z.array(roleSchema),
+});
+export type ListRoleCompositesResponse = z.infer<typeof listRoleCompositesResponseSchema>;
+
+export const setRoleDefaultRequestSchema = z.object({
+  default: z.boolean(),
+});
+export type SetRoleDefaultRequest = z.infer<typeof setRoleDefaultRequestSchema>;

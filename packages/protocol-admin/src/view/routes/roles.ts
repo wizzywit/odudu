@@ -3,6 +3,7 @@ import {
   amendRoleRequestSchema,
   createRoleRequestSchema,
   listRolesQuerySchema,
+  setRoleDefaultRequestSchema,
 } from '@odudu/contracts/admin';
 import { isUniqueViolation, type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
@@ -13,14 +14,17 @@ import {
   amendRole,
   createRole,
   deleteRole,
+  listRoleComposites,
   listRoles,
   readRole,
+  removeRoleComposite,
+  setRoleDefault,
   type AddRoleCompositeOutcome,
   type AmendRoleOutcome,
   type Audit,
   type CreateRoleOutcome,
 } from '#/usecase/roles';
-import { problem, sendProblem } from '#/view/problem';
+import { problem, sendProblem, type Problem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -33,6 +37,15 @@ export interface RolesRouteDeps {
     issuerTenantId: string,
     subjectId: string,
   ) => Promise<ReadonlySet<string>>;
+}
+
+function defaultRoleCapabilityProblem(capabilities: readonly string[]): Problem {
+  return problem(
+    403,
+    'about:blank',
+    'Forbidden',
+    `a role handed to every new subject may reach no admin capability, and this one would reach: ${capabilities.join(', ')}`,
+  );
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -146,6 +159,9 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
         request,
         problem(400, 'about:blank', 'Bad Request', 'client_id names no client'),
       );
+    }
+    if (outcome.kind === 'default_role_capability') {
+      return sendProblem(reply, request, defaultRoleCapabilityProblem(outcome.capabilities));
     }
     return reply.code(201).send(outcome.role);
   };
@@ -267,6 +283,8 @@ function compositeProblem(
           `the caller does not hold: ${outcome.requested.join(', ')}`,
         ),
       );
+    case 'default_role_capability':
+      return sendProblem(reply, request, defaultRoleCapabilityProblem(outcome.capabilities));
     case 'cycle':
       return sendProblem(
         reply,
@@ -308,5 +326,96 @@ export function addRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHandler
       return compositeProblem(reply, request, outcome);
     }
     return reply.code(204).send();
+  };
+}
+
+export function listRoleCompositesHandler(deps: RolesRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET composites route received no :id');
+    }
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      listRoleComposites(tx, id),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found', `no role ${id}`));
+    }
+    return reply.code(200).send({ items: outcome.items });
+  };
+}
+
+export function removeRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const { id, childId } = request.params;
+    if (id === undefined || childId === undefined) {
+      throw new Error('protocol-admin: DELETE composite route received no :id or :childId');
+    }
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      removeRoleComposite(
+        tx,
+        { audit: deps.audit },
+        {
+          parentRoleId: id,
+          childRoleId: childId,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no composite ${childId} under role ${id}`),
+        );
+      case 'builtin_admin_guarded':
+        return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'removed':
+        return reply.code(204).send();
+    }
+  };
+}
+
+export function setRoleDefaultHandler(deps: RolesRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: PUT default route received no :id');
+    }
+    const body = setRoleDefaultRequestSchema.parse(request.body);
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      setRoleDefault(
+        tx,
+        { audit: deps.audit },
+        {
+          roleId: id,
+          value: body.default,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no role ${id}`),
+        );
+      case 'default_role_capability':
+        return sendProblem(reply, request, defaultRoleCapabilityProblem(outcome.capabilities));
+      case 'ok':
+        reply.header('etag', outcome.etag);
+        return reply.code(200).send(outcome.role);
+    }
   };
 }

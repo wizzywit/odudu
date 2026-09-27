@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   clientScopeRoles,
@@ -156,6 +156,40 @@ export function roleRepository(tx: TenantScopedDatabase) {
         .insert(roleComposites)
         .values({ tenantId, parentRoleId, childRoleId })
         .onConflictDoNothing();
+    },
+
+    async directComposites(parentRoleId: string): Promise<RoleRecord[]> {
+      const rows = await tx
+        .select({ role: roles })
+        .from(roleComposites)
+        .innerJoin(roles, eq(roles.id, roleComposites.childRoleId))
+        .where(eq(roleComposites.parentRoleId, parentRoleId))
+        .orderBy(asc(roles.name), asc(roles.id));
+      return rows.map((row) => toRecord(row.role));
+    },
+
+    async removeComposite(parentRoleId: string, childRoleId: string): Promise<boolean> {
+      const rows = await tx
+        .delete(roleComposites)
+        .where(
+          and(
+            eq(roleComposites.parentRoleId, parentRoleId),
+            eq(roleComposites.childRoleId, childRoleId),
+          ),
+        )
+        .returning({ parentRoleId: roleComposites.parentRoleId });
+      return rows.length > 0;
+    },
+
+    async setDefaultForNewSubjects(roleId: string, value: boolean): Promise<void> {
+      const rows = await tx
+        .update(roles)
+        .set({ defaultForNewSubjects: value })
+        .where(eq(roles.id, roleId))
+        .returning({ id: roles.id });
+      if (rows.length === 0) {
+        throw new OduduError('role_not_found', `no role with id ${roleId}`);
+      }
     },
 
     // tenant_id is not a caller-supplied argument: it is read back from the

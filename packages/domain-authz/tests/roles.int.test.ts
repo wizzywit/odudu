@@ -622,3 +622,144 @@ describe('setClientScopeRoles', () => {
     });
   });
 });
+
+describe('directComposites', () => {
+  it('lists a role’s direct children only, not what they in turn include', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const parent = await create({ name: 'parent', tenantId });
+    const b = await create({ name: 'b', tenantId });
+    const a = await create({ name: 'a', tenantId });
+    const grandchild = await create({ name: 'grandchild', tenantId });
+    await withTenant(app.db, tenantId, async (tx) => {
+      await roleRepository(tx).addComposite(parent.id, b.id);
+      await roleRepository(tx).addComposite(parent.id, a.id);
+      await roleRepository(tx).addComposite(a.id, grandchild.id);
+    });
+
+    const children = await withTenant(app.db, tenantId, (tx) =>
+      roleRepository(tx).directComposites(parent.id),
+    );
+    expect(children.map((role) => role.name)).toEqual(['a', 'b']);
+    expect(children[0]).toEqual(a);
+  });
+
+  it('does not list another tenant’s composites', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const parent = await roleRepository(tx).create({ tenantId, name: 'parent' });
+        const child = await roleRepository(tx).create({ tenantId, name: 'child' });
+        await roleRepository(tx).addComposite(parent.id, child.id);
+        return { parentId: parent.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const children = await roleRepository(tx).directComposites(seeded.parentId);
+        expect(children.map((role) => role.name)).toEqual(['child']);
+      },
+      attempt: async (tx, seeded) => roleRepository(tx).directComposites(seeded.parentId),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('removeComposite', () => {
+  it('removes one edge, answers false on repeat, and leaves the rest of the graph', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const parent = await create({ name: 'parent', tenantId });
+    const a = await create({ name: 'a', tenantId });
+    const b = await create({ name: 'b', tenantId });
+    await withTenant(app.db, tenantId, async (tx) => {
+      await roleRepository(tx).addComposite(parent.id, a.id);
+      await roleRepository(tx).addComposite(parent.id, b.id);
+    });
+
+    const first = await withTenant(app.db, tenantId, (tx) =>
+      roleRepository(tx).removeComposite(parent.id, a.id),
+    );
+    const again = await withTenant(app.db, tenantId, (tx) =>
+      roleRepository(tx).removeComposite(parent.id, a.id),
+    );
+    expect([first, again]).toEqual([true, false]);
+
+    const children = await withTenant(app.db, tenantId, (tx) =>
+      roleRepository(tx).directComposites(parent.id),
+    );
+    expect(children.map((role) => role.name)).toEqual(['b']);
+  });
+
+  it('cannot remove another tenant’s composite, and leaves it in place', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const parent = await roleRepository(tx).create({ tenantId, name: 'parent' });
+        const child = await roleRepository(tx).create({ tenantId, name: 'child' });
+        await roleRepository(tx).addComposite(parent.id, child.id);
+        return { parentId: parent.id, childId: child.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await roleRepository(tx).directComposites(seeded.parentId)).toHaveLength(1);
+      },
+      attempt: async (tx, seeded) =>
+        roleRepository(tx).removeComposite(seeded.parentId, seeded.childId),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        expect(await roleRepository(tx).directComposites(seeded.parentId)).toHaveLength(1);
+      },
+    });
+  });
+});
+
+describe('setDefaultForNewSubjects', () => {
+  it('sets and unsets the flag defaultsForTenant reads', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const role = await create({ name: 'member', tenantId });
+
+    await withTenant(app.db, tenantId, (tx) =>
+      roleRepository(tx).setDefaultForNewSubjects(role.id, true),
+    );
+    const set = await withTenant(app.db, tenantId, (tx) => roleRepository(tx).defaultsForTenant());
+    expect(set.map((r) => r.id)).toEqual([role.id]);
+
+    await withTenant(app.db, tenantId, (tx) =>
+      roleRepository(tx).setDefaultForNewSubjects(role.id, false),
+    );
+    const unset = await withTenant(app.db, tenantId, (tx) =>
+      roleRepository(tx).defaultsForTenant(),
+    );
+    expect(unset).toEqual([]);
+  });
+
+  it('cannot set another tenant’s role as a default, and leaves it unset', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const role = await roleRepository(tx).create({ tenantId, name: 'member' });
+        return { roleId: role.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect((await roleRepository(tx).byId(seeded.roleId))?.defaultForNewSubjects).toBe(false);
+      },
+      attempt: async (tx, seeded) => {
+        try {
+          await roleRepository(tx).setDefaultForNewSubjects(seeded.roleId, true);
+          return 'written';
+        } catch (error) {
+          return error instanceof Error ? error.message : 'thrown';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toMatch(/no role with id/);
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        expect((await roleRepository(tx).byId(seeded.roleId))?.defaultForNewSubjects).toBe(false);
+      },
+    });
+  });
+});

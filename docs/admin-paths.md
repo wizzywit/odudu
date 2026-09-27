@@ -76,7 +76,9 @@ through the endpoints below, as each of those sections shows. The counts
 under `GET /admin/tenants/count` were captured against it after a further
 rebuild, as that section says. The memberships under `GET /subjects/:id/groups` were captured
 against it after one more rebuild, in a tenant of their own, as that
-section says.
+section says. So were the composites under `GET /roles/:id/composites` and
+the defaults under `PUT /roles/:id/default`, after a further rebuild, in a
+tenant `composites-demo`.
 
 ## The shape of it
 
@@ -168,6 +170,9 @@ shape of what it is filling.
 | `PATCH`  | `/admin/tenants/{tenant}/roles/:id`                              | Amend a role                              |
 | `DELETE` | `/admin/tenants/{tenant}/roles/:id`                              | Delete a role                             |
 | `POST`   | `/admin/tenants/{tenant}/roles/:id/composites`                   | Add a role composite                      |
+| `GET`    | `/admin/tenants/{tenant}/roles/:id/composites`                   | List a role's direct composites           |
+| `DELETE` | `/admin/tenants/{tenant}/roles/:id/composites/:childId`          | Remove a role composite                   |
+| `PUT`    | `/admin/tenants/{tenant}/roles/:id/default`                      | Set whether new subjects get a role       |
 | `GET`    | `/admin/tenants/{tenant}/groups`                                 | List groups                               |
 | `GET`    | `/admin/tenants/{tenant}/groups/count`                           | Count groups                              |
 | `POST`   | `/admin/tenants/{tenant}/groups`                                 | Create a group                            |
@@ -1930,7 +1935,8 @@ All five require `manage-tenant`. A role is either a tenant role
 plain — `packages/domain-authz/src/service/role-name.ts` has the format.
 `PATCH` amends only `description`; every other field, `name`,
 `client_id` and `default_for_new_subjects` included, is refused with a
-reason, the same shape `PATCH /subjects/:id` refuses `id`, `type` and
+reason — the last naming `PUT /roles/:id/default`, which is where it is
+set — the same shape `PATCH /subjects/:id` refuses `id`, `type` and
 `username`. A duplicate name — per tenant for a tenant role, per client for
 a client-scoped one — answers `409`, and a `client_id` naming no client
 answers `400`. `DELETE` cascades: every
@@ -2106,7 +2112,9 @@ it cannot smuggle the escalation past a check on the request body. A cycle
 `409` rather than the generic `500` a raw constraint violation would leave
 this as; `role_composite_cycle` is raised and caught in the domain
 (`roleRepository.addComposite`, `packages/domain-authz/src/repository/roles.ts`),
-never re-derived here.
+never re-derived here. Nesting any admin capability at all under a role a
+default role reaches is refused with `403` too, whoever the caller is —
+see `PUT /roles/:id/default` below.
 
 ```bash
 curl -sS -X POST \
@@ -2124,6 +2132,276 @@ HTTP/1.1 204 No Content
 x-request-id: 01a0d708-2e22-71ab-8a25-e41d970f8e2d
 
 {"type":"about:blank","title":"Conflict","status":409,"detail":"would create a role composite cycle","instance":"01a0d708-2e41-73a0-be98-e03b41380809"}
+```
+
+## `GET /roles/:id/composites` and `DELETE /roles/:id/composites/:childId`
+
+Both require `manage-tenant`. The read answers the role's **direct**
+children only, each in the same shape `GET /roles/:id` answers, ordered by
+name — not what those children in turn include, which is what a subject
+holding the role actually receives. It is not paged, the same as
+`GET /groups/:id/roles`: the list is one role's own edges, edited one edge
+at a time, not a tenant-wide collection. `DELETE` removes one edge and
+answers `204`, then `404` once there is no such edge; it is audited as
+`role.composite_remove`, with the child's id in `detail`. A subject holding
+the parent loses the child on its next token.
+
+**A role belonging to the tenant's built-in admin client keeps its
+composites**: removing one answers `409`, naming the role and the client.
+Taking `manage-users` out of `tenant-admin`, or `view-users` out of
+`manage-users`, strips that capability from every administrator holding the
+parent — the same lockout `DELETE /roles/:id` refuses for the role itself,
+and read from the same `builtin_admin` column. An edge between ordinary
+roles is removed whatever it nests, a capability included.
+
+Captured against the fourth stack in `composites-demo`, created through
+`POST /admin/tenants` for it. `billing-admin` nests `billing-viewer` and
+`invoice-editor`, each nested through `POST /roles/:id/composites` above:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e915-73be-ac2d-5408ba17401f/composites
+```
+
+```
+{"items":[{"id":"01a0e200-e929-7766-aa36-a3e32a889c02","name":"billing-viewer","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.641Z"},{"id":"01a0e200-e940-79e0-8e90-e06ecfbce38d","name":"invoice-editor","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.663Z"}]}
+```
+
+`invoice-editor` removed, the same removal repeated, then the read again:
+
+```bash
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e915-73be-ac2d-5408ba17401f/composites/01a0e200-e940-79e0-8e90-e06ecfbce38d
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e915-73be-ac2d-5408ba17401f/composites/01a0e200-e940-79e0-8e90-e06ecfbce38d
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e915-73be-ac2d-5408ba17401f/composites
+```
+
+```
+HTTP/1.1 204 No Content
+x-request-id: 01a0e201-617f-77c6-acad-fb3753ebfc56
+Date: Sun, 27 Sep 2026 08:35:36 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+HTTP/1.1 404 Not Found
+x-request-id: 01a0e201-6195-716e-bdfe-b349affe29f2
+content-type: application/problem+json; charset=utf-8
+content-length: 214
+Date: Sun, 27 Sep 2026 08:35:36 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no composite 01a0e200-e940-79e0-8e90-e06ecfbce38d under role 01a0e200-e915-73be-ac2d-5408ba17401f","instance":"01a0e201-6195-716e-bdfe-b349affe29f2"}
+{"items":[{"id":"01a0e200-e929-7766-aa36-a3e32a889c02","name":"billing-viewer","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.641Z"}]}
+```
+
+The guard. `tenant-admin` does nest `manage-users` — so a refusal is not a
+`404` for a missing edge — and every child's `client_id` is the tenant's
+built-in admin client; removing that edge, as `ada-whoami`, who holds
+`tenant-admin` itself:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e8e2-7a11-b9df-3b61602c9ce3/composites
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e8e2-7a11-b9df-3b61602c9ce3/composites/01a0e200-e8e7-721f-8493-289260dce880
+```
+
+```
+{"items":[{"id":"01a0e200-e8ea-75e4-b83e-2592d7c1cde1","name":"manage-clients","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"},{"id":"01a0e200-e8ef-7f3d-941e-bd03009b6264","name":"manage-keys","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"},{"id":"01a0e200-e8f1-7633-9840-d7cf7d632f3b","name":"manage-sessions","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"},{"id":"01a0e200-e8ed-7b9a-80ea-d2e48d5276dd","name":"manage-tenant","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"},{"id":"01a0e200-e8e7-721f-8493-289260dce880","name":"manage-users","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"},{"id":"01a0e200-e8f4-7691-aa01-24d881374b0d","name":"view-audit","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"},{"id":"01a0e200-e8e4-733c-89c0-640f39ad46d4","name":"view-users","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"}]}
+HTTP/1.1 409 Conflict
+x-request-id: 01a0e201-61d3-77f3-81e9-b471a73e5446
+content-type: application/problem+json; charset=utf-8
+content-length: 283
+Date: Sun, 27 Sep 2026 08:35:36 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and removing a composite from it would strip that from every administrator holding it","instance":"01a0e201-61d3-77f3-81e9-b471a73e5446"}
+```
+
+The trail holds the one removal that landed; the guarded one wrote nothing:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3000/admin/tenants/composites-demo/audit?action=role.composite_remove'
+```
+
+```
+{"items":[{"id":"01a0e201-618a-71fb-95af-8810ed9a2812","occurred_at":"2026-09-27T08:35:36.457Z","event_type":"admin_mutation","action":"role.composite_remove","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e915-73be-ac2d-5408ba17401f","request_id":"01a0e201-617f-77c6-acad-fb3753ebfc56","ip":"172.20.0.1","detail":{"child_role_id":"01a0e200-e940-79e0-8e90-e06ecfbce38d"}}]}
+```
+
+## `PUT /roles/:id/default`
+
+Requires `manage-tenant`. The body is `{"default": true}` or
+`{"default": false}`, and the answer is the role with its `ETag`. A role
+marked default is granted to **every subject created afterwards** —
+through `POST /subjects` and through self-registration alike, which share
+`composeUserSubject` (`packages/protocol-admin/src/usecase/subjects.ts`) —
+and to none that already exist; unmarking it takes it from nobody who
+already holds it. Each change is audited as `role.default_set`, with the
+flag's before and after in `detail`.
+
+**A default role may reach no admin capability at all.** `true` is refused
+with `403`, and a `refused` row written to the trail naming what it would
+reach, when the role — expanded through `role_composites`, as the ceiling
+on `POST /roles/:id/composites` expands a child — reaches any role of the
+tenant's built-in admin client. That holds **whoever the caller is**: the
+capability ceiling elsewhere admits what the caller holds, but a default
+role is handed to strangers when registration is open, and no caller can
+hold authority on their behalf. The same rule closes the other two doors
+into that state: `POST /roles/:id/composites` refuses to nest a capability
+under a role a default role reaches, and `POST /roles` refuses
+`default_for_new_subjects: true` on a role of the built-in admin client.
+`false` is never refused.
+
+Captured against the fourth stack in `composites-demo`. `member` marked
+default, then a subject `rosa` created and its roles read:
+
+```bash
+curl -sS -D - -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"default": true}' \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e957-7d56-99cb-7e27217d00d4/default
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"username": "rosa"}' \
+  http://localhost:3000/admin/tenants/composites-demo/subjects
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/composites-demo/subjects/01a0e201-839d-7d01-abea-59f4e85817c3/roles
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e201-8376-7b28-8303-fc94e6b69839
+etag: "62cc8c5e3e079f49b1b4686b6e667a740239a7857a86cc68fee65ac1e890f549"
+content-type: application/json; charset=utf-8
+content-length: 169
+Date: Sun, 27 Sep 2026 08:35:45 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a0e200-e957-7d56-99cb-7e27217d00d4","name":"member","description":null,"client_id":null,"default_for_new_subjects":true,"created_at":"2026-09-27T08:35:05.687Z"}
+{"id":"01a0e201-839d-7d01-abea-59f4e85817c3","type":"user","username":"rosa","email":null,"enabled":true,"created_at":"2026-09-27T08:35:45.180Z"}
+{"items":[{"id":"01a0e200-e957-7d56-99cb-7e27217d00d4","name":"member"}]}
+```
+
+Unmarked, then a second subject `sven`, who does not get it:
+
+```bash
+curl -sS -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"default": false}' \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e957-7d56-99cb-7e27217d00d4/default
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"username": "sven"}' \
+  http://localhost:3000/admin/tenants/composites-demo/subjects
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/composites-demo/subjects/01a0e201-a311-7f3a-bf62-62fde1593ac5/roles
+```
+
+```
+{"id":"01a0e200-e957-7d56-99cb-7e27217d00d4","name":"member","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.687Z"}
+{"id":"01a0e201-a311-7f3a-bf62-62fde1593ac5","type":"user","username":"sven","email":null,"enabled":true,"created_at":"2026-09-27T08:35:53.232Z"}
+{"items":[]}
+```
+
+The refusal. `helpdesk-lead` is a tenant role that nests `manage-users`,
+which in turn composites `view-users`; marking it default as `ada-whoami`,
+who holds both and more, then reading it back:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e96e-7966-b576-b0af1d3dac8c/composites
+curl -sS -D - -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"default": true}' \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e96e-7966-b576-b0af1d3dac8c/default
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e96e-7966-b576-b0af1d3dac8c
+```
+
+```
+{"items":[{"id":"01a0e200-e8e7-721f-8493-289260dce880","name":"manage-users","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"}]}
+HTTP/1.1 403 Forbidden
+x-request-id: 01a0e201-ceae-7b05-82f9-70e09ff27d90
+content-type: application/problem+json; charset=utf-8
+content-length: 233
+Date: Sun, 27 Sep 2026 08:36:04 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: manage-users, view-users","instance":"01a0e201-ceae-7b05-82f9-70e09ff27d90"}
+{"id":"01a0e200-e96e-7966-b576-b0af1d3dac8c","name":"helpdesk-lead","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.710Z"}
+```
+
+`PATCH` still refuses the field, and says where it is set:
+
+```bash
+curl -sS -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"default_for_new_subjects": true}' \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e957-7d56-99cb-7e27217d00d4
+```
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"default_for_new_subjects: default_for_new_subjects changes who a role is silently handed to at signup; set it with PUT /admin/tenants/{tenant}/roles/{id}/default, not a general amendment","instance":"01a0e201-ced9-7449-a755-6b55769e2d95"}
+```
+
+The trail, newest first — the refusal naming what `helpdesk-lead` would
+have handed out, and `member`'s two changes:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3000/admin/tenants/composites-demo/audit?action=role.default_set'
+```
+
+```
+{"items":[{"id":"01a0e201-ceb8-7e8a-8d64-13ca0220ec89","occurred_at":"2026-09-27T08:36:04.406Z","event_type":"admin_mutation","action":"role.default_set","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e96e-7966-b576-b0af1d3dac8c","request_id":"01a0e201-ceae-7b05-82f9-70e09ff27d90","ip":"172.20.0.1","detail":{"denied":["manage-users","view-users"]}},{"id":"01a0e201-a2fe-70ed-bdfa-b0c984907637","occurred_at":"2026-09-27T08:35:53.212Z","event_type":"admin_mutation","action":"role.default_set","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e957-7d56-99cb-7e27217d00d4","request_id":"01a0e201-a2f4-7565-9f55-41b06bad661f","ip":"172.20.0.1","detail":{"default_for_new_subjects":{"after":false,"before":true}}},{"id":"01a0e201-8387-7c8e-b125-4f6d9b381be6","occurred_at":"2026-09-27T08:35:45.156Z","event_type":"admin_mutation","action":"role.default_set","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e957-7d56-99cb-7e27217d00d4","request_id":"01a0e201-a2f4-7565-9f55-41b06bad661f","ip":"172.20.0.1","detail":{"default_for_new_subjects":{"after":true,"before":false}}}]}
+```
+
+After that trail was read, the composite door: `member` marked default
+again, `view-users` nested under it refused, and `member` unmarked:
+
+```bash
+curl -sS -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"default": true}' \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e957-7d56-99cb-7e27217d00d4/default
+curl -sS -D - -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"child_role_id": "01a0e200-e8e4-733c-89c0-640f39ad46d4"}' \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e957-7d56-99cb-7e27217d00d4/composites
+curl -sS -X PUT \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"default": false}' \
+  http://localhost:3000/admin/tenants/composites-demo/roles/01a0e200-e957-7d56-99cb-7e27217d00d4/default
+```
+
+```
+{"id":"01a0e200-e957-7d56-99cb-7e27217d00d4","name":"member","description":null,"client_id":null,"default_for_new_subjects":true,"created_at":"2026-09-27T08:35:05.687Z"}
+HTTP/1.1 403 Forbidden
+x-request-id: 01a0e201-f580-7a0a-9a12-33906a3ba5ae
+content-type: application/problem+json; charset=utf-8
+content-length: 219
+Date: Sun, 27 Sep 2026 08:36:14 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: view-users","instance":"01a0e201-f580-7a0a-9a12-33906a3ba5ae"}
+{"id":"01a0e200-e957-7d56-99cb-7e27217d00d4","name":"member","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.687Z"}
 ```
 
 ## `GET /groups`, `POST /groups`, `GET /groups/:id`, `PATCH /groups/:id` and `DELETE /groups/:id`

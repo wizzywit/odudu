@@ -941,3 +941,395 @@ describe('the roles name_search column', () => {
     expect(res.json<{ detail: string }>().detail).toContain('name_search');
   });
 });
+
+function auth(token: string): Record<string, string> {
+  return { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+}
+
+async function nest(tenantId: string, parentId: string, childId: string): Promise<void> {
+  await withTenant(fixture.app.db, tenantId, (tx) =>
+    roleRepository(tx).addComposite(parentId, childId),
+  );
+}
+
+async function auditRows(
+  tenantName: string,
+  action: string,
+): Promise<{ outcome: string; resource_id: string; detail: Record<string, unknown> }[]> {
+  const token = await fixture.adminToken(tenantName, ['view-audit']);
+  const res = await fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants/${tenantName}/audit`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+  return res
+    .json<{
+      items: {
+        action: string;
+        outcome: string;
+        resource_id: string;
+        detail: Record<string, unknown>;
+      }[];
+    }>()
+    .items.filter((item) => item.action === action);
+}
+
+async function getComposites(
+  tenantName: string,
+  roleId: string,
+  token: string,
+): Promise<LightMyRequestResponse> {
+  return fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants/${tenantName}/roles/${roleId}/composites`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+async function removeComposite(
+  tenantName: string,
+  roleId: string,
+  childId: string,
+  token: string,
+): Promise<LightMyRequestResponse> {
+  return fixture.http.inject({
+    method: 'DELETE',
+    url: `/admin/tenants/${tenantName}/roles/${roleId}/composites/${childId}`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+async function putDefault(
+  tenantName: string,
+  roleId: string,
+  token: string,
+  value: boolean,
+): Promise<LightMyRequestResponse> {
+  return fixture.http.inject({
+    method: 'PUT',
+    url: `/admin/tenants/${tenantName}/roles/${roleId}/default`,
+    headers: auth(token),
+    payload: { default: value },
+  });
+}
+
+describe('GET /admin/tenants/{t}/roles/{id}/composites', () => {
+  it('lists the direct children only, in the role wire shape', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const parentId = await plainRole(t.id);
+    const childId = await plainRole(t.id);
+    const grandchildId = await plainRole(t.id);
+    await nest(t.id, parentId, childId);
+    await nest(t.id, childId, grandchildId);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await getComposites(t.name, parentId, token);
+    expect(res.statusCode).toBe(200);
+    const items = res.json<{ items: Record<string, unknown>[] }>().items;
+    expect(items.map((item) => item.id)).toEqual([childId]);
+    expect(Object.keys(items[0] ?? {}).sort()).toEqual([
+      'client_id',
+      'created_at',
+      'default_for_new_subjects',
+      'description',
+      'id',
+      'name',
+    ]);
+  });
+
+  it('answers an empty list for a role with none, and 404 for no role', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const id = await plainRole(t.id);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const empty = await getComposites(t.name, id, token);
+    expect(empty.statusCode).toBe(200);
+    expect(empty.json()).toEqual({ items: [] });
+    expect((await getComposites(t.name, newId(), token)).statusCode).toBe(404);
+  });
+
+  it('404s a role that belongs to another tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    const foreignParent = await plainRole(other.id);
+    await nest(other.id, foreignParent, await plainRole(other.id));
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    expect((await getComposites(t.name, foreignParent, token)).statusCode).toBe(404);
+  });
+});
+
+describe('DELETE /admin/tenants/{t}/roles/{id}/composites/{childId}', () => {
+  it('answers 204, then 404 on repeat, and audits the removal once', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const parentId = await plainRole(t.id);
+    const childId = await plainRole(t.id);
+    const keptId = await plainRole(t.id);
+    await nest(t.id, parentId, childId);
+    await nest(t.id, parentId, keptId);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    expect((await removeComposite(t.name, parentId, childId, token)).statusCode).toBe(204);
+    expect((await removeComposite(t.name, parentId, childId, token)).statusCode).toBe(404);
+    const remaining = await getComposites(t.name, parentId, token);
+    expect(remaining.json<{ items: { id: string }[] }>().items.map((r) => r.id)).toEqual([keptId]);
+
+    const rows = await auditRows(t.name, 'role.composite_remove');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      outcome: 'allowed',
+      resource_id: parentId,
+      detail: { child_role_id: childId },
+    });
+  });
+
+  it('404s a parent that does not exist', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const res = await removeComposite(t.name, newId(), await plainRole(t.id), token);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('cannot remove another tenant’s edge, which stays in place', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    const parentId = await plainRole(other.id);
+    const childId = await plainRole(other.id);
+    await nest(other.id, parentId, childId);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    expect((await removeComposite(t.name, parentId, childId, token)).statusCode).toBe(404);
+    const edges = await fixture.owner.db
+      .select()
+      .from(roleComposites)
+      .where(eq(roleComposites.parentRoleId, parentId));
+    expect(edges).toHaveLength(1);
+  });
+
+  it('takes the child’s claim off the next token of a subject granted the parent', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {
+      grantTypes: ['client_credentials'],
+    });
+    const patched = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${client.id}`,
+      headers: {
+        ...auth(await fixture.adminToken(t.name, ['manage-clients'])),
+        'if-match': '*',
+      },
+      payload: { client_credentials_scopes: ['roles'], full_scope_allowed: true },
+    });
+    expect(patched.statusCode).toBe(200);
+    const parent = await seedRole(t.name, `parent-${newId()}`);
+    const child = await seedRole(t.name, `child-${newId()}`);
+    await nest(t.id, parent.id, child.id);
+    await withTenant(fixture.app.db, t.id, async (tx) => {
+      const record = await clientRepository(tx).byClientId(client.clientId);
+      if (record?.serviceSubjectId == null) throw new Error('fixture: no service subject');
+      await roleRepository(tx).assignToSubject(record.serviceSubjectId, parent.id);
+    });
+
+    const rolesClaim = async (): Promise<unknown> => {
+      const res = await fixture.tokenRequest(t.name, client, {
+        grant_type: 'client_credentials',
+        scope: 'roles',
+      });
+      expect(res.statusCode).toBe(200);
+      const accessToken = res.json<{ access_token: string }>().access_token;
+      const payload: unknown = JSON.parse(
+        Buffer.from(accessToken.split('.')[1] ?? '', 'base64url').toString('utf8'),
+      );
+      return (payload as Record<string, unknown>).roles;
+    };
+
+    expect(await rolesClaim()).toEqual(expect.arrayContaining([parent.name, child.name]));
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    expect((await removeComposite(t.name, parent.id, child.id, token)).statusCode).toBe(204);
+    const after = await rolesClaim();
+    expect(after).toContain(parent.name);
+    expect(after).not.toContain(child.name);
+  });
+
+  it.each([
+    [TENANT_ADMIN, 'manage-users'],
+    ['manage-users', 'view-users'],
+  ])(
+    'refuses taking %s’s %s away, even from a tenant-admin holder, and keeps the edge',
+    async (parentName, childName) => {
+      const t = await fixture.createTenant(`acme-${newId()}`);
+      const parentId = await capabilityRoleId(t.id, parentName);
+      const childId = await capabilityRoleId(t.id, childName);
+      const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+
+      const res = await removeComposite(t.name, parentId, childId, token);
+      expect(res.statusCode).toBe(409);
+      expect(res.json<{ detail: string }>().detail).toContain(parentName);
+      const children = await getComposites(t.name, parentId, token);
+      expect(children.json<{ items: { id: string }[] }>().items.map((r) => r.id)).toContain(
+        childId,
+      );
+    },
+  );
+
+  it('lets an ordinary role give up a capability it nests', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const parentId = await plainRole(t.id);
+    const manageUsersId = await capabilityRoleId(t.id, 'manage-users');
+    await nest(t.id, parentId, manageUsersId);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    expect((await removeComposite(t.name, parentId, manageUsersId, token)).statusCode).toBe(204);
+  });
+});
+
+describe('PUT /admin/tenants/{t}/roles/{id}/default', () => {
+  async function newSubjectRoleIds(tenantName: string): Promise<string[]> {
+    const token = await fixture.adminToken(tenantName, ['manage-users']);
+    const created = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${tenantName}/subjects`,
+      headers: auth(token),
+      payload: { username: `new-${newId()}` },
+    });
+    expect(created.statusCode).toBe(201);
+    const roles = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${tenantName}/subjects/${created.json<{ id: string }>().id}/roles`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    return roles.json<{ items: { id: string }[] }>().items.map((r) => r.id);
+  }
+
+  it('sets and unsets the default, and a subject created afterwards follows it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const id = await plainRole(t.id);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const set = await putDefault(t.name, id, token, true);
+    expect(set.statusCode).toBe(200);
+    expect(set.json<{ default_for_new_subjects: boolean }>().default_for_new_subjects).toBe(true);
+    expect(set.json<Record<string, unknown>>()).not.toHaveProperty('name_search');
+    expect(set.headers.etag).toBe(etagOf(set.json()));
+    expect(await newSubjectRoleIds(t.name)).toContain(id);
+
+    const unset = await putDefault(t.name, id, token, false);
+    expect(unset.statusCode).toBe(200);
+    expect(unset.json<{ default_for_new_subjects: boolean }>().default_for_new_subjects).toBe(
+      false,
+    );
+    expect(await newSubjectRoleIds(t.name)).not.toContain(id);
+
+    const rows = await auditRows(t.name, 'role.default_set');
+    expect(rows.map((row) => row.detail)).toEqual(
+      expect.arrayContaining([
+        { default_for_new_subjects: { before: false, after: true } },
+        { default_for_new_subjects: { before: true, after: false } },
+      ]),
+    );
+  });
+
+  it('404s a role that does not exist, or belongs to another tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    const foreign = await plainRole(other.id);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    expect((await putDefault(t.name, newId(), token, true)).statusCode).toBe(404);
+    expect((await putDefault(t.name, foreign, token, true)).statusCode).toBe(404);
+  });
+
+  it.each([
+    [
+      'a capability role itself',
+      async (tenantId: string) => capabilityRoleId(tenantId, 'view-users'),
+    ],
+    ['a role nesting tenant-admin', roleNestingTenantAdmin],
+  ])(
+    'refuses to make %s a default, even for a tenant-admin holder, and audits the refusal',
+    async (_label, roleOf) => {
+      const t = await fixture.createTenant(`acme-${newId()}`);
+      const id = await roleOf(t.id);
+      const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+
+      const res = await putDefault(t.name, id, token, true);
+      expect(res.statusCode).toBe(403);
+      const read = await fixture.http.inject({
+        method: 'GET',
+        url: `/admin/tenants/${t.name}/roles/${id}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(read.json<{ default_for_new_subjects: boolean }>().default_for_new_subjects).toBe(
+        false,
+      );
+      const rows = await auditRows(t.name, 'role.default_set');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ outcome: 'refused', resource_id: id });
+    },
+  );
+
+  it('always lets a default be unset, capability or not', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const id = await roleNestingTenantAdmin(t.id);
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      roleRepository(tx).setDefaultForNewSubjects(id, true),
+    );
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    expect((await putDefault(t.name, id, token, false)).statusCode).toBe(200);
+  });
+
+  it('refuses nesting a capability under a role a default role reaches', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const defaultId = await plainRole(t.id);
+    const middleId = await plainRole(t.id);
+    await nest(t.id, defaultId, middleId);
+    const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+    expect((await putDefault(t.name, defaultId, token, true)).statusCode).toBe(200);
+
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/roles/${middleId}/composites`,
+      headers: auth(token),
+      payload: { child_role_id: await capabilityRoleId(t.id, 'view-users') },
+    });
+    expect(res.statusCode).toBe(403);
+    const rows = await auditRows(t.name, 'role.composite_add');
+    expect(rows.map((row) => row.outcome)).toEqual(['refused']);
+  });
+
+  it('refuses creating a default role on the built-in admin client', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const adminClient = await fixture.builtinAdminClient(t.name);
+    const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/roles`,
+      headers: auth(token),
+      payload: {
+        name: `default-${newId()}`,
+        client_id: adminClient.id,
+        default_for_new_subjects: true,
+      },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('is still refused by PATCH, which names this operation', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const id = await plainRole(t.id);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/roles/${id}`,
+      headers: auth(token),
+      payload: { default_for_new_subjects: true },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain(
+      'PUT /admin/tenants/{tenant}/roles/{id}/default',
+    );
+  });
+});

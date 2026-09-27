@@ -120,6 +120,10 @@ export {
   type AmendRoleRequest,
   addRoleCompositeRequestSchema,
   type AddRoleCompositeRequest,
+  listRoleCompositesResponseSchema,
+  type ListRoleCompositesResponse,
+  setRoleDefaultRequestSchema,
+  type SetRoleDefaultRequest,
 } from '#/admin/roles';
 export {
   groupSchema,

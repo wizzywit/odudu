@@ -2571,7 +2571,9 @@ curl -sS -X POST http://localhost:3000/tenants/register-demo/login-actions/regis
 ```
 
 The subject, the `users` row, the password credential and the tenant's
-default roles are all created in one transaction, and the `verify_email`
+default roles — those `PUT /admin/tenants/{tenant}/roles/{id}/default`
+marks, none of which may reach an admin capability
+([docs/admin-paths.md](admin-paths.md)) — are all created in one transaction, and the `verify_email`
 token is issued inside that same transaction — the mail goes out only after
 it commits, the same ordering [Address verification](#address-verification)
 establishes. With `ODUDU_SMTP_HOST` unset, the link lands in the container's

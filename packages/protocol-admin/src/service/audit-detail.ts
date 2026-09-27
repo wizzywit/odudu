@@ -46,6 +46,7 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
   },
   role: {
     name: 'value',
+    default_for_new_subjects: 'value',
   },
   scope: {
     name: 'value',

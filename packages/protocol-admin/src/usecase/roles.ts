@@ -1,9 +1,10 @@
 import { type ListRolesQuery, type Role } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { roleRepository, roles } from '@odudu/domain-authz';
+import { roleRepository, roles, rolesReachableFrom } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
 import { isUuid, OduduError } from '@odudu/kernel';
-import { and, asc, eq, gt, inArray, isNull, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { redactedDiff } from '#/service/audit-detail';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
@@ -17,7 +18,13 @@ import {
 const COLLECTION = 'roles';
 
 export interface RoleAuditEvent {
-  readonly action: 'role.create' | 'role.amend' | 'role.delete' | 'role.composite_add';
+  readonly action:
+    | 'role.create'
+    | 'role.amend'
+    | 'role.delete'
+    | 'role.composite_add'
+    | 'role.composite_remove'
+    | 'role.default_set';
   readonly resourceType: 'role';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -161,7 +168,10 @@ export interface CreateRoleDeps {
   readonly audit: Audit;
 }
 
-export type CreateRoleOutcome = { kind: 'unknown_client' } | { kind: 'ok'; role: Role };
+export type CreateRoleOutcome =
+  | { kind: 'unknown_client' }
+  | { kind: 'default_role_capability'; capabilities: readonly string[] }
+  | { kind: 'ok'; role: Role };
 
 export async function createRole(
   tx: TenantScopedDatabase,
@@ -179,6 +189,9 @@ export async function createRole(
       .from(clients)
       .where(eq(clients.id, input.clientId));
     if (owner.length === 0) return { kind: 'unknown_client' };
+    if (input.defaultForNewSubjects && (await builtinAdminClientOf(tx, input.clientId)) !== null) {
+      return { kind: 'default_role_capability', capabilities: [input.name] };
+    }
   }
 
   const created = await roleRepository(tx).create({
@@ -316,26 +329,36 @@ export interface DeleteRoleDeps {
 export type DeleteRoleOutcome =
   { kind: 'not_found' } | { kind: 'builtin_admin_guarded'; reason: string } | { kind: 'deleted' };
 
+// The `client_id` of the tenant's built-in admin client when `clientDbId`
+// names it, else null. Reads `builtinAdmin`, never the `client_id` string,
+// so a rename in the database cannot slip past a guard built on it.
+async function builtinAdminClientOf(
+  tx: TenantScopedDatabase,
+  clientDbId: string | null,
+): Promise<string | null> {
+  if (clientDbId === null) return null;
+  const rows = await tx
+    .select({ clientId: clients.clientId, builtinAdmin: clients.builtinAdmin })
+    .from(clients)
+    .where(eq(clients.id, clientDbId));
+  const owner = rows[0];
+  return owner?.builtinAdmin === true ? owner.clientId : null;
+}
+
 // `subject_roles_role_fk` cascades, so deleting a capability role strips it
 // from every administrator holding it — `tenant-admin` deleted by a caller
 // who only holds `manage-tenant` locks the tenant out of its own admin API,
 // and `manage-tenant` can delete itself. `amendClient` (#/usecase/clients.ts)
 // guards the client for the same reason; this is the same door on the roles
-// that client owns. Reads `builtinAdmin`, never the `client_id` string, so a
-// rename in the database cannot slip past it.
+// that client owns.
 async function guardsAdministrators(
   tx: TenantScopedDatabase,
   role: { clientId: string | null; name: string },
 ): Promise<string | null> {
-  if (role.clientId === null) return null;
-  const rows = await tx
-    .select({ clientId: clients.clientId, builtinAdmin: clients.builtinAdmin })
-    .from(clients)
-    .where(eq(clients.id, role.clientId));
-  const owner = rows[0];
-  if (owner?.builtinAdmin !== true) return null;
+  const owner = await builtinAdminClientOf(tx, role.clientId);
+  if (owner === null) return null;
   return (
-    `${role.name} is a capability of ${owner.clientId}, this tenant's built-in ` +
+    `${role.name} is a capability of ${owner}, this tenant's built-in ` +
     'admin client, and deleting it would strip it from every administrator holding it'
   );
 }
@@ -388,6 +411,7 @@ export type AddRoleCompositeOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_child_role' }
   | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'default_role_capability'; capabilities: readonly string[] }
   | { kind: 'cycle' }
   | { kind: 'ok' };
 
@@ -406,6 +430,27 @@ async function lockRolesForComposite(
 ): Promise<void> {
   const ids = [...new Set([parentRoleId, childRoleId])].sort();
   await tx.select({ id: roles.id }).from(roles).where(inArray(roles.id, ids)).for('update');
+}
+
+// A default role is handed to every subject created afterwards — through
+// self-registration too, where the tenant allows it — so nothing it reaches
+// may be an admin capability, whoever the caller is. Two doors could break
+// that: setting the default on a role that reaches one, and nesting one
+// under a role a default already reaches. Both take this lock last, after
+// their row locks, so neither can pass its check while the other commits.
+async function lockDefaultRoleReach(tx: TenantScopedDatabase): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext('role_default_reach'), hashtext(current_setting('app.tenant_id')))`,
+  );
+}
+
+async function reachedByDefaultRole(tx: TenantScopedDatabase, roleId: string): Promise<boolean> {
+  const defaults = await roleRepository(tx).defaultsForTenant();
+  const reached = await rolesReachableFrom(
+    tx,
+    defaults.map((role) => role.id),
+  );
+  return reached.some((role) => role.roleId === roleId);
 }
 
 // The capability ceiling (CWE-269), applied to a composite edge instead of
@@ -447,6 +492,24 @@ export async function addRoleComposite(
     return { kind: 'capability_ceiling', requested: denied };
   }
 
+  if (requestedCapabilities.size > 0) {
+    await lockDefaultRoleReach(tx);
+    if (await reachedByDefaultRole(tx, input.parentRoleId)) {
+      const capabilities = [...requestedCapabilities].sort();
+      await deps.audit(tx, {
+        action: 'role.composite_add',
+        resourceType: 'role',
+        resourceId: input.parentRoleId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { denied: capabilities },
+      });
+      return { kind: 'default_role_capability', capabilities };
+    }
+  }
+
   try {
     await roleRepository(tx).addComposite(input.parentRoleId, input.childRoleId);
   } catch (error) {
@@ -466,4 +529,131 @@ export async function addRoleComposite(
     outcome: 'allowed',
   });
   return { kind: 'ok' };
+}
+
+export type ListRoleCompositesOutcome =
+  { kind: 'not_found' } | { kind: 'ok'; items: readonly Role[] };
+
+export async function listRoleComposites(
+  tx: TenantScopedDatabase,
+  roleId: string,
+): Promise<ListRoleCompositesOutcome> {
+  const repository = roleRepository(tx);
+  if ((await repository.byId(roleId)) === null) return { kind: 'not_found' };
+  const children = await repository.directComposites(roleId);
+  return { kind: 'ok', items: children.map(roleWireShape) };
+}
+
+export interface RemoveRoleCompositeInput {
+  readonly parentRoleId: string;
+  readonly childRoleId: string;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface RemoveRoleCompositeDeps {
+  readonly audit: Audit;
+}
+
+export type RemoveRoleCompositeOutcome =
+  { kind: 'not_found' } | { kind: 'builtin_admin_guarded'; reason: string } | { kind: 'removed' };
+
+// The edge-level twin of `guardsAdministrators`: taking `manage-users` out of
+// `tenant-admin`, or `view-users` out of `manage-users`, strips it from every
+// administrator holding the parent just as surely as deleting it would.
+export async function removeRoleComposite(
+  tx: TenantScopedDatabase,
+  deps: RemoveRoleCompositeDeps,
+  input: RemoveRoleCompositeInput,
+): Promise<RemoveRoleCompositeOutcome> {
+  const parent = await roleRepository(tx).byId(input.parentRoleId);
+  if (parent === null) return { kind: 'not_found' };
+  const owner = await builtinAdminClientOf(tx, parent.clientId);
+  if (owner !== null) {
+    return {
+      kind: 'builtin_admin_guarded',
+      reason:
+        `${parent.name} is a capability of ${owner}, this tenant's built-in admin client, ` +
+        'and removing a composite from it would strip that from every administrator holding it',
+    };
+  }
+
+  const removed = await roleRepository(tx).removeComposite(input.parentRoleId, input.childRoleId);
+  if (!removed) return { kind: 'not_found' };
+
+  await deps.audit(tx, {
+    action: 'role.composite_remove',
+    resourceType: 'role',
+    resourceId: input.parentRoleId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: { child_role_id: input.childRoleId },
+  });
+  return { kind: 'removed' };
+}
+
+export interface SetRoleDefaultInput {
+  readonly roleId: string;
+  readonly value: boolean;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface SetRoleDefaultDeps {
+  readonly audit: Audit;
+}
+
+export type SetRoleDefaultOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'default_role_capability'; capabilities: readonly string[] }
+  | { kind: 'ok'; role: Role; etag: string };
+
+// Stricter than the capability ceiling `addRoleComposite` applies, and so
+// subsuming it: the ceiling admits what the caller holds, this admits no
+// capability at all. Unsetting is never refused.
+export async function setRoleDefault(
+  tx: TenantScopedDatabase,
+  deps: SetRoleDefaultDeps,
+  input: SetRoleDefaultInput,
+): Promise<SetRoleDefaultOutcome> {
+  const locked = await lockRoleForAmend(tx, input.roleId);
+  if (locked === null) return { kind: 'not_found' };
+  const before = roleWireShape(locked);
+
+  if (input.value) {
+    await lockDefaultRoleReach(tx);
+    const capabilities = [...(await capabilitiesReachableFrom(tx, [input.roleId]))].sort();
+    if (capabilities.length > 0) {
+      await deps.audit(tx, {
+        action: 'role.default_set',
+        resourceType: 'role',
+        resourceId: input.roleId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { denied: capabilities },
+      });
+      return { kind: 'default_role_capability', capabilities };
+    }
+  }
+
+  await roleRepository(tx).setDefaultForNewSubjects(input.roleId, input.value);
+  const after: Role = { ...before, default_for_new_subjects: input.value };
+
+  await deps.audit(tx, {
+    action: 'role.default_set',
+    resourceType: 'role',
+    resourceId: input.roleId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: redactedDiff('role', before, after),
+  });
+  return { kind: 'ok', role: after, etag: etagOf(after) };
 }
