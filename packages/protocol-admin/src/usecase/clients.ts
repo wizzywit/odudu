@@ -14,6 +14,7 @@ import {
 import {
   clientOidcConfig,
   clientOidcConfigRepository,
+  clientTokenTtlProblem,
   isWellFormedWebOrigin,
   parseClientMetadata,
   type ClientOidcConfig,
@@ -792,6 +793,8 @@ function checkedAdminFields(
     if (!(field in values)) continue;
     const checked = checkedInteger(field, values[field]);
     if (isFieldError(checked)) return checked;
+    const outOfRange = clientTokenTtlProblem(field, checked);
+    if (outOfRange !== null) return { field, description: outOfRange };
     if (field === 'access_token_ttl_seconds') config.accessTokenTtlSeconds = checked;
     else config.refreshTokenTtlSeconds = checked;
   }
