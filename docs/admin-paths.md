@@ -655,6 +655,13 @@ expect is named under `omitted` by its JSON path instead —
 `clients[<i>].secret` for each confidential client, `smtp.password` when
 one is set and `subjects[<i>].credentials` for each exported subject that
 has any — so the gap is visible in the file rather than silent.
+A client's `jwks` is exported with any private member (`d`, `p`, `q`,
+`dp`, `dq`, `qi`, `k`) removed from each key, and each key that lost one is
+named under `omitted` as `clients[<i>].jwks.keys[<j>]`. Registration and
+`POST`/`PATCH /clients` refuse such a key
+([docs/request-paths.md](request-paths.md#dynamic-client-registration)
+shows the refusal), so only a row stored before that check can hold one;
+none on this stack does, so no stripped key appears below.
 
 What a new tenant provisions for itself is marked rather than left out:
 each role on the built-in `odudu-admin` client and each default scope

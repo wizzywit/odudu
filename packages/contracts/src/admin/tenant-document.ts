@@ -27,7 +27,41 @@ export const roleReferenceSchema = z.strictObject({
 });
 export type RoleReference = z.infer<typeof roleReferenceSchema>;
 
-const settingValueSchema = z.union([z.boolean(), z.number(), z.string()]).nullable();
+const count = z.number().int();
+
+// Every tenant setting except the three under `registration_policy`, by the
+// name and type `@odudu/domain-tenant`'s SETTINGS gives it — held to that
+// map by tenant-document-settings-parity.test.ts in @odudu/protocol-admin,
+// since this package may not import it.
+export const tenantSettingsDocumentSchema = z.strictObject({
+  display_name: z.string().nullable(),
+  enabled: z.boolean(),
+  reset_password_allowed: z.boolean(),
+  sso_session_idle_seconds: count,
+  sso_session_max_seconds: count,
+  password_min_length: count,
+  password_require_digit: z.boolean(),
+  password_require_uppercase: z.boolean(),
+  password_require_lowercase: z.boolean(),
+  password_require_special: z.boolean(),
+  password_not_username: z.boolean(),
+  password_not_email: z.boolean(),
+  password_history_depth: count,
+  password_max_age_days: count,
+  otp_required: z.boolean(),
+  brute_force_max_failures: count,
+  brute_force_lockout_seconds: count,
+  brute_force_max_lockout_seconds: count,
+  brute_force_failure_reset_seconds: count,
+  max_clients: count,
+  max_sessions_per_browser: count,
+  remember_me_allowed: z.boolean(),
+  remember_me_idle_seconds: count,
+  remember_me_max_seconds: count,
+  audit_retention_days: count,
+  username_editable: z.boolean(),
+});
+export type TenantSettingsDocument = z.infer<typeof tenantSettingsDocumentSchema>;
 
 export const registrationPolicySchema = z.strictObject({
   registration_allowed: z.boolean(),
@@ -133,7 +167,7 @@ export type ExportedSubject = z.infer<typeof exportedSubjectSchema>;
 
 export const tenantDocumentSchema = z.strictObject({
   version: z.literal(1),
-  settings: z.record(z.string(), settingValueSchema),
+  settings: tenantSettingsDocumentSchema,
   flow: z.array(exportedFlowStepSchema),
   clients: z.array(exportedClientSchema),
   roles: z.array(exportedRoleSchema),
@@ -143,7 +177,8 @@ export const tenantDocumentSchema = z.strictObject({
   smtp: exportedSmtpSchema.nullable(),
   subjects: z.array(exportedSubjectSchema).optional(),
   // The JSON path of each secret a consumer would expect and the document
-  // deliberately leaves out, such as `clients[2].secret`.
+  // deliberately leaves out, such as `clients[2].secret`, or of a key it
+  // stripped private members from, such as `clients[0].jwks.keys[1]`.
   omitted: z.array(z.string()),
 });
 export type TenantDocument = z.infer<typeof tenantDocumentSchema>;

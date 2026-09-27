@@ -4,6 +4,7 @@ import {
   profileSchema,
   REGISTRATION_POLICY_SETTINGS,
   registrationPolicySchema,
+  tenantSettingsDocumentSchema,
   type ExportedClient,
   type ExportedGroup,
   type ExportedRole,
@@ -13,6 +14,7 @@ import {
   type RoleReference,
   type TenantDocument,
 } from '@odudu/contracts/admin';
+import { PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
   clientScopeRoles,
@@ -91,6 +93,8 @@ function roleKey(reference: RoleReference): string {
 }
 
 const sortRoleReferences = byKey(roleKey);
+
+const PRIVATE_MEMBERS: ReadonlySet<string> = new Set(PRIVATE_JWK_MEMBERS);
 
 // Not strict, so parsing drops `profile_updated_at`: the claim is stamped
 // by the write that changes a profile, never carried from one tenant to another.
@@ -174,9 +178,31 @@ async function subjectRoleReferences(
   return referencesByOwner(rows, roleById);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// Client metadata validation refuses a private member now, but a row
+// written before it did may still carry one; it is dropped here and the
+// key named under `omitted`, never copied into a document.
+function publicJwks(jwks: unknown): { value: unknown; strippedKeys: number[] } {
+  if (!isRecord(jwks) || !Array.isArray(jwks.keys)) return { value: jwks, strippedKeys: [] };
+  const strippedKeys: number[] = [];
+  const keys = jwks.keys.map((key: unknown, index) => {
+    if (!isRecord(key)) return key;
+    const kept = Object.fromEntries(
+      Object.entries(key).filter(([member]) => !PRIVATE_MEMBERS.has(member)),
+    );
+    if (Object.keys(kept).length !== Object.keys(key).length) strippedKeys.push(index);
+    return kept;
+  });
+  return { value: { ...jwks, keys }, strippedKeys };
+}
+
 interface ClientRow {
   readonly id: string;
   readonly serviceSubjectId: string | null;
+  readonly strippedKeys: readonly number[];
   readonly exported: Omit<ExportedClient, 'service_account_roles'>;
 }
 
@@ -216,41 +242,45 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
     .from(clients)
     .innerJoin(clientOidcConfig, eq(clients.id, clientOidcConfig.clientId))
     .where(and(eq(clients.tenantId, tenantId), eq(clients.builtinAdmin, false)));
-  return rows.sort(byKey((row) => row.clientId)).map((row) => ({
-    id: row.id,
-    serviceSubjectId: row.serviceSubjectId,
-    exported: {
-      client_id: row.clientId,
-      name: row.name,
-      // Plain text columns bounded by CHECKs (clients_secret_matches_type,
-      // clients_registration_origin_check), narrowed as `clientRepository` does.
-      type: row.type as ClientRecord['type'],
-      enabled: row.enabled,
-      full_scope_allowed: row.fullScopeAllowed,
-      registration_origin: row.registrationOrigin as ClientRecord['registrationOrigin'],
-      redirect_uris: row.redirectUris,
-      grant_types: row.grantTypes,
-      token_endpoint_auth_method: row.tokenEndpointAuthMethod,
-      audiences: row.audiences,
-      access_token_ttl_seconds: row.accessTokenTtlSeconds,
-      refresh_token_ttl_seconds: row.refreshTokenTtlSeconds,
-      client_credentials_scopes: row.clientCredentialsScopes,
-      web_origins: row.webOrigins,
-      post_logout_redirect_uris: row.postLogoutRedirectUris,
-      jwks: row.jwks,
-      jwks_uri: row.jwksUri,
-      frontchannel_logout_uri: row.frontchannelLogoutUri,
-      backchannel_logout_uri: row.backchannelLogoutUri,
-      frontchannel_logout_session_required: row.frontchannelLogoutSessionRequired,
-      backchannel_logout_session_required: row.backchannelLogoutSessionRequired,
-      consent_required: row.consentRequired,
-      token_exchange_impersonation_allowed: row.tokenExchangeImpersonationAllowed,
-      userinfo_signed_response_alg: row.userinfoSignedResponseAlg,
-      userinfo_encrypted_response_alg: row.userinfoEncryptedResponseAlg,
-      userinfo_encrypted_response_enc: row.userinfoEncryptedResponseEnc,
-      tls_client_auth_subject_dn: row.tlsClientAuthSubjectDn,
-    },
-  }));
+  return rows.sort(byKey((row) => row.clientId)).map((row) => {
+    const jwks = publicJwks(row.jwks);
+    return {
+      id: row.id,
+      serviceSubjectId: row.serviceSubjectId,
+      strippedKeys: jwks.strippedKeys,
+      exported: {
+        client_id: row.clientId,
+        name: row.name,
+        // Plain text columns bounded by CHECKs (clients_secret_matches_type,
+        // clients_registration_origin_check), narrowed as `clientRepository` does.
+        type: row.type as ClientRecord['type'],
+        enabled: row.enabled,
+        full_scope_allowed: row.fullScopeAllowed,
+        registration_origin: row.registrationOrigin as ClientRecord['registrationOrigin'],
+        redirect_uris: row.redirectUris,
+        grant_types: row.grantTypes,
+        token_endpoint_auth_method: row.tokenEndpointAuthMethod,
+        audiences: row.audiences,
+        access_token_ttl_seconds: row.accessTokenTtlSeconds,
+        refresh_token_ttl_seconds: row.refreshTokenTtlSeconds,
+        client_credentials_scopes: row.clientCredentialsScopes,
+        web_origins: row.webOrigins,
+        post_logout_redirect_uris: row.postLogoutRedirectUris,
+        jwks: jwks.value,
+        jwks_uri: row.jwksUri,
+        frontchannel_logout_uri: row.frontchannelLogoutUri,
+        backchannel_logout_uri: row.backchannelLogoutUri,
+        frontchannel_logout_session_required: row.frontchannelLogoutSessionRequired,
+        backchannel_logout_session_required: row.backchannelLogoutSessionRequired,
+        consent_required: row.consentRequired,
+        token_exchange_impersonation_allowed: row.tokenExchangeImpersonationAllowed,
+        userinfo_signed_response_alg: row.userinfoSignedResponseAlg,
+        userinfo_encrypted_response_alg: row.userinfoEncryptedResponseAlg,
+        userinfo_encrypted_response_enc: row.userinfoEncryptedResponseEnc,
+        tls_client_auth_subject_dn: row.tlsClientAuthSubjectDn,
+      },
+    };
+  });
 }
 
 async function exportRoles(
@@ -467,8 +497,8 @@ export async function exportTenant(
   const record = await tenantSettingsRepository(tx).byId(tenantId);
   if (record === null) throw new Error(`tenant ${tenantId} has no settings row`);
   const policyNames = new Set(REGISTRATION_POLICY_SETTINGS);
-  const settings = Object.fromEntries(
-    Object.entries(record).filter(([name]) => !policyNames.has(name)),
+  const settings = tenantSettingsDocumentSchema.parse(
+    Object.fromEntries(Object.entries(record).filter(([name]) => !policyNames.has(name))),
   );
   const registrationPolicy = registrationPolicySchema.parse(
     Object.fromEntries(Object.entries(record).filter(([name]) => policyNames.has(name))),
@@ -500,9 +530,10 @@ export async function exportTenant(
   const exportedGroups = await exportGroups(tx, tenantId, roleById);
   const smtp = await tenantSmtpRepository(tx).byTenantId(tenantId);
 
-  const omitted = exportedClients.flatMap((client, index) =>
-    client.type === 'confidential' ? [`clients[${String(index)}].secret`] : [],
-  );
+  const omitted = clientRows.flatMap((row, index) => [
+    ...(row.exported.type === 'confidential' ? [`clients[${String(index)}].secret`] : []),
+    ...row.strippedKeys.map((key) => `clients[${String(index)}].jwks.keys[${String(key)}]`),
+  ]);
   if (smtp !== null && smtp.passwordEncrypted !== null) omitted.push('smtp.password');
 
   const document: TenantDocument = {

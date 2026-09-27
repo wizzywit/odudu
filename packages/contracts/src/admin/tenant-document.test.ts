@@ -39,7 +39,34 @@ const CLIENT: ExportedClient = {
 
 const DOCUMENT: TenantDocument = {
   version: 1,
-  settings: { display_name: null, password_min_length: 12, username_editable: false },
+  settings: {
+    display_name: null,
+    enabled: true,
+    reset_password_allowed: false,
+    sso_session_idle_seconds: 1800,
+    sso_session_max_seconds: 36_000,
+    password_min_length: 12,
+    password_require_digit: false,
+    password_require_uppercase: false,
+    password_require_lowercase: false,
+    password_require_special: false,
+    password_not_username: true,
+    password_not_email: true,
+    password_history_depth: 0,
+    password_max_age_days: 0,
+    otp_required: false,
+    brute_force_max_failures: 5,
+    brute_force_lockout_seconds: 60,
+    brute_force_max_lockout_seconds: 900,
+    brute_force_failure_reset_seconds: 43_200,
+    max_clients: 200,
+    max_sessions_per_browser: 25,
+    remember_me_allowed: false,
+    remember_me_idle_seconds: 604_800,
+    remember_me_max_seconds: 2_592_000,
+    audit_retention_days: 90,
+    username_editable: false,
+  },
   flow: [{ authenticator: 'password', requirement: 'required' }],
   clients: [CLIENT],
   roles: [
@@ -89,6 +116,18 @@ describe('tenantDocumentSchema', () => {
 
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.path).toEqual(['clients', 0]);
+  });
+
+  it('refuses a setting it does not name, and a registration setting outside its section', () => {
+    for (const extra of [{ password_min_lenght: 12 }, { verify_email: true }]) {
+      const document = { ...DOCUMENT, settings: { ...DOCUMENT.settings, ...extra } };
+      expect(tenantDocumentSchema.safeParse(document).success, Object.keys(extra)[0]).toBe(false);
+    }
+  });
+
+  it('refuses a setting of the wrong type', () => {
+    const document = { ...DOCUMENT, settings: { ...DOCUMENT.settings, max_clients: '200' } };
+    expect(tenantDocumentSchema.safeParse(document).success).toBe(false);
   });
 
   it('refuses a client registration policy outside its enumeration', () => {

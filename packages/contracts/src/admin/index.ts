@@ -241,6 +241,8 @@ export {
   type RoleReference,
   registrationPolicySchema,
   type RegistrationPolicy,
+  tenantSettingsDocumentSchema,
+  type TenantSettingsDocument,
   exportedFlowStepSchema,
   exportedClientSchema,
   type ExportedClient,

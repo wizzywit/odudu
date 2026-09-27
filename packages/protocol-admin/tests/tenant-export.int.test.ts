@@ -12,6 +12,7 @@ import { credentialRepository, hashPassword } from '@odudu/domain-identity';
 import { ADMIN_CLIENT_ID, clients, clientScopeRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { tenantSmtpRepository } from '@odudu/protocol-admin';
+import { clientOidcConfig } from '@odudu/protocol-oidc';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -268,12 +269,27 @@ describe('GET /admin/tenants/{tenant}/export', () => {
   it('exports nothing of another tenant', async () => {
     const t = await seededTenant();
     const other = await seededTenant();
+    const suffix = newId();
+    const foreign = {
+      role: `foreign-role-${suffix}`,
+      group: `foreign-group-${suffix}`,
+      username: `foreign-user-${suffix}`,
+    };
+    await fixture.createSubject(other.name, foreign.username);
+    await withTenant(fixture.app.db, other.id, async (tx) => {
+      await roleRepository(tx).create({ tenantId: other.id, name: foreign.role });
+      await groupRepository(tx).create({ tenantId: other.id, name: foreign.group, parentId: null });
+    });
     const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-users']);
 
     const res = await exportTenant(token, t.name, '?include=subjects');
 
-    expect(res.payload).not.toContain(other.clientId);
-    expect(parsed(res.payload).clients.map((client) => client.client_id)).toEqual([t.clientId]);
+    for (const value of [other.clientId, foreign.role, foreign.group, foreign.username]) {
+      expect(res.payload, value).not.toContain(value);
+    }
+    const document = parsed(res.payload);
+    expect(document.clients.map((client) => client.client_id)).toEqual([t.clientId]);
+    expect(document.subjects?.map((subject) => subject.username)).toEqual(['grace']);
   });
 
   it('refuses ?include=subjects with 403 to a caller without view-users', async () => {
@@ -291,6 +307,37 @@ describe('GET /admin/tenants/{tenant}/export', () => {
       capability: 'view-users',
       reason: 'missing_capability',
     });
+    const exported = await withTenant(fixture.app.db, t.id, (tx) =>
+      tx.select().from(auditEvents).where(eq(auditEvents.action, 'tenant.export')),
+    );
+    expect(exported).toEqual([]);
+  });
+
+  it('strips private members from a jwks stored before they were refused, naming each', async () => {
+    const t = await fixture.createTenant(`export-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {});
+    const privateValues = Object.fromEntries(
+      PRIVATE_JWK_MEMBERS.map((member) => [member, `private-${member}-${newId()}`]),
+    );
+    const publicKey = { kty: 'EC', crv: 'P-256', x: 'public-x', y: 'public-y', kid: 'one' };
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      tx
+        .update(clientOidcConfig)
+        .set({ jwks: { keys: [publicKey, { ...publicKey, kid: 'two', ...privateValues }] } })
+        .where(eq(clientOidcConfig.clientId, client.id)),
+    );
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await exportTenant(token, t.name);
+
+    expect(res.statusCode).toBe(200);
+    for (const value of Object.values(privateValues)) {
+      expect(res.payload, value).not.toContain(value);
+    }
+    const document = parsed(res.payload);
+    expect(document.clients[0]?.jwks).toEqual({ keys: [publicKey, { ...publicKey, kid: 'two' }] });
+    expect(document.omitted).toContain('clients[0].jwks.keys[1]');
+    expect(document.omitted).not.toContain('clients[0].jwks.keys[0]');
   });
 
   it('refuses an unknown include with 400', async () => {
