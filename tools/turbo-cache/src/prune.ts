@@ -29,10 +29,15 @@ async function hashesNamedIn(summaryDir: string): Promise<Set<string>> {
 // Removes every cache entry that no run summary in `summaryDir` names, so a
 // cache restored from an earlier run and saved again holds only what this
 // run read or wrote instead of the union of every run before it.
-export async function pruneCache(cacheDir: string, summaryDir: string): Promise<PruneResult> {
+export async function pruneCache(
+  cacheDir: string,
+  summaryDir: string,
+  remover: (path: string) => Promise<void> = (path) => rm(path, { force: true }),
+): Promise<PruneResult> {
   const live = await hashesNamedIn(summaryDir);
   const kept = new Set<string>();
   const removed = new Set<string>();
+  const failures: string[] = [];
   for (const file of await readdir(cacheDir)) {
     const hash = ENTRY.exec(file)?.groups?.hash;
     if (hash === undefined) continue;
@@ -41,7 +46,19 @@ export async function pruneCache(cacheDir: string, summaryDir: string): Promise<
       continue;
     }
     removed.add(hash);
-    await rm(join(cacheDir, file), { force: true });
+    const path = join(cacheDir, file);
+    try {
+      await remover(path);
+    } catch {
+      failures.push(path);
+    }
+  }
+  if (failures.length > 0) {
+    const count = String(failures.length);
+    throw new AggregateError(
+      failures.map((path) => new Error(path)),
+      `failed to remove ${count} cache entries: ${failures.join(', ')}`,
+    );
   }
   return { kept: kept.size, removed: removed.size };
 }

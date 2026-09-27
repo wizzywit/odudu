@@ -69,4 +69,34 @@ describe('pruneCache', () => {
     await expect(pruneCache(cache, runs)).rejects.toThrow(runs);
     expect(await readdir(cache)).toHaveLength(3);
   });
+
+  it('continues removing entries past a failure and throws one error naming all failed paths', async () => {
+    const { cache, runs } = await layout(['aaaa', 'bbbb', 'cccc'], [['aaaa']]);
+    const failPath = join(cache, 'bbbb.tar.zst');
+    let removalAttempts = 0;
+    const remover = async (path: string) => {
+      removalAttempts += 1;
+      if (path === failPath) {
+        throw new Error(`permission denied: ${path}`);
+      }
+      await rm(path, { force: true });
+    };
+
+    let error: unknown;
+    try {
+      await pruneCache(cache, runs, remover);
+    } catch (err) {
+      error = err;
+    }
+
+    expect(removalAttempts).toBe(6);
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).message).toContain(failPath);
+    expect((await readdir(cache)).sort()).toEqual([
+      'aaaa-manifest.json',
+      'aaaa-meta.json',
+      'aaaa.tar.zst',
+      'bbbb.tar.zst',
+    ]);
+  });
 });
