@@ -45,6 +45,7 @@ const ROLES_PER_CLIENT = 300;
 // resource_id, so a busy grant's own trail is not the handful of rows a
 // resource ordinarily has.
 const BUSY_RESOURCE_ROWS = 5_000;
+const HELD_ROLE_SUBJECTS = 2_000;
 
 interface Statement {
   readonly query: string;
@@ -67,6 +68,7 @@ let captured: Statement[] | undefined;
 let targetTenantId: string;
 let scopedClientId: string;
 let busyGrantId: string;
+let heldRoleId: string;
 
 function capture(query: string, parameters: readonly unknown[]): void {
   captured?.push({ query, parameters });
@@ -165,6 +167,16 @@ beforeAll(async () => {
     select id from clients where tenant_id = ${targetTenantId} order by id limit 1`;
   if (scoped === undefined) throw new Error('no client in the target tenant');
   scopedClientId = scoped.id;
+
+  const [held] = await owner.sql<{ id: string }[]>`
+    select id from roles
+     where tenant_id = ${targetTenantId} and client_id is null order by id limit 1`;
+  if (held === undefined) throw new Error('no tenant role in the target tenant');
+  heldRoleId = held.id;
+  await owner.sql`
+    insert into subject_roles (tenant_id, subject_id, role_id)
+    select tenant_id, id, ${heldRoleId}
+      from subjects where tenant_id = ${targetTenantId} order by id limit ${HELD_ROLE_SUBJECTS}`;
 
   busyGrantId = randomUUID();
   await owner.sql`
@@ -578,6 +590,8 @@ interface CountPlanCase {
   readonly index: string;
   readonly column: string;
   readonly throughOwner: boolean;
+  // Set where a count may Seq Scan nothing, under any ceiling.
+  readonly noSeqScan?: boolean;
   readonly count: (options: CountOptions) => Promise<unknown>;
 }
 
@@ -616,6 +630,7 @@ const COUNT_CASES: readonly CountPlanCase[] = [
     index: 'clients_client_id_search',
     column: 'client_id_search',
     throughOwner: false,
+    noSeqScan: true,
     count: scopedCount((tx, options) => countClients(tx, { client_id: 'B' }, options)),
   },
   {
@@ -648,8 +663,45 @@ const COUNT_CASES: readonly CountPlanCase[] = [
 // ceiling inside the range the read stops at the ceiling: an ordered scan
 // of the search index beneath the LIMIT, any join probing per row, no
 // sort. Under COUNT_CAP the whole range is read and sorted, which the
-// planner may do as a bitmap scan, and a joined table it costs cheaper to
-// hash than to probe it may read in full — never the searched table.
+// planner may do as a bitmap scan. A searched subjects count may then read
+// the tenant's `subjects` rows through their index to hash-join them, when
+// it costs that below probing per match (docs/phases/p4d.md).
+async function countPlan(
+  countCase: {
+    readonly label: string;
+    readonly throughOwner: boolean;
+    readonly count: (options: CountOptions) => Promise<unknown>;
+  },
+  cap: number,
+  regime: string,
+): Promise<PlanNode[]> {
+  await countCase.count({ cap });
+  captured = [];
+  await countCase.count({ cap });
+  const statements = captured;
+  captured = undefined;
+  const statement = statements.find((s) => /\bcount\(/iu.test(s.query));
+  if (statement === undefined) throw new Error(`${countCase.label} issued no count`);
+  const handle = countCase.throughOwner ? owner : app;
+  const tenantId = countCase.throughOwner ? undefined : targetTenantId;
+
+  const [json] = await explained(handle, statement, 'FORMAT JSON', tenantId);
+  if (PLANS_OUT !== undefined) {
+    const text = await explained(handle, statement, 'ANALYZE, BUFFERS', tenantId);
+    appendFileSync(
+      PLANS_OUT,
+      [
+        `### ${countCase.label}, ${regime}`,
+        statement.query,
+        `params: ${JSON.stringify(statement.parameters)}`,
+        ...text.map(String),
+        '',
+      ].join('\n'),
+    );
+  }
+  return allNodes(rootPlan(json));
+}
+
 const COUNT_REGIMES = [
   {
     regime: 'a ceiling above the range',
@@ -670,34 +722,9 @@ describe('the plan each searched count is given', () => {
     it.each(COUNT_REGIMES)(
       'reads one range of its index, never the table, under $regime',
       async ({ regime, cap, bounded, scans }) => {
-        await countCase.count({ cap });
-        captured = [];
-        await countCase.count({ cap });
-        const statements = captured;
-        captured = undefined;
-        const statement = statements.find((s) => /\bcount\(/iu.test(s.query));
-        if (statement === undefined) throw new Error(`${countCase.label} issued no count`);
-        const handle = countCase.throughOwner ? owner : app;
-        const tenantId = countCase.throughOwner ? undefined : targetTenantId;
-
-        const [json] = await explained(handle, statement, 'FORMAT JSON', tenantId);
-        const nodes = allNodes(rootPlan(json));
+        const nodes = await countPlan(countCase, cap, regime);
         const types = nodes.map((node) => node.nodeType);
         const scan = nodes.find((node) => node.indexName === countCase.index);
-
-        if (PLANS_OUT !== undefined) {
-          const text = await explained(handle, statement, 'ANALYZE, BUFFERS', tenantId);
-          appendFileSync(
-            PLANS_OUT,
-            [
-              `### ${countCase.label}, ${regime}`,
-              statement.query,
-              `params: ${JSON.stringify(statement.parameters)}`,
-              ...text.map(String),
-              '',
-            ].join('\n'),
-          );
-        }
 
         expect(scans).toContain(scan?.nodeType);
         expect(scan?.indexCond).toContain(`${countCase.column} >=`);
@@ -705,10 +732,54 @@ describe('the plan each searched count is given', () => {
         expect(types).toContain('Limit');
         const seqScanned = nodes.filter((node) => node.nodeType === 'Seq Scan');
         expect(seqScanned.map((node) => node.relationName)).not.toContain(countCase.table);
-        if (bounded) {
-          expect(types).not.toContain('Seq Scan');
-          expect(types).not.toContain('Sort');
-        }
+        if (bounded || countCase.noSeqScan === true) expect(types).not.toContain('Seq Scan');
+        if (bounded) expect(types).not.toContain('Sort');
+      },
+    );
+  });
+});
+
+// Unsearched counts, and counts narrowed only by an exact filter, have no
+// search range to read; they may still never read the counted table in
+// full, since the tenant's own rows are an index range of it.
+const UNSEARCHED_COUNT_CASES = [
+  {
+    label: 'subjects/count',
+    tables: ['subjects'],
+    throughOwner: false,
+    count: scopedCount((tx, options) => countSubjects(tx, {}, options)),
+  },
+  {
+    label: 'subjects/count ?role=<id>',
+    tables: ['subjects', 'subject_roles'],
+    throughOwner: false,
+    count: scopedCount((tx, options) => countSubjects(tx, { role: heldRoleId }, options)),
+  },
+  {
+    label: 'clients/count',
+    tables: ['clients', 'client_oidc_config'],
+    throughOwner: false,
+    count: scopedCount((tx, options) => countClients(tx, {}, options)),
+  },
+  {
+    label: 'clients/count ?type=public',
+    tables: ['clients', 'client_oidc_config'],
+    throughOwner: false,
+    count: scopedCount((tx, options) => countClients(tx, { type: 'public' }, options)),
+  },
+] as const;
+
+describe('the plan each unsearched count is given', () => {
+  describe.each(UNSEARCHED_COUNT_CASES)('$label', (countCase) => {
+    it.each(COUNT_REGIMES)(
+      'never scans the counted table, under $regime',
+      async ({ regime, cap }) => {
+        const nodes = await countPlan(countCase, cap, regime);
+        const seqScanned = nodes
+          .filter((node) => node.nodeType === 'Seq Scan')
+          .map((node) => node.relationName);
+        expect(nodes.map((node) => node.nodeType)).toContain('Limit');
+        for (const table of countCase.tables) expect(seqScanned, table).not.toContain(table);
       },
     );
   });

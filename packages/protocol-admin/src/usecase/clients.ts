@@ -230,8 +230,9 @@ function exactClientConditions(filters: ClientFilters): SQL[] {
 }
 
 /**
- * The WHERE clause of the clients listing, over `clients` joined to
- * `client_oidc_config`, and so also of its count, which passes no position.
+ * The WHERE clause of the clients listing, and so also of its count, which
+ * passes no position. It reads `clients` columns only, so the count needs
+ * none of the listing's join to `client_oidc_config`.
  */
 export async function clientListConditions(
   tx: TenantScopedDatabase,

@@ -2867,16 +2867,20 @@ scopes. `count` is a reserved tenant name, so `/admin/tenants/count` never
 names a tenant, and a subject or client id is a uuid, so `/count` never
 names one either.
 
-The answer is `{"count": n, "capped": false}`, or
-`{"count": 10000, "capped": true}` once more than ten thousand rows match:
-counting stops one row past that ceiling, so a count costs one bounded
-read of the same index its list uses rather than a pass over the table
-(`tests/list-plans.int.test.ts` in `@odudu/protocol-admin` holds the
-plan). A capped count says only that there are more; it is never an
+The answer is `{"count": n, "capped": false}`, or `{"count": 10000,
+"capped": true}` once more than ten thousand rows match: counting stops one
+row past that ceiling. A count reads the rows its list would page through,
+in its list's order, from the same index — never a pass over the table and
+never another tenant's rows. The one read beyond that: a searched subjects
+count whose matches fall under the ceiling may read the tenant's whole
+subject index to join it, when the planner costs that cheaper than one
+probe per match (`docs/phases/p4d.md`, "The plan a bounded count is given",
+shows both plans; `tests/list-plans.int.test.ts` in `@odudu/protocol-admin`
+holds them). A capped count says only that there are more; it is never an
 estimate. No capped response is shown here, since nothing on this stack
 holds ten thousand of anything —
-`packages/protocol-admin/tests/counts.int.test.ts` covers it with a
-lowered ceiling.
+`packages/protocol-admin/tests/counts.int.test.ts` covers it with a lowered
+ceiling.
 
 Captured against the fourth stack (the note at the top of this document)
 as `ada-whoami`, after its `odudu` service was rebuilt from this branch,

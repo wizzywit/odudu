@@ -591,3 +591,92 @@ Execution Time: 0.054 ms
 `0067_admin_audit.sql` is left as it first shipped — the migration history
 is what it is — and `0076` is the correction, not an edit to `0067` in
 place.
+
+## The plan a bounded count is given
+
+Each `/count` route runs its list's own statement — the WHERE and ORDER BY
+builders the listing exports (`subjectListConditions`, `subjectListOrder`,
+and the same pair for every other collection) and, for subjects, the same
+FROM (`subjectListRows`) — with `limit COUNT_CAP + 1` in place of the page
+size, wrapped in `count(*)`. The ORDER BY is not decoration: without it,
+under a ceiling inside the range, the planner answered `tenants/count
+?name=T3` with a `Seq Scan` and a Filter, hoping to reach the LIMIT early,
+which is unbounded when the matches are sparse. With it, every searched
+count under a binding ceiling is an `Index Only Scan` of its list's search
+index under the `Limit`, with any join probing per row and no Sort.
+
+`clients/count` reads `clients` alone. The listing joins
+`client_oidc_config` for the columns it shows, but no filter reads it, and
+it is a 1:1 extension every creation path writes (`createClient`,
+dynamic registration, `provisionAdminClient`, `odudu seed`). With the join,
+an uncapped count hash-joined it through a `Seq Scan` — under row-level
+security, every tenant's rows.
+
+A searched subjects count whose ceiling does not bind is the one plan that
+reads more than its range: the planner may hash-join the tenant's
+`subjects` rows, read through `subjects_tenant_id_unique`, rather than
+probe `subjects_pkey` once per match. Accepted: the join itself is needed
+the moment `?enabled=`, `?role=` or `?group=` applies, the read is an index
+range of the one tenant and never another's, and it is the planner's
+choice on its cost estimate against probing once per match, not a shape
+the statement forces. A binding ceiling reverses it, as the second plan
+below shows; how a much larger tenant plans it is not measured here.
+
+verified: `cd packages/protocol-admin && LIST_PLANS_OUT=<file> pnpm vitest run --config ../../vitest.config.ts tests/list-plans.int.test.ts`
+(47 passed against `postgres:17-alpine`). `subjects/count ?username=A`,
+1,836 matches of 30,000 subjects, under `COUNT_CAP` and then under a
+ceiling of 100:
+
+```
+Aggregate  (cost=4605.01..4605.02 rows=1 width=8) (actual time=7.020..7.022 rows=1 loops=1)
+  Buffers: shared hit=1038
+  ->  Limit  (cost=4596.18..4597.65 rows=589 width=34) (actual time=6.715..6.923 rows=1836 loops=1)
+        Buffers: shared hit=1038
+        ->  Sort  (cost=4596.18..4597.65 rows=589 width=34) (actual time=6.714..6.797 rows=1836 loops=1)
+              Sort Key: users.username_search COLLATE "C", users.subject_id
+              Sort Method: quicksort  Memory: 178kB
+              Buffers: shared hit=1038
+              ->  Hash Join  (cost=2971.44..4569.08 rows=589 width=34) (actual time=1.671..6.199 rows=1836 loops=1)
+                    Hash Cond: (subjects.id = users.subject_id)
+                    Buffers: shared hit=1038
+                    ->  Bitmap Heap Scan on subjects  (cost=1225.51..2744.20 rows=30075 width=16) (actual time=0.887..3.087 rows=30000 loops=1)
+                          Recheck Cond: (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)
+                          Heap Blocks: exact=281
+                          Buffers: shared hit=526
+                          ->  Bitmap Index Scan on subjects_tenant_id_unique  (cost=0.00..1217.99 rows=30075 width=0) (actual time=0.864..0.864 rows=30000 loops=1)
+                                Index Cond: (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)
+                                Buffers: shared hit=245
+                    ->  Hash  (cost=1723.90..1723.90 rows=1763 width=30) (actual time=0.777..0.778 rows=1836 loops=1)
+                          Buckets: 2048  Batches: 1  Memory Usage: 129kB
+                          Buffers: shared hit=512
+                          ->  Bitmap Heap Scan on users  (cost=98.91..1723.90 rows=1763 width=30) (actual time=0.153..0.597 rows=1836 loops=1)
+                                Recheck Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (username_search >= 'a'::text) AND (username_search < 'b'::text))
+                                Heap Blocks: exact=488
+                                Buffers: shared hit=512
+                                ->  Bitmap Index Scan on users_username_search  (cost=0.00..98.47 rows=1763 width=0) (actual time=0.119..0.119 rows=1836 loops=1)
+                                      Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (username_search >= 'a'::text) AND (username_search < 'b'::text))
+                                      Buffers: shared hit=24
+Planning:
+  Buffers: shared hit=17
+Planning Time: 0.156 ms
+Execution Time: 7.093 ms
+
+Aggregate  (cost=1554.19..1554.20 rows=1 width=8) (actual time=0.214..0.215 rows=1 loops=1)
+  Buffers: shared hit=509
+  ->  Limit  (cost=0.84..1552.92 rows=101 width=34) (actual time=0.018..0.209 rows=101 loops=1)
+        Buffers: shared hit=509
+        ->  Nested Loop  (cost=0.84..9052.07 rows=589 width=34) (actual time=0.018..0.202 rows=101 loops=1)
+              Buffers: shared hit=509
+              ->  Index Only Scan using users_username_search on users  (cost=0.43..3059.13 rows=1763 width=30) (actual time=0.012..0.045 rows=101 loops=1)
+                    Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (username_search >= 'a'::text) AND (username_search < 'b'::text))
+                    Heap Fetches: 101
+                    Buffers: shared hit=105
+              ->  Index Scan using subjects_pkey on subjects  (cost=0.42..3.40 rows=1 width=16) (actual time=0.001..0.001 rows=1 loops=101)
+                    Index Cond: (id = users.subject_id)
+                    Filter: (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)
+                    Buffers: shared hit=404
+Planning:
+  Buffers: shared hit=17
+Planning Time: 0.143 ms
+Execution Time: 0.229 ms
+```

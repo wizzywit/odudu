@@ -1,15 +1,18 @@
 import { type CountResponse } from '@odudu/contracts/admin';
 import { tenants, type Database, type TenantScopedDatabase } from '@odudu/db';
 import { groups, roles } from '@odudu/domain-authz';
-import { subjects, users } from '@odudu/domain-identity';
 import { clients, clientScopes } from '@odudu/domain-tenant';
-import { clientOidcConfig } from '@odudu/protocol-oidc';
-import { and, count, eq, sql, type SQL } from 'drizzle-orm';
+import { and, count, sql, type SQL } from 'drizzle-orm';
 import { clientListConditions, clientListOrder, type ClientFilters } from '#/usecase/clients';
 import { groupListConditions, groupListOrder, type GroupFilters } from '#/usecase/groups';
 import { roleListConditions, roleListOrder, type RoleFilters } from '#/usecase/roles';
 import { scopeListConditions, scopeListOrder, type ScopeFilters } from '#/usecase/scopes';
-import { subjectListConditions, subjectListOrder, type SubjectFilters } from '#/usecase/subjects';
+import {
+  subjectListConditions,
+  subjectListOrder,
+  subjectListRows,
+  type SubjectFilters,
+} from '#/usecase/subjects';
 import { tenantListConditions, tenantListOrder, type TenantFilters } from '#/usecase/tenants';
 
 // Counting stops one row past this, so a count reads at most that many
@@ -41,10 +44,7 @@ export async function countSubjects(
   options: CountOptions = {},
 ): Promise<CountResponse> {
   const cap = options.cap ?? COUNT_CAP;
-  const matching = tx
-    .select({ one: ONE })
-    .from(subjects)
-    .leftJoin(users, eq(subjects.id, users.subjectId))
+  const matching = subjectListRows(tx, { one: ONE })
     .where(whereOf(await subjectListConditions(tx, filters, undefined)))
     .orderBy(...subjectListOrder(filters))
     .limit(cap + 1)
@@ -75,10 +75,10 @@ export async function countClients(
   options: CountOptions = {},
 ): Promise<CountResponse> {
   const cap = options.cap ?? COUNT_CAP;
+  // No join: client_oidc_config is a 1:1 extension every creation path writes.
   const matching = tx
     .select({ one: ONE })
     .from(clients)
-    .innerJoin(clientOidcConfig, eq(clients.id, clientOidcConfig.clientId))
     .where(whereOf(await clientListConditions(tx, filters, undefined)))
     .orderBy(...clientListOrder(filters))
     .limit(cap + 1)

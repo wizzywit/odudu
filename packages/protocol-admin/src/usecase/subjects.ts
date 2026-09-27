@@ -17,6 +17,7 @@ import {
 import { tenantSettingsRepository } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, isNotNull, isNull, ne, sql, type SQL } from 'drizzle-orm';
+import { type SelectedFields } from 'drizzle-orm/pg-core';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
@@ -137,8 +138,8 @@ function exactFilterConditions(filters: SubjectFilters, tx: TenantScopedDatabase
 }
 
 /**
- * The WHERE clause of the subjects listing, over `subjects` left-joined to
- * `users`, and so also of its count, which passes no position.
+ * The WHERE clause of the subjects listing, over `subjectListRows`, and so
+ * also of its count, which passes no position.
  */
 export async function subjectListConditions(
   tx: TenantScopedDatabase,
@@ -156,6 +157,14 @@ export async function subjectListConditions(
     ...(await prefixRangeConditions(tx, search.column, users.subjectId, search.prefix, position)),
   );
   return conditions;
+}
+
+/**
+ * The subjects listing's FROM: `subjects` left-joined to `users`, whose
+ * columns the search and the view read. Shared with its count.
+ */
+export function subjectListRows<T extends SelectedFields>(tx: TenantScopedDatabase, fields: T) {
+  return tx.select(fields).from(subjects).leftJoin(users, eq(subjects.id, users.subjectId));
 }
 
 /** The subjects listing's order, which its keyset cursor and its count both follow. */
@@ -190,10 +199,10 @@ export async function listSubjects(
 
   const conditions = await subjectListConditions(tx, input.filters, after);
   const searchKey = search?.column;
-  const rows = await tx
-    .select({ ...SUBJECT_VIEW_COLUMNS, searchKey: searchKey ?? sql<null>`null` })
-    .from(subjects)
-    .leftJoin(users, eq(subjects.id, users.subjectId))
+  const rows = await subjectListRows(tx, {
+    ...SUBJECT_VIEW_COLUMNS,
+    searchKey: searchKey ?? sql<null>`null`,
+  })
     .where(conditions.length === 0 ? undefined : and(...conditions))
     .orderBy(...subjectListOrder(input.filters))
     .limit(input.limit + 1);
