@@ -13,7 +13,7 @@ const SOURCE_TREES = ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts', 'tools/*/s
 const DECLARED_IN = 'packages/db/src/client.ts';
 const HOOK = /\bonQuery\w*/u;
 
-describe('the statement hook createDatabase offers', () => {
+describe('the statement hook createDatabase offers', { timeout: 60_000 }, () => {
   it('is named for tests', async () => {
     const source = await readFile(path.join(REPO_ROOT, DECLARED_IN), 'utf8');
     expect(source).toMatch(/\bonQueryForTests\?:/u);

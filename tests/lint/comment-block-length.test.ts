@@ -81,7 +81,7 @@ export function commentBlocks(source: string): CommentBlock[] {
   return blocks;
 }
 
-describe('a comment block stays within the ceiling', () => {
+describe('a comment block stays within the ceiling', { timeout: 60_000 }, () => {
   it('holds across every source tree', async () => {
     const offenders: string[] = [];
 

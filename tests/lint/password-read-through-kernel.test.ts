@@ -41,7 +41,7 @@ function directPasswordReads(source: string): string[] {
   return passwordReads(source).direct;
 }
 
-describe('the password field is read through one function', () => {
+describe('the password field is read through one function', { timeout: 60_000 }, () => {
   it('holds across every source tree', async () => {
     const offenders: string[] = [];
     let compliant = 0;

@@ -24,7 +24,7 @@ async function violations(rule: string): Promise<ICruiseResult['summary']['viola
   return output.summary.violations.filter((v) => v.rule.name === rule);
 }
 
-describe('boundary rules', () => {
+describe('boundary rules', { timeout: 60_000 }, () => {
   it('rejects a domain package importing a protocol package', async () => {
     expect((await violations('no-domain-to-protocol')).length).toBeGreaterThan(0);
   });

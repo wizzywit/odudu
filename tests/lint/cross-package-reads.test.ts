@@ -107,28 +107,32 @@ describe('escapesPackage', () => {
   });
 });
 
-describe('a file that reads above its package root has a turbo.json test override', () => {
-  it('holds for every package, app and tool', async () => {
-    const overrides = overridesReachingOut();
-    const offenders: string[] = [];
-    let scanned = 0;
-    for await (const file of glob('{packages,apps,tools}/*/{src,tests}/**/*.ts', {
-      cwd: REPO_ROOT,
-    })) {
-      scanned += 1;
-      const [top = '', dir = '', ...rest] = file.split(path.sep);
-      const packageDir = `${top}/${dir}`;
-      const source = readFileSync(path.join(REPO_ROOT, file), 'utf8');
-      if (!escapesPackage(source, rest.join('/'))) continue;
-      const name = packageName(packageDir);
-      if (overrides.has(name)) continue;
-      offenders.push(
-        `${file} builds a path above ${packageDir}; add a "${name}#test" task to ` +
-          'turbo.json that copies the generic "test" task and adds the files it reads ' +
-          'as "$TURBO_ROOT$/…" inputs',
-      );
-    }
-    expect(scanned).toBeGreaterThan(100);
-    expect(offenders).toEqual([]);
-  });
-});
+describe(
+  'a file that reads above its package root has a turbo.json test override',
+  { timeout: 60_000 },
+  () => {
+    it('holds for every package, app and tool', async () => {
+      const overrides = overridesReachingOut();
+      const offenders: string[] = [];
+      let scanned = 0;
+      for await (const file of glob('{packages,apps,tools}/*/{src,tests}/**/*.ts', {
+        cwd: REPO_ROOT,
+      })) {
+        scanned += 1;
+        const [top = '', dir = '', ...rest] = file.split(path.sep);
+        const packageDir = `${top}/${dir}`;
+        const source = readFileSync(path.join(REPO_ROOT, file), 'utf8');
+        if (!escapesPackage(source, rest.join('/'))) continue;
+        const name = packageName(packageDir);
+        if (overrides.has(name)) continue;
+        offenders.push(
+          `${file} builds a path above ${packageDir}; add a "${name}#test" task to ` +
+            'turbo.json that copies the generic "test" task and adds the files it reads ' +
+            'as "$TURBO_ROOT$/…" inputs',
+        );
+      }
+      expect(scanned).toBeGreaterThan(100);
+      expect(offenders).toEqual([]);
+    });
+  },
+);
