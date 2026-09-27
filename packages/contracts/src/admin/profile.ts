@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
-const claim = z.string().nullable();
+// PostgreSQL's `text` cannot hold a NUL byte (see `searchPrefixSchema`,
+// #/admin/shared.ts): every claim column is `text`, so the same guard
+// applies here — otherwise a NUL in the body reaches the driver as a
+// 500 instead of a 400 ajv refuses it with.
+const claim = z
+  .string()
+  .regex(/^[^\u0000]*$/)
+  .nullable();
 
 // Every OIDC Core §5.1 claim column on `users`, in the snake_case a wire
 // shape carries — `username_search`/`email_search` (packages/db/drizzle/

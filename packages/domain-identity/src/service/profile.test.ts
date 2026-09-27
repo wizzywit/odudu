@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isValidBirthdate,
+  isValidE164,
   isValidLocale,
   isValidProfileUrl,
   isValidZoneinfo,
@@ -39,5 +40,21 @@ describe('profile URLs', () => {
   });
   it.each([['javascript:alert(1)'], ['ftp://example.com'], ['']])('refuses %s', (v) => {
     expect(isValidProfileUrl(v)).toBe(false);
+  });
+});
+
+describe('E.164 phone number', () => {
+  it.each([['+14155552671'], ['+441234567890'], ['+14155552671;ext=123']])('accepts %s', (v) => {
+    expect(isValidE164(v)).toBe(true);
+  });
+  it.each([
+    ['(415) 555-2671'],
+    ['555-2671'],
+    ['14155552671'],
+    ['+0155552671'],
+    ['+14155552671;ext=abc'],
+    [''],
+  ])('refuses %s', (v) => {
+    expect(isValidE164(v)).toBe(false);
   });
 });

@@ -114,7 +114,7 @@ describe('GET /admin/tenants/{t}/subjects/{id}/profile', () => {
 });
 
 describe('PATCH /admin/tenants/{t}/subjects/{id}/profile', () => {
-  it('changes the next ID token and stamps profile_updated_at', async () => {
+  it('changes the next /userinfo response and stamps profile_updated_at', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users', 'view-users']);
@@ -232,16 +232,67 @@ describe('PATCH /admin/tenants/{t}/subjects/{id}/profile', () => {
     expect(res.json<{ detail?: string }>().detail).toContain('birthdate');
   });
 
-  it('refuses a phone_number_verified whose phone_number is not E.164', async () => {
+  it('refuses verifying a phone_number that is not E.164, and writes nothing', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
-    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const token = await fixture.adminToken(t.name, ['manage-users', 'view-users']);
 
     const res = await patchProfile(t.name, id, token, {
       phone_number: '(415) 555-2671',
       phone_number_verified: true,
     });
     expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail?: string }>().detail).toContain(
+      'phone_number must be E.164-shaped for phone_number_verified to be true',
+    );
+
+    const after = await getProfile(t.name, id, token);
+    const body = after.json<{ phone_number: string | null; phone_number_verified: boolean }>();
+    expect(body.phone_number).toBeNull();
+    expect(body.phone_number_verified).toBe(false);
+  });
+
+  it('accepts unverifying and changing the number in one PATCH, in either order', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users', 'view-users']);
+
+    const verify = await patchProfile(t.name, id, token, {
+      phone_number: '+14155552671',
+      phone_number_verified: true,
+    });
+    expect(verify.statusCode).toBe(200);
+
+    // A write that once ran `updateProfile` (the new, malformed number)
+    // before `setVerification` (unverifying) would have hit
+    // `users_verified_phone_is_e164` between the two statements, since the
+    // row briefly carried the new number against the still-true flag.
+    const res = await patchProfile(t.name, id, token, {
+      phone_number: '555-2671',
+      phone_number_verified: false,
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ phone_number: string | null; phone_number_verified: boolean }>();
+    expect(body.phone_number).toBe('555-2671');
+    expect(body.phone_number_verified).toBe(false);
+  });
+
+  it('resets phone_number_verified to false when phone_number changes without it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users', 'view-users']);
+
+    const verify = await patchProfile(t.name, id, token, {
+      phone_number: '+14155552671',
+      phone_number_verified: true,
+    });
+    expect(verify.statusCode).toBe(200);
+
+    const res = await patchProfile(t.name, id, token, { phone_number: '+442083661177' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ phone_number: string | null; phone_number_verified: boolean }>();
+    expect(body.phone_number).toBe('+442083661177');
+    expect(body.phone_number_verified).toBe(false);
   });
 
   it('honours If-Match when present, and refuses a stale one with 412', async () => {

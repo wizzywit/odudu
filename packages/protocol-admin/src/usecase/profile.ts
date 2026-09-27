@@ -2,6 +2,7 @@ import { type Profile } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
   isValidBirthdate,
+  isValidE164,
   isValidLocale,
   isValidProfileUrl,
   isValidZoneinfo,
@@ -13,6 +14,13 @@ import {
 import { redactedDiff } from '#/service/audit-detail';
 import { etagOf, matches } from '#/service/etag';
 import { type Audit } from '#/usecase/subjects';
+
+// `amendProfileHandler` (#/view/routes/subjects.ts) reuses this for the
+// outer, transaction-aborting catch of `users_verified_phone_is_e164` — a
+// safety net for a race this function's own pre-write check already
+// closes for a single request.
+export const PHONE_E164_MESSAGE =
+  'phone_number must be E.164-shaped for phone_number_verified to be true';
 
 // The wire shape a caller reads and amends — every OIDC Core §5.1 claim
 // column on `users`, `email_verified` and `phone_number_verified` beside
@@ -124,9 +132,9 @@ const URL_FIELDS = new Set(['profile', 'picture', 'website']);
 // Mirrors the same shape check `updateProfile`'s domain path applies
 // (packages/domain-identity/src/service/profile.ts) — a friendly 400
 // instead of a caller learning of `users_birthdate_shape` from a 500.
-// `phone_number` carries no predicate here: E.164 is only required once
-// `phone_number_verified` is true, which `users_verified_phone_is_e164`
-// enforces; a violation of that CHECK is caught after the write below.
+// `phone_number`'s own E.164 requirement is conditional on
+// `phone_number_verified`, so it is checked separately, against the
+// patch's final state, once both are known — never per-field here.
 function shapeInvalidityFor(field: string, value: string): string | null {
   if (field === 'birthdate' && !isValidBirthdate(value)) {
     return `${JSON.stringify(value)} is not a birthdate the claim may carry (YYYY-MM-DD, or YYYY alone)`;
@@ -161,7 +169,12 @@ export async function amendProfile(
     }
   }
 
-  const current = await userRepository(tx).bySubjectId(input.subjectId);
+  // Locked, not merely read: two concurrent PATCHes reading the same row
+  // would both compute the same `ETag`, both pass `If-Match`, and the
+  // second's audit `before` would already be stale by the time it writes.
+  // `FOR UPDATE` serialises them the same way `lockSubjectForAmend`
+  // (#/usecase/subjects.ts) serialises a subject amendment.
+  const current = await userRepository(tx).lockBySubjectId(input.subjectId);
   if (current === null) return { kind: 'not_found' };
 
   const before = profileWireShape(current);
@@ -198,19 +211,55 @@ export async function amendProfile(
     profilePatch[claimKey] = raw;
   }
 
-  // A `users_verified_phone_is_e164` violation is left to escape the
-  // transaction rather than caught here: PostgreSQL aborts the whole
-  // transaction the moment a statement violates a CHECK, so recovering
-  // inside it and going on to audit and return `ok` would commit nothing
-  // and answer a caller as though it had. `amendProfileHandler` (#/view/
-  // routes/subjects.ts) catches it outside `adminTx`, the same way
-  // `createSubjectHandler` catches a unique violation outside its own.
-  let updated = current;
-  if (Object.keys(profilePatch).length > 0) {
-    updated = await userRepository(tx).updateProfile(input.subjectId, profilePatch);
+  // A new number is not a verified one — the same reasoning
+  // `updateEmail` (@odudu/domain-identity) resets `emailVerified` on
+  // every address change. Forced here, in the patch itself, rather than
+  // left to whatever `phone_number_verified` on the row already said,
+  // so a caller who changes the number without saying otherwise cannot
+  // leave a stale verification standing over a number nobody checked.
+  if ('phone_number' in input.values && !('phone_number_verified' in input.values)) {
+    verificationPatch.phoneNumberVerified = false;
   }
-  if (Object.keys(verificationPatch).length > 0) {
-    updated = await userRepository(tx).setVerification(input.subjectId, verificationPatch);
+
+  // The state this patch would leave the row in — a field it does not
+  // touch keeps `current`'s value — checked before either write runs, so
+  // a refusal is never a caller reading a garbled number back off the
+  // very CHECK meant to refuse it, worded as though verifying were what
+  // they had asked for.
+  const finalPhoneNumber =
+    'phone_number' in input.values ? (profilePatch.phoneNumber ?? null) : current.phoneNumber;
+  const finalPhoneNumberVerified =
+    'phoneNumberVerified' in verificationPatch
+      ? (verificationPatch.phoneNumberVerified ?? false)
+      : current.phoneNumberVerified;
+  if (finalPhoneNumberVerified && (finalPhoneNumber === null || !isValidE164(finalPhoneNumber))) {
+    return { kind: 'invalid_value', field: 'phone_number', description: PHONE_E164_MESSAGE };
+  }
+
+  // `updateProfile` and `setVerification` are two separate `UPDATE`
+  // statements, each checked immediately — a `CHECK` is never deferred in
+  // PostgreSQL — so their *order* decides what the row briefly looks like
+  // between them, not only what it ends as. Ending unverified is written
+  // first: dropping `phone_number_verified` before the number changes
+  // means neither statement ever holds `true` against a number that is
+  // mid-change. Ending verified keeps the original order, since a final
+  // state already known to be valid (checked above) makes either
+  // statement pass regardless of what still holds the old value.
+  let updated = current;
+  if (finalPhoneNumberVerified) {
+    if (Object.keys(profilePatch).length > 0) {
+      updated = await userRepository(tx).updateProfile(input.subjectId, profilePatch);
+    }
+    if (Object.keys(verificationPatch).length > 0) {
+      updated = await userRepository(tx).setVerification(input.subjectId, verificationPatch);
+    }
+  } else {
+    if (Object.keys(verificationPatch).length > 0) {
+      updated = await userRepository(tx).setVerification(input.subjectId, verificationPatch);
+    }
+    if (Object.keys(profilePatch).length > 0) {
+      updated = await userRepository(tx).updateProfile(input.subjectId, profilePatch);
+    }
   }
 
   const after = profileWireShape(updated);

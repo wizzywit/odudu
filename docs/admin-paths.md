@@ -86,7 +86,10 @@ captured together after a further rebuild, as the same subject, in a
 tenant `scope-guard-demo` created for them. `GET /subjects/:id/profile`
 and `PATCH /subjects/:id/profile` were captured after one more rebuild, as
 a new admin subject `ada-profile` in the system tenant, in a tenant
-`profile-demo` created for them, on a subject `grace` created there.
+`profile-demo` created for them, on a subject `grace` created there; the
+same section was recaptured after a further rebuild fixed the write-order
+and locking review found in it, as the same `ada-profile`, in a fresh
+tenant `profile-demo2`, on a new subject also named `grace`.
 
 ## The shape of it
 
@@ -1528,13 +1531,18 @@ field, so nothing here can reinstate what a concurrent write removed. An
 id naming a service or `agent_instance` subject — one with no `users`
 row — answers `404`, the same as one that does not exist at all.
 
+**Changing `phone_number` without also setting `phone_number_verified` in
+the same request resets it to `false`.** A new number is not a verified
+one — the same reasoning `updateEmail` resets `email_verified` to `false`
+whenever `PATCH /subjects/:id` changes the address.
+
 Captured against the fourth stack, after a further rebuild, in a tenant of
-its own, `profile-demo`, on a fresh subject `grace`:
+its own, `profile-demo2`, on a fresh subject `grace`:
 
 ```bash
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/profile-demo/subjects/01a0e261-1fba-77f2-a400-3de9aa6f8e5c/profile
+  http://localhost:3000/admin/tenants/profile-demo2/subjects/01a0e277-e90a-7876-926a-b433ce61d250/profile
 ```
 
 ```
@@ -1552,34 +1560,34 @@ curl -sS -D - -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"given_name": "Grace", "family_name": "Hopper"}' \
-  http://localhost:3000/admin/tenants/profile-demo/subjects/01a0e261-1fba-77f2-a400-3de9aa6f8e5c/profile
+  http://localhost:3000/admin/tenants/profile-demo2/subjects/01a0e277-e90a-7876-926a-b433ce61d250/profile
 ```
 
 ```
 HTTP/1.1 200 OK
-etag: "b9196c6ae0dfb104830188c8a5a37f73571539aa9d606f78e8256f3dd0d636b9"
+etag: "adeeacb83e1d9fd1590e1265a8d85bad6e9e4aedec3a05fd3f97a3b3ad2b86a8"
 content-type: application/json; charset=utf-8
 
-{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:20:19.295Z"}
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:45:11.956Z"}
 ```
 
 `email_verified` is set the same way, against the address `PATCH
-/subjects/:id` owns:
+/subjects/:id` owns (a prior call there set it to `grace@example.com`):
 
 ```bash
 curl -sS -D - -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"email_verified": true}' \
-  http://localhost:3000/admin/tenants/profile-demo/subjects/01a0e261-1fba-77f2-a400-3de9aa6f8e5c/profile
+  http://localhost:3000/admin/tenants/profile-demo2/subjects/01a0e277-e90a-7876-926a-b433ce61d250/profile
 ```
 
 ```
 HTTP/1.1 200 OK
-etag: "09ab4400a3bc442e876c6ad6c1ea09f64ff54a38811f2faabe753f89abdb427b"
+etag: "3a710428d272acb7e9b618c2b44c40763ba8ea12885ba473e339246de28314a3"
 content-type: application/json; charset=utf-8
 
-{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:20:19.295Z"}
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:45:16.762Z"}
 ```
 
 `email` in the same body is refused, naming the route that owns it instead
@@ -1589,37 +1597,76 @@ of `about:blank`'s usual bare wording:
 curl -sS -D - -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"email": "grace@example.com"}' \
-  http://localhost:3000/admin/tenants/profile-demo/subjects/01a0e261-1fba-77f2-a400-3de9aa6f8e5c/profile
+  -d '{"email": "someone-else@example.com"}' \
+  http://localhost:3000/admin/tenants/profile-demo2/subjects/01a0e277-e90a-7876-926a-b433ce61d250/profile
 ```
 
 ```
 HTTP/1.1 400 Bad Request
 content-type: application/problem+json; charset=utf-8
 
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"email: email is amended through PATCH /admin/tenants/{tenant}/subjects/{id}, not a subject’s profile","instance":"01a0e261-5417-7c89-b062-db672a6682a0"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"email: email is amended through PATCH /admin/tenants/{tenant}/subjects/{id}, not a subject’s profile","instance":"01a0e278-2b7b-7f14-9c5a-be94cf1bf0ad"}
 ```
 
-`users_verified_phone_is_e164` (`packages/db/drizzle/
-0024_verified_phone_is_e164.sql`) still refuses a verified number that is
-not E.164-shaped — caught outside the transaction the same way a duplicate
-username is, and answered the same `400` a birthdate or a locale the shape
-does not admit gets from the predicate that mirrors this CHECK
-(`packages/domain-identity/src/service/profile.ts`):
+Verifying a well-shaped number:
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"phone_number": "+14155552671", "phone_number_verified": true}' \
+  http://localhost:3000/admin/tenants/profile-demo2/subjects/01a0e277-e90a-7876-926a-b433ce61d250/profile
+```
+
+```
+HTTP/1.1 200 OK
+etag: "39a2ece13ab08bc829e356bfd46c99c0e173ff0eba6aa8db6391d6e8863474ef"
+content-type: application/json; charset=utf-8
+
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+14155552671","phone_number_verified":true,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:45:25.787Z"}
+```
+
+Changing the number alone, with no `phone_number_verified` in the body,
+resets it — the rule stated above, shown rather than only asserted:
+
+```bash
+curl -sS -D - -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"phone_number": "+442083661177"}' \
+  http://localhost:3000/admin/tenants/profile-demo2/subjects/01a0e277-e90a-7876-926a-b433ce61d250/profile
+```
+
+```
+HTTP/1.1 200 OK
+etag: "d2fb8fa7b8fe0b7a00bcd444414a31fe6bde329f6772cb71a6eed4b86c5f9250"
+content-type: application/json; charset=utf-8
+
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+442083661177","phone_number_verified":false,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:45:30.682Z"}
+```
+
+`amendProfile` (`packages/protocol-admin/src/usecase/profile.ts`) computes
+the row's final state — this patch's values layered over what is already
+there — before writing anything, so verifying a malformed number is
+refused without ever reaching `users_verified_phone_is_e164`
+(`packages/db/drizzle/0024_verified_phone_is_e164.sql`) or writing a
+number the caller asked to leave unverified. `isValidE164`
+(`packages/domain-identity/src/service/profile.ts`) mirrors that CHECK,
+the same way `isValidBirthdate` mirrors `users_birthdate_shape`:
 
 ```bash
 curl -sS -D - -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"phone_number": "(415) 555-2671", "phone_number_verified": true}' \
-  http://localhost:3000/admin/tenants/profile-demo/subjects/01a0e261-1fba-77f2-a400-3de9aa6f8e5c/profile
+  http://localhost:3000/admin/tenants/profile-demo2/subjects/01a0e277-e90a-7876-926a-b433ce61d250/profile
 ```
 
 ```
 HTTP/1.1 400 Bad Request
 content-type: application/problem+json; charset=utf-8
 
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"phone_number must be E.164-shaped for phone_number_verified to be true","instance":"01a0e261-7ba8-741d-bb5e-8e556e86451c"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"phone_number: phone_number must be E.164-shaped for phone_number_verified to be true","instance":"01a0e278-5feb-777d-a758-892571e6bd16"}
 ```
 
 ## `DELETE /subjects/:id`

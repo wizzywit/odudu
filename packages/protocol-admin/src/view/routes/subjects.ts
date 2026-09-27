@@ -16,7 +16,7 @@ import { OduduError } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
-import { amendProfile, readProfile } from '#/usecase/profile';
+import { amendProfile, PHONE_E164_MESSAGE, readProfile } from '#/usecase/profile';
 import {
   amendSubject,
   createSubject,
@@ -370,12 +370,7 @@ export function amendProfileHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
         return sendProblem(
           reply,
           request,
-          problem(
-            400,
-            'about:blank',
-            'Bad Request',
-            'phone_number must be E.164-shaped for phone_number_verified to be true',
-          ),
+          problem(400, 'about:blank', 'Bad Request', PHONE_E164_MESSAGE),
         );
       }
       throw error;

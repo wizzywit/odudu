@@ -19,6 +19,12 @@ const LOCALE = /^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?$/u;
 // are constrained to the schemes a link can safely use.
 const HTTP_URL = /^https?:\/\//u;
 
+// E.164, optionally RFC 3966-extended — the shape
+// `users_verified_phone_is_e164` (packages/db/drizzle/
+// 0024_verified_phone_is_e164.sql) requires once `phone_number_verified`
+// is true, and only then; an unverified number carries no shape at all.
+const E164 = /^\+[1-9][0-9]{1,14}(;ext=[0-9]+)?$/u;
+
 export function isValidBirthdate(value: string): boolean {
   return BIRTHDATE.test(value);
 }
@@ -33,4 +39,8 @@ export function isValidLocale(value: string): boolean {
 
 export function isValidProfileUrl(value: string): boolean {
   return HTTP_URL.test(value);
+}
+
+export function isValidE164(value: string): boolean {
+  return E164.test(value);
 }

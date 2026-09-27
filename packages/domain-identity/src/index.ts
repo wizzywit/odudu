@@ -33,6 +33,7 @@ export {
 } from '#/repository/users';
 export {
   isValidBirthdate,
+  isValidE164,
   isValidLocale,
   isValidProfileUrl,
   isValidZoneinfo,

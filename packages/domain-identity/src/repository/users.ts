@@ -198,11 +198,25 @@ export function userRepository(tx: TenantScopedDatabase) {
     // `markEmailVerified` a write of its own. An operator setting either
     // flag is asserting they have verified it by some means outside this
     // server; `users_verified_phone_is_e164` still refuses a verified
-    // number that is not E.164-shaped.
+    // number that is not E.164-shaped. Both flags are themselves claims, so
+    // `profile_updated_at` moves when one actually changes — the same
+    // dirty check `updateProfile` runs, against the same column.
     async setVerification(subjectId: string, patch: VerificationUpdate): Promise<UserRecord> {
+      const currentRows = await tx.select().from(users).where(eq(users.subjectId, subjectId));
+      const current = currentRows[0];
+      if (current === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
+      }
+
+      const patchedKeys = Object.keys(patch) as (keyof VerificationUpdate)[];
+      const changed = patchedKeys.some((key) => patch[key] !== current[key]);
+      if (!changed) {
+        return toUser(current);
+      }
+
       const rows = await tx
         .update(users)
-        .set(patch)
+        .set({ ...patch, profileUpdatedAt: new Date() })
         .where(eq(users.subjectId, subjectId))
         .returning();
       const row = rows[0];
@@ -210,6 +224,22 @@ export function userRepository(tx: TenantScopedDatabase) {
         throw new OduduError('user_not_found', `user ${subjectId} not found`);
       }
       return toUser(row);
+    },
+
+    // `amendProfile`'s (@odudu/protocol-admin) own lock: reads the row
+    // `FOR UPDATE` so a concurrent PATCH cannot compute its `ETag` or its
+    // audit `before` against a row this transaction is about to change out
+    // from under it. Symmetric to `bySubjectId`, never called from the hot
+    // token-issuance path that one serves, which taking a lock would only
+    // slow down for no reason.
+    async lockBySubjectId(subjectId: string): Promise<UserRecord | null> {
+      const rows = await tx
+        .select()
+        .from(users)
+        .where(eq(users.subjectId, subjectId))
+        .for('update');
+      const row = rows[0];
+      return row === undefined ? null : toUser(row);
     },
 
     // Deliberately not part of updateProfile, whose own comment excludes
