@@ -172,7 +172,8 @@ describe('mint', () => {
   // it wrote is invisible from another tenant's context, the ordinary
   // row-filtering property `expectTenantIsolation` would cover directly if
   // this table were keyed simply — checked here through a raw select
-  // instead, since the repository exposes no read of its own to attempt.
+  // instead of `list()` (probed on its own below), so this one keeps
+  // working even if `list()`'s own filtering ever changed.
   it('does not expose a minted token to another tenant', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {
@@ -195,6 +196,124 @@ describe('mint', () => {
         tx.select({ id: clientRegistrationTokens.id }).from(clientRegistrationTokens),
       expectBlocked: (result) => {
         expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('list', () => {
+  it('lists a live token, never its hash', async () => {
+    const tenantId = await newTenant();
+    const { id } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 3, ttlSeconds: 3600 }),
+    );
+
+    const items = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list(),
+    );
+
+    expect(items).toHaveLength(1);
+    const item = items[0];
+    expect(item?.id).toBe(id);
+    expect(item?.remainingUses).toBe(3);
+    expect(item).not.toHaveProperty('tokenHash');
+  });
+
+  it('never lists a spent-out token', async () => {
+    const tenantId = await newTenant();
+    const { token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+    );
+    await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).spend(tenantId, token),
+    );
+
+    const items = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list(),
+    );
+
+    expect(items).toEqual([]);
+  });
+
+  it('never lists an expired token', async () => {
+    const tenantId = await newTenant();
+    const { token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+    );
+    await backdateExpiry(hashOf(token), new Date(Date.now() - 1000));
+
+    const items = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).list(),
+    );
+
+    expect(items).toEqual([]);
+  });
+
+  it('never lists a token minted in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 });
+        return { tenantId };
+      },
+      verifySeeded: async (tx) => {
+        const items = await clientRegistrationTokenRepository(tx).list();
+        expect(items).toHaveLength(1);
+      },
+      attempt: async (tx) => clientRegistrationTokenRepository(tx).list(),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('revoke', () => {
+  it('revokes a token, after which it can no longer be spent', async () => {
+    const tenantId = await newTenant();
+    const { id, token } = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).mint({ tenantId, uses: 1, ttlSeconds: 3600 }),
+    );
+
+    const revoked = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).revoke(id),
+    );
+    expect(revoked).toBe(true);
+
+    const spent = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).spend(tenantId, token),
+    );
+    expect(spent).toBe(false);
+  });
+
+  it('answers false for an id that names no token', async () => {
+    const tenantId = await newTenant();
+
+    const revoked = await withTenant(app.db, tenantId, (tx) =>
+      clientRegistrationTokenRepository(tx).revoke(newId()),
+    );
+
+    expect(revoked).toBe(false);
+  });
+
+  it('does not revoke a token minted in another tenant, even given that token’s own id', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const { id } = await clientRegistrationTokenRepository(tx).mint({
+          tenantId,
+          uses: 1,
+          ttlSeconds: 3600,
+        });
+        return { tenantId, id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const items = await clientRegistrationTokenRepository(tx).list();
+        expect(items.map((item) => item.id)).toContain(seeded.id);
+      },
+      attempt: async (tx, seeded) => clientRegistrationTokenRepository(tx).revoke(seeded.id),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
       },
     });
   });

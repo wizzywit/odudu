@@ -35,6 +35,10 @@ import {
   listClientsResponseSchema,
   listCredentialsResponseSchema,
   listGroupsResponseSchema,
+  listRegistrationTokensQuerySchema,
+  listRegistrationTokensResponseSchema,
+  mintRegistrationTokenRequestSchema,
+  mintRegistrationTokenResponseSchema,
   listKeysResponseSchema,
   listRolesResponseSchema,
   listScopesResponseSchema,
@@ -327,6 +331,34 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/clients/:id/secret',
     capability: 'manage-clients',
     responseSchema: rotateClientSecretResponseSchema,
+  },
+  // RFC 7591 §3 initial access tokens, gated the same way clients above are —
+  // `manage-clients`, since a token that mints a client is configuration for
+  // dynamic registration rather than a population of its own.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/registration-tokens',
+    capability: 'manage-clients',
+    responseSchema: listRegistrationTokensResponseSchema,
+    querystringSchema: listRegistrationTokensQuerySchema,
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/registration-tokens',
+    capability: 'manage-clients',
+    responseSchema: mintRegistrationTokenResponseSchema,
+    successStatus: 201,
+    bodySchema: mintRegistrationTokenRequestSchema,
+    description:
+      'Answers `token` exactly once. Nothing else this API serves ever repeats it: not a ' +
+      'later `GET`, not an audit detail.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/registration-tokens/:id',
+    capability: 'manage-clients',
+    responseSchema: z.void(),
+    successStatus: 204,
   },
   // Roles, groups and client scopes: manage-tenant for all three, the same
   // shape (cursor pagination, ETag/If-Match, one audit call per mutation)

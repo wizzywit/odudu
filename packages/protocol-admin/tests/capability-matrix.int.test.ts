@@ -58,6 +58,7 @@ const SAMPLE_BODIES: Readonly<Partial<Record<string, unknown>>> = {
   'PUT /admin/tenants/:tenant/scopes/:id/mappers': { mapper_names: [] },
   'PUT /admin/tenants/:tenant/scopes/:id/clients/:clientId': { assignment: 'default' },
   'POST /admin/tenants/:tenant/keys': { alg: 'RS256' },
+  'POST /admin/tenants/:tenant/registration-tokens': { uses: 1, ttl_seconds: 3600 },
   'PUT /admin/tenants/:tenant/smtp': {
     host: 'smtp.example',
     port: 587,

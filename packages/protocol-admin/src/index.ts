@@ -14,6 +14,7 @@ import { type Audit as ClientAudit } from '#/usecase/clients';
 import { type Audit as FlowAudit } from '#/usecase/flow';
 import { type Audit as GroupAudit } from '#/usecase/groups';
 import { type Audit as KeyAudit } from '#/usecase/keys';
+import { type Audit as RegistrationTokenAudit } from '#/usecase/registration-tokens';
 import { type Audit as RoleAudit } from '#/usecase/roles';
 import { type Audit as ScopeAudit } from '#/usecase/scopes';
 import { type Audit as ScopeMapperAudit, type MapperCatalogue } from '#/usecase/scope-mappers';
@@ -75,6 +76,12 @@ import {
   type CountsRouteDeps,
 } from '#/view/routes/counts';
 import { registerOpenApiRoute } from '#/view/routes/openapi';
+import {
+  listRegistrationTokensHandler,
+  mintRegistrationTokenHandler,
+  revokeRegistrationTokenHandler,
+  type RegistrationTokensRouteDeps,
+} from '#/view/routes/registration-tokens';
 import {
   addRoleCompositeHandler,
   amendRoleHandler,
@@ -237,6 +244,7 @@ function buildAdminRoutes(
     }
     const tenantAudit: Audit = recordAudit;
     const clientAudit: ClientAudit = recordAudit;
+    const registrationTokenAudit: RegistrationTokenAudit = recordAudit;
     const subjectAudit: SubjectAudit = recordAudit;
     const sessionAudit: SessionAudit = recordAudit;
     const roleAudit: RoleAudit = recordAudit;
@@ -330,6 +338,11 @@ function buildAdminRoutes(
       tlsClientAuthEnabled: deps.trustProxy ?? false,
       audit: clientAudit,
     };
+    const registrationTokensDeps: RegistrationTokensRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      audit: registrationTokenAudit,
+    };
     const sessionsDeps: SessionsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
@@ -380,6 +393,12 @@ function buildAdminRoutes(
       'PATCH /admin/tenants/:tenant/clients/:id': amendClientHandler(clientsDeps),
       'DELETE /admin/tenants/:tenant/clients/:id': deleteClientHandler(clientsDeps),
       'POST /admin/tenants/:tenant/clients/:id/secret': rotateClientSecretHandler(clientsDeps),
+      'GET /admin/tenants/:tenant/registration-tokens':
+        listRegistrationTokensHandler(registrationTokensDeps),
+      'POST /admin/tenants/:tenant/registration-tokens':
+        mintRegistrationTokenHandler(registrationTokensDeps),
+      'DELETE /admin/tenants/:tenant/registration-tokens/:id':
+        revokeRegistrationTokenHandler(registrationTokensDeps),
       'GET /admin/tenants/:tenant/roles': listRolesHandler(rolesDeps),
       'GET /admin/tenants/:tenant/roles/count': countRolesHandler(countsDeps),
       'POST /admin/tenants/:tenant/roles': createRoleHandler(rolesDeps),

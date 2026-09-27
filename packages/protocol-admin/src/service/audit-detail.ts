@@ -59,6 +59,13 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     email: 'value',
     enabled: 'value',
   },
+  registration_token: {
+    remaining_uses: 'value',
+    expires_at: 'value',
+    // Never in `registrationTokenWireShape` — kept sensitive anyway, on the
+    // same reasoning as `client`'s `secret_hash` above.
+    token_hash: 'sensitive',
+  },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

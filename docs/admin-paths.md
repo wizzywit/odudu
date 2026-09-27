@@ -154,6 +154,9 @@ shape of what it is filling.
 | `PATCH`  | `/admin/tenants/{tenant}/clients/:id`                            | Amend a client                            |
 | `DELETE` | `/admin/tenants/{tenant}/clients/:id`                            | Delete a client                           |
 | `POST`   | `/admin/tenants/{tenant}/clients/:id/secret`                     | Rotate a client's secret                  |
+| `GET`    | `/admin/tenants/{tenant}/registration-tokens`                    | List initial access tokens                |
+| `POST`   | `/admin/tenants/{tenant}/registration-tokens`                    | Mint an initial access token              |
+| `DELETE` | `/admin/tenants/{tenant}/registration-tokens/:id`                | Revoke an initial access token            |
 | `GET`    | `/admin/tenants/{tenant}/roles`                                  | List roles                                |
 | `GET`    | `/admin/tenants/{tenant}/roles/count`                            | Count roles                               |
 | `POST`   | `/admin/tenants/{tenant}/roles`                                  | Create a role                             |
@@ -1085,6 +1088,118 @@ being on the built-in client rather than on a disabled one.
 ```
 {"id":"01a0d6fc-e5b4-73d4-9162-e2a9893d64b0","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-25T05:14:53.164Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"scopes":[{"id":"01a0d6fc-3628-7829-8b29-5697c271d92e","name":"openid","assignment":"default"},{"id":"01a0d6fc-3629-7e64-a89c-2804355f56cf","name":"profile","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0ed3f11a86","name":"email","assignment":"default"},{"id":"01a0d6fc-362a-7075-bcf5-dd0f8bb7530a","name":"address","assignment":"default"},{"id":"01a0d6fc-362b-7e0c-8a4d-4d3d27f20576","name":"phone","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af72e19f1886","name":"roles","assignment":"default"},{"id":"01a0d6fc-362c-7c77-a383-af737fd4358b","name":"groups","assignment":"default"},{"id":"01a0d6fc-362d-7533-bab9-7ea5ea57ba8d","name":"offline_access","assignment":"optional"}],"client_secret":"_0B83ooNdhzevzQk9fj_7VuvRSFhldgaE6kdDd8Zy4Y"}
 ```
+
+## `GET /registration-tokens`, `POST /registration-tokens` and `DELETE /registration-tokens/:id`
+
+All three require `manage-clients`, the same capability the client routes
+above need — an initial access token is configuration for dynamic
+registration, not a population of its own. `POST` mints one:
+`{"uses": <int ≥ 1>, "ttl_seconds": <int ≥ 60>}`, answering `201` with
+`id`, `token`, `remaining_uses` and `expires_at`. **This is the only
+response, from any route, that ever carries `token`** — a following `GET`
+lists `id`, `remaining_uses`, `created_at` and `expires_at` and nothing
+else, the plaintext is never logged, and it never appears in an audit
+`detail`. `DELETE` revokes one by `id`, answering `204`, or `404` if the id
+names no token.
+
+`GET` never lists a token that has been spent to zero uses or has expired
+— the same two conditions `spend`
+(`packages/domain-tenant/src/repository/client-registration-tokens.ts`)
+already refuses under, so the list a caller sees is exactly the set of
+tokens that would still redeem. Minting records `uses` and `ttl_seconds` in
+the audit trail; revoking records what was revoked (`remaining_uses`,
+`expires_at`) the same way a client's own amendment does, through the same
+allowlisted diff — never the token or its hash, on either action.
+
+`demo`'s own policy is `disabled`; this capture opens it to `token` first,
+the same door `PATCH /settings` opens to `open` for the sections above,
+and closes it again once the token below has done its job:
+
+```bash
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"client_registration_policy": "token"}' \
+  http://localhost:3000/admin/tenants/demo/settings > /dev/null
+
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"uses": 1, "ttl_seconds": 3600}' \
+  http://localhost:3000/admin/tenants/demo/registration-tokens
+```
+
+```
+{"id":"01a0e1ae-4f87-7419-946d-11fa973a87e0","token":"2DWSSfitp1ELk9BHtHvD3-uvVMbB4tLoM9l6tOpi2Sc","remaining_uses":1,"expires_at":"2026-09-27T08:04:52.359Z"}
+```
+
+Listing right after shows the same token with no `token` field, and
+presenting it at `/tenants/demo/clients-registrations/openid-connect`
+registers a client:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/registration-tokens
+curl -sS -X POST \
+  -H "Authorization: Bearer 2DWSSfitp1ELk9BHtHvD3-uvVMbB4tLoM9l6tOpi2Sc" \
+  -H "Content-Type: application/json" \
+  -d '{"redirect_uris": ["https://rp.example/cb"]}' \
+  http://localhost:3000/tenants/demo/clients-registrations/openid-connect
+```
+
+```
+{"items":[{"id":"01a0e1ae-4f87-7419-946d-11fa973a87e0","remaining_uses":1,"created_at":"2026-09-27T07:04:52.359Z","expires_at":"2026-09-27T08:04:52.359Z"}]}
+{"client_id":"01a0e1ae-6d84-7a38-a69f-1626a12dc3ba","client_id_issued_at":1790492699,"client_secret":"IxgFFc6yw7igW7QVoXsLEA3Eir23SM9hDMbJhqunCZ4","client_secret_expires_at":0,"redirect_uris":["https://rp.example/cb"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"client_secret_basic"}
+```
+
+A second, freshly minted token demonstrates the other half — `DELETE`,
+then a registration attempt with the now-revoked token:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"uses": 1, "ttl_seconds": 3600}' \
+  http://localhost:3000/admin/tenants/demo/registration-tokens
+```
+
+```
+{"id":"01a0e1ae-7cef-7ad0-8b3c-c7e90769654c","token":"wkgDAR8kTU5VoY5HAFybsruDKLXdo1Cpahz5YccllaE","remaining_uses":1,"expires_at":"2026-09-27T08:05:03.983Z"}
+```
+
+```bash
+curl -sS -D - -o /dev/null -X DELETE \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/demo/registration-tokens/01a0e1ae-7cef-7ad0-8b3c-c7e90769654c \
+  | grep -iE '^HTTP'
+curl -sS -D - -o /dev/null -X POST \
+  -H "Authorization: Bearer wkgDAR8kTU5VoY5HAFybsruDKLXdo1Cpahz5YccllaE" \
+  -H "Content-Type: application/json" \
+  -d '{"redirect_uris": ["https://rp.example/cb"]}' \
+  http://localhost:3000/tenants/demo/clients-registrations/openid-connect \
+  | grep -iE '^HTTP|www-authenticate'
+```
+
+```
+HTTP/1.1 204 No Content
+HTTP/1.1 401 Unauthorized
+www-authenticate: Bearer realm="client-registration", error="invalid_token"
+```
+
+The audit trail for the mint above holds exactly `uses` and `ttl_seconds`,
+never the token:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/demo/audit?action=registration_token.mint"
+```
+
+```
+{"items":[{"id":"01a0e1ae-7cf4-7ce2-a50a-04eef543ead3","occurred_at":"2026-09-27T07:05:03.982Z","event_type":"admin_mutation","action":"registration_token.mint","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e1ac-87e9-7e58-bb85-d4cb7c6535b1","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"registration_token","resource_id":"01a0e1ae-7cef-7ad0-8b3c-c7e90769654c","request_id":"01a0e1ae-7cd3-7352-81e7-070d760abc0e","ip":"172.20.0.1","detail":{"uses":1,"ttl_seconds":3600}},{"id":"01a0e1ae-4f8a-7e30-94ea-3e0ee614de9d","occurred_at":"2026-09-27T07:04:52.359Z","event_type":"admin_mutation","action":"registration_token.mint","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e1ac-87e9-7e58-bb85-d4cb7c6535b1","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"registration_token","resource_id":"01a0e1ae-4f87-7419-946d-11fa973a87e0","request_id":"01a0e1ae-4f76-765d-9f5f-e1e1b4979fe8","ip":"172.20.0.1","detail":{"uses":1,"ttl_seconds":3600}}]}
+```
+
+`demo`'s policy is set back to `disabled` afterward, off-transcript, the
+same door this section opened.
 
 ## `GET /whoami`
 

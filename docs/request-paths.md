@@ -496,7 +496,10 @@ www-authenticate: Bearer realm="client-registration"
 in seconds, and both are required since the schema has no default for
 either. Every other seed subcommand answers with a line of JSON; this one
 answers with the token alone, so `TOKEN=$(odudu seed registration-token …)`
-captures exactly the credential and nothing else.
+captures exactly the credential and nothing else. The admin API mints the
+same way, for an operator who would rather not shell into the container:
+`POST /admin/tenants/{tenant}/registration-tokens` (`manage-clients`),
+documented in [docs/admin-paths.md](admin-paths.md).
 
 ```bash
 TOKEN=$(odudu seed registration-token --tenant reg-demo --uses 1 --ttl 3600)

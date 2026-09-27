@@ -898,9 +898,13 @@ while it is the default, `disabled` — `seed client` and
 client in that tenant, neither of which the policy governs, since both
 require an operator already.
 A tenant whose policy is `token` needs a way to mint the
-credential a registering client presents, and `seed registration-token`
-is that command: `--tenant`, `--uses` (a token is good for that many
-registrations, never zero) and `--ttl` in seconds.
+credential a registering client presents: `seed registration-token`, for an
+operator at the command line, and `POST /admin/tenants/{tenant}/registration-tokens`
+(`manage-clients`, [docs/admin-paths.md](docs/admin-paths.md)) for the admin
+console. Both take the same two numbers — `--uses`/`uses` (a token is good
+for that many registrations, never zero) and `--ttl`/`ttl_seconds` in
+seconds — and mint through the one repository
+(`packages/domain-tenant/src/repository/client-registration-tokens.ts`).
 
 ```bash
 node --env-file=.env apps/server/src/main.ts seed registration-token \

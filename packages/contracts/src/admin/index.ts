@@ -58,6 +58,18 @@ export {
   type RotateClientSecretResponse,
 } from '#/admin/clients';
 export {
+  registrationTokenSchema,
+  type RegistrationToken,
+  listRegistrationTokensQuerySchema,
+  type ListRegistrationTokensQuery,
+  listRegistrationTokensResponseSchema,
+  type ListRegistrationTokensResponse,
+  mintRegistrationTokenRequestSchema,
+  type MintRegistrationTokenRequest,
+  mintRegistrationTokenResponseSchema,
+  type MintRegistrationTokenResponse,
+} from '#/admin/registration-tokens';
+export {
   subjectTypeSchema,
   subjectSchema,
   type Subject,

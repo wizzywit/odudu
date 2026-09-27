@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
-import { and, eq, gt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, sql } from 'drizzle-orm';
 import { createHash, randomBytes } from 'node:crypto';
 import { clientRegistrationTokens } from '#/schema/client-registration-tokens';
 
@@ -27,18 +27,64 @@ export interface MintClientRegistrationToken {
   ttlSeconds: number;
 }
 
+export interface MintedClientRegistrationToken {
+  id: string;
+  token: string;
+  remainingUses: number;
+  expiresAt: Date;
+}
+
+// The admin console's own representation of a minted token: never the hash,
+// and never the plaintext once mint() has answered it.
+export interface RegistrationTokenRecord {
+  id: string;
+  remainingUses: number;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
 export function clientRegistrationTokenRepository(tx: TenantScopedDatabase) {
   return {
-    async mint(input: MintClientRegistrationToken): Promise<{ token: string }> {
+    async mint(input: MintClientRegistrationToken): Promise<MintedClientRegistrationToken> {
+      const id = newId();
       const token = generateRegistrationToken();
+      const expiresAt = new Date(Date.now() + input.ttlSeconds * 1000);
       await tx.insert(clientRegistrationTokens).values({
-        id: newId(),
+        id,
         tenantId: input.tenantId,
         tokenHash: sha256Hex(token),
         remainingUses: input.uses,
-        expiresAt: new Date(Date.now() + input.ttlSeconds * 1000),
+        expiresAt,
       });
-      return { token };
+      return { id, token, remainingUses: input.uses, expiresAt };
+    },
+
+    // Excludes a spent or expired token — the admin console's list is a
+    // list of what still redeems, not an archive of everything ever minted.
+    async list(): Promise<RegistrationTokenRecord[]> {
+      return tx
+        .select({
+          id: clientRegistrationTokens.id,
+          remainingUses: clientRegistrationTokens.remainingUses,
+          createdAt: clientRegistrationTokens.createdAt,
+          expiresAt: clientRegistrationTokens.expiresAt,
+        })
+        .from(clientRegistrationTokens)
+        .where(
+          and(
+            gt(clientRegistrationTokens.remainingUses, 0),
+            gt(clientRegistrationTokens.expiresAt, new Date()),
+          ),
+        )
+        .orderBy(asc(clientRegistrationTokens.id));
+    },
+
+    async revoke(id: string): Promise<boolean> {
+      const rows = await tx
+        .delete(clientRegistrationTokens)
+        .where(eq(clientRegistrationTokens.id, id))
+        .returning({ id: clientRegistrationTokens.id });
+      return rows.length > 0;
     },
 
     // One UPDATE decides the winner between concurrent registrations

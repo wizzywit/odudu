@@ -71,6 +71,8 @@ export {
 export {
   clientRegistrationTokenRepository,
   type MintClientRegistrationToken,
+  type MintedClientRegistrationToken,
+  type RegistrationTokenRecord,
 } from '#/repository/client-registration-tokens';
 export {
   provisionAdminClient,
