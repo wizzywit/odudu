@@ -369,6 +369,7 @@ function buildAdminRoutes(
     const consentsDeps: ConsentsRouteDeps = {
       database: deps.database.db,
       audit: consentAudit,
+      now: () => clock.now(),
     };
     const auditDeps: AuditRouteDeps = {
       database: deps.database.db,

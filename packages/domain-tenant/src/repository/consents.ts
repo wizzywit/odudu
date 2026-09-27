@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
-import { and, eq, inArray, notInArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { clientScopes } from '#/schema/client-scopes';
 import { clients } from '#/schema/clients';
 import { consentScopes, consents } from '#/schema/consents';
@@ -94,7 +94,8 @@ export function consentRepository(tx: TenantScopedDatabase) {
         })
         .from(consents)
         .innerJoin(clients, eq(consents.clientId, clients.id))
-        .where(eq(consents.subjectId, subjectId));
+        .where(eq(consents.subjectId, subjectId))
+        .orderBy(asc(clients.clientId));
       if (consentRows.length === 0) return [];
 
       const scopeRows = await tx

@@ -192,6 +192,134 @@ describe('tokenGrantRepository', () => {
     });
   });
 
+  it('revokes every grant a subject holds against one client, live or offline, and keeps the first revocation time', async () => {
+    const tenantId = newId();
+    const { clientDbId, subjectId } = await withTenant(app.db, tenantId, (tx) =>
+      seedTenantClientSubject(tx, tenantId),
+    );
+    const sessionId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      sessionRepository(tx).create({
+        id: sessionId,
+        tenantId,
+        subjectId,
+        expiresAt: new Date(Date.now() + 3_600_000),
+        authenticators: [],
+        secretHash: SessionEntry.issue(sessionId).secretHash(),
+      }),
+    );
+    const [bound, offline] = await withTenant(app.db, tenantId, async (tx) => {
+      const repository = tokenGrantRepository(tx);
+      return [
+        await repository.create({
+          id: newId(),
+          tenantId,
+          clientId: clientDbId,
+          subjectId,
+          scope: 'openid',
+          audience: AUDIENCE,
+          sessionId,
+        }),
+        await repository.create({
+          id: newId(),
+          tenantId,
+          clientId: clientDbId,
+          subjectId,
+          scope: 'openid offline_access',
+          audience: AUDIENCE,
+        }),
+      ];
+    });
+    const first = new Date('2026-09-27T10:00:00Z');
+
+    const revoked = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForSubjectClient(subjectId, clientDbId, first),
+    );
+    expect(revoked).toBe(2);
+
+    await withTenant(app.db, tenantId, async (tx) => {
+      const repository = tokenGrantRepository(tx);
+      expect((await repository.byId(bound.id))?.revokedAt).toEqual(first);
+      expect((await repository.byId(offline.id))?.revokedAt).toEqual(first);
+    });
+
+    const again = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForSubjectClient(
+        subjectId,
+        clientDbId,
+        new Date('2026-09-27T11:00:00Z'),
+      ),
+    );
+    expect(again).toBe(2);
+    const stillFirst = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).byId(bound.id),
+    );
+    expect(stillFirst?.revokedAt).toEqual(first);
+  });
+
+  it('does not revoke another subject’s grant against the same client', async () => {
+    const tenantId = newId();
+    const { clientDbId, subjectId } = await withTenant(app.db, tenantId, (tx) =>
+      seedTenantClientSubject(tx, tenantId),
+    );
+    const other = await withTenant(app.db, tenantId, (tx) =>
+      subjectRepository(tx).create({ tenantId, type: 'user' }),
+    );
+    const otherGrant = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).create({
+        id: newId(),
+        tenantId,
+        clientId: clientDbId,
+        subjectId: other.id,
+        scope: 'openid',
+        audience: AUDIENCE,
+      }),
+    );
+
+    await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).revokeForSubjectClient(subjectId, clientDbId, new Date()),
+    );
+
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      tokenGrantRepository(tx).byId(otherGrant.id),
+    );
+    expect(found?.revokedAt).toBeNull();
+  });
+
+  it('cannot revoke a foreign tenant’s grants against a subject/client pair, even given that tenant’s own ids', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const { clientDbId, subjectId } = await seedTenantClientSubject(tx, tenantId);
+        const grant = await tokenGrantRepository(tx).create({
+          id: newId(),
+          tenantId,
+          clientId: clientDbId,
+          subjectId,
+          scope: 'openid',
+          audience: AUDIENCE,
+        });
+        return { clientDbId, subjectId, grantId: grant.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const found = await tokenGrantRepository(tx).byId(seeded.grantId);
+        expect(found?.revokedAt).toBeNull();
+      },
+      attempt: async (tx, seeded) =>
+        tokenGrantRepository(tx).revokeForSubjectClient(
+          seeded.subjectId,
+          seeded.clientDbId,
+          new Date(),
+        ),
+      expectBlocked: (result) => {
+        expect(result).toBe(0);
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        const found = await tokenGrantRepository(tx).byId(seeded.grantId);
+        expect(found?.revokedAt).toBeNull();
+      },
+    });
+  });
+
   it('records the actor and the grant it came from, and inherits the session', async () => {
     const tenantId = newId();
     const sessionId = newId();

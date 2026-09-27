@@ -217,9 +217,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: z.void(),
     successStatus: 204,
     description:
-      'Withdraws the grant so the next `/authorize` for this client asks again. Never ' +
-      'revokes a token already issued under it — an outstanding refresh token keeps working ' +
-      'until it expires or is revoked on its own door.',
+      'Withdraws the grant so the next `/authorize` for this client asks again, and revokes ' +
+      'every token issued under it — a subject who revokes access is not still impersonated ' +
+      'by a refresh token that outlives the consent it was granted under.',
   },
   {
     method: 'GET',

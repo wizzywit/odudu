@@ -16,6 +16,7 @@ import { clientScopeRepository } from '#/repository/client-scopes';
 import { consentRepository } from '#/repository/consents';
 import { clients } from '#/schema/clients';
 import { clientScopes } from '#/schema/client-scopes';
+import { consentScopes } from '#/schema/consents';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -240,6 +241,16 @@ describe('revoke', () => {
       consentRepository(tx).grantedScopeIds(fixture.tenantId, fixture.subjectId, fixture.clientId),
     );
     expect(granted).toEqual(new Set());
+
+    // Asserted on the row directly, not only through the repository's own
+    // read: `forSubject`/`grantedScopeIds` reading empty could as easily be
+    // a filter as an actual cascade, and it is the cascade this test exists
+    // to pin.
+    const remainingScopeRows = await owner.db
+      .select({ consentId: consentScopes.consentId })
+      .from(consentScopes)
+      .where(eq(consentScopes.clientScopeId, fixture.scopeAId));
+    expect(remainingScopeRows).toEqual([]);
   });
 
   it('does not revoke another tenant’s consent, even given that tenant’s own ids', async () => {

@@ -9,6 +9,7 @@ import { type AdminRouteHandler } from '#/view/routes/router';
 export interface ConsentsRouteDeps {
   readonly database: Database;
   readonly audit: Audit;
+  readonly now: () => Date;
 }
 
 function consentWireShape(view: SubjectConsent): Consent {
@@ -57,6 +58,7 @@ export function deleteConsentHandler(deps: ConsentsRouteDeps): AdminRouteHandler
         {
           subjectId: id,
           clientId,
+          now: deps.now(),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,

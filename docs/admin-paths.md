@@ -95,9 +95,11 @@ rebuild narrowed the reset rule to a different number, against that same
 `profile-demo2` tenant and subject, continuing where the recapture left
 off. `GET /subjects/:id/consents` and `DELETE /subjects/:id/consents/:clientId`
 were captured after a further rebuild, as a new admin subject
-`ada-consents` in the system tenant, in a tenant `consents-demo` created
+`ada-consents2` in the system tenant, in a tenant `consents-demo2` created
 for it, on a subject `grace` seeded there with `odudu seed user` and a
-confidential client `consents-demo-app` created with `consent_required`.
+confidential client `consents-demo-app2` created with `consent_required`
+— recaptured entirely, under this tenant, after a further rebuild made
+`DELETE` also revoke the subject's grants against the client.
 
 ## The shape of it
 
@@ -1790,42 +1792,49 @@ next `/authorize` that reaches this client finds nothing recorded and asks
 again. An unknown subject on the read, or a subject with no consent to that
 client on the delete, answers `404`.
 
-**Revoking a consent never revokes a token already issued under it.** An
-access token already minted keeps working until it expires, and a refresh
-token keeps working until it expires or is revoked on its own door — this
-route only clears what `/authorize` consults on its next run, the same way
-ending a session (`DELETE /subjects/:id/sessions/:sid`) leaves existing
-grants alone until the reaper or an explicit revoke reaches them. Demonstrated
-below, on the same stack.
+**Revoking a consent also revokes every token issued under it, live or
+offline.** An `offline_access` family rotates indefinitely — bounded only
+by its own TTL per rotation, never by the consent it was first granted
+under (`refresh-rotation.ts`'s own comment on `grant.sessionId === null`)
+— so leaving it alone would mean a subject who revoked access is still
+impersonated by whatever refresh token that client already holds. This
+route revokes the grant in the same transaction it deletes the consent:
+the next refresh answers `invalid_grant`, and an outstanding access token
+introspects `active: false`, immediately, not at its own expiry.
+`tokenGrantRepository.revokeForSubjectClient` is the same idempotent
+`coalesce(revoked_at, …)` write `revokeForSession` already makes for a
+session's own grants (`docs/phases/p4d.md` has why this write scans
+`token_grants` with no index on `(subject_id, client_id)`, and why that is
+fine here). Demonstrated below, on the same stack.
 
-Captured against a tenant `consents-demo` made for this section, on a
-confidential client `consents-demo-app` created with `consent_required` true
-and a subject `grace` seeded with a real password (`odudu seed user`, so no
-`update-password` detour is needed first). `/authorize`, asking for
+Captured against a tenant `consents-demo2` made for this section, on a
+confidential client `consents-demo-app2` created with `consent_required`
+true and a subject `grace` seeded with a real password (`odudu seed user`,
+so no `update-password` detour is needed first). `/authorize`, asking for
 `offline_access` too, followed by logging in:
 
 ```bash
 curl -sS \
-  'http://localhost:3000/tenants/consents-demo/protocol/openid-connect/auth?response_type=code&client_id=consents-demo-app&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid%20offline_access&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+  'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/auth?response_type=code&client_id=consents-demo-app2&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid%20offline_access&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 
 curl -sS \
-  --data-urlencode "auth_session_id=01a0e2a5-02d0-727e-afb9-73f93605b3a7" \
+  --data-urlencode "auth_session_id=01a0e2c8-6755-720d-bd55-dccc2d737b33" \
   --data-urlencode "username=grace" \
   --data-urlencode "password=correct horse battery staple" \
-  'http://localhost:3000/tenants/consents-demo/login-actions/authenticate'
+  'http://localhost:3000/tenants/consents-demo2/login-actions/authenticate'
 ```
 
 The consent screen, `openid` shown as already implied and `offline_access`
-the one box the subject can tick:
+the one box the subject can grant:
 
 ```
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Allow access?</title></head>
 <body>
-<h1>consents-demo-app is asking for access</h1>
-<form method="post" action="/tenants/consents-demo/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a0e2a5-02d0-727e-afb9-73f93605b3a7">
+<h1>consents-demo-app2 is asking for access</h1>
+<form method="post" action="/tenants/consents-demo2/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="01a0e2c8-6755-720d-bd55-dccc2d737b33">
   <ul>
   <li>openid</li>
   </ul>
@@ -1842,111 +1851,143 @@ token:
 
 ```bash
 curl -sS -D - -c jar -b jar \
-  --data-urlencode "auth_session_id=01a0e2a5-02d0-727e-afb9-73f93605b3a7" \
+  --data-urlencode "auth_session_id=01a0e2c8-6755-720d-bd55-dccc2d737b33" \
   --data-urlencode "decision=allow" \
   --data-urlencode "scope=offline_access" \
-  'http://localhost:3000/tenants/consents-demo/login-actions/consent'
+  'http://localhost:3000/tenants/consents-demo2/login-actions/consent'
 
 curl -sS -X POST \
   --data-urlencode "grant_type=authorization_code" \
-  --data-urlencode "code=aAaplBoOirPjW0t8MU12UhIg5k6IyJPrrjJi9Bedg4M" \
+  --data-urlencode "code=cSFTuIrSZa92TSEyZCyMD20meaTOFUsakonWNhwxK00" \
   --data-urlencode "redirect_uri=https://app.example/callback" \
   --data-urlencode "code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk" \
-  -u "consents-demo-app:8dsZmkmZzpmW7cYdWa8DEFELCKf3Vkn1HTYAXZLL7Fc" \
-  'http://localhost:3000/tenants/consents-demo/protocol/openid-connect/token'
+  -u "consents-demo-app2:PaTErX2vTk6H_-eAP-1xOIh2BHMOp6dPekxmkisf-gg" \
+  'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/token'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a0e2a5-32ba-7316-bf26-70a5ca4f2c76
-set-cookie: consents-demo-session=01a0e2a5-32dc-715c-a7a3-0e0f5e5ce96c:a0HQMQIQRKOs0mZho0nf0iEq16RbmqgEiGLS0Xs-7DA; HttpOnly; SameSite=Lax; Path=/
-set-cookie: consents-demo-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: https://app.example/callback?code=aAaplBoOirPjW0t8MU12UhIg5k6IyJPrrjJi9Bedg4M&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsents-demo
+x-request-id: 01a0e2c8-874f-7f73-83d8-45731f9d381b
+set-cookie: consents-demo2-session=01a0e2c8-8775-7144-acc7-c0aba50bcdd0:CTlB-rj-ZWUvARlkqcJ7TD2RBK0aT1i8O5TaCkZEhmc; HttpOnly; SameSite=Lax; Path=/
+set-cookie: consents-demo2-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: https://app.example/callback?code=cSFTuIrSZa92TSEyZCyMD20meaTOFUsakonWNhwxK00&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsents-demo2
 content-length: 0
-Date: Sun, 27 Sep 2026 11:34:32 GMT
+Date: Sun, 27 Sep 2026 12:13:07 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"access_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmE0LTNjYWQtNzRjYS05ZTcxLTQyNGJhYjg0ZjNmZiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vIiwic3ViIjoiMDFhMGUyYTQtZWQ2MC03OTMxLTk5OGEtNGM2YzI3NTM4MzRlIiwiYXVkIjpbImh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC90ZW5hbnRzL2NvbnNlbnRzLWRlbW8iXSwiY2xpZW50X2lkIjoiY29uc2VudHMtZGVtby1hcHAiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MDUwODg4MCwiZXhwIjoxNzkwNTA5MTgwLCJqdGkiOiIwMWEwZTJhNS01MGRlLTc5ZTctYjk0Zi0wZTZiZmEwMDg4MTEiLCJncmFudF9pZCI6IjAxYTBlMmE1LTUwZGQtN2JjYS05Njc0LTJjMGNlNjkxMzlhNiJ9.U2HYnXlEkmWzZKhDMn6NC4BHvt9s7G8d5zBKSImdED9gVSP3Gwk_RwFAGxTvd8_hUj6VDEoyas-kD9c_UIOOHg","id_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmE0LTNjYWQtNzRjYS05ZTcxLTQyNGJhYjg0ZjNmZiJ9.eyJzdWIiOiIwMWEwZTJhNC1lZDYwLTc5MzEtOTk4YS00YzZjMjc1MzgzNGUiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vIiwiYXVkIjoiY29uc2VudHMtZGVtby1hcHAiLCJpYXQiOjE3OTA1MDg4ODAsImV4cCI6MTc5MDUwOTE4MH0.UsFaafQG9A3JXD82zY35PlIpCJoI5JmrCL4RpmRz35dfDAJHdDIMAC9XaORDRnkQsmsXtS-mopx3uWcfVQlKJg","refresh_token":"ld_3d4_CpgB9qInSYa9wCgIWhZkQ7-9SCXXMAK9j7J8","token_type":"Bearer","expires_in":300,"scope":"openid offline_access"}
+{"access_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmM4LTI1MzQtNzNmZC05ZGY4LThiZTllNmQxODVkNiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsInN1YiI6IjAxYTBlMmM4LTRkNDctN2E4NC1iOTQ3LTVlZjFiOTZhN2M2ZSIsImF1ZCI6WyJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiJdLCJjbGllbnRfaWQiOiJjb25zZW50cy1kZW1vLWFwcDIiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MDUxMTE5NCwiZXhwIjoxNzkwNTExNDk0LCJqdGkiOiIwMWEwZTJjOC1hMjQ2LTcyNjQtYWMxNy04MmVkYjI2NTZmMTkiLCJncmFudF9pZCI6IjAxYTBlMmM4LWEyNDYtNzI2NC1hYzE3LTgyZWNmOTRmZmVjOCJ9.Pq7wzwOMh62G30kPHs-fmHe-fOAM5pTJ3F1nFN-Py8uG1WErSpAt0fN6S12bKa3mQM-z-oyUMMzaXD0nguWTWw","id_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmM4LTI1MzQtNzNmZC05ZGY4LThiZTllNmQxODVkNiJ9.eyJzdWIiOiIwMWEwZTJjOC00ZDQ3LTdhODQtYjk0Ny01ZWYxYjk2YTdjNmUiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsImF1ZCI6ImNvbnNlbnRzLWRlbW8tYXBwMiIsImlhdCI6MTc5MDUxMTE5NCwiZXhwIjoxNzkwNTExNDk0fQ.bNYG5C8KfvzNSRAlwx2aDqpm4LwSNccGwjsKlCaCc9bfgPvYDKBVTOQKzEY5yj9s7aUcIokPtLCR3R4lTcimbg","refresh_token":"h0VhkngXMZA92QetMN5i1AxIXeQV6QybonPvBc2yH1w","token_type":"Bearer","expires_in":300,"scope":"openid offline_access"}
 ```
 
-`GET /subjects/:id/consents` shows exactly what was ticked, both scopes:
+`GET /subjects/:id/consents` shows what was granted — `openid` is implied,
+never ticked, and appears here anyway:
 
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/consents-demo/subjects/01a0e2a4-ed60-7931-998a-4c6c2753834e/consents
+  http://localhost:3000/admin/tenants/consents-demo2/subjects/01a0e2c8-4d47-7a84-b947-5ef1b96a7c6e/consents
 ```
 
 ```
-{"items":[{"client_id":"01a0e2a4-d278-71b4-bfca-3698d4ee9feb","client_key":"consents-demo-app","scope_names":["openid","offline_access"],"granted_at":"2026-09-27T11:34:32.401Z"}]}
+{"items":[{"client_id":"01a0e2c8-35b0-7767-a5ee-d2b6f29258e2","client_key":"consents-demo-app2","scope_names":["openid","offline_access"],"granted_at":"2026-09-27T12:13:07.817Z"}]}
 ```
 
-Revoking it, then the same read again — the list is empty, and a repeat of
-the delete answers `404`:
+Revoking it:
 
 ```bash
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/consents-demo/subjects/01a0e2a4-ed60-7931-998a-4c6c2753834e/consents/01a0e2a4-d278-71b4-bfca-3698d4ee9feb
-
-curl -sS \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/consents-demo/subjects/01a0e2a4-ed60-7931-998a-4c6c2753834e/consents
-
-curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/consents-demo/subjects/01a0e2a4-ed60-7931-998a-4c6c2753834e/consents/01a0e2a4-d278-71b4-bfca-3698d4ee9feb
+  http://localhost:3000/admin/tenants/consents-demo2/subjects/01a0e2c8-4d47-7a84-b947-5ef1b96a7c6e/consents/01a0e2c8-35b0-7767-a5ee-d2b6f29258e2
 ```
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a0e2a5-7849-7576-8449-9d19e4ba6fdc
-Date: Sun, 27 Sep 2026 11:34:50 GMT
+x-request-id: 01a0e2c8-c6d3-7a4e-96b8-9e045421b500
+Date: Sun, 27 Sep 2026 12:13:24 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
-
-{"items":[]}
-HTTP/1.1 404 Not Found
-x-request-id: 01a0e2a5-8e88-7a6f-adea-e59a22fc5dd0
-content-type: application/problem+json; charset=utf-8
-content-length: 105
-Date: Sun, 27 Sep 2026 11:34:55 GMT
-Connection: keep-alive
-Keep-Alive: timeout=72
-
-{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0e2a5-8e88-7a6f-adea-e59a22fc5dd0"}
 ```
 
-The refresh token minted before the revoke still redeems — nothing here
-touches an already-issued grant:
+The refresh token minted before the revoke now answers `invalid_grant` —
+the revoke reached it, not only the consent:
+
+```bash
+curl -sS -D - -X POST \
+  --data-urlencode "grant_type=refresh_token" \
+  --data-urlencode "refresh_token=h0VhkngXMZA92QetMN5i1AxIXeQV6QybonPvBc2yH1w" \
+  -u "consents-demo-app2:PaTErX2vTk6H_-eAP-1xOIh2BHMOp6dPekxmkisf-gg" \
+  'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a0e2c8-db4e-7042-8102-9901ae14b83d
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+content-length: 25
+Date: Sun, 27 Sep 2026 12:13:29 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"error":"invalid_grant"}
+```
+
+The access token minted alongside it introspects inactive, ahead of its own
+`exp`:
 
 ```bash
 curl -sS -X POST \
-  --data-urlencode "grant_type=refresh_token" \
-  --data-urlencode "refresh_token=ld_3d4_CpgB9qInSYa9wCgIWhZkQ7-9SCXXMAK9j7J8" \
-  -u "consents-demo-app:8dsZmkmZzpmW7cYdWa8DEFELCKf3Vkn1HTYAXZLL7Fc" \
-  'http://localhost:3000/tenants/consents-demo/protocol/openid-connect/token'
+  --data-urlencode "token=eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmM4LTI1MzQtNzNmZC05ZGY4LThiZTllNmQxODVkNiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsInN1YiI6IjAxYTBlMmM4LTRkNDctN2E4NC1iOTQ3LTVlZjFiOTZhN2M2ZSIsImF1ZCI6WyJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiJdLCJjbGllbnRfaWQiOiJjb25zZW50cy1kZW1vLWFwcDIiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MDUxMTE5NCwiZXhwIjoxNzkwNTExNDk0LCJqdGkiOiIwMWEwZTJjOC1hMjQ2LTcyNjQtYWMxNy04MmVkYjI2NTZmMTkiLCJncmFudF9pZCI6IjAxYTBlMmM4LWEyNDYtNzI2NC1hYzE3LTgyZWNmOTRmZmVjOCJ9.Pq7wzwOMh62G30kPHs-fmHe-fOAM5pTJ3F1nFN-Py8uG1WErSpAt0fN6S12bKa3mQM-z-oyUMMzaXD0nguWTWw" \
+  -u "consents-demo-app2:PaTErX2vTk6H_-eAP-1xOIh2BHMOp6dPekxmkisf-gg" \
+  'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/token/introspect'
 ```
 
 ```
-{"access_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmE0LTNjYWQtNzRjYS05ZTcxLTQyNGJhYjg0ZjNmZiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vIiwic3ViIjoiMDFhMGUyYTQtZWQ2MC03OTMxLTk5OGEtNGM2YzI3NTM4MzRlIiwiYXVkIjpbImh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC90ZW5hbnRzL2NvbnNlbnRzLWRlbW8iXSwiY2xpZW50X2lkIjoiY29uc2VudHMtZGVtby1hcHAiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MDUwODkwMiwiZXhwIjoxNzkwNTA5MjAyLCJqdGkiOiIwMWEwZTJhNS1hODliLTcxYWYtYWVkMi1iNWI5NjRhZjkyNjkiLCJncmFudF9pZCI6IjAxYTBlMmE1LTUwZGQtN2JjYS05Njc0LTJjMGNlNjkxMzlhNiJ9.BRb0EiVHy2l3lyv5RmX4lxMzxP_ISWRJIB9q4viUFn4brEbJ30WJBb4OIKYSdIwRGHBNX9UACYkeaCgx4oVrSw","refresh_token":"6CG5jyOGQt5D0oDIgjF-Ob0l4dAoJ44M-hFOs-z7Ip8","token_type":"Bearer","expires_in":300,"scope":"openid offline_access"}
+{"active":false}
 ```
 
-And a fresh login for the same client, after the revoke, stops at the
-consent screen again rather than redirecting straight to a code:
+A fresh login for the same client, after the revoke, stops at the consent
+screen again rather than redirecting straight to a code:
 
 ```bash
 curl -sS \
-  'http://localhost:3000/tenants/consents-demo/protocol/openid-connect/auth?response_type=code&client_id=consents-demo-app&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid%20offline_access&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+  'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/auth?response_type=code&client_id=consents-demo-app2&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid%20offline_access&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 
 curl -sS \
-  --data-urlencode "auth_session_id=01a0e2a5-c133-7e21-82e5-37dbd25d9270" \
+  --data-urlencode "auth_session_id=01a0e2c9-3854-71f9-892d-7f865b5ae868" \
   --data-urlencode "username=grace" \
   --data-urlencode "password=correct horse battery staple" \
-  'http://localhost:3000/tenants/consents-demo/login-actions/authenticate'
+  'http://localhost:3000/tenants/consents-demo2/login-actions/authenticate'
 ```
 
 ```
-<form method="post" action="/tenants/consents-demo/login-actions/consent">
+<form method="post" action="/tenants/consents-demo2/login-actions/consent">
+```
+
+The same read again — the list is empty — and a repeat of the delete
+answers `404`:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/consents-demo2/subjects/01a0e2c8-4d47-7a84-b947-5ef1b96a7c6e/consents
+
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/consents-demo2/subjects/01a0e2c8-4d47-7a84-b947-5ef1b96a7c6e/consents/01a0e2c8-35b0-7767-a5ee-d2b6f29258e2
+```
+
+```
+{"items":[]}
+HTTP/1.1 404 Not Found
+x-request-id: 01a0e2c9-5d4f-7c00-9d8a-d1f4be3d52c2
+content-type: application/problem+json; charset=utf-8
+content-length: 105
+Date: Sun, 27 Sep 2026 12:14:02 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0e2c9-5d4f-7c00-9d8a-d1f4be3d52c2"}
 ```
 
 An unknown subject on the read answers `404`:
@@ -1954,19 +1995,19 @@ An unknown subject on the read answers `404`:
 ```bash
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/consents-demo/subjects/0199aa00-0000-7000-8000-0000000000ff/consents
+  http://localhost:3000/admin/tenants/consents-demo2/subjects/0199aa00-0000-7000-8000-0000000000ff/consents
 ```
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a0e2a5-f15a-7230-a416-f09161ff0cb4
+x-request-id: 01a0e2c9-6ce7-7409-8336-e8ee00c17b7b
 content-type: application/problem+json; charset=utf-8
 content-length: 164
-Date: Sun, 27 Sep 2026 11:35:21 GMT
+Date: Sun, 27 Sep 2026 12:14:06 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no subject 0199aa00-0000-7000-8000-0000000000ff","instance":"01a0e2a5-f15a-7230-a416-f09161ff0cb4"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no subject 0199aa00-0000-7000-8000-0000000000ff","instance":"01a0e2c9-6ce7-7409-8336-e8ee00c17b7b"}
 ```
 
 ## `GET /subjects/:id/required-actions` and `PUT /subjects/:id/required-actions`

@@ -1,4 +1,5 @@
 import { withTenant, type TenantScopedDatabase } from '@odudu/db';
+import { auditRepository } from '@odudu/domain-audit';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
@@ -6,7 +7,6 @@ import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
-import { revokeConsent, type ConsentAuditEvent } from '#/usecase/consents';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -288,7 +288,7 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/consents/{clientId}', () => {
     expect(afterLogin.body).toContain('login-actions/consent');
   });
 
-  it('does not revoke an already-issued refresh token', async () => {
+  it('revokes the refresh token and the access token issued under the consent', async () => {
     const t = await fixture.createTenant(`consents-revoke-tokens-${newId()}`);
     const client = await createConsentRequiredClient(t.id);
     const subjectId = await createPasswordSubject(t.id);
@@ -300,7 +300,10 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/consents/{clientId}', () => {
     if (code === null) throw new Error('expected a code from consent');
     const redeemed = await redeemCode(t.name, client, code);
     expect(redeemed.statusCode).toBe(200);
-    const refreshToken = redeemed.json<{ refresh_token: string }>().refresh_token;
+    const { access_token: accessToken, refresh_token: refreshToken } = redeemed.json<{
+      access_token: string;
+      refresh_token: string;
+    }>();
 
     const token = await fixture.adminToken(t.name, ['manage-users']);
     const revokeRes = await fixture.http.inject({
@@ -322,7 +325,20 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/consents/{clientId}', () => {
         authorization: `Basic ${Buffer.from(`${client.clientId}:${client.secret}`).toString('base64')}`,
       },
     });
-    expect(refreshed.statusCode).toBe(200);
+    expect(refreshed.statusCode).toBe(400);
+    expect(refreshed.json<{ error: string }>().error).toBe('invalid_grant');
+
+    const introspected = await fixture.http.inject({
+      method: 'POST',
+      url: `/tenants/${t.name}/protocol/openid-connect/token/introspect`,
+      payload: new URLSearchParams({ token: accessToken }).toString(),
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: `Basic ${Buffer.from(`${client.clientId}:${client.secret}`).toString('base64')}`,
+      },
+    });
+    expect(introspected.statusCode).toBe(200);
+    expect(introspected.json<{ active: boolean }>().active).toBe(false);
   });
 
   it('answers 404 for a subject with no consent to that client', async () => {
@@ -353,57 +369,62 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/consents/{clientId}', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('audits consent.revoke exactly once on a successful revoke, and not on not_found', async () => {
+  it('records consent.revoke against the subject exactly once, naming the client and the grant count, and not on not_found', async () => {
     const t = await fixture.createTenant(`consents-audit-${newId()}`);
     const client = await createConsentRequiredClient(t.id);
     const subjectId = await createPasswordSubject(t.id);
     const authSessionId = await loginExpectingConsent(t.name, client.clientId, USERNAME);
     const allowed = await submitConsent(t.name, authSessionId, ['offline_access']);
     expect(allowed.statusCode).toBe(302);
+    const code = new URL(locationHeader(allowed)).searchParams.get('code');
+    if (code === null) throw new Error('expected a code from consent');
+    const redeemed = await redeemCode(t.name, client, code);
+    expect(redeemed.statusCode).toBe(200);
 
-    const events: ConsentAuditEvent[] = [];
-    const revoked = await withTenant(fixture.app.db, t.id, (tx) =>
-      revokeConsent(
-        tx,
-        {
-          audit: (_tx, event) => {
-            events.push(event);
-            return Promise.resolve();
-          },
-        },
-        {
-          subjectId,
-          clientId: client.id,
-          actorSubjectId: 'test-subject',
-          actorTenantId: 'test-tenant',
-          actorClientId: 'test-client',
-        },
-      ),
-    );
-    expect(revoked.kind).toBe('revoked');
-    expect(events).toHaveLength(1);
-    expect(events[0]?.action).toBe('consent.revoke');
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const revokeRes = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/subjects/${subjectId}/consents/${client.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(revokeRes.statusCode).toBe(204);
 
-    const secondEvents: ConsentAuditEvent[] = [];
-    const notFound = await withTenant(fixture.app.db, t.id, (tx) =>
-      revokeConsent(
-        tx,
-        {
-          audit: (_tx, event) => {
-            secondEvents.push(event);
-            return Promise.resolve();
-          },
-        },
-        {
-          subjectId,
-          clientId: client.id,
-          actorSubjectId: 'test-subject',
-          actorTenantId: 'test-tenant',
-          actorClientId: 'test-client',
-        },
-      ),
+    const rows = await withTenant(fixture.app.db, t.id, (tx) =>
+      auditRepository(tx).list({
+        resourceType: 'subject',
+        resourceId: subjectId,
+        action: 'consent.revoke',
+        limit: 10,
+      }),
     );
-    expect(notFound.kind).toBe('not_found');
-    expect(secondEvents).toHaveLength(0);
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+    expect(row?.resourceType).toBe('subject');
+    expect(row?.resourceId).toBe(subjectId);
+    // `redactedDiff`'s own `after` is `undefined` here (the resource is
+    // gone), which the jsonb column's own JSON serialization drops rather
+    // than storing as `null` — the same as any plain `JSON.stringify`.
+    expect(row?.detail).toMatchObject({
+      client_id: { before: client.id },
+      scope_names: { before: ['openid', 'offline_access'] },
+      grants_revoked: 1,
+    });
+
+    const notFoundRes = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/subjects/${subjectId}/consents/${client.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(notFoundRes.statusCode).toBe(404);
+
+    const rowsAfter = await withTenant(fixture.app.db, t.id, (tx) =>
+      auditRepository(tx).list({
+        resourceType: 'subject',
+        resourceId: subjectId,
+        action: 'consent.revoke',
+        limit: 10,
+      }),
+    );
+    expect(rowsAfter).toHaveLength(1);
   });
 });

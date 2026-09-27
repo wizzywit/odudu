@@ -60,6 +60,12 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     email: 'value',
     enabled: 'value',
     group_ids: 'value',
+    // `consent.revoke`'s own pair: the consent it revoked names no row of
+    // its own a caller could look up (`consents` carries no wire id), so
+    // the client it was against and what it granted travel in `detail`
+    // instead, on the subject the consent belonged to.
+    client_id: 'value',
+    scope_names: 'value',
   },
   // `birthdate`, `phone_number` and every `address_*` member are a
   // stronger identifier than the rest of a profile, on the same order as
@@ -89,10 +95,6 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     address_region: 'sensitive',
     address_postal_code: 'sensitive',
     address_country: 'sensitive',
-  },
-  consent: {
-    client_key: 'value',
-    scope_names: 'value',
   },
   registration_token: {
     remaining_uses: 'value',

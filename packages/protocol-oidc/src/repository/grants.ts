@@ -135,6 +135,26 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       return rows.length;
     },
 
+    // The admin API's consent-revoke write: every grant a subject holds
+    // against one client, live or offline alike — narrower than
+    // `revokeForSession`, which only ever reaches one session's own bound
+    // grants. Same `coalesce` idempotence: a second revoke keeps the
+    // first's timestamp rather than moving it later.
+    async revokeForSubjectClient(
+      subjectId: string,
+      clientId: string,
+      revokedAt: Date,
+    ): Promise<number> {
+      const rows = await tx
+        .update(tokenGrants)
+        .set({
+          revokedAt: sql`coalesce(${tokenGrants.revokedAt}, ${revokedAt.toISOString()}::timestamptz)`,
+        })
+        .where(and(eq(tokenGrants.subjectId, subjectId), eq(tokenGrants.clientId, clientId)))
+        .returning({ id: tokenGrants.id });
+      return rows.length;
+    },
+
     async bySession(sessionId: string): Promise<TokenGrantRecord[]> {
       const rows = await tx.select().from(tokenGrants).where(eq(tokenGrants.sessionId, sessionId));
       return rows.map(toRecord);

@@ -680,3 +680,12 @@ Planning:
 Planning Time: 0.143 ms
 Execution Time: 0.229 ms
 ```
+
+## A subject's consents
+
+`revokeConsent` scans `token_grants` by `(subject_id, client_id)`
+(`revokeForSubjectClient`) with no index naming that pair — acceptable
+because this write is an infrequent, single-subject admin action, never a
+per-request path; a tenant large enough to need one names it against the
+same `token_grants` an already-open PR could give a covering index without
+touching this call.
