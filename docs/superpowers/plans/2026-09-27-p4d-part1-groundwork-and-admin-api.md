@@ -466,14 +466,20 @@ command run and its output, so Parts 2 and 3 cite `verified:` instead of
 
 **Interfaces:**
 
-- Produces: `escapeLikePrefix(text: string): string` (escapes `\`, `%`, `_`
-  and appends `%`); `listSubjectsQuerySchema = cursorQuerySchema.extend({ username, email, enabled, role, group })`
+- Produces: `prefixRange(text: string): { lower: string; upper: string | null }`
+  — `lower` is `text.toLowerCase()`, `upper` the smallest string greater
+  than every string starting with `lower` in code-point order (the last
+  code point incremented, trailing U+10FFFF dropped first; `null` when
+  nothing remains). No `LIKE` anywhere, so `%`, `_` and `\` are literal by
+  construction. `listSubjectsQuerySchema = cursorQuerySchema.extend({ username, email, enabled, role, group })`
   with `.strict()` so an unknown parameter is a `400`, and a refinement
   refusing `username` and `email` together ("search one field at a time");
   `enabled: z.enum(['true','false'])`, `role`/`group`: `z.uuid()`.
 
-- [ ] **Step 1: Write failing unit tests** for `escapeLikePrefix`:
-      `a_b` → `a\_b%`, `%` → `\%%`, `a\b` → `a\\b%`.
+- [ ] **Step 1: Write failing unit tests** for `prefixRange`: `ADA` →
+      `{ lower: 'ada', upper: 'adb' }`; `a_b` → `upper: 'a_c'`; `%` →
+      `upper: '&'`; `az` → `upper: 'a{'`; a string ending in U+10FFFF drops
+      it before incrementing; `\u{10FFFF}` alone → `upper: null`.
 
 - [ ] **Step 2: Implement; run** — PASS.
 
@@ -490,16 +496,27 @@ command run and its output, so Parts 2 and 3 cite `verified:` instead of
 
 - [ ] **Step 4: Run** — FAIL.
 
-- [ ] **Step 5: Migration `0073`:** `users (tenant_id, lower(username) text_pattern_ops, subject_id)`,
-      `users (tenant_id, lower(email) text_pattern_ops, subject_id) WHERE email IS NOT NULL`,
+- [ ] **Step 5: Migration `0073`.** Under RLS an expression index cannot
+      serve this search (`docs/phases/p4d.md`, "Prefix search as one range
+      scan": `lower` is not leakproof). Each searched field gets a stored
+      generated column in the `C` collation and a plain index on it:
+      `users.username_search text COLLATE "C" GENERATED ALWAYS AS (lower(username)) STORED`
+      with `(tenant_id, username_search, subject_id)`;
+      `users.email_search` the same over `email`, its index
+      `WHERE email_search IS NOT NULL`; plus
       `subjects (tenant_id, id) WHERE disabled_at IS NOT NULL`,
-      `subject_roles (role_id, subject_id)`, `subject_groups (group_id, subject_id)`
-      — each index's shape following Task 3 Step 4's recorded plan.
+      `subject_roles (role_id, subject_id)`, `subject_groups (group_id, subject_id)`.
+      Declare both columns in the Drizzle schema with `generatedAlwaysAs`
+      so `schema-drift.int.test.ts` accepts them.
 
-- [ ] **Step 6: Implement** in `listSubjects`: with a search field, order by
-      `(lower(field), subjects.id)` and key the cursor's `sort` on the last
-      row's `lower(field)`; without one, keep `id` order. Exact filters are
-      `AND`ed predicates. Replace the existing `like(users.username, …)`.
+- [ ] **Step 6: Implement** in `listSubjects`: with a search field,
+      `<field>_search >= lower AND <field>_search < upper` (no upper bound
+      when `upper` is `null`), the keyset as the row comparison
+      `(<field>_search, subject_id) > (sort, after)`, and
+      `ORDER BY <field>_search, subject_id` — the exact shape the spike
+      verified; key the cursor's `sort` on the last row's `<field>_search`.
+      Without one, keep `id` order. Exact filters are `AND`ed predicates.
+      Replace the existing `like(users.username, …)`.
 
 - [ ] **Step 7: Run** — PASS. Add
       `verified: EXPLAIN (ANALYZE) <query> → Index Scan using <index>` for each
@@ -535,9 +552,12 @@ command run and its output, so Parts 2 and 3 cite `verified:` instead of
 
 - [ ] **Step 2: Run** — FAIL.
 
-- [ ] **Step 3: Migration** with `lower(...) text_pattern_ops` indexes on
-      `tenants (name)`, `tenants (display_name)`, `clients (tenant_id, client_id)`,
-      `clients (tenant_id, name)`; implement both usecases the way Task 8 did.
+- [ ] **Step 3: Migration** adding `C`-collation generated `_search`
+      columns, as Task 8 did, for `tenants.name`, `tenants.display_name`
+      (indexed `(<col>_search, id)`; `tenants` is read through the owner
+      connection), `clients.client_id` and `clients.name` (indexed
+      `(tenant_id, <col>_search, id)`); implement both usecases with
+      `prefixRange` the way Task 8 did.
 
 - [ ] **Step 4: Run** — PASS; record the `EXPLAIN`s. Document; commit
       `Search and filter tenants and clients on the server`.
@@ -566,7 +586,9 @@ command run and its output, so Parts 2 and 3 cite `verified:` instead of
 
 - [ ] **Step 2: Run** — FAIL.
 
-- [ ] **Step 3: Migration and implementation** as before. Keys are few per
+- [ ] **Step 3: Migration and implementation** as before — a `C`-collation
+      generated `name_search` column and `(tenant_id, name_search, id)` index
+      on `roles`, `groups` and `client_scopes`. Keys are few per
       tenant, so their filters need no index; say so in the phase note.
 
 - [ ] **Step 4: Run** — PASS. Document; commit

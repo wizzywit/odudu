@@ -183,7 +183,10 @@ A filter that runs in the browser over one loaded page reports "no match"
 for a record on page three, so every list that pages filters on the server.
 
 **Search** is a named field and a prefix: `?username=ada`, `?name=billing`.
-It is case-insensitive through an index on `lower(<field>)`. A search that
+It is case-insensitive through a stored generated column holding
+`lower(<field>)` in the `C` collation, indexed — an expression index cannot
+serve it under row-level security, because `lower` is not leakproof
+(`docs/phases/p4d.md`, "Prefix search as one range scan"). A search that
 matched one field _or_ another would be two index range scans to merge, and
 a contains-search (`%love%`) needs a trigram index that cannot return rows in
 cursor order — both give up "every page costs one index range read", so
@@ -196,7 +199,7 @@ case-sensitive today, and it passes `%` and `_` through to `LIKE` unescaped
 `a_b` matches `axb`. Every prefix search in this phase escapes both.
 
 **Ordering.** Unfiltered lists stay in creation order (`id`). A searched
-list is ordered by `(lower(<field>), id)` and paged by a keyset over that
+list is ordered by that column and `id`, and paged by a keyset over that
 pair, which is what makes page one thousand as cheap as page one. The cursor
 payload (`CursorPayload`, `packages/protocol-admin/src/service/cursor.ts`)
 today carries `after`, `collection` and `tenantId`; it gains the sort value
@@ -408,11 +411,16 @@ same-site forgery `SameSite` would not.
 ### 5.4 Serving the SPA
 
 `index.html` is served with `default-src 'self'; script-src 'self';
-style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self';
+style-src 'self' 'sha256-…'; img-src 'self' data:; font-src 'self'; connect-src 'self';
 frame-ancestors 'none'; base-uri 'none'; form-action 'self'`, plus
 `x-frame-options: DENY` and `referrer-policy: no-referrer`. Assets are
 content-hashed and served immutable; `index.html` is `no-store`. Fonts are
 self-hosted, since `font-src 'self'` refuses a font CDN.
+
+The `'sha256-…'` source is the hash of the one stylesheet React Aria's
+`usePress` injects at runtime (and, on iOS WebKit, `usePreventScroll`'s),
+constant per version: a test recomputes it from the pinned package's source,
+so an upgrade that changes the text fails the build rather than the page.
 
 The SPA's shell is not a server-rendered page in ADR 0029's sense — it has no
 per-request nonce, because it has no inline script — so its headers are
@@ -739,20 +747,23 @@ changes; the phase note asks for it.
   tenant-name row closed.
 - `docs/phases/p4d.md`: what building this phase found.
 
-## 11. Assumptions to spike before the tasks that depend on them
+## 11. Assumptions, spiked
 
-- `assumption:` Fastify's `inject` can present the browser's address, so
-  audit rows written through the gateway record it rather than the loopback.
-- `assumption:` Vite's production build emits no inline script, so
-  `script-src 'self'` holds without a nonce.
-- `assumption:` React Aria applies styles through the CSSOM, which
-  `style-src 'self'` does not govern.
-- `assumption:` an index on `(tenant_id, lower(<field>) text_pattern_ops, id)`
-  serves a prefix search ordered by `(lower(<field>), id)` as one range
-  scan under RLS.
-- `assumption:` `/token` accepts `resource=urn:odudu:params:admin-api` for
-  `odudu-admin` on a code exchange and a refresh alike, so the gateway's
-  refreshed token keeps its audience.
+- `verified:` Fastify's `inject({ remoteAddress })` sets `request.ip` with
+  `trustProxy` off, so audit rows written through the gateway can record the
+  browser's address rather than the loopback.
+- `verified:` Vite's production build emits no inline script and no `style`
+  attribute, so `script-src 'self'` holds without a nonce.
+- `verified:` React Aria applies styles through the CSSOM, which
+  `style-src 'self'` does not govern, with one exception: `usePress` injects
+  one constant `<style>` element, allowed by its hash (§5.4).
+- `verified:` a stored generated `lower(<field>)` column in the `C`
+  collation, indexed with `tenant_id` and `id` and queried by explicit bounds,
+  is one Index Scan with no Sort under RLS; the expression index first
+  assumed here was not (`docs/phases/p4d.md`).
+- `verified:` `odudu-admin`'s access token names the admin API in `aud` on
+  the code exchange and on refresh, with or without `resource`, so the
+  gateway's refreshed token keeps its audience.
 
 ## 12. Increments
 
