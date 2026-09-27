@@ -1406,6 +1406,7 @@ describe('audit', () => {
           tenantId: t.id,
           subjectId: id,
           actions: ['configure-totp'],
+          callerCapabilities: new Set<string>(),
           ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -1425,6 +1426,7 @@ describe('audit', () => {
           tenantId: t.id,
           subjectId: newId(),
           actions: [],
+          callerCapabilities: new Set<string>(),
           ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -1469,7 +1471,7 @@ describe('audit', () => {
         {
           subjectId: id,
           roleIds: [tenantAdminId],
-          callerCapabilities: new Set(['manage-users']),
+          callerCapabilities: new Set(['manage-users', 'view-users']),
           ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -1754,7 +1756,9 @@ describe('PUT /admin/tenants/{t}/subjects/{id}/groups — the capability ceiling
     expect((await putGroups(t.name, targetId, token, [nesting])).statusCode).toBe(403);
   });
 
-  it('refuses a set that keeps a membership the caller could not grant, and allows removing it', async () => {
+  // Removing the membership is refused too: the target holds tenant-admin
+  // through it, which the caller does not (the target ceiling).
+  it('refuses a set that keeps a membership the caller could not grant, and removing it', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users']);
@@ -1767,8 +1771,8 @@ describe('PUT /admin/tenants/{t}/subjects/{id}/groups — the capability ceiling
     expect((await putGroups(t.name, targetId, token, [adminGroup, plain])).statusCode).toBe(403);
     expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([adminGroup]);
 
-    expect((await putGroups(t.name, targetId, token, [plain])).statusCode).toBe(200);
-    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([plain]);
+    expect((await putGroups(t.name, targetId, token, [plain])).statusCode).toBe(403);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([adminGroup]);
   });
 
   it('lets a tenant-admin holder join a group mapped to tenant-admin', async () => {

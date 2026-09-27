@@ -119,20 +119,22 @@ export interface TargetCeilingInput {
 }
 
 export interface TargetCeilingRefusal {
-  readonly kind: 'capability_ceiling';
+  readonly kind: 'target_ceiling';
   readonly requested: readonly string[];
 }
 
 // `targetOverreach` (#/service/capability-ceiling.ts), with the refused row
 // an attempted privilege escalation always gets, filed under the action the
-// caller attempted. Null when the caller covers the target.
-export async function refuseOverTargetCeiling<A extends string>(
+// caller attempted — on the subject, unless `resource` names the row the
+// action is filed on instead. Null when the caller covers the target. Every
+// route that mutates a subject calls this first, under the subject's lock.
+export async function refuseOverTargetCeiling<A extends string, R extends string = 'subject'>(
   tx: TenantScopedDatabase,
   audit: (
     tx: TenantScopedDatabase,
     event: {
       action: A;
-      resourceType: 'subject';
+      resourceType: R;
       resourceId: string;
       actorSubjectId: string;
       actorTenantId: string;
@@ -143,20 +145,34 @@ export async function refuseOverTargetCeiling<A extends string>(
   ) => Promise<void>,
   action: A,
   input: TargetCeilingInput,
+  resource?: { readonly type: R; readonly id: string },
 ): Promise<TargetCeilingRefusal | null> {
   const denied = await targetOverreach(tx, input.subjectId, input.callerCapabilities);
   if (denied.length === 0) return null;
   await audit(tx, {
     action,
-    resourceType: 'subject',
-    resourceId: input.subjectId,
+    resourceType: resource?.type ?? ('subject' as R),
+    resourceId: resource?.id ?? input.subjectId,
     actorSubjectId: input.actorSubjectId,
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'refused',
     detail: { denied },
   });
-  return { kind: 'capability_ceiling', requested: denied };
+  return { kind: 'target_ceiling', requested: denied };
+}
+
+/** Locks the subject row every mutation of one subject serialises on; false when there is none. */
+export async function lockSubjectRow(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+): Promise<boolean> {
+  const rows = await tx
+    .select({ id: subjects.id })
+    .from(subjects)
+    .where(eq(subjects.id, subjectId))
+    .for('update');
+  return rows.length > 0;
 }
 
 /** Every `listSubjectsQuerySchema` parameter except the page controls. */
@@ -490,6 +506,8 @@ export async function amendSubject(
 
   const locked = await lockSubjectForAmend(tx, input.subjectId);
   if (locked === null) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.amend', input);
+  if (refused !== null) return refused;
 
   const currentEtag = etagOf(subjectWireShape(viewOfLocked(locked)));
   if (matches(input.ifMatch, currentEtag) === 'mismatch') {
@@ -535,18 +553,6 @@ export async function amendSubject(
       };
     }
     patch.email = { value };
-  }
-
-  // Disabling an account locks its holder out, and changing its email
-  // redirects its password reset — so either, as a change, is held to the
-  // target ceiling. Resubmitting what is already stored changes nothing.
-  const current = viewOfLocked(locked);
-  const changes =
-    (patch.enabled !== undefined && patch.enabled.value !== current.enabled) ||
-    (patch.email !== undefined && patch.email.value !== current.email);
-  if (changes) {
-    const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.amend', input);
-    if (refused !== null) return refused;
   }
 
   if (patch.enabled !== undefined) {
@@ -597,12 +603,7 @@ export async function deleteSubject(
   deps: DeleteSubjectDeps,
   input: DeleteSubjectInput,
 ): Promise<DeleteSubjectOutcome> {
-  const locked = await tx
-    .select({ id: subjects.id })
-    .from(subjects)
-    .where(eq(subjects.id, input.subjectId))
-    .for('update');
-  if (locked.length === 0) return { kind: 'not_found' };
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
   const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.delete', input);
   if (refused !== null) return refused;
 
@@ -746,6 +747,10 @@ export async function deleteCredential(
   deps: DeleteCredentialDeps,
   input: DeleteCredentialInput,
 ): Promise<DeleteCredentialOutcome> {
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.credential_delete', input);
+  if (refused !== null) return refused;
+
   const rows = await tx
     .select({
       id: userCredentials.id,
@@ -763,9 +768,6 @@ export async function deleteCredential(
       reason: `a ${row.type} credential cannot be removed through this door`,
     };
   }
-
-  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.credential_delete', input);
-  if (refused !== null) return refused;
 
   await credentialRepository(tx).deleteOne(row.id);
 
@@ -786,6 +788,7 @@ export interface SetRequiredActionsInput {
   readonly subjectId: string;
   readonly actions: readonly RequiredAction[];
   readonly ifMatch: string | undefined;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -797,6 +800,7 @@ export interface SetRequiredActionsDeps {
 
 export type SetRequiredActionsOutcome =
   | { kind: 'not_found' }
+  | TargetCeilingRefusal
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; actions: readonly RequiredAction[]; etag: string };
@@ -831,12 +835,14 @@ export async function setRequiredActions(
   // COMMITTED, two concurrent replacements with no lock each delete a
   // snapshot the other's inserts are invisible to, and both commit —
   // leaving the union of the two requests rather than either one alone.
-  const subjectRows = await tx
-    .select({ id: subjects.id })
-    .from(subjects)
-    .where(eq(subjects.id, input.subjectId))
-    .for('update');
-  if (subjectRows.length === 0) return { kind: 'not_found' };
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(
+    tx,
+    deps.audit,
+    'subject.required_actions_set',
+    input,
+  );
+  if (refused !== null) return refused;
 
   // Compared under the lock taken above, so the set it hashes is the set
   // the replacement below overwrites.
@@ -895,6 +901,7 @@ export type SetRolesOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_role'; roleIds: readonly string[] }
   | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | TargetCeilingRefusal
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
@@ -941,12 +948,9 @@ export async function setRoles(
   // a mutex around the delete-then-insert below, so two concurrent
   // replacements serialise instead of each committing a partial view of
   // the other's write.
-  const subjectRows = await tx
-    .select({ id: subjects.id })
-    .from(subjects)
-    .where(eq(subjects.id, input.subjectId))
-    .for('update');
-  if (subjectRows.length === 0) return { kind: 'not_found' };
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.roles_set', input);
+  if (refused !== null) return refused;
 
   // Under the same lock the replacement runs under, so the assignment this
   // hashes is the assignment being overwritten.
@@ -1031,6 +1035,7 @@ export type SetSubjectGroupsOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_group'; groupIds: readonly string[] }
   | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | TargetCeilingRefusal
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; groups: readonly Group[]; etag: string };
@@ -1069,12 +1074,9 @@ export async function setSubjectGroups(
 ): Promise<SetSubjectGroupsOutcome> {
   // Locked for the same reason `setRoles` locks it: the delete-then-insert
   // below is serialised against a concurrent replacement.
-  const subjectRows = await tx
-    .select({ id: subjects.id })
-    .from(subjects)
-    .where(eq(subjects.id, input.subjectId))
-    .for('update');
-  if (subjectRows.length === 0) return { kind: 'not_found' };
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.groups_set', input);
+  if (refused !== null) return refused;
 
   const current = await memberGroups(tx, input.subjectId);
   const precondition = requiredPrecondition(input.ifMatch, subjectGroupsEtag(current));

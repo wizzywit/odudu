@@ -13,7 +13,12 @@ import {
 } from '@odudu/domain-identity';
 import { redactedDiff } from '#/service/audit-detail';
 import { etagOf, matches } from '#/service/etag';
-import { type Audit } from '#/usecase/subjects';
+import {
+  lockSubjectRow,
+  refuseOverTargetCeiling,
+  type Audit,
+  type TargetCeilingRefusal,
+} from '#/usecase/subjects';
 
 // `amendProfileHandler` (#/view/routes/subjects.ts) reuses this for the
 // outer, transaction-aborting catch of `users_verified_phone_is_e164` — a
@@ -73,6 +78,7 @@ export interface AmendProfileInput {
   readonly subjectId: string;
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -87,6 +93,7 @@ export type AmendProfileOutcome =
   | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
   | { kind: 'precondition_failed' }
+  | TargetCeilingRefusal
   | { kind: 'ok'; view: Profile; etag: string };
 
 // `email` and `username` are typed on `amendProfileRequestSchema`
@@ -174,6 +181,9 @@ export async function amendProfile(
   // second's audit `before` would already be stale by the time it writes.
   // `FOR UPDATE` serialises them the same way `lockSubjectForAmend`
   // (#/usecase/subjects.ts) serialises a subject amendment.
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.profile_amend', input);
+  if (refused !== null) return refused;
   const current = await userRepository(tx).lockBySubjectId(input.subjectId);
   if (current === null) return { kind: 'not_found' };
 

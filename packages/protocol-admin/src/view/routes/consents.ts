@@ -5,10 +5,16 @@ import { listConsents, revokeConsent, type Audit } from '#/usecase/consents';
 import { problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
+import { targetCeilingProblem } from '#/view/routes/subjects';
 
 export interface ConsentsRouteDeps {
   readonly database: Database;
   readonly audit: Audit;
+  /** See `SubjectsRouteDeps.callerCapabilities` — the same resolution. */
+  readonly callerCapabilities: (
+    issuerTenantId: string,
+    subjectId: string,
+  ) => Promise<ReadonlySet<string>>;
   readonly now: () => Date;
 }
 
@@ -51,6 +57,11 @@ export function deleteConsentHandler(deps: ConsentsRouteDeps): AdminRouteHandler
       throw new Error('protocol-admin: DELETE consent route received no :id/:clientId');
     }
 
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       revokeConsent(
         tx,
@@ -59,6 +70,7 @@ export function deleteConsentHandler(deps: ConsentsRouteDeps): AdminRouteHandler
           subjectId: id,
           clientId,
           now: deps.now(),
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -69,6 +81,8 @@ export function deleteConsentHandler(deps: ConsentsRouteDeps): AdminRouteHandler
     switch (outcome.kind) {
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'revoked':
         return reply.code(204).send();
     }

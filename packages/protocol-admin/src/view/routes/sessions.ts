@@ -13,12 +13,18 @@ import {
 import { problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
+import { targetCeilingProblem } from '#/view/routes/subjects';
 
 export interface SessionsRouteDeps {
   readonly database: Database;
   readonly cursorKey: Uint8Array;
   readonly audit: Audit;
   readonly kek: Uint8Array;
+  /** See `SubjectsRouteDeps.callerCapabilities` — the same resolution. */
+  readonly callerCapabilities: (
+    issuerTenantId: string,
+    subjectId: string,
+  ) => Promise<ReadonlySet<string>>;
   readonly now: () => Date;
   /** Resolves the four `SessionLifespans` columns liveness needs — the same lookup `router.ts` already trusted to resolve this tenant. */
   readonly findTenant: (name: string) => Promise<TenantLookup | null>;
@@ -100,6 +106,11 @@ export function deleteSessionHandler(deps: SessionsRouteDeps): AdminRouteHandler
       throw new Error('protocol-admin: DELETE session route received no :tenant');
     }
 
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       endSession(
         tx,
@@ -108,6 +119,7 @@ export function deleteSessionHandler(deps: SessionsRouteDeps): AdminRouteHandler
           tenantId: targetTenantId,
           subjectId: id,
           sessionId,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -120,6 +132,8 @@ export function deleteSessionHandler(deps: SessionsRouteDeps): AdminRouteHandler
     switch (outcome.kind) {
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'ended':
         return reply.code(204).send();
     }
@@ -141,6 +155,11 @@ export function deleteAllSessionsHandler(deps: SessionsRouteDeps): AdminRouteHan
       throw new Error(`protocol-admin: sessions route resolved a tenant router.ts already found`);
     }
 
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       endAllSessions(
         tx,
@@ -149,6 +168,7 @@ export function deleteAllSessionsHandler(deps: SessionsRouteDeps): AdminRouteHan
           tenantId: targetTenantId,
           subjectId: id,
           lifespans: lifespansOf(tenant),
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -165,6 +185,8 @@ export function deleteAllSessionsHandler(deps: SessionsRouteDeps): AdminRouteHan
           request,
           problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
         );
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'ended':
         return reply.code(200).send({ ended: outcome.ended });
     }

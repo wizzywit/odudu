@@ -252,7 +252,7 @@ function amendmentProblem(
         request,
         problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches'),
       );
-    case 'capability_ceiling':
+    case 'target_ceiling':
       return targetCeilingProblem(reply, request, outcome.requested);
   }
 }
@@ -360,6 +360,8 @@ function profileAmendmentProblem(
         request,
         problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches'),
       );
+    case 'target_ceiling':
+      return targetCeilingProblem(reply, request, outcome.requested);
   }
 }
 
@@ -370,6 +372,10 @@ export function amendProfileHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
       throw new Error('protocol-admin: PATCH profile route received no :id');
     }
     const values = amendProfileRequestSchema.parse(request.body);
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     let outcome: Awaited<ReturnType<typeof amendProfile>>;
     try {
@@ -381,6 +387,7 @@ export function amendProfileHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
             subjectId: id,
             values,
             ifMatch: ifMatchHeader(request),
+            callerCapabilities,
             actorSubjectId: principal.subjectId,
             actorTenantId: principal.issuerTenantId,
             actorClientId: principal.clientDbId,
@@ -438,7 +445,7 @@ export function deleteSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
     switch (outcome.kind) {
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
-      case 'capability_ceiling':
+      case 'target_ceiling':
         return targetCeilingProblem(reply, request, outcome.requested);
       case 'deleted':
         return reply.code(204).send();
@@ -501,7 +508,7 @@ export function deleteCredentialHandler(deps: SubjectsRouteDeps): AdminRouteHand
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'refused':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
-      case 'capability_ceiling':
+      case 'target_ceiling':
         return targetCeilingProblem(reply, request, outcome.requested);
       case 'deleted':
         return reply.code(204).send();
@@ -565,6 +572,11 @@ export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHa
     }
     const body = setRequiredActionsRequestSchema.parse(request.body);
 
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       setRequiredActions(
         tx,
@@ -573,6 +585,7 @@ export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHa
           tenantId: targetTenantId,
           subjectId: id,
           actions: body.actions,
+          callerCapabilities,
           ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
@@ -587,6 +600,8 @@ export function setRequiredActionsHandler(deps: SubjectsRouteDeps): AdminRouteHa
           request,
           problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
         );
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'precondition_required':
         return sendProblem(reply, request, ifMatchRequired('a subject\u2019s required actions'));
       case 'precondition_failed':
@@ -643,6 +658,8 @@ export function setRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
             `unknown role id(s): ${outcome.roleIds.join(', ')}`,
           ),
         );
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'capability_ceiling':
         return sendProblem(
           reply,
@@ -738,6 +755,8 @@ export function setSubjectGroupsHandler(deps: SubjectsRouteDeps): AdminRouteHand
             `unknown group id(s): ${outcome.groupIds.join(', ')}`,
           ),
         );
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'capability_ceiling':
         return sendProblem(
           reply,

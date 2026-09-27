@@ -375,12 +375,14 @@ function buildAdminRoutes(
       cursorKey: deps.cursorKey,
       kek: deps.kek,
       audit: sessionAudit,
+      callerCapabilities,
       now: () => clock.now(),
       findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
     };
     const consentsDeps: ConsentsRouteDeps = {
       database: deps.database.db,
       audit: consentAudit,
+      callerCapabilities,
       now: () => clock.now(),
     };
     const accountRecoveryDeps: AccountRecoveryRouteDeps = {

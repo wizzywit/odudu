@@ -51,7 +51,7 @@ export function issuePasswordHandler(deps: AccountRecoveryRouteDeps): AdminRoute
           request,
           problem(404, 'about:blank', 'Not Found', `no user subject ${id}`),
         );
-      case 'capability_ceiling':
+      case 'target_ceiling':
         return targetCeilingProblem(reply, request, outcome.requested);
       case 'issued':
         return reply.code(201).send({ password: outcome.password });
@@ -66,6 +66,11 @@ export function clearLockoutHandler(deps: AccountRecoveryRouteDeps): AdminRouteH
       throw new Error('protocol-admin: DELETE lockout route received no :id');
     }
 
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       clearLockout(
         tx,
@@ -73,6 +78,7 @@ export function clearLockoutHandler(deps: AccountRecoveryRouteDeps): AdminRouteH
         {
           tenantId: targetTenantId,
           subjectId: id,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -87,6 +93,8 @@ export function clearLockoutHandler(deps: AccountRecoveryRouteDeps): AdminRouteH
           request,
           problem(404, 'about:blank', 'Not Found', `no user subject ${id}`),
         );
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
       case 'cleared':
         return reply.code(204).send();
     }

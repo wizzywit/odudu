@@ -158,9 +158,11 @@ accepts — the hyphenless and brace-wrapped forms are refused here. A tenant is
 document declares each of these parameters, so a generated client knows the
 shape of what it is filling.
 
-**Every admin response carries `cache-control: no-store`**, set once for
-the whole surface (`registerAdminRoutes`,
-`packages/protocol-admin/src/view/routes/router.ts`), refusals included:
+**Every admin API route's response carries `cache-control: no-store`**,
+set once for every route in the route table (`registerAdminRoutes`,
+`packages/protocol-admin/src/view/routes/router.ts`), refusals included —
+`/admin/openapi.json`, which is public and the same for every caller, is
+not one of them:
 each is specific to the caller that asked, and several carry a secret shown
 once — a registration token, a client secret, a one-time password. It was
 added after most of the transcripts below were captured, so a header block
@@ -1529,10 +1531,10 @@ general fields a subject exposes; everything else about a subject
 `If-Match`, answering `412` on a mismatch, the same convention every other
 amendment in this API follows — locked with `SELECT … FOR UPDATE` before
 the `ETag` is computed, so two concurrent amendments cannot both pass the
-precondition. A change to either is held to the target ceiling
-([`POST /subjects/:id/password`](#the-target-ceiling)): disabling an account
-or redirecting its email is refused with `403` when the subject holds an
-admin capability the caller does not.
+precondition. Held to the target ceiling
+([`POST /subjects/:id/password`](#the-target-ceiling)), as every route that
+mutates a subject is: refused with `403` when the subject holds an admin
+capability the caller does not.
 
 ```bash
 curl -sS -D - -X PATCH \
@@ -2159,24 +2161,31 @@ subject or one in another tenant.
 
 ### The target ceiling
 
-Issuing a password takes an account over, so **a caller may not do it to a
-subject holding an admin capability the caller does not hold** — the
-reverse of the ceiling `PUT /subjects/:id/roles` enforces, which stops a
-caller granting what it lacks. The same holds for every other door that can
-take an account over or remove it: `PATCH /subjects/:id` when it changes
-`email` (which redirects the next password reset) or `enabled`,
-`DELETE /subjects/:id/credentials/:credentialId`, and
-`DELETE /subjects/:id`. The target's capabilities are resolved through
-`effectiveRoles` — groups, their ancestors and composites included — and
-compared with the caller's own (`targetOverreach`,
-`packages/protocol-admin/src/service/capability-ceiling.ts`). A caller
-missing any of them is refused with `403`, naming what it lacks, and the
-attempt writes a `refused` row under the action it attempted, with
-`detail.denied`. A caller holding everything the target holds — a
-`tenant-admin` acting on another — is admitted, and so is anybody with the
-route's own capability acting on a subject holding none. Without it,
-`manage-users` alone would reach a `tenant-admin`'s password, and through
-it every capability the ceiling on roles withholds.
+**Every route that mutates one subject refuses a caller who does not hold
+every admin capability that subject holds.** That is every non-`GET` route
+under `/admin/tenants/{tenant}/subjects/{id}`: `PATCH` and `DELETE` on the
+subject itself, `PATCH …/profile`, `DELETE …/credentials/{credentialId}`,
+`DELETE …/consents/{clientId}`, `POST …/password`, `DELETE …/lockout`,
+`PUT …/required-actions`, `PUT …/roles`, `PUT …/groups`, `DELETE …/sessions`
+and `DELETE …/sessions/{sid}`. It is the reverse of the ceiling
+`PUT /subjects/:id/roles` enforces on what a caller grants, and it applies
+to roles and groups as well as that one: a ceiling only on doors that take
+an account over would leave the demotion that comes first open, since
+`PUT …/roles` with an empty list checks nothing it grants, and a
+`tenant-admin` emptied of its roles has nothing left for any later check to
+compare. The rule is checked first, under the subject's row lock, by one
+function (`targetOverreach`,
+`packages/protocol-admin/src/service/capability-ceiling.ts`), which
+resolves the target's capabilities through `effectiveRoles` — groups, their
+ancestors and composites included — and compares them with the caller's
+own. A caller missing any of them is refused with `403` naming what it
+lacks, and the attempt writes a `refused` row under the action it
+attempted, with `detail.denied`. A caller holding everything the target
+holds — a `tenant-admin` acting on another — is admitted, and so is anybody
+with the route's own capability acting on a subject holding none.
+`tests/target-ceiling.int.test.ts` reads the routes it sweeps from the route
+table, so a new mutating route under `/subjects/{id}` without the check
+fails it.
 
 ### Captured
 
@@ -2276,6 +2285,33 @@ echo
 {"type":"about:blank","title":"Forbidden","status":403,"detail":"the subject holds what the caller does not: manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0e305-352c-7c19-98f0-ac995ff67ab6"}
 {"type":"about:blank","title":"Forbidden","status":403,"detail":"the subject holds what the caller does not: manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0e305-3545-7f28-9e64-6ebcebd9bda8"}
 {"type":"about:blank","title":"Forbidden","status":403,"detail":"the subject holds what the caller does not: manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0e305-355e-7948-94aa-bd9f7b23958d"}
+```
+
+The demotion that would come first, refused the same way, from the same
+`mo` against the same `lin` — captured after a further rebuild made the
+ceiling uniform — then `lin`'s roles, unchanged, and the two `refused` rows
+it and a lockout clear wrote:
+
+```bash
+LIN=http://localhost:3000/admin/tenants/recovery-demo/subjects/01a0e303-cd42-76f3-92bd-9f1f860bc8a0
+ETAG=$(curl -sS -D - -o /dev/null -H "Authorization: Bearer $MO_TOKEN" "$LIN/roles" | tr -d '\r' | sed -n 's/^etag: //p')
+curl -sS -X PUT -H "Authorization: Bearer $MO_TOKEN" -H 'content-type: application/json' \
+  -H "If-Match: $ETAG" -d '{"role_ids":[]}' "$LIN/roles"
+echo
+curl -sS -X DELETE -H "Authorization: Bearer $MO_TOKEN" "$LIN/lockout"
+echo
+curl -sS -H "Authorization: Bearer $MO_TOKEN" "$LIN/roles"
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3000/admin/tenants/recovery-demo/audit?event_type=admin_mutation&outcome=refused&limit=2'
+echo
+```
+
+```
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the subject holds what the caller does not: manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0e31b-dfd1-7dbe-9d21-1820c8e9b418"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the subject holds what the caller does not: manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0e31b-dff3-78b3-be4a-18252929ff0e"}
+{"items":[{"id":"01a0e2e7-2b82-7a71-85ba-c29a1fda737a","name":"tenant-admin"}]}
+{"items":[{"id":"01a0e31b-e016-796a-98cf-0ab185eebe10","occurred_at":"2026-09-27T13:44:09.994Z","event_type":"admin_mutation","action":"subject.lockout_clear","outcome":"refused","actor_tenant_id":"01a0e2e7-2b73-7aa6-9b99-9e959d2ed2af","actor_subject_id":"01a0e303-cb74-73df-a5d4-034c577a4a93","actor_client_id":"01a0e2e7-2b7b-7ee3-af15-f175f6271d5e","resource_type":"subject","resource_id":"01a0e303-cd42-76f3-92bd-9f1f860bc8a0","request_id":"01a0e31b-dff3-78b3-be4a-18252929ff0e","ip":"172.20.0.1","detail":{"denied":["manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}},{"id":"01a0e31b-dfe7-7c3b-ad70-ddb4f9b3af59","occurred_at":"2026-09-27T13:44:09.956Z","event_type":"admin_mutation","action":"subject.roles_set","outcome":"refused","actor_tenant_id":"01a0e2e7-2b73-7aa6-9b99-9e959d2ed2af","actor_subject_id":"01a0e303-cb74-73df-a5d4-034c577a4a93","actor_client_id":"01a0e2e7-2b7b-7ee3-af15-f175f6271d5e","resource_type":"subject","resource_id":"01a0e303-cd42-76f3-92bd-9f1f860bc8a0","request_id":"01a0e31b-dfd1-7dbe-9d21-1820c8e9b418","ip":"172.20.0.1","detail":{"denied":["manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}],"next":"eyJhZnRlciI6IjIwMjYtMDktMjdUMTM6NDQ6MDkuOTU2WnwwMWEwZTMxYi1kZmU3LTdjM2ItYWQ3MC1kZGI0ZjliM2FmNTkiLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6IjAxYTBlMmU3LTJiNzMtN2FhNi05Yjk5LTllOTU5ZDJlZDJhZiIsImZpbHRlcnMiOiJVZDFzeWdzd19Oblp0UzJDZ2dXQk91dVc3UE5YT29TVFlRakVMdDlBN1JZIn0.Xa4G3go3J0il9gOWxX1d9GOvvlH7QrqXHwgmCKXvmv8"}
 ```
 
 `ada-recovery` is a subject of the system tenant, not of `recovery-demo`,
@@ -2397,7 +2433,11 @@ refused with `403`; this is what stops `manage-users` alone from assigning
 itself included (CWE-269). Replaces the subject's role assignments
 wholesale, the same convention `required-actions` follows: a role left out
 is one the caller clears, and stops appearing in the subject's
-`effectiveRoles` immediately.
+`effectiveRoles` immediately. Before any of that, the target ceiling
+([`POST /subjects/:id/password`](#the-target-ceiling)) refuses a caller who
+does not hold every capability the subject already holds — so an empty
+list cannot demote a `tenant-admin` out from under the check that would
+otherwise protect it.
 
 **`If-Match` is mandatory here, not optional.** This route replaces an
 authorization-bearing list whole, so a stale write reinstates exactly what
@@ -2461,8 +2501,10 @@ requested group or any of its ancestors, expanded through
 set reaching past them is refused with `403`, leaves the membership
 unchanged, and writes a `refused` row to the audit trail. The ceiling is
 measured over the whole resulting set, as it is for roles — a caller
-cannot resubmit a membership it could not itself have granted, and a
-removal lands only when what remains is within its reach.
+cannot resubmit a membership it could not itself have granted. And the
+target ceiling ([`POST /subjects/:id/password`](#the-target-ceiling))
+comes first: a subject holding a capability the caller does not cannot
+have any membership changed by that caller, removals included.
 
 **`If-Match` is mandatory here, not optional**, for the reason it is on
 `PUT /subjects/:id/roles`: absent, `428`; stale, `412`. The tag is over
@@ -4108,10 +4150,8 @@ its client capacity — and so does **every capability ceiling**:
 `POST /groups` and `PATCH /groups/{id}` choosing a parent,
 `PUT /subjects/{id}/roles`, `PUT /groups/{id}/roles`,
 `PUT /scopes/{id}/roles` and `POST /roles/{id}/composites`, and the target
-ceiling's `POST /subjects/{id}/password`, `PATCH /subjects/{id}` changing
-`email` or `enabled`, `DELETE /subjects/{id}/credentials/{credentialId}`
-and `DELETE /subjects/{id}`, each writing a row whose `detail` names the
-capabilities the caller does not hold. An
+ceiling on every non-`GET` route under `/subjects/{id}`, each writing a
+row whose `detail` names the capabilities the caller does not hold. An
 attempted privilege escalation is the refusal worth recording even while
 refusals in general are not. Every other mutation above writes an
 `admin_mutation` row only when it succeeds; `?outcome=refused` against a

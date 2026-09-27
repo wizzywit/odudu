@@ -4,6 +4,11 @@ import { consentRepository, type SubjectConsent } from '@odudu/domain-tenant';
 import { tokenGrantRepository } from '@odudu/protocol-oidc';
 import { eq } from 'drizzle-orm';
 import { redactedDiff } from '#/service/audit-detail';
+import {
+  lockSubjectRow,
+  refuseOverTargetCeiling,
+  type TargetCeilingRefusal,
+} from '#/usecase/subjects';
 
 // `resourceType: 'subject'` and not `'consent'`: a consent names no row of
 // its own a caller could look up afterward — `consents` carries no wire
@@ -48,6 +53,7 @@ export interface RevokeConsentInput {
   readonly subjectId: string;
   readonly clientId: string;
   readonly now: Date;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -57,7 +63,8 @@ export interface RevokeConsentDeps {
   readonly audit: Audit;
 }
 
-export type RevokeConsentOutcome = { kind: 'not_found' } | { kind: 'revoked' };
+export type RevokeConsentOutcome =
+  { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'revoked' };
 
 // Withdraws the grant and every token issued under it in the same
 // transaction — an offline_access family rotates indefinitely
@@ -73,6 +80,10 @@ export async function revokeConsent(
   deps: RevokeConsentDeps,
   input: RevokeConsentInput,
 ): Promise<RevokeConsentOutcome> {
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'consent.revoke', input);
+  if (refused !== null) return refused;
+
   const items = await consentRepository(tx).forSubject(input.subjectId);
   const consent = items.find((item) => item.clientId === input.clientId);
   if (consent === undefined) return { kind: 'not_found' };

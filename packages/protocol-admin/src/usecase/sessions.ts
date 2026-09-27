@@ -5,10 +5,14 @@ import {
   type SessionRecord,
 } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { subjects } from '@odudu/domain-identity';
 import { endSession as endOidcSession, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { asc, eq } from 'drizzle-orm';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
+import {
+  lockSubjectRow,
+  refuseOverTargetCeiling,
+  type TargetCeilingRefusal,
+} from '#/usecase/subjects';
 
 const COLLECTION = 'sessions';
 
@@ -146,6 +150,7 @@ export interface EndSessionInput {
   readonly tenantId: string;
   readonly subjectId: string;
   readonly sessionId: string;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -158,7 +163,7 @@ export interface EndSessionDeps {
   readonly kek: Uint8Array;
 }
 
-export type EndSessionOutcome = { kind: 'not_found' } | { kind: 'ended' };
+export type EndSessionOutcome = { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'ended' };
 
 // Locked so the ownership check below and P3b's own end-session write run
 // against the one row a concurrent amendment cannot move out from under
@@ -187,6 +192,13 @@ export async function endSession(
   deps: EndSessionDeps,
   input: EndSessionInput,
 ): Promise<EndSessionOutcome> {
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'session.end', input, {
+    type: 'session',
+    id: input.sessionId,
+  });
+  if (refused !== null) return refused;
+
   const locked = await lockOwnedSession(tx, input.subjectId, input.sessionId);
   if (locked === null) return { kind: 'not_found' };
 
@@ -219,6 +231,7 @@ export async function endSession(
 export interface EndAllSessionsInput {
   readonly tenantId: string;
   readonly subjectId: string;
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly lifespans: SessionLifespans;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
@@ -227,7 +240,8 @@ export interface EndAllSessionsInput {
   readonly now: Date;
 }
 
-export type EndAllSessionsOutcome = { kind: 'not_found' } | { kind: 'ended'; ended: number };
+export type EndAllSessionsOutcome =
+  { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'ended'; ended: number };
 
 // Every live session through the same `endSession` one session's `DELETE`
 // makes, so each has its grants revoked and its back-channel deliveries
@@ -239,11 +253,12 @@ export async function endAllSessions(
   deps: EndSessionDeps,
   input: EndAllSessionsInput,
 ): Promise<EndAllSessionsOutcome> {
-  const found = await tx
-    .select({ id: subjects.id })
-    .from(subjects)
-    .where(eq(subjects.id, input.subjectId));
-  if (found.length === 0) return { kind: 'not_found' };
+  if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'session.end_all', input, {
+    type: 'subject',
+    id: input.subjectId,
+  });
+  if (refused !== null) return refused;
 
   await tx
     .select({ id: sessions.id })

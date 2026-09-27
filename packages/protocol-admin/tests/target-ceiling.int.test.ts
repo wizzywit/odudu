@@ -2,7 +2,7 @@ import { requiredActionRepository } from '@odudu/authn-flows';
 import { generateTotpSecret } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
-import { roleRepository } from '@odudu/domain-authz';
+import { roleRepository, subjectRoles } from '@odudu/domain-authz';
 import { credentialRepository, subjectRepository, userRepository } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
@@ -12,8 +12,10 @@ import {
   TENANT_ADMIN,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
+import { eq } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ADMIN_ROUTES } from '#/service/capability';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 
 let fixtureHandle: AdminFixture | undefined;
@@ -103,6 +105,7 @@ function perform(
 }
 
 interface TargetState {
+  readonly roles: readonly string[];
   readonly exists: boolean;
   readonly enabled: boolean;
   readonly credentials: number;
@@ -114,6 +117,12 @@ async function stateOf(target: Target): Promise<TargetState> {
     const subject = await subjectRepository(tx).byId(target.subjectId);
     const user = await userRepository(tx).bySubjectId(target.subjectId);
     return {
+      roles: (
+        await tx
+          .select({ roleId: subjectRoles.roleId })
+          .from(subjectRoles)
+          .where(eq(subjectRoles.subjectId, target.subjectId))
+      ).map((row) => row.roleId),
       exists: subject !== null && user !== null,
       enabled: subject?.disabledAt === null,
       credentials: (await credentialRepository(tx).listFor(target.subjectId, 'totp')).length,
@@ -200,7 +209,7 @@ describe('an operation that can take over or remove an account', () => {
     expect(res.statusCode).toBeLessThan(300);
   });
 
-  it('refuses nothing on a PATCH that changes no email or enabled value', async () => {
+  it('refuses a PATCH that changes nothing, too — every mutation is held to it', async () => {
     const t = await fixture.createTenant(`ceiling-noop-${newId()}`);
     const target = await createTarget(t, [TENANT_ADMIN]);
     const token = await fixture.adminToken(t.name, ['manage-users']);
@@ -212,7 +221,7 @@ describe('an operation that can take over or remove an account', () => {
       payload: { enabled: true },
     });
 
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(403);
   });
 
   it('reads a system-tenant target in the system tenant', async () => {
@@ -227,5 +236,133 @@ describe('an operation that can take over or remove an account', () => {
 
     expect(res.statusCode).toBe(403);
     expect(res.json<{ detail: string }>().detail).toContain('view-audit');
+  });
+});
+
+// Every route that mutates one subject, read from the route table rather
+// than listed, so a mutating route added under `/subjects/:id` without the
+// ceiling fails here.
+const SUBJECT_MUTATIONS = ADMIN_ROUTES.filter(
+  (route) =>
+    route.method !== 'GET' && route.pattern.startsWith('/admin/tenants/:tenant/subjects/:id'),
+).map((route) => `${route.method} ${route.pattern}`);
+
+const REFUSED_ACTION: Readonly<Record<string, string>> = {
+  'PATCH /admin/tenants/:tenant/subjects/:id': 'subject.amend',
+  'DELETE /admin/tenants/:tenant/subjects/:id': 'subject.delete',
+  'PATCH /admin/tenants/:tenant/subjects/:id/profile': 'subject.profile_amend',
+  'DELETE /admin/tenants/:tenant/subjects/:id/credentials/:credentialId':
+    'subject.credential_delete',
+  'DELETE /admin/tenants/:tenant/subjects/:id/consents/:clientId': 'consent.revoke',
+  'POST /admin/tenants/:tenant/subjects/:id/password': 'subject.password_issue',
+  'DELETE /admin/tenants/:tenant/subjects/:id/lockout': 'subject.lockout_clear',
+  'PUT /admin/tenants/:tenant/subjects/:id/required-actions': 'subject.required_actions_set',
+  'PUT /admin/tenants/:tenant/subjects/:id/roles': 'subject.roles_set',
+  'PUT /admin/tenants/:tenant/subjects/:id/groups': 'subject.groups_set',
+  'DELETE /admin/tenants/:tenant/subjects/:id/sessions': 'session.end_all',
+  'DELETE /admin/tenants/:tenant/subjects/:id/sessions/:sid': 'session.end',
+};
+
+const BODIES: Readonly<Record<string, unknown>> = {
+  'PATCH /admin/tenants/:tenant/subjects/:id': { enabled: false },
+  'PATCH /admin/tenants/:tenant/subjects/:id/profile': { nickname: 'taken' },
+  'PUT /admin/tenants/:tenant/subjects/:id/required-actions': { actions: [] },
+  'PUT /admin/tenants/:tenant/subjects/:id/roles': { role_ids: [] },
+  'PUT /admin/tenants/:tenant/subjects/:id/groups': { group_ids: [] },
+};
+
+function sweep(key: string, target: Target, token: string): Promise<LightMyRequestResponse> {
+  const [method, pattern] = key.split(' ') as [string, string];
+  const url = pattern
+    .replace(':tenant', target.tenantName)
+    .replace(':id', target.subjectId)
+    .replace(':credentialId', target.credentialId)
+    .replace(':clientId', newId())
+    .replace(':sid', newId());
+  const body = BODIES[key];
+  return fixture.http.inject({
+    method: method as 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    url,
+    headers: {
+      authorization: `Bearer ${token}`,
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { payload: JSON.stringify(body) }),
+  });
+}
+
+function capabilityFor(key: string): string {
+  const capability = ADMIN_ROUTES.find((r) => `${r.method} ${r.pattern}` === key)?.capability;
+  if (capability === undefined || capability === null) throw new Error(`no capability for ${key}`);
+  return capability;
+}
+
+describe('the target ceiling holds on every route that mutates a subject', () => {
+  it('covers exactly the routes that mutate a subject', () => {
+    expect([...SUBJECT_MUTATIONS].sort()).toEqual(Object.keys(REFUSED_ACTION).sort());
+  });
+
+  it.each(SUBJECT_MUTATIONS)(
+    '%s: refuses a caller short of a tenant-admin target, changing nothing',
+    async (key) => {
+      const t = await fixture.createTenant(`sweep-${newId()}`);
+      const target = await createTarget(t, [TENANT_ADMIN]);
+      const before = await stateOf(target);
+
+      const token = await fixture.adminToken(t.name, [capabilityFor(key)]);
+      const res = await sweep(key, target, token);
+
+      expect(res.statusCode).toBe(403);
+      expect(await stateOf(target)).toEqual(before);
+      const rows = await withTenant(fixture.app.db, t.id, (tx) =>
+        auditRepository(tx).list({ limit: 50 }),
+      );
+      const refused = rows.filter(
+        (row) => row.action === REFUSED_ACTION[key] && row.outcome === 'refused',
+      );
+      expect(refused).toHaveLength(1);
+      expect((refused[0]?.detail as { denied?: string[] } | null)?.denied).toContain(
+        'manage-tenant',
+      );
+    },
+  );
+
+  it.each(SUBJECT_MUTATIONS)('%s: admits a tenant-admin acting on a tenant-admin', async (key) => {
+    const t = await fixture.createTenant(`sweep-peer-${newId()}`);
+    const target = await createTarget(t, [TENANT_ADMIN]);
+
+    const res = await sweep(key, target, await fixture.adminToken(t.name, [TENANT_ADMIN]));
+
+    expect(res.statusCode).not.toBe(403);
+  });
+
+  it('refuses the demotion that would empty the target before a takeover', async () => {
+    const t = await fixture.createTenant(`sweep-demote-${newId()}`);
+    const target = await createTarget(t, [TENANT_ADMIN]);
+    const before = await stateOf(target);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const headers = { authorization: `Bearer ${token}` };
+    const base = `/admin/tenants/${t.name}/subjects/${target.subjectId}`;
+
+    const rolesRead = await fixture.http.inject({ method: 'GET', url: `${base}/roles`, headers });
+    const demoted = await fixture.http.inject({
+      method: 'PUT',
+      url: `${base}/roles`,
+      headers: { ...headers, 'if-match': String(rolesRead.headers.etag) },
+      payload: { role_ids: [] },
+    });
+    const groupsRead = await fixture.http.inject({ method: 'GET', url: `${base}/groups`, headers });
+    const ungrouped = await fixture.http.inject({
+      method: 'PUT',
+      url: `${base}/groups`,
+      headers: { ...headers, 'if-match': String(groupsRead.headers.etag) },
+      payload: { group_ids: [] },
+    });
+    const issued = await fixture.http.inject({ method: 'POST', url: `${base}/password`, headers });
+
+    expect(demoted.statusCode).toBe(403);
+    expect(ungrouped.statusCode).toBe(403);
+    expect(issued.statusCode).toBe(403);
+    expect(await stateOf(target)).toEqual(before);
   });
 });

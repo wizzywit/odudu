@@ -5,11 +5,14 @@ import {
   generateOneTimePassword,
   hashPassword,
   loginFailureRepository,
-  subjects,
   users,
 } from '@odudu/domain-identity';
 import { eq } from 'drizzle-orm';
-import { refuseOverTargetCeiling, type TargetCeilingRefusal } from '#/usecase/subjects';
+import {
+  lockSubjectRow,
+  refuseOverTargetCeiling,
+  type TargetCeilingRefusal,
+} from '#/usecase/subjects';
 
 export interface AccountRecoveryAuditEvent {
   readonly action: 'subject.password_issue' | 'subject.lockout_clear';
@@ -31,9 +34,6 @@ export interface AccountRecoveryInput {
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
-}
-
-export interface IssuePasswordInput extends AccountRecoveryInput {
   readonly callerCapabilities: ReadonlySet<string>;
 }
 
@@ -45,23 +45,17 @@ export interface IssuePasswordDeps extends AccountRecoveryDeps {
   /**
    * Spends every reset-password link still outstanding for the subject, as
    * a redeemed reset does. Injected because the links belong to
-   * `@odudu/account`, which this package does not depend on.
+   * `@odudu/account`, which this package does not import in production code.
    */
   readonly retireResetLinks: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
 }
 
 // A subject with no `users` row — a service or agent_instance subject — has
-// no sign-in to recover, and is not found here. `lock` takes the subject
-// row, so two concurrent issues serialize and the password the later one
-// answers is the one in force.
-async function isUserSubject(
-  tx: TenantScopedDatabase,
-  subjectId: string,
-  lock: boolean,
-): Promise<boolean> {
-  const query = tx.select({ id: subjects.id }).from(subjects).where(eq(subjects.id, subjectId));
-  const found = lock ? await query.for('update') : await query;
-  if (found.length === 0) return false;
+// no sign-in to recover, and is not found here. The subject row is locked,
+// as every mutation of one subject locks it, so two concurrent issues
+// serialize and the password the later one answers is the one in force.
+async function isUserSubject(tx: TenantScopedDatabase, subjectId: string): Promise<boolean> {
+  if (!(await lockSubjectRow(tx, subjectId))) return false;
   const user = await tx
     .select({ subjectId: users.subjectId })
     .from(users)
@@ -82,9 +76,9 @@ export type IssuePasswordOutcome =
 export async function issuePassword(
   tx: TenantScopedDatabase,
   deps: IssuePasswordDeps,
-  input: IssuePasswordInput,
+  input: AccountRecoveryInput,
 ): Promise<IssuePasswordOutcome> {
-  if (!(await isUserSubject(tx, input.subjectId, true))) return { kind: 'not_found' };
+  if (!(await isUserSubject(tx, input.subjectId))) return { kind: 'not_found' };
   const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.password_issue', input);
   if (refused !== null) return refused;
 
@@ -118,7 +112,8 @@ export async function issuePassword(
   return { kind: 'issued', password };
 }
 
-export type ClearLockoutOutcome = { kind: 'not_found' } | { kind: 'cleared' };
+export type ClearLockoutOutcome =
+  { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'cleared' };
 
 // Deletes the subject's `login_failures` row, which is what a correct
 // password accepted by an unlocked account does — so the run of failures
@@ -130,7 +125,9 @@ export async function clearLockout(
   deps: AccountRecoveryDeps,
   input: AccountRecoveryInput,
 ): Promise<ClearLockoutOutcome> {
-  if (!(await isUserSubject(tx, input.subjectId, false))) return { kind: 'not_found' };
+  if (!(await isUserSubject(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.lockout_clear', input);
+  if (refused !== null) return refused;
 
   const cleared = await loginFailureRepository(tx).clear(input.subjectId);
 

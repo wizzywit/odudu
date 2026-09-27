@@ -122,6 +122,11 @@ export interface AdminRoute {
 // carry no `:tenant` segment — they administer the tenant collection
 // itself, which only a system-tenant admin reaches (router.ts resolves
 // its target explicitly).
+// Appended to the description of every route that mutates one subject.
+const TARGET_CEILING =
+  ' Refused with `403` when the subject holds an admin capability the caller does not ' +
+  '(the target ceiling).';
+
 export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'GET',
@@ -163,6 +168,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: subjectSchema,
     bodySchema: amendSubjectRequestSchema,
+    description: TARGET_CEILING.trimStart(),
   },
   {
     method: 'DELETE',
@@ -170,6 +176,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: z.void(),
     successStatus: 204,
+    description: TARGET_CEILING.trimStart(),
   },
   {
     method: 'GET',
@@ -191,7 +198,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       '`phone_number_verified` in the same request resets it to `false` — a different number ' +
       'is not a verified one, the way amending `email` through the subjects route resets ' +
       '`email_verified`; resubmitting the same number leaves it untouched. `If-Match` is ' +
-      'optional: honoured when present, never required.',
+      'optional: honoured when present, never required.' +
+      TARGET_CEILING,
   },
   {
     method: 'GET',
@@ -205,6 +213,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: z.void(),
     successStatus: 204,
+    description: TARGET_CEILING.trimStart(),
   },
   {
     method: 'GET',
@@ -221,7 +230,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Withdraws the grant so the next `/authorize` for this client asks again, and revokes ' +
       'every token issued under it — a subject who revokes access is not still impersonated ' +
-      'by a refresh token that outlives the consent it was granted under.',
+      'by a refresh token that outlives the consent it was granted under.' +
+      TARGET_CEILING,
   },
   {
     method: 'POST',
@@ -234,7 +244,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'answered once in this body and never again, and owes `update-password` so the ' +
       'subject changes it at the next sign-in. Ends no session and revokes no grant, as a ' +
       'password reset does not; `DELETE /admin/tenants/{tenant}/subjects/{id}/sessions` is ' +
-      'that door. A subject with no `users` row answers `404`.',
+      'that door. A subject with no `users` row answers `404`.' +
+      TARGET_CEILING,
   },
   {
     method: 'DELETE',
@@ -244,7 +255,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     successStatus: 204,
     description:
       'Clears the subject\u2019s brute-force failure count, and with it any lockout, so ' +
-      'the next correct password signs in. `204` whether or not anything was recorded.',
+      'the next correct password signs in. `204` whether or not anything was recorded; `404` ' +
+      'for a subject with no `users` row, which has no sign-in to be locked out of.' +
+      TARGET_CEILING,
   },
   {
     method: 'GET',
@@ -259,7 +272,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: setRequiredActionsResponseSchema,
     bodySchema: setRequiredActionsRequestSchema,
     description:
-      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
+      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
+      TARGET_CEILING,
   },
   // The capability ceiling this route enforces — a caller may never assign
   // authority it does not itself hold — is checked in the usecase
@@ -279,7 +293,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: setRolesResponseSchema,
     bodySchema: setRolesRequestSchema,
     description:
-      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
+      'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
+      TARGET_CEILING,
   },
   // Joining a group grants its roles and its ancestors', so this route's
   // capability ceiling (`setSubjectGroups`, #/usecase/subjects.ts) is the
@@ -298,7 +313,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: setSubjectGroupsResponseSchema,
     bodySchema: setSubjectGroupsRequestSchema,
     description:
-      'Replaces the subject\u2019s direct memberships. `If-Match` is mandatory (`428` absent, `412` stale). Refused with `403` when the groups, their ancestors or the composites their roles nest reach an admin capability the caller does not hold.',
+      'Replaces the subject\u2019s direct memberships. `If-Match` is mandatory (`428` absent, `412` stale). Refused with `403` when the groups, their ancestors or the composites their roles nest reach an admin capability the caller does not hold.' +
+      TARGET_CEILING,
   },
   // No `view-sessions`: reached only by an operator who can also end one,
   // the same reasoning that leaves clients with no `view-clients`.
@@ -319,7 +335,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       '`DELETE /admin/tenants/{tenant}/subjects/{id}/sessions/{sid}` ends one: its grants ' +
       'revoked and a Back-Channel Logout Token delivered to every registered client that ' +
       'used it. Answers how many were ended. A grant bound to no session — `offline_access` — ' +
-      'is left alone, as it is by ending one.',
+      'is left alone, as it is by ending one.' +
+      TARGET_CEILING,
   },
   {
     method: 'DELETE',
@@ -330,7 +347,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Ends the session and delivers a Back-Channel Logout Token to every registered ' +
       'client that used it. No Front-Channel Logout is attempted: there is no browser ' +
-      'here to render its iframes in.',
+      'here to render its iframes in.' +
+      TARGET_CEILING,
   },
   {
     method: 'GET',
