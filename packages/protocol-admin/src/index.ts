@@ -20,6 +20,7 @@ import { type Audit as ScopeAudit } from '#/usecase/scopes';
 import { type Audit as ScopeMapperAudit, type MapperCatalogue } from '#/usecase/scope-mappers';
 import { type Audit as SettingsAudit } from '#/usecase/settings';
 import { type Audit as TenantExportAudit } from '#/usecase/tenant-export';
+import { type Audit as TenantImportAudit } from '#/usecase/tenant-import';
 import { type Audit as SmtpAudit } from '#/usecase/smtp';
 import { type Audit as AccountRecoveryAudit } from '#/usecase/account-recovery';
 import { type Audit as ConsentAudit } from '#/usecase/consents';
@@ -132,6 +133,7 @@ import {
   type SettingsRouteDeps,
 } from '#/view/routes/settings';
 import { exportTenantHandler, type TenantExportRouteDeps } from '#/view/routes/tenant-export';
+import { importTenantHandler, type TenantImportRouteDeps } from '#/view/routes/tenant-import';
 import {
   amendProfileHandler,
   amendSubjectHandler,
@@ -285,6 +287,7 @@ function buildAdminRoutes(
     const smtpAudit: SmtpAudit = recordAudit;
     const settingsAudit: SettingsAudit = recordAudit;
     const tenantExportAudit: TenantExportAudit = recordAudit;
+    const tenantImportAudit: TenantImportAudit = recordAudit;
     // Same call `authzDeps.effectiveRoles` makes below, scoped to whichever
     // tenant the caller's own token was issued from — never the target
     // tenant a cross-tenant system admin is reaching into. Shared by
@@ -360,6 +363,17 @@ function buildAdminRoutes(
     const tenantExportDeps: TenantExportRouteDeps = {
       database: deps.database.db,
       audit: tenantExportAudit,
+      callerCapabilities,
+    };
+    const tenantImportDeps: TenantImportRouteDeps = {
+      database: deps.database.db,
+      kek: deps.kek,
+      audit: tenantImportAudit,
+      hashClientSecret: hashPassword,
+      tlsClientAuthEnabled: deps.trustProxy ?? false,
+      claimMappers: deps.claimMappers,
+      tenantNameTaken: async (name) =>
+        (await tenantLookupRepository(deps.ownerDatabase.db).byName(name)) !== null,
       callerCapabilities,
     };
     const settingsDeps: SettingsRouteDeps = {
@@ -442,6 +456,7 @@ function buildAdminRoutes(
       'GET /admin/tenants': listTenantsHandler(tenantsDeps),
       'GET /admin/tenants/count': countTenantsHandler(countsDeps),
       'POST /admin/tenants': createTenantHandler(tenantsDeps),
+      'POST /admin/tenant-imports': importTenantHandler(tenantImportDeps),
       'GET /admin/tenants/:tenant': readTenantHandler(tenantsDeps),
       'PATCH /admin/tenants/:tenant': amendTenantHandler(tenantsDeps),
       'GET /admin/tenants/:tenant/export': exportTenantHandler(tenantExportDeps),

@@ -16,6 +16,35 @@ export interface ProvisionAdminClientOptions {
   readonly crossTenant?: boolean;
 }
 
+export interface CapabilityRoleGraph {
+  /** Every role on the built-in admin client, by name. */
+  readonly roles: readonly string[];
+  /** Each composite edge between them, as `[parent, child]`. */
+  readonly composites: readonly (readonly [string, string])[];
+}
+
+/**
+ * What `provisionAdminClient` creates on the built-in admin client, as
+ * data: read by a tenant import to tell a capability role the new tenant
+ * provisions from one a document would have to invent.
+ */
+export function capabilityRoleGraph(
+  options: ProvisionAdminClientOptions = {},
+): CapabilityRoleGraph {
+  const composites: (readonly [string, string])[] = [];
+  for (const capability of TENANT_CAPABILITIES) {
+    composites.push([TENANT_ADMIN, capability]);
+    const view = viewCounterpart(capability);
+    if (view !== null) composites.push([capability, view]);
+  }
+  const crossTenant = options.crossTenant === true;
+  if (crossTenant) composites.push([TENANT_ADMIN, MANAGE_TENANTS]);
+  return {
+    roles: [TENANT_ADMIN, ...TENANT_CAPABILITIES, ...(crossTenant ? [MANAGE_TENANTS] : [])],
+    composites,
+  };
+}
+
 export interface ProvisionedAdminClient {
   readonly clientDbId: string;
 }
@@ -63,22 +92,19 @@ export async function provisionAdminClient(
   const clientDbId = client.id;
 
   const roles = roleRepository(tx);
-  const ensure = async (name: string): Promise<string> => {
+  const graph = capabilityRoleGraph(options);
+  const ids = new Map<string, string>();
+  for (const name of graph.roles) {
     const found = await roles.byName(name, clientDbId);
-    if (found !== null) return found.id;
-    const role = await roles.create({ tenantId, clientId: clientDbId, name });
-    return role.id;
-  };
-
-  const composite = await ensure(TENANT_ADMIN);
-  for (const capability of TENANT_CAPABILITIES) {
-    const roleId = await ensure(capability);
-    await roles.addComposite(composite, roleId);
-    const view = viewCounterpart(capability);
-    if (view !== null) await roles.addComposite(roleId, await ensure(view));
+    ids.set(name, found?.id ?? (await roles.create({ tenantId, clientId: clientDbId, name })).id);
   }
-  if (options.crossTenant === true) {
-    await roles.addComposite(composite, await ensure(MANAGE_TENANTS));
+  for (const [parent, child] of graph.composites) {
+    const parentId = ids.get(parent);
+    const childId = ids.get(child);
+    if (parentId === undefined || childId === undefined) {
+      throw new Error(`capability role graph names ${parent} or ${child} without a role`);
+    }
+    await roles.addComposite(parentId, childId);
   }
   return { clientDbId };
 }

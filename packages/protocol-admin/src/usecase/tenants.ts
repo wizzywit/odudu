@@ -110,6 +110,26 @@ async function mintSigningKey(
 }
 
 /**
+ * The row, its browser flow, its built-in admin client and its signing key,
+ * inside a transaction `withTenant` has already bound to `row.id` — shared
+ * by creating a tenant and importing one, so the two cannot provision
+ * differently.
+ */
+export async function insertProvisionedTenant(
+  tx: TenantScopedDatabase,
+  kek: Uint8Array,
+  row: { readonly id: string; readonly name: string; readonly displayName: string | null },
+): Promise<TenantRecord> {
+  const rows = await tx.insert(tenants).values(row).returning(TENANT_COLUMNS);
+  const created = rows[0];
+  if (created === undefined) throw new Error('insert into tenants returned no row');
+  await provisionTenant(tx, row.id);
+  await provisionAdminClient(tx, row.id);
+  await mintSigningKey(tx, row.id, kek);
+  return created;
+}
+
+/**
  * One transaction: the row, its browser flow, its built-in admin client and
  * its signing key. `withTenant` binds `app.tenant_id` to the id about to be
  * inserted before the row exists — the same RLS-satisfying order
@@ -141,18 +161,11 @@ export async function createTenant(
       deps.database,
       id,
       async (tx) => {
-        const rows = await tx
-          .insert(tenants)
-          .values({ id, name: input.name, displayName: input.displayName ?? null })
-          .returning(TENANT_COLUMNS);
-        const created = rows[0];
-        if (created === undefined) {
-          throw new Error('insert into tenants returned no row');
-        }
-
-        await provisionTenant(tx, id);
-        await provisionAdminClient(tx, id);
-        await mintSigningKey(tx, id, deps.kek);
+        const created = await insertProvisionedTenant(tx, deps.kek, {
+          id,
+          name: input.name,
+          displayName: input.displayName ?? null,
+        });
 
         // Written inside the same transaction as the row it describes: a
         // rollback below leaves no audit row for a tenant that never existed.

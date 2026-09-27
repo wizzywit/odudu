@@ -75,7 +75,9 @@ export {
   type RegistrationTokenRecord,
 } from '#/repository/client-registration-tokens';
 export {
+  capabilityRoleGraph,
   provisionAdminClient,
+  type CapabilityRoleGraph,
   type ProvisionAdminClientOptions,
   type ProvisionedAdminClient,
 } from '#/usecase/provision-admin-client';

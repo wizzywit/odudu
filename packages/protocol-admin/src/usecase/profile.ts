@@ -110,8 +110,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
 // sends — the same mapping `profileWireShape` reads in reverse. Excludes
 // `phoneNumberVerified`, `ProfileUpdate`'s one non-string member, so every
 // value this maps to shares the same `string | null` property type.
-type StringClaimKey = Exclude<keyof ProfileUpdate, 'phoneNumberVerified'>;
-const CLAIM_KEY: Readonly<Record<string, StringClaimKey>> = {
+export type StringClaimKey = Exclude<keyof ProfileUpdate, 'phoneNumberVerified'>;
+export const CLAIM_KEY: Readonly<Record<string, StringClaimKey>> = {
   name: 'name',
   given_name: 'givenName',
   family_name: 'familyName',
@@ -142,7 +142,7 @@ const URL_FIELDS = new Set(['profile', 'picture', 'website']);
 // `phone_number`'s own E.164 requirement is conditional on
 // `phone_number_verified`, so it is checked separately, against the
 // patch's final state, once both are known — never per-field here.
-function shapeInvalidityFor(field: string, value: string): string | null {
+export function shapeInvalidityFor(field: string, value: string): string | null {
   if (field === 'birthdate' && !isValidBirthdate(value)) {
     return `${JSON.stringify(value)} is not a birthdate the claim may carry (YYYY-MM-DD, or YYYY alone)`;
   }

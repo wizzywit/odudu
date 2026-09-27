@@ -84,6 +84,9 @@ import {
   exportTenantQuerySchema,
   TENANT_DOCUMENT_MEDIA_TYPE,
   tenantDocumentSchema,
+  importTenantRequestSchema,
+  importTenantResponseSchema,
+  TENANT_IMPORT_BODY_LIMIT,
 } from '@odudu/contracts/admin';
 import { MANAGE_TENANTS, type TenantCapability } from '@odudu/domain-tenant';
 import { z } from 'zod';
@@ -116,6 +119,8 @@ export interface AdminRoute {
   // handler could quietly disagree with.
   readonly querystringSchema?: z.ZodType;
   readonly bodySchema?: z.ZodType;
+  // Fastify's per-route body limit, in bytes — omitted, the server's own.
+  readonly bodyLimit?: number;
   // Extra prose `/admin/openapi.json` carries beside the generated
   // capability summary — for a caveat a generated client's user needs
   // without reading this repository's own docs.
@@ -378,6 +383,20 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: tenantSchema,
     successStatus: 201,
     bodySchema: createTenantRequestSchema,
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenant-imports',
+    capability: MANAGE_TENANTS,
+    responseSchema: importTenantResponseSchema,
+    successStatus: 201,
+    bodySchema: importTenantRequestSchema,
+    bodyLimit: TENANT_IMPORT_BODY_LIMIT,
+    description:
+      'Creates a new tenant from a document `GET /admin/tenants/{tenant}/export` answered, with ' +
+      'its own signing key and a fresh secret for each confidential client, answered once here. ' +
+      'Every problem with the request is refused together in one `400` whose `errors` lists each ' +
+      'by its JSON path; a name already in use is refused with `409`.',
   },
   {
     method: 'GET',

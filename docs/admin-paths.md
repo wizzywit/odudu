@@ -121,7 +121,10 @@ id, secret and timestamp are later than the rest of this section's.
 system tenant, in tenants `settings-demo` and `rename-demo` created for
 them, as each section says. `GET /export` was captured after one more
 rebuild, as a new admin subject `ada-export`, in a tenant `export-demo`
-created for it, as that section says.
+created for it, as that section says. `POST /admin/tenant-imports` was
+captured after one more rebuild, as a new admin subject `ada-import`, from
+a tenant `import-source` created for it into a tenant `import-demo`, as
+that section says.
 
 ## The shape of it
 
@@ -189,6 +192,7 @@ captured before it does not show the line; the ones under
 | `GET`    | `/admin/tenants`                                                 | List tenants                              |
 | `GET`    | `/admin/tenants/count`                                           | Count tenants                             |
 | `POST`   | `/admin/tenants`                                                 | Create a tenant                           |
+| `POST`   | `/admin/tenant-imports`                                          | Import a tenant from a document           |
 | `GET`    | `/admin/tenants/{tenant}`                                        | Read one tenant                           |
 | `PATCH`  | `/admin/tenants/{tenant}`                                        | Amend one tenant                          |
 | `GET`    | `/admin/tenants/{tenant}/export`                                 | Export a tenant's configuration           |
@@ -788,6 +792,236 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"username":"grace","email":"grace@example.com","enabled":true,"profile":{"name":null,"given_name":null,"family_name":null,"middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null},"roles":[],"groups":["/finance"],"required_actions":["update-password"]}
 {"username":"tenant-operator","email":null,"enabled":true,"profile":{"name":null,"given_name":null,"family_name":null,"middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null},"roles":[{"name":"manage-tenant","client":"odudu-admin"}],"groups":[],"required_actions":[]}
 ["clients[0].secret","smtp.password","subjects[1].credentials"]
+```
+
+## `POST /admin/tenant-imports`
+
+`POST /admin/tenant-imports` requires `manage-tenants` and always creates a
+new tenant, from a document `GET /export` answered. The body is
+`{"name": …, "display_name": …, "document": …}`; `display_name` is optional,
+and without it the document's own `settings.display_name` is used. Merging
+into an existing tenant is not offered.
+
+The whole request is validated before anything is written, and every
+problem is answered together in one `400` whose `errors` lists each with
+its JSON path from the body — `name`, or `document.clients[0].redirect_uris`.
+The checks run in this order: the tenant name, by the same rule
+`POST /admin/tenants` applies (`system` and `count` included); the document
+against the export's own schema, which stops there if it fails; every
+cross-reference, repeated name and composite cycle; each client through
+`parseClientMetadata`, the validator registration and `POST /clients` use,
+so a `jwks` key carrying a private member is refused here too; and last the
+rules every admin API write is held to. A role with
+`default_for_new_subjects` may not reach an admin capability through any
+depth of composites, as under `PUT /roles/:id/default`. Nothing the document
+grants may carry a capability the caller does not hold, the ceiling
+`PUT /subjects/:id/roles` applies. A reserved name is a `400` here rather
+than the `409` `POST /admin/tenants` answers, so that it is reported
+beside the document's own problems. A name another tenant holds is refused
+with `409` once the request is otherwise sound, still before any write. The one
+problem found by writing is a setting outside its permitted range, since
+those ranges are CHECK constraints alone: it is answered as a `400` at
+`document.settings`, and the transaction is rolled back with nothing of the
+tenant left.
+
+What provisioning creates is matched, never created twice. A role marked
+`builtin` is matched by its name on `odudu-admin`, a scope marked `builtin`
+by its name, and the attributes the admin API lets an operator edit on
+them — a role's `description` and added composites, a scope's
+`description`, its two `include_in_*` flags, its role mappings, mapper
+bindings and client assignments — are applied from the document. A
+built-in scope the document leaves out is deleted, as it was where the
+document came from; `openid`, which cannot be deleted, is required. A
+built-in the new tenant does not provision, such as the system tenant's
+`manage-tenants`, is refused, as is any other role on `odudu-admin`: a
+document cannot mint a capability. So is leaving out a composite that
+provisioning gives a capability role, which `DELETE /roles/:id/composites`
+would refuse to remove.
+
+Then one transaction creates the tenant the way `POST /admin/tenants` does
+— its row, flow, built-in admin client and a signing key of its own, never
+the source's — and writes the document into it: settings, flow, clients,
+roles and their composites, groups, scopes, service-account roles, SMTP and
+subjects, in that order. Each confidential client is given a fresh secret,
+answered once under `client_secrets` in the `201` and never logged or
+written to the trail. The SMTP relay arrives without a password, since none
+travels; `PUT /smtp` sets one. A subject arrives with no credential and an
+`update-password` required action, beside any it already owed. The import
+writes one `tenant.import` row into the new tenant's trail, whose `detail`
+carries the document's `version` and how many clients, roles, groups,
+scopes and subjects it held.
+
+So a document exported from the imported tenant equals the one imported,
+apart from `settings.display_name` when the request names another, the
+`omitted` list — no client secret, SMTP password or credential was carried
+across — and each subject's `required_actions`, which gains
+`update-password`. `packages/protocol-admin/tests/tenant-import.int.test.ts`
+holds a round trip to exactly that.
+
+A document with the export's full 10,000 subjects runs to several
+megabytes, so this route admits a body of up to 16 MiB, where every other
+route keeps Fastify's default of one; a larger body is refused with `413`.
+
+Captured against the fourth stack (the note at the top of this document)
+after its `odudu` service was rebuilt from this branch, as a new admin
+subject `ada-import` in the system tenant. Before the capture, a tenant
+`import-source` was created through `POST /admin/tenants` and given a
+confidential `client_credentials` client `billing-app`, a tenant role
+`billing-reader`, a group `finance` holding it, and a subject `grace` who
+belongs to it. Both tenants and the secret below are throwaway: they were
+made for this capture and hold nothing else.
+
+The export, saved, then imported under a new name:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/import-source/export?include=subjects" > source.json
+jq -n --slurpfile document source.json \
+  '{name: "import-demo", display_name: "Import demo", document: $document[0]}' \
+  | curl -sS -D - -X POST \
+      -H "Authorization: Bearer $ADMIN_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data-binary @- \
+      http://localhost:3000/admin/tenant-imports
+```
+
+```
+HTTP/1.1 201 Created
+x-request-id: 01a0e4ef-83c6-77c1-a4b0-6134bb23672e
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 263
+Date: Sun, 27 Sep 2026 22:14:57 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"tenant":{"id":"01a0e4ef-83e3-7e38-b431-de84892f93ed","name":"import-demo","display_name":"Import demo","enabled":true,"created_at":"2026-09-27T22:14:57.251Z"},"client_secrets":[{"client_id":"billing-app","secret":"j5Unrg2WK5yRFZpl0imdKqYl6QPRZ3J4W4jeZr-PLmo"}]}
+```
+
+The secret it answered authenticates at the new tenant's `/token`:
+
+```bash
+curl -sS -u 'billing-app:j5Unrg2WK5yRFZpl0imdKqYl6QPRZ3J4W4jeZr-PLmo' \
+  --data-urlencode 'grant_type=client_credentials' \
+  http://localhost:3000/tenants/import-demo/protocol/openid-connect/token \
+  | jq -c '{token_type, expires_in, has_access_token: (.access_token | length > 0)}'
+```
+
+```
+{"token_type":"Bearer","expires_in":300,"has_access_token":true}
+```
+
+The new tenant exported again, compared with the source's document with
+`omitted` and `settings.display_name` set aside — `grace` already owed
+`update-password` in the source, so her `required_actions` are unchanged —
+and then those two fields side by side:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/import-demo/export?include=subjects" > imported.json
+diff <(jq -S 'del(.omitted, .settings.display_name)' source.json) \
+     <(jq -S 'del(.omitted, .settings.display_name)' imported.json) && echo identical
+jq -c '{display_name: .settings.display_name, omitted}' source.json imported.json
+```
+
+```
+identical
+{"display_name":"Import source","omitted":["clients[0].secret"]}
+{"display_name":"Import demo","omitted":["clients[0].secret"]}
+```
+
+Each tenant's signing key, then the import's row in the new tenant's trail:
+
+```bash
+for tenant in import-source import-demo; do
+  curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+    "http://localhost:3000/admin/tenants/$tenant/keys" | jq -c '[.items[].kid]'
+done
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/import-demo/audit?action=tenant.import"
+```
+
+```
+["01a0e4ef-6489-7186-9281-1299d1579a48"]
+["01a0e4ef-8418-7d37-87a5-8e8d67ad27fe"]
+{"items":[{"id":"01a0e4ef-8499-7ad5-8954-218bebd4c5a9","occurred_at":"2026-09-27T22:14:57.251Z","event_type":"admin_mutation","action":"tenant.import","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e4ee-d4a4-71d7-aba0-9a5078555feb","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4ef-83e3-7e38-b431-de84892f93ed","request_id":"01a0e4ef-83c6-77c1-a4b0-6134bb23672e","ip":"172.20.0.1","detail":{"counts":{"roles":9,"groups":1,"scopes":8,"clients":1,"subjects":1},"source_version":1}}]}
+```
+
+A document broken in two places at once — a scope mapping naming a role
+that does not exist, and a redirect URI registration would refuse. In the
+saved document `scopes[0]` is `address`, mapping no role, and `clients[0]`
+is `billing-app`, registering no redirect URI:
+
+```bash
+jq -c '{scope: .scopes[0].name, scope_roles: .scopes[0].roles, client: .clients[0].client_id, redirect_uris: .clients[0].redirect_uris}' source.json
+```
+
+```
+{"scope":"address","scope_roles":[],"client":"billing-app","redirect_uris":[]}
+```
+
+Both problems are answered together, and no tenant was created:
+
+```bash
+jq '.scopes[0].roles = [{"name": "no-such-role", "client": null}]
+    | .clients[0].redirect_uris = ["http://billing.example/callback"]' source.json \
+  | jq -c '{name: "import-broken", document: .}' \
+  | curl -sS -D - -X POST \
+      -H "Authorization: Bearer $ADMIN_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data-binary @- \
+      http://localhost:3000/admin/tenant-imports
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants?name=import-broken"
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a0e4ef-dd32-77bd-aff1-649ed553a54a
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 390
+Date: Sun, 27 Sep 2026 22:15:20 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 2 problem(s), listed under errors","errors":[{"path":"document.scopes[0].roles[0]","message":"names no role no-such-role"},{"path":"document.clients[0].redirect_uris","message":"redirect_uris entry http://billing.example/callback is not valid"}],"instance":"01a0e4ef-dd32-77bd-aff1-649ed553a54a"}
+{"items":[]}
+```
+
+A name already in use, then a reserved one:
+
+```bash
+for name in import-source system; do
+  jq -c --arg name "$name" '{name: $name, document: .}' source.json \
+    | curl -sS -X POST \
+        -H "Authorization: Bearer $ADMIN_TOKEN" \
+        -H "Content-Type: application/json" \
+        --data-binary @- \
+        http://localhost:3000/admin/tenant-imports
+  echo
+done
+```
+
+```
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the name \"import-source\" is already in use","instance":"01a0e4ef-ba74-7308-b889-648d797eb195"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"name","message":"the name \"system\" is reserved"}],"instance":"01a0e4ef-ba90-7262-bf3e-1c8e86c8b5ab"}
+```
+
+And a body over the limit:
+
+```bash
+python3 -c 'import json; print(json.dumps({"name": "import-huge", "document": {"padding": "x" * (16 * 1024 * 1024)}}))' > huge.json
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data-binary @huge.json \
+  http://localhost:3000/admin/tenant-imports
+```
+
+```
+{"type":"about:blank","title":"FastifyError","status":413,"detail":"Request body is too large","instance":"01a0e4ef-bb76-7124-83a5-7b6d680169cf"}
 ```
 
 ## `GET /settings` and `PATCH /settings`

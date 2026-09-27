@@ -169,6 +169,7 @@ export function registerAdminRoutes(
     app.route<{ Params: AdminRouteParams }>({
       method: route.method,
       url: route.pattern,
+      ...(route.bodyLimit === undefined ? {} : { bodyLimit: route.bodyLimit }),
       schema: {
         ...(paramsSchema === undefined ? {} : { params: paramsSchema }),
         ...(route.querystringSchema !== undefined ? { querystring: route.querystringSchema } : {}),

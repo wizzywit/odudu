@@ -258,4 +258,12 @@ export {
   type ExportedSubject,
   tenantDocumentSchema,
   type TenantDocument,
+  importTenantRequestSchema,
+  type ImportTenantRequest,
+  importedClientSecretSchema,
+  importTenantResponseSchema,
+  type ImportTenantResponse,
+  importErrorSchema,
+  type ImportError,
+  TENANT_IMPORT_BODY_LIMIT,
 } from '#/admin/tenant-document';

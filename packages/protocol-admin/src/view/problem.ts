@@ -1,4 +1,4 @@
-import { type ProblemDetails } from '@odudu/contracts/admin';
+import { type ImportError, type ProblemDetails } from '@odudu/contracts/admin';
 import {
   type FastifyError,
   type FastifyInstance,
@@ -6,7 +6,10 @@ import {
   type FastifyRequest,
 } from 'fastify';
 
-export type Problem = Omit<ProblemDetails, 'instance'> & { detail?: string };
+export type Problem = Omit<ProblemDetails, 'instance'> & {
+  detail?: string;
+  errors?: readonly ImportError[];
+};
 
 export function problem(status: number, type: string, title: string, detail?: string): Problem {
   return detail === undefined ? { type, title, status } : { type, title, status, detail };

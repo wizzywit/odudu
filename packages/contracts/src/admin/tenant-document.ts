@@ -4,6 +4,7 @@ import { executionRequirementSchema } from '#/admin/flow';
 import { profileSchema } from '#/admin/profile';
 import { clientScopeAssignmentSchema } from '#/admin/scopes';
 import { requiredActionSchema } from '#/admin/subjects';
+import { tenantSchema } from '#/admin/tenants';
 
 // Above this many subjects `?include=subjects` is refused rather than
 // answered: moving users in bulk is inbound provisioning's job, not a
@@ -182,3 +183,38 @@ export const tenantDocumentSchema = z.strictObject({
   omitted: z.array(z.string()),
 });
 export type TenantDocument = z.infer<typeof tenantDocumentSchema>;
+
+// A document with the export's maximum of subjects runs to several
+// megabytes, past Fastify's default one-mebibyte body limit.
+export const TENANT_IMPORT_BODY_LIMIT = 16 * 1024 * 1024;
+
+// `document` is left unchecked here and validated by the import itself, so
+// every problem in it is answered at once, each with its path, rather than
+// the first one a schema validator stops at.
+export const importTenantRequestSchema = z.object({
+  name: z.string().min(1),
+  display_name: z.string().min(1).optional(),
+  document: z
+    .unknown()
+    .describe('A tenant document, as GET /admin/tenants/{tenant}/export answers it.'),
+});
+export type ImportTenantRequest = z.infer<typeof importTenantRequestSchema>;
+
+export const importedClientSecretSchema = z.strictObject({
+  client_id: z.string(),
+  secret: z.string(),
+});
+
+export const importTenantResponseSchema = z.object({
+  tenant: tenantSchema,
+  client_secrets: z.array(importedClientSecretSchema),
+});
+export type ImportTenantResponse = z.infer<typeof importTenantResponseSchema>;
+
+// One problem with an import request, by its JSON path from the request
+// body: `name`, or `document.clients[0].redirect_uris`.
+export const importErrorSchema = z.strictObject({
+  path: z.string(),
+  message: z.string(),
+});
+export type ImportError = z.infer<typeof importErrorSchema>;
