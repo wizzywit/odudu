@@ -134,4 +134,13 @@ describe('coercing a value that arrived as a string', () => {
       value: 30,
     });
   });
+
+  it('coerces username_editable as a boolean', () => {
+    expect(coerceTenantSetting('username_editable', 'true')).toEqual({
+      kind: 'coerced',
+      column: 'usernameEditable',
+      value: true,
+    });
+    expect(coerceTenantSetting('username_editable', 'yes').kind).toBe('invalid_value');
+  });
 });

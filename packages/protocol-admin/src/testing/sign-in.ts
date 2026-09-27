@@ -88,12 +88,13 @@ export async function submitPassword(
   clientId: string,
   username: string,
   password: string,
+  scope = 'openid',
 ): Promise<LightMyRequestResponse> {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: clientId,
     redirect_uri: REDIRECT_URI,
-    scope: 'openid',
+    scope,
     state: 'xyz',
     code_challenge: CHALLENGE,
     code_challenge_method: 'S256',
@@ -127,8 +128,16 @@ export async function signInForRefreshToken(
   client: SignInClient,
   username: string,
   password: string,
+  scope = 'openid',
 ): Promise<string> {
-  const login = await submitPassword(fixture, tenantName, client.clientId, username, password);
+  const login = await submitPassword(
+    fixture,
+    tenantName,
+    client.clientId,
+    username,
+    password,
+    scope,
+  );
   const location = login.headers.location;
   if (login.statusCode !== 302 || typeof location !== 'string') {
     throw new Error(`the sign-in answered ${String(login.statusCode)}, not a redirect`);

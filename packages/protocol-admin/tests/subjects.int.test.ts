@@ -2,9 +2,11 @@ import { requiredActionRepository } from '@odudu/authn-flows';
 import { generateTotpSecret, totpCode, totpCounter } from '@odudu/crypto';
 import { withTenant, type TenantScopedDatabase } from '@odudu/db';
 import { groupRepository, roleRepository } from '@odudu/domain-authz';
+import { auditRepository } from '@odudu/domain-audit';
 import {
   credentialRepository,
   hashPassword,
+  loginFailureRepository,
   subjectRepository,
   userRepository,
 } from '@odudu/domain-identity';
@@ -21,6 +23,13 @@ import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import {
+  createPasswordSubject,
+  createSignInClient,
+  refresh,
+  signInForRefreshToken,
+  submitPassword,
+} from '#/testing/sign-in';
 import {
   amendSubject,
   createSubject,
@@ -879,6 +888,277 @@ describe('PATCH /admin/tenants/{t}/subjects/{id}', () => {
   });
 });
 
+async function allowUsernameEditing(tenantName: string): Promise<void> {
+  const res = await fixture.http.inject({
+    method: 'PATCH',
+    url: `/admin/tenants/${tenantName}/settings`,
+    headers: {
+      authorization: `Bearer ${await fixture.adminToken(tenantName, ['manage-tenant'])}`,
+      'content-type': 'application/json',
+    },
+    payload: { username_editable: true },
+  });
+  expect(res.statusCode).toBe(200);
+}
+
+function patchSubject(
+  tenantName: string,
+  id: string,
+  token: string,
+  payload: Record<string, unknown>,
+  ifMatch?: string,
+): Promise<LightMyRequestResponse> {
+  return fixture.http.inject({
+    method: 'PATCH',
+    url: `/admin/tenants/${tenantName}/subjects/${id}`,
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+      ...(ifMatch === undefined ? {} : { 'if-match': ifMatch }),
+    },
+    payload,
+  });
+}
+
+async function readSubjectBody(
+  tenantName: string,
+  id: string,
+): Promise<{ etag: string; username: string | null; email: string | null }> {
+  const res = await fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants/${tenantName}/subjects/${id}`,
+    headers: { authorization: `Bearer ${await fixture.adminToken(tenantName, ['view-users'])}` },
+  });
+  expect(res.statusCode).toBe(200);
+  const etag = res.headers.etag;
+  if (typeof etag !== 'string') throw new Error('GET subject carried no ETag');
+  const body = res.json<{ username: string | null; email: string | null }>();
+  return { etag, username: body.username, email: body.email };
+}
+
+async function amendRows(tenantId: string, subjectId: string) {
+  const rows = await withTenant(fixture.app.db, tenantId, (tx) =>
+    auditRepository(tx).list({ limit: 50 }),
+  );
+  return rows.filter((row) => row.action === 'subject.amend' && row.resourceId === subjectId);
+}
+
+const RENAME_PASSWORD = 'correct horse battery staple';
+
+describe('PATCH /admin/tenants/{t}/subjects/{id} — renaming a username', () => {
+  it('refuses username with 400 naming the setting while username_editable is off', async () => {
+    const t = await fixture.createTenant(`rename-off-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await patchSubject(t.name, id, token, { username: 'grace' }, '*');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toBe(
+      'username: this tenant has not enabled username editing (username_editable)',
+    );
+  });
+
+  it('answers 428 without If-Match once the setting is on, and renames nothing', async () => {
+    const t = await fixture.createTenant(`rename-428-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const username = `ada-${newId()}`;
+    const { id } = await fixture.createSubject(t.name, username);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await patchSubject(t.name, id, token, { username: `grace-${newId()}` });
+    expect(res.statusCode).toBe(428);
+    expect((await readSubjectBody(t.name, id)).username).toBe(username);
+  });
+
+  it('still takes email and enabled without If-Match', async () => {
+    const t = await fixture.createTenant(`rename-optional-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    expect((await patchSubject(t.name, id, token, { enabled: false })).statusCode).toBe(200);
+  });
+
+  it('answers 412 for a stale If-Match', async () => {
+    const t = await fixture.createTenant(`rename-412-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await patchSubject(t.name, id, token, { username: 'grace' }, '"stale"');
+    expect(res.statusCode).toBe(412);
+  });
+
+  it('refuses an empty username with 400, as creation does', async () => {
+    const t = await fixture.createTenant(`rename-empty-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await patchSubject(t.name, id, token, { username: '' }, '*');
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('renames under a matching ETag, findable by the new name, audited with before and after', async () => {
+    const t = await fixture.createTenant(`rename-ok-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const before = `ada-${newId()}`;
+    const after = `Grace-${newId()}`;
+    const { id } = await fixture.createSubject(t.name, before);
+    const token = await fixture.adminToken(t.name, ['manage-users', 'view-users']);
+    const { etag } = await readSubjectBody(t.name, id);
+
+    const res = await patchSubject(t.name, id, token, { username: after }, etag);
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ username: string }>().username).toBe(after);
+    expect(res.headers.etag).not.toBe(etag);
+
+    const found = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects?username=${encodeURIComponent(after.toLowerCase())}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(found.json<{ items: { id: string }[] }>().items.map((item) => item.id)).toEqual([id]);
+
+    const rows = await amendRows(t.id, id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.detail).toEqual({ username: { before, after } });
+  });
+
+  it('keeps sessions, refresh tokens and lockout counters, and moves sign-in to the new name', async () => {
+    const t = await fixture.createTenant(`rename-login-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const client = await createSignInClient(fixture, t.id);
+    const before = `ada-${newId()}`;
+    const after = `grace-${newId()}`;
+    const id = await createPasswordSubject(fixture, t.id, before, RENAME_PASSWORD);
+    const refreshToken = await signInForRefreshToken(
+      fixture,
+      t.name,
+      client,
+      before,
+      RENAME_PASSWORD,
+      'openid profile',
+    );
+    const wrong = await submitPassword(fixture, t.name, client.clientId, before, 'wrong');
+    expect(wrong.statusCode).not.toBe(302);
+    const failuresOf = () =>
+      withTenant(fixture.app.db, t.id, (tx) => loginFailureRepository(tx).forSubject(id));
+    expect((await failuresOf()).failureCount).toBe(1);
+
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const { etag } = await readSubjectBody(t.name, id);
+    expect((await patchSubject(t.name, id, token, { username: after }, etag)).statusCode).toBe(200);
+
+    expect((await failuresOf()).failureCount).toBe(1);
+    const sessions = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects/${id}/sessions`,
+      headers: { authorization: `Bearer ${await fixture.adminToken(t.name, ['manage-sessions'])}` },
+    });
+    expect(sessions.json<{ items: unknown[] }>().items).toHaveLength(1);
+
+    const refreshed = await refresh(fixture, t.name, client, refreshToken);
+    expect(refreshed.statusCode).toBe(200);
+    const userinfo = await fixture.callUserinfo(
+      t.name,
+      refreshed.json<{ access_token: string }>().access_token,
+    );
+    expect(userinfo.statusCode).toBe(200);
+    expect(userinfo.json<{ preferred_username?: string }>().preferred_username).toBe(after);
+
+    const byOld = await submitPassword(fixture, t.name, client.clientId, before, RENAME_PASSWORD);
+    expect(byOld.statusCode).not.toBe(302);
+    const byNew = await submitPassword(fixture, t.name, client.clientId, after, RENAME_PASSWORD);
+    expect(byNew.statusCode).toBe(302);
+  });
+
+  it('answers 409 for a name another subject holds, and applies nothing else in the body', async () => {
+    const t = await fixture.createTenant(`rename-409-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const taken = `taken-${newId()}`;
+    await fixture.createSubject(t.name, taken);
+    const mine = `mine-${newId()}`;
+    const { id } = await fixture.createSubject(t.name, mine);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const { etag, email } = await readSubjectBody(t.name, id);
+
+    const res = await patchSubject(
+      t.name,
+      id,
+      token,
+      { username: taken, email: `new-${newId()}@example.com` },
+      etag,
+    );
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toBe(
+      `the username ${JSON.stringify(taken)} is already in use`,
+    );
+    const now = await readSubjectBody(t.name, id);
+    expect(now).toEqual({ etag, username: mine, email });
+    expect(await amendRows(t.id, id)).toHaveLength(0);
+  });
+
+  it('treats a case-variant of another subject’s name as a distinct name, as users_username_unique does', async () => {
+    const t = await fixture.createTenant(`rename-case-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const taken = `taken-${newId()}`;
+    await fixture.createSubject(t.name, taken);
+    const { id } = await fixture.createSubject(t.name, `mine-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await patchSubject(t.name, id, token, { username: taken.toUpperCase() }, '*');
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ username: string }>().username).toBe(taken.toUpperCase());
+  });
+
+  it('writes nothing and no audit row for a rename to the current name', async () => {
+    const t = await fixture.createTenant(`rename-same-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const username = `ada-${newId()}`;
+    const { id } = await fixture.createSubject(t.name, username);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const { etag } = await readSubjectBody(t.name, id);
+
+    const res = await patchSubject(t.name, id, token, { username }, etag);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers.etag).toBe(etag);
+    expect(await amendRows(t.id, id)).toHaveLength(0);
+  });
+
+  it('refuses a manage-users caller renaming a tenant-admin, under the target ceiling', async () => {
+    const t = await fixture.createTenant(`rename-ceiling-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const username = `admin-${newId()}`;
+    const { id } = await fixture.createSubject(t.name, username);
+    const tenantAdminId = await capabilityRoleId(t.id, TENANT_ADMIN);
+    const assigned = await putRoles(t.name, id, await fixture.adminToken(t.name, [TENANT_ADMIN]), [
+      tenantAdminId,
+    ]);
+    expect(assigned.statusCode).toBe(200);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await patchSubject(t.name, id, token, { username: `x-${newId()}` }, '*');
+    expect(res.statusCode).toBe(403);
+    expect((await readSubjectBody(t.name, id)).username).toBe(username);
+  });
+
+  it('answers 409 for an email another subject holds, rather than failing', async () => {
+    const t = await fixture.createTenant(`amend-email-409-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const email = `taken-${newId()}@example.com`;
+    const { id: holder } = await fixture.createSubject(t.name, `holder-${newId()}`);
+    expect((await patchSubject(t.name, holder, token, { email })).statusCode).toBe(200);
+    const { id } = await fixture.createSubject(t.name, `other-${newId()}`);
+
+    const res = await patchSubject(t.name, id, token, { email });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toBe(
+      `the email ${JSON.stringify(email)} is already in use`,
+    );
+  });
+});
+
 describe('DELETE /admin/tenants/{t}/subjects/{id}', () => {
   it('removes the subject and detaches a client that named it as its service account', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
@@ -1269,6 +1549,7 @@ describe('audit', () => {
         tx,
         { audit: ok.audit },
         {
+          tenantId: t.id,
           callerCapabilities: new Set<string>(),
           subjectId: id,
           values: { enabled: false },
@@ -1288,6 +1569,7 @@ describe('audit', () => {
         tx,
         { audit: refused.audit },
         {
+          tenantId: t.id,
           callerCapabilities: new Set<string>(),
           subjectId: id,
           values: { not_a_field: true },

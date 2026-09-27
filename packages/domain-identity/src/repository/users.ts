@@ -267,6 +267,22 @@ export function userRepository(tx: TenantScopedDatabase) {
       return toUser(row);
     },
 
+    // `users_username_unique` refuses a name another subject in the tenant
+    // holds, as a raw driver error the caller maps: it has already aborted
+    // the transaction, so there is no outcome left to return from here.
+    async updateUsername(subjectId: string, username: string): Promise<UserRecord> {
+      const rows = await tx
+        .update(users)
+        .set({ username })
+        .where(eq(users.subjectId, subjectId))
+        .returning();
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('user_not_found', `user ${subjectId} not found`);
+      }
+      return toUser(row);
+    },
+
     // Deliberately not folded into updateProfile: emailVerified is a claim
     // about the current value of email, set only by consuming a matching
     // verify_email action token (packages/account/src/usecase/verify-email.ts),

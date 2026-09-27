@@ -42,6 +42,7 @@ const SETTINGS = {
   remember_me_idle_seconds: { column: 'rememberMeIdleSeconds', type: 'integer' },
   remember_me_max_seconds: { column: 'rememberMeMaxSeconds', type: 'integer' },
   audit_retention_days: { column: 'auditRetentionDays', type: 'integer' },
+  username_editable: { column: 'usernameEditable', type: 'boolean' },
 } as const satisfies Record<string, TenantSetting>;
 
 interface TenantSetting {

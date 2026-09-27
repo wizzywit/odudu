@@ -85,6 +85,7 @@ export {
   type CountSubjectsQuery,
   listSubjectsResponseSchema,
   type ListSubjectsResponse,
+  usernameSchema,
   createSubjectRequestSchema,
   type CreateSubjectRequest,
   amendSubjectRequestSchema,

@@ -72,6 +72,7 @@ describe('migrations', () => {
       'reset_password_allowed',
       'sso_session_idle_seconds',
       'sso_session_max_seconds',
+      'username_editable',
       'verify_email',
     ]);
   });

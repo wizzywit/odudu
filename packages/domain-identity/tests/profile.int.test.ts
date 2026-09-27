@@ -8,7 +8,7 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
-import { newId } from '@odudu/kernel';
+import { newId, OduduError } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { subjectRepository } from '#/repository/subjects';
@@ -416,6 +416,47 @@ describe('setVerification', () => {
       userRepository(tx).setVerification(subjectId, { emailVerified: true }),
     );
     expect(resubmitted.profileUpdatedAt).toEqual(first.profileUpdatedAt);
+  });
+});
+
+describe('updateUsername', () => {
+  it('renames the user, who is then found by the new name', async () => {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+
+    const renamed = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).updateUsername(subjectId, 'Renamed-Ada'),
+    );
+    expect(renamed.username).toBe('Renamed-Ada');
+    const byNew = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).byUsername('Renamed-Ada'),
+    );
+    expect(byNew?.user.subjectId).toBe(subjectId);
+  });
+
+  it('cannot rename a user in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => seedUser(tx, tenantId),
+      verifySeeded: async (tx, subjectId) => {
+        expect(await userRepository(tx).bySubjectId(subjectId)).not.toBeNull();
+      },
+      attempt: async (tx, subjectId) => {
+        try {
+          await userRepository(tx).updateUsername(subjectId, `hijacked-${newId()}`);
+          return 'succeeded';
+        } catch (error) {
+          if (error instanceof OduduError && error.code === 'user_not_found') return 'blocked';
+          throw error;
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyTenantAUnaffected: async (tx, subjectId) => {
+        const found = await userRepository(tx).bySubjectId(subjectId);
+        expect(found?.username).toMatch(/^user-/u);
+      },
+    });
   });
 });
 

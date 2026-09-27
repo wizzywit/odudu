@@ -1,6 +1,7 @@
 import {
   amendProfileRequestSchema,
   amendSubjectRequestSchema,
+  type AmendSubjectRequest,
   createSubjectRequestSchema,
   listSubjectsQuerySchema,
   setRequiredActionsRequestSchema,
@@ -226,12 +227,24 @@ export function createSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
   };
 }
 
+function uniqueConflictDetail(error: unknown, values: AmendSubjectRequest): string | null {
+  if (isUniqueViolationNaming(error, 'users_username_unique')) {
+    return `the username ${JSON.stringify(values.username)} is already in use`;
+  }
+  if (isUniqueViolationNaming(error, 'users_email_unique')) {
+    return `the email ${JSON.stringify(values.email)} is already in use`;
+  }
+  return null;
+}
+
 function amendmentProblem(
   reply: FastifyReply,
   request: AdminRequest,
   outcome: Exclude<AmendSubjectOutcome, { kind: 'ok' }>,
 ): FastifyReply {
   switch (outcome.kind) {
+    case 'precondition_required':
+      return sendProblem(reply, request, ifMatchRequired(`a subject's ${outcome.field}`));
     case 'not_found':
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
     case 'refused_field':
@@ -287,21 +300,31 @@ export function amendSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
       principal.subjectId,
     );
 
-    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      amendSubject(
-        tx,
-        { audit: deps.audit },
-        {
-          subjectId: id,
-          values,
-          ifMatch: ifMatchHeader(request),
-          callerCapabilities,
-          actorSubjectId: principal.subjectId,
-          actorTenantId: principal.issuerTenantId,
-          actorClientId: principal.clientDbId,
-        },
-      ),
-    );
+    let outcome: AmendSubjectOutcome;
+    try {
+      outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+        amendSubject(
+          tx,
+          { audit: deps.audit },
+          {
+            tenantId: targetTenantId,
+            subjectId: id,
+            values,
+            ifMatch: ifMatchHeader(request),
+            callerCapabilities,
+            actorSubjectId: principal.subjectId,
+            actorTenantId: principal.issuerTenantId,
+            actorClientId: principal.clientDbId,
+          },
+        ),
+      );
+    } catch (error) {
+      // Caught outside `adminTx`, so the transaction has rolled back and
+      // nothing else the body asked for was applied.
+      const conflict = uniqueConflictDetail(error, values);
+      if (conflict === null) throw error;
+      return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', conflict));
+    }
 
     if (outcome.kind !== 'ok') {
       return amendmentProblem(reply, request, outcome);

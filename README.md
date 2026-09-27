@@ -119,7 +119,12 @@ issuer, so the admin API refuses it (ADR 0039).
 `GET`/`PATCH /admin/tenants/{tenant}/settings` changes the same set through
 the admin API, by the same column names; the ranges the numeric ones accept
 are CHECK constraints either way, so neither door has a way past a policy
-the database enforces. Outgoing mail goes through `ODUDU_SMTP_HOST`,
+the database enforces. `username_editable`, off by default, lets an
+administrator rename a subject's username through
+`PATCH /admin/tenants/{tenant}/subjects/{id}`, always under `If-Match`
+([docs/admin-paths.md](docs/admin-paths.md#renaming-a-username)); `sub` does
+not change, so sessions, refresh tokens and lockout counters survive it,
+and the old name stops signing in at once. Outgoing mail goes through `ODUDU_SMTP_HOST`,
 `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`, `ODUDU_SMTP_USERNAME`,
 `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`; leave `ODUDU_SMTP_HOST`
 unset and the server logs every message instead of sending it, which is what

@@ -80,6 +80,9 @@ export const tenants = pgTable('tenants', {
   // (packages/db/drizzle/0068_audit_retention.sql). 90 days by default, so
   // an upgraded tenant is bounded rather than growing the table forever.
   auditRetentionDays: integer('audit_retention_days').notNull().default(90),
+  // Whether an administrator may rename a username
+  // (packages/db/drizzle/0077_username_editable.sql, ADR 0039).
+  usernameEditable: boolean('username_editable').notNull().default(false),
   // Search keys, in the C collation, filled by the database
   // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
   nameSearch: text('name_search').generatedAlwaysAs(sql`lower(name)`),

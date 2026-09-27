@@ -1,5 +1,6 @@
 import { requiredActionRepository, type RequiredAction } from '@odudu/authn-flows';
 import {
+  usernameSchema,
   type Credential,
   type Group,
   type ListSubjectsQuery,
@@ -37,9 +38,9 @@ import {
   targetOverreach,
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
-import { etagOf, matches, requiredPrecondition } from '#/service/etag';
+import { etagOf, requiredPrecondition } from '#/service/etag';
 import { groupWireShape } from '#/service/group-wire';
-import { AMENDABLE_SUBJECT_FIELDS, refusalFor } from '#/service/subjects-patch';
+import { amendableSubjectFields, refusalFor } from '#/service/subjects-patch';
 import {
   prefixRangeConditions,
   requireSearchKey,
@@ -421,6 +422,7 @@ export function subjectWireShape(view: SubjectView): Subject {
 }
 
 export interface AmendSubjectInput {
+  readonly tenantId: string;
   readonly subjectId: string;
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
@@ -438,6 +440,7 @@ export type AmendSubjectOutcome =
   | { kind: 'not_found' }
   | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
+  | { kind: 'precondition_required'; field: string }
   | { kind: 'precondition_failed' }
   | TargetCeilingRefusal
   | { kind: 'ok'; subject: SubjectView; etag: string };
@@ -447,6 +450,7 @@ export type AmendSubjectOutcome =
 // other — `patch.email !== undefined` alone tells them apart, with no
 // second `'email' in patch` check needed at the write site.
 interface SubjectPatch {
+  username?: { value: string };
   enabled?: { value: boolean };
   email?: { value: string | null };
 }
@@ -494,18 +498,26 @@ function viewOfLocked(
   };
 }
 
-/** Amends `email` and `enabled` — the only two fields a subject exposes to a general amendment. */
+/**
+ * Amends `email` and `enabled`, and `username` where the tenant's
+ * `username_editable` is on. A username another subject holds propagates
+ * as `users_username_unique`'s raw driver error, for the reason
+ * `createSubject` gives; the route answers `409` outside the transaction.
+ */
 export async function amendSubject(
   tx: TenantScopedDatabase,
   deps: AmendSubjectDeps,
   input: AmendSubjectInput,
 ): Promise<AmendSubjectOutcome> {
+  const settings = await tenantSettingsRepository(tx).byId(input.tenantId);
+  const policy = { usernameEditable: settings?.username_editable === true };
+  const amendable = amendableSubjectFields(policy);
   for (const field of Object.keys(input.values)) {
-    if (!AMENDABLE_SUBJECT_FIELDS.includes(field)) {
+    if (!amendable.includes(field)) {
       return {
         kind: 'refused_field',
         field,
-        reason: refusalFor(field) ?? `${field} is not a subject field`,
+        reason: refusalFor(field, policy) ?? `${field} is not a subject field`,
       };
     }
   }
@@ -515,9 +527,14 @@ export async function amendSubject(
   const refused = await refuseOverTargetCeiling(tx, deps.audit, 'subject.amend', input);
   if (refused !== null) return refused;
 
-  const currentEtag = etagOf(subjectWireShape(viewOfLocked(locked)));
-  if (matches(input.ifMatch, currentEtag) === 'mismatch') {
-    return { kind: 'precondition_failed' };
+  // A rename must name the version it read: one administrator's rename
+  // silently undoing another's is what the precondition exists to stop.
+  const current = subjectWireShape(viewOfLocked(locked));
+  const currentEtag = etagOf(current);
+  const precondition = requiredPrecondition(input.ifMatch, currentEtag);
+  if (precondition === 'failed') return { kind: 'precondition_failed' };
+  if (precondition === 'required' && 'username' in input.values) {
+    return { kind: 'precondition_required', field: 'username' };
   }
 
   // Every field is validated before any of them is written into `patch` —
@@ -529,6 +546,24 @@ export async function amendSubject(
   // that is what keeps a field added later from being written inline
   // without going through this validation first.
   const patch: SubjectPatch = {};
+  if ('username' in input.values) {
+    const parsed = usernameSchema.safeParse(input.values.username);
+    if (!parsed.success) {
+      return {
+        kind: 'invalid_value',
+        field: 'username',
+        description: 'username must be a non-empty string',
+      };
+    }
+    if (locked.user === null) {
+      return {
+        kind: 'invalid_value',
+        field: 'username',
+        description: `subject ${input.subjectId} has no user profile to carry a username`,
+      };
+    }
+    if (parsed.data !== locked.user.username) patch.username = { value: parsed.data };
+  }
   if ('enabled' in input.values) {
     if (typeof input.values.enabled !== 'boolean') {
       return { kind: 'invalid_value', field: 'enabled', description: 'enabled must be a boolean' };
@@ -561,6 +596,15 @@ export async function amendSubject(
     patch.email = { value };
   }
 
+  // A rename to the name the subject already has, with nothing else asked
+  // of it, changes nothing and so records nothing.
+  if ('username' in input.values && Object.keys(patch).length === 0) {
+    return { kind: 'ok', subject: viewOfLocked(locked), etag: currentEtag };
+  }
+
+  if (patch.username !== undefined) {
+    await userRepository(tx).updateUsername(input.subjectId, patch.username.value);
+  }
   if (patch.enabled !== undefined) {
     await subjectRepository(tx).setEnabled(input.subjectId, patch.enabled.value);
   }
@@ -568,6 +612,11 @@ export async function amendSubject(
     await userRepository(tx).updateEmail(input.subjectId, patch.email.value);
   }
 
+  const after = await readSubject(tx, input.subjectId);
+  if (after.kind !== 'ok') {
+    throw new Error(`subject ${input.subjectId} not found immediately after its own amendment`);
+  }
+  const afterWire = subjectWireShape(after.subject);
   await deps.audit(tx, {
     action: 'subject.amend',
     resourceType: 'subject',
@@ -576,13 +625,9 @@ export async function amendSubject(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail: redactedDiff('subject', current, afterWire),
   });
-
-  const after = await readSubject(tx, input.subjectId);
-  if (after.kind !== 'ok') {
-    throw new Error(`subject ${input.subjectId} not found immediately after its own amendment`);
-  }
-  return { kind: 'ok', subject: after.subject, etag: etagOf(subjectWireShape(after.subject)) };
+  return { kind: 'ok', subject: after.subject, etag: etagOf(afterWire) };
 }
 
 export interface DeleteSubjectInput {

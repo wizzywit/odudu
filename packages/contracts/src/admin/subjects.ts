@@ -53,18 +53,24 @@ export const listSubjectsResponseSchema = z.object({
 });
 export type ListSubjectsResponse = z.infer<typeof listSubjectsResponseSchema>;
 
+// The one rule a username is held to, on creation and on a rename alike.
+export const usernameSchema = z.string().min(1);
+
 // No `password` field, deliberately: creating a subject through this door
 // writes an `update-password` required action instead, so no operator ever
 // handles a user's password. Zod's default `z.object` already emits
 // `additionalProperties: false`, so a body carrying one is refused before
 // the usecase ever sees it.
 export const createSubjectRequestSchema = z.object({
-  username: z.string().min(1),
+  username: usernameSchema,
   email: z.string().min(1).optional(),
 });
 export type CreateSubjectRequest = z.infer<typeof createSubjectRequestSchema>;
 
+// `username` is accepted only where the tenant's `username_editable` is on,
+// and then only under `If-Match` (docs/admin-paths.md).
 export const amendSubjectRequestSchema = z.object({
+  username: usernameSchema.optional(),
   email: z.string().min(1).nullable().optional(),
   enabled: z.boolean().optional(),
 });
