@@ -284,10 +284,11 @@ Argon2id verification a wrong password pays for, so neither the page nor the
 timing distinguishes a locked account from a wrong password or from a
 username nobody holds. An attempt made during a lockout still counts, which
 is what keeps those costs equal — and means retrying extends the wait. A
-correct password accepted by an unlocked account deletes the row — which,
-with waiting the window out, is the whole of how a lockout ends: the admin
-API has no route that clears a `login_failures` row, so an operator still
-waits the window out or reaches for SQL.
+correct password accepted by an unlocked account deletes the row, and so
+does an operator: `DELETE /admin/tenants/{tenant}/subjects/{id}/lockout`
+clears it at once, and `POST …/subjects/{id}/password` issues a one-time
+password, shown once, for a subject who has lost theirs
+([docs/admin-paths.md](docs/admin-paths.md#delete-subjectsidlockout)).
 See [the brute-force section of docs/request-paths.md](docs/request-paths.md#brute-force-lockout)
 for the walkthrough.
 
@@ -1237,7 +1238,6 @@ Every row says where it stands, and every row has a phase:
 | ---------------------------------------------------------------------------------------------------- | --------------- |
 | A consent screen — `consent_required` is recorded per client, nothing reads it yet                   | P3a             |
 | Self-service for an End-User: a "me" API and application-initiated actions for credential ceremonies | P4f             |
-| An operator unlock for a locked account                                                              | P4d             |
 | An admin **console** — the admin API exists, nothing drives it but `curl`                            | P4d             |
 | Published images and a release process                                                               | P12             |
 | Secret management beyond environment variables                                                       | P12             |

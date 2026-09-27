@@ -110,7 +110,10 @@ export {
   type Session,
   listSessionsResponseSchema,
   type ListSessionsResponse,
+  endSessionsResponseSchema,
+  type EndSessionsResponse,
 } from '#/admin/sessions';
+export { issuePasswordResponseSchema, type IssuePasswordResponse } from '#/admin/account-recovery';
 export {
   consentSchema,
   type Consent,

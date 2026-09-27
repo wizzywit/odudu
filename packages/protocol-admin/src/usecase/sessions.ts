@@ -5,8 +5,9 @@ import {
   type SessionRecord,
 } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { subjects } from '@odudu/domain-identity';
 import { endSession as endOidcSession, tokenGrantRepository } from '@odudu/protocol-oidc';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 
 const COLLECTION = 'sessions';
@@ -19,9 +20,11 @@ export interface SessionView {
   readonly clientIds: readonly string[];
 }
 
+// `session.end_all` is filed on the subject, since it names no one session;
+// each session it ended also carries its own `session.ended` row.
 export interface SessionAuditEvent {
-  readonly action: 'session.end';
-  readonly resourceType: 'session';
+  readonly action: 'session.end' | 'session.end_all';
+  readonly resourceType: 'session' | 'subject';
   readonly resourceId: string;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
@@ -206,4 +209,73 @@ export async function endSession(
   });
 
   return { kind: 'ended' };
+}
+
+export interface EndAllSessionsInput {
+  readonly tenantId: string;
+  readonly subjectId: string;
+  readonly lifespans: SessionLifespans;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+  readonly issuer: string;
+  readonly now: Date;
+}
+
+export type EndAllSessionsOutcome = { kind: 'not_found' } | { kind: 'ended'; ended: number };
+
+// Every live session through the same `endSession` one session's `DELETE`
+// makes, so each has its grants revoked and its back-channel deliveries
+// enqueued exactly as ending it alone would — rather than `endMany`, which
+// moves the ceilings and nothing else. The sessions are locked first, in
+// `id` order, so a concurrent single end serializes against this one.
+export async function endAllSessions(
+  tx: TenantScopedDatabase,
+  deps: EndSessionDeps,
+  input: EndAllSessionsInput,
+): Promise<EndAllSessionsOutcome> {
+  const found = await tx
+    .select({ id: subjects.id })
+    .from(subjects)
+    .where(eq(subjects.id, input.subjectId));
+  if (found.length === 0) return { kind: 'not_found' };
+
+  await tx
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(eq(sessions.subjectId, input.subjectId))
+    .orderBy(asc(sessions.id))
+    .for('update');
+  const live = await sessionRepository(tx).liveBySubject(
+    input.subjectId,
+    input.lifespans,
+    input.now,
+  );
+  for (const record of live) {
+    await endOidcSession(
+      tx,
+      { kek: deps.kek },
+      {
+        tenantId: input.tenantId,
+        sessionId: record.id,
+        subjectId: input.subjectId,
+        now: input.now,
+        issuer: input.issuer,
+        via: 'admin',
+      },
+    );
+  }
+
+  await deps.audit(tx, {
+    action: 'session.end_all',
+    resourceType: 'subject',
+    resourceId: input.subjectId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: { ended: live.length },
+  });
+
+  return { kind: 'ended', ended: live.length };
 }

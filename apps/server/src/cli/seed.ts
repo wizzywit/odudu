@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { tenantSettingsRepository, sendVerificationEmail } from '@odudu/account';
 import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
@@ -15,6 +14,7 @@ import {
 import {
   credentialRepository,
   evaluatePassword,
+  generateOneTimePassword,
   hashPassword,
   subjectRepository,
   userRepository,
@@ -536,12 +536,6 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
   }
 }
 
-// 24 random bytes, base64url: printed once and never stored, so length is
-// chosen for pasting rather than for memorability.
-function generatedPassword(): string {
-  return randomBytes(24).toString('base64url');
-}
-
 // Idempotent: a re-run against an already-bootstrapped system tenant leaves
 // its signing key alone.
 async function ensureSigningKey(
@@ -638,7 +632,7 @@ export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin>
         );
       }
 
-      const password = generatedPassword();
+      const password = generateOneTimePassword();
       const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       await userRepository(tx).create({
         subjectId: subject.id,

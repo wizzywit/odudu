@@ -100,6 +100,13 @@ for it, on a subject `grace` seeded there with `odudu seed user` and a
 confidential client `consents-demo-app2` created with `consent_required`
 — recaptured entirely, under this tenant, after a further rebuild made
 `DELETE` also revoke the subject's grants against the client.
+`DELETE /subjects/:id/lockout`, `DELETE /subjects/:id/sessions` and
+`POST /subjects/:id/password` were captured in that order after one more
+rebuild, the `odudu` service then restarted alone with
+`ODUDU_THROTTLE_LIMIT=1000` so a scripted run of sign-ins is not refused
+by the per-origin throttle, as a new admin subject `ada-recovery` in the
+system tenant, in a tenant `recovery-demo` created for them, on a subject
+`grace` seeded there with `odudu seed user`.
 
 ## The shape of it
 
@@ -168,6 +175,8 @@ shape of what it is filling.
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/credentials/:credentialId` | Remove a credential                       |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/consents`                  | List a subject's consents                 |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/consents/:clientId`        | Revoke a consent                          |
+| `POST`   | `/admin/tenants/{tenant}/subjects/:id/password`                  | Issue a one-time password                 |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/lockout`                   | Clear a brute-force lockout               |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Read a subject's required actions         |
 | `PUT`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Set a subject's required actions          |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Read a subject's roles                    |
@@ -175,6 +184,7 @@ shape of what it is filling.
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/groups`                    | Read a subject's groups                   |
 | `PUT`    | `/admin/tenants/{tenant}/subjects/:id/groups`                    | Replace a subject's groups                |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/sessions`                  | List a subject's live sessions            |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/sessions`                  | End every session                         |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/sessions/:sid`             | End one session                           |
 | `GET`    | `/admin/tenants/{tenant}/settings`                               | Read a tenant's settings                  |
 | `PATCH`  | `/admin/tenants/{tenant}/settings`                               | Amend a tenant's settings                 |
@@ -2010,6 +2020,195 @@ Keep-Alive: timeout=72
 {"type":"about:blank","title":"Not Found","status":404,"detail":"no subject 0199aa00-0000-7000-8000-0000000000ff","instance":"01a0e2c9-6ce7-7409-8336-e8ee00c17b7b"}
 ```
 
+## `DELETE /subjects/:id/lockout`
+
+Requires `manage-users`. Deletes the subject's `login_failures` row — the
+same write a correct password accepted by an unlocked account makes — so
+the lockout ends and the run of failures behind it with it: the next wrong
+password counts from one. It answers `204` whether or not anything was
+recorded against the subject, since "nothing against it" is the state the
+call exists to reach, and its `subject.lockout_clear` audit row says which
+it was in `detail.cleared`. An unknown subject, or one in another tenant,
+answers `404`.
+
+A locked account refuses its right password with the same sign-in page a
+wrong one gets (README.md's brute-force section), so the run below shows
+the lock by submitting the right password last. `signin` is a helper
+defined for these captures: a fresh `/authorize` against
+`recovery-demo-app`, a confidential client created for them with
+`https://app.example/callback` registered, then one password submission as
+`grace`, printing the status, any `location`, and the page's title.
+
+```bash
+AUTHORIZE='http://localhost:3000/tenants/recovery-demo/protocol/openid-connect/auth?response_type=code&client_id=recovery-demo-app&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+signin() {
+  sid=$(curl -sS "$AUTHORIZE" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p' | head -1)
+  curl -sS -D - -o body.html \
+    --data-urlencode "auth_session_id=$sid" \
+    --data-urlencode "username=grace" \
+    --data-urlencode "password=$1" \
+    http://localhost:3000/tenants/recovery-demo/login-actions/authenticate | grep -iE '^(HTTP|location)'
+  grep -o '<title>[^<]*</title>' body.html || true
+}
+
+for attempt in 1 2 3 4 5; do signin 'not the password'; done
+signin 'correct horse battery staple'
+```
+
+Five wrong passwords, then the right one, refused the same way:
+
+```
+HTTP/1.1 200 OK
+<title>Sign in</title>
+HTTP/1.1 200 OK
+<title>Sign in</title>
+HTTP/1.1 200 OK
+<title>Sign in</title>
+HTTP/1.1 200 OK
+<title>Sign in</title>
+HTTP/1.1 200 OK
+<title>Sign in</title>
+HTTP/1.1 200 OK
+<title>Sign in</title>
+```
+
+Clearing it, then the right password again — a code, at once, with no
+wait:
+
+```bash
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/recovery-demo/subjects/01a0e2e7-2dc3-7180-8196-a88fbd341ea0/lockout
+
+signin 'correct horse battery staple'
+```
+
+```
+HTTP/1.1 204 No Content
+x-request-id: 01a0e2e8-bd59-7dc9-a10e-fbf44728e126
+Date: Sun, 27 Sep 2026 12:48:18 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+HTTP/1.1 302 Found
+location: https://app.example/callback?code=FGOZvOexCLAUrJCKUC0RT6--JgBZDCrqh2vB8v0u6J8&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Frecovery-demo
+```
+
+A first run of the same sequence, a few seconds earlier, left one more
+session behind it: its code was never redeemed, which is the third session
+`DELETE /subjects/:id/sessions` ends below.
+
+## `POST /subjects/:id/password`
+
+Requires `manage-users`, and takes no body. An administrator restoring a
+subject's access never chooses the password: the server generates one —
+the same 24 random bytes, base64url, that `odudu seed admin` prints
+(`generateOneTimePassword`, `packages/domain-identity/src/service/one-time-password.ts`)
+— replaces the subject's password credential with its hash, or creates one
+for a subject who had none, and owes `update-password`, so the next sign-in
+with it parks on the change-password page. The password is in this `201`
+response's body and nowhere else: never stored in the clear, never logged
+(the request logger records a response's status and allowlisted headers,
+never its body — `apps/server/src/logger.ts`), and the
+`subject.password_issue` audit row's `detail` is empty.
+`apps/server/tests/seed-admin.int.test.ts` searches every captured log line
+and every audit row for it.
+
+It is **not** checked against the tenant's password policy, and nothing
+needs it to be: the policy governs a password somebody chooses — at
+registration, a reset, or the change this one forces — and a sign-in only
+verifies a password against its hash. Like a redeemed reset link
+(`completePasswordReset`, `packages/account/src/usecase/reset-password.ts`),
+it **ends no session and revokes no grant**: a subject already signed in
+somewhere stays signed in there. An operator who wants them signed out
+calls `DELETE /subjects/:id/sessions` as well. A locked-out subject stays
+locked out until the lockout clears on its own or through
+`DELETE /subjects/:id/lockout`. A subject with no `users` row — a service
+or `agent_instance` subject, which has no sign-in to restore — answers
+`404`, the same as an unknown subject or one in another tenant.
+
+Captured after the lockout and sessions runs on either side of this
+section, against the same `grace`:
+
+```bash
+curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/recovery-demo/subjects/01a0e2e7-2dc3-7180-8196-a88fbd341ea0/password
+```
+
+```
+HTTP/1.1 201 Created
+x-request-id: 01a0e2e9-4696-7f26-9a13-f8f7dd161de4
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 47
+Date: Sun, 27 Sep 2026 12:48:53 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"password":"c5LXDURsCUgepRDxO3w_BW0dPYW2_5K1"}
+```
+
+The password is a throwaway on a development stack, and the rest of this
+section spends it. The one `grace` chose herself stops working; the issued
+one signs in as far as the change-password page; the change returns the
+sign-in page, as it does for `seed admin`'s password in "Getting the
+token"; the new password gets a code; and the issued one no longer signs
+anybody in. (`signin` is the helper `DELETE /subjects/:id/lockout` defines
+above, and leaves the `auth_session_id` it used in `$sid`. One earlier
+attempt at the change chose a password containing the username and was
+refused by the policy; it is not shown.)
+
+```bash
+signin 'correct horse battery staple'
+signin 'c5LXDURsCUgepRDxO3w_BW0dPYW2_5K1'
+curl -sS -o body.html -w '%{http_code}\n' \
+  --data-urlencode "auth_session_id=$sid" \
+  --data-urlencode "password=tulip-orbit-harbour-58" \
+  'http://localhost:3000/tenants/recovery-demo/login-actions/required-action?action=update-password'
+grep -o '<title>[^<]*</title>' body.html
+signin 'tulip-orbit-harbour-58'
+signin 'c5LXDURsCUgepRDxO3w_BW0dPYW2_5K1'
+```
+
+```
+HTTP/1.1 200 OK
+<title>Sign in</title>
+HTTP/1.1 200 OK
+<title>Change your password</title>
+200
+<title>Sign in</title>
+HTTP/1.1 302 Found
+location: https://app.example/callback?code=R8q9k_2AuhREtMYr5LjWSz4aQWesSDiy81OmrAyN7to&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Frecovery-demo
+HTTP/1.1 200 OK
+<title>Sign in</title>
+```
+
+`ada-recovery` is a subject of the system tenant, not of `recovery-demo`,
+so addressing it here is addressing another tenant's subject:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/recovery-demo/subjects/01a0e2e6-9e0a-721e-8def-3f749480e8c9/password
+```
+
+```
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no user subject 01a0e2e6-9e0a-721e-8def-3f749480e8c9","instance":"01a0e2e9-46ca-78cf-9e9b-e09efc2a0ec7"}
+```
+
+The three rows these sections wrote, newest first, and the service's own
+log searched for the password:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3000/admin/tenants/recovery-demo/audit?event_type=admin_mutation&limit=3'
+
+docker compose logs odudu | grep -c 'c5LXDURsCUgepRDxO3w_BW0dPYW2_5K1'
+```
+
+```
+{"items":[{"id":"01a0e2e9-46be-74e8-8b4d-aaec6c072c22","occurred_at":"2026-09-27T12:48:53.919Z","event_type":"admin_mutation","action":"subject.password_issue","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e2e6-9e0a-721e-8def-3f749480e8c9","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"subject","resource_id":"01a0e2e7-2dc3-7180-8196-a88fbd341ea0","request_id":"01a0e2e9-4696-7f26-9a13-f8f7dd161de4","ip":"172.20.0.1","detail":{}},{"id":"01a0e2e9-14d4-768a-93f1-3696fec7fd20","occurred_at":"2026-09-27T12:48:41.163Z","event_type":"admin_mutation","action":"session.end_all","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e2e6-9e0a-721e-8def-3f749480e8c9","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"subject","resource_id":"01a0e2e7-2dc3-7180-8196-a88fbd341ea0","request_id":"01a0e2e9-14c2-7070-9c88-1e7c56df5e94","ip":"172.20.0.1","detail":{"ended":3}},{"id":"01a0e2e8-bd64-73fd-9aa3-b5ea8229ec74","occurred_at":"2026-09-27T12:48:18.786Z","event_type":"admin_mutation","action":"subject.lockout_clear","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e2e6-9e0a-721e-8def-3f749480e8c9","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"subject","resource_id":"01a0e2e7-2dc3-7180-8196-a88fbd341ea0","request_id":"01a0e2e8-bd59-7dc9-a10e-fbf44728e126","ip":"172.20.0.1","detail":{"cleared":true}}],"next":"eyJhZnRlciI6IjIwMjYtMDktMjdUMTI6NDg6MTguNzg2WnwwMWEwZTJlOC1iZDY0LTczZmQtOWFhMy1iNWVhODIyOWVjNzQiLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6IjAxYTBlMmU3LTJiNzMtN2FhNi05Yjk5LTllOTU5ZDJlZDJhZiIsImZpbHRlcnMiOiJWcHJKd0NwQ1FtRHBRR1F2RXEtLW4xYXo2ZTZ4dzZSNXBBSUlOTkFuNFc0In0.-nzSsBGzUUsvTERGVHzRzI9oj326RaDxJzAK9qYqKJI"}
+0
+```
+
 ## `GET /subjects/:id/required-actions` and `PUT /subjects/:id/required-actions`
 
 The read requires `view-users`, the write `manage-users`. Sets a subject's
@@ -2387,6 +2586,108 @@ HTTP/1.1 204 No Content
 x-request-id: 01a0d6fe-9e09-7004-9844-b3c1b3abb219
 
 {"items":[]}
+```
+
+## `DELETE /subjects/:id/sessions`
+
+Requires `manage-sessions`, like the rest of this family. Ends every live
+session the subject holds, each through the same `endSession` the
+single-session `DELETE` above calls — so each has every grant it holds
+revoked, a Back-Channel Logout Token enqueued for each registered client
+that used it and has a `backchannel_logout_uri`, and its own
+`session.ended` row with `detail.via` `admin`, exactly as ending it alone
+would. The sessions are locked first, so a concurrent single-session end
+waits for this one rather than racing it. The answer is how many were
+ended, `{"ended": n}`, and the one `session.end_all` row this writes
+carries the same count in `detail.ended`, filed on the subject. A subject
+with no live session answers `{"ended":0}`; an unknown subject, or one in
+another tenant, answers `404`. As with ending one session, a grant bound to
+no session — an `offline_access` refresh token — is not a session's to
+revoke, and is left alone.
+
+Captured after `DELETE /subjects/:id/lockout`, against the same `grace`
+and `recovery-demo-app`. The codes the two successful sign-ins there
+bought, redeemed — the first response whole, the second cut to its refresh
+token:
+
+```bash
+curl -sS \
+  --data-urlencode "grant_type=authorization_code" \
+  --data-urlencode "code=FGOZvOexCLAUrJCKUC0RT6--JgBZDCrqh2vB8v0u6J8" \
+  --data-urlencode "redirect_uri=https://app.example/callback" \
+  --data-urlencode "code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk" \
+  -u "recovery-demo-app:oNxj0NLDbXAVWohwuHXVUI_sHgnrfIJMuAk28Kl8WCU" \
+  'http://localhost:3000/tenants/recovery-demo/protocol/openid-connect/token'
+```
+
+```
+{"access_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmU3LTJiOWYtN2Y1Ni05ZDU3LTU1NmFiM2QyNGY2YiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9yZWNvdmVyeS1kZW1vIiwic3ViIjoiMDFhMGUyZTctMmRjMy03MTgwLTgxOTYtYTg4ZmJkMzQxZWEwIiwiYXVkIjpbImh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC90ZW5hbnRzL3JlY292ZXJ5LWRlbW8iXSwiY2xpZW50X2lkIjoicmVjb3ZlcnktZGVtby1hcHAiLCJzY29wZSI6Im9wZW5pZCIsImlhdCI6MTc5MDUxMzMwOSwiZXhwIjoxNzkwNTEzNjA5LCJqdGkiOiIwMWEwZTJlOC1lNjJkLTcyZWQtYjcyMy0zMDdiYTlmODM5OTIiLCJzaWQiOiIwMWEwZTJlOC1iZGI2LTczNjQtYmJmNS05MWUwZjI3MDNiOGUiLCJncmFudF9pZCI6IjAxYTBlMmU4LWU2MmQtNzJlZC1iNzIzLTMwN2E3OGUwMDVmMyJ9.tCrY-_dshGy-qOCLxHrE5wQSiE-7MZ5b2gKq3japSH354tULOD1YH49C9C8RehrHLigWe3v0o7iNU1CHaa_8cA","id_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmU3LTJiOWYtN2Y1Ni05ZDU3LTU1NmFiM2QyNGY2YiJ9.eyJzdWIiOiIwMWEwZTJlNy0yZGMzLTcxODAtODE5Ni1hODhmYmQzNDFlYTAiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9yZWNvdmVyeS1kZW1vIiwiYXVkIjoicmVjb3ZlcnktZGVtby1hcHAiLCJpYXQiOjE3OTA1MTMzMDksImV4cCI6MTc5MDUxMzYwOSwic2lkIjoiMDFhMGUyZTgtYmRiNi03MzY0LWJiZjUtOTFlMGYyNzAzYjhlIiwiYW1yIjpbInB3ZCJdLCJhY3IiOiIxIn0.MTuryMvRbMvybPAlc5SsGdbHGet7IWEG0FhU8Ak5Lxf2D1Ouv-OZ-ZUsY7e13yzMnHsGT7beItkqlEqk-WApwQ","refresh_token":"rIbSiZ8ZsbWJMUkc6gW9wykTpl9Wgpe5aRytABY5DEU","token_type":"Bearer","expires_in":300,"scope":"openid"}
+```
+
+```bash
+signin 'correct horse battery staple'
+
+curl -sS \
+  --data-urlencode "grant_type=authorization_code" \
+  --data-urlencode "code=5_rhNQqqt2DI8ITtAaGR3p5Jr35pjeAJ2k7zq0Laq2c" \
+  --data-urlencode "redirect_uri=https://app.example/callback" \
+  --data-urlencode "code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk" \
+  -u "recovery-demo-app:oNxj0NLDbXAVWohwuHXVUI_sHgnrfIJMuAk28Kl8WCU" \
+  'http://localhost:3000/tenants/recovery-demo/protocol/openid-connect/token' | grep -o '"refresh_token":"[^"]*"'
+```
+
+```
+HTTP/1.1 302 Found
+location: https://app.example/callback?code=5_rhNQqqt2DI8ITtAaGR3p5Jr35pjeAJ2k7zq0Laq2c&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Frecovery-demo
+"refresh_token":"QaxjgFetNRblcuC_ZUatDcKkLCBRfznhF8mCBOaYZwc"
+```
+
+Three live sessions: the two whose codes were redeemed, holding a grant
+each, and the one the earlier run of the lockout sequence left with its
+code unredeemed and so no grant at all. Ending them, listing again, and
+both refresh tokens refused:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/recovery-demo/subjects/01a0e2e7-2dc3-7180-8196-a88fbd341ea0/sessions
+
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/recovery-demo/subjects/01a0e2e7-2dc3-7180-8196-a88fbd341ea0/sessions
+
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/recovery-demo/subjects/01a0e2e7-2dc3-7180-8196-a88fbd341ea0/sessions
+
+curl -sS \
+  --data-urlencode "grant_type=refresh_token" \
+  --data-urlencode "refresh_token=rIbSiZ8ZsbWJMUkc6gW9wykTpl9Wgpe5aRytABY5DEU" \
+  -u "recovery-demo-app:oNxj0NLDbXAVWohwuHXVUI_sHgnrfIJMuAk28Kl8WCU" \
+  'http://localhost:3000/tenants/recovery-demo/protocol/openid-connect/token'
+
+curl -sS \
+  --data-urlencode "grant_type=refresh_token" \
+  --data-urlencode "refresh_token=QaxjgFetNRblcuC_ZUatDcKkLCBRfznhF8mCBOaYZwc" \
+  -u "recovery-demo-app:oNxj0NLDbXAVWohwuHXVUI_sHgnrfIJMuAk28Kl8WCU" \
+  'http://localhost:3000/tenants/recovery-demo/protocol/openid-connect/token'
+```
+
+```
+{"items":[{"id":"01a0e2e8-6ff8-70c2-85d5-d8d9a733750a","created_at":"2026-09-27T12:47:58.966Z","last_active_at":"2026-09-27T12:47:58.966Z","remembered":false,"client_ids":[]},{"id":"01a0e2e8-bdb6-7364-bbf5-91e0f2703b8e","created_at":"2026-09-27T12:48:18.869Z","last_active_at":"2026-09-27T12:48:18.869Z","remembered":false,"client_ids":["recovery-demo-app"]},{"id":"01a0e2e8-e681-7f43-b7b5-63e0f395bfc4","created_at":"2026-09-27T12:48:29.312Z","last_active_at":"2026-09-27T12:48:29.312Z","remembered":false,"client_ids":["recovery-demo-app"]}]}
+
+HTTP/1.1 200 OK
+x-request-id: 01a0e2e9-14c2-7070-9c88-1e7c56df5e94
+content-type: application/json; charset=utf-8
+content-length: 11
+Date: Sun, 27 Sep 2026 12:48:41 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"ended":3}
+
+{"items":[]}
+
+{"error":"invalid_grant"}
+
+{"error":"invalid_grant"}
 ```
 
 ## `GET /roles`, `POST /roles`, `GET /roles/:id`, `PATCH /roles/:id` and `DELETE /roles/:id`

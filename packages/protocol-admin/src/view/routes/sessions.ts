@@ -3,7 +3,13 @@ import { type Database } from '@odudu/db';
 import { tenantIssuerFor, type TenantLookup } from '@odudu/protocol-oidc';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { lifespansOf } from '#/usecase/authenticate-admin';
-import { endSession, listSessions, type Audit, type SessionView } from '#/usecase/sessions';
+import {
+  endAllSessions,
+  endSession,
+  listSessions,
+  type Audit,
+  type SessionView,
+} from '#/usecase/sessions';
 import { problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
@@ -116,6 +122,51 @@ export function deleteSessionHandler(deps: SessionsRouteDeps): AdminRouteHandler
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'ended':
         return reply.code(204).send();
+    }
+  };
+}
+
+export function deleteAllSessionsHandler(deps: SessionsRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: DELETE sessions route received no :id');
+    }
+    const tenantName = request.params.tenant;
+    if (tenantName === undefined) {
+      throw new Error('protocol-admin: DELETE sessions route received no :tenant');
+    }
+    const tenant = await deps.findTenant(tenantName);
+    if (tenant === null) {
+      throw new Error(`protocol-admin: sessions route resolved a tenant router.ts already found`);
+    }
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      endAllSessions(
+        tx,
+        { audit: deps.audit, kek: deps.kek },
+        {
+          tenantId: targetTenantId,
+          subjectId: id,
+          lifespans: lifespansOf(tenant),
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+          issuer: tenantIssuerFor(request, tenantName),
+          now: deps.now(),
+        },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+        );
+      case 'ended':
+        return reply.code(200).send({ ended: outcome.ended });
     }
   };
 }

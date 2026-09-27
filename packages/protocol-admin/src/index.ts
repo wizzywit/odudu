@@ -20,6 +20,7 @@ import { type Audit as ScopeAudit } from '#/usecase/scopes';
 import { type Audit as ScopeMapperAudit, type MapperCatalogue } from '#/usecase/scope-mappers';
 import { type Audit as SettingsAudit } from '#/usecase/settings';
 import { type Audit as SmtpAudit } from '#/usecase/smtp';
+import { type Audit as AccountRecoveryAudit } from '#/usecase/account-recovery';
 import { type Audit as ConsentAudit } from '#/usecase/consents';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
 import { type Audit as SubjectAudit } from '#/usecase/subjects';
@@ -36,6 +37,11 @@ import {
   rotateClientSecretHandler,
   type ClientsRouteDeps,
 } from '#/view/routes/clients';
+import {
+  clearLockoutHandler,
+  issuePasswordHandler,
+  type AccountRecoveryRouteDeps,
+} from '#/view/routes/account-recovery';
 import {
   deleteConsentHandler,
   listConsentsHandler,
@@ -114,6 +120,7 @@ import {
   type ScopesRouteDeps,
 } from '#/view/routes/scopes';
 import {
+  deleteAllSessionsHandler,
   deleteSessionHandler,
   listSessionsHandler,
   type SessionsRouteDeps,
@@ -262,6 +269,7 @@ function buildAdminRoutes(
     const subjectAudit: SubjectAudit = recordAudit;
     const sessionAudit: SessionAudit = recordAudit;
     const consentAudit: ConsentAudit = recordAudit;
+    const accountRecoveryAudit: AccountRecoveryAudit = recordAudit;
     const roleAudit: RoleAudit = recordAudit;
     const groupAudit: GroupAudit = recordAudit;
     const scopeAudit: ScopeAudit = recordAudit;
@@ -371,6 +379,10 @@ function buildAdminRoutes(
       audit: consentAudit,
       now: () => clock.now(),
     };
+    const accountRecoveryDeps: AccountRecoveryRouteDeps = {
+      database: deps.database.db,
+      audit: accountRecoveryAudit,
+    };
     const auditDeps: AuditRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
@@ -395,6 +407,10 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/subjects/:id/consents': listConsentsHandler(consentsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/consents/:clientId':
         deleteConsentHandler(consentsDeps),
+      'POST /admin/tenants/:tenant/subjects/:id/password':
+        issuePasswordHandler(accountRecoveryDeps),
+      'DELETE /admin/tenants/:tenant/subjects/:id/lockout':
+        clearLockoutHandler(accountRecoveryDeps),
       'GET /admin/tenants/:tenant/subjects/:id/required-actions':
         readRequiredActionsHandler(subjectsDeps),
       'PUT /admin/tenants/:tenant/subjects/:id/required-actions':
@@ -404,6 +420,7 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/subjects/:id/groups': readSubjectGroupsHandler(subjectsDeps),
       'PUT /admin/tenants/:tenant/subjects/:id/groups': setSubjectGroupsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/sessions': listSessionsHandler(sessionsDeps),
+      'DELETE /admin/tenants/:tenant/subjects/:id/sessions': deleteAllSessionsHandler(sessionsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/sessions/:sid':
         deleteSessionHandler(sessionsDeps),
       'GET /admin/tenants': listTenantsHandler(tenantsDeps),

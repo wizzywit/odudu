@@ -47,6 +47,8 @@ import {
   listRolesResponseSchema,
   listScopesResponseSchema,
   listSessionsResponseSchema,
+  endSessionsResponseSchema,
+  issuePasswordResponseSchema,
   listSubjectsQuerySchema,
   countSubjectsQuerySchema,
   listSubjectsResponseSchema,
@@ -222,6 +224,29 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'by a refresh token that outlives the consent it was granted under.',
   },
   {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/subjects/:id/password',
+    capability: 'manage-users',
+    responseSchema: issuePasswordResponseSchema,
+    successStatus: 201,
+    description:
+      'Replaces the subject\u2019s password with a server-generated one-time password, ' +
+      'answered once in this body and never again, and owes `update-password` so the ' +
+      'subject changes it at the next sign-in. Ends no session and revokes no grant, as a ' +
+      'password reset does not; `DELETE /admin/tenants/{tenant}/subjects/{id}/sessions` is ' +
+      'that door. A subject with no `users` row answers `404`.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/subjects/:id/lockout',
+    capability: 'manage-users',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Clears the subject\u2019s brute-force failure count, and with it any lockout, so ' +
+      'the next correct password signs in. `204` whether or not anything was recorded.',
+  },
+  {
     method: 'GET',
     pattern: '/admin/tenants/:tenant/subjects/:id/required-actions',
     capability: 'view-users',
@@ -283,6 +308,18 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-sessions',
     responseSchema: listSessionsResponseSchema,
     querystringSchema: cursorQuerySchema,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/subjects/:id/sessions',
+    capability: 'manage-sessions',
+    responseSchema: endSessionsResponseSchema,
+    description:
+      'Ends every live session the subject holds, each exactly as ' +
+      '`DELETE /admin/tenants/{tenant}/subjects/{id}/sessions/{sid}` ends one: its grants ' +
+      'revoked and a Back-Channel Logout Token delivered to every registered client that ' +
+      'used it. Answers how many were ended. A grant bound to no session — `offline_access` — ' +
+      'is left alone, as it is by ending one.',
   },
   {
     method: 'DELETE',

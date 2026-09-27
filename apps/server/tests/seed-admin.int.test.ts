@@ -8,7 +8,7 @@ import {
 import { ADMIN_CLIENT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
@@ -50,13 +50,19 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-function buildTestApp(): FastifyInstance {
-  const config = loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' });
+function buildTestApp(logLines?: string[]): FastifyInstance {
+  const config = loadConfig({
+    ...process.env,
+    ODUDU_LOG_LEVEL: logLines === undefined ? 'silent' : 'trace',
+  });
   return buildApp({
     database: appDb,
     ownerDatabase: owner,
     kek: KEK,
-    logger: createLogger(config),
+    logger: createLogger(
+      config,
+      logLines === undefined ? undefined : { write: (line: string) => logLines.push(line) },
+    ),
   });
 }
 
@@ -192,6 +198,50 @@ describe('the client seed admin bootstraps', () => {
       });
 
       expect(res.statusCode).toBe(200);
+    } finally {
+      await instance.close();
+    }
+  });
+});
+
+describe('a one-time password the admin API issues', () => {
+  it('signs in to the forced change, and appears in no log line and no audit row', async () => {
+    const adminName = `ada-${newId()}`;
+    const { password: adminPassword } = await seedAdmin({ username: adminName });
+    const holderName = `grace-${newId()}`;
+    const { subjectId: holderId } = await seedAdmin({ username: holderName });
+    const logLines: string[] = [];
+    const instance = buildTestApp(logLines);
+    await instance.ready();
+
+    try {
+      const accessToken = await bootstrapAdminToken(instance, adminName, adminPassword);
+      const issued = await instance.inject({
+        method: 'POST',
+        url: `/admin/tenants/${SYSTEM_TENANT_NAME}/subjects/${holderId}/password`,
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      expect(issued.statusCode).toBe(201);
+      const password = issued.json<{ password: string }>().password;
+
+      const form = await authorize(instance);
+      const login = await formPost(
+        instance,
+        `/tenants/${SYSTEM_TENANT_NAME}/login-actions/authenticate`,
+        {
+          auth_session_id: readField(form.body, 'auth_session_id'),
+          username: holderName,
+          password,
+        },
+      );
+      expect(login.body).toContain('Change your password');
+
+      expect(logLines.length).toBeGreaterThan(0);
+      expect(logLines.filter((line) => line.includes(password))).toEqual([]);
+      const leaked = await owner.db.execute(
+        sql`SELECT count(*)::int AS n FROM audit_events AS a WHERE a::text LIKE ${`%${password}%`}`,
+      );
+      expect((leaked as unknown as { n: number }[])[0]?.n).toBe(0);
     } finally {
       await instance.close();
     }
