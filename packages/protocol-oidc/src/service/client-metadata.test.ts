@@ -1,3 +1,4 @@
+import { PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { describe, expect, it } from 'vitest';
 import { parseClientMetadata } from '#/service/client-metadata';
 
@@ -89,6 +90,32 @@ it('refuses a client that states its keys twice', () => {
     { tlsClientAuthEnabled: false },
   );
   expect(outcome).toMatchObject({ kind: 'invalid', error: 'invalid_client_metadata' });
+});
+
+const PUBLIC_EC_JWK = {
+  kty: 'EC',
+  crv: 'P-256',
+  x: 'f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU',
+  y: 'x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0',
+};
+
+it('accepts a jwks carrying only public keys', () => {
+  const outcome = parseClientMetadata(ok({ jwks: { keys: [PUBLIC_EC_JWK] } }), {
+    tlsClientAuthEnabled: false,
+  });
+  expect(outcome.kind).toBe('ok');
+});
+
+it.each(PRIVATE_JWK_MEMBERS)('refuses a jwks key carrying the private member %s', (member) => {
+  const outcome = parseClientMetadata(
+    ok({ jwks: { keys: [PUBLIC_EC_JWK, { ...PUBLIC_EC_JWK, [member]: 'c2VjcmV0' }] } }),
+    { tlsClientAuthEnabled: false },
+  );
+  expect(outcome).toMatchObject({
+    kind: 'invalid',
+    error: 'invalid_client_metadata',
+    description: `jwks.keys[1] carries the private member ${member}; register public keys only`,
+  });
 });
 
 it('refuses a client_id the client proposed for itself', () => {

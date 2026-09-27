@@ -295,6 +295,36 @@ describe('POST /admin/tenants/{t}/clients', () => {
     );
   });
 
+  it('refuses a jwks holding a private key, on create and on amend', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const privateJwks = { keys: [{ kty: 'EC', crv: 'P-256', x: 'x', y: 'y', d: 'private' }] };
+    const description = 'jwks.keys[0] carries the private member d; register public keys only';
+
+    const created = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers,
+      payload: {
+        client_id: `rp-${newId()}`,
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'private_key_jwt',
+        jwks: privateJwks,
+      },
+    });
+    expect(created.statusCode).toBe(400);
+    expect(created.json<{ detail: string }>().detail).toBe(description);
+
+    const client = await fixture.createConfidentialClient(t.name, {});
+    const amended = await fixture.patchClient(t.name, client.id, {
+      token_endpoint_auth_method: 'private_key_jwt',
+      jwks: privateJwks,
+    });
+    expect(amended.statusCode).toBe(400);
+    expect(amended.json<{ detail: string }>().detail).toBe(description);
+  });
+
   it('refuses a caller holding only manage-users', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users']);

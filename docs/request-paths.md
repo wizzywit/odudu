@@ -686,6 +686,38 @@ curl -sS -X POST http://localhost:3000/tenants/reg-demo/clients-registrations/op
 }
 ```
 
+A registered `jwks` carries public keys only. A key holding any private
+member — `d`, `p`, `q`, `dp`, `dq`, `qi` or `k` — is refused, on
+registration here and on `POST` and `PATCH /admin/tenants/{tenant}/clients`
+alike, since all three validate through the same client metadata check: a
+stored private half would be handed back by every read and export of the
+client. These three calls were captured later than the rest of this
+section, against a different stack: this repository's development stack,
+after its `odudu` service was rebuilt from the branch that added the check,
+in a tenant `jwks-demo` created through `POST /admin/tenants` with
+`client_registration_policy` set to `open` through `PATCH /settings`, so
+the refusal is the key's and not the policy's. A private key is refused
+by registration and by the admin API, and the first key without its private
+member then registers:
+
+```bash
+curl -sS -X POST http://localhost:3000/tenants/jwks-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"token_endpoint_auth_method":"private_key_jwt","jwks":{"keys":[{"kty":"EC","crv":"P-256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0","d":"jpsQnnGQmL-YBIffH1136cspYG6-0iY7X1fCE9-E9LI"}]}}'
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"client_id":"signer-app","grant_types":["client_credentials"],"token_endpoint_auth_method":"private_key_jwt","jwks":{"keys":[{"kty":"oct","k":"c3ltbWV0cmljLXNlY3JldA"}]}}' \
+  http://localhost:3000/admin/tenants/jwks-demo/clients
+curl -sS -X POST http://localhost:3000/tenants/jwks-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"token_endpoint_auth_method":"private_key_jwt","jwks":{"keys":[{"kty":"EC","crv":"P-256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}}'
+```
+
+```
+{"error":"invalid_client_metadata","error_description":"jwks.keys[0] carries the private member d; register public keys only"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"jwks.keys[0] carries the private member k; register public keys only","instance":"01a0e4ce-748f-70df-8ead-498c2c710232"}
+{"client_id":"01a0e4ce-74df-748e-9949-f9828362aedb","client_id_issued_at":1790545130,"client_secret":"VxKFZUEG42h_9qo3XHFgDHePNR3vkMSxHY8PpSB49Q8","client_secret_expires_at":0,"redirect_uris":["https://rp.example/cb"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"private_key_jwt","jwks":{"keys":[{"kty":"EC","crv":"P-256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}}
+```
+
 ## Path A: authorization code with PKCE
 
 The full interactive flow. Every client uses PKCE, public and confidential

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { JWE_ALGS_PERMITTED } from '@odudu/crypto';
+import { JWE_ALGS_PERMITTED, PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { assertFetchableUrl, RemoteAddressRefused } from '#/service/remote-address';
 
 // The RFC 7591 §3.2.2 error codes this validator returns. `error` doubles
@@ -168,6 +168,20 @@ function sharesOriginWithRegisteredRedirectUri(
 
 const jwkSetShape = z.object({ keys: z.array(z.unknown()) });
 
+// A client registers the keys this server verifies its signatures with and
+// encrypts to, never the halves that sign or decrypt: a stored private
+// member would be served back by every read and export of the client.
+function privateMemberRefusal(keys: readonly unknown[]): string | null {
+  for (const [index, key] of keys.entries()) {
+    if (typeof key !== 'object' || key === null) continue;
+    const member = PRIVATE_JWK_MEMBERS.find((name) => Object.hasOwn(key, name));
+    if (member !== undefined) {
+      return `jwks.keys[${String(index)}] carries the private member ${member}; register public keys only`;
+    }
+  }
+  return null;
+}
+
 const metadataShape = z.object({
   redirect_uris: z.array(z.string()).optional(),
   grant_types: z.array(z.string()).optional(),
@@ -310,6 +324,11 @@ export function parseClientMetadata(
 
   if (metadata.jwks !== undefined && metadata.jwks_uri !== undefined) {
     return invalid('invalid_client_metadata', 'jwks and jwks_uri are mutually exclusive');
+  }
+
+  if (metadata.jwks !== undefined) {
+    const refusal = privateMemberRefusal(metadata.jwks.keys);
+    if (refusal !== null) return invalid('invalid_client_metadata', refusal);
   }
 
   let jwksUri: string | null = null;
