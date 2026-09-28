@@ -21,6 +21,9 @@ describe('tenant-bound values', () => {
     ['an empty secret', `${TENANT}.`],
     ['a secret outside base64url', `${TENANT}.a b`],
     ['a second separator', `${TENANT}.a.b`],
+    ['a secret shorter than 32 bytes encoded', `${TENANT}.${'a'.repeat(42)}`],
+    ['an oversized secret', `${TENANT}.${'a'.repeat(44)}`],
+    ['a secret of 4 KiB', `${TENANT}.${'a'.repeat(4096)}`],
   ])('refuses %s', (_label, value) => {
     expect(splitTenantBound(value)).toBeNull();
   });

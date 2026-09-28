@@ -2,7 +2,8 @@ import { isUuid } from '@odudu/kernel';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 const SEPARATOR = '.';
-const BASE64URL = /^[A-Za-z0-9_-]+$/u;
+// randomSecret's shape exactly: 32 bytes, base64url, unpadded.
+const SECRET = /^[A-Za-z0-9_-]{43}$/u;
 
 export function randomSecret(): string {
   return randomBytes(32).toString('base64url');
@@ -28,6 +29,6 @@ export function splitTenantBound(value: string): { tenantId: string; secret: str
   const parts = value.split(SEPARATOR);
   if (parts.length !== 2) return null;
   const [tenantId = '', secret = ''] = parts;
-  if (!isUuid(tenantId) || !BASE64URL.test(secret)) return null;
+  if (!isUuid(tenantId) || !SECRET.test(secret)) return null;
   return { tenantId, secret };
 }
