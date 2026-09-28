@@ -26,6 +26,7 @@ function packageDir(from: string, name: string): string {
 
 const RAC_DIR = packageDir(CONSOLE_PACKAGE, 'react-aria-components');
 const REACT_ARIA_DIR = packageDir(join(RAC_DIR, 'package.json'), 'react-aria');
+const REACT_STATELY_DIR = packageDir(join(RAC_DIR, 'package.json'), 'react-stately');
 
 const INJECTORS = [
   'dist/private/interactions/usePress.mjs',
@@ -38,12 +39,23 @@ function modules(dir: string): string[] {
     .map((file) => file.split('\\').join('/'));
 }
 
+// Each way a script can add a <style> element or a style attribute, both of
+// which style-src governs. Setting a property through `el.style` does not.
+const STYLE_INJECTIONS = [
+  /createElement\(\s*['"]style['"]\s*\)/u,
+  /setAttribute\(\s*['"]style['"]/u,
+  /(?:inner|outer)HTML\s*\+?=[^;]*<style/u,
+  /insertAdjacentHTML\([^;]*<style/u,
+];
+
+function injectsStyle(source: string): boolean {
+  return STYLE_INJECTIONS.some((pattern) => pattern.test(source));
+}
+
 function injectingModules(root: string): string[] {
   return modules(join(root, 'dist'))
     .map((file) => `dist/${file}`)
-    .filter((file) =>
-      /createElement\(['"]style['"]\)/u.test(readFileSync(join(root, file), 'utf8')),
-    )
+    .filter((file) => injectsStyle(readFileSync(join(root, file), 'utf8')))
     .sort();
 }
 
@@ -80,8 +92,26 @@ function styleSources(csp: string): string[] {
 }
 
 describe("the shell's style-src and the React Aria it is built with", () => {
+  it.each([
+    ["document.createElement('style')"],
+    ["el.setAttribute('style', 'color: red')"],
+    ['el.setAttribute("style", css)'],
+    ["el.innerHTML = '<style>p {}</style>'"],
+    ["el.insertAdjacentHTML('beforeend', `<style>${css}</style>`)"],
+  ])('recognises %s as a style the CSP governs', (source) => {
+    expect(injectsStyle(source)).toBe(true);
+  });
+
+  it.each([["el.style.color = 'red'"], ["el.innerHTML = '<p>styled</p>'"]])(
+    'leaves %s alone, which style-src does not govern',
+    (source) => {
+      expect(injectsStyle(source)).toBe(false);
+    },
+  );
+
   it('finds no style injection outside the modules it hashes', () => {
     expect(injectingModules(RAC_DIR)).toEqual([]);
+    expect(injectingModules(REACT_STATELY_DIR)).toEqual([]);
     expect(injectingModules(REACT_ARIA_DIR)).toEqual([...INJECTORS].sort());
   });
 
