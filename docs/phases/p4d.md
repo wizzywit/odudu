@@ -1302,3 +1302,120 @@ parallel repeat's too.
 **For the repository owner:** making `e2e` a required check on `main`
 beside `verify`, `container` and `commit-messages` is a branch-protection
 setting, which only the owner can change.
+
+## Part 4 spikes
+
+Three browser and proxy behaviours the console's features build on, run on
+2026-09-28. S1 and S2 ran in a throwaway change to `apps/admin-console`: two
+extra routes under `$tenant` in `app/router.tsx`, two components in
+`src/spike/`, and `e2e/spike.spec.ts`. The image was built from that tree,
+so the gateway served the split build under `SHELL_CSP`, byte for byte as
+`spa.ts` sets it. The spec used the harness's `problems` fixture, which
+fails a test on any `securitypolicyviolation` or console error. Pins:
+`@playwright/test@1.63.0`, headless shell 1243,
+`@tanstack/react-router@1.170.39`, `@tanstack/router-core@1.171.32`,
+`vite@8.3.1`. Everything throwaway was deleted and the stack went down.
+verified, S1 and S2: `ODUDU_HOST_PORT=3080 POSTGRES_HOST_PORT=5462 bash apps/admin-console/e2e/run.sh spike.spec.ts --reporter=list`
+(compose project `odudu-e2e`, which `run.sh` takes down on exit)
+
+### A blob download under `SHELL_CSP`
+
+**Confirmed.** A button built a 5,207,180-byte UTF-8 text containing
+`ü`, `—`, `𝄞` and `✓`, read it back through `new Response(text).blob()`,
+and wrapped it as `new Blob([body], { type: 'application/vnd.odudu.tenant+json' })`.
+It then clicked a detached `<a download="acme.odudu-tenant.json">` on
+`URL.createObjectURL(blob)`, and revoked the URL in a `setTimeout(…, 0)`.
+
+```
+SPIKE S1 filename acme.odudu-tenant.json url blob:http://localhost:3080/d9c554fb-971f
+SPIKE S1 bytes got 5207180 want 5207180 sha got d4407385c03fae3853f09fb1f289521cb579c9ac817b4e665ce60d60f7e9287a want d4407385c03fae3853f09fb1f289521cb579c9ac817b4e665ce60d60f7e9287a equal true
+```
+
+The saved file is byte-identical to the one Node built from the same
+generator. The suggested name is kept. No directive needs `blob:`, and the
+fixture saw no violation. Revoking straight after the click did not cut the
+file short.
+
+### Lazy route chunks under `script-src 'self'`
+
+**Confirmed, for both ways of splitting.** One route used
+`lazyRouteComponent(() => import(…), 'SpikeLazy')`. The other used
+`React.lazy` inside a `Suspense`. The build emitted each as its own chunk,
+and the gateway's asset walk served both:
+
+```
+SPIKE S2 chunks ["200 http://localhost:3080/console/assets/SpikeLazy-CR16uCpe.js text/javascript; charset=utf-8","200 http://localhost:3080/console/assets/SpikeReactLazy-B38h4GEK.js text/javascript; charset=utf-8"]
+```
+
+Both routes rendered, and the fixture saw no violation.
+
+**A stale chunk under `lazyRouteComponent` writes `sessionStorage` and
+reloads the page.** The source is
+`node_modules/.pnpm/@tanstack+react-router@1.170.39_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-router/dist/esm/lazyRouteComponent.js:37-43`.
+When `isModuleNotFoundError(error)` holds
+(`@tanstack+router-core@1.171.32/…/dist/esm/utils.js:147-150`, a message
+prefix match), it writes `tanstack_router_reload:<message>` to
+`sessionStorage` without a guard. If the key was not already set, it calls
+`window.location.reload()`. A second test answered the chunk with a 404
+through `page.route`:
+
+```
+SPIKE S2 stale loads 2 sessionStorage {"tanstack_router_reload:Failed to fetch dynamically imported module: http://localhost:3080/console/assets/SpikeLazy-CR16uCpe.js":"1"}
+SPIKE S2 stale body Something went wrong!
+```
+
+So the page reloaded once. After the reload the key was already set, so the
+error reached the router's default error component. The key is never
+cleared. A later stale chunk with the same message in the same tab goes
+straight to the error and does not reload.
+
+**Recommendation: `React.lazy`, not `lazyRouteComponent`.** The storage
+lint (`tests/lint/console-storage-only-in-adapter.test.ts`) scans only
+`apps/admin-console/src`, so it would never see the library's write. That
+makes an exemption invisible, not merely allowed. It would put storage and
+a navigation outside the storage adapter and outside `useLeaveConsole`,
+which the Part 3 decision "storage behind adapters" rules out. `React.lazy`
+does neither. A failed import rejects into the nearest error boundary. The
+console then owns what a stale deployment looks like: a message and a
+reload that goes through its own guard. A rejected `React.lazy` stays
+rejected, so recovery is a reload, never an in-place retry.
+
+### The conformance proxy's body limit
+
+**Confirmed: 1 MiB, so a 16 MiB import is refused with `413` before it
+reaches Odudu.** `infra/conformance/proxy/nginx.conf` sets no
+`client_max_body_size`. Its image is `nginx:1.27-alpine`, which reports
+`nginx/1.27.5`. The image was built from `infra/conformance/proxy` and run
+on a network of its own. A stub nginx named `odudu` stood in for the
+server, answering `200` to anything, since the limit is enforced before
+anything is proxied. Bodies were POSTed to
+`https://localhost:8643/console/api/admin/tenant-imports`:
+
+```
+1m: 200
+1m1: 413
+16m: 413
+```
+
+With `client_max_body_size 16m;` added to the `server` block and nginx
+reloaded:
+
+```
+16m: 200
+16m1: 413
+```
+
+nginx's `m` is 1,048,576 bytes, so `16m` admits exactly
+`TENANT_IMPORT_BODY_LIMIT` (`packages/contracts/src/admin/tenant-document.ts`),
+and one byte more is refused at the proxy. **A proxy in front of a
+deployment that imports tenants must set `client_max_body_size 16m` or
+more,** or its equivalent, on `/console/api/admin/tenant-imports` and
+`/admin/tenant-imports` at least. Every other route is capped lower by
+the server itself. The conformance suite never imports, so its proxy needs
+no change. The deployment section of `README.md` should say this when the
+import feature ships.
+verified: `docker build -t odudu-s3-proxy infra/conformance/proxy`, then
+`docker run` of it and of the stub on network `odudu-s3`, then
+`curl -sk -o /dev/null -w '%{http_code}' -X POST --data-binary @<file> https://localhost:8643/console/api/admin/tenant-imports`
+for files of 1,048,576, 1,048,577, 16,777,216 and 16,777,217 zero bytes,
+and `docker rm -f`, `docker network rm` and `docker rmi` afterwards
