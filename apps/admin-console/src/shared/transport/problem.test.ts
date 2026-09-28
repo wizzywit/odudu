@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSessionEnded, readProblem } from '#/shared/transport/problem.ts';
+import { readProblem } from '#/shared/transport/problem.ts';
 
 const PROBLEM_JSON = 'application/problem+json; charset=utf-8';
 
@@ -62,21 +62,5 @@ describe('readProblem', () => {
     const body = '{"status":200,"type":"about:blank","title":"Forbidden","instance":"i"}';
 
     expect(readProblem(403, PROBLEM_JSON, body).status).toBe(403);
-  });
-});
-
-describe('isSessionEnded', () => {
-  it('is true for the gateway session-ended type', () => {
-    expect(
-      isSessionEnded({
-        type: 'about:blank#console-session-ended',
-        title: 'Unauthorized',
-        status: 401,
-      }),
-    ).toBe(true);
-  });
-
-  it('is false for a plain 401 the admin API passes back', () => {
-    expect(isSessionEnded({ type: 'about:blank', title: 'Unauthorized', status: 401 })).toBe(false);
   });
 });

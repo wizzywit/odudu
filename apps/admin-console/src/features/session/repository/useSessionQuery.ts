@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { readSession } from '#/features/session/adapter/session.ts';
 import { loadLastTenant, storeLastTenant } from '#/features/session/adapter/lastTenant.ts';
 import { draftOwner, type Principal } from '#/features/session/service.ts';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
-import { SESSION_ENDED_TYPE } from '#/shared/transport/problem.ts';
+import { SESSION_ENDED_TYPE } from '#/shared/service/sessionEnded.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 const KEY = ['session'] as const;
@@ -58,4 +59,21 @@ export function useSessionQuery(): {
       client.setQueryData(KEY, ENDED);
     },
   };
+}
+
+// Called when the gateway reports this session over, from whichever request
+// found out.
+export function useSessionEnded(listener: () => void): void {
+  const { events } = useTransport();
+  const latest = useRef(listener);
+  useEffect(() => {
+    latest.current = listener;
+  });
+  useEffect(
+    () =>
+      events.on('sessionEnded', () => {
+        latest.current();
+      }),
+    [events],
+  );
 }

@@ -1,8 +1,9 @@
 import type { ZodType } from 'zod';
+import { isSessionEnded } from '#/shared/service/sessionEnded.ts';
 import { sessionEvents, type SessionEvents } from '#/shared/service/sessionEvents.ts';
 import { nextCursor } from '#/shared/transport/cursor.ts';
 import { readEtag } from '#/shared/transport/etag.ts';
-import { isSessionEnded, readProblem, type Problem } from '#/shared/transport/problem.ts';
+import { readProblem, type Problem } from '#/shared/transport/problem.ts';
 
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type Fetch = (url: string, init: RequestInit) => Promise<Response>;

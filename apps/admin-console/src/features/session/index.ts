@@ -4,6 +4,7 @@ export { SigningIn } from '#/features/session/view/SigningIn.tsx';
 export { CHOOSE_TENANT } from '#/features/session/usecase/useConsoleHome.ts';
 export { usePrincipal, useSignedIn } from '#/features/session/usecase/useSignedIn.ts';
 export { useSignIn } from '#/features/session/usecase/useSignIn.ts';
+export { useSignOut } from '#/features/session/usecase/useSignOut.ts';
 export { useTenantAccess, type TenantAccess } from '#/features/session/usecase/useTenantAccess.ts';
 export { useAuthority, useRefusal } from '#/features/session/usecase/useAuthority.ts';
 export {

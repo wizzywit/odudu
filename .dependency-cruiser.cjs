@@ -96,6 +96,53 @@ module.exports = {
       to: { path: '(^|/)apps/admin-console/src/shared/(?:transport|repository)/' },
     },
     {
+      name: 'console-usecase-no-transport',
+      severity: 'error',
+      comment:
+        'A console usecase orchestrates; it reaches the gateway, the page and the session ' +
+        'events through a repository. A type-only import names a shape and is allowed.',
+      from: {
+        path: '(^|/)apps/admin-console/src/(?:usecase|.*/usecase)(?:/|\\.tsx?$)',
+        pathNot: '\\.test\\.tsx?$',
+      },
+      to: {
+        path: '(^|/)apps/admin-console/src/shared/transport/',
+        dependencyTypesNot: ['type-only'],
+      },
+    },
+    {
+      name: 'console-transport-context-in-repository',
+      severity: 'error',
+      comment:
+        'The injected transport is read by repositories, which decide what to fetch and when, ' +
+        'and provided by app/. Tests and src/testing build their own.',
+      from: {
+        path: '(^|/)apps/admin-console/src/',
+        pathNot:
+          '(^|/)apps/admin-console/src/(?:app/|testing/|(?:repository|.*/repository)(?:/|\\.tsx?$))|\\.test\\.tsx?$',
+      },
+      to: {
+        path: '(^|/)apps/admin-console/src/shared/transport/useTransport\\.ts$',
+        dependencyTypesNot: ['type-only'],
+      },
+    },
+    {
+      name: 'console-transport-client-in-adapter',
+      severity: 'error',
+      comment:
+        'The gateway, the logout call and the transport bundle are the wire: an adapter uses ' +
+        'them and app/ builds them. Anywhere else a type-only import is all that is needed.',
+      from: {
+        path: '(^|/)apps/admin-console/src/',
+        pathNot:
+          '(^|/)apps/admin-console/src/(?:app/|testing/|shared/transport/|(?:adapter|.*/adapter)(?:/|\\.tsx?$))|\\.test\\.tsx?$',
+      },
+      to: {
+        path: '(^|/)apps/admin-console/src/shared/transport/(?:gateway|auth|transport)\\.ts$',
+        dependencyTypesNot: ['type-only'],
+      },
+    },
+    {
       name: 'console-nothing-imports-gallery',
       severity: 'error',
       comment:

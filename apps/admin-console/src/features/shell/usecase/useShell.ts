@@ -1,5 +1,10 @@
 import { useLocation } from '@tanstack/react-router';
-import { CHOOSE_TENANT, useAuthority, type Principal } from '#/features/session/index.ts';
+import {
+  CHOOSE_TENANT,
+  useAuthority,
+  useSignOut,
+  type Principal,
+} from '#/features/session/index.ts';
 import {
   actsWithSystemAuthority,
   currentHref,
@@ -9,12 +14,7 @@ import {
 } from '#/features/shell/service.ts';
 import { useRailCollapsed } from '#/shared/repository/useRailCollapsed.ts';
 import type { ThemeChoice } from '#/shared/service/theme.ts';
-import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import { useTheme } from '#/shared/repository/useTheme.ts';
-import { useToasts } from '#/shared/repository/useToasts.ts';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
-import { isSessionEnded } from '#/shared/transport/problem.ts';
-import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export interface Shell {
   readonly groups: readonly RailSection[];
@@ -33,27 +33,11 @@ export interface Shell {
 export function useShell(tenant: string, principal: Principal): Shell {
   const authority = useAuthority(tenant);
   const { publicHref } = useLocation();
-  const { auth, leavePage } = useTransport();
+  const signOut = useSignOut();
   const theme = useTheme();
   const [collapsed, setCollapsed] = useRailCollapsed();
   const groups = railGroups(tenant, showsSystemArea(principal, tenant, authority));
   const pathname = new URL(publicHref, globalThis.location.origin).pathname;
-
-  const signOut = async (): Promise<void> => {
-    const result = await auth.logout();
-    const guard = useUnsavedGuard.getState();
-    const gone =
-      result.ok ||
-      result.kind === 'schema' ||
-      (result.kind === 'problem' && isSessionEnded(result.problem));
-    if (!gone) {
-      useToasts.getState().push({ tone: 'error', message: 'Could not sign out. Try again.' });
-      return;
-    }
-    useDrafts.getState().forgetAll();
-    guard.release();
-    leavePage(result.ok ? result.redirect : '/console/');
-  };
 
   return {
     groups,
@@ -66,10 +50,6 @@ export function useShell(tenant: string, principal: Principal): Shell {
     setCollapsed,
     theme: theme.choice,
     chooseTheme: theme.choose,
-    signOut: () => {
-      useUnsavedGuard.getState().request(() => {
-        signOut().catch(() => undefined);
-      });
-    },
+    signOut,
   };
 }

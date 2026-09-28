@@ -1,8 +1,6 @@
 import { importErrorSchema, problemDetailsSchema } from '@odudu/contracts/admin';
 import { z } from 'zod';
 
-export const SESSION_ENDED_TYPE = 'about:blank#console-session-ended';
-
 // The gateway's own refusals and the admin API's forwarded ones share this
 // shape; `detail` is absent from some (the gateway's 502 has none).
 const problemSchema = problemDetailsSchema.extend({
@@ -47,8 +45,4 @@ export function readProblem(status: number, contentType: string | null, text: st
   if (contentType?.toLowerCase().startsWith('application/problem+json') !== true) return fallback;
   const parsed = problemSchema.safeParse(parseJson(text));
   return parsed.success ? { ...parsed.data, status } : fallback;
-}
-
-export function isSessionEnded(problem: Problem): boolean {
-  return problem.status === 401 && problem.type === SESSION_ENDED_TYPE;
 }

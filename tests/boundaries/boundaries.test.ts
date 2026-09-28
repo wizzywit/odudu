@@ -297,6 +297,36 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toHaveLength(0);
   });
 
+  it('rejects a console usecase reaching shared/transport', async () => {
+    const found = await violations('console-usecase-no-transport');
+    expect(found.some((v) => v.from.endsWith('features/subjects/usecase/readsTransport.ts'))).toBe(
+      true,
+    );
+  });
+
+  it('rejects the transport context read outside a repository', async () => {
+    const found = await violations('console-transport-context-in-repository');
+    expect(found.some((v) => v.from.endsWith('features/subjects/usecase/readsTransport.ts'))).toBe(
+      true,
+    );
+    expect(found.some((v) => v.from.endsWith('repository/readsTransport.ts'))).toBe(false);
+  });
+
+  it('rejects the gateway built outside an adapter', async () => {
+    const found = await violations('console-transport-client-in-adapter');
+    expect(found.some((v) => v.from.endsWith('repository/buildsGateway.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('adapter/buildsGateway.ts'))).toBe(false);
+  });
+
+  it('permits a type-only import of the transport anywhere', async () => {
+    const output = await cruiseFixtures();
+    const typed = output.modules.find((m) => m.source.endsWith('usecase/typesTransport.ts'));
+    expect(typed?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(2);
+    expect(
+      output.summary.violations.filter((v) => v.from.endsWith('usecase/typesTransport.ts')),
+    ).toHaveLength(0);
+  });
+
   it('permits the gallery importing shared/view and shared/service', async () => {
     const output = await cruiseFixtures();
     const gallery = output.modules.find((m) => m.source.endsWith('src/gallery/Gallery.ts'));

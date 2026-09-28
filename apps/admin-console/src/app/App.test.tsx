@@ -239,6 +239,38 @@ describe('leaving', () => {
     expect(calls).toContainEqual({ method: 'POST', path: '/console/auth/logout' });
   });
 
+  it.each([
+    ['the session had already ended', SESSION_ENDED],
+    ['the redirect is off this origin', json({ redirect: 'https://elsewhere.example/logout' })],
+  ])('leaves for the console root when %s', async (_, answer) => {
+    const user = userEvent.setup();
+    const { leavePage } = renderAt('/console/acme', {
+      ...signedIn,
+      'POST /console/auth/logout': answer,
+    });
+    await user.click(await screen.findByRole('button', { name: 'Sign out' }));
+    await waitFor(() => {
+      expect(leavePage).toHaveBeenCalledWith('/console/');
+    });
+  });
+
+  it('forgets the drafts kept in this tab once signed out', async () => {
+    const user = userEvent.setup();
+    sessionStorage.setItem(
+      'odudu.console.drafts',
+      JSON.stringify({ owner: 'acme/s1', drafts: { 'acme/roles/r1': { general: { name: 'x' } } } }),
+    );
+    const { leavePage } = renderAt('/console/acme', {
+      ...signedIn,
+      'POST /console/auth/logout': json({ redirect: `${location.origin}/x` }),
+    });
+    await user.click(await screen.findByRole('button', { name: 'Sign out' }));
+    await waitFor(() => {
+      expect(leavePage).toHaveBeenCalled();
+    });
+    expect(sessionStorage.getItem('odudu.console.drafts')).toBeNull();
+  });
+
   it('stays signed in and says so when the sign-out cannot be confirmed', async () => {
     const user = userEvent.setup();
     const { leavePage } = renderAt('/console/acme', {
