@@ -121,12 +121,19 @@ id, secret and timestamp are later than the rest of this section's.
 system tenant, in tenants `settings-demo` and `rename-demo` created for
 them, as each section says. `GET /export` was captured after one more
 rebuild, as a new admin subject `ada-export`, in a tenant `export-demo`
-created for it, as that section says. `POST /admin/tenant-imports` was
-captured after one more rebuild, as a new admin subject `ada-import`, from
-a tenant `import-source` created for it into a tenant `import-demo`, as
-that section says. The range refusals under `PATCH /settings` were captured
-after a further rebuild, as the same `ada-import`, in a tenant
-`settings-range-demo`; the rest of that section was not re-run.
+created for it, as that section says; its audit-trail queries were later
+recaptured, scoped by `from=$RUN_START` instead of left unscoped, as a
+further admin subject `ada-export2` against that same tenant, without
+rebuilding the stack. `POST /admin/tenant-imports` was captured after one
+more rebuild, as a new admin subject `ada-import`, from a tenant
+`import-source` created for it into a tenant `import-demo`, as that
+section says; its own unscoped audit-trail query was later recaptured,
+scoped by `resource_type`/`resource_id`, as a further admin subject
+`ada-import2` importing into a new tenant `import-demo2` from the same
+`import-source`, again without rebuilding the stack. The range refusals
+under `PATCH /settings` were captured after a further rebuild, as the same
+`ada-import`, in a tenant `settings-range-demo`; the rest of that section
+was not re-run.
 
 ## The shape of it
 
@@ -709,25 +716,24 @@ other `include` is refused with `400`. Every export writes a
 `tenant.export` row into the tenant's trail whose `detail` says whether
 subjects were included.
 
-Captured against the fourth stack (the note at the top of this document)
-after its `odudu` service was rebuilt from this branch, as a new admin
-subject `ada-export` in the system tenant, in a tenant `export-demo`
-created for it. Before the capture, `export-demo` was given a confidential
-client `billing-app`, a tenant role `billing-reader`, a group `finance`
-holding that role, a subject `grace` who belongs to it, and an SMTP relay
-whose password was `relay-password-shown-nowhere`; then a subject
-`tenant-operator` holding only `manage-tenant`, issued a one-time password
-through `POST /subjects/:id/password` and signed in through the tenant's
-own `odudu-admin` client, whose token is `$OPERATOR_TOKEN` below. The
-trail read near the end lists five exports: two trial calls made before
-this capture, the first export below, an export with subjects run straight
-after it whose output is not shown, and `tenant-operator`'s. The two
-`grep -c` calls and the closing `jq` selection were run after the trail was
-read, so it does not list them.
+Captured against the fourth stack (the note at the top of this document),
+still running and not rebuilt for this recapture, as a new admin subject
+`ada-export2` in the system tenant, reusing the `export-demo` tenant an
+earlier capture created: its confidential client `billing-app`, tenant role
+`billing-reader`, group `finance`, subject `grace` who belongs to it, and
+SMTP relay whose password is `relay-password-shown-nowhere`, are all still
+there. `tenant-operator`, also still there, was issued a fresh one-time
+password through `POST /subjects/:id/password` and signed back in through
+the tenant's own `odudu-admin` client, whose token is `$OPERATOR_TOKEN`
+below. `RUN_START=$(date -u +%FT%T.000Z)` was captured first, so every
+trail read below is scoped to `from=$RUN_START` rather than walking the
+whole (and, on a reused tenant, already long) history of exports and
+refusals against `export-demo`.
 
 The export, without subjects:
 
 ```bash
+RUN_START=$(date -u +%FT%T.000Z)
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3000/admin/tenants/export-demo/export
@@ -735,11 +741,11 @@ curl -sS -D - \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e4c3-b782-705b-8925-dd23453ed5b5
+x-request-id: 01a0e5d9-8b57-7c1d-bb96-b5e32edb81b1
 cache-control: no-store
 content-type: application/vnd.odudu.tenant+json; charset=utf-8
 content-length: 5408
-Date: Sun, 27 Sep 2026 21:27:06 GMT
+Date: Mon, 28 Sep 2026 02:30:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -760,8 +766,10 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 0
 ```
 
-`tenant-operator` holds `manage-tenant` and nothing else, as `whoami`
-shows, so `?include=subjects` is refused and the export without it is not:
+By the same rule the ceiling-removal block below shows, `tenant-operator`
+holding `manage-tenant` alone is refused `manage-clients` for either form
+of the export — `?include=subjects` and the export without it both answer
+`403`:
 
 ```bash
 curl -sS -H "Authorization: Bearer $OPERATOR_TOKEN" \
@@ -777,29 +785,31 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 {"subjectId":"01a0e4c3-4083-7293-8831-26a05de70216","issuerTenantId":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","capabilities":["manage-tenant"],"crossTenant":false}
-{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0e4c3-b7f6-765f-9ad6-f77e02f7f1e5"}
-200 application/vnd.odudu.tenant+json; charset=utf-8
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring/include must be equal to constant","instance":"01a0e4c3-b828-76de-8fc9-a064ceb6e5be"}
+{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0e5d9-ee19-720b-a216-800817e3c760"}
+403 application/problem+json; charset=utf-8
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/include must be equal to constant","instance":"01a0e5d9-ee50-71b0-a513-0a6e247b84d0"}
 ```
 
-The trail, first the exports and then the refusal, which names the
-capability that was missing:
+The trail, scoped to this run — the exports (`$ADMIN_TOKEN`'s, allowed)
+and then the two refusals (`tenant-operator`'s, naming `manage-clients`
+both times):
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3000/admin/tenants/export-demo/audit?action=tenant.export"
+  "http://localhost:3000/admin/tenants/export-demo/audit?action=tenant.export&from=$RUN_START"
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3000/admin/tenants/export-demo/audit?action=capability.refused"
+  "http://localhost:3000/admin/tenants/export-demo/audit?action=capability.refused&from=$RUN_START"
 ```
 
 ```
-{"items":[{"id":"01a0e4c3-b81b-7364-a840-507b8f77fada","occurred_at":"2026-09-27T21:27:07.028Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","actor_subject_id":"01a0e4c3-4083-7293-8831-26a05de70216","actor_client_id":"01a0e4c2-de61-7157-af81-7cd142b62099","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e4c3-b80c-7d51-a22f-66588618fb81","ip":"172.20.0.1","detail":{"include_subjects":false}},{"id":"01a0e4c3-b7d1-7c2a-a899-e7f2e76b40c2","occurred_at":"2026-09-27T21:27:06.946Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e4c2-b3c4-71dd-9d83-aa36e12b3d85","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e4c3-b7b6-767f-bb8a-e7c6a3f82444","ip":"172.20.0.1","detail":{"include_subjects":true}},{"id":"01a0e4c3-b7a7-7025-be1b-ad62e3f51cc9","occurred_at":"2026-09-27T21:27:06.904Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e4c2-b3c4-71dd-9d83-aa36e12b3d85","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e4c3-b782-705b-8925-dd23453ed5b5","ip":"172.20.0.1","detail":{"include_subjects":false}},{"id":"01a0e4c3-1b87-7d6f-8015-24298824356a","occurred_at":"2026-09-27T21:26:26.936Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e4c2-b3c4-71dd-9d83-aa36e12b3d85","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e4c3-1b6d-7044-8f67-6b61b081421c","ip":"172.20.0.1","detail":{"include_subjects":true}},{"id":"01a0e4c3-1b61-7168-946e-50f28ea158ff","occurred_at":"2026-09-27T21:26:26.900Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e4c2-b3c4-71dd-9d83-aa36e12b3d85","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e4c3-1b45-799e-a1b7-013f564685e9","ip":"172.20.0.1","detail":{"include_subjects":false}}]}
-{"items":[{"id":"01a0e4c3-b801-7f33-822b-035ee9140fbb","occurred_at":"2026-09-27T21:27:07.009Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","actor_subject_id":"01a0e4c3-4083-7293-8831-26a05de70216","actor_client_id":"01a0e4c2-de61-7157-af81-7cd142b62099","resource_type":null,"resource_id":null,"request_id":"01a0e4c3-b7f6-765f-9ad6-f77e02f7f1e5","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
+{"items":[{"id":"01a0e5d9-ab90-7cf8-aa83-5fa065a45b70","occurred_at":"2026-09-28T02:30:42.821Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e5d9-7862-732b-a27c-0efffe82a3db","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e5d9-ab7a-7793-aae0-aae5d63f08df","ip":"172.20.0.1","detail":{"include_subjects":true}},{"id":"01a0e5d9-ab6a-7b1f-b4fb-e215f49d4617","occurred_at":"2026-09-28T02:30:42.783Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e5d9-7862-732b-a27c-0efffe82a3db","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e5d9-ab55-75ec-928f-2b775c8ffebd","ip":"172.20.0.1","detail":{"include_subjects":false}},{"id":"01a0e5d9-ab47-743f-9954-84eb1bdb27a2","occurred_at":"2026-09-28T02:30:42.744Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e5d9-7862-732b-a27c-0efffe82a3db","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e5d9-ab29-7996-b59d-51008a110a5c","ip":"172.20.0.1","detail":{"include_subjects":true}},{"id":"01a0e5d9-8b76-7b7c-befd-cc591e6e895a","occurred_at":"2026-09-28T02:30:34.599Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e5d9-7862-732b-a27c-0efffe82a3db","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e5d9-8b57-7c1d-bb96-b5e32edb81b1","ip":"172.20.0.1","detail":{"include_subjects":false}}]}
+{"items":[{"id":"01a0e5d9-ee45-7e75-9dd8-51c63b80f954","occurred_at":"2026-09-28T02:30:59.909Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","actor_subject_id":"01a0e4c3-4083-7293-8831-26a05de70216","actor_client_id":"01a0e4c2-de61-7157-af81-7cd142b62099","resource_type":null,"resource_id":null,"request_id":"01a0e5d9-ee38-79e3-bd44-7588a226f488","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"manage-clients"}},{"id":"01a0e5d9-ee29-7f3a-86cb-fae8e2bebdcc","occurred_at":"2026-09-28T02:30:59.880Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","actor_subject_id":"01a0e4c3-4083-7293-8831-26a05de70216","actor_client_id":"01a0e4c2-de61-7157-af81-7cd142b62099","resource_type":null,"resource_id":null,"request_id":"01a0e5d9-ee19-720b-a216-800817e3c760","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"manage-clients"}}]}
 ```
 
 The subjects and `omitted` of the export with subjects, selected with
-`jq` — `grace` has no credential yet, and `tenant-operator`'s password is
-named rather than carried:
+`jq` — `grace` still owes `update-password`, and `tenant-operator`'s no
+longer does, now that the reset above was completed; her password is named
+rather than carried:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -913,14 +923,16 @@ A document holding more subjects than export would ever write — more than
 the same text export's own `413` gives, since a smaller body can still hold
 that many.
 
-Captured against the fourth stack (the note at the top of this document)
-after its `odudu` service was rebuilt from this branch, as a new admin
-subject `ada-import` in the system tenant. Before the capture, a tenant
-`import-source` was created through `POST /admin/tenants` and given a
-confidential `client_credentials` client `billing-app`, a tenant role
-`billing-reader`, a group `finance` holding it, and a subject `grace` who
-belongs to it. Both tenants and the secret below are throwaway: they were
-made for this capture and hold nothing else.
+Captured against the fourth stack (the note at the top of this document),
+still running and not rebuilt for this recapture, as a new admin subject
+`ada-import2` in the system tenant. `import-source`, from an earlier
+capture, is reused unchanged: a confidential `client_credentials` client
+`billing-app`, a tenant role `billing-reader`, a group `finance` holding
+it, and a subject `grace` who belongs to it. The import below names a new
+tenant, `import-demo2`, since `import-demo` from that earlier capture is
+still there and a name already in use is refused. Both tenants and the
+secret below are throwaway: they hold nothing beyond this and the earlier
+capture's demonstrations.
 
 The export, saved, then imported under a new name:
 
@@ -928,7 +940,7 @@ The export, saved, then imported under a new name:
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
   "http://localhost:3000/admin/tenants/import-source/export?include=subjects" > source.json
 jq -n --slurpfile document source.json \
-  '{name: "import-demo", display_name: "Import demo", document: $document[0]}' \
+  '{name: "import-demo2", display_name: "Import demo", document: $document[0]}' \
   | curl -sS -D - -X POST \
       -H "Authorization: Bearer $ADMIN_TOKEN" \
       -H "Content-Type: application/json" \
@@ -938,23 +950,23 @@ jq -n --slurpfile document source.json \
 
 ```
 HTTP/1.1 201 Created
-x-request-id: 01a0e4ef-83c6-77c1-a4b0-6134bb23672e
+x-request-id: 01a0e5dc-7f64-78f5-b090-3c2d73c8ebe8
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 263
-Date: Sun, 27 Sep 2026 22:14:57 GMT
+content-length: 264
+Date: Mon, 28 Sep 2026 02:33:48 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"tenant":{"id":"01a0e4ef-83e3-7e38-b431-de84892f93ed","name":"import-demo","display_name":"Import demo","enabled":true,"created_at":"2026-09-27T22:14:57.251Z"},"client_secrets":[{"client_id":"billing-app","secret":"j5Unrg2WK5yRFZpl0imdKqYl6QPRZ3J4W4jeZr-PLmo"}]}
+{"tenant":{"id":"01a0e5dc-7f9c-7e15-b29a-b0ff518792da","name":"import-demo2","display_name":"Import demo","enabled":true,"created_at":"2026-09-28T02:33:48.188Z"},"client_secrets":[{"client_id":"billing-app","secret":"-c-i0PTHXJS0tDeV4xm0ovRlMIMFwgRd-ajVgfug04M"}]}
 ```
 
 The secret it answered authenticates at the new tenant's `/token`:
 
 ```bash
-curl -sS -u 'billing-app:j5Unrg2WK5yRFZpl0imdKqYl6QPRZ3J4W4jeZr-PLmo' \
+curl -sS -u 'billing-app:-c-i0PTHXJS0tDeV4xm0ovRlMIMFwgRd-ajVgfug04M' \
   --data-urlencode 'grant_type=client_credentials' \
-  http://localhost:3000/tenants/import-demo/protocol/openid-connect/token \
+  http://localhost:3000/tenants/import-demo2/protocol/openid-connect/token \
   | jq -c '{token_type, expires_in, has_access_token: (.access_token | length > 0)}'
 ```
 
@@ -969,7 +981,7 @@ and then those two fields side by side:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3000/admin/tenants/import-demo/export?include=subjects" > imported.json
+  "http://localhost:3000/admin/tenants/import-demo2/export?include=subjects" > imported.json
 diff <(jq -S 'del(.omitted, .settings.display_name)' source.json) \
      <(jq -S 'del(.omitted, .settings.display_name)' imported.json) && echo identical
 jq -c '{display_name: .settings.display_name, omitted}' source.json imported.json
@@ -981,21 +993,24 @@ identical
 {"display_name":"Import demo","omitted":["clients[0].secret"]}
 ```
 
-Each tenant's signing key, then the import's row in the new tenant's trail:
+Each tenant's signing key, then the import's row in the new tenant's
+trail, scoped to the tenant `resource_id` this import created — the only
+row it could ever hold, since an import always creates a fresh tenant
+rather than writing into one that already exists:
 
 ```bash
-for tenant in import-source import-demo; do
+for tenant in import-source import-demo2; do
   curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
     "http://localhost:3000/admin/tenants/$tenant/keys" | jq -c '[.items[].kid]'
 done
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3000/admin/tenants/import-demo/audit?action=tenant.import"
+  "http://localhost:3000/admin/tenants/import-demo2/audit?action=tenant.import&resource_type=tenant&resource_id=01a0e5dc-7f9c-7e15-b29a-b0ff518792da"
 ```
 
 ```
 ["01a0e4ef-6489-7186-9281-1299d1579a48"]
-["01a0e4ef-8418-7d37-87a5-8e8d67ad27fe"]
-{"items":[{"id":"01a0e4ef-8499-7ad5-8954-218bebd4c5a9","occurred_at":"2026-09-27T22:14:57.251Z","event_type":"admin_mutation","action":"tenant.import","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e4ee-d4a4-71d7-aba0-9a5078555feb","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4ef-83e3-7e38-b431-de84892f93ed","request_id":"01a0e4ef-83c6-77c1-a4b0-6134bb23672e","ip":"172.20.0.1","detail":{"counts":{"roles":9,"groups":1,"scopes":8,"clients":1,"subjects":1},"source_version":1}}]}
+["01a0e5dc-8011-7e17-ada0-c594fae887de"]
+{"items":[{"id":"01a0e5dc-812c-70db-9086-8078ec35d353","occurred_at":"2026-09-28T02:33:48.188Z","event_type":"admin_mutation","action":"tenant.import","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e5dc-657a-7fa1-b8ce-d718df8d65f5","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e5dc-7f9c-7e15-b29a-b0ff518792da","request_id":"01a0e5dc-7f64-78f5-b090-3c2d73c8ebe8","ip":"172.20.0.1","detail":{"counts":{"roles":9,"groups":1,"scopes":8,"clients":1,"subjects":1},"source_version":1}}]}
 ```
 
 A document broken in two places at once — a scope mapping naming a role
@@ -3360,11 +3375,14 @@ echo
 The rows these sections wrote, newest first — the three refusals with
 `detail.denied`, then the issue with an empty `detail`, the end of every
 session, the lockout clear, and `lin`'s role assignment from the setup —
-and the service's own log searched for the issued password:
+and the service's own log searched for the issued password. Bounded with
+`to=` at a point between this capture and the ceiling demonstration
+recaptured further above, since an unscoped `limit=7` now surfaces that
+later demonstration's own rows instead of these:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3000/admin/tenants/recovery-demo/audit?event_type=admin_mutation&limit=7'
+  'http://localhost:3000/admin/tenants/recovery-demo/audit?event_type=admin_mutation&to=2026-09-27T13:20:00.000Z&limit=7'
 echo
 
 docker compose logs odudu | grep -c 'pW6gZTlq-xIQGIYgB9BfvU6NbNyxcrfp'
@@ -3558,7 +3576,14 @@ tenant `groups-demo` created through `POST /admin/tenants` for it. There,
 `support` has none either, and `mei` is a subject created through
 `POST /subjects`. `$HELPDESK_TOKEN` belongs to `helpdesk`, a user of that
 tenant created with `seed user` and granted `manage-users` alone through
-`PUT /subjects/:id/roles`; `$ADMIN_TOKEN` is `ada-whoami`'s. The refusal
+`PUT /subjects/:id/roles`; `$ADMIN_TOKEN` is `ada-whoami`'s. The two blocks
+below that write `mei`'s groups were recaptured, still on this same
+tenant and not rebuilt, against a second subject `mei2` created for that
+recapture, after a fresh one-time password was issued for `helpdesk`
+through `POST /subjects/:id/password` and `$HELPDESK_TOKEN` reminted from
+it — the tag over an empty membership list still hashes to the same
+`"eef46741…"` either way, so nothing about the demonstration changes. The
+refusal
 below turns on two facts, shown first — what `helpdesk` holds, and that
 `oncall` carries nothing itself while its parent carries `tenant-admin`:
 
@@ -3579,119 +3604,136 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"items":[{"id":"01a0e1e2-20a3-743d-823b-1e7f502ce11b","name":"tenant-admin"}]}
 ```
 
-The read, then a write with no `If-Match`, then `helpdesk` putting `mei`
+The read, then a write with no `If-Match`, then `helpdesk` putting `mei2`
 in `oncall`:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $HELPDESK_TOKEN" \
-  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1eb-ffde-78c4-a87d-7da336c3763a/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e5e2-07fd-7ecb-95e3-b88f72beea50/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"group_ids": ["01a0e1e2-c454-7927-aedb-05021d226885"]}' \
-  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1eb-ffde-78c4-a87d-7da336c3763a/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e5e2-07fd-7ecb-95e3-b88f72beea50/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
   -d '{"group_ids": ["01a0e1e2-e2e0-7809-8ac4-debf2d93bc4e"]}' \
-  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1eb-ffde-78c4-a87d-7da336c3763a/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e5e2-07fd-7ecb-95e3-b88f72beea50/groups
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e1ec-004a-74cf-8807-f7aeec5e0f93
+x-request-id: 01a0e5e2-39e9-7820-8bfe-28ac196fe103
+cache-control: no-store
 etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
 content-type: application/json; charset=utf-8
 content-length: 12
+Date: Mon, 28 Sep 2026 02:40:03 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
 {"items":[]}
 
 HTTP/1.1 428 Precondition Required
-x-request-id: 01a0e1ec-0062-76c9-9cee-9a82fde460d7
+x-request-id: 01a0e5e2-3a0b-7239-94a6-efa7fff79d7f
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 181
+Date: Mon, 28 Sep 2026 02:40:03 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a subject’s groups","instance":"01a0e1ec-0062-76c9-9cee-9a82fde460d7"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a subject’s groups","instance":"01a0e5e2-3a0b-7239-94a6-efa7fff79d7f"}
 
 HTTP/1.1 403 Forbidden
-x-request-id: 01a0e1ec-0083-737b-8c88-ac45ffbcc960
+x-request-id: 01a0e5e2-3a30-7e1c-bce2-9f5ec3063c7a
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 228
+Date: Mon, 28 Sep 2026 02:40:03 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0e1ec-0083-737b-8c88-ac45ffbcc960"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0e5e2-3a30-7e1c-bce2-9f5ec3063c7a"}
 ```
-
-_(Not re-run for the `cache-control: no-store` pass: `$HELPDESK_TOKEN`'s
-one-time seeded password is gone, and minting a fresh one would mean
-resetting `helpdesk`'s credential mid-narrative rather than replaying it.)_
 
 `oncall` names no role, and is refused for everything `tenant-admin`
 composites that `helpdesk` does not hold — reached through its parent.
 The membership is still empty, under the same tag, so the same `If-Match`
-then puts `mei` in `support`, and replaying it once that has landed is
+then puts `mei2` in `support`, and replaying it once that has landed is
 stale:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $HELPDESK_TOKEN" \
-  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1eb-ffde-78c4-a87d-7da336c3763a/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e5e2-07fd-7ecb-95e3-b88f72beea50/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
   -d '{"group_ids": ["01a0e1e2-c454-7927-aedb-05021d226885"]}' \
-  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1eb-ffde-78c4-a87d-7da336c3763a/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e5e2-07fd-7ecb-95e3-b88f72beea50/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
   -d '{"group_ids": []}' \
-  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e1eb-ffde-78c4-a87d-7da336c3763a/groups
+  http://localhost:3000/admin/tenants/groups-demo/subjects/01a0e5e2-07fd-7ecb-95e3-b88f72beea50/groups
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e1ec-00b4-7fd3-a752-1f265427d705
+x-request-id: 01a0e5e2-5c85-7cb3-a94d-85f99f3c479d
+cache-control: no-store
 etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
 content-type: application/json; charset=utf-8
 content-length: 12
+Date: Mon, 28 Sep 2026 02:40:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
 {"items":[]}
 
 HTTP/1.1 200 OK
-x-request-id: 01a0e1ec-00ce-74fa-b206-52e8358e4bfd
+x-request-id: 01a0e5e2-5c9e-7c85-b27c-f11dc53e6163
+cache-control: no-store
 etag: "aaafe7626c56bdd2b2064141ca8f224733f7aa8d3b87a77ac22357774cb65700"
 content-type: application/json; charset=utf-8
 content-length: 149
+Date: Mon, 28 Sep 2026 02:40:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
 {"items":[{"id":"01a0e1e2-c454-7927-aedb-05021d226885","name":"support","parent_id":null,"path":"/support","created_at":"2026-09-27T08:02:10.132Z"}]}
 
 HTTP/1.1 412 Precondition Failed
-x-request-id: 01a0e1ec-00ed-7f35-b795-f915e209b3ed
+x-request-id: 01a0e5e2-5cc0-7940-929b-90d08a10ddc0
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 153
+Date: Mon, 28 Sep 2026 02:40:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0e1ec-00ed-7f35-b795-f915e209b3ed"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0e5e2-5cc0-7940-929b-90d08a10ddc0"}
 ```
 
-_(Not re-run for the same reason as the block above: `$HELPDESK_TOKEN`'s
-credential is gone.)_
-
 Both writes that reached the ceiling are in the trail, scoped here to
-`mei` — the refusal naming what was denied, the replacement the ids
+`mei2` — the refusal naming what was denied, the replacement the ids
 before and after:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3000/admin/tenants/groups-demo/audit?action=subject.groups_set&resource_type=subject&resource_id=01a0e1eb-ffde-78c4-a87d-7da336c3763a'
+  'http://localhost:3000/admin/tenants/groups-demo/audit?action=subject.groups_set&resource_type=subject&resource_id=01a0e5e2-07fd-7ecb-95e3-b88f72beea50'
 ```
 
 ```
-{"items":[{"id":"01a0e1ec-00e1-72a2-840f-f28c436542ea","occurred_at":"2026-09-27T08:12:15.449Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"allowed","actor_tenant_id":"01a0e1e2-208f-7b7e-a30f-a2ce461cd164","actor_subject_id":"01a0e1e2-5d2c-7676-8177-2fb711b0eac0","actor_client_id":"01a0e1e2-209b-7b1d-9bc2-07b9bec41a60","resource_type":"subject","resource_id":"01a0e1eb-ffde-78c4-a87d-7da336c3763a","request_id":"01a0e1ec-00ce-74fa-b206-52e8358e4bfd","ip":"172.20.0.1","detail":{"group_ids":{"after":["01a0e1e2-c454-7927-aedb-05021d226885"],"before":[]}}},{"id":"01a0e1ec-00a7-7ae1-9e42-6597227c7148","occurred_at":"2026-09-27T08:12:15.392Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"refused","actor_tenant_id":"01a0e1e2-208f-7b7e-a30f-a2ce461cd164","actor_subject_id":"01a0e1e2-5d2c-7676-8177-2fb711b0eac0","actor_client_id":"01a0e1e2-209b-7b1d-9bc2-07b9bec41a60","resource_type":"subject","resource_id":"01a0e1eb-ffde-78c4-a87d-7da336c3763a","request_id":"01a0e1ec-0083-737b-8c88-ac45ffbcc960","ip":"172.20.0.1","detail":{"denied":["tenant-admin","manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}]}
+{"items":[{"id":"01a0e5e2-5cb3-75fa-9014-82e12e4803d2","occurred_at":"2026-09-28T02:40:12.458Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"allowed","actor_tenant_id":"01a0e1e2-208f-7b7e-a30f-a2ce461cd164","actor_subject_id":"01a0e1e2-5d2c-7676-8177-2fb711b0eac0","actor_client_id":"01a0e1e2-209b-7b1d-9bc2-07b9bec41a60","resource_type":"subject","resource_id":"01a0e5e2-07fd-7ecb-95e3-b88f72beea50","request_id":"01a0e5e2-5c9e-7c85-b27c-f11dc53e6163","ip":"172.20.0.1","detail":{"group_ids":{"after":["01a0e1e2-c454-7927-aedb-05021d226885"],"before":[]}}},{"id":"01a0e5e2-3a4a-7cb2-acfa-af378bb43a51","occurred_at":"2026-09-28T02:40:03.648Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"refused","actor_tenant_id":"01a0e1e2-208f-7b7e-a30f-a2ce461cd164","actor_subject_id":"01a0e1e2-5d2c-7676-8177-2fb711b0eac0","actor_client_id":"01a0e1e2-209b-7b1d-9bc2-07b9bec41a60","resource_type":"subject","resource_id":"01a0e5e2-07fd-7ecb-95e3-b88f72beea50","request_id":"01a0e5e2-3a30-7e1c-bce2-9f5ec3063c7a","ip":"172.20.0.1","detail":{"denied":["tenant-admin","manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}]}
 ```
 
 ## `GET /subjects/:id/sessions` and `DELETE /subjects/:id/sessions/:sid`
@@ -4225,11 +4267,13 @@ Keep-Alive: timeout=72
 ```
 
 The trail holds a removal that landed each time this section's own demo was
-replayed; the guarded one wrote nothing:
+replayed; the guarded one wrote nothing. Scoped to the parent role's
+`resource_id`, since the action alone would also match every other role's
+removals in this tenant:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3000/admin/tenants/composites-demo/audit?action=role.composite_remove'
+  'http://localhost:3000/admin/tenants/composites-demo/audit?action=role.composite_remove&resource_type=role&resource_id=01a0e200-e915-73be-ac2d-5408ba17401f'
 ```
 
 ```
@@ -4365,22 +4409,19 @@ curl -sS -X PATCH \
 ```
 
 The trail, newest first — the refusal naming what `helpdesk-lead` would
-have handed out, and `member`'s two changes:
+have handed out, and `member`'s two changes. Two roles are named here, so
+`resource_id` alone cannot select both; bounded instead with `to=` at a
+point before the composite-door demonstration below repeats
+`role.default_set` against the same `member` role:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3000/admin/tenants/composites-demo/audit?action=role.default_set'
+  'http://localhost:3000/admin/tenants/composites-demo/audit?action=role.default_set&to=2026-09-27T08:36:05.000Z&limit=3'
 ```
 
 ```
 {"items":[{"id":"01a0e201-ceb8-7e8a-8d64-13ca0220ec89","occurred_at":"2026-09-27T08:36:04.406Z","event_type":"admin_mutation","action":"role.default_set","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e96e-7966-b576-b0af1d3dac8c","request_id":"01a0e201-ceae-7b05-82f9-70e09ff27d90","ip":"172.20.0.1","detail":{"denied":["manage-users","view-users"]}},{"id":"01a0e201-a2fe-70ed-bdfa-b0c984907637","occurred_at":"2026-09-27T08:35:53.212Z","event_type":"admin_mutation","action":"role.default_set","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e957-7d56-99cb-7e27217d00d4","request_id":"01a0e201-a2f4-7565-9f55-41b06bad661f","ip":"172.20.0.1","detail":{"default_for_new_subjects":{"after":false,"before":true}}},{"id":"01a0e201-8387-7c8e-b125-4f6d9b381be6","occurred_at":"2026-09-27T08:35:45.156Z","event_type":"admin_mutation","action":"role.default_set","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e957-7d56-99cb-7e27217d00d4","request_id":"01a0e201-a2f4-7565-9f55-41b06bad661f","ip":"172.20.0.1","detail":{"default_for_new_subjects":{"after":true,"before":false}}}]}
 ```
-
-_(Not re-run for the `cache-control: no-store` pass: this trail has since
-grown with every real replay of the `member`/`helpdesk-lead` demonstration
-above, and this endpoint has no way to scope a query to one run, so a
-fresh capture no longer shows just these three rows. Left as the original
-capture.)_
 
 After that trail was read, the composite door: `member` marked default
 again, `view-users` nested under it refused, and `member` unmarked:
