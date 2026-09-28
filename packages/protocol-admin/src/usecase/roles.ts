@@ -446,6 +446,7 @@ export interface AddRoleCompositeDeps {
 export type AddRoleCompositeOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_child_role' }
+  | { kind: 'builtin_admin_guarded'; reason: string }
   | { kind: 'capability_ceiling'; requested: readonly string[] }
   | { kind: 'default_role_capability'; capabilities: readonly string[] }
   | { kind: 'cycle' }
@@ -513,6 +514,28 @@ export async function addRoleComposite(
   if (parent === null) return { kind: 'not_found' };
   const child = await roleRepository(tx).byId(input.childRoleId);
   if (child === null) return { kind: 'unknown_child_role' };
+
+  // The other half of `removeRoleComposite`'s guard: a capability role's
+  // shape is what provisioning gives it (`capabilityRoleGraph`), so nothing
+  // is nested under one — an edge that could never be removed again would
+  // reshape the capability for every holder, and travel with every export.
+  const owner = await builtinAdminClientOf(tx, parent.clientId);
+  if (owner !== null) {
+    const reason =
+      `${parent.name} is a capability of ${owner}, this tenant's built-in admin client, ` +
+      'and nothing is nested under a capability role';
+    await deps.audit(tx, {
+      action: 'role.composite_add',
+      resourceType: 'role',
+      resourceId: input.parentRoleId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'builtin_admin_guarded', reason };
+  }
 
   const requestedCapabilities = await capabilitiesReachableFrom(tx, [input.childRoleId]);
   const denied = overreach(requestedCapabilities, input.callerCapabilities);

@@ -847,7 +847,7 @@ constraints by a test that writes the boundary values).
 What provisioning creates is matched, never created twice. A role marked
 `builtin` is matched by its name on `odudu-admin`, a scope marked `builtin`
 by its name, and the attributes the admin API lets an operator edit on
-them — a role's `description` and added composites, a scope's
+them — a role's `description`, a scope's
 `description`, its two `include_in_*` flags, its role mappings, mapper
 bindings and client assignments — are applied from the document. A
 built-in scope the document leaves out is deleted, as it was where the
@@ -856,7 +856,9 @@ built-in the new tenant does not provision, such as the system tenant's
 `manage-tenants`, is refused, as is any other role on `odudu-admin`: a
 document cannot mint a capability. So is leaving out a composite that
 provisioning gives a capability role, which `DELETE /roles/:id/composites`
-would refuse to remove.
+would refuse to remove, and naming one it does not give, which
+`POST /roles/:id/composites` would refuse to add: a capability role's shape
+is provisioning's in both directions.
 
 Then one transaction creates the tenant the way `POST /admin/tenants` does
 — its row, flow, built-in admin client and a signing key of its own, never
@@ -3989,7 +3991,35 @@ this as; `role_composite_cycle` is raised and caught in the domain
 (`roleRepository.addComposite`, `packages/domain-authz/src/repository/roles.ts`),
 never re-derived here. Nesting any admin capability at all under a role a
 default role reaches is refused with `403` too, whoever the caller is —
-see `PUT /roles/:id/default` below.
+see `PUT /roles/:id/default` below. **Nothing is nested under a capability
+role** — a role of the tenant's built-in admin client — whoever the caller
+is: `409`, naming the role, and a `refused` row with `detail.reason`. Its
+shape is what provisioning gives it (`capabilityRoleGraph`), and since
+`DELETE …/composites` refuses to take an edge off one, an edge added there
+could never be removed, and would reach every holder of the capability.
+Captured against `ceiling-removal` from
+[a removal is judged by what it removes](#a-removal-is-judged-by-what-it-removes),
+as the system administrator, nesting a plain tenant role `readers` under
+`view-users`; its composites stay empty:
+
+```bash
+RUN_START=$(date -u +%FT%T.000Z)
+VIEW_USERS=http://localhost:3000/admin/tenants/ceiling-removal/roles/01a0e59a-b2da-713f-9ec0-0e88fc6ac35f
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"child_role_id":"01a0e5a6-f033-7ee3-8cae-d2a498d8e5ae"}' "$VIEW_USERS/composites"
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$VIEW_USERS/composites"
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/ceiling-removal/audit?action=role.composite_add&resource_type=role&resource_id=01a0e59a-b2da-713f-9ec0-0e88fc6ac35f&from=$RUN_START" \
+  | jq -c '.items[] | {action, outcome, detail}'
+```
+
+```
+{"type":"about:blank","title":"Conflict","status":409,"detail":"view-users is a capability of odudu-admin, this tenant's built-in admin client, and nothing is nested under a capability role","instance":"01a0e5a7-1b07-786a-ab97-05e7b15f8a90"}
+{"items":[]}
+{"action":"role.composite_add","outcome":"refused","detail":{"reason":"view-users is a capability of odudu-admin, this tenant's built-in admin client, and nothing is nested under a capability role"}}
+```
 
 ```bash
 curl -sS -X POST \
@@ -4029,9 +4059,9 @@ composites**: removing one answers `409`, naming the role and the client.
 Taking `manage-users` out of `tenant-admin`, or `view-users` out of
 `manage-users`, strips that capability from every administrator holding the
 parent — the same lockout `DELETE /roles/:id` refuses for the role itself,
-and read from the same `builtin_admin` column. That includes an edge an
-operator added under a built-in capability role through
-`POST /roles/:id/composites`: it cannot be removed, and goes only when its child is deleted.
+and read from the same `builtin_admin` column. `POST /roles/:id/composites`
+refuses to add one there in the first place, so a capability role holds
+exactly the edges provisioning gave it.
 An edge between ordinary roles is removed whatever it nests, unless what
 the child reaches includes an admin capability the caller does not hold
 ([a removal is judged by what it removes](#a-removal-is-judged-by-what-it-removes)).

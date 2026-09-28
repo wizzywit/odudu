@@ -406,6 +406,32 @@ describe('POST /admin/tenants/{t}/roles/{id}/composites', () => {
     expect(res.statusCode).toBe(409);
   });
 
+  it.each(['view-users', TENANT_ADMIN])(
+    'refuses nesting anything under %s, even for a tenant-admin, and writes a refused row',
+    async (parentName) => {
+      const t = await fixture.createTenant(`acme-${newId()}`);
+      const parentId = await capabilityRoleId(t.id, parentName);
+      const childId = await plainRole(t.id);
+      const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+      const before = await getComposites(t.name, parentId, token);
+
+      const res = await fixture.http.inject({
+        method: 'POST',
+        url: `/admin/tenants/${t.name}/roles/${parentId}/composites`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: { child_role_id: childId },
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json<{ detail: string }>().detail).toContain(parentName);
+      expect((await getComposites(t.name, parentId, token)).json()).toEqual(before.json());
+      const rows = await auditRows(t.name, 'role.composite_add');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ outcome: 'refused', resource_id: parentId });
+      expect(rows[0]?.detail.reason).toContain(parentName);
+    },
+  );
+
   it('refuses nesting a genuinely nested composite reaching tenant-admin, for a manage-tenant-only caller', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);

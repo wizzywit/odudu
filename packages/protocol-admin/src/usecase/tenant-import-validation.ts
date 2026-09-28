@@ -217,6 +217,18 @@ function roleProblems(document: TenantDocument, graph: RoleGraph, problems: Prob
       problems.add(`${path}.composites`, `${describeRole(role)} would reach itself through them`);
     }
     if (role.builtin && role.client === ADMIN_CLIENT_ID) {
+      const provisionedChildren = new Set(
+        provisioned.composites
+          .filter(([parent]) => parent === role.name)
+          .map(([, child]) => roleKey({ name: child, client: ADMIN_CLIENT_ID })),
+      );
+      role.composites.forEach((child, childIndex) => {
+        if (provisionedChildren.has(roleKey(child))) return;
+        problems.add(
+          `${path}.composites[${String(childIndex)}]`,
+          `nests ${describeRole(child)} under ${role.name}, which a new tenant provisions without it: nothing is nested under a capability role`,
+        );
+      });
       const kept = new Set(role.composites.map(roleKey));
       for (const [parent, child] of provisioned.composites) {
         if (parent !== role.name) continue;

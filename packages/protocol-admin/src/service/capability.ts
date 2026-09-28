@@ -594,7 +594,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     successStatus: 204,
     bodySchema: addRoleCompositeRequestSchema,
     description:
-      'Nests `child_role_id` under this role. Refused with `403` when the child reaches an admin capability the caller does not hold, or any admin capability at all while a default role reaches this one; `409` on a cycle.',
+      'Nests `child_role_id` under this role. Refused with `403` when the child reaches an admin capability the caller does not hold, or any admin capability at all while a default role reaches this one; `409` on a cycle, and on a parent belonging to the tenant\u2019s built-in admin client, whose shape provisioning fixes.',
   },
   {
     method: 'GET',

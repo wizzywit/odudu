@@ -432,6 +432,34 @@ describe('POST /admin/tenant-imports', () => {
     );
   });
 
+  it('refuses a composite on a built-in role beyond what a new tenant provisions', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const viewUsersIndex = document.roles.findIndex(
+      (role) => role.builtin && role.name === 'view-users',
+    );
+    const name = `import-${newId()}`;
+    const broken: TenantDocument = {
+      ...document,
+      roles: document.roles.map((role, index) =>
+        index === viewUsersIndex
+          ? { ...role, composites: [...role.composites, { name: 'member', client: null }] }
+          : role,
+      ),
+    };
+
+    const res = await postImport(token, { name, document: broken });
+
+    expect(res.statusCode, res.payload).toBe(400);
+    const errors = res.json<ImportRefusal>().errors ?? [];
+    const extra = errors.find(
+      (error) => error.path === `document.roles[${String(viewUsersIndex)}].composites[0]`,
+    );
+    expect(extra?.message).toContain('view-users');
+    expect(await tenantIdOf(name)).toBeNull();
+  });
+
   it('refuses a default role that reaches an admin capability through a composite', async () => {
     const source = await seededSource();
     const token = await operatorToken();

@@ -288,6 +288,8 @@ function compositeProblem(
         request,
         problem(400, 'about:blank', 'Bad Request', 'child_role_id names no role'),
       );
+    case 'builtin_admin_guarded':
+      return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
     case 'capability_ceiling':
       return sendProblem(
         reply,
