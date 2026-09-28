@@ -119,6 +119,35 @@ describe('gateway.request, what every request carries', () => {
     ).rejects.toThrow(/relative to \/console\/api\//);
     expect(calls).toHaveLength(0);
   });
+
+  it.each([
+    '../auth/logout',
+    '../../etc/passwd',
+    '%2e%2e/auth/logout',
+    '%2E%2e/auth/logout',
+    '.%2E/auth/logout',
+    'a/../../x',
+    'admin/..\\..\\auth',
+    '\\\\host/x',
+    '//host/x',
+  ])('refuses %s, which resolves outside /console/api/', async (path) => {
+    const { gateway, calls } = harness(json(SUBJECT));
+
+    await expect(gateway.request('GET', path, { schema: subjectSchema })).rejects.toThrow(
+      TypeError,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it('sends the resolved path with its query', async () => {
+    const { gateway, calls } = harness(json({ items: [] }));
+
+    await gateway.request('GET', 'admin/tenants/acme/./subjects?limit=1&search=a%20b', {
+      schema: z.unknown(),
+    });
+
+    expect(calls[0]?.url).toBe('/console/api/admin/tenants/acme/subjects?limit=1&search=a%20b');
+  });
 });
 
 describe('gateway.request, a success', () => {
@@ -253,6 +282,8 @@ describe('gateway.request, a refusal', () => {
     expect(log).toHaveBeenCalledOnce();
     expect(log.mock.calls[0]?.[0]).toContain(`PUT ${SUBJECT_PATH}/groups`);
     expect(log.mock.calls[0]?.[0]).toContain('428');
+    expect(log.mock.calls[0]?.[0]).toContain('required If-Match');
+    expect(log.mock.calls[0]?.[0]).not.toMatch(/without|omit|missing/);
   });
 });
 
@@ -278,9 +309,9 @@ describe('gateway.request, retries', () => {
     expect(calls).toHaveLength(3);
   });
 
-  it.each([502, 503, 504])('retries a GET answered %i', async (status) => {
+  it.each([503, 504])('retries a GET answered %i', async (status) => {
     const { gateway, calls } = harness(
-      problem(status, 'about:blank', 'Bad Gateway'),
+      problem(status, 'about:blank', 'Service Unavailable'),
       json(SUBJECT),
     );
 
@@ -288,6 +319,19 @@ describe('gateway.request, retries', () => {
 
     expect(result.ok).toBe(true);
     expect(calls).toHaveLength(2);
+  });
+
+  it('does not retry a GET answered 502, which the gateway only sends after waiting', async () => {
+    const { gateway, calls, sleep } = harness(
+      problem(502, 'about:blank', 'Bad Gateway'),
+      json(SUBJECT),
+    );
+
+    const result = await gateway.request('GET', SUBJECT_PATH, { schema: subjectSchema });
+
+    expect(!result.ok && result.kind).toBe('problem');
+    expect(calls).toHaveLength(1);
+    expect(sleep).not.toHaveBeenCalled();
   });
 
   it('does not retry a GET refused with a 4xx', async () => {
@@ -336,6 +380,22 @@ describe('gateway.request, retries', () => {
     expect(calls[1]?.init.body).toBe('{}');
     expect(headersOf(calls[1]).get('if-match')).toBe(ETAG);
   });
+
+  it.each(['PATCH', 'PUT'] as const)(
+    'never retries a %s without If-Match, whose duplicate nothing would catch',
+    async (method) => {
+      const { gateway, calls, sleep } = harness(offline(), json(SUBJECT));
+
+      const result = await gateway.request(method, SUBJECT_PATH, {
+        body: {},
+        schema: subjectSchema,
+      });
+
+      expect(result).toEqual({ ok: false, kind: 'network' });
+      expect(calls).toHaveLength(1);
+      expect(sleep).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(['PATCH', 'PUT'] as const)('does not retry a %s answered 503', async (method) => {
     const { gateway, calls } = harness(problem(503, 'about:blank', 'Service Unavailable'));

@@ -46,16 +46,23 @@ export interface GatewayDependencies {
 const BASE = '/console/api/';
 const BACKOFF_MS = 250;
 const DEFAULT_TIMEOUT_MS = 30_000;
-const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([502, 503, 504]);
+// Not 502: the gateway sends that for a token-endpoint failure or after
+// already waiting out a refresh lock, so a retry only stacks the delay.
+const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([503, 504]);
 
-// A GET is safe to repeat. A PATCH or PUT carries If-Match, so a duplicate of
-// one that did land answers 412; it is repeated only when no answer came
-// back, since any status is the server's answer and is shown as one. A POST
-// or DELETE whose outcome is unknown is never repeated; the caller says it
-// could not confirm the result.
-function retriesFor(method: Method): { readonly attempts: number; readonly onStatus: boolean } {
+// A GET is safe to repeat. A PATCH or PUT is repeated only with If-Match,
+// which makes a duplicate of one that did land answer 412, and only when no
+// answer came back, since any status is the server's answer. A POST, a
+// DELETE, or a write without If-Match whose outcome is unknown is never
+// repeated; the caller says it could not confirm the result.
+function retriesFor(
+  method: Method,
+  conditional: boolean,
+): { readonly attempts: number; readonly onStatus: boolean } {
   if (method === 'GET') return { attempts: 3, onStatus: true };
-  if (method === 'PATCH' || method === 'PUT') return { attempts: 2, onStatus: false };
+  if ((method === 'PATCH' || method === 'PUT') && conditional) {
+    return { attempts: 2, onStatus: false };
+  }
   return { attempts: 1, onStatus: false };
 }
 
@@ -64,9 +71,20 @@ interface Answer {
   readonly text: string;
 }
 
-function withoutQuery(path: string): string {
-  const end = path.search(/[?#]/);
-  return end === -1 ? path : path.slice(0, end);
+// Resolved the way the browser will resolve it, so that dot segments in any
+// spelling (`..`, `%2e%2e`, `.%2E`) and `\` cannot step out of the prefix.
+function resolve(path: string): URL {
+  const origin = globalThis.location.origin;
+  const url = new URL(`${BASE}${path}`, origin);
+  if (
+    path.startsWith('/') ||
+    path.includes('\\') ||
+    url.origin !== origin ||
+    !url.pathname.startsWith(BASE)
+  ) {
+    throw new TypeError(`a gateway path is relative to ${BASE} and stays under it, not "${path}"`);
+  }
+  return url;
 }
 
 function parseJson(
@@ -114,8 +132,13 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
     }
   }
 
-  async function send(method: Method, url: string, init: RequestInit): Promise<Answer | null> {
-    const policy = retriesFor(method);
+  async function send(
+    method: Method,
+    conditional: boolean,
+    url: string,
+    init: RequestInit,
+  ): Promise<Answer | null> {
+    const policy = retriesFor(method, conditional);
     for (let tried = 1; ; tried += 1) {
       const answer = await attempt(url, init);
       const retryable =
@@ -127,10 +150,8 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
 
   return {
     async request<T>(method: Method, path: string, options: RequestOptions<T>) {
-      if (path.startsWith('/')) {
-        throw new TypeError(`a gateway path is relative to ${BASE}, not "${path}"`);
-      }
-      const where = `${method} ${withoutQuery(path)}`;
+      const url = resolve(path);
+      const where = `${method} ${url.pathname.slice(BASE.length)}`;
       const headers = new Headers({ accept: 'application/json' });
       if (method !== 'GET') headers.set('x-odudu-console', '1');
       if (options.ifMatch !== undefined) headers.set('if-match', options.ifMatch);
@@ -140,13 +161,18 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
         init.body = JSON.stringify(options.body);
       }
 
-      const answer = await send(method, `${BASE}${path}`, init);
+      const answer = await send(
+        method,
+        options.ifMatch !== undefined,
+        `${url.pathname}${url.search}`,
+        init,
+      );
       if (answer === null) return { ok: false, kind: 'network' };
       const { response, text } = answer;
 
       if (!response.ok) {
         if (response.status === 428) {
-          log(`console defect: ${where} answered 428, so it was sent without If-Match`);
+          log(`console defect: ${where} answered 428: the server required If-Match`);
           return { ok: false, kind: 'defect' };
         }
         const problem = readProblem(response.status, response.headers.get('content-type'), text);

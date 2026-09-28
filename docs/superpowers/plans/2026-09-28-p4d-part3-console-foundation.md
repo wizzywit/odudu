@@ -238,8 +238,11 @@ and tests; `shared/repository/queryClient.ts`; `shared/service/sessionEvents.ts`
   cursor, rewriting nothing (the gateway already rewrote it).
 - A `428` is logged as a console defect and surfaced as a generic failure,
   never as the user's error (§7.4).
-- POST is never retried; GET retries twice with backoff; PATCH/PUT retry
-  once on a network error only (§7.4).
+- The console sends `If-Match` on every PATCH/PUT that has a loaded `ETag`.
+- POST and DELETE are never retried; GET retries twice with backoff, on a
+  network error, `503` or `504` but not the gateway's `502`; PATCH/PUT retry
+  once on a network error, and only when `If-Match` is present, so that a
+  duplicate write surfaces as `412` (§7.4). Without it they are never retried.
 
 - [ ] **Step 1: Failing tests** against a fake `fetch`: header and
       credentials on every method; schema parse failure is a typed failure;
