@@ -6,6 +6,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { sql } from 'drizzle-orm';
 import { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { randomBytes } from 'node:crypto';
+import http from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedAdmin } from '#/cli/seed';
 import {
@@ -100,6 +101,42 @@ async function call(
   });
   jar.take(res);
   return res;
+}
+
+// `inject` resolves a dot segment through the WHATWG `URL` parser before
+// Fastify's router ever sees it (docs/phases/p4d.md, "Router and inject"),
+// so a traversal probe sent that way proves nothing about routing. A real
+// socket sends the request line exactly as written.
+async function socketGet(
+  stack: ConsoleStack,
+  path: string,
+  cookieHeader: string,
+): Promise<{ status: number; body: string }> {
+  await stack.app.listen({ port: 0, host: '127.0.0.1' });
+  const address = stack.app.server.address();
+  if (address === null || typeof address === 'string') throw new Error('no port assigned');
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port: address.port,
+        path,
+        method: 'GET',
+        headers: { host: stack.base.host, cookie: cookieHeader },
+      },
+      (res) => {
+        let body = '';
+        res.on('data', (chunk: Buffer) => {
+          body += chunk.toString('utf8');
+        });
+        res.on('end', () => {
+          resolve({ status: res.statusCode ?? 0, body });
+        });
+      },
+    );
+    req.on('error', reject);
+    req.end();
+  });
 }
 
 function json(payload: unknown): Call {
@@ -264,6 +301,24 @@ describe('* /console/api/admin/*', () => {
       );
 
       expectProblem(res, 404);
+      expect(stack.adminRequests).toHaveLength(before);
+    });
+  });
+
+  it('refuses the same path over a real socket, with a valid session, forwarding nothing', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      await signIn(stack, jar);
+      const before = stack.adminRequests.length;
+
+      const res = await socketGet(
+        stack,
+        `/console/api/admin/%2e%2e/tenants/${SYSTEM_TENANT_NAME}/.well-known/openid-configuration`,
+        jar.header().cookie ?? '',
+      );
+
+      expect(res.status).toBe(404);
+      expect(res.body).toContain('about:blank#not-found');
       expect(stack.adminRequests).toHaveLength(before);
     });
   });

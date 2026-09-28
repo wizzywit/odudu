@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import http from 'node:http';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -29,6 +30,48 @@ async function served(consoleDir: string, logs: string[] = []): Promise<FastifyI
   await instance.ready();
   app = instance;
   return instance;
+}
+
+// `inject` (light-my-request) resolves the URL it is given through the
+// WHATWG `URL` parser before Fastify ever sees it, so a dot segment is
+// gone before routing starts — proving nothing about how the route itself
+// handles one. A real socket sends the request line exactly as written;
+// see docs/phases/p4d.md's "Router and inject" note.
+async function listening(instance: FastifyInstance): Promise<number> {
+  await instance.listen({ port: 0, host: '127.0.0.1' });
+  const address = instance.server.address();
+  if (address === null || typeof address === 'string') throw new Error('no port assigned');
+  return address.port;
+}
+
+interface RawResponse {
+  readonly status: number;
+  readonly headers: http.IncomingHttpHeaders;
+  readonly body: string;
+}
+
+function rawGet(port: number, path: string): Promise<RawResponse> {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, path, method: 'GET' }, (res) => {
+      let body = '';
+      res.on('data', (chunk: Buffer) => {
+        body += chunk.toString('utf8');
+      });
+      res.on('end', () => {
+        resolve({ status: res.statusCode ?? 0, headers: res.headers, body });
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+// The asset route's own 404 is an empty, typeless body (`reply.code(404).send()`);
+// Fastify's default (root) 404 for a path outside every registered route
+// carries a `content-type: application/json` problem body instead. Only
+// the former proves the manifest lookup itself ran and refused the path.
+function isAssetRouteNotFound(res: RawResponse): boolean {
+  return res.status === 404 && res.headers['content-type'] === undefined && res.body === '';
 }
 
 describe('the console shell', () => {
@@ -70,12 +113,13 @@ describe('the console shell', () => {
     ['an encoded ../', '/console/assets/%2e%2e/%2e%2e/etc/passwd'],
     ['an encoded slash', '/console/assets/..%2f..%2fetc%2fpasswd'],
     ['a backslash', '/console/assets/..\\..\\etc\\passwd'],
-  ])('refuses traversal through %s', async (_label, url) => {
+  ])('refuses traversal through %s, over a real socket', async (_label, url) => {
     const server = await served(FIXTURE_DIR);
+    const port = await listening(server);
 
-    const res = await server.inject({ url });
+    const res = await rawGet(port, url);
 
-    expect(res.statusCode).toBe(404);
+    expect(isAssetRouteNotFound(res)).toBe(true);
   });
 
   it('redirects the bare /console to /console/', async () => {

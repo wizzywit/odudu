@@ -876,3 +876,27 @@ signs straight back in. So the logout has to be a navigation by the browser,
 which the JSON-redirect design already requires. A test that follows the
 returned URL has to carry the SSO cookie, because the `302` alone proves
 nothing.
+
+### Router and inject
+
+A path traversal test against the console shell's asset route
+(`packages/console-gateway/src/view/spa.ts`) using `app.inject` with a
+literal `../`, an encoded `%2e%2e`, an encoded slash or a backslash all
+answered `404` — but so did the same paths sent with no route registered
+at all under `/console`, which proves the assertion was never reaching the
+route.
+
+```
+verified: node --experimental-strip-types p3.mts (probe script, run against
+a standalone Fastify instance registering only spaRoutes; body
+`/console/assets/../../etc/passwd` -> inject: 404 "Route GET:/etc/passwd
+not found" (Fastify's own default 404, no route registered for that path);
+raw socket: 404, content-length 0 (spaRoutes' own asset-route 404))
+```
+
+**Confirmed.** `light-my-request` (`inject`'s implementation) resolves the
+URL it is given through the WHATWG `URL` parser before Fastify's router
+ever sees it, so `..`, `%2e%2e` and `\` are gone before routing starts. A
+raw socket sends the request line exactly as written, which is what a
+traversal test has to use to exercise the route's own handling rather than
+the test harness's own normalisation.
