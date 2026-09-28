@@ -23,6 +23,12 @@ describe('the return path a sign-in comes back to', () => {
     '/console/auth/logout',
     '/console/api/session',
     'javascript:alert(1)',
+    '/console/acme%25/clients',
+    '/console/acme/%0d%0aset-cookie',
+    '/console/acme/%1F',
+    '/console/acme/%7f',
+    '/console/acme/\x7f',
+    '/console/acme/\x01',
     '',
   ])('is the console root instead of %j', (asked) => {
     expect(returnPath(asked)).toBe('/console/');

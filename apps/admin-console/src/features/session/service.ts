@@ -1,4 +1,4 @@
-import { TENANT_NAME_RULE } from '@odudu/contracts';
+import { TENANT_NAME_RULE, UNSAFE_RETURN_TO } from '@odudu/contracts';
 import type { ADMIN_CAPABILITIES } from '@odudu/contracts/admin';
 
 export type AdminCapability = (typeof ADMIN_CAPABILITIES)[number];
@@ -29,7 +29,7 @@ const NOT_PAGES = ['/console/auth/', '/console/api/'];
 // Where a sign-in comes back to: a console page on this origin, never a
 // gateway route or anywhere else. Anything doubtful is the console root.
 export function returnPath(asked: string): string {
-  if (!asked.startsWith('/') || asked.startsWith('//') || /[\\\u0000-\u001f]/u.test(asked)) {
+  if (!asked.startsWith('/') || asked.startsWith('//') || UNSAFE_RETURN_TO.test(asked)) {
     return ROOT;
   }
   const url = new URL(asked, RESOLVE_AGAINST);
