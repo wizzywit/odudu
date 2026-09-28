@@ -109,3 +109,25 @@ it('puts a kept draft back marked for review, and sends nothing', async () => {
   await user.click(within(section).getByRole('button', { name: 'Discard changes to General' }));
   expect(within(section).queryByText('Restored — review before saving')).toBeNull();
 });
+
+it('keeps a restored draft through a second session end, untouched', async () => {
+  const kept = useDrafts.getState().register({
+    record: RECORD,
+    section: 'general',
+    dirty: () => true,
+    fields: () => ({ name: { value: 'Billing portal EU' } }),
+  });
+  useDrafts.getState().keepDirty('acme/s1');
+  kept();
+  const first = render(<General />);
+  await screen.findByText('Restored — review before saving');
+  expect(useDrafts.getState().restore(RECORD, 'general')).toBeNull();
+
+  expect(useDrafts.getState().keepDirty('acme/s1')).toBe(1);
+  first.unmount();
+
+  render(<General />);
+  const section = screen.getByRole('region', { name: 'General' });
+  expect(within(section).getByText('Restored — review before saving')).toBeVisible();
+  expect(within(section).getByRole('textbox', { name: 'Name' })).toHaveValue('Billing portal EU');
+});
