@@ -24,7 +24,7 @@ import {
   type ClientView,
   type CreateClientOutcome,
 } from '#/usecase/clients';
-import { problem, sendProblem } from '#/view/problem';
+import { problem, removalCeiling, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -361,6 +361,8 @@ export function deleteClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
       case 'target_ceiling':
         return serviceAccountCeilingProblem(reply, request, outcome.requested);
+      case 'capability_ceiling':
+        return sendProblem(reply, request, removalCeiling(outcome.requested));
       case 'deleted':
         return reply.code(204).send();
     }

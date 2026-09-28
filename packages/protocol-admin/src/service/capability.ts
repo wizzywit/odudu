@@ -501,7 +501,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-clients',
     responseSchema: z.void(),
     successStatus: 204,
-    description: SERVICE_ACCOUNT_CEILING,
+    description:
+      `${SERVICE_ACCOUNT_CEILING} Deletes every role scoped to the client with it, and is ` +
+      'refused with `403` too when what those roles reach includes an admin capability the ' +
+      'caller does not hold.',
   },
   {
     method: 'POST',
@@ -731,7 +734,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Cascades to every client’s assignment and role mapping naming the scope. ' +
       'Refused with 409 for the scope named `openid`, which every client’s ' +
       'assignment of it — the tenant’s built-in admin client included — would ' +
-      'otherwise be stripped of in the same stroke.',
+      'otherwise be stripped of in the same stroke. ' +
+      REMOVAL_CEILING,
   },
   {
     method: 'GET',

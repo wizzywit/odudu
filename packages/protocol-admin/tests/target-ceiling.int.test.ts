@@ -646,7 +646,8 @@ type Removal =
   | 'reparent'
   | 'role delete'
   | 'composite remove'
-  | 'scope roles';
+  | 'scope roles'
+  | 'scope delete';
 
 const REMOVAL_ACTION: Record<Removal, string> = {
   'group roles': 'group.roles_set',
@@ -656,6 +657,7 @@ const REMOVAL_ACTION: Record<Removal, string> = {
   'role delete': 'role.delete',
   'composite remove': 'role.composite_remove',
   'scope roles': 'scope.roles_set',
+  'scope delete': 'scope.delete',
 };
 
 function remove(removal: Removal, g: Graph, token: string): Promise<LightMyRequestResponse> {
@@ -697,6 +699,12 @@ function remove(removal: Removal, g: Graph, token: string): Promise<LightMyReque
       });
     case 'scope roles':
       return replaceWithEtag(`${base}/scopes/${g.scopeId}/roles`, token, { role_ids: [] });
+    case 'scope delete':
+      return fixture.http.inject({
+        method: 'DELETE',
+        url: `${base}/scopes/${g.scopeId}`,
+        headers: { authorization },
+      });
   }
 }
 
@@ -776,6 +784,78 @@ describe('a removal is judged by the admin capabilities it removes', () => {
       url: `/admin/tenants/${g.tenant.name}/roles/${g.harmlessRoleId}`,
       headers: { authorization: `Bearer ${token}` },
     });
+
+    expect(res.statusCode).toBe(204);
+  });
+});
+
+// `roles_client_fk` cascades: deleting a client deletes every role scoped to
+// it, and with each one every grant and composite edge naming it.
+describe('deleting a client is judged by what its roles reach', () => {
+  async function clientWithNestingRole(): Promise<{
+    tenant: { id: string; name: string };
+    clientDbId: string;
+    roleId: string;
+  }> {
+    const tenant = await fixture.createTenant(`client-roles-${newId()}`);
+    const client = await fixture.createConfidentialClient(tenant.name, {});
+    const roleId = await withTenant(fixture.app.db, tenant.id, async (tx) => {
+      const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      const tenantAdmin = await roleRepository(tx).byName(TENANT_ADMIN, adminClient?.id ?? null);
+      if (tenantAdmin === null) throw new Error('fixture: no tenant-admin role');
+      const role = await roleRepository(tx).create({
+        tenantId: tenant.id,
+        clientId: client.id,
+        name: 'operator',
+      });
+      await roleRepository(tx).addComposite(role.id, tenantAdmin.id);
+      return role.id;
+    });
+    return { tenant, clientDbId: client.id, roleId };
+  }
+
+  function deleteClientAs(
+    target: { tenant: { name: string }; clientDbId: string },
+    token: string,
+  ): Promise<LightMyRequestResponse> {
+    return fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${target.tenant.name}/clients/${target.clientDbId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  it('refuses manage-clients alone, keeping the client and its role', async () => {
+    const target = await clientWithNestingRole();
+
+    const res = await deleteClientAs(
+      target,
+      await fixture.adminToken(target.tenant.name, ['manage-clients']),
+    );
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json<{ detail: string }>().detail).toContain('manage-tenant');
+    await withTenant(fixture.app.db, target.tenant.id, async (tx) => {
+      expect(await clientRepository(tx).byId(target.clientDbId)).not.toBeNull();
+      expect(await roleRepository(tx).byId(target.roleId)).not.toBeNull();
+      const rows = await auditRepository(tx).list({ limit: 50 });
+      const refused = rows.filter(
+        (row) => row.action === 'client.delete' && row.outcome === 'refused',
+      );
+      expect(refused).toHaveLength(1);
+      expect((refused[0]?.detail as { denied?: string[] } | null)?.denied).toContain(
+        'manage-tenant',
+      );
+    });
+  });
+
+  it('admits a tenant-admin', async () => {
+    const target = await clientWithNestingRole();
+
+    const res = await deleteClientAs(
+      target,
+      await fixture.adminToken(target.tenant.name, [TENANT_ADMIN]),
+    );
 
     expect(res.statusCode).toBe(204);
   });

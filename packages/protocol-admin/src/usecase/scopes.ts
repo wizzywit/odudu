@@ -14,7 +14,11 @@ import {
 } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, type SQL } from 'drizzle-orm';
-import { replacementOverreach } from '#/service/capability-ceiling';
+import {
+  capabilitiesReachableFrom,
+  overreach,
+  replacementOverreach,
+} from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
@@ -374,6 +378,8 @@ export async function amendScope(
 
 export interface DeleteScopeInput {
   readonly scopeId: string;
+  /** The caller's own admin capabilities: what the scope's role mappings reach is held to them. */
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -384,7 +390,10 @@ export interface DeleteScopeDeps {
 }
 
 export type DeleteScopeOutcome =
-  { kind: 'not_found' } | { kind: 'openid_guarded'; reason: string } | { kind: 'deleted' };
+  | { kind: 'not_found' }
+  | { kind: 'openid_guarded'; reason: string }
+  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'deleted' };
 
 // `client_scope_assignments_scope_fk` and `client_scope_roles_scope_fk`
 // (0016_client_scopes.sql, 0017_roles.sql) both cascade: deleting a scope
@@ -421,6 +430,29 @@ export async function deleteScope(
       detail: { reason },
     });
     return { kind: 'openid_guarded', reason };
+  }
+
+  // Judged the way `setScopeRoles` judges a role it leaves out, since the
+  // cascade takes every one of the scope's role mappings.
+  const denied = overreach(
+    await capabilitiesReachableFrom(
+      tx,
+      (await mappedRoles(tx, input.scopeId)).map((role) => role.id),
+    ),
+    input.callerCapabilities,
+  );
+  if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'scope.delete',
+      resourceType: 'scope',
+      resourceId: input.scopeId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
+    return { kind: 'capability_ceiling', requested: denied };
   }
 
   const deleted = await clientScopeRepository(tx).delete(input.scopeId);

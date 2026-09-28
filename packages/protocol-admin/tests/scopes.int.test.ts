@@ -868,6 +868,7 @@ describe('audit', () => {
         { audit: ok.audit },
         {
           scopeId: scope.id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -884,6 +885,7 @@ describe('audit', () => {
         { audit: refused.audit },
         {
           scopeId: newId(),
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -905,6 +907,7 @@ describe('audit', () => {
         { audit: refused.audit },
         {
           scopeId: openidId,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',

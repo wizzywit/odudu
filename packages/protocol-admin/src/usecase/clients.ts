@@ -1,5 +1,6 @@
 import { type Client, type ListClientsQuery } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { roles } from '@odudu/domain-authz';
 import { subjectRepository } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
@@ -22,6 +23,7 @@ import {
 import { and, asc, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { redactedDiff } from '#/service/audit-detail';
+import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import {
   AMENDABLE_CLIENT_FIELDS,
@@ -1154,6 +1156,7 @@ export type DeleteClientOutcome =
   | { kind: 'not_found' }
   | { kind: 'builtin_admin_guarded'; reason: string }
   | TargetCeilingRefusal
+  | { kind: 'capability_ceiling'; requested: readonly string[] }
   | { kind: 'deleted' };
 
 export async function deleteClient(
@@ -1185,6 +1188,33 @@ export async function deleteClient(
       detail: { reason },
     });
     return { kind: 'builtin_admin_guarded', reason };
+  }
+
+  // `roles_client_fk` cascades, so the delete takes every role scoped to the
+  // client, and every grant and composite edge naming one, with it.
+  const scopedRoles = await tx
+    .select({ id: roles.id })
+    .from(roles)
+    .where(eq(roles.clientId, input.clientDbId));
+  const denied = overreach(
+    await capabilitiesReachableFrom(
+      tx,
+      scopedRoles.map((role) => role.id),
+    ),
+    input.callerCapabilities,
+  );
+  if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'client.delete',
+      resourceType: 'client',
+      resourceId: input.clientDbId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
+    return { kind: 'capability_ceiling', requested: denied };
   }
 
   await clientRepository(tx).delete(input.clientDbId);

@@ -24,7 +24,13 @@ import {
   type AmendScopeOutcome,
   type Audit,
 } from '#/usecase/scopes';
-import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import {
+  ifMatchRequired,
+  ifMatchStale,
+  problem,
+  removalCeiling,
+  sendProblem,
+} from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { serviceAccountCeilingProblem } from '#/view/routes/clients';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
@@ -219,6 +225,10 @@ export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
     if (id === undefined) {
       throw new Error('protocol-admin: DELETE scope route received no :id');
     }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteScope(
@@ -226,6 +236,7 @@ export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
         { audit: deps.audit },
         {
           scopeId: id,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -238,6 +249,8 @@ export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'openid_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'capability_ceiling':
+        return sendProblem(reply, request, removalCeiling(outcome.requested));
       case 'deleted':
         return reply.code(204).send();
     }
