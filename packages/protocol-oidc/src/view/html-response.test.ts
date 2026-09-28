@@ -11,11 +11,12 @@ const REPO_ROOT = join(VIEW_DIR, '..', '..', '..', '..');
 const PACKAGES_DIR = join(REPO_ROOT, 'packages');
 const APPS_DIR = join(REPO_ROOT, 'apps');
 const HEADER_NAMES = ['content-security-policy', 'x-frame-options', 'referrer-policy'];
-// The files that legitimately name a page header — the two that spread
-// `pageHeaders` (`@odudu/kernel`), plus the console shell, whose CSP
-// licenses a self-hosted script and a style hash rather than describing a
-// markup-only page. Every other view-layer file gets these headers only by
-// going through one of the first two.
+// The files that legitimately name a page header: `html-response.ts` and
+// `verification-html.ts`, which spread `pageHeaders` (`@odudu/kernel`), and
+// `console-gateway`'s `spa.ts`, the static shell with its own fixed policy
+// (ADR 0029's amendment). Any other wrapper — `console-gateway`'s
+// `send-page.ts` among them — gets these headers only by spreading
+// `pageHeaders`, and names none of them itself.
 const EXEMPT_FILES = [
   'packages/protocol-oidc/src/view/html-response.ts',
   'packages/account/src/view/verification-html.ts',
