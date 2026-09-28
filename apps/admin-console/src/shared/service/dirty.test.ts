@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  changedUnderneath,
   current,
   dirtyFields,
   discard,
@@ -70,18 +69,29 @@ describe('re-basing a draft on a fresh read', () => {
   const fresh = { ...LOADED, access_token_ttl: 900 };
 
   it('keeps the unsaved edits and takes every other field from the fresh read', () => {
-    const rebased = rebase(edited, fresh);
-    expect(current(rebased)).toEqual({ ...fresh, name: 'Billing' });
-    expect(dirtyFields(rebased)).toEqual(['name']);
+    const { draft, conflicts } = rebase(edited, fresh);
+    expect(current(draft)).toEqual({ ...fresh, name: 'Billing' });
+    expect(dirtyFields(draft)).toEqual(['name']);
+    expect(conflicts).toEqual([]);
   });
 
-  it('drops an edit the fresh read already holds', () => {
-    expect(isDirty(rebase(edited, { ...fresh, name: 'Billing' }))).toBe(false);
+  it('drops an edit the fresh read already holds, and calls it no conflict', () => {
+    const { draft, conflicts } = rebase(edited, { ...fresh, name: 'Billing' });
+    expect(isDirty(draft)).toBe(false);
+    expect(conflicts).toEqual([]);
   });
 
-  it('names the edited fields somebody else changed in the meantime', () => {
+  it('names an edited field somebody else changed, keeping the edit for the choice', () => {
     const theirs = { ...LOADED, name: 'Billing (EU)', access_token_ttl: 900 };
-    expect(changedUnderneath(edited, theirs)).toEqual(['name']);
-    expect(changedUnderneath(edited, fresh)).toEqual([]);
+    const { draft, conflicts } = rebase(edited, theirs);
+    expect(conflicts).toEqual(['name']);
+    expect(current(draft).name).toBe('Billing');
+    expect(draft.base.name).toBe('Billing (EU)');
+  });
+
+  it('never calls a field in conflict that was not edited here', () => {
+    const theirs = { ...LOADED, name: 'Billing portal', access_token_ttl: 900 };
+    expect(rebase(edited, theirs).conflicts).toEqual([]);
+    expect(rebase(startDraft(LOADED), { ...LOADED, name: 'Other' }).conflicts).toEqual([]);
   });
 });

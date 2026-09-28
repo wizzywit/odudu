@@ -54,19 +54,24 @@ export function discard<T extends Values>(draft: Draft<T>): Draft<T> {
   return startDraft(draft.base);
 }
 
+export interface Rebased<T extends Values> {
+  readonly draft: Draft<T>;
+  // Edited here and changed on the server since: nothing merges on its own,
+  // so the section shows theirs beside yours before it saves again.
+  readonly conflicts: readonly (keyof T & string)[];
+}
+
 // Another section's save returns the whole record: this one's edits survive
 // it, and an edit the fresh record already holds stops counting as one.
-export function rebase<T extends Values>(draft: Draft<T>, fresh: T): Draft<T> {
+export function rebase<T extends Values>(draft: Draft<T>, fresh: T): Rebased<T> {
+  const conflicts = dirtyFields(draft).filter(
+    (field) =>
+      !sameValue(draft.base[field], fresh[field]) &&
+      !sameValue(current(draft)[field], fresh[field]),
+  );
   let next = startDraft(fresh);
   for (const field of dirtyFields(draft)) {
     next = edit(next, field, current(draft)[field]);
   }
-  return next;
-}
-
-export function changedUnderneath<T extends Values>(
-  draft: Draft<T>,
-  fresh: T,
-): (keyof T & string)[] {
-  return dirtyFields(draft).filter((field) => !sameValue(draft.base[field], fresh[field]));
+  return { draft: next, conflicts };
 }
