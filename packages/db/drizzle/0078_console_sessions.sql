@@ -17,6 +17,7 @@ CREATE TABLE console_sessions (
   created_at            timestamptz NOT NULL,
   last_seen_at          timestamptz NOT NULL,
   expires_at            timestamptz NOT NULL,
+  CONSTRAINT console_sessions_secret_hash_length CHECK (octet_length(secret_hash) = 32),
   CONSTRAINT console_sessions_subject_tenant_fk FOREIGN KEY (tenant_id, subject_id)
     REFERENCES subjects (tenant_id, id) ON DELETE CASCADE
 );
@@ -34,7 +35,8 @@ CREATE TABLE console_logins (
   verifier_wrapped text NOT NULL,
   nonce            text NOT NULL,
   return_to        text NOT NULL,
-  expires_at       timestamptz NOT NULL
+  expires_at       timestamptz NOT NULL,
+  CONSTRAINT console_logins_state_hash_length CHECK (octet_length(state_hash) = 32)
 );
 
 ALTER TABLE console_logins ENABLE ROW LEVEL SECURITY;

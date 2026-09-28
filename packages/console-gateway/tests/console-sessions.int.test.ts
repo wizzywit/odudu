@@ -99,6 +99,15 @@ function expectRowLevelSecurityRefusal(result: unknown): void {
   expect(String((result as Error).cause)).toMatch(/row-level security/u);
 }
 
+async function expectRefusedBy(attempt: Promise<unknown>, constraint: string): Promise<void> {
+  const error = await attempt.then(
+    () => null,
+    (caught: unknown) => caught,
+  );
+  expect(error).toBeInstanceOf(Error);
+  expect(String((error as Error).cause)).toContain(constraint);
+}
+
 async function sessionById(
   tx: TenantScopedDatabase,
   session: ConsoleSessionRecord,
@@ -244,6 +253,25 @@ describe('consoleSessionRepository', () => {
       ),
     ).rejects.toThrow();
   });
+  it('refuses a secret hash that is not a SHA-256 digest', async () => {
+    const tenantId = newId();
+    const created = await withTenant(app.db, tenantId, (tx) => seedSession(tx, tenantId));
+
+    await expectRefusedBy(
+      withTenant(app.db, tenantId, (tx) =>
+        consoleSessionRepository(tx).create({
+          tenantId,
+          subjectId: created.subjectId,
+          secretHash: randomBytes(31),
+          tokens: { accessTokenWrapped: 'a', refreshTokenWrapped: 'r', accessExpiresAt: NOW },
+          idTokenWrapped: 'i',
+          now: NOW,
+          expiresAt: NOW,
+        }),
+      ),
+      'console_sessions_secret_hash_length',
+    );
+  });
 });
 
 describe('consoleSessionRepository under a foreign tenant', () => {
@@ -384,6 +412,17 @@ describe('consoleLoginRepository', () => {
         consoleLoginRepository(tx).create({ ...created, nonce: 'other' }),
       ),
     ).rejects.toThrow();
+  });
+  it('refuses a state hash that is not a SHA-256 digest', async () => {
+    const tenantId = newId();
+    const created = await withTenant(app.db, tenantId, (tx) => seedLogin(tx, tenantId));
+
+    await expectRefusedBy(
+      withTenant(app.db, tenantId, (tx) =>
+        consoleLoginRepository(tx).create({ ...created, stateHash: randomBytes(33) }),
+      ),
+      'console_logins_state_hash_length',
+    );
   });
 });
 

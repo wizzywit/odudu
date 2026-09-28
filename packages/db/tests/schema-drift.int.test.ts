@@ -65,6 +65,9 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((assignment = ANY (ARRAY['default'::text, 'optional'::text])))",
   'client_scopes.client_scopes_name_is_scope_token':
     "CHECK ((name ~ '^[\\x21\\x23-\\x5B\\x5D-\\x7E]+$'::text))",
+  'console_logins.console_logins_state_hash_length': 'CHECK ((octet_length(state_hash) = 32))',
+  'console_sessions.console_sessions_secret_hash_length':
+    'CHECK ((octet_length(secret_hash) = 32))',
   'groups.groups_name_has_no_slash': "CHECK (((name !~ '/'::text) AND (name <> ''::text)))",
   'groups.groups_path_is_absolute': "CHECK ((path ~~ '/%'::text))",
   'clients.clients_registration_origin_check':
