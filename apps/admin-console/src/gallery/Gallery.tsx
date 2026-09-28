@@ -128,6 +128,7 @@ function General() {
       description="How the client is named, and how long what it is issued lasts."
       dirty={changed.size > 0}
       saving={false}
+      restored={changed.size > 0}
       onSave={() => {
         setDraft(startDraft(values));
       }}

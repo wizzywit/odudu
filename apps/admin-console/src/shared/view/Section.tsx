@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type SubmitEvent, type ReactNode } from 'react';
 import { SaveBar } from '#/shared/view/SaveBar.tsx';
+import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import styles from '#/shared/view/Section.module.css';
 
 // One section, one save, one request: the save bar belongs to this section
@@ -11,6 +12,7 @@ export function Section({
   saving,
   onSave,
   onDiscard,
+  restored = false,
   children,
 }: {
   readonly title: string;
@@ -19,6 +21,8 @@ export function Section({
   readonly saving: boolean;
   readonly onSave: () => void;
   readonly onDiscard: () => void;
+  // Edits kept across a sign-in and put back, which nobody has looked at yet.
+  readonly restored?: boolean;
   readonly children: ReactNode;
 }) {
   const heading = useId();
@@ -41,6 +45,11 @@ export function Section({
           {title}
         </h2>
         {description === undefined ? null : <p className={styles.description}>{description}</p>}
+        {restored ? (
+          <p className={styles.restored}>
+            <StatusTag tone="warning">Restored — review before saving</StatusTag>
+          </p>
+        ) : null}
       </header>
       <form noValidate onSubmit={submit} className={styles.form} aria-busy={saving || undefined}>
         <div className={styles.fields}>{children}</div>

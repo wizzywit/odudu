@@ -26,6 +26,10 @@
   color: var(--ink-muted);
 }
 
+.restored {
+  margin-block-start: var(--space-1);
+}
+
 .fields {
   display: grid;
   gap: var(--space-4);

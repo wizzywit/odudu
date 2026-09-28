@@ -9,6 +9,7 @@ function General(props: {
   readonly saving?: boolean;
   readonly onSave?: () => void;
   readonly onDiscard?: () => void;
+  readonly restored?: boolean;
 }) {
   return (
     <Section
@@ -18,6 +19,7 @@ function General(props: {
       saving={props.saving ?? false}
       onSave={props.onSave ?? vi.fn()}
       onDiscard={props.onDiscard ?? vi.fn()}
+      restored={props.restored ?? false}
     >
       <label>
         Name
@@ -112,4 +114,12 @@ it('discards on request', async () => {
 it('passes axe in both themes, clean and dirty', async () => {
   expect(await axeInBothThemes(() => <General dirty={false} />)).toEqual({ light: [], dark: [] });
   expect(await axeInBothThemes(() => <General dirty />)).toEqual({ light: [], dark: [] });
+});
+
+it('marks work restored after a sign-in, for review before it is saved', () => {
+  const { rerender } = render(<General dirty />);
+  const region = screen.getByRole('region', { name: 'General' });
+  expect(within(region).queryByText('Restored — review before saving')).toBeNull();
+  rerender(<General dirty restored />);
+  expect(within(region).getByText('Restored — review before saving')).toBeVisible();
 });
