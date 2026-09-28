@@ -12,6 +12,7 @@ import {
   showsSystemArea,
   type RailSection,
 } from '#/features/shell/service.ts';
+import { useDialogHost } from '#/shared/repository/useDialogHost.ts';
 import { useRailCollapsed } from '#/shared/repository/useRailCollapsed.ts';
 import type { ThemeChoice } from '#/shared/service/theme.ts';
 import { useTheme } from '#/shared/repository/useTheme.ts';
@@ -24,6 +25,7 @@ export interface Shell {
   readonly signedInTo: string;
   readonly switchHref: string;
   readonly collapsed: boolean;
+  readonly dialogOpen: boolean;
   readonly setCollapsed: (collapsed: boolean) => void;
   readonly theme: ThemeChoice;
   readonly chooseTheme: (choice: ThemeChoice) => void;
@@ -36,6 +38,7 @@ export function useShell(tenant: string, principal: Principal): Shell {
   const signOut = useSignOut();
   const theme = useTheme();
   const [collapsed, setCollapsed] = useRailCollapsed();
+  const openDialogs = useDialogHost((host) => host.open);
   const groups = railGroups(tenant, showsSystemArea(principal, tenant, authority));
   const pathname = new URL(publicHref, globalThis.location.origin).pathname;
 
@@ -47,6 +50,7 @@ export function useShell(tenant: string, principal: Principal): Shell {
     signedInTo: principal.tenant,
     switchHref: `/console/?${CHOOSE_TENANT}`,
     collapsed,
+    dialogOpen: openDialogs > 0,
     setCollapsed,
     theme: theme.choice,
     chooseTheme: theme.choose,

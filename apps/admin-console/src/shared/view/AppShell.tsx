@@ -21,19 +21,25 @@ function typing(target: EventTarget | null): boolean {
   );
 }
 
-function useShortcut(onPress: (() => void) | undefined): void {
-  const latest = useRef(onPress);
+// AltGr reports Control with Alt, and some layouts need Option for `[`;
+// Control alone and Command are other people's shortcuts.
+function claimedElsewhere(event: KeyboardEvent): boolean {
+  return (event.ctrlKey && !event.altKey) || event.metaKey;
+}
+
+function useShortcut(onPress: (() => void) | undefined, paused: boolean): void {
+  const latest = useRef({ onPress, paused });
   useEffect(() => {
-    latest.current = onPress;
+    latest.current = { onPress, paused };
   });
   const enabled = onPress !== undefined;
   useEffect(() => {
     if (!enabled) return undefined;
     const press = (event: KeyboardEvent): void => {
-      if (event.key !== SHORTCUT || event.defaultPrevented) return;
-      if (event.ctrlKey || event.metaKey || event.altKey || typing(event.target)) return;
+      if (event.key !== SHORTCUT || event.defaultPrevented || latest.current.paused) return;
+      if (claimedElsewhere(event) || typing(event.target)) return;
       event.preventDefault();
-      latest.current?.();
+      latest.current.onPress?.();
     };
     document.addEventListener('keydown', press);
     return () => {
@@ -76,6 +82,7 @@ export function AppShell({
   brand = 'Odudu',
   collapsed = false,
   onCollapsedChange,
+  shortcutsPaused = false,
   children,
 }: {
   readonly rail: ReactNode;
@@ -83,24 +90,34 @@ export function AppShell({
   readonly brand?: ReactNode;
   readonly collapsed?: boolean;
   readonly onCollapsedChange?: (collapsed: boolean) => void;
+  // While a dialog is open the shortcut would act behind it.
+  readonly shortcutsPaused?: boolean;
   readonly children: ReactNode;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  // A destination, or an action such as signing out, is the sheet's work
+  // done: it closes, so a dialog the action raises never sits on top of it.
   const closeOnDestination = (event: MouseEvent<HTMLDivElement>): void => {
-    if (event.target instanceof Element && event.target.closest('a[href]') !== null) {
+    if (
+      event.target instanceof Element &&
+      event.target.closest('a[href], button, label') !== null
+    ) {
       setSheetOpen(false);
     }
   };
+  const railColumn = useRef<HTMLElement>(null);
   const collapseButton = useRef<HTMLButtonElement>(null);
   const expandButton = useRef<HTMLButtonElement>(null);
   const moveFocus = useRef(false);
   const collapsible = onCollapsedChange !== undefined;
   const toggle = (): void => {
     const active = document.activeElement;
-    moveFocus.current = active === collapseButton.current || active === expandButton.current;
+    moveFocus.current =
+      active === expandButton.current ||
+      (active !== null && railColumn.current?.contains(active) === true);
     onCollapsedChange?.(!collapsed);
   };
-  useShortcut(collapsible ? toggle : undefined);
+  useShortcut(collapsible ? toggle : undefined, shortcutsPaused);
   useEffect(() => {
     if (!moveFocus.current) return;
     moveFocus.current = false;
@@ -115,7 +132,7 @@ export function AppShell({
           Skip to content
         </a>
         {railShown ? (
-          <section aria-label="Menu" className={styles.rail}>
+          <section ref={railColumn} aria-label="Menu" className={styles.rail}>
             <div className={styles.railBody}>{rail}</div>
             {collapsible ? (
               <div className={styles.railFoot}>

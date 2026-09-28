@@ -29,6 +29,7 @@ function SignedInShell({
       brand={`odudu · ${tenant}`}
       collapsed={shell.collapsed}
       onCollapsedChange={shell.setCollapsed}
+      shortcutsPaused={shell.dialogOpen}
       contextBar={shell.systemAuthority ? <ContextBar tenant={tenant} /> : undefined}
       rail={
         <Rail

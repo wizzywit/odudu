@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { App } from '#/app/App.tsx';
 import { createConsoleRouter } from '#/app/router.tsx';
 import { createQueryClient } from '#/shared/repository/queryClient.ts';
+import { useDialogHost } from '#/shared/repository/useDialogHost.ts';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
@@ -383,6 +384,28 @@ describe('leaving', () => {
     expect(await screen.findByRole('region', { name: 'System authority' })).toBeVisible();
     expect(router.state.location.publicHref).toBe('/console/acme');
     expect(leavePage).not.toHaveBeenCalled();
+  });
+});
+
+describe('the rail shortcut', () => {
+  it('collapses the rail on [, but not while a dialog is open', async () => {
+    const user = userEvent.setup();
+    renderAt('/console/acme', {
+      'GET /console/api/session': json(GRACE),
+      'GET /console/api/admin/tenants/acme/whoami': whoami(ALL),
+    });
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    let closed = (): void => undefined;
+    act(() => {
+      closed = useDialogHost.getState().opened();
+    });
+    await user.keyboard('[[');
+    expect(screen.getByRole('button', { name: 'Collapse menu' })).toBeInTheDocument();
+    act(() => {
+      closed();
+    });
+    await user.keyboard('[[');
+    expect(screen.getByRole('button', { name: 'Expand menu' })).toBeInTheDocument();
   });
 });
 

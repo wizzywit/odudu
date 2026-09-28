@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
@@ -57,6 +57,27 @@ it('closes the sheet once a destination is chosen', async () => {
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 
+it('closes the sheet on an action in the rail, so no dialog opens over it', async () => {
+  const user = userEvent.setup();
+  render(
+    <AppShell
+      rail={
+        <Rail
+          label="acme"
+          groups={[{ items: [{ href: '#overview', label: 'Overview' }] }]}
+          footer={<button type="button">Sign out</button>}
+        />
+      }
+    >
+      <h1>Overview</h1>
+    </AppShell>,
+  );
+  await user.click(screen.getByRole('button', { name: 'Menu' }));
+  const sheet = screen.getByRole('dialog', { name: 'Navigation' });
+  await user.click(within(sheet).getByRole('button', { name: 'Sign out' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
 it('passes axe in both themes', async () => {
   expect(await axeInBothThemes(shell)).toEqual({ light: [], dark: [] });
 });
@@ -68,11 +89,18 @@ it('puts the narrow top bar in a banner, so none of the shell sits outside a lan
   expect(within(banner).getByRole('button', { name: 'Menu' })).toBeInTheDocument();
 });
 
-function Collapsible({ initially = false }: { readonly initially?: boolean }) {
+function Collapsible({
+  initially = false,
+  paused = false,
+}: {
+  readonly initially?: boolean;
+  readonly paused?: boolean;
+}) {
   const [collapsed, setCollapsed] = useState(initially);
   return (
     <AppShell
       rail={rail}
+      shortcutsPaused={paused}
       contextBar={<ContextBar tenant="acme" />}
       collapsed={collapsed}
       onCollapsedChange={setCollapsed}
@@ -135,6 +163,35 @@ describe('collapsing the rail for full width', () => {
     await user.keyboard('[[');
     expect(screen.getByRole('button', { name: 'Collapse menu' })).toBeInTheDocument();
   });
+
+  it('moves focus from inside the rail to Expand menu as the rail goes', async () => {
+    const user = userEvent.setup();
+    render(<Collapsible />);
+    screen.getByRole('link', { name: 'Overview' }).focus();
+    await user.keyboard('[[');
+    expect(screen.getByRole('button', { name: 'Expand menu' })).toHaveFocus();
+  });
+
+  it('ignores the shortcut while a dialog is open', async () => {
+    const user = userEvent.setup();
+    render(<Collapsible paused />);
+    await user.keyboard('[[');
+    expect(screen.getByRole('button', { name: 'Collapse menu' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['AltGr, which reports Control with Alt', { ctrlKey: true, altKey: true }, true],
+    ['Option alone', { altKey: true }, true],
+    ['Control alone', { ctrlKey: true }, false],
+    ['Command', { metaKey: true }, false],
+  ])(
+    'decides by the modifiers whether [ typed with %s is the shortcut',
+    (_, modifiers, toggles) => {
+      render(<Collapsible />);
+      fireEvent.keyDown(document.body, { key: '[', ...modifiers });
+      expect(screen.queryByRole('button', { name: 'Expand menu' }) !== null).toBe(toggles);
+    },
+  );
 
   it('offers no collapse where the page does not ask for one', async () => {
     const user = userEvent.setup();
