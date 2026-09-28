@@ -133,6 +133,7 @@ async function handleRoute(
     outcome.principal,
     { tenantId: targetTenant.id },
     route.capability,
+    route.alsoAdmits,
   );
   if (decision.kind === 'forbidden') {
     await recordRefusal(deps.database, request, targetTenant.id, (tx) =>

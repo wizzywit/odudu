@@ -213,8 +213,9 @@ describe('the capability matrix', () => {
       const token = await fixture.adminToken(t.name, [capability]);
       const res = await callWith(route, url, token);
       const permitted =
-        admits(capability, requiredCapabilityOf(route)) &&
-        (ALSO_REQUIRED[routeKey(route)] ?? []).every((also) => admits(capability, also));
+        [requiredCapabilityOf(route), ...(route.alsoAdmits ?? [])].some((required) =>
+          admits(capability, required),
+        ) && (ALSO_REQUIRED[routeKey(route)] ?? []).every((also) => admits(capability, also));
       expect(res.statusCode === 403, `${capability} at ${routeKey(route)}`).toBe(!permitted);
     }
   });
@@ -254,6 +255,14 @@ describe('the capability matrix', () => {
   // its path and method already say, independent of what any route
   // actually declares.
   describe('a route names a capability its own path and method already imply', () => {
+    it('admits a further capability on a read alone', () => {
+      const widened = tenantScopedRoutes.filter((route) => route.alsoAdmits !== undefined);
+      expect(widened.map(routeKey).sort()).toEqual([
+        'GET /admin/tenants/:tenant/groups',
+        'GET /admin/tenants/:tenant/roles',
+      ]);
+    });
+
     it('no mutating method requires a bare view-* capability', () => {
       for (const route of tenantScopedRoutes) {
         if (route.method === 'GET') continue;

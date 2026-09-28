@@ -111,11 +111,14 @@ describe('docs/admin-paths.md says what the admin API actually requires', () => 
       if (capability === null) return [];
       const section = sectionFor(all, route);
       if (section === undefined) return [`${route.method} ${route.pattern}: no section names it`];
-      if (backticked(`${section.heading}\n${section.body}`).includes(capability)) return [];
-      return [
-        `${route.method} ${route.pattern}: "${section.heading}" ` +
-          `(line ${String(section.headingLine)}) never names \`${capability}\``,
-      ];
+      const named = backticked(`${section.heading}\n${section.body}`);
+      return [capability, ...(route.alsoAdmits ?? [])]
+        .filter((required) => !named.includes(required))
+        .map(
+          (required) =>
+            `${route.method} ${route.pattern}: "${section.heading}" ` +
+            `(line ${String(section.headingLine)}) never names \`${required}\``,
+        );
     });
 
     expect(wrong, `${GUIDE} and ADMIN_ROUTES disagree about what a route requires`).toEqual([]);

@@ -144,7 +144,8 @@ capture finished. They are "A refusal names its field", "A create
 answers its `ETag`", and the `ETag` sections under the role composites,
 scope assignment, signing key and SMTP routes, "A kept password",
 `GET /scopes/:id/clients`, "Filtering by capability", "The last
-administrator" and "The authenticators a step may name". The `400` bodies
+administrator", "The authenticators a step may name" and "The list a
+user manager picks from". The `400` bodies
 in sections captured before `errors` existed were not re-run, and show
 none; each such refusal now also carries `errors`, naming the field its
 `detail` names, as that section shows.
@@ -4269,7 +4270,8 @@ Keep-Alive: timeout=72
 
 ## `GET /roles`, `POST /roles`, `GET /roles/:id`, `PATCH /roles/:id` and `DELETE /roles/:id`
 
-All five require `manage-tenant`. A role is either a tenant role
+All five require `manage-tenant`; the list, `GET /roles`, is also
+readable with `view-users` (below). A role is either a tenant role
 (`client_id` is `null`) or scoped to one client, in which case a token's
 `roles` claim carries it qualified by that client's own name rather than
 plain — `packages/domain-authz/src/service/role-name.ts` has the format.
@@ -4463,6 +4465,32 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 {"type":"about:blank","title":"Conflict","status":409,"detail":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and deleting it would strip it from every administrator holding it","instance":"01a0e5ae-3e45-778c-a2cd-cf0bc8367b4d"}
 {"action":"role.delete","outcome":"refused","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","detail":{"reason":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and deleting it would strip it from every administrator holding it"}}
+```
+
+### The list a user manager picks from
+
+`GET /roles` alone is also readable with `view-users`, and so with
+`manage-users`, which composes it: a user manager assigns roles to a
+subject and needs the list to pick from. `GET /groups` is widened the same
+way. Nothing else under either path is — a role's own read, its
+composites and both counts still require `manage-tenant` — and what a user
+manager may assign is still held to its own capabilities by the ceiling
+(ADR 0040). Captured against the fifth stack in `admins-demo`, as `hana`, a
+subject created there holding `view-users` alone and signed in through the
+tenant's own admin client, first `whoami`, then two lists and a count:
+
+```bash
+curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3080/admin/tenants/admins-demo/whoami
+curl -sS -H "Authorization: Bearer $HANA_TOKEN" 'http://localhost:3080/admin/tenants/admins-demo/roles?name=manage&limit=2'
+curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3080/admin/tenants/admins-demo/groups
+curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3080/admin/tenants/admins-demo/roles/count
+```
+
+```
+{"subjectId":"01a0ea16-ac52-7366-bf33-aa09306c24d8","issuerTenantId":"01a0ea0f-3655-77c3-96d7-b837b535bbb3","capabilities":["view-users"],"crossTenant":false}
+{"items":[{"id":"01a0ea0f-3671-7b68-9415-096779d4db6c","name":"manage-clients","description":null,"client_id":"01a0ea0f-3662-751d-bf50-752dd8db4a74","default_for_new_subjects":false,"created_at":"2026-09-28T22:07:40.629Z"},{"id":"01a0ea0f-3673-77d7-8642-776f1341d501","name":"manage-keys","description":null,"client_id":"01a0ea0f-3662-751d-bf50-752dd8db4a74","default_for_new_subjects":false,"created_at":"2026-09-28T22:07:40.629Z"}],"next":"eyJhZnRlciI6IjAxYTBlYTBmLTM2NzMtNzdkNy04NjQyLTc3NmYxMzQxZDUwMSIsInNvcnQiOiJtYW5hZ2Uta2V5cyIsImNvbGxlY3Rpb24iOiJyb2xlcyIsInRlbmFudElkIjoiMDFhMGVhMGYtMzY1NS03N2MzLTk2ZDctYjgzN2I1MzViYmIzIiwiZmlsdGVycyI6IlJmN1o1Njk1VkFrc05UeHBDNUhuYnZuN1dYME5hV0d0MGdmVk9OblNpTmcifQ.3qscgkkYekEqsyjWCCn8dFyiIb05OKWP0CRUZ0L6wvM"}
+{"items":[]}
+{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0ea17-700d-717d-9b95-e9bf176ca96c"}
 ```
 
 ## `POST /roles/:id/composites`
@@ -4867,7 +4895,8 @@ Keep-Alive: timeout=72
 
 ## `GET /groups`, `POST /groups`, `GET /groups/:id`, `PATCH /groups/:id` and `DELETE /groups/:id`
 
-All five require `manage-tenant`. `path` is derived, never accepted: a root
+All five require `manage-tenant`; the list, `GET /groups`, is also
+readable with `view-users` (below). `path` is derived, never accepted: a root
 group's is `/name`, a child's is its parent's with `/name` appended, and
 `groupRepository` (`packages/domain-authz/src/repository/groups.ts`) is the
 only writer of it. `PATCH` amends only `parent_id` — reparenting, which
@@ -4966,6 +4995,12 @@ curl -sS \
 {"items":[{"id":"01a0e12f-23a6-7156-bbe1-2faf51f13283","name":"Engineering-Ops","parent_id":null,"path":"/Engineering-Ops","created_at":"2026-09-27T04:45:58.053Z"}]}
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","instance":"01a0e12f-d650-7e6b-bf64-6990fa57907e"}
 ```
+
+### The list a user manager picks from
+
+`GET /groups` alone is also readable with `view-users`, and so with
+`manage-users`, for the reason and within the limits the same subsection
+under `GET /roles` gives, where it was captured.
 
 ## `GET /groups/:id/roles` and `PUT /groups/:id/roles`
 

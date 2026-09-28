@@ -110,14 +110,16 @@ const TENANT_COUNTS = [
     query: 'type=public',
   },
   { collection: 'clients', capability: 'manage-clients', refused: 'view-users', query: '' },
+  // Not `manage-users`: a user manager reads the role and group lists it
+  // picks from, though never their counts.
   {
     collection: 'roles',
     capability: 'manage-tenant',
-    refused: 'manage-users',
+    refused: 'manage-clients',
     query: 'client=tenant',
   },
-  { collection: 'roles', capability: 'manage-tenant', refused: 'manage-users', query: '' },
-  { collection: 'groups', capability: 'manage-tenant', refused: 'manage-users', query: '' },
+  { collection: 'roles', capability: 'manage-tenant', refused: 'manage-clients', query: '' },
+  { collection: 'groups', capability: 'manage-tenant', refused: 'manage-clients', query: '' },
   { collection: 'scopes', capability: 'manage-tenant', refused: 'manage-users', query: 'name=o' },
 ] as const;
 

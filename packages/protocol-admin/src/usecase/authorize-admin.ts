@@ -28,6 +28,7 @@ export async function authorizeAdmin(
   principal: AdminPrincipal,
   target: AuthorizeAdminTarget,
   required: AdminCapability | null,
+  alsoAdmits: readonly AdminCapability[] = [],
 ): Promise<AuthorizeAdminOutcome> {
   const crossTenant = principal.issuerTenantId !== target.tenantId;
   if (!crossTenant && required === null) return ALLOWED;
@@ -43,7 +44,9 @@ export async function authorizeAdmin(
   if (crossTenant && !names.has(MANAGE_TENANTS)) {
     return { kind: 'forbidden', missing: MANAGE_TENANTS };
   }
-  if (required !== null && !names.has(required)) return { kind: 'forbidden', missing: required };
+  if (required !== null && !names.has(required) && !alsoAdmits.some((also) => names.has(also))) {
+    return { kind: 'forbidden', missing: required };
+  }
 
   return ALLOWED;
 }

@@ -440,7 +440,7 @@ describe('PUT /admin/tenants/{t}/groups/{id}/roles', () => {
   });
 });
 
-describe('is refused for every capability but manage-tenant, on every route', () => {
+describe('is refused for every capability but manage-tenant, on every route but the list', () => {
   it('GET /groups, GET /groups/:id, PATCH /groups/:id, DELETE /groups/:id, PUT roles', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const adminToken = await fixture.adminToken(t.name, ['manage-tenant']);
@@ -459,7 +459,9 @@ describe('is refused for every capability but manage-tenant, on every route', ()
         url: `/admin/tenants/${t.name}/groups`,
         headers: { authorization: `Bearer ${token}` },
       });
-      expect(list.statusCode, `GET /groups as ${capability}`).toBe(403);
+      // The list alone is also a user manager's to pick from.
+      const picks = capability === 'view-users' || capability === 'manage-users';
+      expect(list.statusCode, `GET /groups as ${capability}`).toBe(picks ? 200 : 403);
 
       const read = await fixture.http.inject({
         method: 'GET',

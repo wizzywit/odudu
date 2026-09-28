@@ -128,7 +128,11 @@ function operationFor(route: AdminRoute): OpenApiOperation {
     summary:
       route.capability === null
         ? 'Requires an authenticated admin caller.'
-        : `Requires the "${route.capability}" capability.`,
+        : route.alsoAdmits === undefined
+          ? `Requires the "${route.capability}" capability.`
+          : `Requires the "${route.capability}" capability, or ${route.alsoAdmits
+              .map((also) => `"${also}"`)
+              .join(' or ')}.`,
     ...(route.description === undefined ? {} : { description: route.description }),
     parameters: [
       ...pathParametersFor(route.pattern),

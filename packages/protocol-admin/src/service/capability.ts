@@ -103,6 +103,10 @@ export interface AdminRoute {
   readonly method: string;
   readonly pattern: string;
   readonly capability: AdminCapability | null;
+  // Further capabilities that admit this route besides `capability`, each
+  // with whatever composes it. Only a read carries any: a list another
+  // capability's writes pick from.
+  readonly alsoAdmits?: readonly AdminCapability[];
   // The shape of a successful response, published at /admin/openapi.json.
   // Required, not optional: a route with no schema is a type error, not a
   // gap the document silently leaves out.
@@ -558,8 +562,12 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     method: 'GET',
     pattern: '/admin/tenants/:tenant/roles',
     capability: 'manage-tenant',
+    alsoAdmits: ['view-users'],
     responseSchema: listRolesResponseSchema,
     querystringSchema: listRolesQuerySchema,
+    description:
+      'Also readable with `view-users`, and so with `manage-users`, whose holder assigns roles ' +
+      'and picks them from this list. Nothing else under `/roles` is.',
   },
   {
     method: 'GET',
@@ -642,8 +650,12 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     method: 'GET',
     pattern: '/admin/tenants/:tenant/groups',
     capability: 'manage-tenant',
+    alsoAdmits: ['view-users'],
     responseSchema: listGroupsResponseSchema,
     querystringSchema: listGroupsQuerySchema,
+    description:
+      'Also readable with `view-users`, and so with `manage-users`, whose holder assigns groups ' +
+      'and picks them from this list. Nothing else under `/groups` is.',
   },
   {
     method: 'GET',

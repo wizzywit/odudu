@@ -523,7 +523,7 @@ describe('POST /admin/tenants/{t}/roles/{id}/composites — concurrent cycle rac
   });
 });
 
-describe('is refused for every capability but manage-tenant, on every route', () => {
+describe('is refused for every capability but manage-tenant, on every route but the list', () => {
   it('GET /roles, GET /roles/:id, PATCH /roles/:id, DELETE /roles/:id, POST /roles/:id/composites', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const id = await plainRole(t.id);
@@ -538,7 +538,9 @@ describe('is refused for every capability but manage-tenant, on every route', ()
         url: `/admin/tenants/${t.name}/roles`,
         headers,
       });
-      expect(list.statusCode, `GET /roles as ${capability}`).toBe(403);
+      // The list alone is also a user manager's to pick from.
+      const picks = capability === 'view-users' || capability === 'manage-users';
+      expect(list.statusCode, `GET /roles as ${capability}`).toBe(picks ? 200 : 403);
 
       const read = await fixture.http.inject({
         method: 'GET',
