@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { advance, retreat, type CursorTrail } from '#/shared/service/cursorTrail.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import styles from '#/shared/view/Pager.module.css';
@@ -18,10 +19,19 @@ export function Pager({
   readonly loadingMore?: boolean;
 }) {
   const noun = label.toLowerCase();
+  // Once more rows are appended the list spans pages, so no single number fits.
+  const [appendedOn, setAppendedOn] = useState<string | null>(null);
+  const appended = appendedOn === trail.join(' ');
   return (
     <nav aria-label={`Pages of ${noun}`} className={styles.pager}>
       {onLoadMore === undefined || next === null ? null : (
-        <Button isDisabled={loadingMore} onPress={onLoadMore}>
+        <Button
+          isDisabled={loadingMore}
+          onPress={() => {
+            setAppendedOn(trail.join(' '));
+            onLoadMore();
+          }}
+        >
           {loadingMore ? `Loading more ${noun}…` : `Load more ${noun}`}
         </Button>
       )}
@@ -37,7 +47,9 @@ export function Pager({
         >
           Previous
         </Button>
-        <span className={styles.page}>{`Page ${String(trail.length + 1)}`}</span>
+        {appended ? null : (
+          <span className={styles.page}>{`Page ${String(trail.length + 1)}`}</span>
+        )}
         <Button
           size="small"
           variant="quiet"

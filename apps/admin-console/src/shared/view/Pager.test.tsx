@@ -47,8 +47,10 @@ it('loads more in place while there is a next page, and says when it is busy', a
       onLoadMore={onLoadMore}
     />,
   );
+  expect(screen.getByRole('navigation')).toHaveTextContent('Page 1');
   await user.click(screen.getByRole('button', { name: 'Load more subjects' }));
   expect(onLoadMore).toHaveBeenCalledOnce();
+  expect(screen.getByRole('navigation')).not.toHaveTextContent(/Page \d/u);
   rerender(
     <Pager
       label="Subjects"
