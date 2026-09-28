@@ -107,14 +107,14 @@ describe('requests in the console', () => {
     expect(offenders(files)).toEqual([
       'features/clients/adapter.ts:2',
       'features/clients/adapter.ts:7',
-      'features/clients/leaks.ts:1',
-      'features/clients/leaks.ts:2',
-      'features/clients/leaks.ts:3',
-      'features/clients/leaks.ts:4',
-      'features/clients/leaks.ts:5',
-      'features/clients/leaks.ts:6',
-      'features/clients/leaks.ts:7',
-      'features/clients/leaks.ts:8',
+      'features/clients/leaks.tsx:1',
+      'features/clients/leaks.tsx:2',
+      'features/clients/leaks.tsx:3',
+      'features/clients/leaks.tsx:4',
+      'features/clients/leaks.tsx:5',
+      'features/clients/leaks.tsx:6',
+      'features/clients/leaks.tsx:7',
+      'features/clients/leaks.tsx:8',
     ]);
   });
 });
