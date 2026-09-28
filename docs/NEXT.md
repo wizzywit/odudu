@@ -34,16 +34,17 @@ administrator with a single-use password and a forced change. The narrative
 is [docs/admin-paths.md](admin-paths.md), every transcript in it executed;
 the reference is the OpenAPI document at `/admin/openapi.json`.
 
-**P4d's Part 1 — the admin API the console needs — is on the branch.** It
-added `whoami` capabilities, prefix search with filter-bound keyset cursors,
-bounded counts, a target ceiling on every mutation of a subject or client
-that holds admin capabilities, username rename behind `username_editable`,
-tenant export and import, and per-package Turbo test caching in CI
-(ADRs 0038 and 0039; [docs/phases/p4d.md](phases/p4d.md)). Parts 1 and 2
-have landed — Part 2 is the console gateway under `/console`
-([docs/console-paths.md](console-paths.md)) — and Part 3, the console
-foundation, is next, inheriting `whoami`, the cursors and counts, and that
-ceiling as the only authority on what an operator may change.
+**P4d's Parts 1–3 have landed.** Part 1 added `whoami` capabilities, prefix
+search with filter-bound keyset cursors, bounded counts, a target ceiling on
+every mutation of a subject or client that holds admin capabilities,
+username rename behind `username_editable`, tenant export and import, and
+per-package Turbo test caching in CI (ADRs 0038 and 0039;
+[docs/phases/p4d.md](phases/p4d.md)). Part 2 is the console gateway under
+`/console` ([docs/console-paths.md](console-paths.md)). Part 3 is the
+console's foundation — the transport, the Instrument design system, the
+shell, the session and drafts, and the e2e harness
+([docs/phases/p4d.md](phases/p4d.md)) — and **Part 4, the console's
+features, is next**; what it inherits and owes is below.
 
 **P4e filled that audit trail.** Beside `admin_mutation`, it writes
 `admin_access`, `authentication`, `session`, `token` and `credential` rows,
@@ -134,22 +135,46 @@ third amendment); and a refresh whose
 rotation committed before a refusal leaves both an `allowed` and a
 `refused` row under one request id ([p4e.md](phases/p4e.md)).
 
-**P4d's Part 3 inherits the gateway.** The SPA talks to nothing but
-`/console/api/session`, `/console/api/admin/*` (the admin API, forwarded),
-`/console/auth/login?tenant=&return_to=` and `POST /console/auth/logout`,
-which it sends with no body and answers by navigating to the returned
-`redirect` itself ([docs/console-paths.md](console-paths.md)). A `401` of
-type `about:blank#console-session-ended` means sign in again, and the
-admin API's own `401` answers that too once the token is refused at the
-session's own tenant; otherwise that `401`, and every `403`, is passed back
-as it is.
-Every write carries
-`X-Odudu-Console: 1` and a same-origin `Origin`, or it is refused `403`.
-The shell's CSP allows React Aria's two injected styles, `usePress`'s and
-`usePreventScroll`'s iOS one, by hash, and
+**Part 4 inherits the gateway and the console's foundation.** The SPA talks
+to nothing but `/console/api/session`, `/console/api/admin/*` (the admin
+API, forwarded), `/console/auth/login?tenant=&return_to=` and
+`POST /console/auth/logout`, which it sends with no body and answers by
+navigating to the returned `redirect` itself
+([docs/console-paths.md](console-paths.md)). A `401` of type
+`about:blank#console-session-ended` means sign in again, and the admin
+API's own `401` answers that too once the token is refused at the session's
+own tenant; otherwise that `401`, and every `403`, is passed back as it is.
+Every write carries `X-Odudu-Console: 1` and a same-origin `Origin`, or it
+is refused `403`. The shell's CSP allows React Aria's two injected styles,
+`usePress`'s and `usePreventScroll`'s iOS one, by hash, and
 `packages/console-gateway/src/view/react-aria-style.test.ts` recomputes
 both from the React Aria the console is built with ([p4d.md](phases/p4d.md),
-"React Aria under a strict CSP").
+"React Aria under a strict CSP"). `gateway.request` is the one caller of
+`fetch`, retries GET and, with `If-Match`, PATCH/PUT, and never retries
+POST or DELETE; `shared/transport` is where a feature reaches it, never
+`fetch` directly (boundary-enforced). The Instrument design system and its
+gallery (`pnpm --filter @odudu/admin-console gallery`) hold every
+non-editing component and its light/dark, phone and dialog states, each
+axe-clean; a feature builds its screens from those, not new primitives.
+Every section's draft carries the ETag it was made against, keyed
+`${tenant}/${record}`; `rebase(draft, fresh)` returns `{ draft, conflicts }`
+so a 412 view can show what the server changed underneath an edit, and
+`useUnsavedGuard` already blocks navigation, sign-out and tenant switch on
+a dirty section. Route slots exist per area, the cursor-trail search helper
+(`shared/service/cursorTrail.ts`) keeps a list's paging in the URL, and the
+e2e harness (`apps/admin-console/e2e/`) seeds fresh tenants and
+administrators per run.
+
+**What Part 4 owes.** The mid-edit-draft e2e spec and the `beforeunload`
+prompt are stubbed as skipped in `signin.spec.ts`, waiting on a real
+editable section to drive them. Route-level code splitting is undone; the
+placeholder bundle is already 561 KB (Part 3's bundle note,
+[p4d.md](phases/p4d.md)). Accessibility is continuous, not a closing pass:
+axe on every state a feature's specs reach, one keyboard-only task, a
+390px pass, and a manual VoiceOver pass once Part 4 closes.
+
+**For the repository owner:** add `e2e` as a required check on `main`,
+beside `verify`, `container` and `commit-messages`.
 
 **Two recovery-code gaps that need self-service.** A subject cannot
 ask for a fresh set before running out, and nothing warns as the list gets

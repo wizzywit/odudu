@@ -1129,6 +1129,75 @@ Afterwards `/app/console` was removed and `odudu` restarted. `GET /console/`
 answers `503 console build unavailable` again, as it did before the spike.
 Tenant `spike-console-0928` and its user remain on the dev stack.
 
+## Part 3 — what building the foundation found
+
+These are the defects and false assumptions building the console's
+transport, design system, shell and drafts turned up, each fixed on the
+branch.
+
+- **zod's eval probe violates the shell's CSP the moment a contracts
+  schema is constructed**, before anything is parsed — "Vite and
+  `@odudu/contracts`" above has the trace. `z.config({ jitless: true })`,
+  in its own module imported first, fixes it.
+- **React Aria injects a second `<style>` element, not only `usePress`'s.**
+  On iOS WebKit, `usePreventScroll` prepends an `overscroll-behavior:
+contain` rule. `SHELL_CSP` carries both hashes;
+  `packages/console-gateway/src/view/react-aria-style.test.ts` recomputes
+  each from the installed react-aria and refuses a third.
+- **Two lint scans read zero files under `turbo`.** `no-any.test.ts` and
+  `comment-block-length.test.ts` globbed with no `cwd`, so run from
+  `tests/` — as the package-scoped test task does — they matched nothing
+  and passed vacuously. verified: unrooted, the glob read 0 files; rooted
+  at `REPO_ROOT`, 847. Both now glob from `REPO_ROOT` and assert a known
+  file was among what they read.
+- **`smoke.sh` targeted the user's own stack.** It ran `docker compose
+up`/`down -v` in the default project `docker` — the user's dev stack's
+  project — and would have torn it down. It now runs as
+  `COMPOSE_PROJECT_NAME=odudu-smoke`, on its own ports, beside whatever
+  else is running.
+- **The transport's `path` escaped `/console/api/` by string
+  concatenation.** `../`, `%2e%2e/` and a changed origin all got out.
+  `resolve()` now builds a `URL` against `location.origin` and refuses a
+  result outside that prefix; tested against nine escape forms.
+- **The warning signal's first tint sat at the same hue as
+  `--signal-system`'s amber** (30–44°, similar saturation), so a
+  stale-password warning inside a system-authority session was hard to
+  tell from the ContextBar it sat beside. Moved to an ochre at least 0.06
+  OKLab ΔE from amber — three times the just-noticeable difference —
+  keeping every ink at or above 4.5:1.
+- **The rail's collapse query depended on AppShell's `shell` container
+  name**, coupling two components' CSS modules through a name that stays
+  unscoped only by accident of Vite's default transform. The rail now
+  names its own `rail` container. Separately, DataTable and Section each
+  queried their own width against a threshold meant to track the
+  **shell's**, so a table inside the collapsed-rail range read the wrong
+  breakpoint; both now query the shared `shell` container instead.
+- **SecretDialog keyed its list on the secret's own value**, so the
+  one-time secret it displays walked the rendered React fiber tree — the
+  one place it must never appear outside its own text node. A generation
+  counter supplies the key now; a test walks the fiber tree and asserts no
+  key contains the secret.
+- **`rebase(draft, fresh)` discarded a real conflict silently**, keeping
+  every edit and dropping the server's own concurrent change with nothing
+  to show for it. It now returns `{ draft, conflicts }`, computed before
+  the old base is discarded, which is what the 412 view Part 4 builds
+  needs.
+- **A draft was keyed by its record alone**, so a system administrator's
+  draft in one tenant survived into another tenant's console session —
+  same route, different tenant, showing somebody else's unsaved edit.
+  Drafts are now keyed `${tenant}/${record}`.
+- **In the phone and collapsed-rail menu sheet, Sign out did nothing and a
+  rail link reloaded the whole page.** `onClickCapture` closed the sheet
+  on the capture phase, unmounting the pressed control before React
+  Aria's own click handler ran. Closing the sheet inside `startTransition`
+  fixed it; jsdom does not reproduce the race ("Part 3 — the browser
+  tests", below, has the guard).
+- **`inject` collapses dot segments before routing reaches a handler**
+  ("Router and inject", Part 2 spikes, above), so a traversal probe
+  against `inject` alone proves nothing. Every traversal or escape test
+  the foundation added — the transport's own path check included — used
+  a real socket.
+
 ## Part 3 — the console's bundle
 
 The built console is one JavaScript chunk of 561 KB (Vite warns above

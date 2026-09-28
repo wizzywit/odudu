@@ -751,6 +751,70 @@ both colour schemes and under both theme overrides. The stack is torn down
 afterwards unless `E2E_KEEP_STACK=1`, and arguments after the script go to
 `playwright test`. CI runs it as the `e2e` job.
 
+**Developing the console.** `pnpm --filter @odudu/admin-console dev` starts
+its Vite dev server, which proxies `/console/api` and `/console/auth` to a
+running server — `http://localhost:3000` by default, the port a host-run
+server above listens on. Name a different one, such as the throwaway
+stack below's 3080, with:
+
+```bash
+ODUDU_CONSOLE_UPSTREAM=http://localhost:3080 pnpm --filter @odudu/admin-console dev
+```
+
+`pnpm --filter @odudu/admin-console build` produces the static bundle the
+image serves; the Dockerfile copies it to `/app/console`
+(`ODUDU_CONSOLE_DIR`'s default). Every console package is a
+devDependency, so nothing it needs reaches the running container.
+
+**The component gallery** shows every Instrument component and its states,
+outside the app shell:
+
+```bash
+pnpm --filter @odudu/admin-console gallery
+```
+
+Serves it at http://localhost:5173/console/gallery.html; `?theme=dark` and
+`?dialog=plain|typed|secret|unsaved` put it in a given state from the URL.
+It is a development-only page — `build` above never bundles it.
+
+**Try the console**, in a stack that leaves no trace: its own compose
+project, `odudu-try`, on ports 3080 and 5462, beside anything already
+running:
+
+```bash
+cd infra/docker
+export COMPOSE_PROJECT_NAME=odudu-try ODUDU_HOST_PORT=3080 POSTGRES_HOST_PORT=5462
+docker compose up -d --build
+until curl -fsS http://localhost:3080/health/ready; do sleep 2; done
+```
+
+Bootstrap the first administrator, whose one-time password is printed
+once:
+
+```bash
+docker compose exec -T odudu node dist/main.js seed admin --username ada
+```
+
+Give a tenant its own administrator too, with a forced password change on
+the first sign-in:
+
+```bash
+docker compose exec -T odudu node dist/main.js seed tenant --name demo
+docker compose exec -T odudu node dist/main.js seed user --tenant demo \
+  --username grace --password correct-horse-battery --require-password-change
+docker compose exec -T odudu node dist/main.js seed grant-role \
+  --tenant demo --username grace --role odudu-admin:tenant-admin
+```
+
+Open http://localhost:3080/console/ and sign in as either: `ada` needs no
+tenant, since system authority reaches every one; `grace` signs in to
+`demo`, and is asked for a new password first. Tear the stack down,
+volumes included, when you're done:
+
+```bash
+docker compose down -v
+```
+
 **Sign somebody in yourself.** The first tenant, client, user and signing
 key come from the server's seed command — the admin API needs an
 administrator, who needs a tenant, so something has to create the first row
@@ -1397,7 +1461,7 @@ Every row says where it stands, and every row has a phase:
 | ---------------------------------------------------------------------------------------------------- | --------------- |
 | A consent screen — `consent_required` is recorded per client, nothing reads it yet                   | P3a             |
 | Self-service for an End-User: a "me" API and application-initiated actions for credential ceremonies | P4f             |
-| An admin **console** — the admin API exists, nothing drives it but `curl`                            | P4d             |
+| An admin **console** — a shell that signs in, but no feature reads or changes a tenant yet           | P4d             |
 | Published images and a release process                                                               | P12             |
 | Secret management beyond environment variables                                                       | P12             |
 | Backup and restore guidance                                                                          | P12             |

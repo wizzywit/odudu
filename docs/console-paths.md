@@ -28,11 +28,13 @@ service was built at commit `5fd4b11`; for the third it was rebuilt at
 cookies are `odudu-console` and `odudu-console-login`; over `https` they are
 `__Host-odudu-console` and `__Host-odudu-console-login` and carry `Secure`.
 The image built at those commits shipped no console build, so
-`ODUDU_CONSOLE_DIR` (`/app/console`) was absent; the image has carried one
-since `78826ac`, and [`GET /console/`](#get-console) was captured against
-that build. The server logged these warnings when it booted for the third run.
-The second line is the console cookie's plain-HTTP fallback, and the third
-is the missing build:
+`ODUDU_CONSOLE_DIR` (`/app/console`) was absent, and the third run logged
+that below. The image has carried a build since `78826ac`;
+[`GET /console/`](#get-console) is captured separately, against its own
+throwaway stack, since this stack's own build predates the console's
+foundation. The server logged these warnings when it booted for the third
+run. The second line is the console cookie's plain-HTTP fallback, and the
+third is the missing build:
 
 ```
 {"level":40,"time":1790590008355,"pid":1,"hostname":"062313e900ce","msg":"authn-flows: serving session cookies without the __Host- prefix because TLS is off. This is expected for local development only — never in production."}
@@ -1237,35 +1239,37 @@ Keep-Alive: timeout=72
 The logout's `302` lands on the console shell. Every path under `/console/`
 that neither the API nor the sign-in routes claim answers the shell, with
 the gateway's CSP, and each hashed asset the shell names is served
-`immutable`. The shell has no features yet; see
-[docs/request-paths.md](request-paths.md#what-is-not-implemented).
+`immutable`. The shell holds Instrument's tokens, the app frame, the
+session gate and the sign-in flow; every area past the rail is still a
+placeholder. See
+[docs/request-paths.md](request-paths.md#what-is-not-implemented) for what
+that leaves undone.
 
-**The stack for this section only.** Not `docker-odudu-1`: the project
-`./infra/docker/smoke.sh` runs, started the way it starts it, on a fresh
-database beside the development stack. It was built at `799c8ee`, with the
-host-port variables `infra/docker/compose.yaml` now reads. The shell reads
-no cookie, so none is sent.
+**The stack for this section only.** Not `docker-odudu-1`: a throwaway
+compose project, `odudu-try`, built from this branch (`c43d473`) and
+removed afterwards, on its own ports beside anything else running. The
+shell reads no cookie, so none is sent.
 
 ```bash
 cd infra/docker
-COMPOSE_PROJECT_NAME=odudu-smoke ODUDU_HOST_PORT=3100 POSTGRES_HOST_PORT=5452 \
+COMPOSE_PROJECT_NAME=odudu-try ODUDU_HOST_PORT=3080 POSTGRES_HOST_PORT=5462 \
   docker compose up -d --build
 ```
 
 ```bash
-curl -sS -D - http://localhost:3100/console/
+curl -sS -D - http://localhost:3080/console/
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e801-866e-7403-af76-eb4af25c9bcb
+x-request-id: 01a0e930-f572-73dd-a1a4-1310c8d8b036
 content-type: text/html; charset=utf-8
 content-security-policy: default-src 'self'; script-src 'self'; style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o=' 'sha256-gYiS/BvZvRcK27JIXTuwhZ3hs2+VJ1X+2gUlE+farlg='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'
 x-frame-options: DENY
 referrer-policy: no-referrer
 cache-control: no-store
-content-length: 330
-Date: Mon, 28 Sep 2026 12:33:29 GMT
+content-length: 412
+Date: Mon, 28 Sep 2026 18:04:55 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -1275,7 +1279,8 @@ Keep-Alive: timeout=72
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Odudu console</title>
-    <script type="module" crossorigin src="/console/assets/index-I408uhrW.js"></script>
+    <script type="module" crossorigin src="/console/assets/index-CYySuAHG.js"></script>
+    <link rel="stylesheet" crossorigin href="/console/assets/index-BoHWD5ls.css">
   </head>
   <body>
     <div id="root"></div>
@@ -1283,19 +1288,32 @@ Keep-Alive: timeout=72
 </html>
 ```
 
+The two style hashes are React Aria's own injected `<style>` elements —
+`usePress`'s pressable style and, on iOS WebKit only, `usePreventScroll`'s
+`overscroll-behavior: contain` rule — recomputed from the installed
+react-aria by `packages/console-gateway/src/view/react-aria-style.test.ts`.
+The stylesheet is Instrument's tokens and fonts, built and hashed like any
+other asset.
+
 ```bash
-curl -sS -D - -o /dev/null http://localhost:3100/console/assets/index-I408uhrW.js
+curl -sS -D - -o /dev/null http://localhost:3080/console/assets/index-CYySuAHG.js
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e801-867d-70ed-bf3b-076507accada
+x-request-id: 01a0e931-04aa-7699-a95f-fbc4d89fd7d0
 content-type: text/javascript; charset=utf-8
 cache-control: public, max-age=31536000, immutable
-content-length: 294585
-Date: Mon, 28 Sep 2026 12:33:29 GMT
+content-length: 562745
+Date: Mon, 28 Sep 2026 18:04:58 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
+```
+
+```bash
+cd infra/docker
+COMPOSE_PROJECT_NAME=odudu-try ODUDU_HOST_PORT=3080 POSTGRES_HOST_PORT=5462 \
+  docker compose down -v
 ```
 
 ## What these runs do not show
