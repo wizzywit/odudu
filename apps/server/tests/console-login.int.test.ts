@@ -326,6 +326,59 @@ describe('GET /console/auth/callback', () => {
     }
   }, 30_000);
 
+  // A trigger that raises for one subject's rows is a database failure
+  // confined to the step under test.
+  async function failFor(
+    subjectId: string,
+    event: 'INSERT' | 'DELETE',
+  ): Promise<() => Promise<void>> {
+    const name = `fail_${event.toLowerCase()}_${subjectId.replaceAll('-', '')}`;
+    await owner.db.execute(
+      sql.raw(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF ${event === 'INSERT' ? 'NEW' : 'OLD'}.subject_id = '${subjectId}' THEN
+            RAISE EXCEPTION 'injected failure' USING ERRCODE = 'XX001';
+          END IF;
+          RETURN ${event === 'INSERT' ? 'NEW' : 'OLD'};
+        END $$`),
+    );
+    await owner.db.execute(
+      sql.raw(`CREATE TRIGGER ${name} BEFORE ${event} ON console_sessions
+        FOR EACH ROW EXECUTE FUNCTION ${name}()`),
+    );
+    return async () => {
+      await owner.db.execute(sql.raw(`DROP TRIGGER ${name} ON console_sessions`));
+      await owner.db.execute(sql.raw(`DROP FUNCTION ${name}()`));
+    };
+  }
+
+  it('admits the new sign-in however ending the old session fails, logging only the kind', async () => {
+    const stack = await startApp();
+    try {
+      const first = new Jar();
+      const old = await signIn(stack, first);
+      const second = new Jar();
+      second.cookies.set(SESSION_COOKIE, first.cookies.get(SESSION_COOKIE) ?? '');
+      const { authorize } = await beginLogin(stack, second);
+      const next = await signInAtOp(stack, second, authorize);
+      const restore = await failFor(old.subjectId, 'DELETE');
+
+      const res = await browse(stack, second, pathOf(stack, next.callback));
+      await restore();
+
+      expect(res.statusCode).toBe(302);
+      const session = await browse(stack, second, '/console/api/session');
+      expect(session.json<{ subject_id: string }>().subject_id).toBe(next.subjectId);
+      const logged = stack.logs.find((line) => line.includes('replaced console session'));
+      expect(logged).toBeDefined();
+      expect(logged).toContain('XX001');
+      expect(logged).not.toContain('injected failure');
+      expect(logged).not.toContain(old.subjectId);
+    } finally {
+      await stack.app.close();
+    }
+  });
+
   it('refuses a missing or mismatched login cookie, and still accepts the right one', async () => {
     const stack = await startApp();
     try {

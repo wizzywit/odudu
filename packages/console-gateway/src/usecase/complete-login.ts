@@ -17,7 +17,6 @@ import {
 import { CONSOLE_SESSION_ABSOLUTE_SECONDS } from '#/service/session-lifetime';
 import { callbackUri, type LoginDeps } from '#/usecase/begin-login';
 import { endGrant } from '#/usecase/end-grant';
-import { orUnavailable } from '#/usecase/lock-timeout';
 import { endNamedSession, type ResolveSessionDeps } from '#/usecase/resolve-session';
 
 export interface CompleteLoginDeps extends LoginDeps, ResolveSessionDeps {}
@@ -35,11 +34,36 @@ export interface Callback {
 }
 
 export type CallbackResult =
-  | { readonly kind: 'signed-in'; readonly sessionCookie: string; readonly location: string }
+  | {
+      readonly kind: 'signed-in';
+      readonly sessionCookie: string;
+      readonly location: string;
+      // Why the session this sign-in replaced could not be ended, by kind only.
+      readonly replacedFailure?: FailureKind;
+    }
   | { readonly kind: 'op-error'; readonly location: string }
   | { readonly kind: 'refused' };
 
 const REFUSED: CallbackResult = { kind: 'refused' };
+
+export interface FailureKind {
+  readonly type: string;
+  readonly code: string | undefined;
+}
+
+// A driver's message carries the statement's parameters, so a failure is
+// reported by its kind and the database's code, found on it or its cause.
+function kindOf(error: unknown): FailureKind {
+  const code = (value: unknown): string | undefined => {
+    if (typeof value !== 'object' || value === null || !('code' in value)) return undefined;
+    return typeof value.code === 'string' ? value.code : undefined;
+  };
+  const cause = error instanceof Error ? error.cause : undefined;
+  return {
+    type: error instanceof Error ? error.name : typeof error,
+    code: code(error) ?? code(cause),
+  };
+}
 
 // RFC 6749 §4.1.2.1's codes and OIDC Core §3.1.2.6's. Anything else is
 // reported as server_error rather than carried into the address bar.
@@ -119,7 +143,7 @@ export async function completeLogin(
 
   // From here a live grant exists, and a sign-in that stops short of a
   // session, by refusal or by a throw, must not leave it behind.
-  let signedIn: CallbackResult | null;
+  let signedIn: SignedIn | null;
   try {
     signedIn = await admitTokens(deps, input, taken, issuer, tokens);
   } catch (error: unknown) {
@@ -130,18 +154,28 @@ export async function completeLogin(
     await endGrant(deps.odudu, tenantName, tokens.refreshToken, input.from);
     return REFUSED;
   }
-  await endReplacedSession(deps, input);
-  return signedIn;
+  const replacedFailure = await endReplacedSession(deps, input);
+  return replacedFailure === null ? signedIn : { ...signedIn, replacedFailure };
 }
 
 // One console session per browser, so a sign-in ends the one its cookie
 // named, but only once the new session exists: a refused or abandoned
-// sign-in leaves the administrator where they were. A lock held on the old
-// row costs only its revoke; the new cookie replaces the old in this
-// browser, and the row idles out.
-async function endReplacedSession(deps: CompleteLoginDeps, input: Callback): Promise<void> {
-  await orUnavailable(() => endNamedSession(deps, input.cookieHeader, input.from));
+// sign-in leaves the administrator where they were. Past that point it is
+// best effort, whatever fails: the new cookie replaces the old one in this
+// browser, and a row left behind idles out.
+async function endReplacedSession(
+  deps: CompleteLoginDeps,
+  input: Callback,
+): Promise<FailureKind | null> {
+  try {
+    await endNamedSession(deps, input.cookieHeader, input.from);
+    return null;
+  } catch (error: unknown) {
+    return kindOf(error);
+  }
 }
+
+type SignedIn = Extract<CallbackResult, { kind: 'signed-in' }>;
 
 async function admitTokens(
   deps: CompleteLoginDeps,
@@ -149,7 +183,7 @@ async function admitTokens(
   { login, tenantName }: TakenLogin,
   issuer: string,
   tokens: TokenSet,
-): Promise<CallbackResult | null> {
+): Promise<SignedIn | null> {
   const keys = await deps.odudu.keysOf(tenantName, input.from);
   const claims = await verifyJwtClaims(tokens.idToken, keys, {
     issuer,

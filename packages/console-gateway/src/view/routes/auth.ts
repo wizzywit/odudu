@@ -76,6 +76,12 @@ export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps
     });
     const cleared = clearedLoginCookie(deps.tls);
     if (result.kind === 'refused') return refuse(reply, 400, [cleared]);
+    if (result.kind === 'signed-in' && result.replacedFailure !== undefined) {
+      request.log.warn(
+        { err: result.replacedFailure },
+        'console sign-in could not end the replaced console session',
+      );
+    }
     const cookies =
       result.kind === 'signed-in'
         ? [cleared, sessionCookie(result.sessionCookie, deps.tls)]
