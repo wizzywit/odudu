@@ -1734,7 +1734,12 @@ foreign key from `client_oidc_config` to `clients` cascades, so nothing
 here deletes the config row a second time. `204` with no body on success,
 `404` for an id that does not exist, and the same `409` built-in-admin
 guard `PATCH` uses: the built-in client cannot be deleted any more than it
-can be disabled.
+can be disabled. Every role scoped to the client goes with it, so a delete
+whose roles reach an admin capability the caller does not hold is refused
+with `403`
+([a removal is judged by what it removes](#a-removal-is-judged-by-what-it-removes)),
+as is one whose service account holds more than the caller
+([the service account's ceiling](#the-service-accounts-ceiling)).
 
 All three outcomes against `client-facts-demo`, in that order: the built-in
 client, an id nothing holds, then `demo-backend` — its secret rotated
@@ -4616,10 +4621,10 @@ group, and the second stack it lived on, are gone.)_
 ### A removal is judged by what it removes
 
 **A write that takes an admin capability away from whoever holds it through
-a group, a role or a scope is refused unless the caller holds that
-capability.** The reach is what the removed edge or row carries, expanded
-through `role_composites` the way every ceiling here expands it, and it is
-judged without enumerating the subjects affected. Five doors:
+a group, a role, a scope or a client's roles is refused unless the caller
+holds that capability.** The reach is what the removed edge or row carries,
+expanded through `role_composites` the way every ceiling here expands it,
+and it is judged without enumerating the subjects affected. Seven doors:
 
 - `PUT /groups/:id/roles` and `PUT /scopes/:id/roles`, on the roles the new
   list leaves out.
@@ -4630,20 +4635,30 @@ judged without enumerating the subjects affected. Five doors:
   chain handed the group, alongside the ceiling on what the new one hands it.
 - `DELETE /roles/:id`, on what the role reaches.
 - `DELETE /roles/:id/composites/:childId`, on what the child reaches.
+- `DELETE /scopes/:id`, on the roles the scope maps, which the cascade
+  takes with it.
+- `DELETE /clients/:id`, on every role scoped to the client:
+  `roles_client_fk` cascades, so each goes with the client, and with it
+  every grant and composite edge naming it.
 
 Without it, a caller holding `manage-tenant` alone could strip
 `tenant-admin` from every member of a group mapped to it, although it could
 neither grant it nor act on one of those members directly. The refusal is a
-`403` naming what the caller lacks, and a `refused` row with
-`detail.denied` under the action attempted.
+`403` naming what the caller lacks — "this removes capabilities the caller
+does not hold", apart from what a write would grant, which a reparent or a
+replacement names first — and a `refused` row with `detail.denied` under the
+action attempted.
 
 Captured against a tenant `ceiling-removal` created for it. `admins` is a
 group mapped to `tenant-admin`, with `on-call` beneath it; `ops-bundle` is a
-tenant role nesting `tenant-admin`; and `$TENANT_TOKEN` is the
-`client_credentials` token of a client whose service account was given
-`manage-tenant` alone. Emptying `admins`, deleting it, moving `on-call` out
-from under it, deleting `ops-bundle` and taking `tenant-admin` out of it are
-each refused, and the rows since `RUN_START` are those five:
+tenant role nesting `tenant-admin`; `ops` is a scope mapped to it; and
+`bundle-app` is a client with a role `operator` scoped to it, nesting it.
+`$TENANT_TOKEN` and `$CLIENTS_TOKEN` are the `client_credentials` tokens of
+two clients whose service accounts were given `manage-tenant` alone and
+`manage-clients` alone. Emptying `admins`, deleting it, moving `on-call`
+out from under it, deleting `ops-bundle`, taking `tenant-admin` out of it,
+deleting `ops` and deleting `bundle-app` are each refused, and the rows
+since `RUN_START` are those seven:
 
 ```bash
 RUN_START=$(date -u +%FT%T.000Z)
@@ -4664,16 +4679,24 @@ echo
 curl -sS -X DELETE -H "Authorization: Bearer $TENANT_TOKEN" \
   "$BUNDLE/composites/01a0e59a-b2d6-7148-a179-a3cff021a673"
 echo
+curl -sS -X DELETE -H "Authorization: Bearer $TENANT_TOKEN" "$T/scopes/01a0e5f1-d296-7db2-95b9-2ff0f71bc6bf"
+echo
+curl -sS -X DELETE -H "Authorization: Bearer $CLIENTS_TOKEN" "$T/clients/01a0e5f1-d240-7325-9d2e-3385c81046b6"
+echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$T/audit?outcome=refused&from=$RUN_START" \
   | jq -c '.items[] | {action, resource_type, resource_id, detail}'
 ```
 
 ```
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e59a-e4cc-7c2d-984e-982ce932a268"}
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes what the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e59a-e4ec-78db-97be-fe9951022c9a"}
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e59a-e50a-7406-9f96-59ccdb600fa9"}
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes what the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e59a-e530-787d-acb6-c9f3d1e05bcd"}
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes what the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e59a-e54b-76dd-8b56-c3805b3bc996"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes capabilities the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e5f2-4f98-7076-a47d-70cfc175c24c"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes capabilities the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e5f2-4fb4-74a1-aebe-ef66241284a1"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes capabilities the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e5f2-4fcf-75f1-b711-ceff3dbb7948"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes capabilities the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e5f2-4fea-780b-b058-171cdb51d3b3"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes capabilities the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e5f2-5002-7eff-875f-c6ce20c07899"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes capabilities the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e5f2-501b-773e-802b-d227ea8c5008"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes capabilities the caller does not hold: tenant-admin, view-users, manage-users, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0e5f2-5031-728d-847e-2a621cba1062"}
+{"action":"client.delete","resource_type":"client","resource_id":"01a0e5f1-d240-7325-9d2e-3385c81046b6","detail":{"denied":["tenant-admin","view-users","manage-users","manage-tenant","manage-keys","manage-sessions","view-audit"]}}
+{"action":"scope.delete","resource_type":"scope","resource_id":"01a0e5f1-d296-7db2-95b9-2ff0f71bc6bf","detail":{"denied":["tenant-admin","view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"]}}
 {"action":"role.composite_remove","resource_type":"role","resource_id":"01a0e59a-b48d-7b81-b9df-2bf4509c07d5","detail":{"denied":["tenant-admin","view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"],"child_role_id":"01a0e59a-b2d6-7148-a179-a3cff021a673"}}
 {"action":"role.delete","resource_type":"role","resource_id":"01a0e59a-b48d-7b81-b9df-2bf4509c07d5","detail":{"denied":["tenant-admin","view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"]}}
 {"action":"group.amend","resource_type":"group","resource_id":"01a0e59a-b430-7684-b079-11c1abfaafa3","detail":{"denied":["tenant-admin","view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"]}}
@@ -4696,8 +4719,10 @@ scope removes it and both dependent rows together rather than refusing —
 would strip it from every client's assignment in the tenant in one stroke,
 the built-in admin client's included, which
 `DELETE /scopes/:id/clients/:clientId` below refuses for that one client
-alone. Every other scope stays deletable whatever it is assigned to or
-mapped from — a tenant-wide decision, not a per-client one.
+alone. Every other scope stays deletable whatever it is assigned to,
+unless the roles it maps reach an admin capability the caller does not hold
+([a removal is judged by what it removes](#a-removal-is-judged-by-what-it-removes))
+— a tenant-wide decision, not a per-client one.
 
 ```bash
 curl -sS -X POST \
