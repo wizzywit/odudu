@@ -5,7 +5,7 @@ import { consoleLoginRepository, type ConsoleLoginRecord } from '#/repository/co
 import { consoleSessionRepository } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
 import { subjectOfIdToken } from '#/service/id-token';
-import { type TokenSet } from '#/service/odudu-port';
+import { type Caller, type TokenSet } from '#/service/odudu-port';
 import { safeReturnTo } from '#/service/return-to';
 import {
   bindToTenant,
@@ -29,7 +29,7 @@ export interface Callback {
   readonly loginCookie: string | undefined;
   /** The whole `Cookie` header, for a console session this sign-in replaces. */
   readonly cookieHeader: string | undefined;
-  readonly ip: string;
+  readonly from: Caller;
   readonly now: Date;
 }
 
@@ -104,7 +104,7 @@ export async function completeLogin(
 
   // RFC 9207 §2.4: the authorization response names its issuer, and one
   // naming any other tenant's is a mix-up.
-  const issuer = await deps.odudu.issuerOf(tenantName, input.ip);
+  const issuer = await deps.odudu.issuerOf(tenantName, input.from);
   if (issuer === null || input.iss !== issuer) return REFUSED;
 
   const tokens = await deps.odudu.exchangeCode({
@@ -112,7 +112,7 @@ export async function completeLogin(
     code: input.code,
     verifier: unwrapSecret(login.verifierWrapped, deps.kek),
     redirectUri: callbackUri(deps.base),
-    ip: input.ip,
+    from: input.from,
   });
   if (tokens === null) return REFUSED;
 
@@ -122,10 +122,10 @@ export async function completeLogin(
     const signedIn = await admitTokens(deps, input, taken, issuer, tokens);
     if (signedIn !== null) return signedIn;
   } catch (error: unknown) {
-    await endGrant(deps.odudu, tenantName, tokens.refreshToken, input.ip);
+    await endGrant(deps.odudu, tenantName, tokens.refreshToken, input.from);
     throw error;
   }
-  await endGrant(deps.odudu, tenantName, tokens.refreshToken, input.ip);
+  await endGrant(deps.odudu, tenantName, tokens.refreshToken, input.from);
   return REFUSED;
 }
 
@@ -136,7 +136,7 @@ async function admitTokens(
   issuer: string,
   tokens: TokenSet,
 ): Promise<CallbackResult | null> {
-  const keys = await deps.odudu.keysOf(tenantName, input.ip);
+  const keys = await deps.odudu.keysOf(tenantName, input.from);
   const claims = await verifyJwtClaims(tokens.idToken, keys, {
     issuer,
     audience: ADMIN_CLIENT_ID,
@@ -150,7 +150,7 @@ async function admitTokens(
   if (sub === null) return null;
 
   // One console session per browser: switching tenants signs in afresh.
-  await endNamedSession(deps, input.cookieHeader, input.ip);
+  await endNamedSession(deps, input.cookieHeader, input.from);
   const secret = randomSecret();
   const now = input.now.getTime();
   await withTenant(deps.database.db, login.tenantId, (tx) =>

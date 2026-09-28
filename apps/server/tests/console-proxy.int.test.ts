@@ -191,6 +191,28 @@ function expectEnded(res: LightMyRequestResponse): void {
 }
 
 describe('* /console/api/admin/*', () => {
+  it('records the request id the browser sees on the forwarded write’s audit row', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      await signIn(stack, jar);
+
+      const created = await call(stack, jar, SCOPES, {
+        method: 'POST',
+        ...json({ name: `audited-${newId().slice(-12)}` }),
+      });
+
+      expect(created.statusCode, created.body).toBe(201);
+      const { id } = created.json<{ id: string }>();
+      const audited = await owner.db.execute<{ request_id: string; ip: string }>(
+        sql`SELECT request_id, ip FROM audit_events
+             WHERE action = 'scope.create' AND resource_id = ${id}`,
+      );
+      expect(audited).toEqual([
+        { request_id: String(created.headers['x-request-id']), ip: BROWSER_IP },
+      ]);
+    });
+  });
+
   it('round-trips a create, a read, a conditional amend and a delete', async () => {
     await withStack(async (stack) => {
       const jar = new Jar();
@@ -408,8 +430,10 @@ describe('what the proxy passes on', () => {
             'user-agent',
             'x-forwarded-host',
             'x-forwarded-proto',
+            'x-request-id',
           ].sort(),
         );
+        expect(seen?.headers['x-request-id']).toBe(res.headers['x-request-id']);
       },
       { beforeReady: spy },
     );

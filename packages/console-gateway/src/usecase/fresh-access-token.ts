@@ -2,7 +2,7 @@ import { unwrapSecret, wrapSecret } from '@odudu/crypto';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { consoleSessionRepository, type ConsoleSessionRecord } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
-import { type OduduPort } from '#/service/odudu-port';
+import { type Caller, type OduduPort } from '#/service/odudu-port';
 import { accessNeedsRefresh } from '#/service/session-lifetime';
 import { type Semaphore } from '#/service/semaphore';
 import { type SingleFlight } from '#/service/single-flight';
@@ -30,13 +30,13 @@ export async function freshAccessToken(
   deps: FreshTokenDeps,
   session: ConsoleSessionRecord,
   now: Date,
-  ip: string,
+  from: Caller,
 ): Promise<FreshToken> {
   if (!accessNeedsRefresh(session, now)) {
     return { kind: 'ok', accessToken: unwrapSecret(session.accessTokenWrapped, deps.kek) };
   }
   return deps.refreshes(session.id, () =>
-    deps.refreshSlots(() => orUnavailable(() => refreshUnderLock(deps, session, now, ip))),
+    deps.refreshSlots(() => orUnavailable(() => refreshUnderLock(deps, session, now, from))),
   );
 }
 
@@ -44,7 +44,7 @@ async function refreshUnderLock(
   deps: FreshTokenDeps,
   session: ConsoleSessionRecord,
   now: Date,
-  ip: string,
+  from: Caller,
 ): Promise<FreshToken> {
   return withTenant(deps.database.db, session.tenantId, async (tx) => {
     const sessions = consoleSessionRepository(tx);
@@ -59,7 +59,7 @@ async function refreshUnderLock(
     const outcome = await deps.odudu.refresh(
       tenant,
       unwrapSecret(locked.refreshTokenWrapped, deps.kek),
-      ip,
+      from,
     );
     if (outcome.kind === 'refused') {
       await sessions.delete(locked.id);

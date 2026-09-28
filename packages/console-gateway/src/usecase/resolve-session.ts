@@ -4,7 +4,7 @@ import { userRepository } from '@odudu/domain-identity';
 import { consoleSessionRepository, type ConsoleSessionRecord } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
 import { readCookie, sessionCookieName } from '#/service/cookies';
-import { type OduduPort } from '#/service/odudu-port';
+import { type Caller, type OduduPort } from '#/service/odudu-port';
 import { sha256, splitTenantBound } from '#/service/secrets';
 import { sessionHasEnded, sessionNeedsTouch } from '#/service/session-lifetime';
 import { endGrant } from '#/usecase/end-grant';
@@ -60,7 +60,7 @@ export async function resolveSession(
   deps: ResolveSessionDeps,
   cookieHeader: string | undefined,
   now: Date,
-  ip: string,
+  from: Caller,
 ): Promise<ResolvedSession> {
   const bound = boundCookie(deps, cookieHeader);
   if (bound === null) return ENDED;
@@ -81,7 +81,7 @@ export async function resolveSession(
   );
   if (found === null) return ENDED;
   if (found.kind !== 'taken') return found;
-  await endGrant(deps.odudu, found.tenant, found.refreshToken, ip);
+  await endGrant(deps.odudu, found.tenant, found.refreshToken, from);
   return ENDED;
 }
 
@@ -89,7 +89,7 @@ export async function resolveSession(
 export async function endNamedSession(
   deps: ResolveSessionDeps,
   cookieHeader: string | undefined,
-  ip: string,
+  from: Caller,
 ): Promise<void> {
   const bound = boundCookie(deps, cookieHeader);
   if (bound === null) return;
@@ -97,7 +97,7 @@ export async function endNamedSession(
     const session = await consoleSessionRepository(tx).bySecretHash(sha256(bound.secret));
     return session === null ? null : takeRow(tx, deps, session);
   });
-  if (taken !== null) await endGrant(deps.odudu, taken.tenant, taken.refreshToken, ip);
+  if (taken !== null) await endGrant(deps.odudu, taken.tenant, taken.refreshToken, from);
 }
 
 export interface SessionSummary {

@@ -5,6 +5,7 @@ import { upstreamPath } from '#/service/rewrite';
 import { forwardAdminCall, type ForwardDeps } from '#/usecase/forward';
 import { BAD_GATEWAY, sendProblem } from '#/view/problem';
 import { sessionEnded } from '#/view/routes/session';
+import { callerOf } from '#/view/scope';
 
 export interface ProxyRouteDeps extends ForwardDeps {
   readonly now: () => Date;
@@ -45,7 +46,7 @@ export function registerProxyRoutes(api: FastifyInstance, deps: ProxyRouteDeps):
           path,
           headers: request.headers,
           body: Buffer.isBuffer(request.body) ? request.body : undefined,
-          ip: request.ip,
+          from: callerOf(request),
           now: deps.now(),
         });
         if (result.kind === 'ended') return sessionEnded(reply, request, deps.tls);

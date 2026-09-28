@@ -3,7 +3,7 @@ import { STATUS_CODES } from 'node:http';
 import { clearedSessionCookie } from '#/service/cookies';
 import { logout, type LogoutDeps } from '#/usecase/logout';
 import { BAD_GATEWAY, sendProblem } from '#/view/problem';
-import { answerErrors } from '#/view/scope';
+import { answerErrors, callerOf } from '#/view/scope';
 
 export interface LogoutRouteDeps extends LogoutDeps {
   readonly now: () => Date;
@@ -26,7 +26,7 @@ export function registerLogoutRoute(fastify: FastifyInstance, deps: LogoutRouteD
     scope.post('/logout', async (request, reply) => {
       const result = await logout(deps, {
         cookieHeader: request.headers.cookie,
-        ip: request.ip,
+        from: callerOf(request),
         now: deps.now(),
       });
       // The session was kept, so its cookie is too, and the logout can be retried.

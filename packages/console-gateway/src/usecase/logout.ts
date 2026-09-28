@@ -1,6 +1,7 @@
 import { unwrapSecret } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
 import { ADMIN_CLIENT_ID, CONSOLE_POST_LOGOUT_PATH } from '@odudu/domain-tenant';
+import { type Caller } from '#/service/odudu-port';
 import { consoleSessionRepository } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
 import { endGrant } from '#/usecase/end-grant';
@@ -13,7 +14,7 @@ export interface LogoutDeps extends ResolveSessionDeps {
 
 export interface Logout {
   readonly cookieHeader: string | undefined;
-  readonly ip: string;
+  readonly from: Caller;
   readonly now: Date;
 }
 
@@ -26,7 +27,7 @@ const TO_CONSOLE: LoggedOut = { kind: 'redirect', redirect: CONSOLE_POST_LOGOUT_
 // session can only be ended by the browser itself, since only its own
 // navigation to the tenant's logout endpoint carries the tenant's cookie.
 export async function logout(deps: LogoutDeps, input: Logout): Promise<LoggedOut> {
-  const resolved = await resolveSession(deps, input.cookieHeader, input.now, input.ip);
+  const resolved = await resolveSession(deps, input.cookieHeader, input.now, input.from);
   if (resolved.kind === 'ended') return TO_CONSOLE;
   if (resolved.kind === 'unavailable') return resolved;
   const { tenantId, id } = resolved.session;
@@ -42,8 +43,13 @@ export async function logout(deps: LogoutDeps, input: Logout): Promise<LoggedOut
   if (taken.kind === 'unavailable') return taken;
 
   const { session, tenant } = taken;
-  await endGrant(deps.odudu, tenant, unwrapSecret(session.refreshTokenWrapped, deps.kek), input.ip);
-  const issuer = await deps.odudu.issuerOf(tenant, input.ip);
+  await endGrant(
+    deps.odudu,
+    tenant,
+    unwrapSecret(session.refreshTokenWrapped, deps.kek),
+    input.from,
+  );
+  const issuer = await deps.odudu.issuerOf(tenant, input.from);
   if (issuer === null) return TO_CONSOLE;
 
   // OIDC RP-Initiated Logout 1.0 §2; the hint lets the server end the

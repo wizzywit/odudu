@@ -1,6 +1,6 @@
 import { withTenant } from '@odudu/db';
 import { consoleSessionRepository, type ConsoleSessionRecord } from '#/repository/console-sessions';
-import { type AdminMethod, type AdminResponse } from '#/service/odudu-port';
+import { type AdminMethod, type AdminResponse, type Caller } from '#/service/odudu-port';
 import {
   forwardedRequestHeaders,
   passedResponseHeaders,
@@ -18,7 +18,7 @@ export interface ConsoleAdminCall {
   readonly path: string;
   readonly headers: Readonly<Record<string, string | readonly string[] | undefined>>;
   readonly body: Buffer | undefined;
-  readonly ip: string;
+  readonly from: Caller;
   readonly now: Date;
 }
 
@@ -44,10 +44,10 @@ export async function forwardAdminCall(
     deps,
     typeof cookie === 'string' ? cookie : undefined,
     call.now,
-    call.ip,
+    call.from,
   );
   if (resolved.kind !== 'ok') return resolved;
-  const token = await freshAccessToken(deps, resolved.session, call.now, call.ip);
+  const token = await freshAccessToken(deps, resolved.session, call.now, call.from);
   if (token.kind !== 'ok') return token;
 
   const response: AdminResponse = await deps.odudu.forward({
@@ -58,7 +58,7 @@ export async function forwardAdminCall(
       authorization: `Bearer ${token.accessToken}`,
     },
     body: call.body,
-    ip: call.ip,
+    from: call.from,
   });
   if (response.status === 401) return dropSession(deps, resolved.session);
   return {

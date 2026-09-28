@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   type AdminCall,
   type AdminResponse,
+  type Caller,
   type CodeExchange,
   type OduduPort,
   type RefreshOutcome,
@@ -43,27 +44,33 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
     'x-forwarded-host': base.host,
     'x-forwarded-proto': base.protocol.slice(0, -1),
   };
+  // The browser's request id, so the server's audit rows and problem
+  // instances name the id the browser was answered with.
+  const headersFor = (from: Caller): Record<string, string> => ({
+    ...authority,
+    'x-request-id': from.requestId,
+  });
   const tenantPath = (tenant: string): string => `/tenants/${encodeURIComponent(tenant)}`;
 
   return {
-    async issuerOf(tenant: string, ip: string): Promise<string | null> {
+    async issuerOf(tenant: string, from: Caller): Promise<string | null> {
       const res = await fastify.inject({
         method: 'GET',
         url: `${tenantPath(tenant)}/.well-known/openid-configuration`,
-        headers: authority,
-        remoteAddress: ip,
+        headers: headersFor(from),
+        remoteAddress: from.ip,
       });
       if (res.statusCode !== 200) return null;
       const parsed = DISCOVERY.safeParse(json(res));
       return parsed.success ? parsed.data.issuer : null;
     },
 
-    async keysOf(tenant: string, ip: string): Promise<unknown> {
+    async keysOf(tenant: string, from: Caller): Promise<unknown> {
       const res = await fastify.inject({
         method: 'GET',
         url: `${tenantPath(tenant)}/protocol/openid-connect/certs`,
-        headers: authority,
-        remoteAddress: ip,
+        headers: headersFor(from),
+        remoteAddress: from.ip,
       });
       return res.statusCode === 200 ? json(res) : null;
     },
@@ -72,8 +79,8 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
       const res = await fastify.inject({
         method: 'POST',
         url: `${tenantPath(input.tenant)}/protocol/openid-connect/token`,
-        headers: { ...authority, 'content-type': 'application/x-www-form-urlencoded' },
-        remoteAddress: input.ip,
+        headers: { ...headersFor(input.from), 'content-type': 'application/x-www-form-urlencoded' },
+        remoteAddress: input.from.ip,
         payload: new URLSearchParams({
           grant_type: 'authorization_code',
           code: input.code,
@@ -94,12 +101,12 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
       };
     },
 
-    async revoke(tenant: string, refreshToken: string, ip: string): Promise<void> {
+    async revoke(tenant: string, refreshToken: string, from: Caller): Promise<void> {
       await fastify.inject({
         method: 'POST',
         url: `${tenantPath(tenant)}/protocol/openid-connect/revoke`,
-        headers: { ...authority, 'content-type': 'application/x-www-form-urlencoded' },
-        remoteAddress: ip,
+        headers: { ...headersFor(from), 'content-type': 'application/x-www-form-urlencoded' },
+        remoteAddress: from.ip,
         payload: new URLSearchParams({
           token: refreshToken,
           token_type_hint: 'refresh_token',
@@ -108,12 +115,12 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
       });
     },
 
-    async refresh(tenant: string, refreshToken: string, ip: string): Promise<RefreshOutcome> {
+    async refresh(tenant: string, refreshToken: string, from: Caller): Promise<RefreshOutcome> {
       const res = await fastify.inject({
         method: 'POST',
         url: `${tenantPath(tenant)}/protocol/openid-connect/token`,
-        headers: { ...authority, 'content-type': 'application/x-www-form-urlencoded' },
-        remoteAddress: ip,
+        headers: { ...headersFor(from), 'content-type': 'application/x-www-form-urlencoded' },
+        remoteAddress: from.ip,
         payload: new URLSearchParams({
           grant_type: 'refresh_token',
           refresh_token: refreshToken,
@@ -146,8 +153,8 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
       const res = await fastify.inject({
         method: call.method,
         url: call.path,
-        headers: { ...call.headers, ...authority },
-        remoteAddress: call.ip,
+        headers: { ...call.headers, ...headersFor(call.from) },
+        remoteAddress: call.from.ip,
         ...(call.body === undefined ? {} : { payload: call.body }),
       });
       return { status: res.statusCode, headers: res.headers, body: res.rawPayload };

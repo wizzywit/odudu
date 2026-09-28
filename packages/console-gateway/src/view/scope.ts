@@ -4,6 +4,11 @@ import {
   type FastifyReply,
   type FastifyRequest,
 } from 'fastify';
+import { type Caller } from '#/service/odudu-port';
+
+export function callerOf(request: FastifyRequest): Caller {
+  return { ip: request.ip, requestId: request.id };
+}
 
 export type ScopeAnswer = (
   request: FastifyRequest,

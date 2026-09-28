@@ -1,3 +1,9 @@
+/** The browser request an in-process call is made on behalf of. */
+export interface Caller {
+  readonly ip: string;
+  readonly requestId: string;
+}
+
 /** What a code exchange returns, before any of it has been verified. */
 export interface TokenSet {
   readonly accessToken: string;
@@ -11,7 +17,7 @@ export interface CodeExchange {
   readonly code: string;
   readonly verifier: string;
   readonly redirectUri: string;
-  readonly ip: string;
+  readonly from: Caller;
 }
 
 /** What a refresh returns. It carries no ID token. */
@@ -37,7 +43,7 @@ export interface AdminCall {
   readonly path: string;
   readonly headers: Readonly<Record<string, string>>;
   readonly body: Buffer | undefined;
-  readonly ip: string;
+  readonly from: Caller;
 }
 
 export interface AdminResponse {
@@ -50,11 +56,11 @@ export interface AdminResponse {
 // any answer other than the one asked for; the caller refuses the sign-in
 // without saying which.
 export interface OduduPort {
-  issuerOf(tenant: string, ip: string): Promise<string | null>;
-  keysOf(tenant: string, ip: string): Promise<unknown>;
+  issuerOf(tenant: string, from: Caller): Promise<string | null>;
+  keysOf(tenant: string, from: Caller): Promise<unknown>;
   exchangeCode(input: CodeExchange): Promise<TokenSet | null>;
   // RFC 7009: revoking the refresh token ends the whole grant behind it.
-  revoke(tenant: string, refreshToken: string, ip: string): Promise<void>;
-  refresh(tenant: string, refreshToken: string, ip: string): Promise<RefreshOutcome>;
+  revoke(tenant: string, refreshToken: string, from: Caller): Promise<void>;
+  refresh(tenant: string, refreshToken: string, from: Caller): Promise<RefreshOutcome>;
   forward(call: AdminCall): Promise<AdminResponse>;
 }

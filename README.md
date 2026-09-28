@@ -1042,7 +1042,10 @@ tokens server-side and gives the browser nothing but a session cookie:
 - `* /console/api/admin/*` forwards to `/admin/*` with the session's access
   token, the query string and the body's bytes unchanged, and only the
   request headers `Content-Type`, `If-Match`, `If-None-Match` and `Accept`.
-  The browser's own `Cookie` and `Authorization` are never forwarded. The
+  The browser's own `Cookie` and `Authorization` are never forwarded. Every
+  in-process call carries the console request's own `X-Request-Id`, so an
+  audit row's `request_id` and a problem's `instance` are the id the
+  browser was answered with. The
   status and body come back as the admin API sent them, with only
   `Content-Type`, `ETag`, `Location`, `Link` and `Cache-Control`, and an
   `/admin/` URI in `Location` or `Link` rewritten to `/console/api/admin/`.

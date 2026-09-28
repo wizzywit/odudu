@@ -11,7 +11,7 @@ import { completeLogin, type CompleteLoginDeps } from '#/usecase/complete-login'
 import { registerCsrfGuard } from '#/view/csrf-guard';
 import { renderSignInRefused } from '#/view/refusal-html';
 import { registerLogoutRoute, type LogoutRouteDeps } from '#/view/routes/logout';
-import { answerErrors, claimPrefix } from '#/view/scope';
+import { answerErrors, callerOf, claimPrefix } from '#/view/scope';
 import { sendPage } from '#/view/send-page';
 
 export interface AuthRouteDeps {
@@ -71,7 +71,7 @@ export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps
       error: single(request.query, 'error'),
       loginCookie: readCookie(request.headers.cookie, loginCookieName(deps.tls)),
       cookieHeader: request.headers.cookie,
-      ip: request.ip,
+      from: callerOf(request),
       now: deps.now(),
     });
     const cleared = clearedLoginCookie(deps.tls);

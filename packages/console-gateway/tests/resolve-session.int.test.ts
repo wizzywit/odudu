@@ -11,7 +11,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { consoleSessionRepository, type ConsoleSessionRecord } from '#/repository/console-sessions';
-import { type OduduPort } from '#/service/odudu-port';
+import { type Caller, type OduduPort } from '#/service/odudu-port';
 import { bindToTenant, randomSecret, sha256 } from '#/service/secrets';
 import { resolveSession, type ResolveSessionDeps } from '#/usecase/resolve-session';
 
@@ -26,9 +26,9 @@ const SECOND = 1000;
 const MINUTE = 60 * SECOND;
 const COOKIE = 'odudu-console';
 const KEK = Buffer.alloc(32, 3);
-const IP = '203.0.113.9';
+const FROM = { ip: '203.0.113.9', requestId: 'req-resolve' };
 
-const revoked: { tenant: string; refreshToken: string; ip: string }[] = [];
+const revoked: { tenant: string; refreshToken: string; from: Caller }[] = [];
 const unused = (): Promise<never> => Promise.reject(new Error('not called by resolveSession'));
 const port: OduduPort = {
   issuerOf: unused,
@@ -36,8 +36,8 @@ const port: OduduPort = {
   exchangeCode: unused,
   refresh: unused,
   forward: unused,
-  revoke: (tenant, refreshToken, ip) => {
-    revoked.push({ tenant, refreshToken, ip });
+  revoke: (tenant, refreshToken, from) => {
+    revoked.push({ tenant, refreshToken, from });
     return Promise.resolve();
   },
 };
@@ -114,7 +114,7 @@ describe('resolveSession', () => {
   it('answers a live session from its cookie among others', async () => {
     const { session, cookie } = await seedSession();
 
-    const result = await resolveSession(deps, `theme=dark; ${cookie}`, at(10 * SECOND), IP);
+    const result = await resolveSession(deps, `theme=dark; ${cookie}`, at(10 * SECOND), FROM);
 
     expect(result).toEqual({ kind: 'ok', session });
   });
@@ -122,10 +122,10 @@ describe('resolveSession', () => {
   it('writes last_seen_at at most once a minute', async () => {
     const { session, cookie } = await seedSession();
 
-    await resolveSession(deps, cookie, at(59 * SECOND), IP);
+    await resolveSession(deps, cookie, at(59 * SECOND), FROM);
     expect((await rowOf(session))?.lastSeenAt).toEqual(SIGNED_IN);
 
-    const touched = await resolveSession(deps, cookie, at(MINUTE), IP);
+    const touched = await resolveSession(deps, cookie, at(MINUTE), FROM);
     expect((await rowOf(session))?.lastSeenAt).toEqual(at(MINUTE));
     expect(touched).toEqual({ kind: 'ok', session: { ...session, lastSeenAt: at(MINUTE) } });
   });
@@ -133,25 +133,29 @@ describe('resolveSession', () => {
   it('holds a session idle for thirty minutes and ends it a second later, deleting it', async () => {
     const { session, cookie, tenantName, refreshToken } = await seedSession();
 
-    expect((await resolveSession(deps, cookie, at(30 * MINUTE), IP)).kind).toBe('ok');
+    expect((await resolveSession(deps, cookie, at(30 * MINUTE), FROM)).kind).toBe('ok');
     expect(revoked.filter((r) => r.refreshToken === refreshToken)).toEqual([]);
-    expect(await resolveSession(deps, cookie, at(60 * MINUTE + SECOND), IP)).toEqual({
+    expect(await resolveSession(deps, cookie, at(60 * MINUTE + SECOND), FROM)).toEqual({
       kind: 'ended',
     });
     expect(await rowOf(session)).toBeNull();
     expect(revoked.filter((r) => r.refreshToken === refreshToken)).toEqual([
-      { tenant: tenantName, refreshToken, ip: IP },
+      { tenant: tenantName, refreshToken, from: FROM },
     ]);
   });
 
   it('ends a session at twelve hours however active, deleting it', async () => {
     const { session, cookie } = await seedSession();
     for (let seen = 25 * MINUTE; seen < 12 * 60 * MINUTE; seen += 25 * MINUTE) {
-      expect((await resolveSession(deps, cookie, at(seen), IP)).kind).toBe('ok');
+      expect((await resolveSession(deps, cookie, at(seen), FROM)).kind).toBe('ok');
     }
-    expect((await resolveSession(deps, cookie, at(12 * 60 * MINUTE - SECOND), IP)).kind).toBe('ok');
+    expect((await resolveSession(deps, cookie, at(12 * 60 * MINUTE - SECOND), FROM)).kind).toBe(
+      'ok',
+    );
 
-    expect(await resolveSession(deps, cookie, at(12 * 60 * MINUTE), IP)).toEqual({ kind: 'ended' });
+    expect(await resolveSession(deps, cookie, at(12 * 60 * MINUTE), FROM)).toEqual({
+      kind: 'ended',
+    });
     expect(await rowOf(session)).toBeNull();
   });
 
@@ -161,7 +165,7 @@ describe('resolveSession', () => {
 
     const forged = `${COOKIE}=${bindToTenant(other.session.tenantId, secret)}`;
 
-    expect(await resolveSession(deps, forged, at(SECOND), IP)).toEqual({ kind: 'ended' });
+    expect(await resolveSession(deps, forged, at(SECOND), FROM)).toEqual({ kind: 'ended' });
     expect(await rowOf(session)).toEqual(session);
   });
 
@@ -178,7 +182,7 @@ describe('resolveSession', () => {
     ['an oversized secret', `${COOKIE}=${newId()}.${randomSecret()}${randomSecret()}`],
     ['an unknown secret', `${COOKIE}=${bindToTenant(newId(), randomSecret())}`],
   ])('ends a request with %s', async (_label, header) => {
-    expect(await resolveSession(deps, header, SIGNED_IN, IP)).toEqual({ kind: 'ended' });
+    expect(await resolveSession(deps, header, SIGNED_IN, FROM)).toEqual({ kind: 'ended' });
   });
 
   it('admits a session whose row is locked without waiting for the lock', async () => {
@@ -198,7 +202,7 @@ describe('resolveSession', () => {
     });
     await lockTaken;
 
-    const result = await resolveSession(deps, cookie, at(MINUTE), IP);
+    const result = await resolveSession(deps, cookie, at(MINUTE), FROM);
     release();
     await holding;
 
@@ -210,7 +214,12 @@ describe('resolveSession', () => {
     const first = await seedSession();
     const second = await seedSession();
 
-    const result = await resolveSession(deps, `${first.cookie}; ${second.cookie}`, at(MINUTE), IP);
+    const result = await resolveSession(
+      deps,
+      `${first.cookie}; ${second.cookie}`,
+      at(MINUTE),
+      FROM,
+    );
 
     expect(result).toEqual({ kind: 'ended' });
     expect((await rowOf(first.session))?.lastSeenAt).toEqual(SIGNED_IN);
@@ -221,8 +230,8 @@ describe('resolveSession', () => {
     const { session, cookie } = await seedSession();
     const tls = { ...deps, tls: true };
 
-    expect(await resolveSession(tls, cookie, at(SECOND), IP)).toEqual({ kind: 'ended' });
-    expect(await resolveSession(tls, `__Host-${cookie}`, at(SECOND), IP)).toEqual({
+    expect(await resolveSession(tls, cookie, at(SECOND), FROM)).toEqual({ kind: 'ended' });
+    expect(await resolveSession(tls, `__Host-${cookie}`, at(SECOND), FROM)).toEqual({
       kind: 'ok',
       session,
     });
