@@ -12,6 +12,7 @@ import {
   amendProfileRequestSchema,
   amendSubjectRequestSchema,
   assignScopeToClientRequestSchema,
+  assignScopeToClientResponseSchema,
   clientSchema,
   createClientRequestSchema,
   createClientResponseSchema,
@@ -812,7 +813,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     method: 'PUT',
     pattern: '/admin/tenants/:tenant/scopes/:id/clients/:clientId',
     capability: 'manage-tenant',
-    responseSchema: clientSchema,
+    responseSchema: assignScopeToClientResponseSchema,
     bodySchema: assignScopeToClientRequestSchema,
     description:
       'Assigns the scope to the client as default or optional, replacing any existing assignment. ' +

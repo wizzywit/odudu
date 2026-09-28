@@ -145,7 +145,8 @@ answers its `ETag`", and the `ETag` sections under the role composites,
 scope assignment, signing key and SMTP routes, "A kept password",
 `GET /scopes/:id/clients`, "Filtering by capability", "The last
 administrator", "The authenticators a step may name", "The list a
-user manager picks from" and "The owning client, by name". The `400` bodies
+user manager picks from", "The owning client, by name", and the OpenAPI
+entry under `PUT /scopes/:id/clients/:clientId`. The `400` bodies
 in sections captured before `errors` existed were not re-run, and show
 none; each such refusal now also carries `errors`, naming the field its
 `detail` names, as that section shows.
@@ -5389,6 +5390,19 @@ carries, and nothing besides:
 
 ```
 {"client_id":"01a0d767-a054-7a00-b96d-eea9492c4e4d","scopes":[{"id":"01a0d764-e837-75cb-b5eb-bf56c1193e85","name":"openid","assignment":"default"},{"id":"01a0d764-e83b-7c1c-84cc-624bbbe5947d","name":"profile","assignment":"default"},{"id":"01a0d764-e83c-76ee-976a-14b79a5f8c8b","name":"email","assignment":"default"},{"id":"01a0d764-e83d-74c0-a341-bfc8dc17ece7","name":"address","assignment":"default"},{"id":"01a0d764-e83d-74c0-a341-bfc97cd8d0bd","name":"phone","assignment":"default"},{"id":"01a0d764-e83e-778c-8fe8-0b8122e3d178","name":"roles","assignment":"default"},{"id":"01a0d764-e83f-7e65-bb51-c62daaadd27d","name":"groups","assignment":"default"},{"id":"01a0d764-e83f-7e65-bb51-c62e4d176cc8","name":"offline_access","assignment":"optional"},{"id":"01a0d767-b5e6-74f8-89a0-f3afa7e2f6c0","name":"billing","assignment":"default"}]}
+```
+
+The OpenAPI document declares that same shape as the `200`'s body —
+`assignScopeToClientResponseSchema`, not the client's own. Captured
+against the fifth stack, the published document's entry for this route,
+extracted with the filter shown:
+
+```bash
+curl -sS http://localhost:3080/admin/openapi.json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const d=JSON.parse(s);console.log(JSON.stringify(d.paths["/admin/tenants/{tenant}/scopes/{id}/clients/{clientId}"].put.responses["200"]))})'
+```
+
+```
+{"description":"OK","content":{"application/json":{"schema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"client_id":{"type":"string"},"scopes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"assignment":{"type":"string","enum":["default","optional"]}},"required":["id","name","assignment"],"additionalProperties":false}}},"required":["client_id","scopes"],"additionalProperties":false}}}}
 ```
 
 ### The client's new `ETag`

@@ -1,4 +1,6 @@
+import { assignScopeToClientResponseSchema } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { ADMIN_ROUTES } from '#/service/capability';
 import { buildAdminOpenApiDocument } from '#/view/routes/openapi';
 
@@ -43,5 +45,16 @@ describe('buildAdminOpenApiDocument', () => {
     const response =
       buildAdminOpenApiDocument().paths['/admin/tenants/{tenant}/export']?.get?.responses['200'];
     expect(Object.keys(response?.content ?? {})).toEqual(['application/vnd.odudu.tenant+json']);
+  });
+
+  // The route answers the client's scope assignments, never the client,
+  // which reading takes a stronger capability than this route asks for.
+  it('documents a scope assignment as the assignments the route answers', () => {
+    const response =
+      buildAdminOpenApiDocument().paths['/admin/tenants/{tenant}/scopes/{id}/clients/{clientId}']
+        ?.put?.responses['200'];
+    expect(response?.content?.['application/json']?.schema).toEqual(
+      z.toJSONSchema(assignScopeToClientResponseSchema, { unrepresentable: 'any' }),
+    );
   });
 });
