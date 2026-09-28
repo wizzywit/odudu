@@ -1,6 +1,7 @@
 import { type Group, type ListGroupsQuery } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
+import { clients } from '@odudu/domain-tenant';
 import { isUuid, OduduError } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, type SQL } from 'drizzle-orm';
 import {
@@ -22,7 +23,7 @@ import {
   requireSearchKey,
   type ListPosition,
 } from '#/usecase/prefix-search';
-import { type RoleAssignment } from '#/usecase/subjects';
+import { roleAssignmentColumns, type RoleAssignment } from '#/usecase/subjects';
 
 const COLLECTION = 'groups';
 
@@ -479,9 +480,10 @@ async function mappedRoles(
   groupId: string,
 ): Promise<readonly RoleAssignment[]> {
   return tx
-    .select({ id: roles.id, name: roles.name })
+    .select(roleAssignmentColumns)
     .from(groupRoles)
     .innerJoin(roles, eq(groupRoles.roleId, roles.id))
+    .leftJoin(clients, eq(clients.id, roles.clientId))
     .where(eq(groupRoles.groupId, groupId))
     .orderBy(asc(roles.id));
 }

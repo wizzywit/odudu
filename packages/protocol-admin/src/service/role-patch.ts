@@ -14,6 +14,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
     'client_id decides whether this role is tenant-wide or scoped to one client; changing it after creation needs its own operation',
   default_for_new_subjects:
     'default_for_new_subjects changes who a role is silently handed to at signup; set it with PUT /admin/tenants/{tenant}/roles/{id}/default, not a general amendment',
+  client_key:
+    'client_key is the owning client\u2019s own client_id, read from that client; it follows client_id',
   created_at: 'created_at is history',
 };
 

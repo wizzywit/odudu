@@ -134,9 +134,13 @@ export const setRolesRequestSchema = z.object({
 });
 export type SetRolesRequest = z.infer<typeof setRolesRequestSchema>;
 
+// The owning client by row id and by `client_id`, both null for a tenant
+// role: a tenant role and a client's can share a name.
 export const roleAssignmentSchema = z.object({
   id: idSchema,
   name: z.string(),
+  client_id: idSchema.nullable(),
+  client_key: z.string().nullable(),
 });
 
 export const setRolesResponseSchema = z.object({

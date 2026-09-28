@@ -3,12 +3,14 @@ import { createdAtSchema, cursorQuerySchema, idSchema, searchPrefixSchema } from
 
 // `client_id` null means a tenant role; non-null means one scoped to that
 // client, whose qualified name (packages/domain-authz's qualifiedRoleName)
-// is what a token actually carries.
+// is what a token actually carries. `client_key` is that client's own
+// `client_id`, the name a person tells it apart by.
 export const roleSchema = z.object({
   id: idSchema,
   name: z.string(),
   description: z.string().nullable(),
   client_id: idSchema.nullable(),
+  client_key: z.string().nullable(),
   default_for_new_subjects: z.boolean(),
   created_at: createdAtSchema,
 });

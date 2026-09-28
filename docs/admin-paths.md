@@ -144,8 +144,8 @@ capture finished. They are "A refusal names its field", "A create
 answers its `ETag`", and the `ETag` sections under the role composites,
 scope assignment, signing key and SMTP routes, "A kept password",
 `GET /scopes/:id/clients`, "Filtering by capability", "The last
-administrator", "The authenticators a step may name" and "The list a
-user manager picks from". The `400` bodies
+administrator", "The authenticators a step may name", "The list a
+user manager picks from" and "The owning client, by name". The `400` bodies
 in sections captured before `errors` existed were not re-run, and show
 none; each such refusal now also carries `errors`, naming the field its
 `detail` names, as that section shows.
@@ -4466,6 +4466,40 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"type":"about:blank","title":"Conflict","status":409,"detail":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and deleting it would strip it from every administrator holding it","instance":"01a0e5ae-3e45-778c-a2cd-cf0bc8367b4d"}
 {"action":"role.delete","outcome":"refused","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","detail":{"reason":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and deleting it would strip it from every administrator holding it"}}
 ```
+
+### The owning client, by name
+
+A role names its owning client twice: `client_id`, the client's row id,
+and `client_key`, that client's own `client_id` — the name a person tells
+it apart by, since a tenant role and a client's may share a name. Both are
+`null` for a tenant role. The same pair rides on every role list: a role's
+composites, and the `items` a subject's, a group's and a scope's roles
+answer beside `id` and `name`. `client_key` is refused
+by `PATCH` like `client_id`. Captured against the fifth stack in
+`etags-demo`: a role `reader` created on the public client `etags-app`, the
+tenant's roles filtered to that client, and a subject `ines` given `reader`
+and the tenant role `billing-viewer` under the `ETag` of her empty list:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"reader","client_id":"01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3"}' \
+  http://localhost:3080/admin/tenants/etags-demo/roles
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3080/admin/tenants/etags-demo/roles?client=01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3'
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
+  -d '{"role_ids":["01a0ea27-1cdb-7d21-8f0c-d7baaca12b15","01a0e9ec-6384-76f7-b433-4876e51cbff1"]}' \
+  http://localhost:3080/admin/tenants/etags-demo/subjects/01a0ea27-1d13-7293-a266-8d37c0064e7d/roles
+```
+
+```
+{"id":"01a0ea27-1cdb-7d21-8f0c-d7baaca12b15","name":"reader","description":null,"client_id":"01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3","client_key":"etags-app","default_for_new_subjects":false,"created_at":"2026-09-28T22:33:46.970Z"}
+{"items":[{"id":"01a0ea27-1cdb-7d21-8f0c-d7baaca12b15","name":"reader","description":null,"client_id":"01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3","client_key":"etags-app","default_for_new_subjects":false,"created_at":"2026-09-28T22:33:46.970Z"}]}
+{"items":[{"id":"01a0e9ec-6384-76f7-b433-4876e51cbff1","name":"billing-viewer","client_id":null,"client_key":null},{"id":"01a0ea27-1cdb-7d21-8f0c-d7baaca12b15","name":"reader","client_id":"01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3","client_key":"etags-app"}]}
+```
+
+Every role and role-list body elsewhere in this document was captured
+before either field existed, and shows neither.
 
 ### The list a user manager picks from
 

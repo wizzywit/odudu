@@ -26,7 +26,7 @@ import {
   type CredentialType,
   type SubjectRecord,
 } from '@odudu/domain-identity';
-import { tenantSettingsRepository } from '@odudu/domain-tenant';
+import { clients, tenantSettingsRepository } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, isNotNull, isNull, ne, sql, type SQL } from 'drizzle-orm';
 import { type SelectedFields } from 'drizzle-orm/pg-core';
@@ -970,7 +970,17 @@ export async function setRequiredActions(
 export interface RoleAssignment {
   readonly id: string;
   readonly name: string;
+  readonly client_id: string | null;
+  readonly client_key: string | null;
 }
+
+/** The columns a `RoleAssignment` reads, over `roles` left-joined to its owning client. */
+export const roleAssignmentColumns = {
+  id: roles.id,
+  name: roles.name,
+  client_id: roles.clientId,
+  client_key: clients.clientId,
+};
 
 export interface SetRolesInput {
   readonly subjectId: string;
@@ -1014,9 +1024,10 @@ async function assignedRoles(
   subjectId: string,
 ): Promise<readonly RoleAssignment[]> {
   return tx
-    .select({ id: roles.id, name: roles.name })
+    .select(roleAssignmentColumns)
     .from(subjectRoles)
     .innerJoin(roles, eq(subjectRoles.roleId, roles.id))
+    .leftJoin(clients, eq(clients.id, roles.clientId))
     .where(eq(subjectRoles.subjectId, subjectId))
     .orderBy(asc(roles.id));
 }

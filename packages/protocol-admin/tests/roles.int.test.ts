@@ -62,6 +62,91 @@ async function plainRole(tenantId: string): Promise<string> {
   });
 }
 
+describe('a role names the client it belongs to, wherever roles are listed', () => {
+  it('by row id and by client_id, or neither for a tenant role', async () => {
+    const t = await fixture.createTenant(`owner-${newId()}`);
+    const token = await fixture.adminToken(t.name, [...TENANT_CAPABILITIES]);
+    const call = (
+      method: 'GET' | 'POST' | 'PUT',
+      tail: string,
+      payload?: unknown,
+      ifMatch?: string,
+    ) =>
+      fixture.http.inject({
+        method,
+        url: `/admin/tenants/${t.name}${tail}`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
+          ...(ifMatch === undefined ? {} : { 'if-match': ifMatch }),
+        },
+        ...(payload === undefined ? {} : { payload: JSON.stringify(payload) }),
+      });
+    const clientKey = `owner-app-${newId()}`;
+    const client = (
+      await call('POST', '/clients', {
+        client_id: clientKey,
+        redirect_uris: ['https://a.example/cb'],
+      })
+    ).json<{ id: string }>().id;
+    const owned = (await call('POST', '/roles', { name: 'reader', client_id: client })).json<{
+      id: string;
+      client_key: string | null;
+    }>();
+    const plain = (await call('POST', '/roles', { name: `plain-${newId()}` })).json<{
+      id: string;
+      name: string;
+      client_key: string | null;
+    }>();
+    expect(owned.client_key).toBe(clientKey);
+    expect(plain.client_key).toBeNull();
+
+    const listed = (await call('GET', `/roles?client=${client}`)).json<{
+      items: { id: string; client_id: string | null; client_key: string | null }[];
+    }>().items;
+    expect(listed).toEqual([
+      expect.objectContaining({ id: owned.id, client_id: client, client_key: clientKey }),
+    ]);
+    expect((await call('GET', `/roles/${plain.id}`)).json()).toMatchObject({
+      client_id: null,
+      client_key: null,
+    });
+
+    await call('POST', `/roles/${plain.id}/composites`, { child_role_id: owned.id });
+    expect((await call('GET', `/roles/${plain.id}/composites`)).json()).toMatchObject({
+      items: [{ id: owned.id, client_key: clientKey }],
+    });
+
+    const subject = (await call('POST', '/subjects', { username: `u-${newId()}` })).json<{
+      id: string;
+    }>().id;
+    const group = (await call('POST', '/groups', { name: `g-${newId()}` })).json<{ id: string }>()
+      .id;
+    const scope = (await call('POST', '/scopes', { name: `s-${newId()}` })).json<{ id: string }>()
+      .id;
+    const expected = [
+      { id: owned.id, name: 'reader', client_id: client, client_key: clientKey },
+      { id: plain.id, name: plain.name, client_id: null, client_key: null },
+    ].sort((a, b) => (a.id < b.id ? -1 : 1));
+    for (const tail of [
+      `/subjects/${subject}/roles`,
+      `/groups/${group}/roles`,
+      `/scopes/${scope}/roles`,
+    ]) {
+      const etag = (await call('GET', tail)).headers.etag;
+      const res = await call(
+        'PUT',
+        tail,
+        { role_ids: [owned.id, plain.id] },
+        typeof etag === 'string' ? etag : undefined,
+      );
+      expect(res.statusCode, `${tail}: ${res.body}`).toBe(200);
+      expect(res.json<{ items: unknown[] }>().items, tail).toEqual(expected);
+      expect((await call('GET', tail)).json<{ items: unknown[] }>().items, tail).toEqual(expected);
+    }
+  });
+});
+
 describe('POST /admin/tenants/{t}/roles', () => {
   it('creates a tenant role that then appears in the listing', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
@@ -1062,6 +1147,7 @@ describe('GET /admin/tenants/{t}/roles/{id}/composites', () => {
     expect(items.map((item) => item.id)).toEqual([childId]);
     expect(Object.keys(items[0] ?? {}).sort()).toEqual([
       'client_id',
+      'client_key',
       'created_at',
       'default_for_new_subjects',
       'description',

@@ -42,22 +42,53 @@ export interface RoleAuditEvent {
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: RoleAuditEvent) => Promise<void>;
 
-export function roleWireShape(role: {
+interface RoleRow {
   id: string;
   name: string;
   description: string | null;
   clientId: string | null;
   defaultForNewSubjects: boolean;
   createdAt: Date;
-}): Role {
+}
+
+export function roleWireShape(role: RoleRow, clientKey: string | null): Role {
   return {
     id: role.id,
     name: role.name,
     description: role.description,
     client_id: role.clientId,
+    client_key: clientKey,
     default_for_new_subjects: role.defaultForNewSubjects,
     created_at: role.createdAt.toISOString(),
   };
+}
+
+// Each owning client's own `client_id`, read once for however many roles.
+export async function rolesWire(
+  tx: TenantScopedDatabase,
+  rows: readonly RoleRow[],
+): Promise<Role[]> {
+  const ids = [...new Set(rows.flatMap((row) => (row.clientId === null ? [] : [row.clientId])))];
+  const keys =
+    ids.length === 0
+      ? new Map<string, string>()
+      : new Map(
+          (
+            await tx
+              .select({ id: clients.id, key: clients.clientId })
+              .from(clients)
+              .where(inArray(clients.id, ids))
+          ).map((row) => [row.id, row.key]),
+        );
+  return rows.map((row) =>
+    roleWireShape(row, row.clientId === null ? null : (keys.get(row.clientId) ?? null)),
+  );
+}
+
+async function roleWire(tx: TenantScopedDatabase, row: RoleRow): Promise<Role> {
+  const [wire] = await rolesWire(tx, [row]);
+  if (wire === undefined) throw new Error(`role ${row.id} has no wire shape`);
+  return wire;
 }
 
 /** Every `listRolesQuerySchema` parameter except the page controls. */
@@ -148,14 +179,14 @@ export async function listRoles(
         })
       : null;
 
-  return { kind: 'ok', items: page.map(roleWireShape), next };
+  return { kind: 'ok', items: await rolesWire(tx, page), next };
 }
 
 export type ReadRoleOutcome = { kind: 'not_found' } | { kind: 'ok'; role: Role };
 
 export async function readRole(tx: TenantScopedDatabase, roleId: string): Promise<ReadRoleOutcome> {
   const role = await roleRepository(tx).byId(roleId);
-  return role === null ? { kind: 'not_found' } : { kind: 'ok', role: roleWireShape(role) };
+  return role === null ? { kind: 'not_found' } : { kind: 'ok', role: await roleWire(tx, role) };
 }
 
 export interface CreateRoleInput {
@@ -230,7 +261,7 @@ export async function createRole(
     outcome: 'allowed',
   });
 
-  return { kind: 'ok', role: roleWireShape(created) };
+  return { kind: 'ok', role: await roleWire(tx, created) };
 }
 
 export interface AmendRoleInput {
@@ -290,7 +321,7 @@ export async function amendRole(
   const locked = await lockRoleForAmend(tx, input.roleId);
   if (locked === null) return { kind: 'not_found' };
 
-  const currentEtag = etagOf(roleWireShape(locked));
+  const currentEtag = etagOf(await roleWire(tx, locked));
   if (matches(input.ifMatch, currentEtag) === 'mismatch') {
     return { kind: 'precondition_failed' };
   }
@@ -462,7 +493,7 @@ async function deleteRoleUnguarded(
 // A role's direct composites as `GET …/composites` answers them, and what the
 // `ETag` on that read and on every composite write is taken over.
 async function compositesOf(tx: TenantScopedDatabase, roleId: string): Promise<readonly Role[]> {
-  return (await roleRepository(tx).directComposites(roleId)).map(roleWireShape);
+  return rolesWire(tx, await roleRepository(tx).directComposites(roleId));
 }
 
 function compositesEtag(items: readonly Role[]): string {
@@ -789,7 +820,7 @@ export async function setRoleDefault(
 ): Promise<SetRoleDefaultOutcome> {
   const locked = await lockRoleForAmend(tx, input.roleId);
   if (locked === null) return { kind: 'not_found' };
-  const before = roleWireShape(locked);
+  const before = await roleWire(tx, locked);
 
   if (input.value) {
     await lockDefaultRoleReach(tx);

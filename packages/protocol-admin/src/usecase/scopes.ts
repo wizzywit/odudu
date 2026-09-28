@@ -35,7 +35,11 @@ import {
   refuseOverServiceAccountCeiling,
   type ClientCeilingCaller,
 } from '#/usecase/clients';
-import { type RoleAssignment, type TargetCeilingRefusal } from '#/usecase/subjects';
+import {
+  roleAssignmentColumns,
+  type RoleAssignment,
+  type TargetCeilingRefusal,
+} from '#/usecase/subjects';
 
 const COLLECTION = 'scopes';
 
@@ -517,9 +521,10 @@ async function mappedRoles(
   scopeId: string,
 ): Promise<readonly RoleAssignment[]> {
   return tx
-    .select({ id: roles.id, name: roles.name })
+    .select(roleAssignmentColumns)
     .from(clientScopeRoles)
     .innerJoin(roles, eq(clientScopeRoles.roleId, roles.id))
+    .leftJoin(clients, eq(clients.id, roles.clientId))
     .where(eq(clientScopeRoles.clientScopeId, scopeId))
     .orderBy(asc(roles.id));
 }
