@@ -448,7 +448,8 @@ queries in a file piped to
 `docker exec -i docker-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'`.
 Each query is scoped to this tenant or to the SSO session id
 `01a0e72e-3808-…`, the one in the `console-paths-session` cookie and the
-ID token's `sid`:
+ID token's `sid`. psql ends each header line with a space, which the
+formatter trims below; nothing else differs from what it printed:
 
 ```sql
 select count(*) as console_sessions from console_sessions where tenant_id = '01a0e72d-5927-73c3-b14d-a5b60d1ca9ad';
