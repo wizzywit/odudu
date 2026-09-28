@@ -1,9 +1,11 @@
 import { createDatabase, MIGRATIONS_DIR, runMigrations, type DatabaseHandle } from '@odudu/db';
-import { newId } from '@odudu/kernel';
+import { consoleBaseUrl, loadConfig, newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { buildApp } from '#/app';
 import { seedAdmin } from '#/cli/seed';
+import { createLogger } from '#/logger';
 import { KEK, startConsoleApp } from '#/testing/console-harness';
 
 // The gateway serves the built single-page app from its own view layer
@@ -79,4 +81,30 @@ describe('GET /console/*', () => {
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.body).toContain('<div id="root">');
   });
+});
+
+describe('ODUDU_CONSOLE=false', () => {
+  it.each(['/console/auth/login?tenant=system', '/console/api/session', '/console/'])(
+    'registers no console route, so %s is the root not-found answer',
+    async (url) => {
+      const config = loadConfig({ ...process.env, ODUDU_CONSOLE: 'false' });
+      const app = buildApp({
+        database: appDb,
+        ownerDatabase: owner,
+        kek: KEK,
+        logger: createLogger(config),
+        publicBaseUrl: BASE,
+        consoleBaseUrl: consoleBaseUrl(config),
+      });
+      try {
+        const res = await app.inject({ url, headers: { host: 'console.example.test' } });
+
+        expect(res.statusCode).toBe(404);
+        expect(res.headers['set-cookie']).toBeUndefined();
+        expect(res.json()).toMatchObject({ status: 404, detail: expect.stringContaining(url) });
+      } finally {
+        await app.close();
+      }
+    },
+  );
 });
