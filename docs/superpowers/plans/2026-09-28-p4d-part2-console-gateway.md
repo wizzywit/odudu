@@ -110,7 +110,7 @@ then deleted.
 
 - [ ] **S1 — `inject` from inside an encapsulated plugin.** Register a plugin
       that, in its own route, calls `fastify.inject({ method: 'GET', url:
-'/admin/whoami', remoteAddress: request.ip, headers: { authorization } })`.
+'/admin/tenants/:tenant/whoami', remoteAddress: request.ip, headers: { authorization } })`.
       Assert that it reaches the admin router registered by a sibling plugin,
       and that the admin audit row carries the forwarded ip.
   - `assumption:` a child instance's `inject` dispatches through the root
@@ -275,6 +275,12 @@ SECURITY` and the `app.tenant_id` policy, as in `0066_tenant_smtp.sql`.
 
 - `odudu console provision` runs `provisionAdminClient` over every tenant
   and prints `provisioned <n> tenants`.
+- `assertConsoleConfigured(config)` also refuses an `https` base with
+  `ODUDU_TRUST_PROXY` off: the issuer is built from the request's scheme
+  and host (`packages/protocol-oidc/src/view/issuer.ts:50`), an injected
+  request's socket is never encrypted, so only a trusted
+  `x-forwarded-proto` can make an in-process call see the `https` issuer
+  the browser sees (Part 2 spike S3).
 - `assertConsoleConfigured(config)` throws
   `OduduError('config_invalid', …)`, naming `ODUDU_PUBLIC_BASE_URL` and
   `ODUDU_CONSOLE=off`, when the console is on and the base URL is unset.
@@ -354,6 +360,17 @@ Promise<Record<string, unknown> | null>`
 **Interfaces:**
 
 - `consoleGateway({ database, kek, publicBaseUrl, tls, consoleDir, now })`
+- **Every inject carries the base's authority, never the browser's:**
+  `host` and `x-forwarded-host` = the base URL's host,
+  `x-forwarded-proto` = its scheme, `remoteAddress` = `request.ip`. The
+  issuer is derived from `Host` server-wide (spike S3), so this is what
+  keeps the callback `iss`, the ID token's `iss` and the admin API's
+  issuer check on one string; a test injects the browser request with
+  `Host: evil.example` and asserts the flow still completes against the
+  base's issuer.
+- The code exchange's `id_token` is kept for the session's life: a
+  refresh response carries none (spike S2), and logout needs it as the
+  hint.
 - **`GET /console/auth/login?tenant=&return_to=`:**
   - it validates `tenant` against `isValidTenantName`
     (`@odudu/domain-tenant`; grep that the export exists — it is a domain
@@ -502,8 +519,11 @@ Promise<Record<string, unknown> | null>`
 - [ ] **Step 1: Failing tests.**
   - After logout, the refresh token answers `invalid_grant` and the session
     row is gone.
-  - Following the returned URL ends the SSO session and redirects to
-    `/console/`.
+  - Following the returned URL **with the tenant's SSO cookie** ends the
+    SSO session and redirects to `/console/`; the same URL without the
+    cookie also answers 302 but ends nothing (spike S4), so the test
+    asserts the session row is expired and the old cookie meets the login
+    form.
   - A logout without CSRF headers is `403` and the session survives.
 - [ ] **Step 2:** Implement and run.
 - [ ] **Step 3:** Commit: `Sign an administrator out of the console and the tenant`.
