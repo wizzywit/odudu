@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  applyRememberedTheme,
-  readThemeChoice,
-  rememberThemeChoice,
-} from '#/shared/repository/themeChoice.ts';
+import { loadThemeChoice } from '#/shared/adapter/themeChoice.ts';
+import { applyRememberedTheme, rememberThemeChoice } from '#/shared/repository/themeChoice.ts';
 
 const root = document.documentElement;
 
@@ -15,7 +12,7 @@ afterEach(() => {
 
 describe('the remembered theme', () => {
   it('follows the system until a theme is chosen', () => {
-    expect(readThemeChoice()).toBe('system');
+    expect(loadThemeChoice()).toBe('system');
     applyRememberedTheme();
     expect(root.dataset.theme).toBeUndefined();
   });
@@ -24,7 +21,7 @@ describe('the remembered theme', () => {
     rememberThemeChoice('dark');
     expect(root.dataset.theme).toBe('dark');
     delete root.dataset.theme;
-    expect(readThemeChoice()).toBe('dark');
+    expect(loadThemeChoice()).toBe('dark');
     applyRememberedTheme();
     expect(root.dataset.theme).toBe('dark');
   });
@@ -33,12 +30,12 @@ describe('the remembered theme', () => {
     rememberThemeChoice('light');
     rememberThemeChoice('system');
     expect(root.dataset.theme).toBeUndefined();
-    expect(readThemeChoice()).toBe('system');
+    expect(loadThemeChoice()).toBe('system');
   });
 
   it('ignores a stored value it does not recognise', () => {
     localStorage.setItem('odudu.console.theme', 'sepia');
-    expect(readThemeChoice()).toBe('system');
+    expect(loadThemeChoice()).toBe('system');
   });
 
   it('still themes the page when storage refuses every access', () => {
@@ -48,7 +45,7 @@ describe('the remembered theme', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(refuse);
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(refuse);
     vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(refuse);
-    expect(readThemeChoice()).toBe('system');
+    expect(loadThemeChoice()).toBe('system');
     expect(() => {
       rememberThemeChoice('dark');
     }).not.toThrow();
@@ -63,7 +60,7 @@ describe('the remembered theme', () => {
     vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
       throw new DOMException('denied', 'SecurityError');
     });
-    expect(readThemeChoice()).toBe('system');
+    expect(loadThemeChoice()).toBe('system');
     expect(() => {
       rememberThemeChoice('light');
     }).not.toThrow();

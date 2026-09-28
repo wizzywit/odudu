@@ -259,6 +259,44 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toBe(true);
   });
 
+  it('rejects a console view importing shared/adapter', async () => {
+    const found = await violations('no-view-to-adapter');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('features/subjects/view/ReadsStorage.tsx') &&
+          v.to.endsWith('shared/adapter/storage.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a console usecase importing shared/adapter', async () => {
+    const found = await violations('no-usecase-to-adapter');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('features/subjects/usecase/readsStorage.ts') &&
+          v.to.endsWith('shared/adapter/storage.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects console shared/adapter importing a feature', async () => {
+    const found = await violations('console-shared-imports-no-feature');
+    expect(found.some((v) => v.from.endsWith('shared/adapter/featureLeak.ts'))).toBe(true);
+  });
+
+  it('permits a console repository importing shared/adapter', async () => {
+    const output = await cruiseFixtures();
+    const remembers = output.modules.find((m) =>
+      m.source.endsWith('shared/repository/remembers.ts'),
+    );
+    expect(remembers?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(1);
+    expect(
+      output.summary.violations.filter((v) => v.from.endsWith('shared/repository/remembers.ts')),
+    ).toHaveLength(0);
+  });
+
   it('permits the gallery importing shared/view and shared/service', async () => {
     const output = await cruiseFixtures();
     const gallery = output.modules.find((m) => m.source.endsWith('src/gallery/Gallery.ts'));

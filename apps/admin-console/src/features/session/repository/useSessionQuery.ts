@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { readSession } from '#/features/session/adapter/session.ts';
-import { rememberLastTenant } from '#/features/session/repository/tenantMemory.ts';
+import { loadLastTenant, storeLastTenant } from '#/features/session/adapter/lastTenant.ts';
 import { draftOwner, type Principal } from '#/features/session/service.ts';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
@@ -21,9 +21,21 @@ async function signedIn(gateway: Gateway): Promise<GatewayResult<Principal>> {
   const result = await readSession(gateway);
   if (result.ok) {
     useDrafts.getState().adopt(draftOwner(result.data));
-    rememberLastTenant(result.data.tenant);
+    storeLastTenant(result.data.tenant);
   }
   return result;
+}
+
+// The tenant this browser last signed in to is only a fallback: a tenant
+// the URL names, or a live session, always comes first.
+export function rememberedTenant({
+  named,
+  signedIn,
+}: {
+  readonly named: string | null;
+  readonly signedIn: boolean;
+}): string | null {
+  return named === null && !signedIn ? loadLastTenant() : null;
 }
 
 export function useSessionQuery(): {

@@ -1,28 +1,8 @@
+import { loadThemeChoice, storeThemeChoice } from '#/shared/adapter/themeChoice.ts';
 import type { ThemeChoice } from '#/shared/service/theme.ts';
 
-export type { ThemeChoice };
-
-const KEY = 'odudu.console.theme';
-
-// A per-browser convenience: private windows and blocked site data refuse
-// storage, sometimes at the getter, and the page must theme itself anyway.
-function storage(): Storage | undefined {
-  try {
-    return window.localStorage;
-  } catch {
-    return undefined;
-  }
-}
-
-export function readThemeChoice(): ThemeChoice {
-  try {
-    const stored = storage()?.getItem(KEY);
-    return stored === 'light' || stored === 'dark' ? stored : 'system';
-  } catch {
-    return 'system';
-  }
-}
-
+// The choice is named on <html> first, so it holds for this page even when
+// the browser refuses to remember it.
 function apply(choice: ThemeChoice): void {
   const root = document.documentElement;
   if (choice === 'system') delete root.dataset.theme;
@@ -30,15 +10,10 @@ function apply(choice: ThemeChoice): void {
 }
 
 export function applyRememberedTheme(): void {
-  apply(readThemeChoice());
+  apply(loadThemeChoice());
 }
 
 export function rememberThemeChoice(choice: ThemeChoice): void {
   apply(choice);
-  try {
-    if (choice === 'system') storage()?.removeItem(KEY);
-    else storage()?.setItem(KEY, choice);
-  } catch {
-    // Unremembered, the choice still holds for this page.
-  }
+  storeThemeChoice(choice);
 }

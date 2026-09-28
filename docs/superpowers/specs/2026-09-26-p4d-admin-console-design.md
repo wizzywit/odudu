@@ -493,6 +493,7 @@ apps/admin-console/src/
 ├─ shared/       only what two or more features use
 │  ├─ view/      design system (§8)
 │  ├─ transport/ the one HTTP client to the gateway
+│  ├─ adapter/   browser storage (local and session)
 │  ├─ service/   pure rules: capabilities, dirty tracking, formatting
 │  └─ repository/ cross-feature stores: toasts, the unsaved-changes guard
 └─ features/<feature>/

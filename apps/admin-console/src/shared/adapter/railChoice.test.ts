@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { readRailCollapsed, rememberRailCollapsed } from '#/shared/repository/railChoice.ts';
+import { loadRailCollapsed, storeRailCollapsed } from '#/shared/adapter/railChoice.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -7,27 +7,27 @@ afterEach(() => {
 });
 
 it('shows the rail until it is collapsed, and remembers the choice', () => {
-  expect(readRailCollapsed()).toBe(false);
-  rememberRailCollapsed(true);
+  expect(loadRailCollapsed()).toBe(false);
+  storeRailCollapsed(true);
   expect(localStorage.getItem('odudu.console.rail')).toBe('collapsed');
-  expect(readRailCollapsed()).toBe(true);
-  rememberRailCollapsed(false);
+  expect(loadRailCollapsed()).toBe(true);
+  storeRailCollapsed(false);
   expect(localStorage.getItem('odudu.console.rail')).toBeNull();
-  expect(readRailCollapsed()).toBe(false);
+  expect(loadRailCollapsed()).toBe(false);
 });
 
 it('ignores a stored value it does not recognise', () => {
   localStorage.setItem('odudu.console.rail', 'sideways');
-  expect(readRailCollapsed()).toBe(false);
+  expect(loadRailCollapsed()).toBe(false);
 });
 
 it('survives storage that refuses every access, even at the getter', () => {
   vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
     throw new DOMException('denied', 'SecurityError');
   });
-  expect(readRailCollapsed()).toBe(false);
+  expect(loadRailCollapsed()).toBe(false);
   expect(() => {
-    rememberRailCollapsed(true);
+    storeRailCollapsed(true);
   }).not.toThrow();
 });
 
@@ -38,9 +38,9 @@ it('survives storage whose every call throws', () => {
   vi.spyOn(Storage.prototype, 'getItem').mockImplementation(refuse);
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation(refuse);
   vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(refuse);
-  expect(readRailCollapsed()).toBe(false);
+  expect(loadRailCollapsed()).toBe(false);
   expect(() => {
-    rememberRailCollapsed(true);
-    rememberRailCollapsed(false);
+    storeRailCollapsed(true);
+    storeRailCollapsed(false);
   }).not.toThrow();
 });

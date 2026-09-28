@@ -1,5 +1,5 @@
-import { z } from 'zod';
 import { create } from 'zustand';
+import { loadDrafts, storeDrafts } from '#/shared/adapter/draftStorage.ts';
 
 // A field flagged secret — a client secret, a password — is never written.
 export interface DraftField {
@@ -28,44 +28,6 @@ interface Drafts {
   readonly forgetAll: () => void;
 }
 
-const KEY = 'odudu.console.drafts';
-
-const storedSchema = z.object({
-  owner: z.string(),
-  drafts: z.record(z.string(), z.record(z.string(), z.record(z.string(), z.unknown()))),
-});
-type Stored = z.infer<typeof storedSchema>;
-
-// Every access is guarded: a private window or blocked site data refuses
-// storage, sometimes at the getter, and then a draft is simply not kept.
-function storage(): Storage | undefined {
-  try {
-    return window.sessionStorage;
-  } catch {
-    return undefined;
-  }
-}
-
-function read(): Stored | null {
-  try {
-    const text = storage()?.getItem(KEY);
-    if (text === null || text === undefined) return null;
-    const parsed = storedSchema.safeParse(JSON.parse(text));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
-
-function write(stored: Stored | null): void {
-  try {
-    if (stored === null || Object.keys(stored.drafts).length === 0) storage()?.removeItem(KEY);
-    else storage()?.setItem(KEY, JSON.stringify(stored));
-  } catch {
-    // Unkept, the draft is lost with the session, which is where it started.
-  }
-}
-
 function keepable(fields: DraftFields): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(fields)
@@ -84,7 +46,7 @@ export const useDrafts = create<Drafts>()(() => ({
     };
   },
   keepDirty: (owner) => {
-    const previous = read();
+    const previous = loadDrafts();
     const drafts = previous?.owner === owner ? { ...previous.drafts } : {};
     let kept = 0;
     for (const source of sources) {
@@ -94,25 +56,25 @@ export const useDrafts = create<Drafts>()(() => ({
       drafts[source.record] = { ...drafts[source.record], [source.section]: values };
       kept += 1;
     }
-    write({ owner, drafts });
+    storeDrafts({ owner, drafts });
     return kept;
   },
-  restore: (record, section) => read()?.drafts[record]?.[section] ?? null,
+  restore: (record, section) => loadDrafts()?.drafts[record]?.[section] ?? null,
   forget: (record, section) => {
-    const stored = read();
+    const stored = loadDrafts();
     if (stored?.drafts[record]?.[section] === undefined) return;
     const rest = Object.entries(stored.drafts[record]).filter(([name]) => name !== section);
     const others = Object.entries(stored.drafts).filter(([name]) => name !== record);
     const drafts = Object.fromEntries(
       rest.length > 0 ? [...others, [record, Object.fromEntries(rest)]] : others,
     );
-    write({ owner: stored.owner, drafts });
+    storeDrafts({ owner: stored.owner, drafts });
   },
   adopt: (owner) => {
-    const stored = read();
-    if (stored !== null && stored.owner !== owner) write(null);
+    const stored = loadDrafts();
+    if (stored !== null && stored.owner !== owner) storeDrafts(null);
   },
   forgetAll: () => {
-    write(null);
+    storeDrafts(null);
   },
 }));

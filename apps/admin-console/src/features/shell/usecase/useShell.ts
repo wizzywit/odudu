@@ -1,5 +1,4 @@
 import { useLocation } from '@tanstack/react-router';
-import { useState } from 'react';
 import { CHOOSE_TENANT, useAuthority, type Principal } from '#/features/session/index.ts';
 import {
   actsWithSystemAuthority,
@@ -8,7 +7,7 @@ import {
   showsSystemArea,
   type RailSection,
 } from '#/features/shell/service.ts';
-import { readRailCollapsed, rememberRailCollapsed } from '#/shared/repository/railChoice.ts';
+import { useRailCollapsed } from '#/shared/repository/useRailCollapsed.ts';
 import type { ThemeChoice } from '#/shared/service/theme.ts';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import { useTheme } from '#/shared/repository/useTheme.ts';
@@ -36,7 +35,7 @@ export function useShell(tenant: string, principal: Principal): Shell {
   const { publicHref } = useLocation();
   const { auth, leavePage } = useTransport();
   const theme = useTheme();
-  const [collapsed, setCollapsed] = useState(readRailCollapsed);
+  const [collapsed, setCollapsed] = useRailCollapsed();
   const groups = railGroups(tenant, showsSystemArea(principal, tenant, authority));
   const pathname = new URL(publicHref, globalThis.location.origin).pathname;
 
@@ -64,10 +63,7 @@ export function useShell(tenant: string, principal: Principal): Shell {
     signedInTo: principal.tenant,
     switchHref: `/console/?${CHOOSE_TENANT}`,
     collapsed,
-    setCollapsed: (next) => {
-      rememberRailCollapsed(next);
-      setCollapsed(next);
-    },
+    setCollapsed,
     theme: theme.choice,
     chooseTheme: theme.choose,
     signOut: () => {

@@ -1,15 +1,13 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { StrictMode, useState, type ReactNode } from 'react';
 import { createQueryClient } from '#/shared/repository/queryClient.ts';
-import {
-  readThemeChoice,
-  rememberThemeChoice,
-  type ThemeChoice,
-} from '#/shared/repository/themeChoice.ts';
+import { loadThemeChoice } from '#/shared/adapter/themeChoice.ts';
+import { rememberThemeChoice } from '#/shared/repository/themeChoice.ts';
 import { useDialogHost } from '#/shared/repository/useDialogHost.ts';
 import { ThemeContext } from '#/shared/repository/useTheme.ts';
 import { createBrowserTransport, type Transport } from '#/shared/transport/transport.ts';
 import { TransportContext } from '#/shared/transport/useTransport.ts';
+import type { ThemeChoice } from '#/shared/service/theme.ts';
 import { DialogPresence } from '#/shared/view/dialogPresence.ts';
 
 // What the console keeps in Context rather than a store: the transport, the
@@ -25,7 +23,7 @@ export function Providers({
 }) {
   const [transport] = useState(() => given ?? createBrowserTransport());
   const [queryClient] = useState(() => givenClient ?? createQueryClient());
-  const [choice, setChoice] = useState<ThemeChoice>(readThemeChoice);
+  const [choice, setChoice] = useState<ThemeChoice>(loadThemeChoice);
   const [theme] = useState(() => ({
     choose: (next: ThemeChoice) => {
       rememberThemeChoice(next);

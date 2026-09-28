@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
-import { readLastTenant } from '#/features/session/repository/tenantMemory.ts';
+import { rememberedTenant } from '#/features/session/repository/useSessionQuery.ts';
 import { isTenantName, SYSTEM_TENANT } from '#/features/session/service.ts';
 import { useSignedIn } from '#/features/session/usecase/useSignedIn.ts';
 import { useSignIn } from '#/features/session/usecase/useSignIn.ts';
@@ -58,7 +58,7 @@ export function useConsoleHome(): Home {
   if (target !== null) return { kind: 'leaving', tenant: target };
   return {
     kind: 'choose',
-    remembered: choosing ? null : readLastTenant(),
+    remembered: rememberedTenant({ named, signedIn: principal !== null }),
     choose: leave,
     check: (tenant) =>
       isTenantName(tenant)

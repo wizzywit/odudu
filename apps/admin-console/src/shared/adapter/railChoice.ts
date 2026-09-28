@@ -11,7 +11,7 @@ function storage(): Storage | undefined {
   }
 }
 
-export function readRailCollapsed(): boolean {
+export function loadRailCollapsed(): boolean {
   try {
     return storage()?.getItem(KEY) === COLLAPSED;
   } catch {
@@ -19,7 +19,7 @@ export function readRailCollapsed(): boolean {
   }
 }
 
-export function rememberRailCollapsed(collapsed: boolean): void {
+export function storeRailCollapsed(collapsed: boolean): void {
   try {
     if (collapsed) storage()?.setItem(KEY, COLLAPSED);
     else storage()?.removeItem(KEY);
