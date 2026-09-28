@@ -1,4 +1,4 @@
-import { useAuthority, usePrincipal } from '#/features/session/index.ts';
+import { SYSTEM_TENANT, useAuthority, usePrincipal } from '#/features/session/index.ts';
 import { holds, showsSystemArea, SYSTEM_AREAS, type Area } from '#/features/shell/service.ts';
 
 export type AreaAccess =
@@ -13,7 +13,8 @@ export function useArea(tenant: string, area: Area): AreaAccess {
   const principal = usePrincipal();
   const authority = useAuthority(tenant);
   const system = SYSTEM_AREAS.areas.includes(area);
-  if (system && (principal.tenant !== 'system' || tenant !== 'system')) return { kind: 'hidden' };
+  if (system && (principal.tenant !== SYSTEM_TENANT || tenant !== SYSTEM_TENANT))
+    return { kind: 'hidden' };
   if (area.capability === null) return { kind: 'open' };
   if (authority === undefined) return system ? { kind: 'checking' } : { kind: 'open' };
   if (system && !showsSystemArea(principal, tenant, authority)) return { kind: 'hidden' };

@@ -187,6 +187,20 @@ describe('the browser', () => {
     expect(unload()).toBe(true);
   });
 
+  it('asks again when the page comes back from the back-forward cache', async () => {
+    mount(createMemoryHistory({ initialEntries: ['/'] }));
+    await screen.findByRole('heading', { name: 'Clients' });
+    makeDirty();
+    act(() => {
+      useUnsavedGuard.getState().release();
+    });
+    expect(unload()).toBe(false);
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: false }));
+    expect(unload()).toBe(false);
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    expect(unload()).toBe(true);
+  });
+
   it('stays quiet once the console itself is leaving the page', async () => {
     mount(createMemoryHistory({ initialEntries: ['/'] }));
     await screen.findByRole('heading', { name: 'Clients' });

@@ -4,7 +4,7 @@ import { createAuth } from '#/shared/transport/auth.ts';
 import { createGateway, type Fetch } from '#/shared/transport/gateway.ts';
 import type { Transport } from '#/shared/transport/transport.ts';
 
-export type Answer = () => Response;
+export type Answer = () => Response | Promise<Response>;
 
 export function json(body: unknown, status = 200): Answer {
   return () =>
@@ -23,6 +23,11 @@ export function problem(status: number, type = 'about:blank', title = 'Refused')
 }
 
 export const SESSION_ENDED = problem(401, 'about:blank#console-session-ended', 'Unauthorized');
+
+// An answer that never comes, for a page caught while it waits.
+export function pending(): Answer {
+  return () => new Promise<Response>(() => undefined);
+}
 
 export function offline(): Answer {
   return () => {

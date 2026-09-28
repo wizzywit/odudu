@@ -14,6 +14,7 @@ import {
   fakeTransport,
   json,
   offline,
+  pending,
   problem,
   SESSION_ENDED,
   type Answer,
@@ -246,6 +247,15 @@ describe('system authority', () => {
     );
     expect(within(system).getByRole('link', { name: 'System administrators' })).toBeVisible();
     expect(screen.queryByRole('region', { name: 'System authority' })).toBeNull();
+  });
+
+  it('says it is checking access to a System area until whoami answers', async () => {
+    renderAt('/console/system/tenants', {
+      'GET /console/api/session': json(ROOT),
+      'GET /console/api/admin/tenants/system/whoami': pending(),
+    });
+    expect(await screen.findByText('Checking access to Tenants')).toBeVisible();
+    expect(screen.queryByRole('note')).toBeNull();
   });
 
   it('keeps the System area from a tenant administrator and from another tenant', async () => {
