@@ -4,13 +4,13 @@ import { createSessionEvents } from '#/shared/service/sessionEvents.ts';
 import { createGateway, type Fetch } from '#/shared/transport/gateway.ts';
 
 function gatewayAnswering(body: unknown, urls: string[] = []) {
-  const fetch: Fetch = (url) => {
+  const answer: Fetch = (url) => {
     urls.push(url);
     return Promise.resolve(
       new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }),
     );
   };
-  return createGateway({ fetch, events: createSessionEvents(), log: () => undefined });
+  return createGateway({ fetch: answer, events: createSessionEvents(), log: () => undefined });
 }
 
 it('reads the session the gateway reports, as the principal', async () => {

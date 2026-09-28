@@ -5,8 +5,9 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 // shared/transport/ is the console's one HTTP client to the gateway: it sets
-// the CSRF header and the credentials mode, so a request made anywhere else
-// would go out without them.
+// the CSRF header and the credentials mode, so a request made anywhere else,
+// by fetch, XMLHttpRequest, EventSource, WebSocket or a beacon, would go out
+// without them.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const CONSOLE_SRC = 'apps/admin-console/src';
@@ -14,30 +15,49 @@ const FIXTURES = 'tests/lint/fixtures/console-fetch';
 const TRANSPORT = 'shared/transport/';
 
 const GLOBALS = new Set(['globalThis', 'window', 'self']);
+// Each sends a request of its own, so each would leave the page without them.
+const SENDERS = new Set(['fetch', 'XMLHttpRequest', 'EventSource', 'WebSocket']);
+const BEACON = 'sendBeacon';
 
-function unwrap(node: ts.Expression): ts.Expression {
-  let inner = node;
-  while (
-    ts.isParenthesizedExpression(inner) ||
-    ts.isAsExpression(inner) ||
-    ts.isSatisfiesExpression(inner) ||
-    ts.isNonNullExpression(inner)
-  ) {
-    inner = inner.expression;
-  }
-  return inner;
+function keyText(name: ts.PropertyName | ts.BindingName | undefined): string | undefined {
+  return name !== undefined && (ts.isIdentifier(name) || ts.isStringLiteral(name))
+    ? name.text
+    : undefined;
 }
 
-function isGlobalFetch(callee: ts.Expression): boolean {
-  if (ts.isIdentifier(callee)) return callee.text === 'fetch';
+// A name in a property position is a member of something else, not the
+// global: `client.fetch`, `{ fetch: load }`, an interface's `fetch()`.
+function isMemberName(node: ts.Identifier): boolean {
+  const parent = node.parent;
+  if (ts.isPropertyAccessExpression(parent) && parent.name === node) {
+    return !(ts.isIdentifier(parent.expression) && GLOBALS.has(parent.expression.text));
+  }
   return (
-    ts.isPropertyAccessExpression(callee) &&
-    callee.name.text === 'fetch' &&
-    ts.isIdentifier(callee.expression) &&
-    GLOBALS.has(callee.expression.text)
+    (ts.isPropertyAssignment(parent) ||
+      ts.isMethodSignature(parent) ||
+      ts.isMethodDeclaration(parent) ||
+      ts.isPropertySignature(parent) ||
+      ts.isPropertyDeclaration(parent)) &&
+    parent.name === node
   );
 }
 
+function leaves(node: ts.Node): boolean {
+  if (ts.isIdentifier(node)) return SENDERS.has(node.text) && !isMemberName(node);
+  if (ts.isPropertyAccessExpression(node)) return node.name.text === BEACON;
+  if (ts.isElementAccessExpression(node)) {
+    const key = node.argumentExpression;
+    return ts.isStringLiteralLike(key) && (SENDERS.has(key.text) || key.text === BEACON);
+  }
+  if (ts.isBindingElement(node)) {
+    const taken = keyText(node.propertyName ?? node.name);
+    return taken !== undefined && (SENDERS.has(taken) || taken === BEACON);
+  }
+  return false;
+}
+
+// Every reference to a sender outside a type, one per line: a call, an
+// alias, a constructor, a destructuring, or a bracketed lookup.
 function fetchCallLines(fileName: string, source: string): number[] {
   const file = ts.createSourceFile(
     fileName,
@@ -46,15 +66,14 @@ function fetchCallLines(fileName: string, source: string): number[] {
     true,
     fileName.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
-  const lines: number[] = [];
+  const lines = new Set<number>();
   const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node) && isGlobalFetch(unwrap(node.expression))) {
-      lines.push(file.getLineAndCharacterOfPosition(node.getStart()).line + 1);
-    }
+    if (ts.isTypeNode(node)) return;
+    if (leaves(node)) lines.add(file.getLineAndCharacterOfPosition(node.getStart()).line + 1);
     ts.forEachChild(node, visit);
   };
   visit(file);
-  return lines;
+  return [...lines].sort((a, b) => a - b);
 }
 
 // Every .ts and .tsx file under `root`, keyed by its path relative to it.
@@ -75,19 +94,27 @@ function offenders(files: Map<string, string>): string[] {
     );
 }
 
-describe('fetch in the console', () => {
-  it('is called only from shared/transport/', async () => {
+describe('requests in the console', () => {
+  it('are made only from shared/transport/', async () => {
     const files = await read(CONSOLE_SRC);
     expect([...files.keys()]).toContain('app/App.tsx');
     expect(offenders(files)).toEqual([]);
   });
 
-  it('is found by call, not by text, outside shared/transport/ in the fixtures', async () => {
+  it('are found by reference, not by text, outside shared/transport/ in the fixtures', async () => {
     const files = await read(FIXTURES);
     expect([...files.keys()]).toContain(`${TRANSPORT}client.ts`);
     expect(offenders(files)).toEqual([
       'features/clients/adapter.ts:2',
       'features/clients/adapter.ts:7',
+      'features/clients/leaks.ts:1',
+      'features/clients/leaks.ts:2',
+      'features/clients/leaks.ts:3',
+      'features/clients/leaks.ts:4',
+      'features/clients/leaks.ts:5',
+      'features/clients/leaks.ts:6',
+      'features/clients/leaks.ts:7',
+      'features/clients/leaks.ts:8',
     ]);
   });
 });

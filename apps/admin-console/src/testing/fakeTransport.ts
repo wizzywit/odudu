@@ -44,7 +44,7 @@ export interface Call {
 // out), and records what was asked of it. Anything unlisted is a 404.
 export function fakeTransport(routes: Record<string, Answer>) {
   const calls: Call[] = [];
-  const fetch: Fetch = (url, init) => {
+  const answerFor: Fetch = (url, init) => {
     const method = init.method ?? 'GET';
     const path = new URL(url, 'http://gateway.invalid').pathname;
     calls.push({ method, path });
@@ -59,8 +59,8 @@ export function fakeTransport(routes: Record<string, Answer>) {
   const leavePage = vi.fn<(url: string) => void>();
   const log = (): void => undefined;
   const transport: Transport = {
-    gateway: createGateway({ fetch, events, log, sleep: () => Promise.resolve() }),
-    auth: createAuth({ fetch, log }),
+    gateway: createGateway({ fetch: answerFor, events, log, sleep: () => Promise.resolve() }),
+    auth: createAuth({ fetch: answerFor, log }),
     events,
     leavePage,
   };
