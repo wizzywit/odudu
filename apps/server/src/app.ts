@@ -70,6 +70,12 @@ export interface AppDeps {
    * redirect and post-logout URIs under it.
    */
   readonly consoleBaseUrl?: string | undefined;
+  /**
+   * `ODUDU_CONSOLE_DIR`: the built single-page app the gateway serves under
+   * `/console/*`. Defaults to the same path the config schema does, so a
+   * caller with no reason to move it can leave it unset.
+   */
+  readonly consoleDir?: string;
   /** The console gateway's clock, so a test can age a pending sign-in. */
   readonly consoleNow?: () => Date;
   /**
@@ -267,6 +273,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         ownerDatabase: deps.ownerDatabase,
         kek: deps.kek,
         publicBaseUrl: deps.consoleBaseUrl,
+        // Matches ODUDU_CONSOLE_DIR's own default (packages/kernel/src/config.ts).
+        consoleDir: deps.consoleDir ?? '/app/console',
         ...(deps.consoleNow === undefined ? {} : { now: deps.consoleNow }),
       }),
     );

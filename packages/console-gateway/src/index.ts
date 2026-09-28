@@ -6,6 +6,7 @@ import { singleFlight } from '#/service/single-flight';
 import { type FreshToken } from '#/usecase/fresh-access-token';
 import { registerConsoleApi } from '#/view/api';
 import { registerAuthRoutes } from '#/view/routes/auth';
+import { spaRoutes } from '#/view/spa';
 
 export {
   consoleLoginRepository,
@@ -27,6 +28,8 @@ export interface ConsoleGatewayDeps {
   readonly kek: Uint8Array;
   /** `ODUDU_PUBLIC_BASE_URL`: every redirect and every in-process call is built on it. */
   readonly publicBaseUrl: string;
+  /** `ODUDU_CONSOLE_DIR`: the built single-page app, read once at registration. */
+  readonly consoleDir: string;
   readonly now?: () => Date;
 }
 
@@ -75,6 +78,7 @@ export function consoleGateway(deps: ConsoleGatewayDeps): FastifyPluginAsync {
       },
       { prefix: '/console/api' },
     );
+    fastify.register(spaRoutes(deps.consoleDir));
     return Promise.resolve();
   };
 }

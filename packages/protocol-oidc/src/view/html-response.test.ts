@@ -11,10 +11,12 @@ const REPO_ROOT = join(VIEW_DIR, '..', '..', '..', '..');
 const PACKAGES_DIR = join(REPO_ROOT, 'packages');
 const APPS_DIR = join(REPO_ROOT, 'apps');
 const HEADER_NAMES = ['content-security-policy', 'x-frame-options', 'referrer-policy'];
-// The two files that legitimately spread the header set `pageHeaders`
-// (`@odudu/kernel`) returns — every other view-layer file gets it only by
-// going through one of them.
-const EXEMPT_FILES = ['html-response.ts', 'verification-html.ts'];
+// The files that legitimately name a page header — the two that spread
+// `pageHeaders` (`@odudu/kernel`), plus the console shell, whose CSP
+// licenses a self-hosted script and a style hash rather than describing a
+// markup-only page. Every other view-layer file gets these headers only by
+// going through one of the first two.
+const EXEMPT_FILES = ['html-response.ts', 'verification-html.ts', 'spa.ts'];
 
 async function sourcesUnder(dir: string): Promise<{ path: string; text: string }[]> {
   const found: { path: string; text: string }[] = [];

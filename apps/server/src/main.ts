@@ -115,6 +115,7 @@ const app = buildApp({
     ? { publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL }
     : {}),
   consoleBaseUrl: consoleBaseUrl(config),
+  consoleDir: config.ODUDU_CONSOLE_DIR,
   trustProxy: config.ODUDU_TRUST_PROXY,
   tlsClientCertHeader: config.ODUDU_TLS_CLIENT_CERT_HEADER,
   throttle: {

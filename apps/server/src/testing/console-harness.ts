@@ -46,6 +46,8 @@ export interface ConsoleAppOptions {
   readonly beforeReady?: (app: FastifyInstance) => void;
   /** For a test that signs in more administrators than the default budget admits. */
   readonly throttle?: ThrottleSettings;
+  /** For a test that asserts on the built console shell; unset serves nothing. */
+  readonly consoleDir?: string;
 }
 
 export async function startConsoleApp(
@@ -73,6 +75,7 @@ export async function startConsoleApp(
     // An https base is served behind a proxy: boot refuses it otherwise.
     trustProxy: baseUrl.protocol === 'https:',
     ...(options.throttle === undefined ? {} : { throttle: options.throttle }),
+    ...(options.consoleDir === undefined ? {} : { consoleDir: options.consoleDir }),
   });
   const tokenResponses: string[] = [];
   app.addHook('onSend', async (request, _reply, payload) => {

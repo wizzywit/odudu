@@ -1,4 +1,9 @@
-import { type FastifyError, type FastifyInstance, type FastifyReply } from 'fastify';
+import {
+  type FastifyError,
+  type FastifyInstance,
+  type FastifyReply,
+  type FastifyRequest,
+} from 'fastify';
 import {
   clearedLoginCookie,
   loginCookie,
@@ -57,7 +62,18 @@ export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps
     return refuse(reply, 500, [clearedLoginCookie(deps.tls)]);
   });
 
-  fastify.setNotFoundHandler(async (_request, reply) => refuse(reply, 404, []));
+  const notFound = async (_request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> =>
+    refuse(reply, 404, []);
+  fastify.setNotFoundHandler(notFound);
+  // An actual route, not only the handler above: a `..` segment that
+  // resolves back inside this prefix is a real match for a shallower
+  // wildcard, such as the console shell's `/console/*` — one that never
+  // runs `setNotFoundHandler`'s own fallback router at all.
+  fastify.route({
+    method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'],
+    url: '/*',
+    handler: notFound,
+  });
 
   fastify.get('/login', async (request, reply) => {
     const result = await beginLogin(deps.login, {
