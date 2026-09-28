@@ -16,3 +16,5 @@ stryker.log
 .idea/
 .vscode/
 .superpowers/
+playwright-report/
+test-results/

@@ -3,3 +3,5 @@ coverage
 .turbo
 pnpm-lock.yaml
 tests/boundaries/fixtures
+playwright-report
+test-results

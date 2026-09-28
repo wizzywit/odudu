@@ -7,6 +7,8 @@ export default tseslint.config(
       '**/dist/**',
       '**/.turbo/**',
       '**/coverage/**',
+      '**/playwright-report/**',
+      '**/test-results/**',
       'tests/boundaries/fixtures/**',
       'tests/lint/fixtures/**',
     ],

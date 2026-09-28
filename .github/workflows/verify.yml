@@ -70,6 +70,43 @@ jobs:
       - name: Build and smoke-test the stack
         run: ./infra/docker/smoke.sh
 
+  # The console's flows in Chromium against the built image, signed in
+  # through the gateway. e2e/run.sh is the whole of it, locally as here.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium and its system libraries
+        run: pnpm --filter @odudu/admin-console exec playwright install --with-deps chromium
+
+      - name: Bootstrap infra/docker/.env
+        run: cp infra/docker/.env.example infra/docker/.env
+
+      - name: Run the console in a browser against the image
+        run: ./apps/admin-console/e2e/run.sh
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            apps/admin-console/e2e/playwright-report
+            apps/admin-console/e2e/test-results
+          retention-days: 14
+
   conformance:
     runs-on: ubuntu-latest
     timeout-minutes: 45

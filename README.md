@@ -735,6 +735,22 @@ image serves the console's shell with its CSP and a hashed asset as
 own compose project, `odudu-smoke`, on ports 3100 and 5452, so it runs
 beside the stack started below and its teardown never reaches that one.
 
+**Drive the console in a browser** against the same image:
+
+```bash
+./apps/admin-console/e2e/run.sh
+```
+
+It builds the image, starts it as the compose project `odudu-e2e` on ports
+3080 and 5462 (`ODUDU_HOST_PORT` and `POSTGRES_HOST_PORT` move them), seeds
+throwaway tenants and administrators, and runs the Playwright specs in
+`apps/admin-console/e2e/` in Chromium. Any page fails its test on a
+content-security-policy violation or a console error, and each console page
+a spec reaches is held to axe's WCAG 2.2 AA rules, contrast included, in
+both colour schemes and under both theme overrides. The stack is torn down
+afterwards unless `E2E_KEEP_STACK=1`, and arguments after the script go to
+`playwright test`. CI runs it as the `e2e` job.
+
 **Sign somebody in yourself.** The first tenant, client, user and signing
 key come from the server's seed command — the admin API needs an
 administrator, who needs a tenant, so something has to create the first row
