@@ -187,7 +187,8 @@ and writes nothing.
 
 ## Amendment, 2026-09-29 — a `409` guarding the last administrator
 
-`last_administrator` is the same kind of refusal as `builtin_admin_guarded`:
+A `409` of type `about:blank#last-administrator` is the same kind of
+refusal as `builtin_admin_guarded`:
 a guard on what every administrator of a tenant depends on, refused to an
 authenticated caller. So it writes a `refused` row under the action the
 caller attempted, with the reason under `detail.reason`, on every door
