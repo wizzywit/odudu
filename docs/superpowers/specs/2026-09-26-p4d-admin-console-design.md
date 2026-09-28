@@ -540,6 +540,10 @@ with `.test`; a CSS module sits beside its component. A lint test in
 `tests/lint/` fails the build on a `use*` file exporting no hook, on a hook
 exported from a file not named `use*`, and on a component file not in
 PascalCase. `eslint-plugin-react-hooks` holds hooks to their rules.
+A `#/` import names its file's extension (`#/app/App.tsx`), because under
+`moduleResolution: bundler` TypeScript does not probe extensions for a
+`package.json` `imports` target, and one `"#/*": "./src/*"` must reach both
+`.ts` and `.tsx`.
 
 A stateful usecase is a hook — `useAmendClientIdentity` returning
 `{ save, status, fieldErrors }` — and a stateless one a function; both live
