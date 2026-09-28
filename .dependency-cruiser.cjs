@@ -59,6 +59,18 @@ module.exports = {
       },
     },
     {
+      name: 'no-server-to-testing',
+      severity: 'error',
+      comment:
+        "apps/server/src/testing/ holds the server's integration-test harness; nothing it " +
+        'ships may depend on it.',
+      from: {
+        path: '(^|/)apps/server/src/',
+        pathNot: '(^|/)apps/server/src/testing/|\\.test\\.ts$',
+      },
+      to: { path: '(^|/)apps/server/src/testing/' },
+    },
+    {
       name: 'no-protocol-to-protocol',
       severity: 'error',
       comment:
