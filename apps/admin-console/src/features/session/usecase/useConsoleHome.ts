@@ -1,7 +1,14 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 import { rememberedTenant } from '#/features/session/repository/useSessionQuery.ts';
-import { isTenantName, SYSTEM_TENANT, TENANT_NAME_PROBLEM } from '#/features/session/service.ts';
+import {
+  isTenantName,
+  signedInElsewhere,
+  SYSTEM_TENANT,
+  tenantPage,
+  TENANT_NAME_PROBLEM,
+  type Principal,
+} from '#/features/session/service.ts';
 import { useSignedIn } from '#/features/session/usecase/useSignedIn.ts';
 import { useSignIn } from '#/features/session/usecase/useSignIn.ts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch.ts';
@@ -11,15 +18,19 @@ export const CHOOSE_TENANT = 'choose';
 export type Home =
   | { readonly kind: 'leaving'; readonly tenant: string | null }
   | {
+      readonly kind: 'elsewhere';
+      readonly principal: Principal;
+      readonly tenant: string;
+      readonly signIn: () => void;
+    }
+  | {
       readonly kind: 'choose';
       readonly remembered: string | null;
+      // A system administrator enters a tenant rather than signing in to it.
+      readonly enters: boolean;
       readonly choose: (tenant: string) => void;
       readonly check: (tenant: string) => string | undefined;
     };
-
-function tenantPage(tenant: string): string {
-  return `/console/${encodeURIComponent(tenant)}`;
-}
 
 // The bare console: a signed-in administrator goes on to their tenant; a
 // tenant named by ?tenant= goes straight to its sign-in; otherwise the last
@@ -50,15 +61,29 @@ export function useConsoleHome(): Home {
     left.current = true;
     enter(tenant);
   };
-  const target = named ?? (principal !== null && !choosing ? principal.tenant : null);
+  const elsewhere = named !== null && signedInElsewhere(principal, named);
+  const target = elsewhere
+    ? null
+    : (named ?? (principal !== null && !choosing ? principal.tenant : null));
   useEffect(() => {
     if (target !== null && !left.current) leave(target);
   });
 
+  if (elsewhere && principal !== null) {
+    return {
+      kind: 'elsewhere',
+      principal,
+      tenant: named,
+      signIn: () => {
+        signIn(named, tenantPage(named));
+      },
+    };
+  }
   if (target !== null) return { kind: 'leaving', tenant: target };
   return {
     kind: 'choose',
     remembered: rememberedTenant({ named, signedIn: principal !== null }),
+    enters: system,
     choose: leave,
     check: (tenant) => (isTenantName(tenant) ? undefined : TENANT_NAME_PROBLEM),
   };

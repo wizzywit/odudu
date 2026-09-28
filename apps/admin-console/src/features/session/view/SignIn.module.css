@@ -42,3 +42,22 @@
   flex-wrap: wrap;
   gap: var(--space-3);
 }
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  color: var(--ink-primary);
+  text-decoration: none;
+  outline: none;
+}
+
+.back[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

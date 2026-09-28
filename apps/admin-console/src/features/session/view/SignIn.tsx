@@ -3,14 +3,21 @@ import { Button } from '#/shared/view/Button.tsx';
 import { TextField } from '#/shared/view/Field.tsx';
 import styles from '#/features/session/view/SignIn.module.css';
 
+function submitLabel(enters: boolean, tenant: string): string {
+  if (!enters) return 'Continue to sign-in';
+  return tenant === '' ? 'Enter tenant' : `Enter ${tenant}`;
+}
+
 // There is no username-first sign-in: usernames are unique per tenant, and
 // asking across tenants would say which tenants a name belongs to.
 export function SignIn({
   remembered,
+  enters = false,
   onSignIn,
   check,
 }: {
   readonly remembered: string | null;
+  readonly enters?: boolean;
   readonly onSignIn: (tenant: string) => void;
   readonly check: (tenant: string) => string | undefined;
 }) {
@@ -66,7 +73,7 @@ export function SignIn({
             />
             <div className={styles.actions}>
               <Button type="submit" variant="primary">
-                Continue to sign-in
+                {submitLabel(enters, tenant.trim())}
               </Button>
             </div>
           </form>

@@ -54,3 +54,13 @@ export const TENANT_NAME_PROBLEM = `${TENANT_NAME_RULE.charAt(0).toUpperCase()}$
 export function draftOwner(principal: Principal): string {
   return `${principal.tenant}/${principal.subjectId}`;
 }
+
+// A tenant administrator opening another tenant's console is asked first:
+// signing in there replaces this session. A system administrator enters.
+export function signedInElsewhere(principal: Principal | null, tenant: string): boolean {
+  return principal !== null && principal.tenant !== tenant && principal.tenant !== SYSTEM_TENANT;
+}
+
+export function tenantPage(tenant: string): string {
+  return `/console/${encodeURIComponent(tenant)}`;
+}

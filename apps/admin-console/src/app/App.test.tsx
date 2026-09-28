@@ -112,6 +112,16 @@ describe('booting from the session', () => {
     expect(params.get('return_to')).toBe('/console/beta');
   });
 
+  it('asks the question instead when ?tenant= names no possible tenant', async () => {
+    const { leavePage } = renderAt('/console/?tenant=Not_A_Tenant', {
+      'GET /console/api/session': SESSION_ENDED,
+    });
+    expect(
+      await screen.findByRole('textbox', { name: 'Which tenant do you administer?' }),
+    ).toBeVisible();
+    expect(leavePage).not.toHaveBeenCalled();
+  });
+
   it('asks a fresh browser which tenant, refusing a name that cannot be one', async () => {
     const user = userEvent.setup();
     const { leavePage } = renderAt('/console/', { 'GET /console/api/session': SESSION_ENDED });
@@ -166,6 +176,46 @@ describe('booting from the session', () => {
   it('shows the not-found page for a path that is no tenant', async () => {
     renderAt('/console/Not_A_Tenant', { 'GET /console/api/session': json(GRACE) });
     expect(await screen.findByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+  });
+});
+
+describe('another tenant while signed in', () => {
+  it.each(['/console/globex/clients', '/console/?tenant=globex'])(
+    'asks a tenant administrator at %s before signing in elsewhere',
+    async (path) => {
+      const user = userEvent.setup();
+      const { leavePage, router } = renderAt(path, {
+        'GET /console/api/session': json(GRACE),
+        'GET /console/api/admin/tenants/acme/whoami': whoami(ALL),
+      });
+      const status = await screen.findByRole('heading', { level: 1, name: 'Signed in to acme' });
+      expect(status).toBeVisible();
+      expect(screen.getByText(/signed in to/u)).toHaveTextContent(
+        "You're signed in to acme as grace.",
+      );
+      expect(leavePage).not.toHaveBeenCalled();
+      expect(await violations()).toEqual([]);
+
+      await user.click(screen.getByRole('button', { name: 'Sign in to globex' }));
+      const params = loginParams(leavePage.mock.calls[0]?.[0]);
+      expect(params.get('tenant')).toBe('globex');
+      expect(router.state.location.publicHref).toBe(
+        path === '/console/?tenant=globex' ? '/console/?tenant=globex' : path,
+      );
+    },
+  );
+
+  it('goes back to the tenant signed in to, sending nothing', async () => {
+    const user = userEvent.setup();
+    const { leavePage, router, calls } = renderAt('/console/globex', {
+      'GET /console/api/session': json(GRACE),
+      'GET /console/api/admin/tenants/acme/whoami': whoami(ALL),
+    });
+    await user.click(await screen.findByRole('link', { name: 'Back to acme' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
+    expect(router.state.location.publicHref).toBe('/console/acme');
+    expect(leavePage).not.toHaveBeenCalled();
+    expect(calls.every((call) => call.method === 'GET')).toBe(true);
   });
 });
 
@@ -326,7 +376,7 @@ describe('leaving', () => {
       await screen.findByRole('textbox', { name: 'Which tenant do you administer?' }),
       'acme',
     );
-    await user.click(screen.getByRole('button', { name: 'Continue to sign-in' }));
+    await user.click(screen.getByRole('button', { name: 'Enter acme' }));
     expect(await screen.findByRole('region', { name: 'System authority' })).toBeVisible();
     expect(router.state.location.publicHref).toBe('/console/acme');
     expect(leavePage).not.toHaveBeenCalled();

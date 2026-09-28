@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import {
   isTenantName,
+  SignedInElsewhere,
   SigningIn,
   useTenantAccess,
   type Principal,
@@ -57,6 +58,11 @@ function SignedInShell({
 function Access({ tenant, children }: { readonly tenant: string; readonly children: ReactNode }) {
   const access = useTenantAccess(tenant);
   if (access.kind === 'signing-in') return <SigningIn tenant={tenant} ended={access.ended} />;
+  if (access.kind === 'elsewhere') {
+    return (
+      <SignedInElsewhere principal={access.principal} tenant={tenant} onSignIn={access.signIn} />
+    );
+  }
   return (
     <SignedInShell tenant={tenant} principal={access.principal}>
       {children}

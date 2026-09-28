@@ -573,6 +573,12 @@ tenant do you administer?". The question cannot be skipped by asking for a
 username first: usernames are unique per tenant, not across them, and a
 lookup across tenants would tell anybody which tenants a name belongs to.
 
+A tenant administrator already signed in who opens another tenant's console
+sees a page, not a dialog — "You're signed in to acme as grace", with "Back
+to acme" and "Sign in to globex" — and the old console session ends only
+once the new sign-in succeeds; a system administrator enters with system
+authority instead.
+
 After sign-in the tenant comes from the token. A first-time administrator
 passes through the forced password change on the way back, because that is
 Odudu's own login flow.
