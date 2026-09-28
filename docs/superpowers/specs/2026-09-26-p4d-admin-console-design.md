@@ -416,15 +416,15 @@ same-site forgery `SameSite` would not.
 ### 5.4 Serving the SPA
 
 `index.html` is served with `default-src 'self'; script-src 'self';
-style-src 'self' 'sha256-…'; img-src 'self' data:; font-src 'self'; connect-src 'self';
+style-src 'self' 'sha256-…' 'sha256-…'; img-src 'self' data:; font-src 'self'; connect-src 'self';
 frame-ancestors 'none'; base-uri 'none'; form-action 'self'`, plus
 `x-frame-options: DENY` and `referrer-policy: no-referrer`. Assets are
 content-hashed and served immutable; `index.html` is `no-store`. Fonts are
 self-hosted, since `font-src 'self'` refuses a font CDN.
 
-The `'sha256-…'` source is the hash of the one stylesheet React Aria's
-`usePress` injects at runtime (and, on iOS WebKit, `usePreventScroll`'s),
-constant per version: a test recomputes it from the pinned package's source,
+The two `'sha256-…'` sources are the hashes of the stylesheets React Aria
+injects at runtime, `usePress`'s and, on iOS WebKit, `usePreventScroll`'s,
+each constant per version: a test recomputes both from the pinned source,
 so an upgrade that changes the text fails the build rather than the page.
 
 The SPA's shell is not a server-rendered page in ADR 0029's sense — it has no
@@ -776,8 +776,9 @@ changes; the phase note asks for it.
 - `verified:` Vite's production build emits no inline script and no `style`
   attribute, so `script-src 'self'` holds without a nonce.
 - `verified:` React Aria applies styles through the CSSOM, which
-  `style-src 'self'` does not govern, with one exception: `usePress` injects
-  one constant `<style>` element, allowed by its hash (§5.4).
+  `style-src 'self'` does not govern, with two exceptions, each a constant
+  `<style>` element allowed by its hash (§5.4): `usePress` injects one
+  everywhere, and `usePreventScroll` one on iOS WebKit.
 - `verified:` a stored generated `lower(<field>)` column in the `C`
   collation, indexed with `tenant_id` and `id` and queried by explicit bounds,
   is one Index Scan with no Sort under RLS; the expression index first
