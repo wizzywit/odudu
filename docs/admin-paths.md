@@ -1115,6 +1115,32 @@ echo
 {"count":0,"capped":false}
 ```
 
+And a document nesting the tenant role `billing-reader` under `view-users`,
+built from a fresh export of `import-source` on this branch's head: refused
+at the composite's own path, and no tenant created:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3000/admin/tenants/import-source/export > source.json
+jq -c '{name: "import-nested", document: (.roles |= map(
+    if .builtin and .name == "view-users"
+    then .composites += [{name: "billing-reader", client: null}] else . end))}' source.json \
+  | curl -sS -X POST \
+      -H "Authorization: Bearer $ADMIN_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data-binary @- \
+      http://localhost:3000/admin/tenant-imports
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3000/admin/tenants/count?name=import-nested'
+echo
+```
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.roles[8].composites[0]","message":"nests billing-reader under view-users, which a new tenant provisions without it: nothing is nested under a capability role"}],"instance":"01a0e5f4-02ce-7c7b-9ed1-aa602860f2df"}
+{"count":0,"capped":false}
+```
+
 ## `GET /settings` and `PATCH /settings`
 
 The 29 columns `tenants` carries beyond identity — everything
