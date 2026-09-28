@@ -894,7 +894,11 @@ The admin API reaches the same state without the CLI:
 `PUT /admin/tenants/{tenant}/subjects/:id/groups` replace a subject's
 direct roles and group memberships, each under a capability ceiling that
 refuses authority the caller does not hold itself
-([docs/admin-paths.md](docs/admin-paths.md)). A subject's OIDC profile
+([docs/admin-paths.md](docs/admin-paths.md)). Every route that mutates a
+subject, or a client (on the service account it authenticates as), is
+refused with `403` when that subject holds an admin capability the caller
+does not — so `manage-clients` alone cannot rotate the secret of a
+`tenant-admin` service account. A subject's OIDC profile
 claims — everything `odudu seed profile` sets — are no longer a CLI-only
 surface either: `GET`/`PATCH /admin/tenants/{tenant}/subjects/:id/profile`
 read and amend them, `email_verified`/`phone_number_verified` included.

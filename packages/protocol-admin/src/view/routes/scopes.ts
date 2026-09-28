@@ -26,6 +26,7 @@ import {
 } from '#/usecase/scopes';
 import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
+import { serviceAccountCeilingProblem } from '#/view/routes/clients';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface ScopesRouteDeps {
@@ -337,6 +338,10 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
       throw new Error('protocol-admin: PUT scope client route received no :id/:clientId');
     }
     const body = assignScopeToClientRequestSchema.parse(request.body);
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       assignScopeToClient(
@@ -346,6 +351,7 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
           scopeId: id,
           clientId,
           assignment: body.assignment,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -366,6 +372,8 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
           request,
           problem(404, 'about:blank', 'Not Found', `no client ${clientId}`),
         );
+      case 'target_ceiling':
+        return serviceAccountCeilingProblem(reply, request, outcome.requested);
       case 'ok':
         return reply.code(200).send(outcome.assignments);
     }
@@ -379,6 +387,10 @@ export function unassignScopeFromClientHandler(deps: ScopesRouteDeps): AdminRout
     if (id === undefined || clientId === undefined) {
       throw new Error('protocol-admin: DELETE scope client route received no :id/:clientId');
     }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       unassignScopeFromClient(
@@ -387,6 +399,7 @@ export function unassignScopeFromClientHandler(deps: ScopesRouteDeps): AdminRout
         {
           scopeId: id,
           clientId,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -409,6 +422,8 @@ export function unassignScopeFromClientHandler(deps: ScopesRouteDeps): AdminRout
         );
       case 'builtin_admin_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'target_ceiling':
+        return serviceAccountCeilingProblem(reply, request, outcome.requested);
       case 'not_assigned':
         return sendProblem(
           reply,

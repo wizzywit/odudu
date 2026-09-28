@@ -12,6 +12,7 @@ import {
 import {
   ADMIN_CLIENT_ID,
   clientRepository,
+  clientScopeRepository,
   MANAGE_TENANTS,
   SYSTEM_TENANT_NAME,
   TENANT_ADMIN,
@@ -388,5 +389,197 @@ describe('the target ceiling holds on every route that mutates a subject', () =>
     expect(ungrouped.statusCode).toBe(403);
     expect(issued.statusCode).toBe(403);
     expect(await stateOf(target)).toEqual(before);
+  });
+});
+
+// A confidential client authenticates as its service account, so every
+// route that mutates one client is held to that subject's ceiling: read
+// from the route table, so a new client mutation without it fails here.
+const CLIENT_MUTATIONS = ADMIN_ROUTES.filter(
+  (route) =>
+    route.method !== 'GET' &&
+    (route.pattern.startsWith('/admin/tenants/:tenant/clients/:id') ||
+      route.pattern === '/admin/tenants/:tenant/scopes/:id/clients/:clientId'),
+).map((route) => `${route.method} ${route.pattern}`);
+
+const CLIENT_REFUSED_ACTION: Readonly<Record<string, string>> = {
+  'PATCH /admin/tenants/:tenant/clients/:id': 'client.amend',
+  'DELETE /admin/tenants/:tenant/clients/:id': 'client.delete',
+  'POST /admin/tenants/:tenant/clients/:id/secret': 'client.rotate_secret',
+  'PUT /admin/tenants/:tenant/scopes/:id/clients/:clientId': 'scope.assign_to_client',
+  'DELETE /admin/tenants/:tenant/scopes/:id/clients/:clientId': 'scope.unassign_from_client',
+};
+
+const CLIENT_BODIES: Readonly<Record<string, unknown>> = {
+  'PATCH /admin/tenants/:tenant/clients/:id': { name: 'renamed' },
+  'PUT /admin/tenants/:tenant/scopes/:id/clients/:clientId': { assignment: 'optional' },
+};
+
+interface ClientTarget {
+  readonly tenantId: string;
+  readonly tenantName: string;
+  readonly clientDbId: string;
+  readonly scopeId: string;
+}
+
+async function clientTarget(
+  tenant: { id: string; name: string },
+  capabilities: readonly string[] | 'public',
+): Promise<ClientTarget> {
+  let clientDbId: string;
+  if (capabilities === 'public') {
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${tenant.name}/clients`,
+      headers: {
+        authorization: `Bearer ${await fixture.adminToken(tenant.name, [TENANT_ADMIN])}`,
+        'content-type': 'application/json',
+      },
+      payload: {
+        client_id: `public-${newId()}`,
+        redirect_uris: ['https://app.example/callback'],
+        grant_types: ['authorization_code'],
+        token_endpoint_auth_method: 'none',
+      },
+    });
+    if (res.statusCode !== 201) throw new Error(`fixture: public client refused: ${res.body}`);
+    clientDbId = res.json<{ id: string }>().id;
+  } else {
+    clientDbId = (await fixture.createServiceAccountClient(tenant.name, capabilities)).id;
+  }
+  const scopeId = await withTenant(fixture.app.db, tenant.id, async (tx) => {
+    const scope = await clientScopeRepository(tx).byName('profile');
+    if (scope === null) throw new Error('fixture: no profile scope');
+    return scope.id;
+  });
+  return { tenantId: tenant.id, tenantName: tenant.name, clientDbId, scopeId };
+}
+
+async function clientStateOf(target: ClientTarget): Promise<unknown> {
+  return withTenant(fixture.app.db, target.tenantId, async (tx) => ({
+    client: await clientRepository(tx).byId(target.clientDbId),
+    config: [
+      ...(await tx.execute(
+        sql`SELECT * FROM client_oidc_config WHERE client_id = ${target.clientDbId}`,
+      )),
+    ],
+    scopes: await clientScopeRepository(tx).forClient(target.clientDbId),
+  }));
+}
+
+function clientSweep(
+  key: string,
+  target: ClientTarget,
+  token: string,
+): Promise<LightMyRequestResponse> {
+  const [method, pattern] = key.split(' ') as [string, string];
+  const url = pattern.startsWith('/admin/tenants/:tenant/scopes/')
+    ? pattern
+        .replace(':tenant', target.tenantName)
+        .replace(':id', target.scopeId)
+        .replace(':clientId', target.clientDbId)
+    : pattern.replace(':tenant', target.tenantName).replace(':id', target.clientDbId);
+  const body = CLIENT_BODIES[key];
+  return fixture.http.inject({
+    method: method as 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    url,
+    headers: {
+      authorization: `Bearer ${token}`,
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { payload: JSON.stringify(body) }),
+  });
+}
+
+describe('the target ceiling holds on every route that mutates a client', () => {
+  it('covers exactly the routes that mutate a client', () => {
+    expect([...CLIENT_MUTATIONS].sort()).toEqual(Object.keys(CLIENT_REFUSED_ACTION).sort());
+  });
+
+  it.each(CLIENT_MUTATIONS)(
+    '%s: refuses a caller short of a tenant-admin service account, changing nothing',
+    async (key) => {
+      const t = await fixture.createTenant(`client-ceiling-${newId()}`);
+      const target = await clientTarget(t, [TENANT_ADMIN]);
+      const before = await clientStateOf(target);
+
+      const res = await clientSweep(
+        key,
+        target,
+        await fixture.adminToken(t.name, [capabilityFor(key)]),
+      );
+
+      expect(res.statusCode).toBe(403);
+      expect(await clientStateOf(target)).toEqual(before);
+      const rows = await withTenant(fixture.app.db, t.id, (tx) =>
+        auditRepository(tx).list({ limit: 50 }),
+      );
+      const refused = rows.filter(
+        (row) => row.action === CLIENT_REFUSED_ACTION[key] && row.outcome === 'refused',
+      );
+      expect(refused).toHaveLength(1);
+      const denied = (refused[0]?.detail as { denied?: string[] } | null)?.denied ?? [];
+      expect(denied.length).toBeGreaterThan(0);
+      expect(denied).not.toContain(capabilityFor(key));
+    },
+  );
+
+  it.each(CLIENT_MUTATIONS)(
+    '%s: admits a tenant-admin on a tenant-admin service account',
+    async (key) => {
+      const t = await fixture.createTenant(`client-ceiling-peer-${newId()}`);
+      const target = await clientTarget(t, [TENANT_ADMIN]);
+
+      const res = await clientSweep(key, target, await fixture.adminToken(t.name, [TENANT_ADMIN]));
+
+      expect(res.statusCode).toBeLessThan(300);
+    },
+  );
+
+  it.each(CLIENT_MUTATIONS)(
+    '%s: admits the route alone on a service account holding no capability',
+    async (key) => {
+      const t = await fixture.createTenant(`client-ceiling-plain-${newId()}`);
+      const target = await clientTarget(t, []);
+
+      const res = await clientSweep(
+        key,
+        target,
+        await fixture.adminToken(t.name, [capabilityFor(key)]),
+      );
+
+      expect(res.statusCode).toBeLessThan(300);
+    },
+  );
+
+  it.each(CLIENT_MUTATIONS.filter((key) => !key.endsWith('/secret')))(
+    '%s: admits the route alone on a client with no service account',
+    async (key) => {
+      const t = await fixture.createTenant(`client-ceiling-public-${newId()}`);
+      const target = await clientTarget(t, 'public');
+
+      const res = await clientSweep(
+        key,
+        target,
+        await fixture.adminToken(t.name, [capabilityFor(key)]),
+      );
+
+      expect(res.statusCode).toBeLessThan(300);
+    },
+  );
+
+  it('keeps the service account’s token out of reach: a rotated secret is never answered', async () => {
+    const t = await fixture.createTenant(`client-ceiling-rotate-${newId()}`);
+    const target = await clientTarget(t, [TENANT_ADMIN]);
+
+    const res = await clientSweep(
+      'POST /admin/tenants/:tenant/clients/:id/secret',
+      target,
+      await fixture.adminToken(t.name, ['manage-clients']),
+    );
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).not.toContain('client_secret');
+    expect(res.json<{ detail: string }>().detail).toContain('manage-tenant');
   });
 });

@@ -34,6 +34,12 @@ import {
   requireSearchKey,
   type ListPosition,
 } from '#/usecase/prefix-search';
+import {
+  lockSubjectRow,
+  refuseOverTargetCeiling,
+  type TargetCeilingInput,
+  type TargetCeilingRefusal,
+} from '#/usecase/subjects';
 
 const COLLECTION = 'clients';
 
@@ -200,6 +206,34 @@ export interface ClientAuditEvent {
 
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: ClientAuditEvent) => Promise<void>;
+
+/** The caller of a client mutation, as the target ceiling on its service account reads it. */
+export type ClientCeilingCaller = Omit<TargetCeilingInput, 'subjectId'>;
+
+// A confidential client authenticates as its service account, so a route
+// that mutates the client is a route that can take that subject over: its
+// secret, its keys, its audiences. Held to the target ceiling on that
+// subject, the refusal filed on `resource`. Takes the subject's lock before
+// the caller locks the client, the order deleting the subject takes them in
+// (`clients_service_subject_fk` sets the column null).
+export async function refuseOverServiceAccountCeiling<A extends string, R extends string>(
+  tx: TenantScopedDatabase,
+  audit: Parameters<typeof refuseOverTargetCeiling<A, R>>[1],
+  action: A,
+  serviceSubjectId: string | null,
+  caller: ClientCeilingCaller,
+  resource: { readonly type: R; readonly id: string },
+): Promise<TargetCeilingRefusal | null> {
+  if (serviceSubjectId === null) return null;
+  if (!(await lockSubjectRow(tx, serviceSubjectId))) return null;
+  return refuseOverTargetCeiling(
+    tx,
+    audit,
+    action,
+    { ...caller, subjectId: serviceSubjectId },
+    resource,
+  );
+}
 
 /** Every `listClientsQuerySchema` parameter except the page controls. */
 export type ClientFilters = Omit<ListClientsQuery, 'cursor' | 'limit'>;
@@ -618,13 +652,10 @@ export function clientWireShape(view: ClientView): Client {
   };
 }
 
-export interface AmendClientInput {
+export interface AmendClientInput extends ClientCeilingCaller {
   readonly clientDbId: string;
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
-  readonly actorSubjectId: string;
-  readonly actorTenantId: string;
-  readonly actorClientId: string;
 }
 
 export interface AmendClientDeps {
@@ -645,6 +676,7 @@ export type AmendClientOutcome =
   | { kind: 'precondition_failed' }
   | { kind: 'builtin_admin_guarded'; reason: string }
   | { kind: 'auth_method_changes_type'; reason: string }
+  | TargetCeilingRefusal
   | { kind: 'ok'; client: ClientView; etag: string };
 
 // The six list fields the schema stores whole (the same six
@@ -850,6 +882,18 @@ export async function amendClient(
   deps: AmendClientDeps,
   input: AmendClientInput,
 ): Promise<AmendClientOutcome> {
+  const unlocked = await clientRepository(tx).byId(input.clientDbId);
+  if (unlocked === null) return { kind: 'not_found' };
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'client.amend',
+    unlocked.serviceSubjectId,
+    input,
+    { type: 'client', id: input.clientDbId },
+  );
+  if (refused !== null) return refused;
+
   // Locked for the rest of the transaction, so the `If-Match` comparison
   // below and the writes that follow it cannot interleave with another
   // amendment of the same client — the config row is reached only through
@@ -1027,11 +1071,8 @@ export async function amendClient(
   return { kind: 'ok', client: view, etag: etagOf(clientWireShape(view)) };
 }
 
-export interface RotateClientSecretInput {
+export interface RotateClientSecretInput extends ClientCeilingCaller {
   readonly clientDbId: string;
-  readonly actorSubjectId: string;
-  readonly actorTenantId: string;
-  readonly actorClientId: string;
 }
 
 export interface RotateClientSecretDeps {
@@ -1042,6 +1083,7 @@ export interface RotateClientSecretDeps {
 export type RotateClientSecretOutcome =
   | { kind: 'not_found' }
   | { kind: 'not_confidential' }
+  | TargetCeilingRefusal
   | { kind: 'ok'; client: ClientView; secret: string };
 
 /** Answers the new secret exactly once — nothing reads it back afterward. */
@@ -1053,6 +1095,15 @@ export async function rotateClientSecret(
   const clientRow = await clientRepository(tx).byId(input.clientDbId);
   if (clientRow === null) return { kind: 'not_found' };
   if (clientRow.type !== 'confidential') return { kind: 'not_confidential' };
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'client.rotate_secret',
+    clientRow.serviceSubjectId,
+    input,
+    { type: 'client', id: input.clientDbId },
+  );
+  if (refused !== null) return refused;
 
   const secret = generateClientSecret();
   const secretHash = await deps.hashClientSecret(secret);
@@ -1083,11 +1134,8 @@ export async function rotateClientSecret(
   };
 }
 
-export interface DeleteClientInput {
+export interface DeleteClientInput extends ClientCeilingCaller {
   readonly clientDbId: string;
-  readonly actorSubjectId: string;
-  readonly actorTenantId: string;
-  readonly actorClientId: string;
 }
 
 export interface DeleteClientDeps {
@@ -1095,7 +1143,10 @@ export interface DeleteClientDeps {
 }
 
 export type DeleteClientOutcome =
-  { kind: 'not_found' } | { kind: 'builtin_admin_guarded'; reason: string } | { kind: 'deleted' };
+  | { kind: 'not_found' }
+  | { kind: 'builtin_admin_guarded'; reason: string }
+  | TargetCeilingRefusal
+  | { kind: 'deleted' };
 
 export async function deleteClient(
   tx: TenantScopedDatabase,
@@ -1104,6 +1155,15 @@ export async function deleteClient(
 ): Promise<DeleteClientOutcome> {
   const clientRow = await clientRepository(tx).byId(input.clientDbId);
   if (clientRow === null) return { kind: 'not_found' };
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'client.delete',
+    clientRow.serviceSubjectId,
+    input,
+    { type: 'client', id: input.clientDbId },
+  );
+  if (refused !== null) return refused;
   if (clientRow.builtinAdmin) {
     return {
       kind: 'builtin_admin_guarded',

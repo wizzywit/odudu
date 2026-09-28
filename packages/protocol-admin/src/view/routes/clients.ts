@@ -34,6 +34,28 @@ export interface ClientsRouteDeps {
   readonly hashClientSecret: (secret: string) => Promise<string>;
   readonly tlsClientAuthEnabled: boolean;
   readonly audit: Audit;
+  /** See `SubjectsRouteDeps.callerCapabilities` (#/view/routes/subjects.ts) — the same ceiling. */
+  readonly callerCapabilities: (
+    issuerTenantId: string,
+    subjectId: string,
+  ) => Promise<ReadonlySet<string>>;
+}
+
+export function serviceAccountCeilingProblem(
+  reply: FastifyReply,
+  request: AdminRequest,
+  denied: readonly string[],
+): FastifyReply {
+  return sendProblem(
+    reply,
+    request,
+    problem(
+      403,
+      'about:blank',
+      'Forbidden',
+      `the client's service account holds what the caller does not: ${denied.join(', ')}`,
+    ),
+  );
 }
 
 // `clientWireShape` (usecase/clients.ts) is the one mapping, so the bytes
@@ -266,6 +288,8 @@ function amendmentProblem(
       return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
     case 'auth_method_changes_type':
       return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+    case 'target_ceiling':
+      return serviceAccountCeilingProblem(reply, request, outcome.requested);
   }
 }
 
@@ -276,6 +300,10 @@ export function amendClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: PATCH client route received no :id');
     }
     const values = amendClientRequestSchema.parse(request.body);
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       amendClient(
@@ -285,6 +313,7 @@ export function amendClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
           clientDbId: id,
           values,
           ifMatch: ifMatchHeader(request),
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -306,6 +335,10 @@ export function deleteClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
     if (id === undefined) {
       throw new Error('protocol-admin: DELETE client route received no :id');
     }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteClient(
@@ -313,6 +346,7 @@ export function deleteClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
         { audit: deps.audit },
         {
           clientDbId: id,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -325,6 +359,8 @@ export function deleteClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'builtin_admin_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'target_ceiling':
+        return serviceAccountCeilingProblem(reply, request, outcome.requested);
       case 'deleted':
         return reply.code(204).send();
     }
@@ -337,6 +373,10 @@ export function rotateClientSecretHandler(deps: ClientsRouteDeps): AdminRouteHan
     if (id === undefined) {
       throw new Error('protocol-admin: POST client secret route received no :id');
     }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       rotateClientSecret(
@@ -344,6 +384,7 @@ export function rotateClientSecretHandler(deps: ClientsRouteDeps): AdminRouteHan
         { hashClientSecret: deps.hashClientSecret, audit: deps.audit },
         {
           clientDbId: id,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -360,6 +401,8 @@ export function rotateClientSecretHandler(deps: ClientsRouteDeps): AdminRouteHan
           request,
           problem(409, 'about:blank', 'Conflict', 'a public client has no secret to rotate'),
         );
+      case 'target_ceiling':
+        return serviceAccountCeilingProblem(reply, request, outcome.requested);
       case 'ok': {
         const wire: RotateClientSecretResponse = {
           ...toWireClient(outcome.client),

@@ -10,7 +10,6 @@ import {
   clientScopeAssignments,
   clientScopeRepository,
   clientScopes,
-  clients,
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
@@ -24,7 +23,8 @@ import {
   requireSearchKey,
   type ListPosition,
 } from '#/usecase/prefix-search';
-import { type RoleAssignment } from '#/usecase/subjects';
+import { refuseOverServiceAccountCeiling, type ClientCeilingCaller } from '#/usecase/clients';
+import { type RoleAssignment, type TargetCeilingRefusal } from '#/usecase/subjects';
 
 const COLLECTION = 'scopes';
 
@@ -575,13 +575,10 @@ export async function setScopeRoles(
   return { kind: 'ok', roles: mapped, etag: etagOf({ items: mapped }) };
 }
 
-export interface AssignScopeToClientInput {
+export interface AssignScopeToClientInput extends ClientCeilingCaller {
   readonly scopeId: string;
   readonly clientId: string;
   readonly assignment: ClientScopeAssignment;
-  readonly actorSubjectId: string;
-  readonly actorTenantId: string;
-  readonly actorClientId: string;
 }
 
 export interface AssignScopeToClientDeps {
@@ -591,6 +588,7 @@ export interface AssignScopeToClientDeps {
 export type AssignScopeToClientOutcome =
   | { kind: 'scope_not_found' }
   | { kind: 'client_not_found' }
+  | TargetCeilingRefusal
   | { kind: 'ok'; assignments: AssignScopeToClientResponse };
 
 /**
@@ -607,11 +605,17 @@ export async function assignScopeToClient(
   const scope = await clientScopeRepository(tx).byId(input.scopeId);
   if (scope === null) return { kind: 'scope_not_found' };
 
-  const clientRows = await tx
-    .select({ id: clients.id })
-    .from(clients)
-    .where(eq(clients.id, input.clientId));
-  if (clientRows.length === 0) return { kind: 'client_not_found' };
+  const client = await clientRepository(tx).byId(input.clientId);
+  if (client === null) return { kind: 'client_not_found' };
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'scope.assign_to_client',
+    client.serviceSubjectId,
+    input,
+    { type: 'scope', id: input.scopeId },
+  );
+  if (refused !== null) return refused;
 
   await clientScopeRepository(tx).assignOrUpdate(input.clientId, input.scopeId, input.assignment);
 
@@ -652,12 +656,9 @@ export async function assignScopeToClient(
   };
 }
 
-export interface UnassignScopeFromClientInput {
+export interface UnassignScopeFromClientInput extends ClientCeilingCaller {
   readonly scopeId: string;
   readonly clientId: string;
-  readonly actorSubjectId: string;
-  readonly actorTenantId: string;
-  readonly actorClientId: string;
 }
 
 export interface UnassignScopeFromClientDeps {
@@ -668,6 +669,7 @@ export type UnassignScopeFromClientOutcome =
   | { kind: 'scope_not_found' }
   | { kind: 'client_not_found' }
   | { kind: 'builtin_admin_guarded'; reason: string }
+  | TargetCeilingRefusal
   | { kind: 'not_assigned' }
   | { kind: 'removed' };
 
@@ -689,6 +691,15 @@ export async function unassignScopeFromClient(
   // and the guard that follows it, on the same row.
   const client = await clientRepository(tx).byId(input.clientId);
   if (client === null) return { kind: 'client_not_found' };
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'scope.unassign_from_client',
+    client.serviceSubjectId,
+    input,
+    { type: 'scope', id: input.scopeId },
+  );
+  if (refused !== null) return refused;
 
   // Reads `builtinAdmin`, never `client_id` — the same check `amendClient`
   // (#/usecase/clients.ts) makes. The built-in admin client supports no

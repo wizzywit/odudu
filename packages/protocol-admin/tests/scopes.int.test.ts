@@ -951,6 +951,7 @@ describe('audit', () => {
         {
           scopeId: scope.id,
           clientId: client.id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -969,6 +970,7 @@ describe('audit', () => {
         {
           scopeId: scope.id,
           clientId: client.id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -995,6 +997,7 @@ describe('audit', () => {
         {
           scopeId: openidId,
           clientId: adminClient.id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',

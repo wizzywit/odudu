@@ -923,6 +923,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           clientDbId: created.id,
           values: { name: 'Audited rename' },
           ifMatch: undefined,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -951,6 +952,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           clientDbId: created.id,
           values: { client_id: 'evasion-attempt' },
           ifMatch: undefined,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -979,6 +981,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           clientDbId: created.id,
           values: { grant_types: ['client_credentials'] },
           ifMatch: undefined,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1007,6 +1010,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           clientDbId: admin.id,
           values: { enabled: false },
           ifMatch: undefined,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1082,6 +1086,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           clientDbId: created.client.id,
           values: { token_endpoint_auth_method: 'client_secret_basic' },
           ifMatch: undefined,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1110,6 +1115,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           clientDbId: created.id,
           values: { token_endpoint_auth_method: 'none' },
           ifMatch: undefined,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1183,6 +1189,7 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
         },
         {
           clientDbId: created.id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1208,6 +1215,7 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
         },
         {
           clientDbId: admin.id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1291,6 +1299,7 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
         },
         {
           clientDbId: created.id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1328,6 +1337,7 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
         },
         {
           clientDbId: id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1427,7 +1437,8 @@ describe("the built-in admin client's guards", () => {
   it('allows disabling an ordinary admin-capable client, locking that caller out', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const provisioner = await fixture.createServiceAccountClient(t.name, ['manage-users']);
-    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    // `manage-users` too: the caller must cover what the service account holds.
+    const token = await fixture.adminToken(t.name, ['manage-clients', 'manage-users']);
     const res = await fixture.http.inject({
       method: 'PATCH',
       url: `/admin/tenants/${t.name}/clients/${provisioner.id}`,

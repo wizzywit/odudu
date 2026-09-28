@@ -132,6 +132,12 @@ const TARGET_CEILING =
   ' Refused with `403` when the subject holds an admin capability the caller does not ' +
   '(the target ceiling).';
 
+// The same, for every route that mutates one client: a confidential client
+// authenticates as its service account.
+const SERVICE_ACCOUNT_CEILING =
+  'Refused with `403` when the client\u2019s service account holds an admin capability ' +
+  'the caller does not (the target ceiling).';
+
 // The single list the router registers from (view/routes/router.ts): a
 // route with no entry here fails at startup rather than shipping
 // reachable and unguarded. `capability: null` means authentication
@@ -477,6 +483,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-clients',
     responseSchema: clientSchema,
     bodySchema: amendClientRequestSchema,
+    description: SERVICE_ACCOUNT_CEILING,
   },
   {
     method: 'DELETE',
@@ -484,12 +491,14 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-clients',
     responseSchema: z.void(),
     successStatus: 204,
+    description: SERVICE_ACCOUNT_CEILING,
   },
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/clients/:id/secret',
     capability: 'manage-clients',
     responseSchema: rotateClientSecretResponseSchema,
+    description: SERVICE_ACCOUNT_CEILING,
   },
   // RFC 7591 §3 initial access tokens, gated the same way clients above are —
   // `manage-clients`, since a token that mints a client is configuration for
@@ -748,7 +757,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: clientSchema,
     bodySchema: assignScopeToClientRequestSchema,
     description:
-      'Assigns the scope to the client as default or optional, replacing any existing assignment.',
+      'Assigns the scope to the client as default or optional, replacing any existing assignment. ' +
+      SERVICE_ACCOUNT_CEILING,
   },
   {
     method: 'DELETE',
@@ -759,7 +769,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Removes the client’s assignment of the scope, whether default or optional. Refused ' +
       'with 409 on the tenant’s built-in admin client, which could otherwise lock every ' +
-      'administrator of the tenant out of /authorize.',
+      'administrator of the tenant out of /authorize. ' +
+      SERVICE_ACCOUNT_CEILING,
   },
   // Signing keys: manage-keys, not manage-tenant — a tenant admin who may
   // reconfigure clients need not also be trusted to rotate what signs

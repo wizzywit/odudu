@@ -386,6 +386,7 @@ function buildAdminRoutes(
       hashClientSecret: hashPassword,
       tlsClientAuthEnabled: deps.trustProxy ?? false,
       audit: clientAudit,
+      callerCapabilities,
     };
     const registrationTokensDeps: RegistrationTokensRouteDeps = {
       database: deps.database.db,

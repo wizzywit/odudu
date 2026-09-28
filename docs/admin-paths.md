@@ -1686,6 +1686,60 @@ was deleted afterward, in the `DELETE` section above.
 {"id":"01a0e544-4b27-7f48-b0ef-8bde8f19c378","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T23:47:33.233Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e544-4af7-76d7-8d38-3743f21d1e0c","scopes":[{"id":"01a0e358-cee4-7fba-a335-268c8ab959e9","name":"openid","assignment":"default"},{"id":"01a0e358-cee5-75f5-a535-c5338eb7f2de","name":"profile","assignment":"default"},{"id":"01a0e358-cee6-7128-8632-ee78c48f0871","name":"email","assignment":"default"},{"id":"01a0e358-cee7-7bac-80a9-699c01de36bc","name":"address","assignment":"default"},{"id":"01a0e358-cee8-79a4-bfa3-ccd3f3a6f617","name":"phone","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d123f51b6827","name":"roles","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d1240fcd752d","name":"groups","assignment":"default"},{"id":"01a0e358-ceea-7434-ac57-90739d28612e","name":"offline_access","assignment":"optional"}],"client_secret":"-YByClInh-ftcH8ApybVfAyFU66OLzHiLnebGt5F4Uk"}
 ```
 
+### The service account's ceiling
+
+**A confidential client authenticates as its service account, so every
+route that mutates one client is held to the target ceiling on that
+subject** — the one the [subjects' target ceiling](#the-target-ceiling)
+applies to `/subjects/{id}`. That is `PATCH`, `DELETE` and `POST …/secret`
+on `/clients/{id}`, and `PUT` and `DELETE` on
+`/scopes/{id}/clients/{clientId}`. Without it, a caller holding only
+`manage-clients` could rotate the secret of a client whose service account
+holds `tenant-admin`, or swap its `jwks`, and then act as `tenant-admin`
+through `client_credentials`. A caller missing any admin capability the
+service account holds is refused with `403` naming what it lacks, before
+anything else about the request is looked at, and the attempt writes a
+`refused` row on the client (on the scope, for the two scope routes) with
+`detail.denied`. A client with no service account, or one whose service
+account holds no capability, is unaffected. `tests/target-ceiling.int.test.ts`
+reads these routes from the route table too.
+
+Captured against a tenant `ceiling-clients` created for it, holding three
+`client_credentials` clients with the admin audience, each created through
+`POST /clients`: `ops-robot`, whose service account was given
+`manage-clients` through `PUT /subjects/:id/roles`, so `$OPS_TOKEN` is its
+`client_credentials` token and carries that capability alone;
+`root-robot` (`01a0e58a-ac43-7148-8881-6c3fdc6cf1ae`), whose service
+account was given `tenant-admin` the same way; and `plain-robot`
+(`01a0e58a-aca8-786f-a574-21674f047897`), whose service account holds
+nothing. The rotation, a `jwks` swap and the delete on `root-robot` are
+refused, a rotation on `plain-robot` is not, and the refused rows are the
+three on `root-robot`:
+
+```bash
+ROOT=http://localhost:3000/admin/tenants/ceiling-clients/clients/01a0e58a-ac43-7148-8881-6c3fdc6cf1ae
+curl -sS -X POST -H "Authorization: Bearer $OPS_TOKEN" "$ROOT/secret"
+echo
+curl -sS -X PATCH -H "Authorization: Bearer $OPS_TOKEN" -H 'content-type: application/json' \
+  -d '{"jwks":{"keys":[]}}' "$ROOT"
+echo
+curl -sS -X DELETE -H "Authorization: Bearer $OPS_TOKEN" "$ROOT"
+echo
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $OPS_TOKEN" \
+  http://localhost:3000/admin/tenants/ceiling-clients/clients/01a0e58a-aca8-786f-a574-21674f047897/secret
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/ceiling-clients/audit?resource_type=client&resource_id=01a0e58a-ac43-7148-8881-6c3fdc6cf1ae&outcome=refused"
+echo
+```
+
+```
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the client's service account holds what the caller does not: view-audit, manage-sessions, manage-keys, manage-tenant, manage-users, view-users","instance":"01a0e58a-cf29-709d-9802-4f44423e6326"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the client's service account holds what the caller does not: view-audit, manage-sessions, manage-keys, manage-tenant, manage-users, view-users","instance":"01a0e58a-cf59-7be6-9f42-f3c8935d7152"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the client's service account holds what the caller does not: view-audit, manage-sessions, manage-keys, manage-tenant, manage-users, view-users","instance":"01a0e58a-cf82-7fe7-9b0b-2d1ddc99a45f"}
+200
+{"items":[{"id":"01a0e58a-cf92-7f1d-8ace-8224c2aab302","occurred_at":"2026-09-28T01:04:34.701Z","event_type":"admin_mutation","action":"client.delete","outcome":"refused","actor_tenant_id":"01a0e58a-ab08-7733-92ed-2e54588af553","actor_subject_id":"01a0e58a-ab8f-7377-a87c-50e28671b6ee","actor_client_id":"01a0e58a-abee-7e81-ab83-51c418d622bd","resource_type":"client","resource_id":"01a0e58a-ac43-7148-8881-6c3fdc6cf1ae","request_id":"01a0e58a-cf82-7fe7-9b0b-2d1ddc99a45f","ip":"172.20.0.1","detail":{"denied":["view-audit","manage-sessions","manage-keys","manage-tenant","manage-users","view-users"]}},{"id":"01a0e58a-cf74-7295-9c54-9abb75615a75","occurred_at":"2026-09-28T01:04:34.670Z","event_type":"admin_mutation","action":"client.amend","outcome":"refused","actor_tenant_id":"01a0e58a-ab08-7733-92ed-2e54588af553","actor_subject_id":"01a0e58a-ab8f-7377-a87c-50e28671b6ee","actor_client_id":"01a0e58a-abee-7e81-ab83-51c418d622bd","resource_type":"client","resource_id":"01a0e58a-ac43-7148-8881-6c3fdc6cf1ae","request_id":"01a0e58a-cf59-7be6-9f42-f3c8935d7152","ip":"172.20.0.1","detail":{"denied":["view-audit","manage-sessions","manage-keys","manage-tenant","manage-users","view-users"]}},{"id":"01a0e58a-cf47-7573-8001-0dc35f83d319","occurred_at":"2026-09-28T01:04:34.626Z","event_type":"admin_mutation","action":"client.rotate_secret","outcome":"refused","actor_tenant_id":"01a0e58a-ab08-7733-92ed-2e54588af553","actor_subject_id":"01a0e58a-ab8f-7377-a87c-50e28671b6ee","actor_client_id":"01a0e58a-abee-7e81-ab83-51c418d622bd","resource_type":"client","resource_id":"01a0e58a-ac43-7148-8881-6c3fdc6cf1ae","request_id":"01a0e58a-cf29-709d-9802-4f44423e6326","ip":"172.20.0.1","detail":{"denied":["view-audit","manage-sessions","manage-keys","manage-tenant","manage-users","view-users"]}}]}
+```
+
 ## `GET /registration-tokens`, `POST /registration-tokens` and `DELETE /registration-tokens/:id`
 
 All three require `manage-clients`, the same capability the client routes
@@ -3075,7 +3129,9 @@ holds — a `tenant-admin` acting on another — is admitted, and so is anybody
 with the route's own capability acting on a subject holding none.
 `tests/target-ceiling.int.test.ts` reads the routes it sweeps from the route
 table, so a new mutating route under `/subjects/{id}` without the check
-fails it.
+fails it. A client's service account is held to the same ceiling by every
+route that mutates the client
+([the service account's ceiling](#the-service-accounts-ceiling)).
 
 ### Captured
 
@@ -4523,7 +4579,9 @@ else**: this route asks for `manage-tenant`, where reading a client asks
 for the stricter `manage-clients`, so answering with the client's own
 representation would hand the weaker holder `redirect_uris`, `jwks`,
 `audiences` and every grant setting through a side door. An unknown scope
-or client id answers `404`.
+or client id answers `404`, and a client whose service account holds an
+admin capability the caller does not is refused with `403`
+([the service account's ceiling](#the-service-accounts-ceiling)).
 
 Re-captured against the same later stack the SMTP section names, so the
 ids below are that run's rather than the ones the sections above show.
@@ -4553,7 +4611,8 @@ back off a client once assigned; `clientScopeRepository.unassign`
 (`packages/domain-tenant/src/repository/client-scopes.ts`) deletes the row
 outright rather than narrowing it. Answers `204`; a scope not currently
 assigned to the client, an unknown scope id or an unknown client id all
-answer `404`.
+answer `404`; and the same `403` as `PUT` above refuses a client whose
+service account holds what the caller does not.
 
 **The tenant's built-in admin client keeps every scope assignment**:
 unassigning one answers `409`, naming the scope and the client. That
