@@ -15,7 +15,11 @@ export type Boot =
       readonly carryOn: () => void;
       readonly signInAgain: () => void;
     }
-  | { readonly kind: 'ready'; readonly principal: Principal | null; readonly ended: boolean };
+  | {
+      readonly kind: 'ready';
+      readonly principal: Principal | null;
+      readonly ended: Principal | null;
+    };
 
 // A session ending mid-edit keeps every dirty section's non-secret edits in
 // the tab, lets go of the guard so the sign-in can leave the page, and sends
@@ -46,9 +50,9 @@ export function useSession(): Boot {
       },
     };
   }
-  if (result.ok) return { kind: 'ready', principal: result.data, ended: false };
+  if (result.ok) return { kind: 'ready', principal: result.data, ended: null };
   if (result.kind === 'problem' && isSessionEnded(result.problem)) {
-    return { kind: 'ready', principal: null, ended: was !== null };
+    return { kind: 'ready', principal: null, ended: was };
   }
   return { kind: 'failed', retry };
 }

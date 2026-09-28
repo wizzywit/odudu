@@ -53,7 +53,9 @@ function SignedInShell({
 
 function Access({ tenant, children }: { tenant: string; children: ReactNode }) {
   const access = useTenantAccess(tenant);
-  if (access.kind === 'signing-in') return <SigningIn tenant={tenant} ended={access.ended} />;
+  if (access.kind === 'signing-in') {
+    return <SigningIn tenant={access.tenant} ended={access.ended} />;
+  }
   if (access.kind === 'elsewhere') {
     return (
       <SignedInElsewhere principal={access.principal} tenant={tenant} onSignIn={access.signIn} />

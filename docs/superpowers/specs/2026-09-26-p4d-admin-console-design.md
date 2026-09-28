@@ -683,7 +683,10 @@ A tenant cannot be deleted: the API has no such route. It can be disabled.
   record that changed shows "updated since you opened it".
 - A `401` from the gateway keeps the draft in `sessionStorage` — never a
   field holding a secret — sends the user through sign-in, and restores the
-  draft marked for review. Nothing is saved on their behalf.
+  draft marked for review. Nothing is saved on their behalf. The sign-in is
+  at the tenant that issued the ended session, so a system administrator
+  working inside another tenant signs in at `system` and returns to that
+  tenant's page.
 - Every tab shares one console cookie, so another tab's sign-in can replace
   the session under this one. Each admin request names the subject its tab
   shows in `X-Odudu-Console-Subject`, and the gateway answers a mismatch

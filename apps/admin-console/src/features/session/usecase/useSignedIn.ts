@@ -3,11 +3,11 @@ import type { Principal } from '#/features/session/service.ts';
 
 export interface SignedIn {
   readonly principal: Principal | null;
-  // The session ended while the console was open, rather than never began.
-  readonly ended: boolean;
+  // Whose session ended while the console was open, or null when none did.
+  readonly ended: Principal | null;
 }
 
-export const SignedInContext = createContext<SignedIn>({ principal: null, ended: false });
+export const SignedInContext = createContext<SignedIn>({ principal: null, ended: null });
 
 export function useSignedIn(): SignedIn {
   return useContext(SignedInContext);

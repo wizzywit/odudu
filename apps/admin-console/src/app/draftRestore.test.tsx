@@ -204,3 +204,41 @@ it('restores nothing for a different administrator signing in to the same tab', 
   expect(within(section).queryByText('Restored — review before saving')).toBeNull();
   expect(within(section).getByRole('textbox', { name: 'Name' })).toHaveValue('Billing portal');
 });
+
+const ROOT_IN_ACME = {
+  'GET /console/api/session': json({ tenant: 'system', subject_id: 's0', username: 'root' }),
+  'GET /console/api/admin/tenants/acme/whoami': json({
+    subjectId: 's0',
+    issuerTenantId: 't0',
+    capabilities: ['manage-clients', 'manage-tenants'],
+    crossTenant: true,
+  }),
+};
+
+it("sends a system administrator whose session ends inside another tenant to system's sign-in, and back", async () => {
+  const user = userEvent.setup();
+  const first = mount({
+    ...ROOT_IN_ACME,
+    'GET /console/api/admin/tenants/acme/clients': SESSION_ENDED,
+  });
+  await user.type(await screen.findByRole('textbox', { name: 'Name' }), ' EU');
+
+  await act(() =>
+    first.transport.gateway.request('GET', 'admin/tenants/acme/clients', { schema: z.unknown() }),
+  );
+
+  await waitFor(() => {
+    expect(first.leavePage).toHaveBeenCalledOnce();
+  });
+  const login = new URL(first.leavePage.mock.calls[0]?.[0] ?? '', location.origin);
+  expect(login.searchParams.get('tenant')).toBe('system');
+  expect(login.searchParams.get('return_to')).toBe('/console/acme/clients/c1');
+  expect(screen.getByRole('status')).toHaveTextContent("Taking you to system's sign-in…");
+  expect(sessionStorage.getItem('odudu.console.drafts') ?? '').toContain('"owner":"system/s0"');
+  first.unmount();
+
+  mount(ROOT_IN_ACME);
+  const section = await screen.findByRole('region', { name: 'General' });
+  expect(within(section).getByText('Restored — review before saving')).toBeVisible();
+  expect(within(section).getByRole('textbox', { name: 'Name' })).toHaveValue('Billing portal EU');
+});
