@@ -280,8 +280,9 @@ describe('POST /console/auth/logout', () => {
       expect(res.headers['cache-control']).toBe('no-store');
       expect(res.headers['content-type']).toMatch(/^application\/problem\+json/u);
       expect(res.json()).toMatchObject({ status: 400, type: 'about:blank' });
-      expectSessionCookieCleared(res);
+      expect(setCookies(res)).toEqual([]);
       expect(await consoleSessionsOf(subjectId)).toHaveLength(1);
+      expect((await browse(stack, jar, '/console/api/session')).statusCode).toBe(200);
     });
   });
 

@@ -26,6 +26,8 @@ const TO_CONSOLE: LoggedOut = { kind: 'redirect', redirect: CONSOLE_POST_LOGOUT_
 // The gateway's session ends here whatever the server answers. The SSO
 // session can only be ended by the browser itself, since only its own
 // navigation to the tenant's logout endpoint carries the tenant's cookie.
+// Everything that can fail runs before the take commits, so a failed
+// logout leaves the session whole and can be retried.
 export async function logout(deps: LogoutDeps, input: Logout): Promise<LoggedOut> {
   const resolved = await resolveSession(deps, input.cookieHeader, input.now, input.from);
   if (resolved.kind === 'ended') return TO_CONSOLE;
@@ -36,27 +38,27 @@ export async function logout(deps: LogoutDeps, input: Logout): Promise<LoggedOut
       const session = await consoleSessionRepository(tx).take(id);
       if (session === null) return null;
       const tenant = await tenantNameRepository(tx).nameOf(tenantId);
-      return tenant === null ? null : { kind: 'taken' as const, session, tenant };
+      if (tenant === null) return null;
+      return {
+        kind: 'taken' as const,
+        tenant,
+        refreshToken: unwrapSecret(session.refreshTokenWrapped, deps.kek),
+        idToken: unwrapSecret(session.idTokenWrapped, deps.kek),
+      };
     }),
   );
   if (taken === null) return TO_CONSOLE;
   if (taken.kind === 'unavailable') return taken;
 
-  const { session, tenant } = taken;
-  await endGrant(
-    deps.odudu,
-    tenant,
-    unwrapSecret(session.refreshTokenWrapped, deps.kek),
-    input.from,
-  );
-  const issuer = await deps.odudu.issuerOf(tenant, input.from);
+  await endGrant(deps.odudu, taken.tenant, taken.refreshToken, input.from);
+  const issuer = await deps.odudu.issuerOf(taken.tenant, input.from).catch(() => null);
   if (issuer === null) return TO_CONSOLE;
 
   // OIDC RP-Initiated Logout 1.0 §2; the hint lets the server end the
   // session without asking the End-User to confirm.
   const target = new URL(`${issuer}/protocol/openid-connect/logout`);
   target.search = new URLSearchParams({
-    id_token_hint: unwrapSecret(session.idTokenWrapped, deps.kek),
+    id_token_hint: taken.idToken,
     post_logout_redirect_uri: new URL(CONSOLE_POST_LOGOUT_PATH, deps.base).toString(),
     client_id: ADMIN_CLIENT_ID,
   }).toString();

@@ -123,7 +123,7 @@ interface SeededSession {
   readonly tenantId: string;
 }
 
-async function seedSession(): Promise<SeededSession> {
+async function seedSession(refreshKek: Buffer = KEK): Promise<SeededSession> {
   const tenantId = crypto.randomUUID();
   const subjectId = crypto.randomUUID();
   await owner.db.execute(
@@ -141,7 +141,7 @@ async function seedSession(): Promise<SeededSession> {
       secretHash: sha256(secret),
       tokens: {
         accessTokenWrapped: wrapSecret('access', KEK),
-        refreshTokenWrapped: wrapSecret('refresh-to-revoke', KEK),
+        refreshTokenWrapped: wrapSecret('refresh-to-revoke', refreshKek),
         accessExpiresAt: new Date(now + 300_000),
       },
       idTokenWrapped: wrapSecret('id-token-hint', KEK),
@@ -246,9 +246,11 @@ describe('a logout the server answers badly', () => {
     expect(await sessionCount(tenantId)).toBe(0);
   });
 
-  it('answers a failure as problem+json, clearing the session cookie, not the sign-in page', async () => {
+  // Every step that can fail runs before the take commits, so a failure
+  // leaves the row, and the cookie is kept with it for a retry.
+  it('answers a failure as problem+json, keeping the session and its cookie', async () => {
     const logs: string[] = [];
-    const { cookie } = await seedSession();
+    const { cookie, tenantId } = await seedSession(Buffer.alloc(32, 1));
 
     const res = await logout(throwingPort, cookie, logs);
 
@@ -257,9 +259,20 @@ describe('a logout the server answers badly', () => {
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.json()).toMatchObject({ status: 500, type: 'about:blank' });
     expect(res.body).not.toContain('sign-in could not be completed');
-    expect(String(res.headers['set-cookie'])).toMatch(/^odudu-console=; .*Max-Age=0/u);
+    expect(res.headers['set-cookie']).toBeUndefined();
+    expect(await sessionCount(tenantId)).toBe(1);
     expect(logs.join('\n')).toContain('console logout failed');
-    expect(logs.join('\n')).not.toContain(SENTINEL);
+  });
+
+  it('sends the browser to the console when discovery throws after the session is taken', async () => {
+    const { cookie, tenantId } = await seedSession();
+
+    const res = await logout({ ...throwingPort, revoke: () => Promise.resolve() }, cookie);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ redirect: '/console/' });
+    expect(String(res.headers['set-cookie'])).toContain('odudu-console=; ');
+    expect(await sessionCount(tenantId)).toBe(0);
   });
 
   it('sends the browser to the console when the tenant’s issuer cannot be discovered', async () => {

@@ -15,8 +15,10 @@ export interface LogoutRouteDeps extends LogoutDeps {
 // answered as the fetch expects rather than as the sign-in's page.
 export function registerLogoutRoute(fastify: FastifyInstance, deps: LogoutRouteDeps): void {
   fastify.register((scope) => {
+    // A failure leaves the session whole (the logout usecase), so its
+    // cookie stays too and the logout can be retried.
     answerErrors(scope, 'console logout failed', (request, reply, status) =>
-      sendProblem(reply.header('set-cookie', clearedSessionCookie(deps.tls)), request, {
+      sendProblem(reply, request, {
         status,
         type: 'about:blank',
         title: STATUS_CODES[status] ?? 'Bad Request',
@@ -29,7 +31,6 @@ export function registerLogoutRoute(fastify: FastifyInstance, deps: LogoutRouteD
         from: callerOf(request),
         now: deps.now(),
       });
-      // The session was kept, so its cookie is too, and the logout can be retried.
       if (result.kind === 'unavailable') return sendProblem(reply, request, BAD_GATEWAY);
       return reply
         .header('cache-control', 'no-store')
