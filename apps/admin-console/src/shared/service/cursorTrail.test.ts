@@ -104,3 +104,25 @@ describe('the page limit on the way forward', () => {
     expect(trailFromSearch(trailToSearch(trail))).toEqual(trail);
   });
 });
+
+// Real cursors, as encodeCursor in packages/protocol-admin mints them: an
+// audit page (320 characters) and a subjects search sorted by a 52-character
+// username (364), each under a filter digest.
+const AUDIT =
+  'eyJhZnRlciI6IjIwMjYtMDktMjhUMDg6NDE6NTMuODU4WnwwMWEwZTcyZC03ZmM3LTc5NTAtYTFlNy0xZDA3OTU4OGY4YjQiLCJjb2xsZWN0aW9uIjoiYXVkaXRfZXZlbnRzIiwidGVuYW50SWQiOiIwMWEwZTcyZC01OTI3LTczYzMtYjE0ZC1hNWI2MGQxY2E5YWQiLCJmaWx0ZXJzIjoiWElPd1U1MWxKSnVDdkVqelRHRUluR29qMFA3Z3g1a0RtckU2SHRkRzBVayJ9.nbQrBgDgFeVfvEksJaAetKLSuAPXEteN-ZU9kTHB8f8';
+const SUBJECTS_SORTED =
+  'eyJhZnRlciI6IjAxYTBlNzJkLTdmYzctNzk1MC1hMWU3LTFkMDc5NTg4ZjhiNCIsInNvcnQiOiJncmFjZS5ob3BwZXItd2l0aC1hLXJhdGhlci1sb25nLXVzZXJuYW1lQGV4YW1wbGUuY29tIiwiY29sbGVjdGlvbiI6InN1YmplY3RzIiwidGVuYW50SWQiOiIwMWEwZTcyZC01OTI3LTczYzMtYjE0ZC1hNWI2MGQxY2E5YWQiLCJmaWx0ZXJzIjoiSDJfc3A2cUswc1lsanBxTEFsQUZiR1ZIN3ZBeERMY01tZHhqN3hqU1VvTSJ9.-W38ArwzakdTkmWv9c6r46sx3V7_YC1K6d905AVlgw8';
+
+describe('a trail of real cursors', () => {
+  it.each([
+    ['audit', AUDIT],
+    ['subjects sorted', SUBJECTS_SORTED],
+  ])('stops, for %s, where a URL still fits an 8 KiB request line', (_, cursor) => {
+    let trail: CursorTrail = [];
+    while (canAdvance(trail, cursor)) trail = advance(trail, cursor);
+    expect(trail.length).toBeGreaterThan(10);
+    const url = `GET /console/acme/list?q=grace&${trailToSearch(trail).toString()} HTTP/1.1`;
+    expect(url.length).toBeLessThan(8192);
+    expect(trailFromSearch(trailToSearch(trail))).toEqual(trail);
+  });
+});

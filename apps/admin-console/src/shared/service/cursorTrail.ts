@@ -8,10 +8,10 @@ export function currentCursor(trail: CursorTrail): string | undefined {
 }
 
 // The URL the trail is written into has to reach the server whole: nginx's
-// default request line is 8 KiB (large_client_header_buffers), below Node's
-// 16 KiB header limit. An admin API cursor runs to about 320 characters, so
-// twenty pages are about 6.6 KB of `after=`, and the budget below holds the
-// trail to that even when the cursors are longer.
+// default request line is 8 KiB (large_client_header_buffers). A real audit
+// cursor is 320 characters and a sorted subjects cursor 364, so the budget
+// stops a trail at 16 to 18 pages of those, about 6.5 KB; the page count
+// only bounds a trail of short cursors. The pager names neither number.
 export const MAX_PAGES = 20;
 const TRAIL_BUDGET = 6_000;
 

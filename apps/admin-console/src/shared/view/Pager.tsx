@@ -1,11 +1,5 @@
 import { useId, useState } from 'react';
-import {
-  advance,
-  canAdvance,
-  MAX_PAGES,
-  retreat,
-  type CursorTrail,
-} from '#/shared/service/cursorTrail.ts';
+import { advance, canAdvance, retreat, type CursorTrail } from '#/shared/service/cursorTrail.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import styles from '#/shared/view/Pager.module.css';
 
@@ -73,7 +67,7 @@ export function Pager({
       </div>
       {atLimit ? (
         <p id={limitReason} className={styles.limit}>
-          {`Paged as far as ${String(MAX_PAGES)} pages. Narrow the list to see further.`}
+          This is as far as the list can page. Narrow it to see further.
         </p>
       ) : null}
     </nav>

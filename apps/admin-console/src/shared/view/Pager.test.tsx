@@ -36,13 +36,17 @@ it('cannot go back from the first page or on from the last', () => {
   expect(screen.queryByRole('button', { name: /load more/iu })).toBeNull();
 });
 
-it('stops at the page limit and says why, since there is no jump to a page', () => {
-  const full = Array.from({ length: MAX_PAGES }, (_, page) => `c${String(page)}.t`);
-  render(<Pager label="Subjects" trail={full} next="more.t" onTrailChange={vi.fn()} />);
+it.each([
+  ['the page limit', Array.from({ length: MAX_PAGES }, (_, page) => `c${String(page)}.t`)],
+  ['the length limit', Array.from({ length: 4 }, () => `${'a'.repeat(1400)}.t`)],
+])('stops at %s and says why without claiming a page count', (_, trail) => {
+  render(
+    <Pager label="Subjects" trail={trail} next={`${'b'.repeat(1400)}.t`} onTrailChange={vi.fn()} />,
+  );
   const next = screen.getByRole('button', { name: 'Next page' });
   expect(next).toBeDisabled();
   expect(next).toHaveAccessibleDescription(
-    `Paged as far as ${String(MAX_PAGES)} pages. Narrow the list to see further.`,
+    'This is as far as the list can page. Narrow it to see further.',
   );
 });
 
