@@ -352,6 +352,33 @@ describe('GET /console/auth/callback', () => {
     };
   }
 
+  it('keeps the old session, and revokes the new grant, when the new one cannot be written', async () => {
+    const stack = await startApp();
+    try {
+      const first = new Jar();
+      const old = await signIn(stack, first);
+      const second = new Jar();
+      second.cookies.set(SESSION_COOKIE, first.cookies.get(SESSION_COOKIE) ?? '');
+      const { authorize } = await beginLogin(stack, second);
+      const next = await signInAtOp(stack, second, authorize);
+      const restore = await failFor(next.subjectId, 'INSERT');
+
+      const res = await browse(stack, second, pathOf(stack, next.callback));
+      await restore();
+
+      expect(res.statusCode).toBeGreaterThanOrEqual(400);
+      expect(String(res.headers['set-cookie'])).not.toMatch(/odudu-console=[^;]/u);
+      expect(await sessionsFor(old.subjectId)).toHaveLength(1);
+      expect((await browse(stack, first, '/console/api/session')).statusCode).toBe(200);
+      const { refresh_token: newRefresh } = JSON.parse(stack.tokenResponses.at(-1) ?? '{}') as {
+        refresh_token: string;
+      };
+      expect(await refreshAtOp(stack, newRefresh)).toBe('invalid_grant');
+    } finally {
+      await stack.app.close();
+    }
+  });
+
   it('admits the new sign-in however ending the old session fails, logging only the kind', async () => {
     const stack = await startApp();
     try {
