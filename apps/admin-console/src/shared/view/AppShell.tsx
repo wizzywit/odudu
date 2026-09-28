@@ -54,9 +54,9 @@ function Toggle({
   onPress,
   focusRef,
 }: {
-  readonly label: string;
-  readonly onPress: () => void;
-  readonly focusRef: RefObject<HTMLButtonElement | null>;
+  label: string;
+  onPress: () => void;
+  focusRef: RefObject<HTMLButtonElement | null>;
 }) {
   // A native button, because React Aria's drops aria-keyshortcuts.
   return (
@@ -86,14 +86,14 @@ export function AppShell({
   shortcutsPaused = false,
   children,
 }: {
-  readonly rail: ReactNode;
-  readonly contextBar?: ReactNode;
-  readonly brand?: ReactNode;
-  readonly collapsed?: boolean;
-  readonly onCollapsedChange?: (collapsed: boolean) => void;
+  rail: ReactNode;
+  contextBar?: ReactNode;
+  brand?: ReactNode;
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
   // While a dialog is open the shortcut would act behind it.
-  readonly shortcutsPaused?: boolean;
-  readonly children: ReactNode;
+  shortcutsPaused?: boolean;
+  children: ReactNode;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   // A destination, or an action such as signing out, is the sheet's work

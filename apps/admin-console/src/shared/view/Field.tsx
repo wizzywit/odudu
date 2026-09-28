@@ -22,12 +22,12 @@ import { Button } from '#/shared/view/Button.tsx';
 import styles from '#/shared/view/Field.module.css';
 
 interface Chrome {
-  readonly label: string;
-  readonly description?: ReactNode;
+  label: string;
+  description?: ReactNode;
   // What the problem detail said about this field; shown under it.
-  readonly error?: string | undefined;
-  readonly changed?: boolean;
-  readonly isDisabled?: boolean;
+  error?: string | undefined;
+  changed?: boolean;
+  isDisabled?: boolean;
 }
 
 // A server-reported error is shown as given; the browser's own constraint
@@ -38,7 +38,7 @@ function invalid(error: string | undefined): { isInvalid: boolean } {
   return { isInvalid: error !== undefined };
 }
 
-function Header({ label, changed }: { readonly label: string; readonly changed?: boolean }) {
+function Header({ label, changed }: { label: string; changed?: boolean }) {
   return (
     <div className={styles.header}>
       <Label className={styles.label ?? ''}>{label}</Label>
@@ -51,11 +51,11 @@ function Changed() {
   return <span className={styles.changed}>Changed</span>;
 }
 
-function Message({ error }: { readonly error: string | undefined }) {
+function Message({ error }: { error: string | undefined }) {
   return <FieldError className={styles.error ?? ''}>{error}</FieldError>;
 }
 
-function Description({ children }: { readonly children: ReactNode }) {
+function Description({ children }: { children: ReactNode }) {
   if (children === undefined || children === null) return null;
   return (
     <Text slot="description" className={styles.description ?? ''}>
@@ -77,12 +77,12 @@ export function TextField({
   autoComplete = 'off',
   autoFocus = false,
 }: Chrome & {
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-  readonly type?: 'text' | 'url' | 'email';
-  readonly mono?: boolean;
-  readonly autoComplete?: string;
-  readonly autoFocus?: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  type?: 'text' | 'url' | 'email';
+  mono?: boolean;
+  autoComplete?: string;
+  autoFocus?: boolean;
 }) {
   return (
     <AriaTextField
@@ -119,11 +119,11 @@ export function NumberWithUnitField({
   minValue,
   maxValue,
 }: Chrome & {
-  readonly value: number;
-  readonly onChange: (value: number) => void;
-  readonly unit: string;
-  readonly minValue?: number;
-  readonly maxValue?: number;
+  value: number;
+  onChange: (value: number) => void;
+  unit: string;
+  minValue?: number;
+  maxValue?: number;
 }) {
   return (
     <AriaNumberField
@@ -172,8 +172,8 @@ export function SelectField({
   onChange,
 }: Chrome & {
   readonly options: readonly SelectOption[];
-  readonly value: string;
-  readonly onChange: (value: string) => void;
+  value: string;
+  onChange: (value: string) => void;
 }) {
   return (
     <Select
@@ -217,7 +217,7 @@ export function ToggleField({
   isDisabled,
   value,
   onChange,
-}: Chrome & { readonly value: boolean; readonly onChange: (value: boolean) => void }) {
+}: Chrome & { value: boolean; onChange: (value: boolean) => void }) {
   return (
     <SwitchField
       {...VALIDATION}
@@ -318,10 +318,10 @@ function ListGroup({
   isDisabled,
   rootRef,
 }: Chrome & {
-  readonly children: ReactNode;
-  readonly addLabel: string;
-  readonly onAdd: () => void;
-  readonly rootRef: RefObject<HTMLDivElement | null>;
+  children: ReactNode;
+  addLabel: string;
+  onAdd: () => void;
+  rootRef: RefObject<HTMLDivElement | null>;
 }) {
   const legend = useId();
   const descriptionId = useId();
@@ -373,12 +373,12 @@ function RowInput({
   isDisabled,
   type = 'text',
 }: {
-  readonly label: string;
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-  readonly error: string | undefined;
-  readonly isDisabled: boolean;
-  readonly type?: 'text' | 'url';
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  error: string | undefined;
+  isDisabled: boolean;
+  type?: 'text' | 'url';
 }) {
   return (
     <AriaTextField
@@ -416,10 +416,10 @@ export function UrlListField({
   value,
   onChange,
 }: Chrome & {
-  readonly itemLabel: string;
+  itemLabel: string;
   readonly itemErrors?: readonly (string | undefined)[];
   readonly value: readonly string[];
-  readonly onChange: (value: readonly string[]) => void;
+  onChange: (value: readonly string[]) => void;
 }) {
   const focus = useRowFocus(value.length);
   const rows = useRowIds(value.length);
@@ -489,10 +489,10 @@ export function KeyValueField({
   value,
   onChange,
 }: Chrome & {
-  readonly keyLabel: string;
-  readonly valueLabel: string;
+  keyLabel: string;
+  valueLabel: string;
   readonly value: readonly KeyValuePair[];
-  readonly onChange: (value: readonly KeyValuePair[]) => void;
+  onChange: (value: readonly KeyValuePair[]) => void;
 }) {
   const focus = useRowFocus(value.length);
   const rows = useRowIds(value.length);

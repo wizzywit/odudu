@@ -9,8 +9,8 @@ export function StatusTag({
   tone = 'neutral',
   children,
 }: {
-  readonly tone?: StatusTone;
-  readonly children: ReactNode;
+  tone?: StatusTone;
+  children: ReactNode;
 }) {
   return (
     <span className={styles.tag} data-tone={tone}>

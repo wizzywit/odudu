@@ -16,10 +16,10 @@ export function SignIn({
   onSignIn,
   check,
 }: {
-  readonly remembered: string | null;
-  readonly enters?: boolean;
-  readonly onSignIn: (tenant: string) => void;
-  readonly check: (tenant: string) => string | undefined;
+  remembered: string | null;
+  enters?: boolean;
+  onSignIn: (tenant: string) => void;
+  check: (tenant: string) => string | undefined;
 }) {
   const [asking, setAsking] = useState(remembered === null);
   const [tenant, setTenant] = useState('');

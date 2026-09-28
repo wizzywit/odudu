@@ -5,11 +5,11 @@ import { Section } from '#/shared/view/Section.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 function General(props: {
-  readonly dirty: boolean;
-  readonly saving?: boolean;
-  readonly onSave?: () => void;
-  readonly onDiscard?: () => void;
-  readonly restored?: boolean;
+  dirty: boolean;
+  saving?: boolean;
+  onSave?: () => void;
+  onDiscard?: () => void;
+  restored?: boolean;
 }) {
   return (
     <Section

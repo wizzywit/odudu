@@ -17,9 +17,9 @@ export function Providers({
   queryClient: givenClient,
   children,
 }: {
-  readonly transport?: Transport;
-  readonly queryClient?: QueryClient;
-  readonly children: ReactNode;
+  transport?: Transport;
+  queryClient?: QueryClient;
+  children: ReactNode;
 }) {
   const [transport] = useState(() => given ?? createBrowserTransport());
   const [queryClient] = useState(() => givenClient ?? createQueryClient());

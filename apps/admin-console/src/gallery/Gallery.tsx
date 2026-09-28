@@ -79,15 +79,7 @@ const TOASTS: readonly Toast[] = [
   { id: 'failed', tone: 'error', message: 'The gateway could not be reached. Nothing was saved.' },
 ];
 
-function Group({
-  id,
-  title,
-  children,
-}: {
-  readonly id: string;
-  readonly title: string;
-  readonly children: ReactNode;
-}) {
+function Group({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
     <section id={id} aria-labelledby={`${id}-title`} className={styles.group}>
       <h2 id={`${id}-title`} className={styles.groupTitle}>
@@ -98,7 +90,7 @@ function Group({
   );
 }
 
-function Specimen({ label, children }: { readonly label: string; readonly children: ReactNode }) {
+function Specimen({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className={styles.specimen}>
       <p className={styles.specimenLabel}>{label}</p>
@@ -253,7 +245,7 @@ function Lists() {
   );
 }
 
-function Dialogs({ initial }: { readonly initial: GalleryDialog | null }) {
+function Dialogs({ initial }: { initial: GalleryDialog | null }) {
   const [open, setOpen] = useState<GalleryDialog | null>(initial);
   const close = (): void => {
     setOpen(null);
@@ -331,8 +323,8 @@ function ThemeChoice({
   theme,
   onChange,
 }: {
-  readonly theme: GalleryTheme;
-  readonly onChange: (theme: GalleryTheme) => void;
+  theme: GalleryTheme;
+  onChange: (theme: GalleryTheme) => void;
 }) {
   return (
     <div className={styles.row} role="group" aria-label="Theme">
@@ -359,10 +351,10 @@ export function Gallery({
   theme = 'light',
   onThemeChange = () => undefined,
 }: {
-  readonly initialDialog?: GalleryDialog | null;
-  readonly initialCollapsed?: boolean;
-  readonly theme?: GalleryTheme;
-  readonly onThemeChange?: (theme: GalleryTheme) => void;
+  initialDialog?: GalleryDialog | null;
+  initialCollapsed?: boolean;
+  theme?: GalleryTheme;
+  onThemeChange?: (theme: GalleryTheme) => void;
 }) {
   const [toasts, setToasts] = useState(TOASTS);
   const [collapsed, setCollapsed] = useState(initialCollapsed);

@@ -5,18 +5,18 @@ import { TextField } from '#/shared/view/Field.tsx';
 import styles from '#/shared/view/ConfirmDialog.module.css';
 
 interface ConfirmProps {
-  readonly title: string;
-  readonly consequence: ReactNode;
-  readonly confirmLabel: string;
-  readonly tone?: 'primary' | 'danger';
+  title: string;
+  consequence: ReactNode;
+  confirmLabel: string;
+  tone?: 'primary' | 'danger';
   // When set, confirm stays disabled until exactly this text is typed.
-  readonly typed?: string;
-  readonly busy?: boolean;
-  readonly onConfirm: () => void;
-  readonly onCancel: () => void;
+  typed?: string;
+  busy?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
 }
 
-export function ConfirmDialog({ isOpen, ...props }: ConfirmProps & { readonly isOpen: boolean }) {
+export function ConfirmDialog({ isOpen, ...props }: ConfirmProps & { isOpen: boolean }) {
   return isOpen ? <OpenConfirm {...props} /> : null;
 }
 

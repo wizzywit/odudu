@@ -11,9 +11,9 @@ export function App({
   transport,
   queryClient,
 }: {
-  readonly router: ConsoleRouter;
-  readonly transport?: Transport;
-  readonly queryClient?: QueryClient;
+  router: ConsoleRouter;
+  transport?: Transport;
+  queryClient?: QueryClient;
 }) {
   return (
     <Providers

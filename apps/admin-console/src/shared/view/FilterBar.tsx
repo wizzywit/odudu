@@ -31,14 +31,14 @@ export function FilterBar({
   active = false,
   children,
 }: {
-  readonly label: string;
+  label: string;
   readonly fields: readonly SelectOption[];
-  readonly field: string;
-  readonly query: string;
-  readonly onSearch: (search: Search) => void;
-  readonly onClear?: () => void;
-  readonly active?: boolean;
-  readonly children?: ReactNode;
+  field: string;
+  query: string;
+  onSearch: (search: Search) => void;
+  onClear?: () => void;
+  active?: boolean;
+  children?: ReactNode;
 }) {
   const shortcut = useId();
   const [applied, setApplied] = useState<Search>({ field, query });

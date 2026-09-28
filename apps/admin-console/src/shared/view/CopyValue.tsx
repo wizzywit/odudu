@@ -13,9 +13,9 @@ export function CopyValue({
   value,
   short = false,
 }: {
-  readonly label: string;
-  readonly value: string;
-  readonly short?: boolean;
+  label: string;
+  value: string;
+  short?: boolean;
 }) {
   const [outcome, setOutcome] = useState<Outcome>('idle');
 

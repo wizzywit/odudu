@@ -47,7 +47,7 @@ it('drops the held departure on stay and keeps the work', async () => {
   expect(useUnsavedGuard.getState().unsaved()).toEqual(['General']);
 });
 
-function OtherDialog({ open, onClose }: { readonly open: boolean; readonly onClose: () => void }) {
+function OtherDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <ConfirmDialog
       isOpen={open}

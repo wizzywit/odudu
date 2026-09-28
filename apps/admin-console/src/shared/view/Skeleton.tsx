@@ -1,12 +1,6 @@
 import styles from '#/shared/view/Skeleton.module.css';
 
-export function Skeleton({
-  label,
-  lines = 3,
-}: {
-  readonly label: string;
-  readonly lines?: number;
-}) {
+export function Skeleton({ label, lines = 3 }: { label: string; lines?: number }) {
   return (
     <div role="status" className={styles.skeleton}>
       <span className={styles.label}>{label}</span>

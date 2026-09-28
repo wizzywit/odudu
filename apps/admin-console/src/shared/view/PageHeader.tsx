@@ -7,10 +7,10 @@ export function PageHeader({
   description,
   actions,
 }: {
-  readonly title: ReactNode;
-  readonly kicker?: ReactNode;
-  readonly description?: ReactNode;
-  readonly actions?: ReactNode;
+  title: ReactNode;
+  kicker?: ReactNode;
+  description?: ReactNode;
+  actions?: ReactNode;
 }) {
   return (
     <header className={styles.header}>

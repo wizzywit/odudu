@@ -14,13 +14,13 @@ export function DialogFrame({
   children,
   actions,
 }: {
-  readonly isOpen: boolean;
-  readonly role?: 'dialog' | 'alertdialog';
-  readonly title: string;
-  readonly description: ReactNode;
-  readonly onEscape?: () => void;
-  readonly children?: ReactNode;
-  readonly actions: ReactNode;
+  isOpen: boolean;
+  role?: 'dialog' | 'alertdialog';
+  title: string;
+  description: ReactNode;
+  onEscape?: () => void;
+  children?: ReactNode;
+  actions: ReactNode;
 }) {
   const describedBy = useId();
   const reportOpen = useContext(DialogPresence);

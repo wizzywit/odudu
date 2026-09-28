@@ -8,9 +8,9 @@ export function Count({
   capped,
   noun,
 }: {
-  readonly count: number;
-  readonly capped: boolean;
-  readonly noun: { readonly one: string; readonly other: string };
+  count: number;
+  capped: boolean;
+  noun: { readonly one: string; readonly other: string };
 }) {
   const figure = `${NUMBER.format(count)}${capped ? '+' : ''}`;
   const word = count === 1 && !capped ? noun.one : noun.other;

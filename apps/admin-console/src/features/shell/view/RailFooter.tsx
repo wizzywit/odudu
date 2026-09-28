@@ -12,13 +12,13 @@ export function RailFooter({
   onChooseTheme,
   onSignOut,
 }: {
-  readonly username: string;
-  readonly signedInTo: string;
-  readonly tenant: string;
-  readonly switchHref: string;
-  readonly theme: ThemeChoice;
-  readonly onChooseTheme: (choice: ThemeChoice) => void;
-  readonly onSignOut: () => void;
+  username: string;
+  signedInTo: string;
+  tenant: string;
+  switchHref: string;
+  theme: ThemeChoice;
+  onChooseTheme: (choice: ThemeChoice) => void;
+  onSignOut: () => void;
 }) {
   return (
     <div className={styles.footer}>

@@ -7,10 +7,7 @@ import styles from '#/shared/view/SecretDialog.module.css';
 
 // The secret is shown once, in one text node, and nowhere else: not in an
 // attribute, a title, a toast, the URL or a log line.
-export function SecretDialog({
-  secret,
-  ...props
-}: SecretProps & { readonly secret: string | null }) {
+export function SecretDialog({ secret, ...props }: SecretProps & { secret: string | null }) {
   // Each new secret remounts the dialog, so its acknowledgement starts
   // unticked; a counter keys it, since a key is kept in React's tree.
   const [shown, setShown] = useState({ secret, generation: 0 });
@@ -20,20 +17,14 @@ export function SecretDialog({
 }
 
 interface SecretProps {
-  readonly title: string;
+  title: string;
   // Names the secret in running text: "client secret", "one-time password".
-  readonly label: string;
-  readonly children?: ReactNode;
-  readonly onClose: () => void;
+  label: string;
+  children?: ReactNode;
+  onClose: () => void;
 }
 
-function OpenSecret({
-  secret,
-  title,
-  label,
-  children,
-  onClose,
-}: SecretProps & { readonly secret: string }) {
+function OpenSecret({ secret, title, label, children, onClose }: SecretProps & { secret: string }) {
   const [stored, setStored] = useState(false);
   return (
     <DialogFrame

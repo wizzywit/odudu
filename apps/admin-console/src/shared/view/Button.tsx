@@ -4,8 +4,8 @@ import styles from '#/shared/view/Button.module.css';
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger';
 
 export interface ButtonProps extends Omit<AriaButtonProps, 'className' | 'style'> {
-  readonly variant?: ButtonVariant;
-  readonly size?: 'regular' | 'small';
+  variant?: ButtonVariant;
+  size?: 'regular' | 'small';
 }
 
 export function Button({ variant = 'secondary', size = 'regular', ...props }: ButtonProps) {

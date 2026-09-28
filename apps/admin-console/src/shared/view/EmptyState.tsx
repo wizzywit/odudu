@@ -15,10 +15,10 @@ export function EmptyState({
   children,
   action,
 }: {
-  readonly variant: EmptyVariant;
-  readonly title: string;
-  readonly children?: ReactNode;
-  readonly action?: ReactNode;
+  variant: EmptyVariant;
+  title: string;
+  children?: ReactNode;
+  action?: ReactNode;
 }) {
   const heading = useId();
   return (

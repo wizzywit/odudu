@@ -551,6 +551,9 @@ A `#/` import names its file's extension (`#/app/App.tsx`), because under
 `package.json` `imports` target, and one `"#/*": "./src/*"` must reach both
 `.ts` and `.tsx`.
 
+Component props are plain properties, not `readonly`; an array prop is typed
+`readonly T[]`.
+
 A stateful usecase is a hook — `useAmendClientIdentity` returning
 `{ save, status, fieldErrors }` — and a stateless one a function; both live
 in `usecase`.

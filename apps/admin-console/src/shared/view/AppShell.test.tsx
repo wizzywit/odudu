@@ -93,8 +93,8 @@ function Collapsible({
   initially = false,
   paused = false,
 }: {
-  readonly initially?: boolean;
-  readonly paused?: boolean;
+  initially?: boolean;
+  paused?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(initially);
   return (

@@ -1,6 +1,6 @@
 import styles from '#/shared/view/ContextBar.module.css';
 
-export function ContextBar({ tenant }: { readonly tenant: string }) {
+export function ContextBar({ tenant }: { tenant: string }) {
   return (
     <div role="region" aria-label="System authority" className={styles.bar}>
       <span className={styles.label} aria-hidden="true">

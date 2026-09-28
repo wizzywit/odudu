@@ -6,13 +6,7 @@ import { Button } from '#/shared/view/Button.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
-function Harness({
-  typed,
-  onConfirm = vi.fn(),
-}: {
-  readonly typed?: string;
-  readonly onConfirm?: () => void;
-}) {
+function Harness({ typed, onConfirm = vi.fn() }: { typed?: string; onConfirm?: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <>

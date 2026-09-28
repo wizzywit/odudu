@@ -22,10 +22,10 @@ export function Tabs({
   selectedKey,
   onSelectionChange,
 }: {
-  readonly label: string;
+  label: string;
   readonly tabs: readonly TabItem[];
-  readonly selectedKey?: string;
-  readonly onSelectionChange?: (id: string) => void;
+  selectedKey?: string;
+  onSelectionChange?: (id: string) => void;
 }) {
   const report = (key: Key): void => {
     onSelectionChange?.(String(key));

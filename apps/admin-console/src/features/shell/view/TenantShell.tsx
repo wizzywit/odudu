@@ -19,9 +19,9 @@ function SignedInShell({
   principal,
   children,
 }: {
-  readonly tenant: string;
-  readonly principal: Principal;
-  readonly children: ReactNode;
+  tenant: string;
+  principal: Principal;
+  children: ReactNode;
 }) {
   const shell = useShell(tenant, principal);
   return (
@@ -56,7 +56,7 @@ function SignedInShell({
   );
 }
 
-function Access({ tenant, children }: { readonly tenant: string; readonly children: ReactNode }) {
+function Access({ tenant, children }: { tenant: string; children: ReactNode }) {
   const access = useTenantAccess(tenant);
   if (access.kind === 'signing-in') return <SigningIn tenant={tenant} ended={access.ended} />;
   if (access.kind === 'elsewhere') {
@@ -71,13 +71,7 @@ function Access({ tenant, children }: { readonly tenant: string; readonly childr
   );
 }
 
-export function TenantShell({
-  tenant,
-  children,
-}: {
-  readonly tenant: string;
-  readonly children: ReactNode;
-}) {
+export function TenantShell({ tenant, children }: { tenant: string; children: ReactNode }) {
   if (!isTenantName(tenant)) {
     return (
       <main id="main" tabIndex={-1} className={styles.lost}>

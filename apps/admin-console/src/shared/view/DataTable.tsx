@@ -31,12 +31,12 @@ export function DataTable<T>({
   onRowAction,
   empty,
 }: {
-  readonly label: string;
+  label: string;
   readonly columns: readonly Column<T>[];
   readonly rows: readonly T[];
-  readonly rowKey: (row: T) => string;
-  readonly onRowAction?: (id: string) => void;
-  readonly empty?: ReactNode;
+  rowKey: (row: T) => string;
+  onRowAction?: (id: string) => void;
+  empty?: ReactNode;
 }) {
   return (
     <div className={styles.frame}>

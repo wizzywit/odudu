@@ -12,13 +12,7 @@ export interface RailGroup {
   readonly items: readonly RailItem[];
 }
 
-function Group({
-  group,
-  currentHref,
-}: {
-  readonly group: RailGroup;
-  readonly currentHref?: string;
-}) {
+function Group({ group, currentHref }: { group: RailGroup; currentHref?: string }) {
   const id = useId();
   const named = group.heading !== undefined;
   return (
@@ -52,11 +46,11 @@ export function Rail({
   header,
   footer,
 }: {
-  readonly label: string;
+  label: string;
   readonly groups: readonly RailGroup[];
-  readonly currentHref?: string;
-  readonly header?: ReactNode;
-  readonly footer?: ReactNode;
+  currentHref?: string;
+  header?: ReactNode;
+  footer?: ReactNode;
 }) {
   return (
     <nav aria-label={label} className={styles.rail}>

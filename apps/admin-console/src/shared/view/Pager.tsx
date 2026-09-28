@@ -11,12 +11,12 @@ export function Pager({
   onLoadMore,
   loadingMore = false,
 }: {
-  readonly label: string;
-  readonly trail: CursorTrail;
-  readonly next: string | null;
-  readonly onTrailChange: (trail: CursorTrail) => void;
-  readonly onLoadMore?: () => void;
-  readonly loadingMore?: boolean;
+  label: string;
+  trail: CursorTrail;
+  next: string | null;
+  onTrailChange: (trail: CursorTrail) => void;
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
 }) {
   const noun = label.toLowerCase();
   const limitReason = useId();

@@ -18,9 +18,9 @@ function General({
   etag = '"e1"',
   onSave = vi.fn(),
 }: {
-  readonly tenant?: string;
-  readonly etag?: string;
-  readonly onSave?: (ifMatch: string | null) => void;
+  tenant?: string;
+  etag?: string;
+  onSave?: (ifMatch: string | null) => void;
 }) {
   const [edits, setEdits] = useState<Partial<typeof BASE>>({});
   const dirty = Object.keys(edits).length > 0;

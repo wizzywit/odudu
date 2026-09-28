@@ -1,12 +1,6 @@
 import { SessionStatus } from '#/features/session/view/SessionStatus.tsx';
 
-export function SigningIn({
-  tenant,
-  ended,
-}: {
-  readonly tenant: string | null;
-  readonly ended: boolean;
-}) {
+export function SigningIn({ tenant, ended }: { tenant: string | null; ended: boolean }) {
   return (
     <SessionStatus title={ended ? 'Your session ended' : 'Signing in'}>
       <p role="status">

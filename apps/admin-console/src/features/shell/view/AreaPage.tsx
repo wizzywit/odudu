@@ -6,7 +6,7 @@ import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import { Skeleton } from '#/shared/view/Skeleton.tsx';
 
 // Each area's page until its own feature takes the route.
-export function AreaPage({ tenant, area }: { readonly tenant: string; readonly area: Area }) {
+export function AreaPage({ tenant, area }: { tenant: string; area: Area }) {
   const access = useArea(tenant, area);
   if (access.kind === 'hidden') return <PageNotFound />;
   return (

@@ -30,9 +30,9 @@ function ToastItem({
   onDismiss,
   onFocusLost,
 }: {
-  readonly toast: Toast;
-  readonly onDismiss: (id: string) => void;
-  readonly onFocusLost: (id: string) => void;
+  toast: Toast;
+  onDismiss: (id: string) => void;
+  onFocusLost: (id: string) => void;
 }) {
   const item = useRef<HTMLLIElement>(null);
   const lost = useRef(onFocusLost);
@@ -105,7 +105,7 @@ export function Toasts({
   onDismiss,
 }: {
   readonly toasts: readonly Toast[];
-  readonly onDismiss: (id: string) => void;
+  onDismiss: (id: string) => void;
 }) {
   const region = useRef<HTMLElement>(null);
   const shown = useRef<readonly string[]>([]);

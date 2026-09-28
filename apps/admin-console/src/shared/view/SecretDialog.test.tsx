@@ -12,7 +12,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function Harness({ onClose = vi.fn() }: { readonly onClose?: () => void }) {
+function Harness({ onClose = vi.fn() }: { onClose?: () => void }) {
   const [secret, setSecret] = useState<string | null>(null);
   return (
     <>

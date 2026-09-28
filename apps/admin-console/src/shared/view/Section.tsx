@@ -15,15 +15,15 @@ export function Section({
   restored = false,
   children,
 }: {
-  readonly title: string;
-  readonly description?: ReactNode;
-  readonly dirty: boolean;
-  readonly saving: boolean;
-  readonly onSave: () => void;
-  readonly onDiscard: () => void;
+  title: string;
+  description?: ReactNode;
+  dirty: boolean;
+  saving: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
   // Edits kept across a sign-in and put back, which nobody has looked at yet.
-  readonly restored?: boolean;
-  readonly children: ReactNode;
+  restored?: boolean;
+  children: ReactNode;
 }) {
   const heading = useId();
   // Holds between a submit and the render that shows it saving, which a

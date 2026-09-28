@@ -12,8 +12,8 @@ export function ThemeControl({
   choice,
   onChoose,
 }: {
-  readonly choice: ThemeChoice;
-  readonly onChoose: (choice: ThemeChoice) => void;
+  choice: ThemeChoice;
+  onChoose: (choice: ThemeChoice) => void;
 }) {
   return (
     <RadioGroup

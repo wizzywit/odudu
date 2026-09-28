@@ -6,7 +6,7 @@ import { Button } from '#/shared/view/Button.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { Skeleton } from '#/shared/view/Skeleton.tsx';
 
-export function SessionGate({ children }: { readonly children: ReactNode }) {
+export function SessionGate({ children }: { children: ReactNode }) {
   const boot = useSession();
   if (boot.kind === 'loading') {
     return (

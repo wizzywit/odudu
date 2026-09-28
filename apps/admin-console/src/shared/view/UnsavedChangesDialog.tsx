@@ -9,10 +9,10 @@ export function UnsavedChangesDialog({
   onStay,
   onLeave,
 }: {
-  readonly isOpen: boolean;
+  isOpen: boolean;
   readonly sections: readonly string[];
-  readonly onStay: () => void;
-  readonly onLeave: () => void;
+  onStay: () => void;
+  onLeave: () => void;
 }) {
   return (
     <DialogFrame

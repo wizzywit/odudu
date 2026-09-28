@@ -11,9 +11,9 @@ export function SignedInElsewhere({
   tenant,
   onSignIn,
 }: {
-  readonly principal: Principal;
-  readonly tenant: string;
-  readonly onSignIn: () => void;
+  principal: Principal;
+  tenant: string;
+  onSignIn: () => void;
 }) {
   return (
     <SessionStatus title={`Signed in to ${principal.tenant}`}>

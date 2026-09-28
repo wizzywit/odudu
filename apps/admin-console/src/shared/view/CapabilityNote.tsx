@@ -5,8 +5,8 @@ export function CapabilityNote({
   capability,
   children = 'This',
 }: {
-  readonly capability: string;
-  readonly children?: ReactNode;
+  capability: string;
+  children?: ReactNode;
 }) {
   return (
     <p role="note" className={styles.note}>

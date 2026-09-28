@@ -204,13 +204,7 @@ describe('ToggleField', () => {
   });
 });
 
-function Urls({
-  initial,
-  error,
-}: {
-  readonly initial: readonly string[];
-  readonly error?: string;
-}) {
+function Urls({ initial, error }: { readonly initial: readonly string[]; error?: string }) {
   const [urls, setUrls] = useState(initial);
   return (
     <UrlListField

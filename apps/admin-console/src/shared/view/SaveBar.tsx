@@ -7,9 +7,9 @@ export function SaveBar({
   saving,
   onDiscard,
 }: {
-  readonly section: string;
-  readonly saving: boolean;
-  readonly onDiscard: () => void;
+  section: string;
+  saving: boolean;
+  onDiscard: () => void;
 }) {
   const shortcut = useId();
   const verb = saving ? 'Saving…' : 'Save';
