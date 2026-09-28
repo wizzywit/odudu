@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { glob } from 'node:fs/promises';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // "No ceremony, no verbose block headers" is unfalsifiable as written: a
@@ -19,10 +20,10 @@ const MAX_BLOCK_WEIGHT = 8;
 const PRINT_WIDTH = 100;
 
 const SOURCE_TREES = [
-  'packages/*/src/**/*.ts',
-  'packages/*/tests/**/*.ts',
-  'apps/*/src/**/*.ts',
-  'apps/*/tests/**/*.ts',
+  'packages/*/src/**/*.{ts,tsx}',
+  'packages/*/tests/**/*.{ts,tsx}',
+  'apps/*/src/**/*.{ts,tsx}',
+  'apps/*/tests/**/*.{ts,tsx}',
   'tools/*/src/**/*.ts',
   'tests/**/*.ts',
   '*.ts',
@@ -100,6 +101,11 @@ describe('a comment block stays within the ceiling', { timeout: 60_000 }, () => 
     }
 
     expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+
+  it('reaches a component file', () => {
+    const file = 'apps/admin-console/src/app/App.tsx';
+    expect(SOURCE_TREES.some((pattern) => path.matchesGlob(file, pattern))).toBe(true);
   });
 });
 

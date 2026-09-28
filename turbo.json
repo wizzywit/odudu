@@ -57,6 +57,18 @@
       ],
       "outputs": ["trace-report.json"]
     },
+    "@odudu/console-gateway#test": {
+      "dependsOn": ["^typecheck"],
+      "inputs": [
+        "src/**",
+        "tests/**",
+        "drizzle/**",
+        "package.json",
+        "tsconfig.json",
+        "$TURBO_ROOT$/apps/admin-console/package.json"
+      ],
+      "outputs": ["trace-report.json"]
+    },
     "@odudu/repo-checks#test": {
       "cache": false
     }

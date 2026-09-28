@@ -9502,12 +9502,12 @@ session lifecycle. A citation of either half here means that half.
   `/introspect` and the admin API's own checks do record their refusals.
   The request log shows each such request's path and status, not its
   reason.
-- **The console's single-page app is not built.** The gateway under
-  `/console` signs an administrator in and forwards to the admin API
-  ([docs/console-paths.md](console-paths.md)), but the image ships no
-  console build, so `GET /console/` and every other shell path answer
-  `503` until `ODUDU_CONSOLE_DIR` names one. Planned: **P4d**, whose third
-  part, the console foundation, builds the SPA the gateway serves.
+- **The console's single-page app is a shell with no features.** The
+  image builds `apps/admin-console` into `/app/console`, and the gateway
+  under `/console` serves it ([docs/console-paths.md](console-paths.md)),
+  but the shell shows only its heading and a not-found page: nothing in it
+  reads or changes a tenant yet. Planned: **P4d**, whose fourth part adds
+  the console's features one at a time.
 
 **Endpoints that do not exist at all**
 

@@ -13,6 +13,10 @@ set -a
 source .env
 set +a
 
+# Its own project, so that tearing it down below never takes the
+# development stack's containers and volumes with it.
+export COMPOSE_PROJECT_NAME=odudu-smoke
+
 cleanup() { docker compose down -v --remove-orphans || true; }
 trap cleanup EXIT
 
@@ -153,5 +157,37 @@ TYP=$(b64url_decode "${ACCESS%%.*}" | sed -n 's/.*"typ":"\([^"]*\)".*/\1/p')
 test "$TYP" = "at+jwt" || { echo "smoke: access token typ was '$TYP', expected at+jwt" >&2; exit 1; }
 
 echo "smoke: full code+PKCE exchange completed against the container"
+
+# The image carries the console build, and the gateway serves it: the shell
+# with the exact policy the gateway sets, and a content-hashed asset the
+# shell names, cached as immutable. The policy is read from the gateway's
+# source, since this job runs with no node_modules to import it through.
+EXPECTED_CSP=$(awk '/^export const SHELL_CSP =/{f=1;next} f{print; if (/;$/) exit}' \
+  ../../packages/console-gateway/src/view/spa.ts \
+  | sed 's/^[^"]*"\(.*\)".*$/\1/' | tr -d '\n')
+test -n "$EXPECTED_CSP" || { echo "smoke: could not read SHELL_CSP from spa.ts" >&2; exit 1; }
+
+SHELL_HEADERS="$(mktemp)"
+SHELL_HTML=$(curl -sS -D "$SHELL_HEADERS" http://localhost:3000/console/)
+SHELL_STATUS=$(sed -n '1s/^HTTP\/[0-9.]* \([0-9]*\).*/\1/p' "$SHELL_HEADERS")
+SHELL_CSP=$({ grep -i '^content-security-policy:' "$SHELL_HEADERS" || true; } | sed 's/^[^:]*: //' | tr -d '\r\n')
+rm -f "$SHELL_HEADERS"
+test "$SHELL_STATUS" = "200" || { echo "smoke: GET /console/ answered $SHELL_STATUS, expected 200" >&2; exit 1; }
+test "$SHELL_CSP" = "$EXPECTED_CSP" || {
+  echo "smoke: the shell's CSP was '$SHELL_CSP', expected '$EXPECTED_CSP'" >&2
+  exit 1
+}
+
+ASSET=$(printf '%s' "$SHELL_HTML" | sed -n 's/.*src="\(\/console\/assets\/[^"]*\)".*/\1/p' | sed -n 1p)
+test -n "$ASSET" || { echo "smoke: the shell names no /console/assets/ script" >&2; exit 1; }
+ASSET_HEADERS=$(curl -sS -D - -o /dev/null "http://localhost:3000$ASSET")
+ASSET_STATUS=$(printf '%s' "$ASSET_HEADERS" | sed -n '1s/^HTTP\/[0-9.]* \([0-9]*\).*/\1/p')
+test "$ASSET_STATUS" = "200" || { echo "smoke: GET $ASSET answered $ASSET_STATUS, expected 200" >&2; exit 1; }
+printf '%s' "$ASSET_HEADERS" | grep -i '^cache-control:.*immutable' > /dev/null || {
+  echo "smoke: $ASSET is not cached as immutable" >&2
+  exit 1
+}
+
+echo "smoke: the console shell and $ASSET are served from the image"
 
 exit 0

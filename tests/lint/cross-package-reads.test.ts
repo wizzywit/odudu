@@ -38,6 +38,10 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
     file: 'packages/console-gateway/src/view/routes/auth.test.ts',
     targets: ['packages/console-gateway/tests/fixtures/**'],
   },
+  {
+    file: 'packages/console-gateway/src/view/react-aria-style.test.ts',
+    targets: ['apps/admin-console/package.json'],
+  },
 ];
 
 // A command-line entry no test imports: it reads relative to where it is run,
@@ -364,7 +368,7 @@ describe('a file whose reads this check cannot bound', () => {
       expect(escapesPackage(entrySource, relative)).toBe(true);
 
       const candidates: string[] = [];
-      for await (const file of glob('{packages,apps,tools}/*/{src,tests}/**/*.ts', {
+      for await (const file of glob('{packages,apps,tools}/*/{src,tests}/**/*.{ts,tsx}', {
         cwd: REPO_ROOT,
       })) {
         candidates.push(file);
@@ -384,7 +388,7 @@ describe('a file whose reads this check cannot bound', () => {
     const listed = new Set([...READS.map((entry) => entry.file), ...ENTRY_POINTS]);
     const offenders: string[] = [];
     let scanned = 0;
-    for await (const file of glob('{packages,apps,tools}/*/{src,tests}/**/*.ts', {
+    for await (const file of glob('{packages,apps,tools}/*/{src,tests}/**/*.{ts,tsx}', {
       cwd: REPO_ROOT,
     })) {
       scanned += 1;

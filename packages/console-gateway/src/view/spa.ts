@@ -6,10 +6,13 @@ import { extname, join, relative, sep } from 'node:path';
 // see docs/phases/p4d.md, "React Aria under a strict CSP". Set directly
 // rather than through `pageHeaders` (@odudu/kernel): that function's
 // policy describes a markup-only page, and this one licenses a
-// self-hosted script and a style hash instead.
-const SHELL_CSP =
+// self-hosted script and style hashes instead. The hashes are React Aria's
+// two injected styles, usePress's and usePreventScroll's iOS one, which
+// react-aria-style.test.ts recomputes from the pinned source.
+export const SHELL_CSP =
   "default-src 'self'; script-src 'self'; " +
-  "style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o='; " +
+  "style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o=' " +
+  "'sha256-gYiS/BvZvRcK27JIXTuwhZ3hs2+VJ1X+2gUlE+farlg='; " +
   "img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
   "frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 

@@ -10,7 +10,8 @@ import { spaRoutes } from '#/view/spa';
 const FIXTURE_DIR = join(import.meta.dirname, '..', '..', 'tests', 'fixtures', 'dist');
 const CSP =
   "default-src 'self'; script-src 'self'; " +
-  "style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o='; " +
+  "style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o=' " +
+  "'sha256-gYiS/BvZvRcK27JIXTuwhZ3hs2+VJ1X+2gUlE+farlg='; " +
   "img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
   "frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 

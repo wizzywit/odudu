@@ -16,6 +16,17 @@ describe('no-restricted-imports for relative paths', { timeout: 60_000 }, () => 
     expect(messages.length).toBeGreaterThan(0);
   });
 
+  it('rejects a relative import in a component file', async () => {
+    const eslint = new ESLint({ cwd: REPO_ROOT });
+    const results = await eslint.lintText("export { App } from './App.tsx';\n", {
+      filePath: 'apps/admin-console/src/app/router.tsx',
+    });
+    const [result] = results;
+    if (!result) throw new Error('expected a lint result');
+    const messages = result.messages.filter((m) => m.ruleId === 'no-restricted-imports');
+    expect(messages.length).toBeGreaterThan(0);
+  });
+
   const flagged = ['.', '..', './version.js', '../foo.js', '../../foo.js'];
   const allowed = ['zod', 'node:url', '@odudu/kernel', '#/version'];
 

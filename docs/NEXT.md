@@ -145,10 +145,11 @@ session's own tenant; otherwise that `401`, and every `403`, is passed back
 as it is.
 Every write carries
 `X-Odudu-Console: 1` and a same-origin `Origin`, or it is refused `403`.
-The shell's CSP allows React Aria's pressable style by its hash, and Part 3
-owes the test that recomputes that hash from the pinned React Aria when it
-adds the dependency ([p4d.md](phases/p4d.md), "React Aria under a strict
-CSP"), with the iOS element's hash beside it.
+The shell's CSP allows React Aria's two injected styles, `usePress`'s and
+`usePreventScroll`'s iOS one, by hash, and
+`packages/console-gateway/src/view/react-aria-style.test.ts` recomputes
+both from the React Aria the console is built with ([p4d.md](phases/p4d.md),
+"React Aria under a strict CSP").
 
 **Two recovery-code gaps that need self-service.** A subject cannot
 ask for a fresh set before running out, and nothing warns as the list gets

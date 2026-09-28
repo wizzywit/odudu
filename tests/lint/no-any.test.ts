@@ -59,36 +59,48 @@ describe('the any ban is enforced by lint', { timeout: 60_000 }, () => {
   });
 });
 
+const SOURCE_TREES = [
+  'packages/*/src/**/*.{ts,tsx}',
+  'packages/*/tests/**/*.{ts,tsx}',
+  'apps/*/src/**/*.{ts,tsx}',
+  'apps/*/tests/**/*.{ts,tsx}',
+  'tools/*/src/**/*.ts',
+  'tests/**/*.ts',
+];
+
+function waivers(file: string, source: string): string[] {
+  const offenders: string[] = [];
+  for (const line of source.split('\n')) {
+    if (!line.includes('eslint-disable')) continue;
+    for (const rule of ANY_RULES) {
+      if (line.includes(rule)) offenders.push(`${file}: ${line.trim()}`);
+    }
+  }
+  // A bare `eslint-disable` with no rule list switches off every rule in
+  // the file, including these, without ever naming them.
+  if (/eslint-disable(-next-line|-line)?\s*(\*\/|$)/m.test(source)) {
+    offenders.push(`${file}: blanket eslint-disable`);
+  }
+  return offenders;
+}
+
 describe('the any ban cannot be waived by an inline comment', () => {
   it('no source file disables an any-family rule', async () => {
-    const patterns = [
-      'packages/*/src/**/*.ts',
-      'packages/*/tests/**/*.ts',
-      'apps/*/src/**/*.ts',
-      'apps/*/tests/**/*.ts',
-      'tools/*/src/**/*.ts',
-      'tests/**/*.ts',
-    ];
-
     const offenders: string[] = [];
-
-    for (const pattern of patterns) {
+    for (const pattern of SOURCE_TREES) {
       for await (const file of glob(pattern)) {
-        const source = await readFile(file, 'utf8');
-        for (const line of source.split('\n')) {
-          if (!line.includes('eslint-disable')) continue;
-          for (const rule of ANY_RULES) {
-            if (line.includes(rule)) offenders.push(`${file}: ${line.trim()}`);
-          }
-        }
-        // A bare `eslint-disable` with no rule list switches off every rule in
-        // the file, including these, without ever naming them.
-        if (/eslint-disable(-next-line|-line)?\s*(\*\/|$)/m.test(source)) {
-          offenders.push(`${file}: blanket eslint-disable`);
-        }
+        offenders.push(...waivers(file, await readFile(file, 'utf8')));
       }
     }
-
     expect(offenders).toEqual([]);
+  });
+
+  it('reaches a component file and catches a waiver in one', () => {
+    const file = 'apps/admin-console/src/app/App.tsx';
+    expect(SOURCE_TREES.some((pattern) => path.matchesGlob(file, pattern))).toBe(true);
+    const source =
+      '// eslint-disable-next-line @typescript-eslint/no-explicit-any\n' +
+      'export const App = (props: any) => <p>{props}</p>;\n';
+    expect(waivers(file, source)).toHaveLength(1);
   });
 });
