@@ -597,6 +597,12 @@ After sign-in the tenant comes from the token. A first-time administrator
 passes through the forced password change on the way back, because that is
 Odudu's own login flow.
 
+A sign-in the tenant refuses or the administrator cancels comes back as
+`/console/?login_error=<code>`, and the console says why in words: above the
+tenant question when nobody is signed in, or, when a switch left the old
+session standing, in a toast on the way back to that session's tenant. The
+parameter leaves the address once it has been read.
+
 ### 7.2 Information architecture
 
 The tenant rail groups areas by task: **Overview**; **Identity** — Subjects,

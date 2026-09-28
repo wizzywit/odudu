@@ -181,6 +181,46 @@ describe('booting from the session', () => {
   });
 });
 
+describe('a sign-in that came back refused', () => {
+  it('says so on the question page when nobody is signed in, and clears it from the URL', async () => {
+    const { router, leavePage } = renderAt('/console/?login_error=access_denied', {
+      'GET /console/api/session': SESSION_ENDED,
+    });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Sign-in was cancelled.');
+    expect(screen.getByRole('textbox', { name: 'Which tenant do you administer?' })).toBeVisible();
+    await waitFor(() => {
+      expect(router.state.location.publicHref).toBe('/console/');
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent('Sign-in was cancelled.');
+    expect(leavePage).not.toHaveBeenCalled();
+    expect(await violations()).toEqual([]);
+  });
+
+  it('answers a code it does not know with a general message', async () => {
+    renderAt('/console/?login_error=made_up', { 'GET /console/api/session': SESSION_ENDED });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Sign-in did not complete. Try again.',
+    );
+  });
+
+  it('lands a failed tenant switch back on the tenant signed in to, saying it did not complete', async () => {
+    const { router, leavePage } = renderAt('/console/?login_error=access_denied', {
+      'GET /console/api/session': json(GRACE),
+      'GET /console/api/admin/tenants/acme/whoami': whoami(ALL),
+    });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
+    expect(router.state.location.publicHref).toBe('/console/acme');
+    expect(useToasts.getState().toasts).toEqual([
+      expect.objectContaining({
+        tone: 'error',
+        message:
+          "The switch to another tenant did not complete: Sign-in was cancelled. You're still signed in to acme.",
+      }),
+    ]);
+    expect(leavePage).not.toHaveBeenCalled();
+  });
+});
+
 describe('another tenant while signed in', () => {
   it.each(['/console/globex/clients', '/console/?tenant=globex'])(
     'asks a tenant administrator at %s before signing in elsewhere',

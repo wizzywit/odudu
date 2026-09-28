@@ -1144,7 +1144,9 @@ tokens server-side and gives the browser nothing but a session cookie:
   the sign-in, and the old row idles out. Every refusal is the same `400`
   page.
   An error response from the authorization endpoint instead redirects
-  `302` to `/console/?login_error=<code>`, carrying only the error code.
+  `302` to `/console/?login_error=<code>`, carrying only the error code,
+  which the console puts into words: above its tenant question, or in a
+  toast back at the tenant still signed in to when a switch was refused.
 - `GET /console/api/session` answers `{ tenant, subject_id, username }`. An
   ended session answers `401` with the problem type
   `about:blank#console-session-ended` and clears the cookie.

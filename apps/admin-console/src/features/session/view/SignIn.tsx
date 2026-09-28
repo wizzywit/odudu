@@ -12,11 +12,13 @@ function submitLabel(enters: boolean, tenant: string): string {
 // asking across tenants would say which tenants a name belongs to.
 export function SignIn({
   remembered,
+  notice = null,
   enters = false,
   onSignIn,
   check,
 }: {
   remembered: string | null;
+  notice?: string | null;
   enters?: boolean;
   onSignIn: (tenant: string) => void;
   check: (tenant: string) => string | undefined;
@@ -36,6 +38,11 @@ export function SignIn({
       <div className={styles.panel}>
         <p className={styles.brand}>Odudu console</p>
         <h1 className={styles.title}>Sign in</h1>
+        {notice === null ? null : (
+          <p role="alert" className={styles.notice}>
+            {notice}
+          </p>
+        )}
         {remembered !== null && !asking ? (
           <div className={styles.remembered}>
             <p>

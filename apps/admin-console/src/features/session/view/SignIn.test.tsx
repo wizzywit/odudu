@@ -40,11 +40,28 @@ it('lets a system administrator enter a tenant rather than sign in to it', async
   expect(screen.getByRole('button', { name: 'Enter acme' })).toBeVisible();
 });
 
-it('passes axe in both themes, asking and remembering', async () => {
-  for (const remembered of [null, 'acme']) {
+it('says why the last sign-in came back, above the question and apart from its field', () => {
+  render(
+    <SignIn
+      remembered={null}
+      notice="Sign-in was cancelled."
+      onSignIn={() => undefined}
+      check={check}
+    />,
+  );
+  expect(screen.getByRole('alert')).toHaveTextContent('Sign-in was cancelled.');
+  expect(screen.getByRole('textbox')).not.toHaveAccessibleDescription(/cancelled/u);
+});
+
+it('passes axe in both themes, asking, remembering, and with a notice', async () => {
+  for (const [remembered, notice] of [
+    [null, null],
+    ['acme', null],
+    [null, 'Sign-in was cancelled.'],
+  ] as const) {
     expect(
       await axeInBothThemes(() => (
-        <SignIn remembered={remembered} onSignIn={() => undefined} check={check} />
+        <SignIn remembered={remembered} notice={notice} onSignIn={() => undefined} check={check} />
       )),
     ).toEqual({ light: [], dark: [] });
   }

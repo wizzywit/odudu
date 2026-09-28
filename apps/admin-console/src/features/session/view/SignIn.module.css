@@ -31,6 +31,15 @@
   line-height: 1.2;
 }
 
+.notice {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--signal-danger-ink);
+  border-radius: var(--radius-s);
+  background: var(--signal-danger);
+  color: var(--signal-danger-ink);
+  font-weight: 500;
+}
+
 .remembered,
 .form {
   display: grid;
