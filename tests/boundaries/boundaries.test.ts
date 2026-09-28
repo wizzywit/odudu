@@ -96,7 +96,9 @@ describe('boundary rules', { timeout: 60_000 }, () => {
   it('rejects apps/server production code importing its test harness', async () => {
     const found = await violations('no-server-to-testing');
     expect(found.some((v) => v.from.endsWith('apps/server/src/leak.ts'))).toBe(true);
-    expect(found.some((v) => v.from.endsWith('apps/server/src/uses-harness.test.ts'))).toBe(false);
+    expect(found.some((v) => v.from.endsWith('apps/server/src/testing/uses-harness.ts'))).toBe(
+      false,
+    );
   });
 
   it('permits the admin API to import a protocol package', async () => {
