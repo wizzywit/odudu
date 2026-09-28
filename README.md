@@ -1031,6 +1031,8 @@ tokens server-side and gives the browser nothing but a session cookie:
 - `GET /console/auth/callback` checks `state` against the login cookie and
   the RFC 9207 `iss`, exchanges the code, verifies the ID token and its
   nonce, and sets the session cookie. Every refusal is the same `400` page.
+  An error response from the authorization endpoint instead redirects
+  `302` to `/console/?login_error=<code>`, carrying only the error code.
 - `GET /console/api/session` answers `{ tenant, subject_id, username }`. An
   ended session answers `401` with the problem type
   `about:blank#console-session-ended` and clears the cookie.
@@ -1040,10 +1042,13 @@ SameSite=Strict; Path=/`), or `odudu-console` without `Secure` over plain
 HTTP. Its value is `<tenant id>.<secret>`, and only the secret's SHA-256 is
 stored. A session ends after 30 minutes idle or 12 hours in all. A request
 carrying that cookie twice is treated as carrying none. Any request to
-`/console/api/` other than `GET`, `HEAD` or `OPTIONS` must carry
-`Origin` equal to the origin of `ODUDU_PUBLIC_BASE_URL` and the header
-`X-Odudu-Console: 1`, or it is refused `403` before anything else runs.
-A transcript of each request follows with the gateway's own documentation.
+`/console/api/` or `/console/auth/` other than `GET`, `HEAD` or `OPTIONS`
+must carry `Origin` equal to the origin of `ODUDU_PUBLIC_BASE_URL` and the
+header `X-Odudu-Console: 1`, or it is refused `403` before anything else
+runs.
+A transcript of each request, executed against a running stack, arrives
+with the gateway's documentation as docs/console-paths.md, beside
+[docs/admin-paths.md](docs/admin-paths.md).
 
 **One pass deletes everything that expires.** Every login writes an
 `authentication_sessions` row, every redemption an `authorization_codes`
