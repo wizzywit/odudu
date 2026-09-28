@@ -1459,7 +1459,6 @@ Every row says where it stands, and every row has a phase:
 
 |                                                                                                      | Where it stands |
 | ---------------------------------------------------------------------------------------------------- | --------------- |
-| A consent screen — `consent_required` is recorded per client, nothing reads it yet                   | P3a             |
 | Self-service for an End-User: a "me" API and application-initiated actions for credential ceremonies | P4f             |
 | An admin **console** — a shell that signs in, but no feature reads or changes a tenant yet           | P4d             |
 | Published images and a release process                                                               | P12             |
