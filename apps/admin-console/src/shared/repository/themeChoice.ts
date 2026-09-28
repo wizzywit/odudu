@@ -1,4 +1,6 @@
-export type ThemeChoice = 'light' | 'dark' | 'system';
+import type { ThemeChoice } from '#/shared/service/theme.ts';
+
+export type { ThemeChoice };
 
 const KEY = 'odudu.console.theme';
 
