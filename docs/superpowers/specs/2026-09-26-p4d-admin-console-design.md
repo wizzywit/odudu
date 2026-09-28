@@ -705,11 +705,13 @@ A tenant cannot be deleted: the API has no such route. It can be disabled.
 - A `403` says which capability is missing and re-reads `whoami`.
 - An action against yourself — ending your own session, removing your own
   admin role, disabling your own subject — says so in its dialog. The
-  server's lockout guards still decide.
+  server's lockout guards still decide, `last_administrator` among them.
 - Typed confirmation guards disabling a tenant, retiring a key and deleting
   a client or subject; a plain confirmation guards the rest.
-- A `409` from a reference (a role still in a composite) is shown beside the
-  action with the API's detail.
+- A `409` from a guard (`last_administrator`: a change that would leave the
+  tenant with no enabled administrator) is shown beside the action with the
+  API's detail. Deleting a role in a composite is no such case: the edge
+  goes with the role, which the delete's confirmation says.
 - A secret shown once — a client secret, a registration token, a one-time
   password, import's client secrets — is displayed in a dialog with a copy
   control and an acknowledgement, and never enters a toast, the URL, a draft
