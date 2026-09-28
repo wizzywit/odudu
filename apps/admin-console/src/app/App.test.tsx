@@ -181,6 +181,28 @@ describe('booting from the session', () => {
   });
 });
 
+describe('switching tenant', () => {
+  it('tells a tenant administrator the current session ends once the new sign-in succeeds', async () => {
+    renderAt('/console/?choose', {
+      'GET /console/api/session': json(GRACE),
+      'GET /console/api/admin/tenants/acme/whoami': whoami(ALL),
+    });
+    expect(
+      await screen.findByRole('textbox', { name: 'Which tenant do you administer?' }),
+    ).toBeVisible();
+    expect(screen.getByText(/signing in to another tenant/u)).toHaveTextContent(
+      "You're signed in to acme as grace; signing in to another tenant ends that session once it succeeds.",
+    );
+    expect(await violations()).toEqual([]);
+  });
+
+  it('says nothing of the kind to a system administrator, who enters rather than signs in', async () => {
+    renderAt('/console/?choose', { 'GET /console/api/session': json(ROOT) });
+    expect(await screen.findByRole('button', { name: 'Enter tenant' })).toBeVisible();
+    expect(screen.queryByText(/signing in to another tenant/u)).toBeNull();
+  });
+});
+
 describe('a sign-in that came back refused', () => {
   it('says so on the question page when nobody is signed in, and clears it from the URL', async () => {
     const { router, leavePage } = renderAt('/console/?login_error=access_denied', {

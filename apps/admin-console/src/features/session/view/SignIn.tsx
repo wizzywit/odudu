@@ -1,4 +1,5 @@
 import { useState, type SubmitEvent } from 'react';
+import type { Principal } from '#/features/session/service.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import { TextField } from '#/shared/view/Field.tsx';
 import styles from '#/features/session/view/SignIn.module.css';
@@ -14,12 +15,14 @@ export function SignIn({
   remembered,
   notice = null,
   enters = false,
+  replacing = null,
   onSignIn,
   check,
 }: {
   remembered: string | null;
   notice?: string | null;
   enters?: boolean;
+  replacing?: Principal | null;
   onSignIn: (tenant: string) => void;
   check: (tenant: string) => string | undefined;
 }) {
@@ -69,6 +72,13 @@ export function SignIn({
           </div>
         ) : (
           <form noValidate onSubmit={submit} className={styles.form}>
+            {replacing === null ? null : (
+              <p>
+                You&apos;re signed in to <strong>{replacing.tenant}</strong> as{' '}
+                <strong>{replacing.username}</strong>; signing in to another tenant ends that
+                session once it succeeds.
+              </p>
+            )}
             <TextField
               label="Which tenant do you administer?"
               description="Its name, as it appears in the tenant's issuer URL."

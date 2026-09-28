@@ -16,6 +16,7 @@ export function ConsoleHome() {
       remembered={home.remembered}
       notice={home.notice}
       enters={home.enters}
+      replacing={home.replacing}
       onSignIn={home.choose}
       check={home.check}
     />

@@ -33,6 +33,8 @@ export type Home =
       readonly notice: string | null;
       // A system administrator enters a tenant rather than signing in to it.
       readonly enters: boolean;
+      // A tenant administrator's session, which a sign-in elsewhere replaces.
+      readonly replacing: Principal | null;
       readonly choose: (tenant: string) => void;
       readonly check: (tenant: string) => string | undefined;
     };
@@ -104,6 +106,7 @@ export function useConsoleHome(): Home {
     remembered: rememberedTenant({ named, signedIn: principal !== null }),
     notice: failed,
     enters: system,
+    replacing: principal !== null && !system ? principal : null,
     choose: leave,
     check: (tenant) => (isTenantName(tenant) ? undefined : TENANT_NAME_PROBLEM),
   };

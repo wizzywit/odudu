@@ -53,6 +53,20 @@ it('says why the last sign-in came back, above the question and apart from its f
   expect(screen.getByRole('textbox')).not.toHaveAccessibleDescription(/cancelled/u);
 });
 
+it('names the session a sign-in elsewhere would replace, above the question', () => {
+  render(
+    <SignIn
+      remembered={null}
+      replacing={{ tenant: 'acme', subjectId: 's1', username: 'grace' }}
+      onSignIn={() => undefined}
+      check={check}
+    />,
+  );
+  expect(screen.getByText(/signing in to another tenant/u)).toHaveTextContent(
+    "You're signed in to acme as grace; signing in to another tenant ends that session once it succeeds.",
+  );
+});
+
 it('passes axe in both themes, asking, remembering, and with a notice', async () => {
   for (const [remembered, notice] of [
     [null, null],
