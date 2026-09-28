@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import {
   expect,
   expectAccessible,
+  forgive,
   sessionTenant,
   signIn,
   signInAtTenant,
@@ -114,6 +115,7 @@ test.describe('a tenant administrator opening another tenant', () => {
 
 test('a session that ends on the server signs in again and comes back to the page', async ({
   page,
+  problems,
 }) => {
   await signIn(page, expiring);
   await page.getByRole('link', { name: 'Clients' }).click();
@@ -141,6 +143,8 @@ test('a session that ends on the server signs in again and comes back to the pag
 
   await expect(page).toHaveURL(`/console/${expiring.tenant}/subjects`);
   await expect(page.getByRole('heading', { level: 1, name: 'Subjects' })).toBeVisible();
+  // The read that found the session over was the new page's whoami.
+  forgive(problems, `/console/api/admin/tenants/${expiring.tenant}/whoami`);
   expect(signIns).toHaveLength(1);
   expect(new URL(signIns[0] ?? '').searchParams.get('return_to')).toBe(
     `/console/${expiring.tenant}/subjects`,
