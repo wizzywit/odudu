@@ -65,14 +65,15 @@ packages side by side. A push touching one leaf package replays the rest.
   `MISS`, though it does not depend on `@odudu/account`. `drizzle/**` is in
   every package's inputs, since `@odudu/db`'s own tests run its migrations.
   A third such file is caught rather than remembered:
-  `tests/lint/cross-package-reads.test.ts` lists the two files above with
-  the paths each reads, and fails unless every one is a `$TURBO_ROOT$` input
-  of that package's override. Any other file in a package's, app's or
-  tool's `src/` or `tests/` fails, naming the file, when a path it builds
-  from `import.meta` or `process.cwd()` climbs above the package root or
-  holds a segment the source does not fix. It replaced a resolver that
-  chased constants through the AST and still missed a template literal and
-  a constant passed as `cwd:`, found by the final review of Part 1. An
+  `tests/lint/cross-package-reads.test.ts` follows every path a file in a
+  package's, app's or tool's `src/` or `tests/` builds from `import.meta` or
+  `process.cwd()`, and fails, naming the file, when one climbs above the
+  package root or passes through anything it does not model — a
+  concatenation, a template, an options object, any call but a path builder
+  or a reader. A file it cannot bound is listed with what it reads, and each
+  target must be one of that package's test inputs. It replaced a resolver
+  that took any shape it did not model as safe, found by the final review
+  of Part 1. An
   override **replaces** the generic `test` task rather than merging with
   it, so an edit to the generic task has to be copied into each override.
 - **The repository checks are never cached.** `tests/` became the
