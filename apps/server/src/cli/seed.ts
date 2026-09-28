@@ -39,6 +39,8 @@ import {
   type ClientRecord,
   type ClientScopeAssignment,
   coerceTenantSetting,
+  TENANT_SETTING_COLUMNS,
+  tenantSettingProblems,
 } from '@odudu/domain-tenant';
 import { loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
@@ -49,7 +51,7 @@ import {
   tenantLookupRepository,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
-import { eq } from 'drizzle-orm';
+import { eq, getTableColumns } from 'drizzle-orm';
 import { createLogger } from '#/logger';
 
 // A confidential client's method of proving its secret at /token: either
@@ -950,6 +952,7 @@ async function runTenantCommand(
   // Parsed before the tenant is touched, so a typo in the third --set does
   // not leave the first two applied.
   const settings = parseSettings(values.set ?? []);
+  await refuseOutOfRangeSettings(ownerDb, tenantName, settings);
 
   const { tenantId, created } = await resolveTenantId(ownerDb, tenantName);
   if (created) {
@@ -977,9 +980,9 @@ async function runTenantCommand(
   await withTenant(runtimeDb, tenantId, (tx) => provisionAdminClient(tx, tenantId));
 
   if (settings.length > 0) {
-    // Whatever the CHECK constraints refuse (migrations 0028, 0035, 0041)
-    // refuses this write too: the seed CLI has no development override, in
-    // the way it has none for the password policy.
+    // The CHECK constraints (migrations 0028, 0035, 0041) remain the
+    // backstop: the seed CLI has no development override, in the way it has
+    // none for the password policy.
     await withTenant(runtimeDb, tenantId, (tx) =>
       tx
         .update(tenants)
@@ -995,6 +998,36 @@ async function runTenantCommand(
     tenantId,
     ...(settings.length > 0 ? { settings: settings.map(({ name }) => name) } : {}),
   };
+}
+
+// The ranges `PATCH /settings` holds a write to (`tenantSettingProblems`),
+// judged before anything is written, every problem at once: over the stored
+// row when the tenant exists, and over the column defaults a new one starts
+// with, so a refused `--set` never leaves a half-seeded tenant behind.
+async function refuseOutOfRangeSettings(
+  ownerDb: Database,
+  tenantName: string,
+  settings: readonly ParsedSetting[],
+): Promise<void> {
+  if (settings.length === 0) return;
+  const [stored] = await ownerDb.select().from(tenants).where(eq(tenants.name, tenantName));
+  const columns = getTableColumns(tenants);
+  const current: Record<string, unknown> = Object.fromEntries(
+    TENANT_SETTING_COLUMNS.map(({ name, column }) => [
+      name,
+      stored === undefined ? columns[column].default : stored[column],
+    ]),
+  );
+  const problems = tenantSettingProblems({
+    ...current,
+    ...Object.fromEntries(settings.map(({ name, value }) => [name, value])),
+  });
+  if (problems.length > 0) {
+    throw new OduduError(
+      'seed_invalid_options',
+      problems.map(({ name, message }) => `tenant setting ${name} ${message}`).join('; '),
+    );
+  }
 }
 
 interface ParsedSetting {

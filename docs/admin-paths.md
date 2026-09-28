@@ -1168,6 +1168,25 @@ A setting's value may be sent as its JSON type
 the same `coerceTenantSetting` the CLI uses, which reads a string either
 way.
 
+`seed tenant --set` runs the same check before it writes anything, over the
+tenant's stored settings with the new values laid on them — or, for a
+tenant it would create, the column defaults — and names every problem at
+once. So a refused `--set` leaves no tenant behind: the second command below
+creates `range-demo`, which the first did not.
+
+```bash
+docker compose exec -T odudu node dist/main.js seed tenant --name range-demo \
+  --set password_max_age_days=4000 --set sso_session_max_seconds=600 2>&1 \
+  | grep -E '^OduduError|code:'
+docker compose exec -T odudu node dist/main.js seed tenant --name range-demo 2>/dev/null
+```
+
+```
+OduduError: tenant setting password_max_age_days must be between 0 and 3650; tenant setting sso_session_idle_seconds must not exceed sso_session_max_seconds
+  code: 'seed_invalid_options'
+{"command":"tenant","created":true,"tenant":"range-demo","tenantId":"01a0e5a1-a6ff-7c12-9a71-8b9c81ba450b"}
+```
+
 ## `GET /clients`, `POST /clients` and `GET /clients/{id}`
 
 Lists, reads and creates clients — the `clients` row and its OIDC

@@ -102,6 +102,9 @@ begins — `registration_allowed`, `verify_email` and `reset_password_allowed`
 registration or mailed verification. `odudu seed tenant --set` changes them,
 and every other tenant setting, by the column name the schema uses:
 `odudu seed tenant --name demo --set registration_allowed=true`, repeatable.
+Each value is held to the ranges `PATCH /settings` enforces, judged against
+the tenant's stored settings (or a new tenant's defaults) before anything is
+written, and every problem is named at once.
 `--name` is a DNS label — 1-63 lowercase letters, digits or hyphens, never
 starting or ending with one, since it is minted straight into an issuer
 host segment — and `system` and `count` are reserved; `POST /admin/tenants`

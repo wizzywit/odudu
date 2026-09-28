@@ -560,19 +560,48 @@ describe('seed tenant --set', () => {
     await expect(seed(['tenant', '--name', 'count'])).rejects.toThrow(/reserved/);
   });
 
-  // The ranges live in CHECK constraints (migrations 0028, 0035, 0041), and
-  // this is what proves the CLI has no way past them.
-  it('cannot write a value the database refuses', async () => {
+  it('refuses an out-of-range value before creating the tenant, naming every problem', async () => {
     const name = `set-${newId()}`;
 
     await expect(
-      seed(['tenant', '--name', name, '--set', 'password_max_age_days=4000']),
-    ).rejects.toThrow();
+      seed([
+        'tenant',
+        '--name',
+        name,
+        '--set',
+        'password_max_age_days=4000',
+        '--set',
+        'max_clients=-1',
+      ]),
+    ).rejects.toThrow(/password_max_age_days must be between 0 and 3650.*max_clients/su);
 
-    const rows = await owner.db.select().from(tenants).where(eq(tenants.name, name));
-    // The tenant itself was created before the setting was applied, so the
-    // refusal leaves it at the column default rather than at 4000.
-    expect(rows[0]?.passwordMaxAgeDays).toBe(0);
+    expect(await owner.db.select().from(tenants).where(eq(tenants.name, name))).toHaveLength(0);
+  });
+
+  it('judges a value against the stored settings, and writes nothing it refuses', async () => {
+    const name = `set-${newId()}`;
+    const created = await seed(['tenant', '--name', name, '--set', 'sso_session_idle_seconds=600']);
+    if (created.command !== 'tenant') throw new Error('expected the tenant command');
+
+    await expect(
+      seed([
+        'tenant',
+        '--name',
+        name,
+        '--set',
+        'otp_required=true',
+        '--set',
+        'sso_session_max_seconds=300',
+      ]),
+    ).rejects.toThrow(/sso_session_idle_seconds must not exceed sso_session_max_seconds/u);
+
+    expect(await tenantSettings(created.tenantId)).toMatchObject({ otpRequired: false });
+  });
+
+  it('judges a new tenant against the column defaults', async () => {
+    await expect(
+      seed(['tenant', '--name', `set-${newId()}`, '--set', 'sso_session_max_seconds=600']),
+    ).rejects.toThrow(/sso_session_idle_seconds must not exceed sso_session_max_seconds/u);
   });
 
   it('cannot write a client cap the database refuses', async () => {
