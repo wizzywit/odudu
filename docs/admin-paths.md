@@ -4711,10 +4711,15 @@ action attempted.
 Captured against a tenant `ceiling-removal` created for it. `admins` is a
 group mapped to `tenant-admin`, with `on-call` beneath it; `ops-bundle` is a
 tenant role nesting `tenant-admin`; `ops` is a scope mapped to it; and
-`bundle-app` is a client with a role `operator` scoped to it, nesting it.
-`$TENANT_TOKEN` and `$CLIENTS_TOKEN` are the `client_credentials` tokens of
-two clients whose service accounts were given `manage-tenant` alone and
-`manage-clients` alone. Emptying `admins`, deleting it, moving `on-call`
+`bundle-app` is a client with a role `operator` scoped to it, nesting
+`tenant-admin`. `bundle-app` was created through `POST /clients`, `ops`
+through `POST /scopes`, `operator` through `POST /roles` scoped to
+`bundle-app`, and `tenant-admin` nested under `operator` through
+`POST /roles/:id/composites`, all against `ceiling-removal`.
+`$TENANT_TOKEN` and `$CLIENTS_TOKEN` are the
+`client_credentials` tokens of two clients whose service accounts were
+given `manage-tenant` alone and `manage-clients` alone. Emptying `admins`,
+deleting it, moving `on-call`
 out from under it, deleting `ops-bundle`, taking `tenant-admin` out of it,
 deleting `ops` and deleting `bundle-app` are each refused, and the rows
 since `RUN_START` are those seven:
