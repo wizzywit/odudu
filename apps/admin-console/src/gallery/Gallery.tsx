@@ -243,16 +243,6 @@ function Lists() {
         onTrailChange={setTrail}
         onLoadMore={() => undefined}
       />
-      <Specimen label="The same table in a 480 px container: stacked rows">
-        <div className={styles.narrow}>
-          <DataTable
-            label="Clients, stacked"
-            columns={COLUMNS}
-            rows={CLIENTS.slice(0, 2)}
-            rowKey={(c) => c.id}
-          />
-        </div>
-      </Specimen>
       <div className={styles.counts}>
         <Count count={1204} capped={false} noun={{ one: 'client', other: 'clients' }} />
         <Count count={1} capped={false} noun={{ one: 'group', other: 'groups' }} />

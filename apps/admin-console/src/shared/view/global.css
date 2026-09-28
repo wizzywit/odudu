@@ -47,3 +47,9 @@ samp {
   background: var(--signal-active);
   color: var(--ink-primary);
 }
+
+/* Every responsive mode keys on the shell's width. Declared here, outside any
+   CSS module, so the name `shell` is never scoped. */
+[data-shell] {
+  container: shell / inline-size;
+}

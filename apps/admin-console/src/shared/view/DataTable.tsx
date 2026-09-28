@@ -15,7 +15,7 @@ export interface Column<T> {
   readonly header: string;
   readonly cell: (row: T) => ReactNode;
   readonly isRowHeader?: boolean;
-  // Dropped from a table narrower than 720 px, where fewer columns fit.
+  // Dropped while the shell is narrower than 1024 px, where fewer columns fit.
   readonly secondary?: boolean;
 }
 

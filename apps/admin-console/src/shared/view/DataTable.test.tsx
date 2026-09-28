@@ -1,7 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import rawCss from '#/shared/view/DataTable.module.css?raw';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
@@ -67,13 +66,6 @@ it('shows what it is given when there are no rows', () => {
     />,
   );
   expect(screen.getByText('No clients yet')).toBeInTheDocument();
-});
-
-it('stacks its rows below 640 px and drops secondary columns below 720 px, by its own width', () => {
-  const css = rawCss;
-  expect(css).toMatch(/container:\s*data-table\s*\/\s*inline-size/u);
-  expect(css).toMatch(/@container data-table \(width < 640px\)/u);
-  expect(css).toMatch(/@container data-table \(width < 720px\)/u);
 });
 
 it('passes axe in both themes', async () => {

@@ -2,7 +2,6 @@
    wider a full rail, 640 to 1023 a collapsed one, narrower a top bar whose
    menu opens the rail as a sheet. */
 .shell {
-  container: shell / inline-size;
   min-block-size: 100vh;
 }
 

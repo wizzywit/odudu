@@ -1,5 +1,4 @@
 .section {
-  container: section / inline-size;
   border: 1px solid var(--border);
   border-radius: var(--radius-m);
   background: var(--surface-panel);
@@ -41,7 +40,7 @@
 
 /* Under 640 the save bar follows the thumb: pinned to the bottom of the
    viewport for as long as its section is on screen. */
-@container section (width < 640px) {
+@container shell (width < 640px) {
   .header {
     padding-inline: var(--space-4);
   }

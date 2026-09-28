@@ -22,7 +22,7 @@ export function AppShell({
   };
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-shell>
       <div className={styles.frame}>
         <a href="#main" className={styles.skip}>
           Skip to content

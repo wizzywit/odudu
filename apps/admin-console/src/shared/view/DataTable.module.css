@@ -1,8 +1,6 @@
-/* The breakpoints are the table's own width. 720 is what a table is given
-   in a 1024 px shell beside the full rail, so secondary columns drop out
-   exactly where the shell collapses; under 640 each row stacks. */
+/* The breakpoints are the shell's width (global.css): under 1024 secondary
+   columns drop out, and under 640 each row stacks into a labelled card. */
 .frame {
-  container: data-table / inline-size;
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-m);
@@ -89,13 +87,13 @@ th.cell {
   overflow-wrap: anywhere;
 }
 
-@container data-table (width < 720px) {
+@container shell (width < 1024px) {
   .secondary {
     display: none;
   }
 }
 
-@container data-table (width < 640px) {
+@container shell (width < 640px) {
   .table,
   .body,
   .row,

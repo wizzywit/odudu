@@ -56,10 +56,6 @@
   gap: var(--space-4);
 }
 
-.narrow {
-  max-inline-size: 480px;
-}
-
 .counts {
   display: flex;
   flex-wrap: wrap;
