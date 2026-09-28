@@ -123,12 +123,8 @@ export function spaRoutes(consoleDir: string): FastifyPluginAsync {
         fastify.log.warn(message);
       });
     } catch (err) {
-      const code = errnoCode(err);
-      if (code !== 'ENOENT') {
-        registerUnavailable(fastify, consoleDir, code ?? 'unknown error');
-        return;
-      }
-      assets = new Map();
+      registerUnavailable(fastify, consoleDir, errnoCode(err) ?? 'unknown error');
+      return;
     }
 
     fastify.get<{ Params: { '*': string } }>('/console/assets/*', (request, reply) => {

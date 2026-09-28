@@ -240,4 +240,16 @@ describe('the console shell', () => {
       expect(occurrences).toHaveLength(1);
     },
   );
+
+  it('answers 503 when index.html exists but assets/ is missing', async () => {
+    const dir = await tempConsoleDir();
+    await writeFile(join(dir, 'index.html'), '<p>shell');
+    const logs: string[] = [];
+    const server = await served(dir, logs);
+
+    const res = await server.inject({ url: '/console/tenants/x' });
+
+    expect(res.statusCode).toBe(503);
+    expect(logs.join('')).toContain('ODUDU_CONSOLE_DIR');
+  });
 });
