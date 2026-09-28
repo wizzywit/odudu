@@ -806,9 +806,11 @@ docker compose exec -T odudu node dist/main.js seed grant-role \
   --tenant demo --username grace --role odudu-admin:tenant-admin
 ```
 
-Open http://localhost:3080/console/ and sign in as either: `ada` needs no
-tenant, since system authority reaches every one; `grace` signs in to
-`demo`, and is asked for a new password first. Tear the stack down,
+Open http://localhost:3080/console/ and sign in as either: `ada` lives in
+`system`, so she types `system` at the tenant question (or opens
+http://localhost:3080/console/system), and from there system authority
+reaches every tenant; `grace` signs in to `demo`, and is asked for a new
+password first. Tear the stack down,
 volumes included, when you're done:
 
 ```bash
