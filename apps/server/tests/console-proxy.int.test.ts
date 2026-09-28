@@ -778,12 +778,17 @@ describe('an ended session or grant', () => {
   it('ends the session on a 401 its own tenant’s whoami confirms, revoking the grant', async () => {
     const revokes: string[] = [];
     const seeRevokes = (app: FastifyInstance): void => {
-      app.addHook('preHandler', async (request) => {
-        if (!request.url.endsWith('/protocol/openid-connect/revoke')) return;
+      app.addHook('preHandler', (request, _reply, done) => {
         const body: unknown = request.body;
-        if (typeof body === 'object' && body !== null && 'token' in body) {
+        if (
+          request.url.endsWith('/protocol/openid-connect/revoke') &&
+          typeof body === 'object' &&
+          body !== null &&
+          'token' in body
+        ) {
           revokes.push(typeof body.token === 'string' ? body.token : '');
         }
+        done();
       });
     };
     await withStack(
