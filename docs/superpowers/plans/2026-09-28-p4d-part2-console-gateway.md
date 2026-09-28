@@ -540,7 +540,7 @@ Promise<Record<string, unknown> | null>`
 - Create in `packages/console-gateway/src/view/`:
   - `spa.ts`, the one function that sets this shell's headers
   - `spa.test.ts`
-- Test fixture: `packages/console-gateway/tests/fixtures/dist/{index.html,assets/app-3f2a.js}`
+- Test fixture: `packages/console-gateway/tests/fixtures/dist/{index.html,assets/app-9f4c2ab1.js}`
 - Modify: `packages/protocol-oidc/src/view/html-response.test.ts`, adding
   `spa.ts` to `EXEMPT_FILES`. This is the spec's third authorised header
   site. Check the list with

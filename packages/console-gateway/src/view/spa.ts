@@ -29,6 +29,11 @@ const ASSET_CONTENT_TYPES: Readonly<Record<string, string>> = {
 // memory at boot.
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
+// Vite's default `[hash]` is an 8-or-more character xxhash, base64url-encoded
+// (rollup's `hashCharacters: 'base64'`, the default) — never longer than the
+// name it is appended to. Anything else is a fixed name and must revalidate.
+const CONTENT_HASHED_NAME = /-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/u;
+
 interface Asset {
   readonly content: Buffer;
   readonly contentType: string;
@@ -130,10 +135,13 @@ export function spaRoutes(consoleDir: string): FastifyPluginAsync {
     fastify.get<{ Params: { '*': string } }>('/console/assets/*', (request, reply) => {
       const asset = assets.get(request.params['*']);
       if (asset === undefined) return reply.code(404).send();
+      const cacheControl = CONTENT_HASHED_NAME.test(request.params['*'])
+        ? 'public, max-age=31536000, immutable'
+        : 'no-cache';
       return reply
         .code(200)
         .header('content-type', asset.contentType)
-        .header('cache-control', 'public, max-age=31536000, immutable')
+        .header('cache-control', cacheControl)
         .send(asset.content);
     });
 

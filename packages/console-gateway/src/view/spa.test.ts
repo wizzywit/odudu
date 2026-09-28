@@ -103,7 +103,7 @@ describe('the console shell', () => {
   it('serves a hashed asset with its content type and an immutable cache header', async () => {
     const server = await served(FIXTURE_DIR);
 
-    const res = await server.inject({ url: '/console/assets/app-3f2a.js' });
+    const res = await server.inject({ url: '/console/assets/app-9f4c2ab1.js' });
 
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toBe('text/javascript; charset=utf-8');
@@ -114,7 +114,7 @@ describe('the console shell', () => {
   it('serves the stylesheet index.html links, with its own content type', async () => {
     const server = await served(FIXTURE_DIR);
 
-    const res = await server.inject({ url: '/console/assets/app-3f2a.css' });
+    const res = await server.inject({ url: '/console/assets/app-9f4c2ab1.css' });
 
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toBe('text/css; charset=utf-8');
@@ -155,7 +155,7 @@ describe('the console shell', () => {
     const dir = await tempConsoleDir();
     await writeFile(join(dir, 'index.html'), '<p>shell');
     await mkdir(join(dir, 'assets'));
-    await writeFile(join(dir, 'assets', 'app-3f2a.js'), 'console.log(1);\n');
+    await writeFile(join(dir, 'assets', 'app-9f4c2ab1.js'), 'console.log(1);\n');
     // Outside the built directory entirely, same as a real leak would be.
     await symlink(join(FIXTURE_DIR, 'index.html'), join(dir, 'assets', 'leak.js'));
     const server = await served(dir);
@@ -251,5 +251,30 @@ describe('the console shell', () => {
 
     expect(res.statusCode).toBe(503);
     expect(logs.join('')).toContain('ODUDU_CONSOLE_DIR');
+  });
+
+  it('serves a hashed asset name with an immutable cache header', async () => {
+    const dir = await tempConsoleDir();
+    await writeFile(join(dir, 'index.html'), '<p>shell');
+    await mkdir(join(dir, 'assets'));
+    await writeFile(join(dir, 'assets', 'app-9f4c2ab1.js'), 'console.log(1);\n');
+    const server = await served(dir);
+
+    const res = await server.inject({ url: '/console/assets/app-9f4c2ab1.js' });
+
+    expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+  });
+
+  it('serves a non-hashed asset name with a revalidating cache header', async () => {
+    const dir = await tempConsoleDir();
+    await writeFile(join(dir, 'index.html'), '<p>shell');
+    await mkdir(join(dir, 'assets'));
+    await writeFile(join(dir, 'assets', 'favicon.ico'), Buffer.from([1, 2, 3]));
+    const server = await served(dir);
+
+    const res = await server.inject({ url: '/console/assets/favicon.ico' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-cache');
   });
 });
