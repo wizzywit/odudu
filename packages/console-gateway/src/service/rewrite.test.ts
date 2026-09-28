@@ -23,9 +23,34 @@ describe('upstreamPath', () => {
     expect(upstreamPath(url)).toBeNull();
   });
 
-  it('refuses a path outside the console admin prefix', () => {
-    expect(upstreamPath('/console/api/session')).toBeNull();
+  it.each(['/console/api/admin/%2E%2e/tenants/system/protocol/openid-connect/token'])(
+    'refuses %s, whose dot segment is decoded in either case',
+    (url) => {
+      expect(upstreamPath(url)).toBeNull();
+    },
+  );
+
+  it.each([
+    ['/console/api/admin/%252e%252e/x', '/admin/%252e%252e/x'],
+    ['/console/api/admin/..%2fx', '/admin/..%2fx'],
+    ['/console/api/admin/x?a=/../b', '/admin/x?a=/../b'],
+  ])('forwards %s unchanged, since it resolves under /admin/ as sent', (url, expected) => {
+    expect(upstreamPath(url)).toBe(expected);
+    expect(new URL(expected, 'http://localhost').pathname.startsWith('/admin/')).toBe(true);
   });
+
+  it('forwards /admin//../x, which the in-process call resolves to /admin/x', () => {
+    const path = upstreamPath('/console/api/admin//../x');
+    expect(path).toBe('/admin//../x');
+    expect(new URL(path ?? '', 'http://localhost').pathname).toBe('/admin/x');
+  });
+
+  it.each(['/console/api/session', '/console/api/admin'])(
+    'refuses %s, which is outside the console admin prefix',
+    (url) => {
+      expect(upstreamPath(url)).toBeNull();
+    },
+  );
 });
 
 describe('rewriteUri', () => {
