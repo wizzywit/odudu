@@ -44,5 +44,6 @@ trap cleanup EXIT
 compose up -d --build --wait --wait-timeout 180 postgres odudu
 
 cd "$REPO/apps/admin-console"
+# For a developer's own machine; CI installs Chromium with its OS deps first.
 pnpm exec playwright install chromium
 pnpm exec playwright test --config e2e/playwright.config.ts "$@"

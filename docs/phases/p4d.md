@@ -1170,6 +1170,10 @@ it, and a component test written for it passed on the broken code. The
 sheet now closes as a transition. The phone specs failed with the old
 `AppShell.tsx` rebuilt into the image, and pass with the fix.
 
+This regression is guarded only by that e2e spec: jsdom's synthetic event
+dispatch does not reproduce the capture-phase unmount, so a component test
+for it passes on the broken code same as the original one did.
+
 **The tenant's sign-in pages fail WCAG 2.2 AA.** axe reports `target-size`
 on `#passkey-submit`: the pages are unstyled, so their buttons are smaller
 than 24px. They belong to `protocol-oidc`'s view layer, not to the console.
