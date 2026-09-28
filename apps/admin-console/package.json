@@ -13,6 +13,8 @@
     "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
   },
   "devDependencies": {
+    "@odudu/contracts": "workspace:*",
+    "@tanstack/react-query": "5.104.0",
     "@tanstack/react-router": "1.170.39",
     "@testing-library/dom": "10.4.2",
     "@testing-library/jest-dom": "7.0.1",
