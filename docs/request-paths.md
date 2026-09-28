@@ -5566,7 +5566,11 @@ login. The live session and the live login remain. A console session ends
 after thirty minutes idle or at its own `expires_at`, whichever comes first.
 A pending login ends at its `expires_at`. Neither table keeps a row past
 that point, because a row past either bound cannot be used again, so
-keeping it would serve no detection.
+keeping it would serve no detection. The pass revokes no grant with the
+row: a console session's grant is bound to the tenant's SSO session, and
+its refresh token answers `invalid_grant` once that session idles out
+(`apps/server/tests/console-session.int.test.ts`). The gateway itself
+revokes the grant when a request finds the session over.
 
 ### When the pass refuses, or finds nothing to look at
 

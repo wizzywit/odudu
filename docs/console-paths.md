@@ -21,16 +21,21 @@ rather than asserted. `tests/docs/console-paths.test.ts` holds every
 `/console/` route this document names to the routes the server serves.
 
 **The stack.** The `docker-odudu-1` container of `infra/docker/compose.yaml`,
-its `odudu` service rebuilt at commit `5fd4b11` and restarted on the existing
-database volume. `ODUDU_PUBLIC_BASE_URL` is `http://localhost:3000` and
+restarted on the existing database volume. For the first two runs its `odudu`
+service was built at commit `5fd4b11`; for the third it was rebuilt at
+`6401476`. `ODUDU_PUBLIC_BASE_URL` is `http://localhost:3000` and
 `ODUDU_CONSOLE` is left at its default, `true`. The base is plain HTTP, so the
 cookies are `odudu-console` and `odudu-console-login`; over `https` they are
 `__Host-odudu-console` and `__Host-odudu-console-login` and carry `Secure`.
 The image ships no console build, so `ODUDU_CONSOLE_DIR` (`/app/console`)
-is absent, and the server logged this at boot:
+is absent. The server logged these warnings when it booted for the third run.
+The second line is the console cookie's plain-HTTP fallback, and the third
+is the missing build:
 
 ```
-{"level":40,"time":1790584821244,"pid":1,"hostname":"f60df0638a98","msg":"ODUDU_CONSOLE_DIR (/app/console) has no console build (ENOENT); /console/* answers 503"}
+{"level":40,"time":1790590008355,"pid":1,"hostname":"062313e900ce","msg":"authn-flows: serving session cookies without the __Host- prefix because TLS is off. This is expected for local development only — never in production."}
+{"level":40,"time":1790590008355,"pid":1,"hostname":"062313e900ce","msg":"console: serving the odudu-console cookie without the __Host- prefix or Secure, because ODUDU_PUBLIC_BASE_URL (http://localhost:3000) is http. This is expected for local development only."}
+{"level":40,"time":1790590008445,"pid":1,"hostname":"062313e900ce","msg":"ODUDU_CONSOLE_DIR (/app/console) has no console build (ENOENT); /console/* answers 503"}
 ```
 
 **The tenant.** Every cookie, code and token below belongs to a throwaway
@@ -65,6 +70,17 @@ the refused callbacks, the path that escapes `/admin/`, the refresh and the
 refresh that cannot take the lock, run in that order. Each says so in its
 first line. The first run had left the tenant no `console_sessions` row, as
 its last query shows.
+
+Three sections come from **a third run**, at `6401476`, on the same tenant,
+with a new, empty `jar` and a new sign-in: the `PATCH`, the cross-site
+refusals and the refresh the server refuses. Each says so in its first line.
+Between the second and third runs the gateway changed in four ways. It now
+sends the console request's own `x-request-id` upstream. It answers its
+cross-site `403` with the admin API's `about:blank` type. It ends a session
+the admin API answers `401`. And it revokes the grant of a session it finds
+over. The first two runs' sections were not re-run at `6401476`. The only
+change in what they show would be the `request_id` in the refresh sections'
+audit rows, which predate the first change.
 
 ## `GET /console/auth/login`
 
@@ -445,8 +461,8 @@ Keep-Alive: timeout=72
 
 ## `PATCH /console/api/admin/tenants/{tenant}/subjects/{id}`
 
-`If-Match` is one of the four request headers the proxy forwards. The
-`ETag` comes from a read.
+From the third run, on its session. `If-Match` is one of the four request
+headers the proxy forwards. The `ETag` comes from a read.
 
 ```bash
 curl -sS -D - -c jar -b jar \
@@ -455,96 +471,122 @@ curl -sS -D - -c jar -b jar \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e72e-a2d8-7154-a915-65d48917d8d0
-content-type: application/json; charset=utf-8
-etag: "e0e294cbbb3a1a76ae2d1962269e63e5016b9ac6c24613abe0a66c650dc679be"
-cache-control: no-store
-content-length: 163
-Date: Mon, 28 Sep 2026 08:43:08 GMT
-Connection: keep-alive
-Keep-Alive: timeout=72
-
-{"id":"01a0e72d-7fc7-7950-a1e7-1d079588f8b4","type":"user","username":"hopper","email":"hopper@example.com","enabled":true,"created_at":"2026-09-28T08:41:53.858Z"}
-```
-
-A write under `/console/api/` must carry the base's `Origin` and
-`X-Odudu-Console: 1` (see the next section).
-
-```bash
-curl -sS -D - -c jar -b jar -X PATCH \
-  -H 'Origin: http://localhost:3000' -H 'X-Odudu-Console: 1' \
-  -H 'Content-Type: application/json' \
-  -H 'If-Match: "e0e294cbbb3a1a76ae2d1962269e63e5016b9ac6c24613abe0a66c650dc679be"' \
-  -d '{"email":"grace.hopper@example.com"}' \
-  http://localhost:3000/console/api/admin/tenants/console-paths/subjects/01a0e72d-7fc7-7950-a1e7-1d079588f8b4
-```
-
-```
-HTTP/1.1 200 OK
-x-request-id: 01a0e72e-a301-79f6-a905-0741fa0e45b1
+x-request-id: 01a0e77b-de54-75ca-b651-6963d6c13426
 content-type: application/json; charset=utf-8
 etag: "219b14ef842053287d0395ac35365010a07eab13df970d5720b5e954e15d2a30"
 cache-control: no-store
 content-length: 169
-Date: Mon, 28 Sep 2026 08:43:08 GMT
+Date: Mon, 28 Sep 2026 10:07:29 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"id":"01a0e72d-7fc7-7950-a1e7-1d079588f8b4","type":"user","username":"hopper","email":"grace.hopper@example.com","enabled":true,"created_at":"2026-09-28T08:41:53.858Z"}
 ```
 
-The same `If-Match` again, which that write made stale. The `412` is the
-admin API's own, passed back unchanged:
+A write under `/console/api/` must carry the base's `Origin` and
+`X-Odudu-Console: 1` (see the next section). The first run had changed this
+address, so this write puts it back.
 
 ```bash
 curl -sS -D - -c jar -b jar -X PATCH \
   -H 'Origin: http://localhost:3000' -H 'X-Odudu-Console: 1' \
   -H 'Content-Type: application/json' \
-  -H 'If-Match: "e0e294cbbb3a1a76ae2d1962269e63e5016b9ac6c24613abe0a66c650dc679be"' \
+  -H 'If-Match: "219b14ef842053287d0395ac35365010a07eab13df970d5720b5e954e15d2a30"' \
+  -d '{"email":"hopper@example.com"}' \
+  http://localhost:3000/console/api/admin/tenants/console-paths/subjects/01a0e72d-7fc7-7950-a1e7-1d079588f8b4
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e77b-de8a-742b-b05b-bbadf4c187fe
+content-type: application/json; charset=utf-8
+etag: "e0e294cbbb3a1a76ae2d1962269e63e5016b9ac6c24613abe0a66c650dc679be"
+cache-control: no-store
+content-length: 163
+Date: Mon, 28 Sep 2026 10:07:29 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a0e72d-7fc7-7950-a1e7-1d079588f8b4","type":"user","username":"hopper","email":"hopper@example.com","enabled":true,"created_at":"2026-09-28T08:41:53.858Z"}
+```
+
+The same `If-Match` again, which that write made stale. The `412` is the
+admin API's own, passed back unchanged. Its `instance` is the `x-request-id`
+the browser was answered with, because the gateway sends that id upstream:
+
+```bash
+curl -sS -D - -c jar -b jar -X PATCH \
+  -H 'Origin: http://localhost:3000' -H 'X-Odudu-Console: 1' \
+  -H 'Content-Type: application/json' \
+  -H 'If-Match: "219b14ef842053287d0395ac35365010a07eab13df970d5720b5e954e15d2a30"' \
   -d '{"enabled":false}' \
   http://localhost:3000/console/api/admin/tenants/console-paths/subjects/01a0e72d-7fc7-7950-a1e7-1d079588f8b4
 ```
 
 ```
 HTTP/1.1 412 Precondition Failed
-x-request-id: 01a0e72e-a32c-778f-803e-38c9877c381f
+x-request-id: 01a0e77b-deb5-7134-a6c8-1564eed93a82
 content-type: application/problem+json; charset=utf-8
 cache-control: no-store
 content-length: 153
-Date: Mon, 28 Sep 2026 08:43:08 GMT
+Date: Mon, 28 Sep 2026 10:07:29 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0e72e-a32e-7382-be1e-f970635fae6e"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0e77b-deb5-7134-a6c8-1564eed93a82"}
+```
+
+The write's audit row, read through the proxy for the second in which the
+three requests ran, carries the `PATCH`'s own `x-request-id` as its
+`request_id`:
+
+```bash
+curl -sS -D - -b jar \
+  'http://localhost:3000/console/api/admin/tenants/console-paths/audit?from=2026-09-28T10:07:29Z&to=2026-09-28T10:07:30Z'
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e77c-115f-7f9a-a6b6-8402f7575e23
+content-type: application/json; charset=utf-8
+cache-control: no-store
+content-length: 580
+Date: Mon, 28 Sep 2026 10:07:42 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0e77b-dea5-777b-926e-7ef515714f64","occurred_at":"2026-09-28T10:07:29.949Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"01a0e72d-5927-73c3-b14d-a5b60d1ca9ad","actor_subject_id":"01a0e72d-5ba9-78cd-b877-7ea6d4076028","actor_client_id":"01a0e72d-599e-701c-87a2-7672d411bed2","resource_type":"subject","resource_id":"01a0e72d-7fc7-7950-a1e7-1d079588f8b4","request_id":"01a0e77b-de8a-742b-b05b-bbadf4c187fe","ip":"172.20.0.1","detail":{"email":{"after":"hopper@example.com","before":"grace.hopper@example.com"}}}]}
 ```
 
 ## `POST /console/api/admin/tenants/{tenant}/subjects`, refused as cross-site
 
-A request to `/console/api/` or `/console/auth/` other than `GET`, `HEAD`
-or `OPTIONS` is refused `403` before anything else runs, unless it carries
-`Origin` equal to the base's origin and `X-Odudu-Console: 1`. All three
-requests below have the same valid session cookie and the same body. The
-first sends another origin:
+From the third run, on its session. A request to `/console/api/` or
+`/console/auth/` other than `GET`, `HEAD` or `OPTIONS` is refused `403`
+before anything else runs, unless it carries `Origin` equal to the base's
+origin and `X-Odudu-Console: 1`. The refusal has the admin API's own `403`
+type, `about:blank`, and says why in `detail`. All three requests below
+have the same valid session cookie and the same body. The first sends
+another origin:
 
 ```bash
 curl -sS -D - -c jar -b jar -X POST \
   -H 'Origin: https://evil.example' -H 'X-Odudu-Console: 1' \
   -H 'Content-Type: application/json' \
-  -d '{"username":"lovelace","email":"lovelace@example.com"}' \
+  -d '{"username":"babbage","email":"babbage@example.com"}' \
   http://localhost:3000/console/api/admin/tenants/console-paths/subjects
 ```
 
 ```
 HTTP/1.1 403 Forbidden
-x-request-id: 01a0e72e-d2b3-71f6-a0b0-6aa71e18ec97
+x-request-id: 01a0e77c-1115-752e-ab58-bc1bf912de00
 content-type: application/problem+json; charset=utf-8
 cache-control: no-store
-content-length: 165
-Date: Mon, 28 Sep 2026 08:43:20 GMT
+content-length: 155
+Date: Mon, 28 Sep 2026 10:07:42 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"status":403,"type":"about:blank#forbidden","title":"Forbidden","detail":"refused as cross-site: origin-mismatch","instance":"01a0e72e-d2b3-71f6-a0b0-6aa71e18ec97"}
+{"status":403,"type":"about:blank","title":"Forbidden","detail":"refused as cross-site: origin-mismatch","instance":"01a0e77c-1115-752e-ab58-bc1bf912de00"}
 ```
 
 The second sends the right origin without the console's header:
@@ -553,21 +595,21 @@ The second sends the right origin without the console's header:
 curl -sS -D - -c jar -b jar -X POST \
   -H 'Origin: http://localhost:3000' \
   -H 'Content-Type: application/json' \
-  -d '{"username":"lovelace","email":"lovelace@example.com"}' \
+  -d '{"username":"babbage","email":"babbage@example.com"}' \
   http://localhost:3000/console/api/admin/tenants/console-paths/subjects
 ```
 
 ```
 HTTP/1.1 403 Forbidden
-x-request-id: 01a0e72e-d2c2-74d7-83a4-315c9c9080f6
+x-request-id: 01a0e77c-1122-7841-9077-d3d8d06c3f29
 content-type: application/problem+json; charset=utf-8
 cache-control: no-store
-content-length: 172
-Date: Mon, 28 Sep 2026 08:43:20 GMT
+content-length: 162
+Date: Mon, 28 Sep 2026 10:07:42 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"status":403,"type":"about:blank#forbidden","title":"Forbidden","detail":"refused as cross-site: console-header-missing","instance":"01a0e72e-d2c2-74d7-83a4-315c9c9080f6"}
+{"status":403,"type":"about:blank","title":"Forbidden","detail":"refused as cross-site: console-header-missing","instance":"01a0e77c-1122-7841-9077-d3d8d06c3f29"}
 ```
 
 The third sends both, and is forwarded. This shows the two refusals above
@@ -577,21 +619,21 @@ were the gateway's, not the admin API refusing the body or the session:
 curl -sS -D - -c jar -b jar -X POST \
   -H 'Origin: http://localhost:3000' -H 'X-Odudu-Console: 1' \
   -H 'Content-Type: application/json' \
-  -d '{"username":"lovelace","email":"lovelace@example.com"}' \
+  -d '{"username":"babbage","email":"babbage@example.com"}' \
   http://localhost:3000/console/api/admin/tenants/console-paths/subjects
 ```
 
 ```
 HTTP/1.1 201 Created
-x-request-id: 01a0e72e-d2ce-7cde-b2b5-8469e690886f
+x-request-id: 01a0e77c-1133-763b-a47a-001dca14a43f
 content-type: application/json; charset=utf-8
 cache-control: no-store
-content-length: 167
-Date: Mon, 28 Sep 2026 08:43:20 GMT
+content-length: 165
+Date: Mon, 28 Sep 2026 10:07:42 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a0e72e-d2f9-7a02-8e77-615c6b2395fa","type":"user","username":"lovelace","email":"lovelace@example.com","enabled":true,"created_at":"2026-09-28T08:43:20.696Z"}
+{"id":"01a0e77c-1143-7905-8e81-8c9b7d67635a","type":"user","username":"babbage","email":"babbage@example.com","enabled":true,"created_at":"2026-09-28T10:07:42.915Z"}
 ```
 
 ## A path that escapes `/admin/`
@@ -934,6 +976,156 @@ The second run's session was not logged out, so its `console_sessions` row
 is still there. It is the same throwaway tenant's, and it ends idle 30
 minutes later.
 
+## A refresh the server refuses
+
+From the third run, on its session `01a0e77b-b064-…`, straight after the
+cross-site section. Its grant is revoked through the console itself, by
+ending the SSO session the grant is bound to. `grace`'s one live session
+is the run's own, `01a0e77b-af7b-…`, the one in its `console-paths-session`
+cookie:
+
+```bash
+curl -sS -D - -b jar http://localhost:3000/console/api/admin/tenants/console-paths/subjects/01a0e72d-5ba9-78cd-b877-7ea6d4076028/sessions
+curl -sS -D - -c jar -b jar -X DELETE \
+  -H 'Origin: http://localhost:3000' -H 'X-Odudu-Console: 1' \
+  http://localhost:3000/console/api/admin/tenants/console-paths/subjects/01a0e72d-5ba9-78cd-b877-7ea6d4076028/sessions/01a0e77b-af7b-72d1-96b3-6387337d514d
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e77c-3efd-7975-aa8e-bf250a5807aa
+content-type: application/json; charset=utf-8
+cache-control: no-store
+content-length: 189
+Date: Mon, 28 Sep 2026 10:07:54 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0e77b-af7b-72d1-96b3-6387337d514d","created_at":"2026-09-28T10:07:17.879Z","last_active_at":"2026-09-28T10:07:17.879Z","remembered":false,"client_ids":["odudu-admin"]}]}
+```
+
+```
+HTTP/1.1 204 No Content
+x-request-id: 01a0e77c-3f70-75f9-8035-8e6218ee4cf0
+cache-control: no-store
+Date: Mon, 28 Sep 2026 10:07:54 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+This file, `q-state.sql`, run through the same `psql` as the refresh
+sections, reads the console session's stored access-token expiry and
+whether the grant is revoked. psql's trailing header spaces are trimmed
+below:
+
+```sql
+select id, access_expires_at, access_expires_at - now() as remaining from console_sessions where tenant_id = '01a0e72d-5927-73c3-b14d-a5b60d1ca9ad' and subject_id = '01a0e72d-5ba9-78cd-b877-7ea6d4076028';
+select g.revoked_at is not null as revoked from token_grants g where g.session_id = '01a0e77b-af7b-72d1-96b3-6387337d514d';
+```
+
+Right after the `DELETE`, the grant is revoked and the console session is
+still there, its access token good for four more minutes:
+
+```
+                  id                  |     access_expires_at      |    remaining
+--------------------------------------+----------------------------+-----------------
+ 01a0e77b-b064-76ef-afcb-f6c3efe49e0d | 2026-09-28 10:12:17.913+00 | 00:04:12.225678
+(1 row)
+
+ revoked
+---------
+ t
+(1 row)
+```
+
+Nothing was sent until the token was inside its 30 s refresh window. Then,
+one after another: the query, a proxied `GET`, the query again, and the
+session read with a copy of the jar taken before the `GET`:
+
+```bash
+docker exec -i docker-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < q-state.sql
+cp jar jar-before-call
+curl -sS -D - -c jar -b jar \
+  http://localhost:3000/console/api/admin/tenants/console-paths/subjects/01a0e72d-7fc7-7950-a1e7-1d079588f8b4
+docker exec -i docker-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < q-state.sql
+curl -sS -D - -b jar-before-call http://localhost:3000/console/api/session
+```
+
+```
+                  id                  |     access_expires_at      |    remaining
+--------------------------------------+----------------------------+-----------------
+ 01a0e77b-b064-76ef-afcb-f6c3efe49e0d | 2026-09-28 10:12:17.913+00 | 00:00:24.380626
+(1 row)
+
+ revoked
+---------
+ t
+(1 row)
+```
+
+The `GET` is the session-ended `401`, and its cookie is cleared:
+
+```
+HTTP/1.1 401 Unauthorized
+x-request-id: 01a0e77f-e46a-737e-b2f3-a4a613baabcf
+set-cookie: odudu-console=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0
+content-type: application/problem+json; charset=utf-8
+cache-control: no-store
+content-length: 130
+Date: Mon, 28 Sep 2026 10:11:53 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"status":401,"type":"about:blank#console-session-ended","title":"Unauthorized","instance":"01a0e77f-e46a-737e-b2f3-a4a613baabcf"}
+```
+
+The row is gone:
+
+```
+ id | access_expires_at | remaining
+----+-------------------+-----------
+(0 rows)
+
+ revoked
+---------
+ t
+(1 row)
+```
+
+The cookie from before the `GET` names nothing now:
+
+```
+HTTP/1.1 401 Unauthorized
+x-request-id: 01a0e77f-e4f4-7f6b-b9a5-fa87a1ce9956
+set-cookie: odudu-console=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0
+content-type: application/problem+json; charset=utf-8
+cache-control: no-store
+content-length: 130
+Date: Mon, 28 Sep 2026 10:11:53 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"status":401,"type":"about:blank#console-session-ended","title":"Unauthorized","instance":"01a0e77f-e4f4-7f6b-b9a5-fa87a1ce9956"}
+```
+
+The server's request log for that second shows which check ended it. The
+`GET` never reached `/admin/`. The gateway refreshed first, under the
+`GET`'s own request id, and the token endpoint answered `400`:
+
+```bash
+docker logs --since 2026-09-28T10:11:53Z --until 2026-09-28T10:11:54Z docker-odudu-1 2>&1 \
+  | jq -c 'select(.msg == "incoming request" or .msg == "request completed") | [.reqId, .req.method // .res.statusCode, .req.url // null]'
+```
+
+```
+["01a0e77f-e46a-737e-b2f3-a4a613baabcf","GET","/console/api/admin/tenants/console-paths/subjects/01a0e72d-7fc7-7950-a1e7-1d079588f8b4"]
+["01a0e77f-e46a-737e-b2f3-a4a613baabcf","POST","/tenants/console-paths/protocol/openid-connect/token"]
+["01a0e77f-e46a-737e-b2f3-a4a613baabcf",400,null]
+["01a0e77f-e46a-737e-b2f3-a4a613baabcf",401,null]
+["01a0e77f-e4f4-7f6b-b9a5-fa87a1ce9956","GET","/console/api/session"]
+["01a0e77f-e4f4-7f6b-b9a5-fa87a1ce9956",401,null]
+```
+
 ## `POST /console/auth/logout`
 
 Sent with no body. The same CSRF guard applies here.
@@ -1068,9 +1260,7 @@ Each item below is tested, not captured:
 
 - **The `502` on a token-endpoint failure.** A healthy stack's token
   endpoint answers a live grant's refresh, so this needs a fault injected
-  into it. It is in `apps/server/tests/console-proxy.int.test.ts`, beside
-  the session-ended `401` when the token endpoint refuses the refresh token,
-  which these runs did not attempt either.
+  into it. It is in `apps/server/tests/console-proxy.int.test.ts`.
 - **The `__Host-` cookies**, which need an `https` base. These are in
   `apps/server/tests/console-session.int.test.ts`, and the `conformance`
   job's `infra/conformance/run-console-check.sh` asserts both over that
