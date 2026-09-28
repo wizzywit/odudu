@@ -1055,9 +1055,12 @@ tokens server-side and gives the browser nothing but a session cookie:
   session-ended `401`, as does a `200` whose body cannot be read, since it
   has already rotated the refresh token. Any other token-endpoint failure,
   or a wait of more than 5 s for the session's lock, answers `502` and keeps
-  the session. The admin API's own `401` ends the session too, deleting it
-  and answering the session-ended `401` without presenting the refresh
-  token, since a grant it refuses has already ended.
+  the session. The admin API's own `401` is confirmed with one
+  `GET /admin/tenants/{the session's tenant}/whoami` on the same token. If
+  that answers `200`, the `401` was about the path, an unknown tenant or
+  one the token was not issued by, and it is passed back as it is with the
+  session kept. If that is refused too, the session is deleted, its grant
+  revoked, and the answer is the session-ended `401`.
 - `POST /console/auth/logout` revokes the session's refresh token, deletes
   the session and clears its cookie, then answers `200 { "redirect": … }`
   with the tenant's RP-initiated logout URL, carrying `id_token_hint`,

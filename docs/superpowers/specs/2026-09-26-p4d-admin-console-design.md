@@ -394,8 +394,9 @@ already use), `created_at`, `last_seen_at`, `expires_at`.
 
 The cookie carries `<tenant_id>.<secret>`: the lookup sets `app.tenant_id`
 from the first half before reading, so the table needs no path around RLS.
-A session ends at 30 minutes idle, 12 hours absolute, or when its refresh
-token is refused, whichever is first. Refreshes are serialised per session
+A session ends at 30 minutes idle, 12 hours absolute, when its refresh
+token is refused, or when the admin API refuses its access token, confirmed
+against the session's own tenant, whichever is first. Refreshes are serialised per session
 by a row lock, so two tabs refreshing together cannot trip refresh-token
 reuse detection and revoke the grant. Pending logins live in
 `console_logins` with a ten-minute lifetime. Both tables are reaped by

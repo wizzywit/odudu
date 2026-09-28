@@ -1,5 +1,6 @@
 import { withTenant } from '@odudu/db';
-import { consoleSessionRepository, type ConsoleSessionRecord } from '#/repository/console-sessions';
+import { type ConsoleSessionRecord } from '#/repository/console-sessions';
+import { tenantNameRepository } from '#/repository/tenants';
 import { type AdminMethod, type AdminResponse, type Caller } from '#/service/odudu-port';
 import {
   forwardedRequestHeaders,
@@ -8,7 +9,7 @@ import {
 } from '#/service/rewrite';
 import { freshAccessToken, type FreshTokenDeps } from '#/usecase/fresh-access-token';
 import { orUnavailable } from '#/usecase/lock-timeout';
-import { resolveSession, type ResolveSessionDeps } from '#/usecase/resolve-session';
+import { endSession, resolveSession, type ResolveSessionDeps } from '#/usecase/resolve-session';
 
 export interface ForwardDeps extends ResolveSessionDeps, FreshTokenDeps {}
 
@@ -32,9 +33,10 @@ export type ForwardResult =
   | { readonly kind: 'ended' }
   | { readonly kind: 'unavailable' };
 
-// The admin API's own 401 ends the session, and nothing is presented:
-// refreshing and retrying on it would present a refresh token the lock no
-// longer guards, and a grant it refuses is one already ended.
+// The admin API also answers 401 for a path naming an unknown tenant or
+// one the token was not issued by, so a 401 ends the session only once the
+// token is refused at its own tenant too. Nothing is refreshed on it: that
+// would present a refresh token the lock no longer guards.
 export async function forwardAdminCall(
   deps: ForwardDeps,
   call: ConsoleAdminCall,
@@ -60,7 +62,15 @@ export async function forwardAdminCall(
     body: call.body,
     from: call.from,
   });
-  if (response.status === 401) return dropSession(deps, resolved.session);
+  if (
+    response.status === 401 &&
+    (await refusedAtHome(deps, resolved.session, token.accessToken, call.from))
+  ) {
+    return orUnavailable(async () => {
+      await endSession(deps, resolved.session, call.from);
+      return { kind: 'ended' } as const;
+    });
+  }
   return {
     kind: 'forwarded',
     status: response.status,
@@ -69,14 +79,22 @@ export async function forwardAdminCall(
   };
 }
 
-async function dropSession(
+async function refusedAtHome(
   deps: ForwardDeps,
   session: ConsoleSessionRecord,
-): Promise<ForwardResult> {
-  return orUnavailable(async () => {
-    await withTenant(deps.database.db, session.tenantId, (tx) =>
-      consoleSessionRepository(tx).take(session.id),
-    );
-    return { kind: 'ended' } as const;
+  accessToken: string,
+  from: Caller,
+): Promise<boolean> {
+  const tenant = await withTenant(deps.database.db, session.tenantId, (tx) =>
+    tenantNameRepository(tx).nameOf(session.tenantId),
+  );
+  if (tenant === null) return true;
+  const whoami = await deps.odudu.forward({
+    method: 'GET',
+    path: `/admin/tenants/${encodeURIComponent(tenant)}/whoami`,
+    headers: { authorization: `Bearer ${accessToken}` },
+    body: undefined,
+    from,
   });
+  return whoami.status === 401;
 }

@@ -140,7 +140,9 @@ rotation committed before a refusal leaves both an `allowed` and a
 which it sends with no body and answers by navigating to the returned
 `redirect` itself ([docs/console-paths.md](console-paths.md)). A `401` of
 type `about:blank#console-session-ended` means sign in again, and the
-admin API's own `401` answers that too; its `403` is passed back as it is.
+admin API's own `401` answers that too once the token is refused at the
+session's own tenant; otherwise that `401`, and every `403`, is passed back
+as it is.
 Every write carries
 `X-Odudu-Console: 1` and a same-origin `Origin`, or it is refused `403`.
 The shell's CSP allows React Aria's pressable style by its hash, and Part 3

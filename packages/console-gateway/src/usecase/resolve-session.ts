@@ -85,6 +85,18 @@ export async function resolveSession(
   return ENDED;
 }
 
+/** Takes the session's row and revokes its grant; the lock-timeout error propagates. */
+export async function endSession(
+  deps: ResolveSessionDeps,
+  session: ConsoleSessionRecord,
+  from: Caller,
+): Promise<void> {
+  const taken = await withTenant(deps.database.db, session.tenantId, (tx) =>
+    takeRow(tx, deps, session),
+  );
+  if (taken !== null) await endGrant(deps.odudu, taken.tenant, taken.refreshToken, from);
+}
+
 /** Ends whatever live session the cookie names, as a sign-in replacing it does. */
 export async function endNamedSession(
   deps: ResolveSessionDeps,

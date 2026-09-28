@@ -16,7 +16,9 @@ import {
   Jar,
   KEK,
   holdSessionLock,
+  seedTenantAdmin,
   signIn,
+  signInToTenant,
   startConsoleApp,
 } from '#/testing/console-harness';
 
@@ -752,7 +754,7 @@ describe('an ended session or grant', () => {
         client_id: 'odudu-admin',
       }).toString(),
     });
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode, res.body).toBe(200);
   }
 
   it('ends the session with 401 and deletes its row when the refresh is refused', async () => {
@@ -773,22 +775,78 @@ describe('an ended session or grant', () => {
     });
   });
 
-  it('ends the session on the admin API’s own 401 outside the window, without refreshing', async () => {
+  it('ends the session on a 401 its own tenant’s whoami confirms, revoking the grant', async () => {
+    const revokes: string[] = [];
+    const seeRevokes = (app: FastifyInstance): void => {
+      app.addHook('preHandler', async (request) => {
+        if (!request.url.endsWith('/protocol/openid-connect/revoke')) return;
+        const body: unknown = request.body;
+        if (typeof body === 'object' && body !== null && 'token' in body) {
+          revokes.push(typeof body.token === 'string' ? body.token : '');
+        }
+      });
+    };
+    await withStack(
+      async (stack) => {
+        const jar = new Jar();
+        const { subjectId } = await signIn(stack, jar);
+        const refreshToken = unwrapSecret(
+          (await mustSession(subjectId)).refresh_token_wrapped,
+          KEK,
+        );
+        await revokeGrant(stack, subjectId);
+        revokes.length = 0;
+        const tokens = stack.tokenResponses.length;
+        const forwarded = stack.adminRequests.length;
+
+        const res = await call(stack, jar, SCOPES);
+
+        expectEnded(res);
+        expect(String(res.headers['set-cookie'])).toMatch(/^odudu-console=;.*Max-Age=0/u);
+        expect(stack.adminRequests.slice(forwarded).map((seen) => seen.url)).toEqual([
+          `/admin/tenants/${SYSTEM_TENANT_NAME}/scopes`,
+          `/admin/tenants/${SYSTEM_TENANT_NAME}/whoami`,
+        ]);
+        expect(stack.tokenResponses.length).toBe(tokens);
+        expect(await sessionOf(subjectId)).toBeUndefined();
+        expect(revokes).toEqual([refreshToken]);
+        expectEnded(await browse(stack, jar, '/console/api/session'));
+      },
+      { beforeReady: seeRevokes },
+    );
+  });
+
+  // Two 401s that say nothing about the token: a tenant that does not exist,
+  // and a path whose tenant is not the one the token was issued by.
+  it('passes through a system admin’s 401 for a tenant that does not exist, keeping the session', async () => {
     await withStack(async (stack) => {
       const jar = new Jar();
       const { subjectId } = await signIn(stack, jar);
-      await revokeGrant(stack, subjectId);
-      const tokens = stack.tokenResponses.length;
-      const forwarded = stack.adminRequests.length;
+
+      const res = await call(stack, jar, '/console/api/admin/tenants/no-such-tenant/whoami');
+
+      expect(res.statusCode).toBe(401);
+      expect(res.json<{ type?: string }>().type).toBe('about:blank');
+      expect(res.headers['set-cookie']).toBeUndefined();
+      expect(await sessionOf(subjectId)).toBeDefined();
+      expect((await call(stack, jar, WHOAMI)).statusCode).toBe(200);
+    });
+  });
+
+  it('passes through a tenant admin’s 401 for another tenant’s path, keeping the session', async () => {
+    await withStack(async (stack) => {
+      const { tenant, username } = await seedTenantAdmin();
+      const jar = new Jar();
+      await signInToTenant(stack, jar, tenant, username);
+      const own = `/console/api/admin/tenants/${tenant}/whoami`;
+      expect((await call(stack, jar, own)).statusCode).toBe(200);
 
       const res = await call(stack, jar, WHOAMI);
 
-      expectEnded(res);
-      expect(String(res.headers['set-cookie'])).toMatch(/^odudu-console=;.*Max-Age=0/u);
-      expect(stack.adminRequests).toHaveLength(forwarded + 1);
-      expect(stack.tokenResponses.length).toBe(tokens);
-      expect(await sessionOf(subjectId)).toBeUndefined();
-      expectEnded(await browse(stack, jar, '/console/api/session'));
+      expect(res.statusCode).toBe(401);
+      expect(res.json<{ type?: string }>().type).toBe('about:blank');
+      expect(res.headers['set-cookie']).toBeUndefined();
+      expect((await call(stack, jar, own)).statusCode).toBe(200);
     });
   });
 

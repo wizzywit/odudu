@@ -77,7 +77,8 @@ refusals and the refresh the server refuses. Each says so in its first line.
 Between the second and third runs the gateway changed in four ways. It now
 sends the console request's own `x-request-id` upstream. It answers its
 cross-site `403` with the admin API's `about:blank` type. It ends a session
-the admin API answers `401`. And it revokes the grant of a session it finds
+whose access token the admin API refuses, once a `whoami` at the session's
+own tenant confirms it. And it revokes the grant of a session it finds
 over. The first two runs' sections were not re-run at `6401476`. The only
 change in what they show would be the `request_id` in the refresh sections'
 audit rows, which predate the first change.
@@ -1261,6 +1262,10 @@ Each item below is tested, not captured:
 - **The `502` on a token-endpoint failure.** A healthy stack's token
   endpoint answers a live grant's refresh, so this needs a fault injected
   into it. It is in `apps/server/tests/console-proxy.int.test.ts`.
+- **The admin API's own `401`**, confirmed at the session's own tenant
+  before it ends the session, and passed through with the session kept for
+  an unknown tenant or another tenant's path. These are in
+  `apps/server/tests/console-proxy.int.test.ts`.
 - **The `__Host-` cookies**, which need an `https` base. These are in
   `apps/server/tests/console-session.int.test.ts`, and the `conformance`
   job's `infra/conformance/run-console-check.sh` asserts both over that

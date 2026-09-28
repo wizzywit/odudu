@@ -9,7 +9,7 @@ import { type IncomingHttpHeaders } from 'node:http';
 import { Writable } from 'node:stream';
 import { expect } from 'vitest';
 import { buildApp, type ThrottleSettings } from '#/app';
-import { seedAdmin } from '#/cli/seed';
+import { seed, seedAdmin } from '#/cli/seed';
 import { createLogger } from '#/logger';
 
 // A browser for the console's integration tests: it drives the gateway's
@@ -292,4 +292,54 @@ export async function holdSessionLock(
     release();
     await holder;
   };
+}
+
+/** A tenant of its own, with one administrator holding its tenant-admin role. */
+export async function seedTenantAdmin(): Promise<{ tenant: string; username: string }> {
+  const tenant = `t-${newId().slice(-12)}`;
+  const username = 'grace';
+  await seed(['tenant', '--name', tenant]);
+  await seed([
+    'user',
+    '--tenant',
+    tenant,
+    '--username',
+    username,
+    '--password',
+    NEW_PASSWORD,
+    '--email',
+    'grace@example.com',
+  ]);
+  await seed([
+    'grant-role',
+    '--tenant',
+    tenant,
+    '--username',
+    username,
+    '--role',
+    'odudu-admin:tenant-admin',
+  ]);
+  return { tenant, username };
+}
+
+/** A full sign-in to the console as that tenant's administrator. */
+export async function signInToTenant(
+  stack: ConsoleStack,
+  jar: Jar,
+  tenant: string,
+  username: string,
+): Promise<void> {
+  const query = new URLSearchParams({ tenant, return_to: RETURN_TO });
+  const login = await browse(stack, jar, `/console/auth/login?${query.toString()}`);
+  expect(login.statusCode).toBe(302);
+  const authorize = new URL(String(login.headers.location));
+  const page = await browse(stack, jar, authorize.pathname + authorize.search);
+  const signedIn = await post(stack, jar, `/tenants/${tenant}/login-actions/authenticate`, {
+    auth_session_id: field(page.body, 'auth_session_id'),
+    username,
+    password: NEW_PASSWORD,
+  });
+  expect(signedIn.statusCode).toBe(302);
+  const callback = await browse(stack, jar, pathOf(stack, String(signedIn.headers.location)));
+  expect(callback.statusCode).toBe(302);
 }
