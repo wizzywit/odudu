@@ -131,7 +131,7 @@ function grantPastRetention(now: Date, policy: RetentionPolicy): SQL {
   `;
 }
 
-const RETENTION_RULES: Record<TableName, RetentionRule> = {
+export const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // Deleted here rather than left to the ON DELETE CASCADE on
   // refresh_tokens_grant_fk: a cascade deletes the rows without this pass
   // counting them, so the report would show nothing for a table that had

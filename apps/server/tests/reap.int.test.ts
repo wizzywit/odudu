@@ -13,6 +13,7 @@ import {
   reap,
   REAP_LOCK_KEY,
   REAP_ORDER,
+  RETENTION_RULES,
   type ReapOutcome,
   type RetentionPolicy,
   type TableName,
@@ -500,6 +501,29 @@ describe('odudu reap', () => {
     expect(sessions.map((row) => row.id)).toEqual([fixture.consoleSessionLiveId]);
     expect(logins.map((row) => row.id)).toEqual([fixture.consoleLoginLiveId]);
   });
+
+  // Each rule's own statement, run under one tenant's context alone: the
+  // DELETEs carry no tenant predicate, so the policy is all that spares
+  // the other tenant's rows.
+  it.each(['console_sessions', 'console_logins'] as const)(
+    'scopes the %s delete to one tenant by row-level security alone',
+    async (table) => {
+      const mine = await seedFixture();
+      const theirs = await seedFixture();
+
+      const before = await countRows(theirs.tenantId, table);
+      const pass = await withEachTenantExclusive(appDb.db, REAP_LOCK_KEY, [mine.tenantId], (tx) =>
+        tx.execute(RETENTION_RULES[table].statement(NOW, POLICY)),
+      );
+      expect(pass.acquired).toBe(true);
+
+      expect(await countRows(mine.tenantId, table)).toBe(1);
+      expect(before).toBeGreaterThan(1);
+      expect(await countRows(theirs.tenantId, table)).toBe(before);
+
+      await runPass();
+    },
+  );
 
   // The foreign-tenant probe for this table specifically: the
   // generic "scopes each tenant's statements by row-level security alone"
