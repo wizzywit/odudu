@@ -2,6 +2,7 @@ import { unwrapSecret, wrapSecret } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { smtpSender, type EmailSender, type SmtpConfig as SmtpTransportConfig } from '@odudu/email';
 import { type SmtpConfig } from '@odudu/contracts/admin';
+import { etagOf, matches } from '#/service/etag';
 import { checkSmtpDestination, type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 
@@ -87,6 +88,7 @@ export async function deleteSmtp(
 
 export interface PutSmtpInput {
   readonly tenantId: string;
+  readonly ifMatch: string | undefined;
   readonly host: string;
   readonly port: number;
   readonly fromAddress: string;
@@ -103,11 +105,19 @@ export interface PutSmtpDeps {
   readonly kek: Uint8Array;
 }
 
+export type PutSmtpOutcome =
+  { kind: 'precondition_failed' } | { kind: 'ok'; config: SmtpConfig; etag: string };
+
 export async function putSmtp(
   tx: TenantScopedDatabase,
   deps: PutSmtpDeps,
   input: PutSmtpInput,
-): Promise<SmtpConfig> {
+): Promise<PutSmtpOutcome> {
+  const current = await tenantSmtpRepository(tx).lockByTenantId(input.tenantId);
+  if (matches(input.ifMatch, etagOf(toWireShape(current))) === 'mismatch') {
+    return { kind: 'precondition_failed' };
+  }
+
   const record = await tenantSmtpRepository(tx).upsert(input.tenantId, {
     host: input.host,
     port: input.port,
@@ -127,7 +137,8 @@ export async function putSmtp(
     outcome: 'allowed',
   });
 
-  return toWireShape(record);
+  const config = toWireShape(record);
+  return { kind: 'ok', config, etag: etagOf(config) };
 }
 
 export type SenderFromRecordOutcome =

@@ -180,6 +180,7 @@ describe('POST /admin/tenants/{t}/keys/{id}/promote', () => {
           { audit },
           {
             keyId,
+            ifMatch: undefined,
             actorSubjectId: newId(),
             actorTenantId: 'test-tenant',
             actorClientId: 'test-client',
@@ -464,6 +465,7 @@ describe('audit', () => {
         { audit: ok.audit },
         {
           keyId: staged.id,
+          ifMatch: undefined,
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -481,6 +483,7 @@ describe('audit', () => {
         { audit: refused.audit },
         {
           keyId: newId(),
+          ifMatch: undefined,
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -515,6 +518,7 @@ describe('audit', () => {
         { audit: refusedActive.audit },
         {
           keyId: active.id,
+          ifMatch: undefined,
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -531,6 +535,7 @@ describe('audit', () => {
         { audit: refusedNotFound.audit },
         {
           keyId: newId(),
+          ifMatch: undefined,
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -547,6 +552,7 @@ describe('audit', () => {
         { audit: ok.audit },
         {
           keyId: staged.id,
+          ifMatch: undefined,
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',

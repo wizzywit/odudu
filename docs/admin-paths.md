@@ -140,7 +140,9 @@ stack of their own: compose project `odudu-task2`, published on port 3080,
 built from this branch and brought up from an empty volume with
 `seed admin --username ada-t2`, each section after a rebuild that added
 what it describes. It was torn down with `docker compose down -v` when the
-capture finished. They are "A refusal names its field". The `400` bodies
+capture finished. They are "A refusal names its field", "A create
+answers its `ETag`", and the `ETag` sections under the role composites,
+scope assignment, signing key and SMTP routes. The `400` bodies
 in sections captured before `errors` existed were not re-run, and show
 none; each such refusal now also carries `errors`, naming the field its
 `detail` names, as that section shows.
@@ -342,6 +344,34 @@ curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: applic
 ```
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown role id(s): 0199aa00-0000-7000-8000-0000000000ff","errors":[{"path":"role_ids","message":"names no role 0199aa00-0000-7000-8000-0000000000ff"}],"instance":"01a0e9e0-b564-7765-81f0-d8ddb655a845"}
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"authenticator \"password\" appears more than once; a step is addressed by its authenticator, so a repeat has no unambiguous meaning","errors":[{"path":"[1].authenticator","message":"repeats an earlier step"}],"instance":"01a0e9e0-b598-7331-95af-09ef6837a5c3"}
+```
+
+### A create answers its `ETag`
+
+Every `POST` that creates a record answers `ETag` beside its `201` — the
+same one the record's own `GET` answers, so the first save after a create
+needs no read first. A signing key and a registration token have no read
+of their own; theirs is the one their entry in the list is taken over,
+never over the one-time `token`. `POST /subjects/:id/password` creates no
+record, and answers none. Captured against the fifth stack, in a tenant
+`etags-demo` created for it:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"billing-viewer"}' http://localhost:3080/admin/tenants/etags-demo/roles
+curl -sS -D - -o /dev/null -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3080/admin/tenants/etags-demo/roles/01a0e9ec-6384-76f7-b433-4876e51cbff1
+```
+
+The status line, the `etag` header and the body of each, other headers
+left out:
+
+```
+HTTP/1.1 201 Created
+etag: "502ef1a04a6ab86b8f1bf252826658e3ce393f474b01fe12275f9801e23e86ad"
+{"id":"01a0e9ec-6384-76f7-b433-4876e51cbff1","name":"billing-viewer","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-28T21:29:38.436Z"}
+HTTP/1.1 200 OK
+etag: "502ef1a04a6ab86b8f1bf252826658e3ce393f474b01fe12275f9801e23e86ad"
 ```
 
 ## Getting the token
@@ -4534,6 +4564,51 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"items":[{"id":"01a0e54b-9f07-7588-9fa2-c0eb03fd788c","occurred_at":"2026-09-27T23:55:33.510Z","event_type":"admin_mutation","action":"role.composite_remove","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e539-e7b9-7c93-bf92-44517286831d","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e915-73be-ac2d-5408ba17401f","request_id":"01a0e54b-9efd-72e1-8570-e9e93b2a233f","ip":"172.20.0.1","detail":{"child_role_id":"01a0e200-e940-79e0-8e90-e06ecfbce38d"}},{"id":"01a0e201-618a-71fb-95af-8810ed9a2812","occurred_at":"2026-09-27T08:35:36.457Z","event_type":"admin_mutation","action":"role.composite_remove","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e915-73be-ac2d-5408ba17401f","request_id":"01a0e201-617f-77c6-acad-fb3753ebfc56","ip":"172.20.0.1","detail":{"child_role_id":"01a0e200-e940-79e0-8e90-e06ecfbce38d"}}]}
 ```
 
+### Composites answer an `ETag`
+
+`GET …/composites` answers an `ETag` over the list it returns, and both
+composite writes answer the list's new one — `POST` beside its `204`, and
+`DELETE` beside its. `If-Match` is optional on both, as it has always been:
+honoured when sent, and a stale one is refused with `412` before anything
+changes. Captured against the fifth stack in `etags-demo`, on
+`billing-viewer` and a second role `billing-reader`
+(`01a0e9ec-63d4-7655-b076-740db494e46b`), starting from no composites:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3080/admin/tenants/etags-demo/roles/01a0e9ec-6384-76f7-b433-4876e51cbff1/composites
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -H 'If-Match: "0000"' -d '{"child_role_id":"01a0e9ec-63d4-7655-b076-740db494e46b"}' \
+  http://localhost:3080/admin/tenants/etags-demo/roles/01a0e9ec-6384-76f7-b433-4876e51cbff1/composites
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
+  -d '{"child_role_id":"01a0e9ec-63d4-7655-b076-740db494e46b"}' \
+  http://localhost:3080/admin/tenants/etags-demo/roles/01a0e9ec-6384-76f7-b433-4876e51cbff1/composites
+curl -sS -D - -o /dev/null -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3080/admin/tenants/etags-demo/roles/01a0e9ec-6384-76f7-b433-4876e51cbff1/composites
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
+  http://localhost:3080/admin/tenants/etags-demo/roles/01a0e9ec-6384-76f7-b433-4876e51cbff1/composites/01a0e9ec-63d4-7655-b076-740db494e46b
+```
+
+Each one's status line, `etag` header and body, in that order. The last is
+the empty list's `ETag` again, which no longer matches once the edge
+exists:
+
+```
+HTTP/1.1 200 OK
+etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
+{"items":[]}
+HTTP/1.1 412 Precondition Failed
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0e9ec-8ba2-75ce-9649-c978d6052d92"}
+HTTP/1.1 204 No Content
+etag: "e70608fa2ef588fc220f1c48c5a48f12d5d9f2f43068984afc13f32ea4255466"
+HTTP/1.1 200 OK
+etag: "e70608fa2ef588fc220f1c48c5a48f12d5d9f2f43068984afc13f32ea4255466"
+HTTP/1.1 412 Precondition Failed
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0e9ec-8bfa-7bcf-b166-3666b4994ca5"}
+```
+
 ## `PUT /roles/:id/default`
 
 Requires `manage-tenant`. The body is `{"default": true}` or
@@ -5134,6 +5209,34 @@ carries, and nothing besides:
 {"client_id":"01a0d767-a054-7a00-b96d-eea9492c4e4d","scopes":[{"id":"01a0d764-e837-75cb-b5eb-bf56c1193e85","name":"openid","assignment":"default"},{"id":"01a0d764-e83b-7c1c-84cc-624bbbe5947d","name":"profile","assignment":"default"},{"id":"01a0d764-e83c-76ee-976a-14b79a5f8c8b","name":"email","assignment":"default"},{"id":"01a0d764-e83d-74c0-a341-bfc8dc17ece7","name":"address","assignment":"default"},{"id":"01a0d764-e83d-74c0-a341-bfc97cd8d0bd","name":"phone","assignment":"default"},{"id":"01a0d764-e83e-778c-8fe8-0b8122e3d178","name":"roles","assignment":"default"},{"id":"01a0d764-e83f-7e65-bb51-c62daaadd27d","name":"groups","assignment":"default"},{"id":"01a0d764-e83f-7e65-bb51-c62e4d176cc8","name":"offline_access","assignment":"optional"},{"id":"01a0d767-b5e6-74f8-89a0-f3afa7e2f6c0","name":"billing","assignment":"default"}]}
 ```
 
+### The client's new `ETag`
+
+The client's own representation carries its `scopes`, so an assignment
+changes the `ETag` `GET /clients/:id` answers. The `PUT` answers that new
+`ETag`, and so does `DELETE /scopes/:id/clients/:clientId` beside its
+`204`, so a caller editing the client can save its next change without
+reading it again — the `ETag` is a digest, and hands the `manage-tenant`
+holder none of what it covers. Captured against the fifth stack in
+`etags-demo`, on a public client `etags-app`
+(`01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3`) and a scope `billing`
+(`01a0e9ec-d68e-7463-8023-bd155594d026`), both created there for it:
+
+```bash
+curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"assignment":"optional"}' \
+  http://localhost:3080/admin/tenants/etags-demo/scopes/01a0e9ec-d68e-7463-8023-bd155594d026/clients/01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3
+curl -sS -D - -o /dev/null -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3080/admin/tenants/etags-demo/clients/01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3
+```
+
+```
+HTTP/1.1 200 OK
+etag: "4239c83cdd1615fda6c595070f888200acba67bd27421287344614b7827f4165"
+{"client_id":"01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3","scopes":[{"id":"01a0e9ec-6338-7743-a6cf-bf196533da83","name":"openid","assignment":"default"},{"id":"01a0e9ec-6338-7743-a6cf-bf1a6fe8811d","name":"profile","assignment":"default"},{"id":"01a0e9ec-6339-782e-9a8d-42f903942e10","name":"email","assignment":"default"},{"id":"01a0e9ec-633a-7996-82df-731802038298","name":"address","assignment":"default"},{"id":"01a0e9ec-633a-7996-82df-7319409725e4","name":"phone","assignment":"default"},{"id":"01a0e9ec-633b-7f20-8264-586c5a087d01","name":"roles","assignment":"default"},{"id":"01a0e9ec-633b-7f20-8264-586da97b298d","name":"groups","assignment":"default"},{"id":"01a0e9ec-633c-752d-a317-52e94971abf9","name":"offline_access","assignment":"optional"},{"id":"01a0e9ec-d68e-7463-8023-bd155594d026","name":"billing","assignment":"optional"}]}
+HTTP/1.1 200 OK
+etag: "4239c83cdd1615fda6c595070f888200acba67bd27421287344614b7827f4165"
+```
+
 ## `DELETE /scopes/:id/clients/:clientId`
 
 Requires `manage-tenant`. Removes the client's assignment of the scope,
@@ -5420,6 +5523,35 @@ curl -sS \
 {"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: kid","instance":"01a0e12f-a453-74b5-bcc8-174e755e4db8"}
 ```
 
+### A key's `ETag`
+
+`POST /keys`, promote and retire each answer an `ETag` over the key they
+answer. Promote and retire honour it as `If-Match` when it is sent, taken
+over the key as it stands under the write's own lock, and refuse a stale
+one with `412`; neither requires it. Captured against the fifth stack in
+`etags-demo`:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"alg":"RS256"}' http://localhost:3080/admin/tenants/etags-demo/keys
+curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'If-Match: "0000"' \
+  http://localhost:3080/admin/tenants/etags-demo/keys/01a0e9ec-b000-7842-96c3-6475d4f6e651/promote
+curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'If-Match: "3ec2140faff0825bec2afd86b419e16bd83744ce67f7fc3020a050e9f9e859a2"' \
+  http://localhost:3080/admin/tenants/etags-demo/keys/01a0e9ec-b000-7842-96c3-6475d4f6e651/promote
+```
+
+```
+HTTP/1.1 201 Created
+etag: "3ec2140faff0825bec2afd86b419e16bd83744ce67f7fc3020a050e9f9e859a2"
+{"id":"01a0e9ec-b000-7842-96c3-6475d4f6e651","status":"rotating","kid":"01a0e9ec-afff-7ce4-8c78-95aff244235b","alg":"RS256","created_at":"2026-09-28T21:29:57.991Z","not_after":null}
+HTTP/1.1 412 Precondition Failed
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0e9ec-b03e-7c15-b96f-ebcb3e5d528b"}
+HTTP/1.1 200 OK
+etag: "590baab1ba6f8492799c2636f440bfbe33c9354dff4143bb4021ed47a015305e"
+{"id":"01a0e9ec-b000-7842-96c3-6475d4f6e651","status":"active","kid":"01a0e9ec-afff-7ce4-8c78-95aff244235b","alg":"RS256","created_at":"2026-09-28T21:29:57.991Z","not_after":null}
+```
+
 ## `GET /flow/executions` and `PUT /flow/executions`
 
 Both require `manage-tenant`. `GET` reads the tenant's whole authentication
@@ -5555,12 +5687,36 @@ deployment whose relay genuinely is internal, the same escape hatch
 `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` gives that fetcher; loopback and
 link-local stay refused either way.
 
-Neither route carries an `ETag`/`If-Match`, the deliberate deviation from
-the resource pattern's default: `PUT` already fully replaces the row, never
-a partial amend a concurrent writer could interleave with, and the
-password's own write-only shape removes the one case a race would matter
-for — a caller can never read the current value to decide whether its own
-write should still apply.
+`GET` and `PUT` answer an `ETag` over the configuration as they answer it.
+`PUT` honours `If-Match` when it is sent, taken under a lock on the row it
+replaces, and refuses a stale one with `412`; it does not require one,
+since a tenant with no row has nothing another writer could have changed
+under it. Captured against the fifth stack in `etags-demo`, which had no
+SMTP row — the `GET`, a `PUT` with an `If-Match` that matches nothing, and
+the same `PUT` under the `GET`'s own:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3080/admin/tenants/etags-demo/smtp
+curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -H 'If-Match: "0000"' \
+  -d '{"host":"smtp.example.test","port":587,"from_address":"noreply@etags.example"}' \
+  http://localhost:3080/admin/tenants/etags-demo/smtp
+curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -H 'If-Match: "cf845f9611c18fe7426c2521014d3c3e995c33920fd705514e6b3225448f4a5c"' \
+  -d '{"host":"smtp.example.test","port":587,"from_address":"noreply@etags.example"}' \
+  http://localhost:3080/admin/tenants/etags-demo/smtp
+```
+
+```
+HTTP/1.1 200 OK
+etag: "cf845f9611c18fe7426c2521014d3c3e995c33920fd705514e6b3225448f4a5c"
+{"configured":false,"host":null,"port":null,"from_address":null,"username":null,"password_set":false,"starttls":null}
+HTTP/1.1 412 Precondition Failed
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0e9ec-b085-7098-9904-d963542b28e7"}
+HTTP/1.1 200 OK
+etag: "3d60f9612265ebd6b9909402c185bd98afe973737cff0b31d1d6720554e8eeaa"
+{"configured":true,"host":"smtp.example.test","port":587,"from_address":"noreply@etags.example","username":null,"password_set":false,"starttls":false}
+```
 
 Resolution order when this tenant's mail is actually sent
 (`apps/server/src/email.ts`'s `resolveSender`): this row first, then the

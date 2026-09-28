@@ -226,6 +226,7 @@ export function createSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
     }
 
     const wire: Subject = subjectWireShape(view);
+    reply.header('etag', etagOf(wire));
     return reply.code(201).send(wire);
   };
 }

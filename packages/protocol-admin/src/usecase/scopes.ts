@@ -27,7 +27,12 @@ import {
   requireSearchKey,
   type ListPosition,
 } from '#/usecase/prefix-search';
-import { refuseOverServiceAccountCeiling, type ClientCeilingCaller } from '#/usecase/clients';
+import {
+  clientWireShape,
+  readClient,
+  refuseOverServiceAccountCeiling,
+  type ClientCeilingCaller,
+} from '#/usecase/clients';
 import { type RoleAssignment, type TargetCeilingRefusal } from '#/usecase/subjects';
 
 const COLLECTION = 'scopes';
@@ -634,7 +639,15 @@ export type AssignScopeToClientOutcome =
   | { kind: 'scope_not_found' }
   | { kind: 'client_not_found' }
   | TargetCeilingRefusal
-  | { kind: 'ok'; assignments: AssignScopeToClientResponse };
+  | { kind: 'ok'; assignments: AssignScopeToClientResponse; clientEtag: string };
+
+// The `ETag` `GET …/clients/:id` answers, which hashes the client's scopes too:
+// an assignment changes it, and a caller editing the client needs the new one.
+async function clientEtagOf(tx: TenantScopedDatabase, clientId: string): Promise<string> {
+  const read = await readClient(tx, clientId);
+  if (read.kind === 'not_found') throw new Error(`client ${clientId} vanished mid-assignment`);
+  return etagOf(clientWireShape(read.client));
+}
 
 /**
  * Assigns or re-assigns a scope's `default`/`optional` split on a client —
@@ -698,6 +711,7 @@ export async function assignScopeToClient(
         assignment: row.assignment,
       })),
     },
+    clientEtag: await clientEtagOf(tx, input.clientId),
   };
 }
 
@@ -716,7 +730,7 @@ export type UnassignScopeFromClientOutcome =
   | { kind: 'builtin_admin_guarded'; reason: string }
   | TargetCeilingRefusal
   | { kind: 'not_assigned' }
-  | { kind: 'removed' };
+  | { kind: 'removed'; clientEtag: string };
 
 /**
  * Removes a client's assignment of a scope — the inverse of
@@ -784,5 +798,5 @@ export async function unassignScopeFromClient(
     outcome: 'allowed',
   });
 
-  return { kind: 'removed' };
+  return { kind: 'removed', clientEtag: await clientEtagOf(tx, input.clientId) };
 }

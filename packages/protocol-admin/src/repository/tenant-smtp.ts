@@ -44,6 +44,18 @@ export function tenantSmtpRepository(tx: TenantScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
+    // Held until the transaction ends, so a conditional write compares
+    // against the row it replaces. Nothing to lock when there is no row.
+    async lockByTenantId(tenantId: string): Promise<TenantSmtpRecord | null> {
+      const rows = await tx
+        .select()
+        .from(tenantSmtp)
+        .where(eq(tenantSmtp.tenantId, tenantId))
+        .for('update');
+      const row = rows[0];
+      return row === undefined ? null : toRecord(row);
+    },
+
     // A tenant has at most one row, so a repeated PUT narrows or widens
     // it rather than colliding on the primary key — the same
     // insert-or-update shape `assignOrUpdate` (@odudu/domain-tenant) uses

@@ -10,6 +10,7 @@ import {
 } from '@odudu/domain-tenant';
 import { redactedDiff } from '#/service/audit-detail';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
+import { etagOf } from '#/service/etag';
 
 const COLLECTION = 'registration-tokens';
 
@@ -107,7 +108,7 @@ export async function mintRegistrationToken(
   tx: TenantScopedDatabase,
   deps: MintRegistrationTokenDeps,
   input: MintRegistrationTokenInput,
-): Promise<MintRegistrationTokenResponse> {
+): Promise<{ readonly minted: MintRegistrationTokenResponse; readonly etag: string }> {
   const minted = await clientRegistrationTokenRepository(tx).mint({
     tenantId: input.tenantId,
     uses: input.uses,
@@ -130,10 +131,14 @@ export async function mintRegistrationToken(
   });
 
   return {
-    id: minted.id,
-    token: minted.token,
-    remaining_uses: minted.remainingUses,
-    expires_at: minted.expiresAt.toISOString(),
+    minted: {
+      id: minted.id,
+      token: minted.token,
+      remaining_uses: minted.remainingUses,
+      expires_at: minted.expiresAt.toISOString(),
+    },
+    // Over the representation the list reads it back as, never over `token`.
+    etag: etagOf(registrationTokenWireShape(minted)),
   };
 }
 

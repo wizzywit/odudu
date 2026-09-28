@@ -599,7 +599,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     successStatus: 204,
     bodySchema: addRoleCompositeRequestSchema,
     description:
-      'Nests `child_role_id` under this role. Refused with `403` when the child reaches an admin capability the caller does not hold, or any admin capability at all while a default role reaches this one; `409` on a cycle, and on a parent belonging to the tenant\u2019s built-in admin client, whose shape provisioning fixes.',
+      'Nests `child_role_id` under this role. Refused with `403` when the child reaches an admin capability the caller does not hold, or any admin capability at all while a default role reaches this one; `409` on a cycle, and on a parent belonging to the tenant\u2019s built-in admin client, whose shape provisioning fixes. Answers the composites\u2019 new `ETag`, the one `GET …/composites` answers; `If-Match` is optional, and a stale one is refused with `412`.',
   },
   {
     method: 'GET',
@@ -616,7 +616,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: z.void(),
     successStatus: 204,
     description:
-      'Removes one edge; `404` when there is none. Refused with `409` when the parent belongs to the tenant\u2019s built-in admin client, since every administrator holding it would lose the child. ' +
+      'Removes one edge; `404` when there is none. Refused with `409` when the parent belongs to the tenant\u2019s built-in admin client, since every administrator holding it would lose the child. Answers the composites\u2019 new `ETag`; `If-Match` is optional, and a stale one is refused with `412`. ' +
       REMOVAL_CEILING,
   },
   {
@@ -781,6 +781,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: assignScopeToClientRequestSchema,
     description:
       'Assigns the scope to the client as default or optional, replacing any existing assignment. ' +
+      'Answers the client\u2019s new `ETag`, since the client\u2019s representation carries its scopes. ' +
       SERVICE_ACCOUNT_CEILING,
   },
   {
@@ -792,7 +793,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Removes the client’s assignment of the scope, whether default or optional. Refused ' +
       'with 409 on the tenant’s built-in admin client, which could otherwise lock every ' +
-      'administrator of the tenant out of /authorize. ' +
+      'administrator of the tenant out of /authorize. Answers the client\u2019s new `ETag`. ' +
       SERVICE_ACCOUNT_CEILING,
   },
   // Signing keys: manage-keys, not manage-tenant — a tenant admin who may
@@ -814,14 +815,18 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: signingKeySchema,
     successStatus: 201,
     bodySchema: createKeyRequestSchema,
-    description: 'Generates a key and stores it as rotating, published in JWKS immediately.',
+    description:
+      'Generates a key and stores it as rotating, published in JWKS immediately. Answers the ' +
+      'key\u2019s `ETag`, which promote and retire honour as `If-Match`.',
   },
   {
     method: 'POST',
     pattern: '/admin/tenants/:tenant/keys/:id/promote',
     capability: 'manage-keys',
     responseSchema: signingKeySchema,
-    description: 'Demotes the current active key to rotating and promotes this one, atomically.',
+    description:
+      'Demotes the current active key to rotating and promotes this one, atomically. ' +
+      '`If-Match` is optional: a stale one, taken over the key, is refused with `412`.',
   },
   {
     method: 'POST',
@@ -830,13 +835,12 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: signingKeySchema,
     description:
       'Refused with 409 while the key is active, or while a client is registered against ' +
-      'an algorithm no remaining key would produce.',
+      'an algorithm no remaining key would produce. `If-Match` is optional: a stale one, ' +
+      'taken over the key, is refused with `412`.',
   },
   // A tenant's own SMTP credential: manage-tenant, the same capability
   // `/settings` and `/flow` use. GET never carries a password; `configured`
-  // is false and every other field null for a tenant with no row. No
-  // `ETag`/`If-Match` — see the PUT description below for why that
-  // deviates from the resource pattern's default.
+  // is false and every other field null for a tenant with no row.
   {
     method: 'GET',
     pattern: '/admin/tenants/:tenant/smtp',
@@ -851,10 +855,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: putSmtpRequestSchema,
     description:
       'Replaces the whole configuration. Omitting `password` clears it, since GET never ' +
-      'hands one back to resend unchanged. Carries no ETag/If-Match: PUT already fully ' +
-      'replaces the row rather than partially amending it, and the password being ' +
-      'write-only removes the one case a race would matter for — a caller can never read ' +
-      'the current value to decide whether its own write should still apply.',
+      'hands one back to resend unchanged. Answers an `ETag`, as GET does; `If-Match` is ' +
+      'optional, and a stale one is refused with `412`.',
   },
   {
     method: 'DELETE',

@@ -709,6 +709,7 @@ describe('audit', () => {
         {
           parentRoleId: parentId,
           childRoleId: manageUsersId,
+          ifMatch: undefined,
           // manage-users itself composites view-users (provisionAdminClient's
           // viewCounterpart wiring), so a real holder's expanded
           // capabilities carry both — the same reason
@@ -732,6 +733,7 @@ describe('audit', () => {
         {
           parentRoleId: otherParentId,
           childRoleId: tenantAdminId,
+          ifMatch: undefined,
           callerCapabilities: new Set(['manage-users']),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -1431,7 +1433,13 @@ describe('POST /admin/tenants/{t}/roles/{id}/composites — a default reaching a
             await released;
           },
         },
-        { parentRoleId: d, childRoleId: a, callerCapabilities: new Set(), ...actor },
+        {
+          parentRoleId: d,
+          childRoleId: a,
+          ifMatch: undefined,
+          callerCapabilities: new Set(),
+          ...actor,
+        },
       ),
     );
     await arrived;
@@ -1449,6 +1457,7 @@ describe('POST /admin/tenants/{t}/roles/{id}/composites — a default reaching a
         {
           parentRoleId: b,
           childRoleId: viewUsers,
+          ifMatch: undefined,
           callerCapabilities: new Set(['view-users']),
           ...actor,
         },

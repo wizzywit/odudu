@@ -11,6 +11,7 @@ import { clientOidcConfig } from '@odudu/protocol-oidc';
 import { newId } from '@odudu/kernel';
 import { and, asc, eq, gt, ne } from 'drizzle-orm';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
+import { etagOf, matches } from '#/service/etag';
 
 const COLLECTION = 'keys';
 
@@ -172,6 +173,7 @@ export async function createKey(
 
 export interface PromoteKeyInput {
   readonly keyId: string;
+  readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -181,7 +183,8 @@ export interface PromoteKeyDeps {
   readonly audit: Audit;
 }
 
-export type PromoteKeyOutcome = { kind: 'not_found' } | { kind: 'ok'; key: SigningKey };
+export type PromoteKeyOutcome =
+  { kind: 'not_found' } | { kind: 'precondition_failed' } | { kind: 'ok'; key: SigningKey };
 
 // The atomicity itself — no window with two actives or none — lives in
 // `signingKeyRepository(tx).promote` (@odudu/crypto): `signing_keys_one_active`
@@ -193,6 +196,19 @@ export async function promoteKey(
   deps: PromoteKeyDeps,
   input: PromoteKeyInput,
 ): Promise<PromoteKeyOutcome> {
+  // The target row first, as `promote` itself locks it, so the comparison
+  // describes the key this write changes.
+  const current = await tx
+    .select()
+    .from(signingKeys)
+    .where(eq(signingKeys.id, input.keyId))
+    .for('update');
+  const row = current[0];
+  if (row === undefined) return { kind: 'not_found' };
+  if (matches(input.ifMatch, etagOf(keyWireShape(toSigningKeyRecord(row)))) === 'mismatch') {
+    return { kind: 'precondition_failed' };
+  }
+
   const promoted = await signingKeyRepository(tx).promote(input.keyId);
   if (promoted === null) return { kind: 'not_found' };
 
@@ -211,6 +227,7 @@ export async function promoteKey(
 
 export interface RetireKeyInput {
   readonly keyId: string;
+  readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -222,6 +239,7 @@ export interface RetireKeyDeps {
 
 export type RetireKeyOutcome =
   | { kind: 'not_found' }
+  | { kind: 'precondition_failed' }
   | { kind: 'active' }
   | { kind: 'algorithm_needed'; alg: string; clientIds: readonly string[] }
   | { kind: 'ok'; key: SigningKey };
@@ -267,6 +285,9 @@ export async function retireKey(
 ): Promise<RetireKeyOutcome> {
   const locked = await lockKeyForRetire(tx, input.keyId);
   if (locked === null) return { kind: 'not_found' };
+  if (matches(input.ifMatch, etagOf(keyWireShape(toSigningKeyRecord(locked)))) === 'mismatch') {
+    return { kind: 'precondition_failed' };
+  }
   if (locked.status === 'active') return { kind: 'active' };
   if (locked.status === 'retired') {
     // Idempotent: the caller asked for the key retired and it is, so this

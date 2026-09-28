@@ -155,7 +155,11 @@ describe('two concurrent retirements of the last two keys for one algorithm', ()
 
     const held = gate();
     const first = withTenant(fixture.app.db, t.id, async (tx) => {
-      const outcome = await retireKey(tx, { audit: AUDIT }, { keyId: firstKeyId, ...ACTOR });
+      const outcome = await retireKey(
+        tx,
+        { audit: AUDIT },
+        { keyId: firstKeyId, ifMatch: undefined, ...ACTOR },
+      );
       held.arrive();
       await held.open;
       return outcome;
@@ -163,7 +167,7 @@ describe('two concurrent retirements of the last two keys for one algorithm', ()
 
     await held.reached;
     const second = withTenant(fixture.app.db, t.id, (tx) =>
-      retireKey(tx, { audit: AUDIT }, { keyId: secondKeyId, ...ACTOR }),
+      retireKey(tx, { audit: AUDIT }, { keyId: secondKeyId, ifMatch: undefined, ...ACTOR }),
     );
 
     await awaitBlockedTransaction();

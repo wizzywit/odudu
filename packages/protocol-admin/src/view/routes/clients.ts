@@ -236,10 +236,12 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
           ),
         );
       case 'ok': {
+        const client = toWireClient(outcome.client);
         const wire: CreateClientResponse = {
-          ...toWireClient(outcome.client),
+          ...client,
           ...(outcome.secret === null ? {} : { client_secret: outcome.secret }),
         };
+        reply.header('etag', etagOf(client));
         return reply.code(201).send(wire);
       }
     }

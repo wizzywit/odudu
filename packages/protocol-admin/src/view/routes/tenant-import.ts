@@ -1,6 +1,7 @@
 import { importTenantRequestSchema } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
+import { etagOf } from '#/service/etag';
 import { importTenant, type ImportTenantDeps } from '#/usecase/tenant-import';
 import { fieldProblem, problem, sendProblem } from '#/view/problem';
 import { type AdminRouteHandler } from '#/view/routes/router';
@@ -57,6 +58,7 @@ export function importTenantHandler(deps: TenantImportRouteDeps): AdminRouteHand
       case 'created':
         return reply
           .code(201)
+          .header('etag', etagOf(outcome.tenant))
           .send({ tenant: outcome.tenant, client_secrets: outcome.clientSecrets });
     }
   };

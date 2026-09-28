@@ -153,6 +153,7 @@ export function createScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
       throw error;
     }
 
+    reply.header('etag', etagOf(scope));
     return reply.code(201).send(scope);
   };
 }
@@ -375,6 +376,7 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
       case 'target_ceiling':
         return serviceAccountCeilingProblem(reply, request, outcome.requested);
       case 'ok':
+        reply.header('etag', outcome.clientEtag);
         return reply.code(200).send(outcome.assignments);
     }
   };
@@ -436,6 +438,7 @@ export function unassignScopeFromClientHandler(deps: ScopesRouteDeps): AdminRout
           ),
         );
       case 'removed':
+        reply.header('etag', outcome.clientEtag);
         return reply.code(204).send();
     }
   };

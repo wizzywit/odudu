@@ -296,7 +296,7 @@ describe('audit', () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const { events, audit } = collector();
 
-    const minted = await withTenant(fixture.app.db, t.id, (tx) =>
+    const { minted } = await withTenant(fixture.app.db, t.id, (tx) =>
       mintRegistrationToken(
         tx,
         { audit },

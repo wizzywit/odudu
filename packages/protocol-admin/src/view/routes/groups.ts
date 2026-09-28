@@ -171,6 +171,7 @@ export function createGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
     if (outcome.kind === 'capability_ceiling') {
       return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
     }
+    reply.header('etag', etagOf(outcome.group));
     return reply.code(201).send(outcome.group);
   };
 }

@@ -7,6 +7,7 @@ import { type Database } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { TENANT_NAME_RULE } from '@odudu/domain-tenant';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
+import { etagOf } from '#/service/etag';
 import {
   amendTenant,
   createTenant,
@@ -156,7 +157,9 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
       );
     }
 
-    return reply.code(201).send(tenantWireShape(outcome.tenant));
+    const tenant = tenantWireShape(outcome.tenant);
+    reply.header('etag', etagOf(tenant));
+    return reply.code(201).send(tenant);
   };
 }
 

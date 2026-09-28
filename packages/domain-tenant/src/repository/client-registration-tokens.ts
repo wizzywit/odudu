@@ -31,6 +31,7 @@ export interface MintedClientRegistrationToken {
   id: string;
   token: string;
   remainingUses: number;
+  createdAt: Date;
   expiresAt: Date;
 }
 
@@ -49,14 +50,19 @@ export function clientRegistrationTokenRepository(tx: TenantScopedDatabase) {
       const id = newId();
       const token = generateRegistrationToken();
       const expiresAt = new Date(Date.now() + input.ttlSeconds * 1000);
-      await tx.insert(clientRegistrationTokens).values({
-        id,
-        tenantId: input.tenantId,
-        tokenHash: sha256Hex(token),
-        remainingUses: input.uses,
-        expiresAt,
-      });
-      return { id, token, remainingUses: input.uses, expiresAt };
+      const rows = await tx
+        .insert(clientRegistrationTokens)
+        .values({
+          id,
+          tenantId: input.tenantId,
+          tokenHash: sha256Hex(token),
+          remainingUses: input.uses,
+          expiresAt,
+        })
+        .returning({ createdAt: clientRegistrationTokens.createdAt });
+      const createdAt = rows[0]?.createdAt;
+      if (createdAt === undefined) throw new Error('minting a registration token returned no row');
+      return { id, token, remainingUses: input.uses, createdAt, expiresAt };
     },
 
     // Excludes a spent or expired token — the admin console's list is a

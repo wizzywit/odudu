@@ -1,6 +1,7 @@
 import { putSmtpRequestSchema, testSmtpRequestSchema } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import { readPasswordField } from '@odudu/kernel';
+import { etagOf } from '#/service/etag';
 import { type SmtpDestinationPolicy } from '#/service/smtp-destination';
 import {
   deleteSmtp,
@@ -10,9 +11,14 @@ import {
   sendTestMessage,
   type Audit,
 } from '#/usecase/smtp';
-import { fieldProblem, problem, sendProblem } from '#/view/problem';
+import { fieldProblem, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
-import { type AdminRouteHandler } from '#/view/routes/router';
+import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
+
+function ifMatchHeader(request: AdminRequest): string | undefined {
+  const value = request.headers['if-match'];
+  return typeof value === 'string' ? value : undefined;
+}
 
 export interface SmtpRouteDeps {
   readonly database: Database;
@@ -27,6 +33,7 @@ export function readSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
     const config = await adminTx(deps.database, request, targetTenantId, (tx) =>
       readSmtp(tx, targetTenantId),
     );
+    reply.header('etag', etagOf(config));
     return reply.code(200).send(config);
   };
 }
@@ -67,12 +74,13 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
       );
     }
 
-    const config = await adminTx(deps.database, request, targetTenantId, (tx) =>
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       putSmtp(
         tx,
         { audit: deps.audit, kek: deps.kek },
         {
           tenantId: targetTenantId,
+          ifMatch: ifMatchHeader(request),
           host: body.host,
           port: body.port,
           fromAddress: body.from_address,
@@ -86,7 +94,11 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
       ),
     );
 
-    return reply.code(200).send(config);
+    if (outcome.kind === 'precondition_failed') {
+      return sendProblem(reply, request, ifMatchStale());
+    }
+    reply.header('etag', outcome.etag);
+    return reply.code(200).send(outcome.config);
   };
 }
 

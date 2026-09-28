@@ -60,7 +60,7 @@ export function mintRegistrationTokenHandler(deps: RegistrationTokensRouteDeps):
   return async (request, reply, principal, targetTenantId) => {
     const body = mintRegistrationTokenRequestSchema.parse(request.body);
 
-    const minted = await adminTx(deps.database, request, targetTenantId, (tx) =>
+    const { minted, etag } = await adminTx(deps.database, request, targetTenantId, (tx) =>
       mintRegistrationToken(
         tx,
         { audit: deps.audit },
@@ -75,6 +75,7 @@ export function mintRegistrationTokenHandler(deps: RegistrationTokensRouteDeps):
       ),
     );
 
+    reply.header('etag', etag);
     return reply.code(201).send(minted);
   };
 }

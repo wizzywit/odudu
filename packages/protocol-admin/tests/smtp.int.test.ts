@@ -1,4 +1,5 @@
-import { withTenant } from '@odudu/db';
+import { tenants, withTenant } from '@odudu/db';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { unwrapSecret } from '@odudu/crypto';
 import { tenantSmtpRepository } from '@odudu/protocol-admin';
 import { TENANT_CAPABILITIES } from '@odudu/domain-tenant';
@@ -299,6 +300,7 @@ describe('audit', () => {
         },
         {
           tenantId: t.id,
+          ifMatch: undefined,
           host: 'smtp.example.test',
           port: 587,
           fromAddress: 'noreply@example.test',
@@ -355,6 +357,30 @@ describe('repository, probed with a foreign tenant_id', () => {
     );
 
     expect(row).toBeNull();
+  });
+
+  it('locks no row across tenants', async () => {
+    await expectCrossTenantMethodProbe(fixture.app.db, {
+      seed: async (tx, tenantId) => {
+        await tx.insert(tenants).values({ id: tenantId, name: `smtp-${newId()}` });
+        await tenantSmtpRepository(tx).upsert(tenantId, {
+          host: 'smtp.example.test',
+          port: 587,
+          fromAddress: 'noreply@example.test',
+          username: null,
+          passwordEncrypted: null,
+          starttls: false,
+        });
+        return tenantId;
+      },
+      verifySeeded: async (tx, tenantId) => {
+        expect(await tenantSmtpRepository(tx).lockByTenantId(tenantId)).not.toBeNull();
+      },
+      attempt: (tx, tenantId) => tenantSmtpRepository(tx).lockByTenantId(tenantId),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
+      },
+    });
   });
 });
 

@@ -436,9 +436,20 @@ export async function deleteRole(
   return { kind: 'deleted' };
 }
 
+// A role's direct composites as `GET …/composites` answers them, and what the
+// `ETag` on that read and on every composite write is taken over.
+async function compositesOf(tx: TenantScopedDatabase, roleId: string): Promise<readonly Role[]> {
+  return (await roleRepository(tx).directComposites(roleId)).map(roleWireShape);
+}
+
+function compositesEtag(items: readonly Role[]): string {
+  return etagOf({ items });
+}
+
 export interface AddRoleCompositeInput {
   readonly parentRoleId: string;
   readonly childRoleId: string;
+  readonly ifMatch: string | undefined;
   /**
    * The caller's own admin-client capability names, expanded through
    * `role_composites` — the same ceiling `setRoles` (#/usecase/subjects.ts)
@@ -462,7 +473,8 @@ export type AddRoleCompositeOutcome =
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'default_role_capability'; capabilities: readonly string[] }
   | { kind: 'cycle' }
-  | { kind: 'ok' };
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; etag: string };
 
 // Locks both endpoints of the edge about to be written, so two concurrent
 // `addComposite` calls that together would close a cycle (A→B and, at the
@@ -526,6 +538,8 @@ export async function addRoleComposite(
   if (parent === null) return { kind: 'not_found' };
   const child = await roleRepository(tx).byId(input.childRoleId);
   if (child === null) return { kind: 'unknown_child_role' };
+  const before = compositesEtag(await compositesOf(tx, input.parentRoleId));
+  if (matches(input.ifMatch, before) === 'mismatch') return { kind: 'precondition_failed' };
 
   // The other half of `removeRoleComposite`'s guard: a capability role's
   // shape is what provisioning gives it (`capabilityRoleGraph`), so nothing
@@ -600,25 +614,25 @@ export async function addRoleComposite(
     actorClientId: input.actorClientId,
     outcome: 'allowed',
   });
-  return { kind: 'ok' };
+  return { kind: 'ok', etag: compositesEtag(await compositesOf(tx, input.parentRoleId)) };
 }
 
 export type ListRoleCompositesOutcome =
-  { kind: 'not_found' } | { kind: 'ok'; items: readonly Role[] };
+  { kind: 'not_found' } | { kind: 'ok'; items: readonly Role[]; etag: string };
 
 export async function listRoleComposites(
   tx: TenantScopedDatabase,
   roleId: string,
 ): Promise<ListRoleCompositesOutcome> {
-  const repository = roleRepository(tx);
-  if ((await repository.byId(roleId)) === null) return { kind: 'not_found' };
-  const children = await repository.directComposites(roleId);
-  return { kind: 'ok', items: children.map(roleWireShape) };
+  if ((await roleRepository(tx).byId(roleId)) === null) return { kind: 'not_found' };
+  const items = await compositesOf(tx, roleId);
+  return { kind: 'ok', items, etag: compositesEtag(items) };
 }
 
 export interface RemoveRoleCompositeInput {
   readonly parentRoleId: string;
   readonly childRoleId: string;
+  readonly ifMatch: string | undefined;
   /** See `DeleteRoleInput`'s: what the edge hands every holder of the parent is held to them. */
   readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
@@ -634,7 +648,8 @@ export type RemoveRoleCompositeOutcome =
   | { kind: 'not_found' }
   | { kind: 'builtin_admin_guarded'; reason: string }
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
-  | { kind: 'removed' };
+  | { kind: 'precondition_failed' }
+  | { kind: 'removed'; etag: string };
 
 // The edge-level twin of `guardsAdministrators`: taking `manage-users` out of
 // `tenant-admin`, or `view-users` out of `manage-users`, strips it from every
@@ -666,7 +681,10 @@ export async function removeRoleComposite(
 
   if (!isUuid(input.childRoleId)) return { kind: 'not_found' };
   await lockRolesForComposite(tx, input.parentRoleId, input.childRoleId);
-  const children = await roleRepository(tx).directComposites(input.parentRoleId);
+  const children = await compositesOf(tx, input.parentRoleId);
+  if (matches(input.ifMatch, compositesEtag(children)) === 'mismatch') {
+    return { kind: 'precondition_failed' };
+  }
   if (!children.some((child) => child.id === input.childRoleId)) return { kind: 'not_found' };
   const denied = overreach(
     await capabilitiesReachableFrom(tx, [input.childRoleId]),
@@ -699,7 +717,7 @@ export async function removeRoleComposite(
     outcome: 'allowed',
     detail: { child_role_id: input.childRoleId },
   });
-  return { kind: 'removed' };
+  return { kind: 'removed', etag: compositesEtag(await compositesOf(tx, input.parentRoleId)) };
 }
 
 export interface SetRoleDefaultInput {

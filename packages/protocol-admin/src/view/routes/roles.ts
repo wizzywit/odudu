@@ -28,6 +28,7 @@ import {
   ceilingProblem,
   cursorProblem,
   fieldProblem,
+  ifMatchStale,
   problem,
   sendProblem,
   type Problem,
@@ -178,6 +179,7 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
         ),
       );
     }
+    reply.header('etag', etagOf(outcome.role));
     return reply.code(201).send(outcome.role);
   };
 }
@@ -318,6 +320,8 @@ function compositeProblem(
         request,
         problem(409, 'about:blank', 'Conflict', 'would create a role composite cycle'),
       );
+    case 'precondition_failed':
+      return sendProblem(reply, request, ifMatchStale());
   }
 }
 
@@ -341,6 +345,7 @@ export function addRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHandler
         {
           parentRoleId: id,
           childRoleId: body.child_role_id,
+          ifMatch: ifMatchHeader(request),
           callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
@@ -352,6 +357,7 @@ export function addRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHandler
     if (outcome.kind !== 'ok') {
       return compositeProblem(reply, request, outcome);
     }
+    reply.header('etag', outcome.etag);
     return reply.code(204).send();
   };
 }
@@ -369,6 +375,7 @@ export function listRoleCompositesHandler(deps: RolesRouteDeps): AdminRouteHandl
     if (outcome.kind === 'not_found') {
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found', `no role ${id}`));
     }
+    reply.header('etag', outcome.etag);
     return reply.code(200).send({ items: outcome.items });
   };
 }
@@ -391,6 +398,7 @@ export function removeRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHand
         {
           parentRoleId: id,
           childRoleId: childId,
+          ifMatch: ifMatchHeader(request),
           callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
@@ -410,7 +418,10 @@ export function removeRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHand
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
       case 'capability_ceiling':
         return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
       case 'removed':
+        reply.header('etag', outcome.etag);
         return reply.code(204).send();
     }
   };
