@@ -102,6 +102,10 @@ export async function withEachTenantExclusive<T>(
   lockKey: number,
   tenantIds: readonly string[],
   fn: (tx: TenantScopedDatabase, tenantId: string) => Promise<T>,
+  // Fires with the lock result before this transaction does anything else.
+  // Production never passes it; a test uses it to hold a winning attempt
+  // open until a concurrent one has made its own attempt on the same key.
+  onLockAttempt?: (acquired: boolean) => Promise<void> | void,
 ): Promise<ExclusiveTenantPass<T>> {
   for (const tenantId of tenantIds) {
     if (!UUID_PATTERN.test(tenantId)) {
@@ -119,6 +123,7 @@ export async function withEachTenantExclusive<T>(
     // on commit and on rollback alike, so there is no unlock to forget.
     const rows = await tx.execute(sql`select pg_try_advisory_xact_lock(${lockKey}::bigint) as got`);
     const acquired = (rows as unknown as AdvisoryLockRow[])[0]?.got === true;
+    await onLockAttempt?.(acquired);
     // The holder is doing this same work concurrently, so there is nothing
     // a retry could achieve.
     if (!acquired) return { acquired: false };

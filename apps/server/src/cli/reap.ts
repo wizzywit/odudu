@@ -448,6 +448,12 @@ export interface ReapDeps {
    * cannot be read from inside one (ADR 0009's amendment of 2026-09-13).
    */
   readonly ownerDatabase: DatabaseHandle;
+  /**
+   * Passed straight through to `withEachTenantExclusive`. Production leaves
+   * it unset; a test uses it to make the lock's outcome deterministic under
+   * concurrency.
+   */
+  readonly onLockAttempt?: (acquired: boolean) => Promise<void> | void;
 }
 
 // Both halves of ADR 0021's claim that the policy is the scoping, checked
@@ -499,8 +505,12 @@ export async function reap(
     return { ran: false, reason: 'no tenant was enumerated' };
   }
 
-  const pass = await withEachTenantExclusive(deps.database.db, REAP_LOCK_KEY, tenantIds, (tx) =>
-    reapTenant(tx, now, policy),
+  const pass = await withEachTenantExclusive(
+    deps.database.db,
+    REAP_LOCK_KEY,
+    tenantIds,
+    (tx) => reapTenant(tx, now, policy),
+    deps.onLockAttempt,
   );
   if (!pass.acquired) {
     return { ran: false, reason: 'another instance holds the retention lock' };

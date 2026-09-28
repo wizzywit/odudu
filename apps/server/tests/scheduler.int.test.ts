@@ -103,16 +103,29 @@ describe('two servers reaping on their own schedules', () => {
       openTheGate = resolve;
     });
 
-    // Both loops are held until both have ticked, so the pass that loses
-    // the lock is attempting it inside the winner's transaction rather
-    // than after it committed — which is the only arrangement where a
-    // missing lock shows up as a difference.
+    // The gate above only makes both loops *start* together; it says nothing
+    // about whether the loser reaches the lock before the winner's
+    // transaction has already committed. This holds the winner inside its
+    // transaction until the loser has made its own attempt on the same key,
+    // which is the only arrangement where a missing lock shows up as a
+    // difference.
+    let attempts = 0;
+    let releaseWinner = (): void => undefined;
+    const bothAttempted = new Promise<void>((resolve) => {
+      releaseWinner = resolve;
+    });
+    const onLockAttempt = async (acquired: boolean): Promise<void> => {
+      attempts += 1;
+      if (attempts === 2) releaseWinner();
+      if (acquired) await bothAttempted;
+    };
+
     const run = (): Promise<void> => {
       const pass = (async () => {
         entered += 1;
         if (entered === 2) openTheGate();
         await gate;
-        return reap({ database: appDb, ownerDatabase: owner }, NOW, POLICY);
+        return reap({ database: appDb, ownerDatabase: owner, onLockAttempt }, NOW, POLICY);
       })();
       passes.push(pass);
       return pass.then(() => undefined);
