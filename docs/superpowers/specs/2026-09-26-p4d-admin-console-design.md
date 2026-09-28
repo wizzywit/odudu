@@ -523,6 +523,10 @@ The import rules are ADR 0010's. dependency-cruiser gains:
 
 - `features/A/**` may import `features/B/index.ts` and nothing else of B;
 - `shared/**` never imports `features/**`;
+- a console `service` imports only other services, its own or
+  `shared/service`, and `@odudu/contracts`, so never a feature's `index.ts`;
+- a feature's `index.ts` publishes only its own views, usecases and
+  services, and types of anything, never a repository or an adapter;
 - `app/**` is the only place that assembles features;
 - a `view` never imports `shared/transport` or `shared/repository`;
 - the existing layer rules match `(view|usecase|repository|adapter|service)(/|\.tsx?$)`

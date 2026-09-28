@@ -1,25 +1,13 @@
 import { TENANT_NAME_RULE, UNSAFE_RETURN_TO } from '@odudu/contracts';
-import type { ADMIN_CAPABILITIES } from '@odudu/contracts/admin';
+import { SYSTEM_TENANT, type Principal } from '#/shared/service/principal.ts';
 
-export type AdminCapability = (typeof ADMIN_CAPABILITIES)[number];
-
-// Who is signed in, as GET /console/api/session reports it: the tenant is
-// the one the session was issued by, which a system administrator carries
-// into every tenant they enter.
-export interface Principal {
-  readonly tenant: string;
-  readonly subjectId: string;
-  readonly username: string;
-}
-
-// What whoami says the principal holds on one tenant: advice for what to
-// render, never authority, since every request is authorised by the server.
-export interface Authority {
-  readonly capabilities: readonly AdminCapability[];
-  readonly crossTenant: boolean;
-}
-
-export const SYSTEM_TENANT = 'system';
+export {
+  isTenantName,
+  SYSTEM_TENANT,
+  type AdminCapability,
+  type Authority,
+  type Principal,
+} from '#/shared/service/principal.ts';
 
 const ROOT = '/console/';
 const RESOLVE_AGAINST = 'http://console.invalid';
@@ -45,8 +33,6 @@ export function loginUrl(tenant: string, returnTo: string): string {
   const query = new URLSearchParams({ tenant, return_to: returnPath(returnTo) });
   return `/console/auth/login?${query.toString()}`;
 }
-
-export { isTenantName } from '@odudu/contracts';
 
 // The words a refused tenant name is answered with, as a sentence.
 export const TENANT_NAME_PROBLEM = `${TENANT_NAME_RULE.charAt(0).toUpperCase()}${TENANT_NAME_RULE.slice(1)}.`;

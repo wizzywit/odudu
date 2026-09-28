@@ -1,10 +1,5 @@
 import { useLocation } from '@tanstack/react-router';
-import {
-  CHOOSE_TENANT,
-  useAuthority,
-  useSignOut,
-  type Principal,
-} from '#/features/session/index.ts';
+import { CHOOSE_TENANT, useAuthority, useSignOut } from '#/features/session/index.ts';
 import {
   actsWithSystemAuthority,
   currentHref,
@@ -15,6 +10,7 @@ import {
 import { useDialogHost } from '#/shared/repository/useDialogHost.ts';
 import { useRailCollapsed } from '#/shared/repository/useRailCollapsed.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
+import type { Principal } from '#/shared/service/principal.ts';
 import type { ThemeChoice } from '#/shared/service/theme.ts';
 import { useTheme } from '#/shared/repository/useTheme.ts';
 

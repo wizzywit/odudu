@@ -1,14 +1,9 @@
 import type { ReactNode } from 'react';
-import {
-  isTenantName,
-  SignedInElsewhere,
-  SigningIn,
-  useTenantAccess,
-  type Principal,
-} from '#/features/session/index.ts';
+import { SignedInElsewhere, SigningIn, useTenantAccess } from '#/features/session/index.ts';
 import { useShell } from '#/features/shell/usecase/useShell.ts';
 import { PageNotFound } from '#/features/shell/view/PageNotFound.tsx';
 import { RailFooter } from '#/features/shell/view/RailFooter.tsx';
+import { isTenantName, type Principal } from '#/shared/service/principal.ts';
 import { AppShell } from '#/shared/view/AppShell.tsx';
 import { ContextBar } from '#/shared/view/ContextBar.tsx';
 import { Rail } from '#/shared/view/Rail.tsx';

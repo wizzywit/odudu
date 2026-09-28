@@ -347,6 +347,36 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toBe(true);
   });
 
+  it('rejects a console service importing a feature index.ts', async () => {
+    const found = await violations('console-service-imports-only-service');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('features/subjects/service.ts') &&
+          v.to.endsWith('features/clients/index.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a console feature's index.ts re-exporting its repository, adapter or shared code", async () => {
+    const found = await violations('console-index-exports-view-usecase-service');
+    const from = found.filter((v) => v.from.endsWith('features/audit/index.ts'));
+    expect(from.map((v) => v.to.replace(/^.*\/src\//u, '')).sort()).toEqual([
+      'features/audit/adapter.ts',
+      'features/audit/repository.ts',
+      'shared/service/capabilities.ts',
+    ]);
+  });
+
+  it("permits a console feature's index.ts re-exporting its view, usecase and service, and a repository type", async () => {
+    const output = await cruiseFixtures();
+    const barrel = output.modules.find((m) => m.source.endsWith('features/groups/index.ts'));
+    expect(barrel?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(4);
+    expect(
+      output.summary.violations.filter((v) => v.from.endsWith('features/groups/index.ts')),
+    ).toHaveLength(0);
+  });
+
   it('rejects console code importing the gallery', async () => {
     const found = await violations('console-nothing-imports-gallery');
     expect(found.some((v) => v.from.endsWith('shared/repository/galleryLeak.ts'))).toBe(true);

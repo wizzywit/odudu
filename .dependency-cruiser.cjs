@@ -72,6 +72,36 @@ module.exports = {
       to: { path: '(^|/)apps/admin-console/src/features/(?!$2/)[^/]+/(?!index\\.ts$)' },
     },
     {
+      name: 'console-service-imports-only-service',
+      severity: 'error',
+      comment:
+        'A console service is pure: it imports other services, its own or shared/service, and ' +
+        '@odudu/contracts, and nothing else. A feature index.ts is refused too, since it ' +
+        'reaches views and usecases, and through them the stores.',
+      from: {
+        path: '(^|/)apps/admin-console/src/(?:service|.*/service)(?:/|\\.tsx?$)',
+        pathNot: '\\.test\\.tsx?$',
+      },
+      to: {
+        pathNot:
+          '(^|/)apps/admin-console/src/(?:service|.*/service)(?:/|\\.tsx?$)|(^|/)packages/contracts/',
+      },
+    },
+    {
+      name: 'console-index-exports-view-usecase-service',
+      severity: 'error',
+      comment:
+        "A console feature's index.ts publishes its own views, usecases and services. A " +
+        'repository or adapter published there would hand another feature the store or the ' +
+        'wire past every layer rule; a type-only export of anything is allowed.',
+      from: { path: '(^|/)apps/admin-console/src/features/([^/]+)/index\\.ts$' },
+      // $2 is substituted unescaped; tests/lint/console-feature-names.test.ts keeps it regex-safe.
+      to: {
+        pathNot: '(^|/)apps/admin-console/src/features/$2/(?:view|usecase|service)(?:/|\\.tsx?$)',
+        dependencyTypesNot: ['type-only'],
+      },
+    },
+    {
       name: 'console-shared-imports-no-feature',
       severity: 'error',
       comment: 'shared/ holds only what two or more features use, so it depends on none of them.',

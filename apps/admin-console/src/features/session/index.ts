@@ -8,10 +8,3 @@ export { useSignIn } from '#/features/session/usecase/useSignIn.ts';
 export { useSignOut } from '#/features/session/usecase/useSignOut.ts';
 export { useTenantAccess, type TenantAccess } from '#/features/session/usecase/useTenantAccess.ts';
 export { useAuthority, useRefusal } from '#/features/session/usecase/useAuthority.ts';
-export {
-  isTenantName,
-  SYSTEM_TENANT,
-  type AdminCapability,
-  type Authority,
-  type Principal,
-} from '#/features/session/service.ts';

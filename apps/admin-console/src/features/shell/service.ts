@@ -3,7 +3,7 @@ import {
   type AdminCapability,
   type Authority,
   type Principal,
-} from '#/features/session/index.ts';
+} from '#/shared/service/principal.ts';
 
 export interface Area {
   readonly path: string;
