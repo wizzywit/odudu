@@ -4,6 +4,7 @@ import { ADMIN_CLIENT_ID, CONSOLE_POST_LOGOUT_PATH } from '@odudu/domain-tenant'
 import { consoleSessionRepository } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
 import { type OduduPort } from '#/service/odudu-port';
+import { endGrant } from '#/usecase/end-grant';
 import { resolveSession, type ResolveSessionDeps } from '#/usecase/resolve-session';
 
 export interface LogoutDeps extends ResolveSessionDeps {
@@ -41,11 +42,7 @@ export async function logout(deps: LogoutDeps, input: Logout): Promise<LoggedOut
   if (taken === null) return TO_CONSOLE;
 
   const { session, tenant } = taken;
-  try {
-    await deps.odudu.revoke(tenant, unwrapSecret(session.refreshTokenWrapped, deps.kek), input.ip);
-  } catch {
-    // Best effort: the session is already gone, and the grant expires on its own.
-  }
+  await endGrant(deps.odudu, tenant, unwrapSecret(session.refreshTokenWrapped, deps.kek), input.ip);
   const issuer = await deps.odudu.issuerOf(tenant, input.ip);
   if (issuer === null) return TO_CONSOLE;
 

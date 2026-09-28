@@ -1,11 +1,10 @@
+import { type ProblemDetails } from '@odudu/contracts/admin';
 import { type FastifyReply, type FastifyRequest } from 'fastify';
 
-export interface ConsoleProblem {
-  readonly status: number;
-  readonly type: string;
-  readonly title: string;
+/** The admin API's problem shape, less the `instance` every answer adds. */
+export type ConsoleProblem = Readonly<Omit<ProblemDetails, 'instance'>> & {
   readonly detail?: string;
-}
+};
 
 export const SESSION_ENDED: ConsoleProblem = {
   status: 401,

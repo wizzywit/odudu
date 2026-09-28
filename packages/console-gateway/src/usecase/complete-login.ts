@@ -16,6 +16,7 @@ import {
 } from '#/service/secrets';
 import { CONSOLE_SESSION_ABSOLUTE_SECONDS } from '#/service/session-lifetime';
 import { callbackUri, type LoginDeps } from '#/usecase/begin-login';
+import { endGrant } from '#/usecase/end-grant';
 
 export interface CompleteLoginDeps extends LoginDeps {
   readonly odudu: OduduPort;
@@ -120,24 +121,11 @@ export async function completeLogin(
     const signedIn = await admitTokens(deps, input, taken, issuer, tokens);
     if (signedIn !== null) return signedIn;
   } catch (error: unknown) {
-    await endGrant(deps, tenantName, tokens, input.ip);
+    await endGrant(deps.odudu, tenantName, tokens.refreshToken, input.ip);
     throw error;
   }
-  await endGrant(deps, tenantName, tokens, input.ip);
+  await endGrant(deps.odudu, tenantName, tokens.refreshToken, input.ip);
   return REFUSED;
-}
-
-async function endGrant(
-  deps: CompleteLoginDeps,
-  tenantName: string,
-  tokens: TokenSet,
-  ip: string,
-): Promise<void> {
-  try {
-    await deps.odudu.revoke(tenantName, tokens.refreshToken, ip);
-  } catch {
-    // Best effort: the sign-in ends the same way either way.
-  }
 }
 
 async function admitTokens(

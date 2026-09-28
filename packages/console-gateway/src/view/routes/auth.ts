@@ -1,9 +1,4 @@
-import {
-  type FastifyError,
-  type FastifyInstance,
-  type FastifyReply,
-  type FastifyRequest,
-} from 'fastify';
+import { type FastifyInstance, type FastifyReply } from 'fastify';
 import {
   clearedLoginCookie,
   loginCookie,
@@ -16,6 +11,7 @@ import { completeLogin, type CompleteLoginDeps } from '#/usecase/complete-login'
 import { registerCsrfGuard } from '#/view/csrf-guard';
 import { renderSignInRefused } from '#/view/refusal-html';
 import { registerLogoutRoute, type LogoutRouteDeps } from '#/view/routes/logout';
+import { answerErrors, claimPrefix } from '#/view/scope';
 import { sendPage } from '#/view/send-page';
 
 export interface AuthRouteDeps {
@@ -52,27 +48,10 @@ function redirect(reply: FastifyReply, location: string, cookies: readonly strin
 export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps): void {
   registerCsrfGuard(fastify, deps.origin);
 
-  // A failed query's message carries its parameters, which here are a
-  // login's hashes and wrapped secrets, so only the error's kind is logged
-  // and the browser sees the same page every refusal gets.
-  fastify.setErrorHandler(async (error: FastifyError, request, reply) => {
-    const status = error.statusCode ?? 500;
-    if (status >= 400 && status < 500) return refuse(reply, status, [clearedLoginCookie(deps.tls)]);
-    request.log.error({ err: { type: error.name, code: error.code } }, 'console sign-in failed');
-    return refuse(reply, 500, [clearedLoginCookie(deps.tls)]);
-  });
-
-  const notFound = async (_request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> =>
-    refuse(reply, 404, []);
-  fastify.setNotFoundHandler(notFound);
-  // An actual route, not only the handler above: `setNotFoundHandler`
-  // only runs once nothing in the whole app matches, so a GET this scope
-  // has no route for — the bare prefix included — would otherwise match
-  // a shallower wildcard, such as the console shell's `/console/*`. This
-  // claims the whole prefix instead, bare and every path under it.
-  const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'] as const;
-  fastify.route({ method: [...methods], url: '', handler: notFound });
-  fastify.route({ method: [...methods], url: '/*', handler: notFound });
+  answerErrors(fastify, 'console sign-in failed', (_request, reply, status) =>
+    refuse(reply, status, [clearedLoginCookie(deps.tls)]),
+  );
+  claimPrefix(fastify, async (_request, reply) => refuse(reply, 404, []));
 
   fastify.get('/login', async (request, reply) => {
     const result = await beginLogin(deps.login, {
