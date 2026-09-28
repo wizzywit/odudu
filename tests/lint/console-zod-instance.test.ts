@@ -23,13 +23,30 @@ function zodPin(packageJson: string): unknown {
   return (all as Record<string, unknown>).zod;
 }
 
+// The entry's first statement, since an `export … from` above it is
+// evaluated first too.
+function firstImportsZodConfig(source: string): boolean {
+  const file = ts.createSourceFile('main.tsx', source, ts.ScriptTarget.Latest, true);
+  const [first] = file.statements;
+  return (
+    first !== undefined &&
+    ts.isImportDeclaration(first) &&
+    first.importClause === undefined &&
+    first.moduleSpecifier.getText().slice(1, -1) === '#/zodConfig.ts'
+  );
+}
+
 describe("the console's zod", () => {
   it('is configured by the first module the entry imports', () => {
-    const entry = 'apps/admin-console/src/main.tsx';
-    const file = ts.createSourceFile(entry, read(entry), ts.ScriptTarget.Latest, true);
-    const [first] = file.statements.filter(ts.isImportDeclaration);
-    expect(first?.moduleSpecifier.getText().slice(1, -1)).toBe('#/zodConfig.ts');
-    expect(first?.importClause).toBeUndefined();
+    expect(firstImportsZodConfig(read('apps/admin-console/src/main.tsx'))).toBe(true);
+  });
+
+  it.each([
+    ["export { App } from '#/app/App.tsx';\nimport '#/zodConfig.ts';\n"],
+    ["import { App } from '#/app/App.tsx';\nimport '#/zodConfig.ts';\n"],
+    ["import { z } from '#/zodConfig.ts';\n"],
+  ])('refuses an entry that evaluates another module first: %j', (source) => {
+    expect(firstImportsZodConfig(source)).toBe(false);
   });
 
   it("is pinned to the contracts' version", () => {
