@@ -112,25 +112,85 @@ describe('PUT /admin/tenants/{t}/smtp', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it('clears the password when a later PUT omits it', async () => {
+  it('keeps the stored password when a later PUT omits it', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);
-    await putSmtp(token, t.name, {
-      host: 'smtp.example.test',
-      port: 587,
-      from_address: 'noreply@example.test',
-      password: 'hunter2',
-      starttls: true,
-    });
+    const config = { host: 'smtp.example.test', port: 587, from_address: 'noreply@example.test' };
+    await putSmtp(token, t.name, { ...config, password: 'hunter2', starttls: true });
 
-    await putSmtp(token, t.name, {
-      host: 'smtp.example.test',
-      port: 587,
-      from_address: 'noreply@example.test',
-    });
+    const res = await putSmtp(token, t.name, { ...config, port: 2525, starttls: true });
+
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json()).toMatchObject({ port: 2525, password_set: true });
+    const row = await withTenant(fixture.app.db, t.id, (tx) =>
+      tenantSmtpRepository(tx).byTenantId(t.id),
+    );
+    const encrypted = row?.passwordEncrypted;
+    if (encrypted === null || encrypted === undefined) throw new Error('expected a kept password');
+    expect(unwrapSecret(encrypted, KEK)).toBe('hunter2');
+  });
+
+  it('clears the password when a later PUT sends it as null', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const config = { host: 'smtp.example.test', port: 587, from_address: 'noreply@example.test' };
+    await putSmtp(token, t.name, { ...config, password: 'hunter2', starttls: true });
+
+    await putSmtp(token, t.name, { ...config, password: null });
 
     const res = await getSmtp(token, t.name);
     expect(res.json()).toMatchObject({ password_set: false });
+  });
+
+  it('holds a kept password to the TLS rule, as a sent one is', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const config = { host: 'smtp.example.test', port: 587, from_address: 'noreply@example.test' };
+    await putSmtp(token, t.name, { ...config, password: 'hunter2', starttls: true });
+
+    const res = await putSmtp(token, t.name, { ...config, starttls: false });
+
+    expect(res.statusCode, res.body).toBe(400);
+    expect(res.json<{ errors: { path: string }[] }>().errors[0]?.path).toBe('starttls');
+    expect((await getSmtp(token, t.name)).json()).toMatchObject({ starttls: true });
+  });
+
+  it('reports the tenant\u2019s own relay as the one in effect once it has one', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    expect((await getSmtp(token, t.name)).json()).toMatchObject({ effective: 'none' });
+
+    const put = await putSmtp(token, t.name, {
+      host: 'smtp.example.test',
+      port: 587,
+      from_address: 'noreply@example.test',
+    });
+
+    expect(put.json()).toMatchObject({ effective: 'tenant' });
+    expect((await getSmtp(token, t.name)).json()).toMatchObject({ effective: 'tenant' });
+  });
+});
+
+describe('GET /admin/tenants/{t}/smtp on a deployment with a sender of its own', () => {
+  let withSender: AdminFixture | undefined;
+  beforeAll(async () => {
+    withSender = await startAdminFixture({ deploymentSmtp: true });
+  }, 180_000);
+  afterAll(async () => {
+    await withSender?.stop();
+  });
+
+  it('reports the deployment\u2019s sender for a tenant with no relay of its own', async () => {
+    const own = withSender;
+    if (own === undefined) throw new Error('fixture did not start');
+    const t = await own.createTenant(`acme-${newId()}`);
+    const token = await own.adminToken(t.name, ['manage-tenant']);
+    const res = await own.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/smtp`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.json()).toMatchObject({ configured: false, effective: 'deployment' });
   });
 });
 
@@ -297,6 +357,7 @@ describe('audit', () => {
             return Promise.resolve();
           },
           kek: KEK,
+          deploymentSmtp: false,
         },
         {
           tenantId: t.id,
@@ -305,7 +366,7 @@ describe('audit', () => {
           port: 587,
           fromAddress: 'noreply@example.test',
           username: null,
-          password: null,
+          password: { kind: 'clear' },
           starttls: false,
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',

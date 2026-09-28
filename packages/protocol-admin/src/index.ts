@@ -206,6 +206,10 @@ export interface AdminRoutesDeps {
   // ADR 0028's escape hatch, applied to the relay a tenant configures for
   // itself. Off by default; loopback stays refused either way.
   allowPrivateSmtpHosts?: boolean;
+  // Whether `ODUDU_SMTP_HOST` and `ODUDU_SMTP_FROM` give the deployment a
+  // sender of its own, which a tenant with no relay falls back to — what
+  // `GET /smtp` reports as `effective`. Off by default.
+  deploymentSmtp?: boolean;
   // Spends a subject's outstanding reset-password links when an
   // administrator issues it a one-time password. The links belong to
   // @odudu/account, which the composition root wires this to.
@@ -356,6 +360,7 @@ function buildAdminRoutes(
         allowPrivate: deps.allowPrivateSmtpHosts ?? false,
         resolve: resolveHostAddresses,
       },
+      deploymentSmtp: deps.deploymentSmtp ?? false,
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,

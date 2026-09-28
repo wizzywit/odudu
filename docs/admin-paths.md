@@ -142,7 +142,7 @@ built from this branch and brought up from an empty volume with
 what it describes. It was torn down with `docker compose down -v` when the
 capture finished. They are "A refusal names its field", "A create
 answers its `ETag`", and the `ETag` sections under the role composites,
-scope assignment, signing key and SMTP routes. The `400` bodies
+scope assignment, signing key and SMTP routes, and "A kept password". The `400` bodies
 in sections captured before `errors` existed were not re-run, and show
 none; each such refusal now also carries `errors`, naming the field its
 `detail` names, as that section shows.
@@ -5656,8 +5656,12 @@ the log-only adapter — the one way back from a configuration `PUT` can
 only replace. `204` on success, `404` when there was nothing to remove. `GET` reports `configured: false` and
 `password_set: false` for a tenant with no row, rather than 404 — the
 endpoint always exists, it is the configuration that may not. `PUT`
-replaces the whole configuration; omitting `password` clears it, since
-`GET` never hands one back for a caller to resend unchanged. The stored
+replaces the whole configuration except the password, which `GET` never
+hands back for a caller to resend: omitting `password` keeps the stored
+one, and `"password": null` clears it. `GET` and `PUT` also report
+`effective` — whose relay the tenant's mail actually goes through: `tenant`
+for its own row, `deployment` for the deployment's `ODUDU_SMTP_*` sender,
+`none` when there is neither and mail is only logged. The stored
 password wraps through the same envelope a signing key's private half does
 (`wrapSecret`/`unwrapSecret`, `@odudu/crypto`) — the column never carries
 plaintext.
@@ -5665,7 +5669,8 @@ plaintext.
 Two refusals bound what may be stored and what may be dialled.
 
 **A configuration that authenticates requires TLS.** A `username` or a
-`password` with `starttls` anything but `true` is `400`: `secure: false`
+`password` — sent, or kept from the stored row — with `starttls` anything
+but `true` is `400`: `secure: false`
 with STARTTLS unenforced puts those credentials on the wire in cleartext
 (CWE-319). The transport requires TLS whenever credentials are present
 whatever the row says, so this refusal is what keeps the stored row honest
@@ -5691,8 +5696,8 @@ link-local stay refused either way.
 `PUT` honours `If-Match` when it is sent, taken under a lock on the row it
 replaces, and refuses a stale one with `412`; it does not require one,
 since a tenant with no row has nothing another writer could have changed
-under it. Captured against the fifth stack in `etags-demo`, which had no
-SMTP row — the `GET`, a `PUT` with an `If-Match` that matches nothing, and
+under it. Captured against the fifth stack in `etags-demo`, before
+`effective` existed, which had no SMTP row — the `GET`, a `PUT` with an `If-Match` that matches nothing, and
 the same `PUT` under the `GET`'s own:
 
 ```bash
@@ -5753,7 +5758,43 @@ The same body with `"starttls": true`, then `GET` again:
 ```
 
 `password_set` is how the password is reported; the value itself is never
-in any of these.
+in any of these. Every configuration body in this section was captured
+before `effective` existed, and shows none, except those under "A kept
+password" below.
+
+### A kept password
+
+Captured against the fifth stack, in a tenant `smtp-keep-demo` created for
+it with no row: the `GET`, a `PUT` with a password, a `PUT` changing the
+port and leaving `password` out, a `PUT` leaving it out with `starttls`
+off, and a `PUT` sending `"password": null` without a `username`. The
+second keeps the password, the third is refused for the password it would
+keep, and the fourth clears it. None of these shows `deployment`: this
+stack sets no `ODUDU_SMTP_HOST`, so a tenant with no row is on `none`.
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3080/admin/tenants/smtp-keep-demo/smtp
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"host":"smtp.example.test","port":587,"from_address":"noreply@keep.example","username":"mailer","password":"hunter2","starttls":true}' \
+  http://localhost:3080/admin/tenants/smtp-keep-demo/smtp
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"host":"smtp.example.test","port":2525,"from_address":"noreply@keep.example","username":"mailer","starttls":true}' \
+  http://localhost:3080/admin/tenants/smtp-keep-demo/smtp
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"host":"smtp.example.test","port":2525,"from_address":"noreply@keep.example","starttls":false}' \
+  http://localhost:3080/admin/tenants/smtp-keep-demo/smtp
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"host":"smtp.example.test","port":2525,"from_address":"noreply@keep.example","password":null}' \
+  http://localhost:3080/admin/tenants/smtp-keep-demo/smtp
+```
+
+```
+{"configured":false,"host":null,"port":null,"from_address":null,"username":null,"password_set":false,"starttls":null,"effective":"none"}
+{"configured":true,"host":"smtp.example.test","port":587,"from_address":"noreply@keep.example","username":"mailer","password_set":true,"starttls":true,"effective":"tenant"}
+{"configured":true,"host":"smtp.example.test","port":2525,"from_address":"noreply@keep.example","username":"mailer","password_set":true,"starttls":true,"effective":"tenant"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"starttls must be true when a username or password is configured","errors":[{"path":"starttls","message":"must be true when a username or password is configured"}],"instance":"01a0e9f5-cc7b-7aa9-988a-aa791f4f2bdf"}
+{"configured":true,"host":"smtp.example.test","port":2525,"from_address":"noreply@keep.example","username":null,"password_set":false,"starttls":false,"effective":"tenant"}
+```
 
 `POST /smtp/test` sends one message to the given address synchronously and
 reports the transport's own failure as `502`, rather than an operator

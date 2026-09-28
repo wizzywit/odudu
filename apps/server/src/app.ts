@@ -124,6 +124,11 @@ export interface AppDeps {
    * `jwks_uri` is not. Defaults `false`; loopback stays refused either way.
    */
   readonly allowPrivateSmtpHosts?: boolean;
+  /**
+   * Whether the deployment has an SMTP sender of its own, which a tenant
+   * with no relay of its own falls back to. Defaults `false`.
+   */
+  readonly deploymentSmtp?: boolean;
 }
 
 export interface ThrottleSettings {
@@ -289,6 +294,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       trustProxy: deps.trustProxy ?? false,
       claimMappers,
       allowPrivateSmtpHosts: deps.allowPrivateSmtpHosts ?? false,
+      deploymentSmtp: deps.deploymentSmtp ?? false,
       retireResetLinks: (tx, subjectId) =>
         actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
     }),

@@ -10,6 +10,7 @@ import {
   readSmtpForTest,
   sendTestMessage,
   type Audit,
+  type SmtpPasswordChange,
 } from '#/usecase/smtp';
 import { fieldProblem, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
@@ -26,12 +27,14 @@ export interface SmtpRouteDeps {
   readonly audit: Audit;
   /** Where this server is willing to open an SMTP connection — see `#/service/smtp-destination.ts`. */
   readonly smtpDestination: SmtpDestinationPolicy;
+  /** Whether the deployment has a sender of its own, which a tenant without one falls back to. */
+  readonly deploymentSmtp: boolean;
 }
 
 export function readSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
     const config = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      readSmtp(tx, targetTenantId),
+      readSmtp(tx, targetTenantId, deps.deploymentSmtp),
     );
     reply.header('etag', etagOf(config));
     return reply.code(200).send(config);
@@ -44,8 +47,7 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
 
     // Read through the one function every password field goes through
     // (tests/lint/password-read-through-kernel.test.ts), which also bounds
-    // it the same way a sign-in candidate is bounded — `null` and omitted
-    // both mean "no password", so both read as absent here.
+    // it the same way a sign-in candidate is bounded.
     const passwordField = readPasswordField(body.password ?? undefined);
     if (passwordField.kind === 'too_long') {
       return sendProblem(
@@ -58,26 +60,18 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
       );
     }
 
-    // A configuration that authenticates and does not require TLS puts the
-    // username and password on the wire in cleartext (CWE-319). Refused
-    // here rather than silently upgraded, so the stored row says what the
-    // transport will actually do.
-    const authenticates = (body.username ?? null) !== null || passwordField.kind === 'present';
-    if (authenticates && body.starttls !== true) {
-      return sendProblem(
-        reply,
-        request,
-        fieldProblem(
-          [{ path: 'starttls', message: 'must be true when a username or password is configured' }],
-          'starttls must be true when a username or password is configured',
-        ),
-      );
-    }
+    // Sent as `null`, the field is present and reads as absent.
+    const password: SmtpPasswordChange =
+      passwordField.kind === 'present'
+        ? { kind: 'set', password: passwordField.password }
+        : Object.hasOwn(body, 'password')
+          ? { kind: 'clear' }
+          : { kind: 'keep' };
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       putSmtp(
         tx,
-        { audit: deps.audit, kek: deps.kek },
+        { audit: deps.audit, kek: deps.kek, deploymentSmtp: deps.deploymentSmtp },
         {
           tenantId: targetTenantId,
           ifMatch: ifMatchHeader(request),
@@ -85,7 +79,7 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
           port: body.port,
           fromAddress: body.from_address,
           username: body.username ?? null,
-          password: passwordField.kind === 'present' ? passwordField.password : null,
+          password,
           starttls: body.starttls ?? false,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
@@ -96,6 +90,16 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
 
     if (outcome.kind === 'precondition_failed') {
       return sendProblem(reply, request, ifMatchStale());
+    }
+    if (outcome.kind === 'starttls_required') {
+      return sendProblem(
+        reply,
+        request,
+        fieldProblem(
+          [{ path: 'starttls', message: 'must be true when a username or password is configured' }],
+          'starttls must be true when a username or password is configured',
+        ),
+      );
     }
     reply.header('etag', outcome.etag);
     return reply.code(200).send(outcome.config);

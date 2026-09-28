@@ -128,6 +128,7 @@ const app = buildApp({
   },
   allowPrivateClientUrls: config.ODUDU_ALLOW_PRIVATE_CLIENT_URLS,
   allowPrivateSmtpHosts: config.ODUDU_ALLOW_PRIVATE_SMTP_HOSTS,
+  deploymentSmtp: config.ODUDU_SMTP_HOST !== undefined && config.ODUDU_SMTP_FROM !== undefined,
 });
 
 const emailFallback = buildEmailSender(config, logger);

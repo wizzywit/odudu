@@ -846,6 +846,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/smtp',
     capability: 'manage-tenant',
     responseSchema: smtpConfigSchema,
+    description:
+      '`effective` names whose relay the tenant\u2019s mail goes through: `tenant` for its own, ' +
+      '`deployment` for the deployment\u2019s `ODUDU_SMTP_*` sender, `none` when mail is only logged.',
   },
   {
     method: 'PUT',
@@ -854,9 +857,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: smtpConfigSchema,
     bodySchema: putSmtpRequestSchema,
     description:
-      'Replaces the whole configuration. Omitting `password` clears it, since GET never ' +
-      'hands one back to resend unchanged. Answers an `ETag`, as GET does; `If-Match` is ' +
-      'optional, and a stale one is refused with `412`.',
+      'Replaces the whole configuration except the password, which GET never hands back to ' +
+      'resend: omitting `password` keeps the stored one, and `null` clears it. Answers an ' +
+      '`ETag`, as GET does; `If-Match` is optional, and a stale one is refused with `412`.',
   },
   {
     method: 'DELETE',

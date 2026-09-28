@@ -198,7 +198,12 @@ function basicAuth(clientId: string, secret: string): string {
 /** The console base every tenant created through `POST /admin/tenants` here is registered under. */
 export const FIXTURE_CONSOLE_BASE_URL = 'http://console.test';
 
-export async function startAdminFixture(): Promise<AdminFixture> {
+export interface AdminFixtureOptions {
+  /** Whether the deployment has a sender of its own for a tenant without one. */
+  readonly deploymentSmtp?: boolean;
+}
+
+export async function startAdminFixture(options: AdminFixtureOptions = {}): Promise<AdminFixture> {
   const container: TestDatabase = await startTestDatabase();
   const owner = createDatabase(container.adminUrl);
   await runMigrations(owner.db, MIGRATIONS_DIR);
@@ -240,6 +245,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
         kek: KEK,
         consoleBaseUrl: FIXTURE_CONSOLE_BASE_URL,
         claimMappers,
+        deploymentSmtp: options.deploymentSmtp ?? false,
         retireResetLinks: (tx, subjectId) =>
           actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
       },
