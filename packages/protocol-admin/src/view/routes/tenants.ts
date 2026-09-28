@@ -15,7 +15,7 @@ import {
   tenantWireShape,
   type Audit,
 } from '#/usecase/tenants';
-import { problem, sendProblem } from '#/view/problem';
+import { cursorProblem, fieldProblem, problem, queryProblem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -72,13 +72,16 @@ export function amendTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+          fieldProblem([{ path: outcome.field, message: outcome.reason }]),
         );
       case 'invalid_value':
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', outcome.description),
+          fieldProblem(
+            [{ path: outcome.field, message: outcome.description }],
+            outcome.description,
+          ),
         );
       case 'system_tenant_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
@@ -123,7 +126,7 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', TENANT_NAME_RULE),
+        fieldProblem([{ path: 'name', message: TENANT_NAME_RULE }], TENANT_NAME_RULE),
       );
     }
 
@@ -166,8 +169,7 @@ export function listTenantsHandler(deps: TenantsRouteDeps): AdminRouteHandler {
     // refinement has no JSON Schema form, so it is only enforced here.
     const parsed = listTenantsQuerySchema.safeParse(request.query);
     if (!parsed.success) {
-      const detail = parsed.error.issues[0]?.message ?? 'invalid query';
-      return sendProblem(reply, request, problem(400, 'about:blank', 'Bad Request', detail));
+      return sendProblem(reply, request, queryProblem(parsed.error));
     }
     const query = parsed.data;
     const { cursor, limit: requestedLimit, ...filters } = query;
@@ -185,11 +187,7 @@ export function listTenantsHandler(deps: TenantsRouteDeps): AdminRouteHandler {
       filters,
     });
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     const items = outcome.items.map(tenantWireShape);

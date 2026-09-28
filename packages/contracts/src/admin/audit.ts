@@ -39,6 +39,7 @@ export const listAuditQuerySchema = cursorQuerySchema
   })
   .refine((query) => query.resource_id === undefined || query.resource_type !== undefined, {
     message: 'resource_id requires resource_type',
+    path: ['resource_id'],
   });
 export type ListAuditQuery = z.infer<typeof listAuditQuerySchema>;
 

@@ -23,11 +23,23 @@ export const searchPrefixSchema = z
 
 export const enabledFilterSchema = z.enum(['true', 'false']);
 
+// One field a refusal names, by its JSON path from the request: `name`, or
+// `document.clients[0].redirect_uris`.
+export const fieldErrorSchema = z.strictObject({
+  path: z.string(),
+  message: z.string(),
+});
+export type FieldError = z.infer<typeof fieldErrorSchema>;
+
+// `detail` is prose for a person; `errors` names each field at fault, so a
+// client can place a message under its field without parsing `detail`.
 export const problemDetailsSchema = z.object({
   type: z.string(),
   title: z.string(),
   status: z.number().int(),
   instance: z.string(),
+  detail: z.string().optional(),
+  errors: z.array(fieldErrorSchema).optional(),
 });
 export type ProblemDetails = z.infer<typeof problemDetailsSchema>;
 

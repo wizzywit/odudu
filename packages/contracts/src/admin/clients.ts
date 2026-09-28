@@ -75,10 +75,15 @@ const clientFilters = {
   type: clientTypeSchema.optional(),
   enabled: enabledFilterSchema.optional(),
 };
+// Addressed to the second field, the one a caller adds to an existing search.
+const oneClientSearchRule = {
+  message: 'search one field at a time: client_id or name, not both',
+  path: ['name'],
+};
 const oneClientSearch = [
   (query: { client_id?: string | undefined; name?: string | undefined }) =>
     query.client_id === undefined || query.name === undefined,
-  { message: 'search one field at a time: client_id or name, not both' },
+  oneClientSearchRule,
 ] as const;
 
 export const listClientsQuerySchema = cursorQuerySchema

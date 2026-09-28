@@ -38,7 +38,15 @@ import {
   type Audit,
   type SubjectView,
 } from '#/usecase/subjects';
-import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import {
+  cursorProblem,
+  fieldProblem,
+  ifMatchRequired,
+  ifMatchStale,
+  problem,
+  queryProblem,
+  sendProblem,
+} from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -97,8 +105,7 @@ export function listSubjectsHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
     // is only enforced here.
     const parsed = listSubjectsQuerySchema.safeParse(request.query);
     if (!parsed.success) {
-      const detail = parsed.error.issues[0]?.message ?? 'invalid query';
-      return sendProblem(reply, request, problem(400, 'about:blank', 'Bad Request', detail));
+      return sendProblem(reply, request, queryProblem(parsed.error));
     }
     const query = parsed.data;
     const { cursor, limit: requestedLimit, ...filters } = query;
@@ -118,11 +125,7 @@ export function listSubjectsHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     const items = outcome.items.map(subjectWireShape);
@@ -216,7 +219,7 @@ export function createSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', error.message),
+          fieldProblem([{ path: 'email', message: error.message }], error.message),
         );
       }
       throw error;
@@ -251,13 +254,13 @@ function amendmentProblem(
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+        fieldProblem([{ path: outcome.field, message: outcome.reason }]),
       );
     case 'invalid_value':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+        fieldProblem([{ path: outcome.field, message: outcome.description }]),
       );
     case 'precondition_failed':
       return sendProblem(
@@ -369,13 +372,13 @@ function profileAmendmentProblem(
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+        fieldProblem([{ path: outcome.field, message: outcome.reason }]),
       );
     case 'invalid_value':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+        fieldProblem([{ path: outcome.field, message: outcome.description }]),
       );
     case 'precondition_failed':
       return sendProblem(
@@ -425,7 +428,7 @@ export function amendProfileHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', PHONE_E164_MESSAGE),
+          fieldProblem([{ path: 'phone_number', message: PHONE_E164_MESSAGE }], PHONE_E164_MESSAGE),
         );
       }
       throw error;
@@ -674,10 +677,8 @@ export function setRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
         return sendProblem(
           reply,
           request,
-          problem(
-            400,
-            'about:blank',
-            'Bad Request',
+          fieldProblem(
+            outcome.roleIds.map((id) => ({ path: 'role_ids', message: `names no role ${id}` })),
             `unknown role id(s): ${outcome.roleIds.join(', ')}`,
           ),
         );
@@ -771,10 +772,8 @@ export function setSubjectGroupsHandler(deps: SubjectsRouteDeps): AdminRouteHand
         return sendProblem(
           reply,
           request,
-          problem(
-            400,
-            'about:blank',
-            'Bad Request',
+          fieldProblem(
+            outcome.groupIds.map((id) => ({ path: 'group_ids', message: `names no group ${id}` })),
             `unknown group id(s): ${outcome.groupIds.join(', ')}`,
           ),
         );

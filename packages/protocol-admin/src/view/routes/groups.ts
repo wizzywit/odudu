@@ -23,10 +23,12 @@ import {
   type CreateGroupOutcome,
 } from '#/usecase/groups';
 import {
+  ceilingProblem,
+  cursorProblem,
+  fieldProblem,
   ifMatchRequired,
   ifMatchStale,
   problem,
-  ceilingProblem,
   sendProblem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
@@ -68,11 +70,7 @@ export function listGroupsHandler(deps: GroupsRouteDeps): AdminRouteHandler {
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     if (outcome.next === null) {
@@ -145,7 +143,10 @@ export function createGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', 'parent_id names no group'),
+          fieldProblem(
+            [{ path: 'parent_id', message: 'names no group' }],
+            'parent_id names no group',
+          ),
         );
       }
       // `groups_path_unique` (0018_groups.sql): a sibling by the same name
@@ -186,19 +187,22 @@ function amendmentProblem(
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', 'parent_id names no group'),
+        fieldProblem(
+          [{ path: 'parent_id', message: 'names no group' }],
+          'parent_id names no group',
+        ),
       );
     case 'refused_field':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+        fieldProblem([{ path: outcome.field, message: outcome.reason }]),
       );
     case 'invalid_value':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+        fieldProblem([{ path: outcome.field, message: outcome.description }]),
       );
     case 'precondition_failed':
       return sendProblem(
@@ -344,10 +348,8 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
         return sendProblem(
           reply,
           request,
-          problem(
-            400,
-            'about:blank',
-            'Bad Request',
+          fieldProblem(
+            outcome.roleIds.map((id) => ({ path: 'role_ids', message: `names no role ${id}` })),
             `unknown role id(s): ${outcome.roleIds.join(', ')}`,
           ),
         );

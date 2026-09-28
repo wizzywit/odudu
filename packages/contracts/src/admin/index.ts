@@ -5,6 +5,8 @@ export {
   type CursorQuery,
   problemDetailsSchema,
   type ProblemDetails,
+  fieldErrorSchema,
+  type FieldError,
   idSchema,
   createdAtSchema,
   etagSchema,

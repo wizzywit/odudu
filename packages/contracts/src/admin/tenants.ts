@@ -39,10 +39,15 @@ const tenantFilters = {
   display_name: searchPrefixSchema.optional(),
   enabled: enabledFilterSchema.optional(),
 };
+// Addressed to the second field, the one a caller adds to an existing search.
+const oneTenantSearchRule = {
+  message: 'search one field at a time: name or display_name, not both',
+  path: ['display_name'],
+};
 const oneTenantSearch = [
   (query: { name?: string | undefined; display_name?: string | undefined }) =>
     query.name === undefined || query.display_name === undefined,
-  { message: 'search one field at a time: name or display_name, not both' },
+  oneTenantSearchRule,
 ] as const;
 
 export const listTenantsQuerySchema = cursorQuerySchema

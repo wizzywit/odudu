@@ -10,7 +10,7 @@ import {
   type Audit,
   type SessionView,
 } from '#/usecase/sessions';
-import { problem, sendProblem } from '#/view/problem';
+import { cursorProblem, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
 import { targetCeilingProblem } from '#/view/routes/subjects';
@@ -72,11 +72,7 @@ export function listSessionsHandler(deps: SessionsRouteDeps): AdminRouteHandler 
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     const items = outcome.items.map(sessionWireShape);

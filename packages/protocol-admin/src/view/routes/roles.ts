@@ -24,7 +24,14 @@ import {
   type Audit,
   type CreateRoleOutcome,
 } from '#/usecase/roles';
-import { ceilingProblem, problem, sendProblem, type Problem } from '#/view/problem';
+import {
+  ceilingProblem,
+  cursorProblem,
+  fieldProblem,
+  problem,
+  sendProblem,
+  type Problem,
+} from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -73,11 +80,7 @@ export function listRolesHandler(deps: RolesRouteDeps): AdminRouteHandler {
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     if (outcome.next === null) {
@@ -157,7 +160,10 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', 'client_id names no client'),
+        fieldProblem(
+          [{ path: 'client_id', message: 'names no client' }],
+          'client_id names no client',
+        ),
       );
     }
     if (outcome.kind === 'default_on_admin_client') {
@@ -188,13 +194,13 @@ function amendmentProblem(
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+        fieldProblem([{ path: outcome.field, message: outcome.reason }]),
       );
     case 'invalid_value':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+        fieldProblem([{ path: outcome.field, message: outcome.description }]),
       );
     case 'precondition_failed':
       return sendProblem(
@@ -286,7 +292,10 @@ function compositeProblem(
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', 'child_role_id names no role'),
+        fieldProblem(
+          [{ path: 'child_role_id', message: 'names no role' }],
+          'child_role_id names no role',
+        ),
       );
     case 'builtin_admin_guarded':
       return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));

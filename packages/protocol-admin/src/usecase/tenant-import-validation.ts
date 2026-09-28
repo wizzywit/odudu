@@ -24,6 +24,7 @@ import {
   parseClientMetadata,
   type ClientMetadata,
 } from '@odudu/protocol-oidc';
+import { fieldPath } from '#/service/field-path';
 import { validateFlowSteps } from '#/service/flow-validation';
 import { CLAIM_KEY, PHONE_E164_MESSAGE, shapeInvalidityFor } from '#/usecase/profile';
 import { tooManySubjectsDetail } from '#/usecase/tenant-export';
@@ -58,11 +59,7 @@ function describeRole(reference: RoleReference): string {
 }
 
 function pathOf(segments: readonly PropertyKey[]): string {
-  return segments.reduce<string>(
-    (path, segment) =>
-      typeof segment === 'number' ? `${path}[${String(segment)}]` : `${path}.${String(segment)}`,
-    'document',
-  );
+  return fieldPath(['document', ...segments]);
 }
 
 function metadataInput(client: ExportedClient): Record<string, unknown> {

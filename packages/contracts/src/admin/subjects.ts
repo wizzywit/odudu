@@ -14,10 +14,15 @@ const subjectFilters = {
   role: z.uuid().optional(),
   group: z.uuid().optional(),
 };
+// Addressed to the second field, the one a caller adds to an existing search.
+const oneSubjectSearchRule = {
+  message: 'search one field at a time: username or email, not both',
+  path: ['email'],
+};
 const oneSubjectSearch = [
   (query: { username?: string | undefined; email?: string | undefined }) =>
     query.username === undefined || query.email === undefined,
-  { message: 'search one field at a time: username or email, not both' },
+  oneSubjectSearchRule,
 ] as const;
 
 export const listSubjectsQuerySchema = cursorQuerySchema

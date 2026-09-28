@@ -10,7 +10,7 @@ import {
   sendTestMessage,
   type Audit,
 } from '#/usecase/smtp';
-import { problem, sendProblem } from '#/view/problem';
+import { fieldProblem, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
@@ -44,7 +44,10 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', 'password exceeds the maximum length'),
+        fieldProblem(
+          [{ path: 'password', message: 'exceeds the maximum length' }],
+          'password exceeds the maximum length',
+        ),
       );
     }
 
@@ -57,10 +60,8 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
       return sendProblem(
         reply,
         request,
-        problem(
-          400,
-          'about:blank',
-          'Bad Request',
+        fieldProblem(
+          [{ path: 'starttls', message: 'must be true when a username or password is configured' }],
           'starttls must be true when a username or password is configured',
         ),
       );

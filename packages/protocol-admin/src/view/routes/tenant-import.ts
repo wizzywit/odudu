@@ -2,7 +2,7 @@ import { importTenantRequestSchema } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { importTenant, type ImportTenantDeps } from '#/usecase/tenant-import';
-import { problem, sendProblem } from '#/view/problem';
+import { fieldProblem, problem, sendProblem } from '#/view/problem';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
 export interface TenantImportRouteDeps extends Omit<ImportTenantDeps, 'database'> {
@@ -35,15 +35,14 @@ export function importTenantHandler(deps: TenantImportRouteDeps): AdminRouteHand
 
     switch (outcome.kind) {
       case 'invalid':
-        return sendProblem(reply, request, {
-          ...problem(
-            400,
-            'about:blank',
-            'Bad Request',
+        return sendProblem(
+          reply,
+          request,
+          fieldProblem(
+            outcome.errors,
             `the import was refused for ${String(outcome.errors.length)} problem(s), listed under errors`,
           ),
-          errors: outcome.errors,
-        });
+        );
       case 'name_taken':
         return sendProblem(
           reply,

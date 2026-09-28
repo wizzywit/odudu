@@ -10,7 +10,7 @@ import {
   revokeRegistrationToken,
   type Audit,
 } from '#/usecase/registration-tokens';
-import { problem, sendProblem } from '#/view/problem';
+import { cursorProblem, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
@@ -40,11 +40,7 @@ export function listRegistrationTokensHandler(
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     if (outcome.next === null) {

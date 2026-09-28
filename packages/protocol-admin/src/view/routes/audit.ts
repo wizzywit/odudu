@@ -2,7 +2,7 @@ import { listAuditQuerySchema, type AuditEvent } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { listAudit } from '#/usecase/audit';
-import { problem, sendProblem } from '#/view/problem';
+import { cursorProblem, queryProblem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
@@ -28,8 +28,7 @@ export function listAuditHandler(deps: AuditRouteDeps): AdminRouteHandler {
     // #/view/routes/subjects.ts, is the same pattern).
     const parsed = listAuditQuerySchema.safeParse(request.query);
     if (!parsed.success) {
-      const detail = parsed.error.issues[0]?.message ?? 'invalid query';
-      return sendProblem(reply, request, problem(400, 'about:blank', 'Bad Request', detail));
+      return sendProblem(reply, request, queryProblem(parsed.error));
     }
     const query = parsed.data;
     const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
@@ -51,11 +50,7 @@ export function listAuditHandler(deps: AuditRouteDeps): AdminRouteHandler {
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     const items: AuditEvent[] = [...outcome.items];

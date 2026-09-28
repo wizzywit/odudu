@@ -394,6 +394,7 @@ export type CreateClientOutcome =
       kind: 'invalid_metadata';
       error: 'invalid_redirect_uri' | 'invalid_client_metadata';
       description: string;
+      field?: string;
     }
   | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
@@ -487,7 +488,12 @@ export async function createClient(
       outcome: 'refused',
       detail: { error: parsed.error },
     });
-    return { kind: 'invalid_metadata', error: parsed.error, description: parsed.description };
+    return {
+      kind: 'invalid_metadata',
+      error: parsed.error,
+      description: parsed.description,
+      ...(parsed.field === undefined ? {} : { field: parsed.field }),
+    };
   }
   const metadata = parsed.metadata;
   const type = clientType(metadata.tokenEndpointAuthMethod);
@@ -674,6 +680,7 @@ export type AmendClientOutcome =
       kind: 'invalid_metadata';
       error: 'invalid_redirect_uri' | 'invalid_client_metadata';
       description: string;
+      field?: string;
     }
   | { kind: 'precondition_required'; field: string }
   | { kind: 'precondition_failed' }
@@ -1009,7 +1016,12 @@ export async function amendClient(
 
     const parsed = parseClientMetadata(merged, { tlsClientAuthEnabled: deps.tlsClientAuthEnabled });
     if (parsed.kind === 'invalid') {
-      return { kind: 'invalid_metadata', error: parsed.error, description: parsed.description };
+      return {
+        kind: 'invalid_metadata',
+        error: parsed.error,
+        description: parsed.description,
+        ...(parsed.field === undefined ? {} : { field: parsed.field }),
+      };
     }
 
     configPatch.redirectUris = parsed.metadata.redirectUris;

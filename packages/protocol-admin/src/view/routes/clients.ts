@@ -24,7 +24,15 @@ import {
   type ClientView,
   type CreateClientOutcome,
 } from '#/usecase/clients';
-import { ceilingProblem, problem, sendProblem } from '#/view/problem';
+import {
+  ceilingProblem,
+  cursorProblem,
+  fieldProblem,
+  problem,
+  queryProblem,
+  sendProblem,
+  type Problem,
+} from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -70,13 +78,18 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+function metadataProblem(outcome: { description: string; field?: string }): Problem {
+  return outcome.field === undefined
+    ? problem(400, 'about:blank', 'Bad Request', outcome.description)
+    : fieldProblem([{ path: outcome.field, message: outcome.description }], outcome.description);
+}
+
 export function listClientsHandler(deps: ClientsRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
     // Same narrowing as listTenantsHandler (#/view/routes/tenants.ts).
     const parsed = listClientsQuerySchema.safeParse(request.query);
     if (!parsed.success) {
-      const detail = parsed.error.issues[0]?.message ?? 'invalid query';
-      return sendProblem(reply, request, problem(400, 'about:blank', 'Bad Request', detail));
+      return sendProblem(reply, request, queryProblem(parsed.error));
     }
     const query = parsed.data;
     const { cursor, limit: requestedLimit, ...filters } = query;
@@ -96,11 +109,7 @@ export function listClientsHandler(deps: ClientsRouteDeps): AdminRouteHandler {
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     const items = outcome.items.map(toWireClient);
@@ -202,22 +211,18 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
           ),
         );
       case 'invalid_metadata':
-        return sendProblem(
-          reply,
-          request,
-          problem(400, 'about:blank', 'Bad Request', outcome.description),
-        );
+        return sendProblem(reply, request, metadataProblem(outcome));
       case 'refused_field':
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+          fieldProblem([{ path: outcome.field, message: outcome.reason }]),
         );
       case 'invalid_value':
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+          fieldProblem([{ path: outcome.field, message: outcome.description }]),
         );
       case 'at_capacity':
         return sendProblem(
@@ -253,20 +258,16 @@ function amendmentProblem(
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+        fieldProblem([{ path: outcome.field, message: outcome.reason }]),
       );
     case 'invalid_value':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+        fieldProblem([{ path: outcome.field, message: outcome.description }]),
       );
     case 'invalid_metadata':
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', outcome.description),
-      );
+      return sendProblem(reply, request, metadataProblem(outcome));
     case 'precondition_required':
       return sendProblem(
         reply,

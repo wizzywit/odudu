@@ -18,7 +18,7 @@ import {
   countSubjects,
   countTenants,
 } from '#/usecase/counts';
-import { problem, sendProblem } from '#/view/problem';
+import { queryProblem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -38,8 +38,7 @@ async function sendCount<Q>(
 ): Promise<FastifyReply> {
   const parsed = schema.safeParse(request.query);
   if (!parsed.success) {
-    const detail = parsed.error.issues[0]?.message ?? 'invalid query';
-    return sendProblem(reply, request, problem(400, 'about:blank', 'Bad Request', detail));
+    return sendProblem(reply, request, queryProblem(parsed.error));
   }
   return reply.code(200).send(await count(parsed.data));
 }

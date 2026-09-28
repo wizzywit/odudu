@@ -3,6 +3,7 @@ import { clientTypeSchema, registrationOriginSchema } from '#/admin/clients';
 import { executionRequirementSchema } from '#/admin/flow';
 import { profileSchema } from '#/admin/profile';
 import { clientScopeAssignmentSchema } from '#/admin/scopes';
+import { fieldErrorSchema, type FieldError } from '#/admin/shared';
 import { requiredActionSchema } from '#/admin/subjects';
 import { tenantSchema } from '#/admin/tenants';
 
@@ -211,10 +212,6 @@ export const importTenantResponseSchema = z.object({
 });
 export type ImportTenantResponse = z.infer<typeof importTenantResponseSchema>;
 
-// One problem with an import request, by its JSON path from the request
-// body: `name`, or `document.clients[0].redirect_uris`.
-export const importErrorSchema = z.strictObject({
-  path: z.string(),
-  message: z.string(),
-});
-export type ImportError = z.infer<typeof importErrorSchema>;
+// One problem with an import request, by its JSON path from the request body.
+export const importErrorSchema = fieldErrorSchema;
+export type ImportError = FieldError;

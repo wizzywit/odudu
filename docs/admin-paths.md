@@ -135,6 +135,16 @@ under `PATCH /settings` were captured after a further rebuild, as the same
 `ada-import`, in a tenant `settings-range-demo`; the rest of that section
 was not re-run.
 
+**The fifth stack.** The sections this note names were captured against a
+stack of their own: compose project `odudu-task2`, published on port 3080,
+built from this branch and brought up from an empty volume with
+`seed admin --username ada-t2`, each section after a rebuild that added
+what it describes. It was torn down with `docker compose down -v` when the
+capture finished. They are "A refusal names its field". The `400` bodies
+in sections captured before `errors` existed were not re-run, and show
+none; each such refusal now also carries `errors`, naming the field its
+`detail` names, as that section shows.
+
 ## The shape of it
 
 Most of the admin endpoint lives under `/admin/tenants/{tenant}/`, mirroring
@@ -278,6 +288,61 @@ not re-run — each says so, and why, where it appears.
 | `POST`   | `/admin/tenants/{tenant}/smtp/test`                              | Send one test message                     |
 | `GET`    | `/admin/tenants/{tenant}/audit`                                  | List the tenant's audit trail             |
 | `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference                     |
+
+### A refusal names its field
+
+A `400` that names something in the request carries `errors` beside
+`detail`, one entry per field: `path` is the field's JSON path within the
+query string or body — `port`, `document.clients[0].redirect_uris`,
+`[1].authenticator` for the second step of a flow — and `message` is what
+is wrong with it. `detail` is unchanged prose, so a caller that reads it
+still can. A refusal of the request as a whole, such as a flow with no
+steps or a test send to a tenant with no SMTP configuration, names no
+field and carries no `errors`. Captured against the fifth stack, in a
+tenant `fields-demo` created for it, as `ada-t2`:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3080/admin/tenants/fields-demo/subjects?username=a&email=b'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3080/admin/tenants/fields-demo/subjects?cursor=not-a-cursor'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3080/admin/tenants/fields-demo/roles?colour=blue'
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"host":"smtp.example","port":70000,"from_address":"noreply@example.com"}' \
+  http://localhost:3080/admin/tenants/fields-demo/smtp
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"billing-viewer","client_id":"0199aa00-0000-7000-8000-0000000000ff"}' \
+  http://localhost:3080/admin/tenants/fields-demo/roles
+```
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: username or email, not both","errors":[{"path":"email","message":"search one field at a time: username or email, not both"}],"instance":"01a0e9e0-b4bf-7038-880c-de9e0e279933"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a0e9e0-b4dd-7120-b5c4-ccf14a074c3e"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: colour","errors":[{"path":"colour","message":"must NOT have additional properties"}],"instance":"01a0e9e0-b4f4-769a-bd3a-11cfe8ccddbf"}
+{"type":"about:blank","title":"Error","status":400,"detail":"body/port must be <= 65535","errors":[{"path":"port","message":"must be <= 65535"}],"instance":"01a0e9e0-849b-742a-93a3-d4e80f81a5d8"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"client_id names no client","errors":[{"path":"client_id","message":"names no client"}],"instance":"01a0e9e0-84ab-7569-97ef-e3290a9211bd"}
+```
+
+The last two in the order they ran: a subject `grace`'s roles replaced
+with a role id that names nothing, under the `ETag` its `GET …/roles`
+answered, and a flow naming `password` twice, under its own:
+
+```bash
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
+  -d '{"role_ids":["0199aa00-0000-7000-8000-0000000000ff"]}' \
+  http://localhost:3080/admin/tenants/fields-demo/subjects/01a0e9e0-b50c-79e0-acf2-6b76955f097c/roles
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -H 'If-Match: "2e028692eeb04a65ef6a06be482c11d71247d243b5929007716ee0f4eb2324db"' \
+  -d '[{"authenticator":"password","requirement":"required"},{"authenticator":"password","requirement":"alternative"}]' \
+  http://localhost:3080/admin/tenants/fields-demo/flow/executions
+```
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown role id(s): 0199aa00-0000-7000-8000-0000000000ff","errors":[{"path":"role_ids","message":"names no role 0199aa00-0000-7000-8000-0000000000ff"}],"instance":"01a0e9e0-b564-7765-81f0-d8ddb655a845"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"authenticator \"password\" appears more than once; a step is addressed by its authenticator, so a repeat has no unambiguous meaning","errors":[{"path":"[1].authenticator","message":"repeats an earlier step"}],"instance":"01a0e9e0-b598-7331-95af-09ef6837a5c3"}
+```
 
 ## Getting the token
 

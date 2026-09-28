@@ -1,18 +1,47 @@
-import { type ImportError, type ProblemDetails } from '@odudu/contracts/admin';
+import { type FieldError, type ProblemDetails } from '@odudu/contracts/admin';
 import {
   type FastifyError,
   type FastifyInstance,
   type FastifyReply,
   type FastifyRequest,
 } from 'fastify';
+import { type z } from 'zod';
+import { fieldPath } from '#/service/field-path';
 
-export type Problem = Omit<ProblemDetails, 'instance'> & {
-  detail?: string;
-  errors?: readonly ImportError[];
+export type Problem = Omit<ProblemDetails, 'instance' | 'errors'> & {
+  errors?: readonly FieldError[];
 };
 
 export function problem(status: number, type: string, title: string, detail?: string): Problem {
   return detail === undefined ? { type, title, status } : { type, title, status, detail };
+}
+
+/**
+ * The one shape of a `400` that names what was wrong with the request:
+ * `errors` places each message under its field, and `detail` stays the prose
+ * a person reads — given, or else each field and its message in turn.
+ */
+export function fieldProblem(errors: readonly FieldError[], detail?: string): Problem {
+  const prose = detail ?? errors.map((error) => `${error.path}: ${error.message}`).join('; ');
+  return { ...problem(400, 'about:blank', 'Bad Request', prose), errors };
+}
+
+/** A query a Zod schema refused, its first message as the detail. */
+export function queryProblem(error: z.ZodError): Problem {
+  const detail = error.issues[0]?.message ?? 'invalid query';
+  const errors = error.issues
+    .filter((issue) => issue.path.length > 0)
+    .map((issue) => ({ path: fieldPath(issue.path), message: issue.message }));
+  return errors.length === 0
+    ? problem(400, 'about:blank', 'Bad Request', detail)
+    : fieldProblem(errors, detail);
+}
+
+export function cursorProblem(): Problem {
+  return fieldProblem(
+    [{ path: 'cursor', message: 'is invalid or expired' }],
+    'cursor is invalid or expired',
+  );
 }
 
 /**
@@ -71,6 +100,33 @@ export function refusalDetail(error: Pick<FastifyError, 'message' | 'validation'
   return typeof extra === 'string' ? `${error.message}: ${extra}` : error.message;
 }
 
+function pointerSegments(pointer: string): (string | number)[] {
+  return pointer
+    .split('/')
+    .slice(1)
+    .map((segment) => segment.replaceAll('~1', '/').replaceAll('~0', '~'))
+    .map((segment) => (/^\d+$/u.test(segment) ? Number(segment) : segment));
+}
+
+// ajv reports where it failed as a JSON pointer, and a missing or extra
+// property one level above the property itself.
+export function validationErrors(
+  error: Pick<FastifyError, 'message' | 'validation'>,
+): readonly FieldError[] {
+  return (error.validation ?? []).flatMap((entry) => {
+    const segments = pointerSegments(entry.instancePath);
+    const named: unknown =
+      entry.keyword === 'additionalProperties'
+        ? entry.params.additionalProperty
+        : entry.keyword === 'required'
+          ? entry.params.missingProperty
+          : undefined;
+    if (typeof named === 'string') segments.push(named);
+    const path = fieldPath(segments);
+    return path === '' ? [] : [{ path, message: entry.message ?? error.message }];
+  });
+}
+
 /** Scoped to this plugin's encapsulation context, never the root instance, so RFC 6749 error bodies on the OIDC routes are untouched. */
 export function installProblemDetailsHandler(app: FastifyInstance): void {
   app.setErrorHandler<FastifyError>((error, request, reply) => {
@@ -79,7 +135,9 @@ export function installProblemDetailsHandler(app: FastifyInstance): void {
       sendProblem(reply, request, problem(status, 'about:blank', 'Internal Server Error'));
       return;
     }
-    sendProblem(reply, request, problem(status, 'about:blank', error.name, refusalDetail(error)));
+    const errors = status === 400 ? validationErrors(error) : [];
+    const body = problem(status, 'about:blank', error.name, refusalDetail(error));
+    sendProblem(reply, request, errors.length === 0 ? body : { ...body, errors });
   });
 
   app.setNotFoundHandler((request, reply) => {

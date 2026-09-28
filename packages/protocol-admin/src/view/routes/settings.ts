@@ -7,7 +7,7 @@ import {
   type AmendSettingsOutcome,
   type Audit,
 } from '#/usecase/settings';
-import { problem, sendProblem } from '#/view/problem';
+import { fieldProblem, problem, sendProblem, type Problem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -19,6 +19,19 @@ export interface SettingsRouteDeps {
 function ifMatchHeader(request: AdminRequest): string | undefined {
   const value = request.headers['if-match'];
   return typeof value === 'string' ? value : undefined;
+}
+
+function settingValueProblem(
+  outcome: Extract<AmendSettingsOutcome, { kind: 'invalid_value' }>,
+): Problem {
+  const expects =
+    outcome.values === undefined
+      ? `expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`
+      : `must be one of ${outcome.values.join(', ')}`;
+  return fieldProblem(
+    [{ path: outcome.name, message: expects }],
+    `tenant setting ${outcome.name} ${expects}`,
+  );
 }
 
 export function getSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler {
@@ -62,7 +75,10 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', error.message),
+          fieldProblem(
+            error.settingNames.map((name) => ({ path: name, message: 'refused that value' })),
+            error.message,
+          ),
         );
       }
       throw error;
@@ -73,36 +89,22 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
         return sendProblem(
           reply,
           request,
-          problem(
-            400,
-            'about:blank',
-            'Bad Request',
+          fieldProblem(
+            [{ path: outcome.name, message: 'is not a tenant setting' }],
             `unknown tenant setting ${JSON.stringify(outcome.name)}; expected one of ${outcome.known.join(', ')}`,
           ),
         );
       case 'invalid_value':
+        return sendProblem(reply, request, settingValueProblem(outcome));
+      case 'out_of_range':
         return sendProblem(
           reply,
           request,
-          problem(
-            400,
-            'about:blank',
-            'Bad Request',
-            outcome.values === undefined
-              ? `tenant setting ${outcome.name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`
-              : `tenant setting ${outcome.name} must be one of ${outcome.values.join(', ')}`,
-          ),
-        );
-      case 'out_of_range':
-        return sendProblem(reply, request, {
-          ...problem(
-            400,
-            'about:blank',
-            'Bad Request',
+          fieldProblem(
+            outcome.problems.map(({ name, message }) => ({ path: name, message })),
             `${String(outcome.problems.length)} tenant setting(s) outside the permitted range, listed under errors`,
           ),
-          errors: outcome.problems.map(({ name, message }) => ({ path: name, message })),
-        });
+        );
       case 'system_tenant_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
       case 'precondition_failed':
