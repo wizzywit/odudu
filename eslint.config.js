@@ -2,7 +2,15 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/.turbo/**', '**/coverage/**', 'tests/boundaries/fixtures/**'] },
+  {
+    ignores: [
+      '**/dist/**',
+      '**/.turbo/**',
+      '**/coverage/**',
+      'tests/boundaries/fixtures/**',
+      'tests/lint/fixtures/**',
+    ],
+  },
   // A disable comment that no longer suppresses anything is a claim about the
   // code that has quietly stopped being true; failing on it keeps the small
   // number of live suppressions honest and reviewable.

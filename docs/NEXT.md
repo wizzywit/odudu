@@ -339,11 +339,6 @@ a phase note.
   re-run against a live stack. **P4f**, which re-captures those transcripts
   anyway: its criterion gives a subject a fresh set of recovery codes before
   the old set is spent, which is what those two queries count.
-- The boundary suite's negative control filters a fixture with no imports at
-  all, so it cannot demonstrate that `service-is-a-leaf` is not over-broad.
-  A service importing another service would. **P4d**: its console is the
-  first package outside the server to carry the five layers, so the rule set
-  and its fixtures are extended there.
 - `tests/lint/production-guard-order.test.ts` compares source offsets and
   breaks on a rename or a helper extraction. A reasonable stopgap for the
   still-positional server-boot path, but its narrowness should be visible to

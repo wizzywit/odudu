@@ -62,6 +62,39 @@ module.exports = {
       },
     },
     {
+      name: 'console-feature-imports-only-index',
+      severity: 'error',
+      comment:
+        "A console feature's index.ts is its only importable surface; everything else in it " +
+        'can change without another feature noticing.',
+      from: { path: '(^|/)apps/admin-console/src/features/([^/]+)/' },
+      to: { path: '(^|/)apps/admin-console/src/features/(?!$2/)[^/]+/(?!index\\.ts$)' },
+    },
+    {
+      name: 'console-shared-imports-no-feature',
+      severity: 'error',
+      comment: 'shared/ holds only what two or more features use, so it depends on none of them.',
+      from: { path: '(^|/)apps/admin-console/src/shared/' },
+      to: { path: '(^|/)apps/admin-console/src/features/' },
+    },
+    {
+      name: 'console-nothing-imports-app',
+      severity: 'error',
+      comment:
+        'app/ is the composition root. With console-feature-imports-only-index it is the one ' +
+        "place that sees every feature's index.ts together, and nothing below it sees app/.",
+      from: { path: '(^|/)apps/admin-console/src/(?:shared|features)/' },
+      to: { path: '(^|/)apps/admin-console/src/app/' },
+    },
+    {
+      name: 'console-view-no-transport',
+      severity: 'error',
+      comment:
+        'A console view reaches the gateway and the cross-feature stores only through a usecase.',
+      from: { path: '(^|/)apps/admin-console/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      to: { path: '(^|/)apps/admin-console/src/shared/(?:transport|repository)/' },
+    },
+    {
       name: 'no-server-to-testing',
       severity: 'error',
       comment:
@@ -103,32 +136,33 @@ module.exports = {
     // height > 1: the optional group wraps a quantifier). The alternation
     // below is unquantified, so it stays star-height 1 while still matching
     // `view` directly under `src` or nested arbitrarily deep beneath it, in
-    // that left-to-right order.
+    // that left-to-right order. The trailing group holds a single-file layer,
+    // `view.tsx` beside `adapter.ts`, to the same rules as a layer folder.
     {
       name: 'no-view-to-repository',
       severity: 'error',
-      from: { path: '/src/(?:view|.*/view)/' },
-      to: { path: '/src/(?:repository|.*/repository)/' },
+      from: { path: '/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      to: { path: '/src/(?:repository|.*/repository)(?:/|\\.tsx?$)' },
     },
     {
       name: 'no-view-to-adapter',
       severity: 'error',
-      from: { path: '/src/(?:view|.*/view)/' },
-      to: { path: '/src/(?:adapter|.*/adapter)/' },
+      from: { path: '/src/(?:view|.*/view)(?:/|\\.tsx?$)' },
+      to: { path: '/src/(?:adapter|.*/adapter)(?:/|\\.tsx?$)' },
     },
     {
       name: 'no-usecase-to-adapter',
       severity: 'error',
-      from: { path: '/src/(?:usecase|.*/usecase)/' },
-      to: { path: '/src/(?:adapter|.*/adapter)/' },
+      from: { path: '/src/(?:usecase|.*/usecase)(?:/|\\.tsx?$)' },
+      to: { path: '/src/(?:adapter|.*/adapter)(?:/|\\.tsx?$)' },
     },
     {
       name: 'service-is-a-leaf',
       severity: 'error',
       comment: 'service holds domain logic and depends on no other layer.',
-      from: { path: '/src/(?:service|.*/service)/' },
+      from: { path: '/src/(?:service|.*/service)(?:/|\\.tsx?$)' },
       to: {
-        path: '/src/(?:(?:view|usecase|repository|adapter)|.*/(?:view|usecase|repository|adapter))/',
+        path: '/src/(?:(?:view|usecase|repository|adapter)|.*/(?:view|usecase|repository|adapter))(?:/|\\.tsx?$)',
       },
     },
     {
@@ -140,7 +174,7 @@ module.exports = {
         '`./src/*.ts` (see packages/protocol-oidc/src/testing/). None of the five layers has a ' +
         'legitimate reason to depend on test-only code.',
       from: {
-        path: '/src/(?:(?:view|usecase|repository|adapter|service)|.*/(?:view|usecase|repository|adapter|service))/',
+        path: '/src/(?:(?:view|usecase|repository|adapter|service)|.*/(?:view|usecase|repository|adapter|service))(?:/|\\.tsx?$)',
       },
       to: { path: '/src/(?:testing|.*/testing)/' },
     },
