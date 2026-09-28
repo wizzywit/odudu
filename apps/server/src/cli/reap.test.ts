@@ -42,10 +42,21 @@ describe('the order the retention pass runs in', () => {
         'email_outbox',
         'backchannel_logout_deliveries',
         'client_assertion_jti',
+        'console_sessions',
+        'console_logins',
         'sessions',
         'audit_events',
       ]);
     }).toThrow(/token_grants before refresh_tokens/u);
+  });
+
+  it('reaps the console tables before sessions and the audit trail', () => {
+    const at = (table: TableName): number => REAP_ORDER.indexOf(table);
+    for (const table of ['console_sessions', 'console_logins'] as const) {
+      expect(at(table)).toBeGreaterThanOrEqual(0);
+      expect(at(table)).toBeLessThan(at('sessions'));
+      expect(at(table)).toBeLessThan(at('audit_events'));
+    }
   });
 
   it('refuses an order that omits a table', () => {

@@ -20,6 +20,7 @@
     "@odudu/db": "workspace:*",
     "@odudu/domain-tenant": "workspace:*",
     "@odudu/kernel": "workspace:*",
+    "drizzle-orm": "0.45.2",
     "fastify": "5.12.3"
   },
   "devDependencies": {

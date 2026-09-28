@@ -5451,7 +5451,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0,"audit_events":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"sessions":0,"audit_events":0}}
 ```
 
 Those zeros are the point. By this stage the database holds a consumed
@@ -5498,6 +5498,24 @@ per login step — are minutes old, and `audit_events`' own retention rule
 (`audit_retention_days`, 90 by default and unrelated to any window above)
 deletes nothing younger than a day.
 
+`console_sessions` and `console_logins` report `0` in every other count in
+this section for a plainer reason: nothing in this walkthrough signs in to
+the admin console, so neither table holds a row. Those two keys were not
+captured on this section's stack. Their rules were run separately, with `node
+dist/main.js reap` from a local build, against a migrated database
+holding one tenant, one subject, three console sessions (idle for 31
+minutes, past its own `expires_at`, and live) and two pending logins
+(expired, and live), inserted directly:
+
+```
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":2,"console_logins":1,"sessions":0,"audit_events":0}}
+```
+
+A console session ends at thirty minutes idle or at its own `expires_at`,
+whichever comes first. A pending login ends at its `expires_at`. Neither
+table has a window beyond that: a row past either bound cannot be used
+again, so keeping it would serve no detection.
+
 What makes a row deletable is the **grant family** being past retention,
 which is seven days for a session-bound family and thirty for an offline
 one. Backdating the stack by forty days is the fastest way to see a pass
@@ -5515,7 +5533,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":1,"audit_events":0}}
+{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"sessions":1,"audit_events":0}}
 ```
 
 Both refresh tokens of the family, the code that produced it, the grant
@@ -5534,7 +5552,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0,"audit_events":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"sessions":0,"audit_events":0}}
 ```
 
 ### When the pass refuses, or finds nothing to look at

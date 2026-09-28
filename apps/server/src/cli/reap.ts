@@ -1,3 +1,4 @@
+import { CONSOLE_SESSION_IDLE_SECONDS } from '@odudu/console-gateway';
 import {
   bypassesRowLevelSecurity,
   createDatabase,
@@ -27,6 +28,8 @@ export type TableName =
   | 'email_outbox'
   | 'backchannel_logout_deliveries'
   | 'client_assertion_jti'
+  | 'console_sessions'
+  | 'console_logins'
   | 'sessions'
   | 'audit_events';
 
@@ -309,6 +312,27 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // No policy window, for the reason client_assertion_jti has none: a
+  // session past its absolute expiry or idle past CONSOLE_SESSION_IDLE_SECONDS
+  // has already ended, and the gateway would delete it on sight.
+  console_sessions: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM console_sessions c
+       WHERE c.expires_at < ${now.toISOString()}::timestamptz
+          OR c.last_seen_at < ${now.toISOString()}::timestamptz
+             - make_interval(secs => ${CONSOLE_SESSION_IDLE_SECONDS}::integer)
+    `,
+  },
+
+  console_logins: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM console_logins l
+       WHERE l.expires_at < ${now.toISOString()}::timestamptz
+    `,
+  },
+
   // Last, and only once nothing points at it. The ON DELETE SET NULL on
   // token_grants.session_id is a backstop this must never reach: nulling a
   // session-bound grant's session would promote it to an offline one, which
@@ -362,6 +386,8 @@ export const REAP_ORDER: readonly TableName[] = [
   'email_outbox',
   'backchannel_logout_deliveries',
   'client_assertion_jti',
+  'console_sessions',
+  'console_logins',
   'sessions',
   'audit_events',
 ];
