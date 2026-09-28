@@ -143,9 +143,38 @@ describe('resolveSession', () => {
     ['a tenant that is not a UUID', `${COOKIE}=system.c2VjcmV0`],
     ['a value of three parts', `${COOKIE}=${newId()}.a.b`],
     ['a secret outside base64url', `${COOKIE}=${newId()}.a+b/c=`],
+    ['an empty secret', `${COOKIE}=${newId()}.`],
+    ['a secret one character short', `${COOKIE}=${newId()}.${randomSecret().slice(1)}`],
+    ['an oversized secret', `${COOKIE}=${newId()}.${randomSecret()}${randomSecret()}`],
     ['an unknown secret', `${COOKIE}=${bindToTenant(newId(), randomSecret())}`],
   ])('ends a request with %s', async (_label, header) => {
     expect(await resolveSession(deps, header, SIGNED_IN)).toEqual({ kind: 'ended' });
+  });
+
+  it('ends a session deleted between its read and its touch', async () => {
+    const { session, cookie } = await seedSession();
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked: () => void = () => undefined;
+    const lockTaken = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const deleting = withTenant(owner.db, session.tenantId, async (tx) => {
+      await consoleSessionRepository(tx).lockById(session.id);
+      locked();
+      await held;
+      await consoleSessionRepository(tx).delete(session.id);
+    });
+    await lockTaken;
+
+    const resolving = resolveSession(deps, cookie, at(MINUTE));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    release();
+    await deleting;
+
+    expect(await resolving).toEqual({ kind: 'ended' });
   });
 
   it('takes neither of two session cookies, leaving both sessions alone', async () => {

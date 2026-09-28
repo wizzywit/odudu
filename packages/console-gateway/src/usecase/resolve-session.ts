@@ -35,7 +35,7 @@ export async function resolveSession(
       return ENDED;
     }
     if (!sessionNeedsTouch(session, now)) return { kind: 'ok', session };
-    await sessions.touch(session.id, now);
+    if (!(await sessions.touch(session.id, now))) return ENDED;
     return { kind: 'ok', session: { ...session, lastSeenAt: now } };
   });
 }
