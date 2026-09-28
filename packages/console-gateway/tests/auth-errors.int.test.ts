@@ -8,7 +8,7 @@ import {
 } from '@odudu/db';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { sql } from 'drizzle-orm';
-import Fastify from 'fastify';
+import Fastify, { type LightMyRequestResponse } from 'fastify';
 import { Writable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { consoleLoginRepository } from '#/repository/console-logins';
@@ -25,6 +25,7 @@ let app: DatabaseHandle;
 
 const KEK = Buffer.alloc(32, 7);
 const SENTINEL = 'sentinel-7f3a9c-must-not-be-logged';
+const ISSUER = 'http://console.example.test/tenants/probe';
 
 beforeAll(async () => {
   containerHandle = await startTestDatabase();
@@ -49,56 +50,91 @@ const throwingPort: OduduPort = {
   revoke: () => Promise.resolve(),
 };
 
+async function seedLogin(): Promise<string> {
+  const tenantId = crypto.randomUUID();
+  await owner.db.execute(
+    sql`INSERT INTO tenants (id, name) VALUES (${tenantId}, ${`t-${tenantId}`})`,
+  );
+  const state = bindToTenant(tenantId, randomSecret());
+  await withTenant(app.db, tenantId, (tx) =>
+    consoleLoginRepository(tx).create({
+      tenantId,
+      stateHash: sha256(state),
+      verifierWrapped: wrapSecret('verifier', KEK),
+      nonce: 'nonce',
+      returnTo: '/console/',
+      expiresAt: new Date(Date.now() + 60_000),
+    }),
+  );
+  return state;
+}
+
+async function callback(
+  odudu: OduduPort,
+  state: string,
+  logs: string[] = [],
+): Promise<LightMyRequestResponse> {
+  const destination = new Writable({
+    write(chunk: Buffer, _encoding, done) {
+      logs.push(chunk.toString('utf8'));
+      done();
+    },
+  });
+  const server = Fastify({ logger: { level: 'trace', stream: destination } });
+  const base = new URL('http://console.example.test');
+  const login = { database: app, ownerDatabase: owner, kek: KEK, base };
+  registerAuthRoutes(server, {
+    login,
+    callback: { ...login, odudu },
+    tls: false,
+    now: () => new Date(),
+  });
+  await server.ready();
+  try {
+    const query = new URLSearchParams({ code: 'c', state, iss: ISSUER });
+    return await server.inject({
+      url: `/console/auth/callback?${query.toString()}`,
+      headers: { cookie: `odudu-console-login=${state}` },
+    });
+  } finally {
+    await server.close();
+  }
+}
+
 describe('a sign-in that fails inside the gateway', () => {
   it('answers the refusal page as a 500 and logs nothing of the failure’s message', async () => {
-    const tenantId = crypto.randomUUID();
-    await owner.db.execute(
-      sql`INSERT INTO tenants (id, name) VALUES (${tenantId}, ${`t-${tenantId}`})`,
-    );
-    const state = bindToTenant(tenantId, randomSecret());
-    await withTenant(app.db, tenantId, (tx) =>
-      consoleLoginRepository(tx).create({
-        tenantId,
-        stateHash: sha256(state),
-        verifierWrapped: wrapSecret('verifier', KEK),
-        nonce: 'nonce',
-        returnTo: '/console/',
-        expiresAt: new Date(Date.now() + 60_000),
-      }),
-    );
-
     const logs: string[] = [];
-    const destination = new Writable({
-      write(chunk: Buffer, _encoding, done) {
-        logs.push(chunk.toString('utf8'));
-        done();
-      },
-    });
-    const server = Fastify({ logger: { level: 'trace', stream: destination } });
-    const base = new URL('http://console.example.test');
-    const login = { database: app, ownerDatabase: owner, kek: KEK, base };
-    registerAuthRoutes(server, {
-      login,
-      callback: { ...login, odudu: throwingPort },
-      tls: false,
-      now: () => new Date(),
-    });
-    await server.ready();
-    try {
-      const query = new URLSearchParams({ code: 'c', state, iss: 'i' });
-      const res = await server.inject({
-        url: `/console/auth/callback?${query.toString()}`,
-        headers: { cookie: `odudu-console-login=${state}` },
-      });
+    const res = await callback(throwingPort, await seedLogin(), logs);
 
-      expect(res.statusCode).toBe(500);
-      expect(res.body).toContain('sign-in could not be completed');
-      expect(res.headers['cache-control']).toBe('no-store');
-      expect(String(res.headers['set-cookie'])).toContain('odudu-console-login=; ');
-      expect(logs.join('\n')).toContain('console sign-in failed');
-      expect(logs.join('\n')).not.toContain(SENTINEL);
-    } finally {
-      await server.close();
-    }
+    expect(res.statusCode).toBe(500);
+    expect(res.body).toContain('sign-in could not be completed');
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(String(res.headers['set-cookie'])).toContain('odudu-console-login=; ');
+    expect(logs.join('\n')).toContain('console sign-in failed');
+    expect(logs.join('\n')).not.toContain(SENTINEL);
+  });
+
+  it('revokes the exchanged grant when fetching the signing keys fails', async () => {
+    const revoked: string[] = [];
+    const port: OduduPort = {
+      issuerOf: () => Promise.resolve(ISSUER),
+      exchangeCode: () =>
+        Promise.resolve({
+          accessToken: 'access',
+          refreshToken: 'refresh-to-revoke',
+          idToken: 'id',
+          expiresInSeconds: 300,
+        }),
+      keysOf: () => Promise.reject(new Error(`certs failed: ${SENTINEL}`)),
+      revoke: (_tenant, refreshToken) => {
+        revoked.push(refreshToken);
+        return Promise.resolve();
+      },
+    };
+
+    const res = await callback(port, await seedLogin());
+
+    expect(res.statusCode).toBe(500);
+    expect(revoked).toEqual(['refresh-to-revoke']);
   });
 });

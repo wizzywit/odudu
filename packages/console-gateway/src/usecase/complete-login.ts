@@ -5,7 +5,7 @@ import { consoleLoginRepository, type ConsoleLoginRecord } from '#/repository/co
 import { consoleSessionRepository } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
 import { subjectOfIdToken } from '#/service/id-token';
-import { type OduduPort } from '#/service/odudu-port';
+import { type OduduPort, type TokenSet } from '#/service/odudu-port';
 import { safeReturnTo } from '#/service/return-to';
 import {
   bindToTenant,
@@ -115,28 +115,50 @@ export async function completeLogin(
   if (tokens === null) return REFUSED;
 
   // From here a live grant exists, and a sign-in that stops short of a
-  // session must not leave it behind.
-  const endGrant = async (): Promise<void> => {
-    try {
-      await deps.odudu.revoke(tenantName, tokens.refreshToken, input.ip);
-    } catch {
-      // Best effort: the sign-in is refused either way.
-    }
-  };
+  // session, by refusal or by a throw, must not leave it behind.
+  try {
+    const signedIn = await admitTokens(deps, input, taken, issuer, tokens);
+    if (signedIn !== null) return signedIn;
+  } catch (error: unknown) {
+    await endGrant(deps, tenantName, tokens, input.ip);
+    throw error;
+  }
+  await endGrant(deps, tenantName, tokens, input.ip);
+  return REFUSED;
+}
 
-  const claims = await verifyJwtClaims(
-    tokens.idToken,
-    await deps.odudu.keysOf(tenantName, input.ip),
-    { issuer, audience: ADMIN_CLIENT_ID, now: input.now, algorithms: ID_TOKEN_ALGORITHMS },
-  );
+async function endGrant(
+  deps: CompleteLoginDeps,
+  tenantName: string,
+  tokens: TokenSet,
+  ip: string,
+): Promise<void> {
+  try {
+    await deps.odudu.revoke(tenantName, tokens.refreshToken, ip);
+  } catch {
+    // Best effort: the sign-in ends the same way either way.
+  }
+}
+
+async function admitTokens(
+  deps: CompleteLoginDeps,
+  input: Callback,
+  { login, tenantName }: TakenLogin,
+  issuer: string,
+  tokens: TokenSet,
+): Promise<CallbackResult | null> {
+  const keys = await deps.odudu.keysOf(tenantName, input.ip);
+  const claims = await verifyJwtClaims(tokens.idToken, keys, {
+    issuer,
+    audience: ADMIN_CLIENT_ID,
+    now: input.now,
+    algorithms: ID_TOKEN_ALGORITHMS,
+  });
   const sub =
     claims === null
       ? null
       : subjectOfIdToken(claims, { nonce: login.nonce, clientId: ADMIN_CLIENT_ID, now: input.now });
-  if (sub === null) {
-    await endGrant();
-    return REFUSED;
-  }
+  if (sub === null) return null;
 
   const secret = randomSecret();
   const now = input.now.getTime();
@@ -156,10 +178,7 @@ export async function completeLogin(
       now: input.now,
       expiresAt: new Date(now + CONSOLE_SESSION_ABSOLUTE_SECONDS * 1000),
     }),
-  ).catch(async (error: unknown) => {
-    await endGrant();
-    throw error;
-  });
+  );
   return {
     kind: 'signed-in',
     sessionCookie: bindToTenant(login.tenantId, secret),
