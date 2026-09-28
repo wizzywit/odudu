@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { problem, refusalDetail } from '#/view/problem';
+import { ceilingProblem, problem, refusalDetail } from '#/view/problem';
 
 describe('problem', () => {
   it('carries type, title, status and the request id as instance', () => {
@@ -34,5 +34,18 @@ describe('refusalDetail', () => {
 
   it('leaves any other message as it is', () => {
     expect(refusalDetail(new Error('body/name must be string'))).toBe('body/name must be string');
+  });
+});
+
+describe('ceilingProblem', () => {
+  it('names what a write grants apart from what it removes', () => {
+    expect(ceilingProblem(['manage-users'], ['view-audit']).detail).toBe(
+      'the caller does not hold: manage-users; ' +
+        'this removes capabilities the caller does not hold: view-audit',
+    );
+    expect(ceilingProblem([], ['view-audit']).detail).toBe(
+      'this removes capabilities the caller does not hold: view-audit',
+    );
+    expect(ceilingProblem(['manage-users']).detail).toBe('the caller does not hold: manage-users');
   });
 });

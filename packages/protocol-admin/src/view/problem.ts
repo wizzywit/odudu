@@ -30,14 +30,21 @@ export function ifMatchRequired(resource: string): Problem {
   );
 }
 
-/** A removal that would take from its holders an admin capability the caller does not hold. */
-export function removalCeiling(denied: readonly string[]): Problem {
-  return problem(
-    403,
-    'about:blank',
-    'Forbidden',
-    `this removes what the caller does not hold: ${denied.join(', ')}`,
-  );
+/**
+ * A capability ceiling's `403`, naming apart what the write would grant and
+ * what it would take from whoever holds it, each beyond the caller's own.
+ */
+export function ceilingProblem(
+  granted: readonly string[],
+  removed: readonly string[] = [],
+): Problem {
+  const parts = [
+    ...(granted.length > 0 ? [`the caller does not hold: ${granted.join(', ')}`] : []),
+    ...(removed.length > 0
+      ? [`this removes capabilities the caller does not hold: ${removed.join(', ')}`]
+      : []),
+  ];
+  return problem(403, 'about:blank', 'Forbidden', parts.join('; '));
 }
 
 export function ifMatchStale(): Problem {

@@ -66,6 +66,12 @@ export async function capabilitiesOfSubtree(
   return capabilitiesOfGroupsAndAncestors(tx, [groupId, ...(await descendantsOf(tx, groupId))]);
 }
 
+/** What a write grants and what it takes away, each beyond the caller's own. */
+export interface CeilingBreach {
+  readonly granted: readonly string[];
+  readonly removed: readonly string[];
+}
+
 /**
  * A wholesale replacement of a role set, judged by its delta: what `next`
  * adds to `current` and what it takes away both have to be within `held`,
@@ -76,12 +82,13 @@ export async function replacementOverreach(
   current: readonly string[],
   next: readonly string[],
   held: ReadonlySet<string>,
-): Promise<readonly string[]> {
-  const changed = [
-    ...next.filter((id) => !current.includes(id)),
-    ...current.filter((id) => !next.includes(id)),
-  ];
-  return overreach(await capabilitiesReachableFrom(tx, changed), held);
+): Promise<CeilingBreach> {
+  const reach = async (ids: string[]): Promise<readonly string[]> =>
+    overreach(await capabilitiesReachableFrom(tx, ids), held);
+  return {
+    granted: await reach(next.filter((id) => !current.includes(id))),
+    removed: await reach(current.filter((id) => !next.includes(id))),
+  };
 }
 
 /** The capability ceiling itself (CWE-269): what `requested` names that `held` does not. */

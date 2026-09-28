@@ -1156,7 +1156,7 @@ export type DeleteClientOutcome =
   | { kind: 'not_found' }
   | { kind: 'builtin_admin_guarded'; reason: string }
   | TargetCeilingRefusal
-  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'deleted' };
 
 export async function deleteClient(
@@ -1214,7 +1214,7 @@ export async function deleteClient(
       outcome: 'refused',
       detail: { denied },
     });
-    return { kind: 'capability_ceiling', requested: denied };
+    return { kind: 'capability_ceiling', requested: [], removed: denied };
   }
 
   await clientRepository(tx).delete(input.clientDbId);

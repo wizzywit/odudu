@@ -24,7 +24,7 @@ import {
   type Audit,
   type CreateRoleOutcome,
 } from '#/usecase/roles';
-import { problem, removalCeiling, sendProblem, type Problem } from '#/view/problem';
+import { ceilingProblem, problem, sendProblem, type Problem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -267,7 +267,7 @@ export function deleteRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
       case 'builtin_admin_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
       case 'capability_ceiling':
-        return sendProblem(reply, request, removalCeiling(outcome.requested));
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'deleted':
         return reply.code(204).send();
     }
@@ -400,7 +400,7 @@ export function removeRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHand
       case 'builtin_admin_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
       case 'capability_ceiling':
-        return sendProblem(reply, request, removalCeiling(outcome.requested));
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'removed':
         return reply.code(204).send();
     }

@@ -392,7 +392,7 @@ export interface DeleteScopeDeps {
 export type DeleteScopeOutcome =
   | { kind: 'not_found' }
   | { kind: 'openid_guarded'; reason: string }
-  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'deleted' };
 
 // `client_scope_assignments_scope_fk` and `client_scope_roles_scope_fk`
@@ -452,7 +452,7 @@ export async function deleteScope(
       outcome: 'refused',
       detail: { denied },
     });
-    return { kind: 'capability_ceiling', requested: denied };
+    return { kind: 'capability_ceiling', requested: [], removed: denied };
   }
 
   const deleted = await clientScopeRepository(tx).delete(input.scopeId);
@@ -495,7 +495,7 @@ export interface SetScopeRolesDeps {
 export type SetScopeRolesOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_role'; roleIds: readonly string[] }
-  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
@@ -583,12 +583,13 @@ export async function setScopeRoles(
     return { kind: 'unknown_role', roleIds: missing };
   }
 
-  const denied = await replacementOverreach(
+  const breach = await replacementOverreach(
     tx,
     (await mappedRoles(tx, input.scopeId)).map((role) => role.id),
     uniqueRoleIds,
     input.callerCapabilities,
   );
+  const denied = [...new Set([...breach.granted, ...breach.removed])];
   if (denied.length > 0) {
     await deps.audit(tx, {
       action: 'scope.roles_set',
@@ -600,7 +601,7 @@ export async function setScopeRoles(
       outcome: 'refused',
       detail: { denied },
     });
-    return { kind: 'capability_ceiling', requested: denied };
+    return { kind: 'capability_ceiling', requested: breach.granted, removed: breach.removed };
   }
 
   await roleRepository(tx).setClientScopeRoles(input.scopeId, uniqueRoleIds);

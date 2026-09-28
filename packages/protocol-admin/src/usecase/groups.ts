@@ -146,7 +146,8 @@ export interface CreateGroupDeps {
 }
 
 export type CreateGroupOutcome =
-  { kind: 'capability_ceiling'; requested: readonly string[] } | { kind: 'ok'; group: Group };
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
+  | { kind: 'ok'; group: Group };
 
 // `OduduError('group_not_found')` from `groupRepository.create` (a
 // `parent_id` naming no group) propagates out of this function instead of
@@ -234,7 +235,7 @@ export type AmendGroupOutcome =
   | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
   | { kind: 'precondition_failed' }
-  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'cycle' }
   | { kind: 'ok'; group: Group; etag: string };
 
@@ -299,7 +300,9 @@ export async function amendGroup(
       locked.parentId === null || locked.parentId === parentId
         ? []
         : await capabilitiesOfGroupsAndAncestors(tx, [locked.parentId]);
-    const denied = overreach(new Set([...gained, ...lost]), input.callerCapabilities);
+    const granted = overreach(new Set(gained), input.callerCapabilities);
+    const removed = overreach(new Set(lost), input.callerCapabilities);
+    const denied = [...new Set([...granted, ...removed])];
     if (denied.length > 0) {
       await deps.audit(tx, {
         action: 'group.amend',
@@ -311,7 +314,7 @@ export async function amendGroup(
         outcome: 'refused',
         detail: { denied },
       });
-      return { kind: 'capability_ceiling', requested: denied };
+      return { kind: 'capability_ceiling', requested: granted, removed };
     }
   }
 
@@ -358,7 +361,7 @@ export interface DeleteGroupDeps {
 
 export type DeleteGroupOutcome =
   | { kind: 'not_found' }
-  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'deleted' };
 
 export async function deleteGroup(
@@ -382,7 +385,7 @@ export async function deleteGroup(
       outcome: 'refused',
       detail: { denied },
     });
-    return { kind: 'capability_ceiling', requested: denied };
+    return { kind: 'capability_ceiling', requested: [], removed: denied };
   }
 
   const deleted = await groupRepository(tx).delete(input.groupId);
@@ -418,7 +421,7 @@ export interface SetGroupRolesDeps {
 export type SetGroupRolesOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_role'; roleIds: readonly string[] }
-  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
@@ -504,12 +507,13 @@ export async function setGroupRoles(
   // The same ceiling `setRoles` (#/usecase/subjects.ts) enforces, on the
   // delta: a role mapped here must not hand the group's subjects a
   // capability the caller does not hold, nor a role left out take one away.
-  const denied = await replacementOverreach(
+  const breach = await replacementOverreach(
     tx,
     (await mappedRoles(tx, input.groupId)).map((role) => role.id),
     uniqueRoleIds,
     input.callerCapabilities,
   );
+  const denied = [...new Set([...breach.granted, ...breach.removed])];
   if (denied.length > 0) {
     await deps.audit(tx, {
       action: 'group.roles_set',
@@ -521,7 +525,7 @@ export async function setGroupRoles(
       outcome: 'refused',
       detail: { denied },
     });
-    return { kind: 'capability_ceiling', requested: denied };
+    return { kind: 'capability_ceiling', requested: breach.granted, removed: breach.removed };
   }
 
   await groupRepository(tx).setRoles(input.groupId, uniqueRoleIds);

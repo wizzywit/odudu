@@ -28,7 +28,7 @@ import {
   ifMatchRequired,
   ifMatchStale,
   problem,
-  removalCeiling,
+  ceilingProblem,
   sendProblem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
@@ -250,7 +250,7 @@ export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
       case 'openid_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
       case 'capability_ceiling':
-        return sendProblem(reply, request, removalCeiling(outcome.requested));
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'deleted':
         return reply.code(204).send();
     }
@@ -320,16 +320,7 @@ export function setScopeRolesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
           ),
         );
       case 'capability_ceiling':
-        return sendProblem(
-          reply,
-          request,
-          problem(
-            403,
-            'about:blank',
-            'Forbidden',
-            `the caller does not hold: ${outcome.requested.join(', ')}`,
-          ),
-        );
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'precondition_required':
         return sendProblem(reply, request, ifMatchRequired('a scope\u2019s roles'));
       case 'precondition_failed':

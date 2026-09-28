@@ -26,7 +26,7 @@ import {
   ifMatchRequired,
   ifMatchStale,
   problem,
-  removalCeiling,
+  ceilingProblem,
   sendProblem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
@@ -168,16 +168,7 @@ export function createGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
     }
 
     if (outcome.kind === 'capability_ceiling') {
-      return sendProblem(
-        reply,
-        request,
-        problem(
-          403,
-          'about:blank',
-          'Forbidden',
-          `the caller does not hold: ${outcome.requested.join(', ')}`,
-        ),
-      );
+      return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
     }
     return reply.code(201).send(outcome.group);
   };
@@ -222,16 +213,7 @@ function amendmentProblem(
         problem(409, 'about:blank', 'Conflict', 'would create a group reparent cycle'),
       );
     case 'capability_ceiling':
-      return sendProblem(
-        reply,
-        request,
-        problem(
-          403,
-          'about:blank',
-          'Forbidden',
-          `the caller does not hold: ${outcome.requested.join(', ')}`,
-        ),
-      );
+      return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
   }
 }
 
@@ -300,7 +282,7 @@ export function deleteGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'capability_ceiling':
-        return sendProblem(reply, request, removalCeiling(outcome.requested));
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'deleted':
         return reply.code(204).send();
     }
@@ -370,16 +352,7 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
           ),
         );
       case 'capability_ceiling':
-        return sendProblem(
-          reply,
-          request,
-          problem(
-            403,
-            'about:blank',
-            'Forbidden',
-            `the caller does not hold: ${outcome.requested.join(', ')}`,
-          ),
-        );
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'precondition_required':
         return sendProblem(reply, request, ifMatchRequired('a group\u2019s roles'));
       case 'precondition_failed':

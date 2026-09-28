@@ -741,6 +741,9 @@ describe('a removal is judged by the admin capabilities it removes', () => {
       );
 
       expect(res.statusCode).toBe(403);
+      expect(res.json<{ detail: string }>().detail).toMatch(
+        /^this removes capabilities the caller does not hold: .*manage-users/u,
+      );
       expect(await graphStateOf(g)).toEqual(before);
       const rows = await withTenant(fixture.app.db, g.tenant.id, (tx) =>
         auditRepository(tx).list({ limit: 50 }),
@@ -834,7 +837,9 @@ describe('deleting a client is judged by what its roles reach', () => {
     );
 
     expect(res.statusCode).toBe(403);
-    expect(res.json<{ detail: string }>().detail).toContain('manage-tenant');
+    expect(res.json<{ detail: string }>().detail).toMatch(
+      /^this removes capabilities the caller does not hold: .*manage-tenant/u,
+    );
     await withTenant(fixture.app.db, target.tenant.id, async (tx) => {
       expect(await clientRepository(tx).byId(target.clientDbId)).not.toBeNull();
       expect(await roleRepository(tx).byId(target.roleId)).not.toBeNull();

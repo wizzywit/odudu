@@ -345,7 +345,7 @@ export interface DeleteRoleDeps {
 export type DeleteRoleOutcome =
   | { kind: 'not_found' }
   | { kind: 'builtin_admin_guarded'; reason: string }
-  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'deleted' };
 
 // The `client_id` of the tenant's built-in admin client when `clientDbId`
@@ -418,7 +418,7 @@ export async function deleteRole(
       outcome: 'refused',
       detail: { denied },
     });
-    return { kind: 'capability_ceiling', requested: denied };
+    return { kind: 'capability_ceiling', requested: [], removed: denied };
   }
 
   const deleted = await roleRepository(tx).delete(input.roleId);
@@ -459,7 +459,7 @@ export type AddRoleCompositeOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_child_role' }
   | { kind: 'builtin_admin_guarded'; reason: string }
-  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'default_role_capability'; capabilities: readonly string[] }
   | { kind: 'cycle' }
   | { kind: 'ok' };
@@ -633,7 +633,7 @@ export interface RemoveRoleCompositeDeps {
 export type RemoveRoleCompositeOutcome =
   | { kind: 'not_found' }
   | { kind: 'builtin_admin_guarded'; reason: string }
-  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'removed' };
 
 // The edge-level twin of `guardsAdministrators`: taking `manage-users` out of
@@ -683,7 +683,7 @@ export async function removeRoleComposite(
       outcome: 'refused',
       detail: { child_role_id: input.childRoleId, denied },
     });
-    return { kind: 'capability_ceiling', requested: denied };
+    return { kind: 'capability_ceiling', requested: [], removed: denied };
   }
 
   const removed = await roleRepository(tx).removeComposite(input.parentRoleId, input.childRoleId);
