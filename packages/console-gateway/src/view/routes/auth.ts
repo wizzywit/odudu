@@ -10,11 +10,13 @@ import { beginLogin, type LoginDeps } from '#/usecase/begin-login';
 import { completeLogin, type CompleteLoginDeps } from '#/usecase/complete-login';
 import { registerCsrfGuard } from '#/view/csrf-guard';
 import { renderSignInRefused } from '#/view/refusal-html';
+import { registerLogoutRoute, type LogoutRouteDeps } from '#/view/routes/logout';
 import { sendPage } from '#/view/send-page';
 
 export interface AuthRouteDeps {
   readonly login: LoginDeps;
   readonly callback: CompleteLoginDeps;
+  readonly logout: LogoutRouteDeps;
   readonly tls: boolean;
   readonly now: () => Date;
   /** The origin of `ODUDU_PUBLIC_BASE_URL`, the only one a write may come from. */
@@ -40,8 +42,8 @@ function redirect(reply: FastifyReply, location: string, cookies: readonly strin
     .redirect(location, 302);
 }
 
-// Registered under the /console/auth prefix. Both steps are GETs, so the
-// guard refuses only a write, which no route here accepts.
+// Registered under the /console/auth prefix. The guard refuses a write
+// without the console's headers, which here is the logout alone.
 export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps): void {
   registerCsrfGuard(fastify, deps.origin);
 
@@ -83,4 +85,6 @@ export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps
         : [cleared];
     return redirect(reply, result.location, cookies);
   });
+
+  registerLogoutRoute(fastify, deps.logout);
 }

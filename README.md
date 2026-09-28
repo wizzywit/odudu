@@ -1050,6 +1050,14 @@ tokens server-side and gives the browser nothing but a session cookie:
   has already rotated the refresh token. Any other token-endpoint failure,
   or a wait of more than 5 s for the session's lock, answers `502` and keeps
   the session. The admin API's own `401` is passed back as it is.
+- `POST /console/auth/logout` revokes the session's refresh token, deletes
+  the session and clears its cookie, then answers `200 { "redirect": … }`
+  with the tenant's RP-initiated logout URL, carrying `id_token_hint`,
+  `post_logout_redirect_uri=<base>/console/` and `client_id=odudu-admin`.
+  The SPA navigates there itself, because only the browser's own request
+  carries the tenant's SSO cookie; without it the logout endpoint still
+  redirects but ends nothing. With no session the answer is
+  `{ "redirect": "/console/" }`.
 
 The session cookie is `__Host-odudu-console` (`HttpOnly; Secure;
 SameSite=Strict; Path=/`), or `odudu-console` without `Secure` over plain

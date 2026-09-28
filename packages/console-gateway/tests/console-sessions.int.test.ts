@@ -271,6 +271,57 @@ describe('consoleSessionRepository', () => {
     expect(await withTenant(app.db, tenantId, (tx) => sessionById(tx, created))).toBeNull();
   });
 
+  it('takes a session, answering the row it deleted, and null once it is gone', async () => {
+    const tenantId = newId();
+    const created = await withTenant(app.db, tenantId, (tx) => seedSession(tx, tenantId));
+
+    const taken = await withTenant(app.db, tenantId, (tx) =>
+      consoleSessionRepository(tx).take(created.id),
+    );
+    const again = await withTenant(app.db, tenantId, (tx) =>
+      consoleSessionRepository(tx).take(created.id),
+    );
+
+    expect(taken).toEqual(created);
+    expect(again).toBeNull();
+    expect(await withTenant(app.db, tenantId, (tx) => sessionById(tx, created))).toBeNull();
+  });
+
+  it('takes the tokens a refresh holding the row lock has just written', async () => {
+    const tenantId = newId();
+    const created = await withTenant(app.db, tenantId, (tx) => seedSession(tx, tenantId));
+    const tokens = {
+      accessTokenWrapped: 'access-2',
+      refreshTokenWrapped: 'refresh-2',
+      accessExpiresAt: new Date(NOW.getTime() + 10 * MINUTE),
+    };
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked: () => void = () => undefined;
+    const isLocked = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const refresh = withTenant(app.db, tenantId, async (tx) => {
+      const sessions = consoleSessionRepository(tx);
+      await sessions.lockById(created.id);
+      locked();
+      await held;
+      await sessions.replaceTokens(created.id, tokens);
+    });
+    await isLocked;
+
+    const take = withTenant(app.db, tenantId, (tx) =>
+      consoleSessionRepository(tx).take(created.id),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    release();
+    await refresh;
+
+    expect(await take).toEqual({ ...created, ...tokens });
+  });
+
   it('refuses a session hash already taken', async () => {
     const tenantId = newId();
     const created = await withTenant(app.db, tenantId, (tx) => seedSession(tx, tenantId));
@@ -407,6 +458,17 @@ describe('consoleSessionRepository under a foreign tenant', () => {
       attempt: (tx, seeded) => consoleSessionRepository(tx).delete(seeded.id),
       expectBlocked: (result) => {
         expect(result).toBe(false);
+      },
+      verifyTenantAUnaffected: expectSessionUnchanged,
+    });
+  });
+  it('take removes nothing', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seedSession,
+      verifySeeded: expectSessionUnchanged,
+      attempt: (tx, seeded) => consoleSessionRepository(tx).take(seeded.id),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
       },
       verifyTenantAUnaffected: expectSessionUnchanged,
     });

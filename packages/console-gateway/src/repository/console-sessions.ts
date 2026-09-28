@@ -97,6 +97,13 @@ export function consoleSessionRepository(tx: TenantScopedDatabase) {
       return rows.length > 0;
     },
 
+    // A refresh holding the row's lock finishes first, so what is answered
+    // is the refresh token as it stands once no refresh can reach it again.
+    async take(id: string): Promise<ConsoleSessionRecord | null> {
+      const rows = await tx.delete(consoleSessions).where(eq(consoleSessions.id, id)).returning();
+      return rows[0] ?? null;
+    },
+
     async delete(id: string): Promise<boolean> {
       const rows = await tx
         .delete(consoleSessions)
