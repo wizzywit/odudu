@@ -67,7 +67,7 @@ COPY --from=build --chown=odudu:odudu /app/apps/server/dist ./dist
 COPY --from=build --chown=odudu:odudu /app/packages/db/drizzle ./drizzle
 # The console is a static build the gateway reads once at boot. Every
 # package it is built from is a devDependency of @odudu/admin-console, so
-# the prod-deps install below carries none of them.
+# the prod-deps stage carries none of them.
 COPY --from=build --chown=odudu:odudu /app/apps/admin-console/dist ./console
 # @node-rs/argon2 is marked external to the tsup bundle (a native .node
 # binary cannot be inlined into an ESM bundle), so its resolved package has
