@@ -2737,7 +2737,7 @@ curl -sS \
   'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/auth?response_type=code&client_id=consents-demo-app2&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid%20offline_access&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 
 curl -sS \
-  --data-urlencode "auth_session_id=01a0e2c8-6755-720d-bd55-dccc2d737b33" \
+  --data-urlencode "auth_session_id=01a0e558-b0a9-763b-84f8-f348efaacd53" \
   --data-urlencode "username=grace" \
   --data-urlencode "password=correct horse battery staple" \
   'http://localhost:3000/tenants/consents-demo2/login-actions/authenticate'
@@ -2753,7 +2753,7 @@ the one box the subject can grant:
 <body>
 <h1>consents-demo-app2 is asking for access</h1>
 <form method="post" action="/tenants/consents-demo2/login-actions/consent">
-  <input type="hidden" name="auth_session_id" value="01a0e2c8-6755-720d-bd55-dccc2d737b33">
+  <input type="hidden" name="auth_session_id" value="01a0e558-b0a9-763b-84f8-f348efaacd53">
   <ul>
   <li>openid</li>
   </ul>
@@ -2770,32 +2770,32 @@ token:
 
 ```bash
 curl -sS -D - -c jar -b jar \
-  --data-urlencode "auth_session_id=01a0e2c8-6755-720d-bd55-dccc2d737b33" \
+  --data-urlencode "auth_session_id=01a0e558-b0a9-763b-84f8-f348efaacd53" \
   --data-urlencode "decision=allow" \
   --data-urlencode "scope=offline_access" \
   'http://localhost:3000/tenants/consents-demo2/login-actions/consent'
 
 curl -sS -X POST \
   --data-urlencode "grant_type=authorization_code" \
-  --data-urlencode "code=cSFTuIrSZa92TSEyZCyMD20meaTOFUsakonWNhwxK00" \
+  --data-urlencode "code=SInvyBACjbt6xBEec6hT1Way6Fpm4tj_6SEyiZr3dEM" \
   --data-urlencode "redirect_uri=https://app.example/callback" \
-  --data-urlencode "code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk" \
+  --data-urlencode "code_verifier=a5e606dca6f98d0037ee563f4c510264114ab7bd5b9cc0c5eb3fecbcfbf9f046" \
   -u "consents-demo-app2:PaTErX2vTk6H_-eAP-1xOIh2BHMOp6dPekxmkisf-gg" \
   'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/token'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a0e2c8-874f-7f73-83d8-45731f9d381b
-set-cookie: consents-demo2-session=01a0e2c8-8775-7144-acc7-c0aba50bcdd0:CTlB-rj-ZWUvARlkqcJ7TD2RBK0aT1i8O5TaCkZEhmc; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a0e558-ce27-7849-80eb-a2d2dcf6a18a
+set-cookie: consents-demo2-session=01a0e558-ce34-74a4-a8ac-7da0e3702e69:7pi1cgx3w7uKV4Afg2Aq_3M4snQunDoUOl7OmUaLNvc; HttpOnly; SameSite=Lax; Path=/
 set-cookie: consents-demo2-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: https://app.example/callback?code=cSFTuIrSZa92TSEyZCyMD20meaTOFUsakonWNhwxK00&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsents-demo2
+location: https://app.example/callback?code=SInvyBACjbt6xBEec6hT1Way6Fpm4tj_6SEyiZr3dEM&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsents-demo2
 content-length: 0
-Date: Sun, 27 Sep 2026 12:13:07 GMT
+Date: Mon, 28 Sep 2026 00:09:57 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"access_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmM4LTI1MzQtNzNmZC05ZGY4LThiZTllNmQxODVkNiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsInN1YiI6IjAxYTBlMmM4LTRkNDctN2E4NC1iOTQ3LTVlZjFiOTZhN2M2ZSIsImF1ZCI6WyJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiJdLCJjbGllbnRfaWQiOiJjb25zZW50cy1kZW1vLWFwcDIiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MDUxMTE5NCwiZXhwIjoxNzkwNTExNDk0LCJqdGkiOiIwMWEwZTJjOC1hMjQ2LTcyNjQtYWMxNy04MmVkYjI2NTZmMTkiLCJncmFudF9pZCI6IjAxYTBlMmM4LWEyNDYtNzI2NC1hYzE3LTgyZWNmOTRmZmVjOCJ9.Pq7wzwOMh62G30kPHs-fmHe-fOAM5pTJ3F1nFN-Py8uG1WErSpAt0fN6S12bKa3mQM-z-oyUMMzaXD0nguWTWw","id_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmM4LTI1MzQtNzNmZC05ZGY4LThiZTllNmQxODVkNiJ9.eyJzdWIiOiIwMWEwZTJjOC00ZDQ3LTdhODQtYjk0Ny01ZWYxYjk2YTdjNmUiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsImF1ZCI6ImNvbnNlbnRzLWRlbW8tYXBwMiIsImlhdCI6MTc5MDUxMTE5NCwiZXhwIjoxNzkwNTExNDk0fQ.bNYG5C8KfvzNSRAlwx2aDqpm4LwSNccGwjsKlCaCc9bfgPvYDKBVTOQKzEY5yj9s7aUcIokPtLCR3R4lTcimbg","refresh_token":"h0VhkngXMZA92QetMN5i1AxIXeQV6QybonPvBc2yH1w","token_type":"Bearer","expires_in":300,"scope":"openid offline_access"}
+{"access_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmM4LTI1MzQtNzNmZC05ZGY4LThiZTllNmQxODVkNiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsInN1YiI6IjAxYTBlMmM4LTRkNDctN2E4NC1iOTQ3LTVlZjFiOTZhN2M2ZSIsImF1ZCI6WyJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiJdLCJjbGllbnRfaWQiOiJjb25zZW50cy1kZW1vLWFwcDIiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MDU1NDE5NywiZXhwIjoxNzkwNTU0NDk3LCJqdGkiOiIwMWEwZTU1OC1jZTZmLTczM2UtOWExYy0zNTkzYmE0MjVkM2YiLCJncmFudF9pZCI6IjAxYTBlNTU4LWNlNmYtNzMzZS05YTFjLTM1OTI3M2ZhMzNlOCJ9.SG-i141R0VlhhniXUdotW7d5S_lcEp_4DMsqjP6fnNA_njayv3T_Va1lTFpEHpfy40kvflSXqSNh6RjfQ1-ZlA","id_token":"eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmM4LTI1MzQtNzNmZC05ZGY4LThiZTllNmQxODVkNiJ9.eyJzdWIiOiIwMWEwZTJjOC00ZDQ3LTdhODQtYjk0Ny01ZWYxYjk2YTdjNmUiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsImF1ZCI6ImNvbnNlbnRzLWRlbW8tYXBwMiIsImlhdCI6MTc5MDU1NDE5NywiZXhwIjoxNzkwNTU0NDk3fQ.ZMBPf8vMkVTBEoARSrjDmzaSu9cD8LWzySTs1sLPpeOoUce8Ox823BPia5FE-TuNfKvSC1U56Nic1VvZapFZvg","refresh_token":"D0_gfIdY5BVJ0_BebFj_wBD_Ze55TFnmc9pBbn1f_l8","token_type":"Bearer","expires_in":300,"scope":"openid offline_access"}
 ```
 
 `GET /subjects/:id/consents` shows what was granted — `openid` is implied,
@@ -2808,7 +2808,7 @@ curl -sS \
 ```
 
 ```
-{"items":[{"client_id":"01a0e2c8-35b0-7767-a5ee-d2b6f29258e2","client_key":"consents-demo-app2","scope_names":["openid","offline_access"],"granted_at":"2026-09-27T12:13:07.817Z"}]}
+{"items":[{"client_id":"01a0e2c8-35b0-7767-a5ee-d2b6f29258e2","client_key":"consents-demo-app2","scope_names":["openid","offline_access"],"granted_at":"2026-09-28T00:09:57.550Z"}]}
 ```
 
 Revoking it:
@@ -2820,9 +2820,9 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a0e549-9280-7269-b3b5-d8e3445520e2
+x-request-id: 01a0e558-e849-7fb9-b904-65507dbb75a1
 cache-control: no-store
-Date: Sun, 27 Sep 2026 23:53:19 GMT
+Date: Mon, 28 Sep 2026 00:10:04 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -2833,20 +2833,20 @@ the revoke reached it, not only the consent:
 ```bash
 curl -sS -D - -X POST \
   --data-urlencode "grant_type=refresh_token" \
-  --data-urlencode "refresh_token=h0VhkngXMZA92QetMN5i1AxIXeQV6QybonPvBc2yH1w" \
+  --data-urlencode "refresh_token=D0_gfIdY5BVJ0_BebFj_wBD_Ze55TFnmc9pBbn1f_l8" \
   -u "consents-demo-app2:PaTErX2vTk6H_-eAP-1xOIh2BHMOp6dPekxmkisf-gg" \
   'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/token'
 ```
 
 ```
 HTTP/1.1 400 Bad Request
-x-request-id: 01a0e2c8-db4e-7042-8102-9901ae14b83d
+x-request-id: 01a0e559-025e-7e11-9dc2-daccca70dae4
 vary: Origin
 cache-control: no-store
 pragma: no-cache
 content-type: application/json; charset=utf-8
 content-length: 25
-Date: Sun, 27 Sep 2026 12:13:29 GMT
+Date: Mon, 28 Sep 2026 00:10:10 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -2858,7 +2858,7 @@ The access token minted alongside it introspects inactive, ahead of its own
 
 ```bash
 curl -sS -X POST \
-  --data-urlencode "token=eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmM4LTI1MzQtNzNmZC05ZGY4LThiZTllNmQxODVkNiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsInN1YiI6IjAxYTBlMmM4LTRkNDctN2E4NC1iOTQ3LTVlZjFiOTZhN2M2ZSIsImF1ZCI6WyJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiJdLCJjbGllbnRfaWQiOiJjb25zZW50cy1kZW1vLWFwcDIiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MDUxMTE5NCwiZXhwIjoxNzkwNTExNDk0LCJqdGkiOiIwMWEwZTJjOC1hMjQ2LTcyNjQtYWMxNy04MmVkYjI2NTZmMTkiLCJncmFudF9pZCI6IjAxYTBlMmM4LWEyNDYtNzI2NC1hYzE3LTgyZWNmOTRmZmVjOCJ9.Pq7wzwOMh62G30kPHs-fmHe-fOAM5pTJ3F1nFN-Py8uG1WErSpAt0fN6S12bKa3mQM-z-oyUMMzaXD0nguWTWw" \
+  --data-urlencode "token=eyJhbGciOiJFUzI1NiIsImtpZCI6IjAxYTBlMmM4LTI1MzQtNzNmZC05ZGY4LThiZTllNmQxODVkNiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiIsInN1YiI6IjAxYTBlMmM4LTRkNDctN2E4NC1iOTQ3LTVlZjFiOTZhN2M2ZSIsImF1ZCI6WyJodHRwOi8vbG9jYWxob3N0OjMwMDAvdGVuYW50cy9jb25zZW50cy1kZW1vMiJdLCJjbGllbnRfaWQiOiJjb25zZW50cy1kZW1vLWFwcDIiLCJzY29wZSI6Im9wZW5pZCBvZmZsaW5lX2FjY2VzcyIsImlhdCI6MTc5MDU1NDE5NywiZXhwIjoxNzkwNTU0NDk3LCJqdGkiOiIwMWEwZTU1OC1jZTZmLTczM2UtOWExYy0zNTkzYmE0MjVkM2YiLCJncmFudF9pZCI6IjAxYTBlNTU4LWNlNmYtNzMzZS05YTFjLTM1OTI3M2ZhMzNlOCJ9.SG-i141R0VlhhniXUdotW7d5S_lcEp_4DMsqjP6fnNA_njayv3T_Va1lTFpEHpfy40kvflSXqSNh6RjfQ1-ZlA" \
   -u "consents-demo-app2:PaTErX2vTk6H_-eAP-1xOIh2BHMOp6dPekxmkisf-gg" \
   'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/token/introspect'
 ```
@@ -2875,7 +2875,7 @@ curl -sS \
   'http://localhost:3000/tenants/consents-demo2/protocol/openid-connect/auth?response_type=code&client_id=consents-demo-app2&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid%20offline_access&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 
 curl -sS \
-  --data-urlencode "auth_session_id=01a0e2c9-3854-71f9-892d-7f865b5ae868" \
+  --data-urlencode "auth_session_id=01a0e559-2045-7007-9e06-58a4406e6007" \
   --data-urlencode "username=grace" \
   --data-urlencode "password=correct horse battery staple" \
   'http://localhost:3000/tenants/consents-demo2/login-actions/authenticate'
@@ -2900,15 +2900,15 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 {"items":[]}
 HTTP/1.1 404 Not Found
-x-request-id: 01a0e549-ab03-724b-97c8-19cd00007fd8
+x-request-id: 01a0e559-3dc0-7ac8-8559-3cd7fe3a816f
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 105
-Date: Sun, 27 Sep 2026 23:53:25 GMT
+Date: Mon, 28 Sep 2026 00:10:26 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0e549-ab03-724b-97c8-19cd00007fd8"}
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0e559-3dc0-7ac8-8559-3cd7fe3a816f"}
 ```
 
 An unknown subject on the read answers `404`:
@@ -2921,15 +2921,15 @@ curl -sS -D - \
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a0e549-ab20-73c2-bca2-893d8cebf52b
+x-request-id: 01a0e559-3dd9-7b6f-8091-e483704fa066
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 164
-Date: Sun, 27 Sep 2026 23:53:25 GMT
+Date: Mon, 28 Sep 2026 00:10:26 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no subject 0199aa00-0000-7000-8000-0000000000ff","instance":"01a0e549-ab20-73c2-bca2-893d8cebf52b"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no subject 0199aa00-0000-7000-8000-0000000000ff","instance":"01a0e559-3dd9-7b6f-8091-e483704fa066"}
 ```
 
 ## `DELETE /subjects/:id/lockout`
@@ -4029,7 +4029,8 @@ Keep-Alive: timeout=72
 {"type":"about:blank","title":"Conflict","status":409,"detail":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and removing a composite from it would strip that from every administrator holding it","instance":"01a0e54b-f4f3-78a8-9e21-de5aef89ccb5"}
 ```
 
-The trail holds the one removal that landed; the guarded one wrote nothing:
+The trail holds a removal that landed each time this section's own demo was
+replayed; the guarded one wrote nothing:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -4037,7 +4038,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"items":[{"id":"01a0e201-618a-71fb-95af-8810ed9a2812","occurred_at":"2026-09-27T08:35:36.457Z","event_type":"admin_mutation","action":"role.composite_remove","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e915-73be-ac2d-5408ba17401f","request_id":"01a0e201-617f-77c6-acad-fb3753ebfc56","ip":"172.20.0.1","detail":{"child_role_id":"01a0e200-e940-79e0-8e90-e06ecfbce38d"}}]}
+{"items":[{"id":"01a0e54b-9f07-7588-9fa2-c0eb03fd788c","occurred_at":"2026-09-27T23:55:33.510Z","event_type":"admin_mutation","action":"role.composite_remove","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e539-e7b9-7c93-bf92-44517286831d","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e915-73be-ac2d-5408ba17401f","request_id":"01a0e54b-9efd-72e1-8570-e9e93b2a233f","ip":"172.20.0.1","detail":{"child_role_id":"01a0e200-e940-79e0-8e90-e06ecfbce38d"}},{"id":"01a0e201-618a-71fb-95af-8810ed9a2812","occurred_at":"2026-09-27T08:35:36.457Z","event_type":"admin_mutation","action":"role.composite_remove","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e915-73be-ac2d-5408ba17401f","request_id":"01a0e201-617f-77c6-acad-fb3753ebfc56","ip":"172.20.0.1","detail":{"child_role_id":"01a0e200-e940-79e0-8e90-e06ecfbce38d"}}]}
 ```
 
 ## `PUT /roles/:id/default`
@@ -4179,6 +4180,12 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 {"items":[{"id":"01a0e201-ceb8-7e8a-8d64-13ca0220ec89","occurred_at":"2026-09-27T08:36:04.406Z","event_type":"admin_mutation","action":"role.default_set","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e96e-7966-b576-b0af1d3dac8c","request_id":"01a0e201-ceae-7b05-82f9-70e09ff27d90","ip":"172.20.0.1","detail":{"denied":["manage-users","view-users"]}},{"id":"01a0e201-a2fe-70ed-bdfa-b0c984907637","occurred_at":"2026-09-27T08:35:53.212Z","event_type":"admin_mutation","action":"role.default_set","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e957-7d56-99cb-7e27217d00d4","request_id":"01a0e201-a2f4-7565-9f55-41b06bad661f","ip":"172.20.0.1","detail":{"default_for_new_subjects":{"after":false,"before":true}}},{"id":"01a0e201-8387-7c8e-b125-4f6d9b381be6","occurred_at":"2026-09-27T08:35:45.156Z","event_type":"admin_mutation","action":"role.default_set","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"role","resource_id":"01a0e200-e957-7d56-99cb-7e27217d00d4","request_id":"01a0e201-a2f4-7565-9f55-41b06bad661f","ip":"172.20.0.1","detail":{"default_for_new_subjects":{"after":true,"before":false}}}]}
 ```
+
+_(Not re-run for the `cache-control: no-store` pass: this trail has since
+grown with every real replay of the `member`/`helpdesk-lead` demonstration
+above, and this endpoint has no way to scope a query to one run, so a
+fresh capture no longer shows just these three rows. Left as the original
+capture.)_
 
 After that trail was read, the composite door: `member` marked default
 again, `view-users` nested under it refused, and `member` unmarked:
@@ -4649,10 +4656,10 @@ curl -sS -D - -o /dev/null \
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a0e227-b8b2-7c4b-b6bb-960a5578210a
+x-request-id: 01a0e561-2aaa-75ca-9b16-34f48904180f
 location: https://app.example/callback?error=invalid_scope&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fscope-unassign-demo
 content-length: 0
-Date: Sun, 27 Sep 2026 09:17:29 GMT
+Date: Mon, 28 Sep 2026 00:19:05 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -5344,25 +5351,33 @@ curl -sS -D - -H "Authorization: Bearer not-a-token" \
 ```
 HTTP/1.1 401 Unauthorized
 x-request-id: foreign-issuer-doc
-cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 90
-Date: Mon, 28 Sep 2026 00:02:33 GMT
+Date: Sat, 26 Sep 2026 04:50:58 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"type":"about:blank","title":"Unauthorized","status":401,"instance":"foreign-issuer-doc"}
 HTTP/1.1 401 Unauthorized
 x-request-id: foreign-issuer-doc
-cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 90
-Date: Mon, 28 Sep 2026 00:02:33 GMT
+Date: Sat, 26 Sep 2026 04:51:03 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"type":"about:blank","title":"Unauthorized","status":401,"instance":"foreign-issuer-doc"}
 ```
+
+_(Not re-run for the `cache-control: no-store` pass: this and the two
+blocks below share one continuous audit-trail narrative — `acme`'s and
+`demo`'s `admin_access` rows accumulate on every real replay, since both
+requests deliberately reuse the literal `x-request-id` values above rather
+than minting fresh ones. Replaying only this block, or the whole
+subsection again, adds another row rather than reproducing the "moments
+before" state the prose describes; there is no way to clear an
+append-only audit trail from the admin API. Restored to the original
+capture.)_
 
 What tells them apart is behind the response. The first names an issuer
 this deployment serves, and its signature verifies against `demo`'s own
@@ -5407,16 +5422,21 @@ curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 HTTP/1.1 403 Forbidden
 x-request-id: capability-refused-doc
-cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 91
-Date: Mon, 28 Sep 2026 00:03:02 GMT
+Date: Sat, 26 Sep 2026 04:51:08 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"type":"about:blank","title":"Forbidden","status":403,"instance":"capability-refused-doc"}
-{"items":[{"id":"01a0e552-794d-7b52-846a-9a58d4308e52","occurred_at":"2026-09-28T00:03:02.604Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}},{"id":"01a0dc0d-82ec-7888-ab05-4e8c931ffd35","occurred_at":"2026-09-26T04:51:08.139Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
+{"items":[{"id":"01a0dc0d-82ec-7888-ab05-4e8c931ffd35","occurred_at":"2026-09-26T04:51:08.139Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
 ```
+
+_(Not re-run for the `cache-control: no-store` pass, for the same reason
+given above the foreign-issuer blocks: `demo`'s `admin_access` trail has
+since accumulated the row a real replay just added, so a fresh capture no
+longer shows the single row this prose describes. Restored to the
+original capture.)_
 
 ## `GET /admin/tenants/count`, `GET /subjects/count`, `GET /clients/count`, `GET /roles/count`, `GET /groups/count` and `GET /scopes/count`
 
