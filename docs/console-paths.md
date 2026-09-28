@@ -1240,11 +1240,17 @@ the gateway's CSP, and each hashed asset the shell names is served
 `immutable`. The shell has no features yet; see
 [docs/request-paths.md](request-paths.md#what-is-not-implemented).
 
-**The stack for this section only.** Not `docker-odudu-1`: a separate
-compose project, `odudu-smoke`, of the same `infra/docker/compose.yaml`
-built at `78826ac` on a fresh database, with its `odudu` service published
-on `127.0.0.1:3100` so that it ran beside the development stack. The shell
-reads no cookie, so none is sent.
+**The stack for this section only.** Not `docker-odudu-1`: the project
+`./infra/docker/smoke.sh` runs, started the way it starts it, on a fresh
+database beside the development stack. It was built at `799c8ee`, with the
+host-port variables `infra/docker/compose.yaml` now reads. The shell reads
+no cookie, so none is sent.
+
+```bash
+cd infra/docker
+COMPOSE_PROJECT_NAME=odudu-smoke ODUDU_HOST_PORT=3100 POSTGRES_HOST_PORT=5452 \
+  docker compose up -d --build
+```
 
 ```bash
 curl -sS -D - http://localhost:3100/console/
@@ -1252,14 +1258,14 @@ curl -sS -D - http://localhost:3100/console/
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e7ea-5fc3-751a-ae48-8f0a1237a8db
+x-request-id: 01a0e801-866e-7403-af76-eb4af25c9bcb
 content-type: text/html; charset=utf-8
 content-security-policy: default-src 'self'; script-src 'self'; style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o=' 'sha256-gYiS/BvZvRcK27JIXTuwhZ3hs2+VJ1X+2gUlE+farlg='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'
 x-frame-options: DENY
 referrer-policy: no-referrer
 cache-control: no-store
 content-length: 330
-Date: Mon, 28 Sep 2026 12:08:11 GMT
+Date: Mon, 28 Sep 2026 12:33:29 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -1283,11 +1289,11 @@ curl -sS -D - -o /dev/null http://localhost:3100/console/assets/index-I408uhrW.j
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e7ea-5fe0-7ea2-a5d3-5102b91ef1e3
+x-request-id: 01a0e801-867d-70ed-bf3b-076507accada
 content-type: text/javascript; charset=utf-8
 cache-control: public, max-age=31536000, immutable
 content-length: 294585
-Date: Mon, 28 Sep 2026 12:08:11 GMT
+Date: Mon, 28 Sep 2026 12:33:29 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```

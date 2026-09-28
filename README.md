@@ -732,8 +732,8 @@ container — seed a tenant and client, request `/authorize`, submit the login
 form the way a browser would, redeem the code at `/token` — checks that the
 image serves the console's shell with its CSP and a hashed asset as
 `immutable`, and then tears the stack down, volumes included. It runs as its
-own compose project, `odudu-smoke`, so the teardown never reaches the stack
-started below; it publishes the same ports, so stop that one first.
+own compose project, `odudu-smoke`, on ports 3100 and 5452, so it runs
+beside the stack started below and its teardown never reaches that one.
 
 **Sign somebody in yourself.** The first tenant, client, user and signing
 key come from the server's seed command — the admin API needs an

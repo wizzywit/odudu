@@ -24,7 +24,7 @@ services:
       # commonly already has a native postgres bound to 5432, so the
       # published port is moved rather than changing the in-container port
       # (which every other service in this file addresses by its default).
-      - '127.0.0.1:5442:5432'
+      - '127.0.0.1:${POSTGRES_HOST_PORT:-5442}:5432'
 
   odudu:
     build:
@@ -46,9 +46,9 @@ services:
       # than delivering or keeping it — whenever one is unconfigured.
       # Where a mailed verification link points, and the host every passkey
       # is registered against. Never derived from a request's Host header
-      # (packages/account/src/view/routes/registration.ts) — published on
-      # 127.0.0.1:3000 below, so this is that same origin.
-      ODUDU_PUBLIC_BASE_URL: http://localhost:3000
+      # (packages/account/src/view/routes/registration.ts) — the origin the
+      # port below is published on, 3000 unless ODUDU_HOST_PORT moves it.
+      ODUDU_PUBLIC_BASE_URL: http://localhost:${ODUDU_HOST_PORT:-3000}
       # The per-origin request budget on the sign-in, registration and
       # reset-request submissions (ADR 0023). Passed through so a session
       # driving more of them than a person would — a burst captured for
@@ -86,7 +86,7 @@ services:
       start_period: 10s
       retries: 5
     ports:
-      - '127.0.0.1:3000:3000'
+      - '127.0.0.1:${ODUDU_HOST_PORT:-3000}:3000'
 
   # A browser for /admin/openapi.json, started only with
   # `docker compose --profile swagger up`. It loads the document live from
@@ -95,7 +95,7 @@ services:
     image: swaggerapi/swagger-ui:v5.33.0
     profiles: ['swagger']
     environment:
-      URL: http://localhost:3000/admin/openapi.json
+      URL: http://localhost:${ODUDU_HOST_PORT:-3000}/admin/openapi.json
     depends_on:
       odudu:
         condition: service_healthy
