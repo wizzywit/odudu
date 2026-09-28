@@ -30,6 +30,8 @@ export function CopyValue({
   }, [outcome]);
 
   const copy = (): void => {
+    // Emptied first, so a live region repeats an outcome it already shows.
+    setOutcome('idle');
     // Outside a secure context navigator.clipboard is absent, which throws here.
     Promise.resolve()
       .then(() => navigator.clipboard.writeText(value))

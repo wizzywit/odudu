@@ -5,11 +5,12 @@ const UNITS = [
   ['second', 1],
 ] as const;
 
-// The exact reading, never rounded: a lifetime of 90 s is not "about a minute".
+// Exact to the second, never "about a minute"; the raw value stays as given.
 export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds)) return '—';
   const raw = `${String(seconds)} s`;
-  if (!Number.isInteger(seconds) || seconds < 60) return raw;
-  let rest = seconds;
+  if (seconds < 60) return raw;
+  let rest = Math.round(seconds);
   const parts: string[] = [];
   for (const [unit, size] of UNITS) {
     const count = Math.floor(rest / size);

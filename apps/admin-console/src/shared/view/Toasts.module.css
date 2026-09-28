@@ -15,9 +15,13 @@
   list-style: none;
 }
 
+.list:not(:empty) + .list {
+  margin-block-start: var(--space-2);
+}
+
 .toast {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: start;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
@@ -28,6 +32,13 @@
   box-shadow: var(--shadow-overlay);
   pointer-events: auto;
   animation: arrive var(--motion-panel) var(--ease);
+}
+
+.body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: var(--space-3);
 }
 
 .toast[data-tone='error'] {

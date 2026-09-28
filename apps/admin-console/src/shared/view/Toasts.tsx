@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FocusEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent } from 'react';
 import type { Toast } from '#/shared/service/toast.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import styles from '#/shared/view/Toasts.module.css';
@@ -28,10 +28,26 @@ function useCountdown(running: boolean, ms: number, onElapsed: () => void): void
 function ToastItem({
   toast,
   onDismiss,
+  onFocusLost,
 }: {
   readonly toast: Toast;
   readonly onDismiss: (id: string) => void;
+  readonly onFocusLost: (id: string) => void;
 }) {
+  const item = useRef<HTMLLIElement>(null);
+  const lost = useRef(onFocusLost);
+  useEffect(() => {
+    lost.current = onFocusLost;
+  });
+  // A layout cleanup runs while the item is still in the document, so it can
+  // tell whether the focus is about to go with it.
+  useLayoutEffect(() => {
+    const node = item.current;
+    const id = toast.id;
+    return () => {
+      if (node?.contains(document.activeElement) === true) lost.current(id);
+    };
+  }, [toast.id]);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const dismiss = (): void => {
@@ -50,6 +66,8 @@ function ToastItem({
 
   return (
     <li
+      ref={item}
+      data-toast={toast.id}
       className={styles.toast}
       data-tone={toast.tone}
       onMouseEnter={() => {
@@ -63,8 +81,10 @@ function ToastItem({
       }}
       onBlur={leave}
     >
-      <span className={styles.tone}>{toast.tone === 'success' ? 'Done' : 'Error'}</span>
-      <p className={styles.message}>{toast.message}</p>
+      <div className={styles.body} {...(toast.tone === 'error' ? { role: 'alert' } : {})}>
+        <span className={styles.tone}>{toast.tone === 'success' ? 'Done' : 'Error'}</span>
+        <p className={styles.message}>{toast.message}</p>
+      </div>
       <Button
         size="small"
         variant="quiet"
@@ -77,6 +97,8 @@ function ToastItem({
   );
 }
 
+// Errors come first and stay until dismissed; each list announces its own way,
+// so an error is never heard twice.
 export function Toasts({
   toasts,
   onDismiss,
@@ -84,12 +106,44 @@ export function Toasts({
   readonly toasts: readonly Toast[];
   readonly onDismiss: (id: string) => void;
 }) {
+  const region = useRef<HTMLElement>(null);
+  const shown = useRef<readonly string[]>([]);
+  const orphaned = useRef<string | undefined>(undefined);
+  const errors = toasts.filter((toast) => toast.tone === 'error');
+  const successes = toasts.filter((toast) => toast.tone === 'success');
+  const order = [...errors, ...successes].map((toast) => toast.id);
+
+  // Focus leaving with a dismissed toast goes to the next one, else the page.
+  useLayoutEffect(() => {
+    const lost = orphaned.current;
+    const previous = shown.current;
+    orphaned.current = undefined;
+    shown.current = order;
+    if (lost === undefined) return;
+    const next = previous.slice(previous.indexOf(lost) + 1).find((id) => order.includes(id));
+    const items = [...(region.current?.querySelectorAll<HTMLElement>('[data-toast]') ?? [])];
+    const target =
+      next === undefined
+        ? document.getElementById('main')
+        : items.find((node) => node.dataset.toast === next)?.querySelector('button');
+    target?.focus();
+  });
+
+  const item = (toast: Toast) => (
+    <ToastItem
+      key={toast.id}
+      toast={toast}
+      onDismiss={onDismiss}
+      onFocusLost={(id) => {
+        orphaned.current = id;
+      }}
+    />
+  );
   return (
-    <section aria-label="Notifications" className={styles.region}>
+    <section ref={region} aria-label="Notifications" className={styles.region}>
+      <ol className={styles.list}>{errors.map(item)}</ol>
       <ol aria-live="polite" className={styles.list}>
-        {toasts.map((toast) => (
-          <ToastItem key={toast.id} toast={toast} onDismiss={onDismiss} />
-        ))}
+        {successes.map(item)}
       </ol>
     </section>
   );

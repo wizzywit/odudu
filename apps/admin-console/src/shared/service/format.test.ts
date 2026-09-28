@@ -6,6 +6,7 @@ describe('formatDuration', () => {
     [0, '0 s'],
     [1, '1 s'],
     [59, '59 s'],
+    [3599, '3599 s · 59 minutes 59 seconds'],
     [60, '60 s · 1 minute'],
     [90, '90 s · 1 minute 30 seconds'],
     [3600, '3600 s · 1 hour'],
@@ -16,7 +17,12 @@ describe('formatDuration', () => {
     [31536000, '31536000 s · 365 days'],
     [-5, '-5 s'],
     [1.5, '1.5 s'],
-  ])('reads %i seconds as "%s"', (seconds, expected) => {
+    [90.4, '90.4 s · 1 minute 30 seconds'],
+    [89.6, '89.6 s · 1 minute 30 seconds'],
+    [Number.NaN, '—'],
+    [Number.POSITIVE_INFINITY, '—'],
+    [Number.NEGATIVE_INFINITY, '—'],
+  ])('reads %s seconds as "%s"', (seconds, expected) => {
     expect(formatDuration(seconds)).toBe(expected);
   });
 });

@@ -10,13 +10,18 @@ it('carries its status in words, never in colour alone', () => {
   expect(tag.textContent).toBe('Disabled');
 });
 
+it('keeps amber to a tone named for system authority', () => {
+  render(<StatusTag tone="system-authority">System</StatusTag>);
+  expect(screen.getByText('System')).toHaveAttribute('data-tone', 'system-authority');
+});
+
 it('defaults to the neutral tone', () => {
   render(<StatusTag>Retired</StatusTag>);
   expect(screen.getByText('Retired')).toHaveAttribute('data-tone', 'neutral');
 });
 
 it('passes axe in both themes for every tone', async () => {
-  const tones = ['neutral', 'active', 'warning', 'danger', 'system'] as const;
+  const tones = ['neutral', 'active', 'warning', 'danger', 'system-authority'] as const;
   expect(
     await axeInBothThemes(() => (
       <p>

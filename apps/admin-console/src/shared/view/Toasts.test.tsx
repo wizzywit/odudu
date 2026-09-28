@@ -1,4 +1,6 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Toast } from '#/shared/service/toast.ts';
 import { Toasts } from '#/shared/view/Toasts.tsx';
@@ -21,13 +23,14 @@ function advance(ms: number): void {
   });
 }
 
-it('announces toasts politely inside a named region', () => {
+it('announces a success politely and an error as an alert, inside a named region', () => {
   render(<Toasts toasts={[SAVED, FAILED]} onDismiss={vi.fn()} />);
   const region = screen.getByRole('region', { name: 'Notifications' });
-  const live = region.querySelector('[aria-live]');
-  expect(live).toHaveAttribute('aria-live', 'polite');
-  expect(live).toHaveTextContent('Client saved');
-  expect(live).toHaveTextContent('The server could not be reached');
+  const polite = region.querySelector('[aria-live="polite"]');
+  expect(polite).toHaveTextContent('Client saved');
+  expect(polite).not.toHaveTextContent('The server could not be reached');
+  expect(within(region).getByRole('alert')).toHaveTextContent('The server could not be reached');
+  expect(within(region).getAllByRole('alert')).toHaveLength(1);
 });
 
 it('dismisses a success after five seconds', () => {
@@ -77,6 +80,34 @@ it('keeps an error until it is dismissed', () => {
   expect(onDismiss).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Dismiss: The server could not be reached' }));
   expect(onDismiss).toHaveBeenCalledWith('t2');
+});
+
+function Queue({ initial }: { readonly initial: readonly Toast[] }) {
+  const [toasts, setToasts] = useState(initial);
+  return (
+    <>
+      <main id="main" tabIndex={-1}>
+        Page
+      </main>
+      <Toasts
+        toasts={toasts}
+        onDismiss={(id) => {
+          setToasts((queue) => queue.filter((t) => t.id !== id));
+        }}
+      />
+    </>
+  );
+}
+
+it('hands focus to the next toast, then to the page, as each is dismissed', async () => {
+  vi.useRealTimers();
+  const user = userEvent.setup();
+  const third: Toast = { id: 't3', tone: 'error', message: 'Retry later' };
+  render(<Queue initial={[FAILED, third]} />);
+  await user.click(screen.getByRole('button', { name: `Dismiss: ${FAILED.message}` }));
+  expect(screen.getByRole('button', { name: 'Dismiss: Retry later' })).toHaveFocus();
+  await user.click(screen.getByRole('button', { name: 'Dismiss: Retry later' }));
+  expect(screen.getByRole('main')).toHaveFocus();
 });
 
 it('passes axe in both themes', async () => {

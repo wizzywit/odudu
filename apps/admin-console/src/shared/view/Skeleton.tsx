@@ -8,7 +8,7 @@ export function Skeleton({
   readonly lines?: number;
 }) {
   return (
-    <div role="status" aria-busy="true" className={styles.skeleton}>
+    <div role="status" className={styles.skeleton}>
       <span className={styles.label}>{label}</span>
       <div aria-hidden="true" className={styles.bars}>
         {Array.from({ length: lines }, (_, line) => (

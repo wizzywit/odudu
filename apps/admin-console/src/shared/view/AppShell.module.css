@@ -22,8 +22,8 @@
   font-family: var(--font-mono);
   font-size: var(--type-13);
   color: var(--ink-primary);
+  border: 1px solid var(--border-strong);
   background: var(--surface-panel);
-  box-shadow: var(--shadow-overlay);
   transform: translateY(-200%);
 }
 

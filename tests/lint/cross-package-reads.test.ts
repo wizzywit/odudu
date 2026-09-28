@@ -19,6 +19,10 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
   },
   { file: 'packages/db/src/migrate.ts', targets: ['packages/db/drizzle/**'] },
   {
+    file: 'apps/admin-console/src/shared/view/shadows.test.ts',
+    targets: ['apps/admin-console/src/shared/view/**'],
+  },
+  {
     file: 'packages/protocol-admin/src/view/routes/admin-tx.test.ts',
     targets: ['packages/protocol-admin/src/view/**'],
   },

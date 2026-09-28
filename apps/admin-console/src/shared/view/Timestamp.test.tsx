@@ -9,7 +9,7 @@ it('shows the relative and the absolute time together', () => {
   render(<Timestamp value="2026-09-28T11:57:00Z" now={NOW} />);
   const time = screen.getByText('3 minutes ago').closest('time');
   expect(time).toHaveAttribute('datetime', '2026-09-28T11:57:00.000Z');
-  expect(time).toHaveTextContent('2026-09-28 11:57:00 UTC');
+  expect(time?.textContent).toBe('3 minutes ago · 2026-09-28 11:57:00 UTC');
 });
 
 it('shows a value it cannot read as it came', () => {

@@ -7,7 +7,7 @@ it('says what is loading and hides its placeholder bars', () => {
   const { container } = render(<Skeleton label="Loading clients" lines={4} />);
   const status = screen.getByRole('status');
   expect(status).toHaveTextContent('Loading clients');
-  expect(status).toHaveAttribute('aria-busy', 'true');
+  expect(status).not.toHaveAttribute('aria-busy');
   expect(container.querySelectorAll('[aria-hidden="true"] > *')).toHaveLength(4);
 });
 

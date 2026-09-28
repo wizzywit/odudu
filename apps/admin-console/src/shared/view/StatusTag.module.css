@@ -41,7 +41,7 @@
   border-color: transparent;
 }
 
-.tag[data-tone='system'] {
+.tag[data-tone='system-authority'] {
   color: var(--signal-system-ink);
   background: var(--signal-system);
   border-color: transparent;
