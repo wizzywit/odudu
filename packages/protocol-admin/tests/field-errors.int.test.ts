@@ -110,18 +110,31 @@ describe('a refusal of the request shape names the field', () => {
     return json.properties?.cursor !== undefined;
   });
 
+  // A route under a row reads its cursor only once the row is found, so
+  // each is given a real one; a route missing here fails the case below.
+  const SEEDED: Readonly<Record<string, (caller: Caller) => Promise<string>>> = {
+    '/admin/tenants/:tenant/subjects/:id/sessions': (caller) =>
+      caller.create('/subjects', { username: `u-${newId()}` }),
+    '/admin/tenants/:tenant/scopes/:id/clients': (caller) =>
+      caller.create('/scopes', { name: `s-${newId()}` }),
+  };
+
   it.each(cursored)('$method $pattern names a cursor it cannot read', async (route) => {
     const caller = await tenantCaller();
     const system = await fixture.systemAdminToken([MANAGE_TENANTS]);
-    const url = route.pattern.replace(':tenant', caller.tenant);
+    let url = route.pattern.replace(':tenant', caller.tenant);
+    if (url.includes(':id')) {
+      const seed = SEEDED[route.pattern];
+      if (seed === undefined) throw new Error(`no row seeded for ${route.pattern}`);
+      url = url.replace(':id', await seed(caller));
+    }
     const res = await fixture.http.inject({
       method: 'GET',
-      url: `${url.replace(/:(\w+)/gu, ABSENT_ID)}?cursor=not-a-cursor`,
+      url: `${url}?cursor=not-a-cursor`,
       headers: {
         authorization: `Bearer ${route.pattern.includes(':tenant') ? caller.token : system}`,
       },
     });
-    if (res.statusCode === 404) return;
     expectFieldRefusal(res, 'cursor', 'cursor is invalid or expired');
   });
 
