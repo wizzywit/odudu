@@ -101,7 +101,9 @@ describe('ODUDU_CONSOLE=false', () => {
 
         expect(res.statusCode).toBe(404);
         expect(res.headers['set-cookie']).toBeUndefined();
-        expect(res.json()).toMatchObject({ status: 404, detail: expect.stringContaining(url) });
+        const problem = res.json<{ status: number; detail: string }>();
+        expect(problem.status).toBe(404);
+        expect(problem.detail).toContain(url);
       } finally {
         await app.close();
       }
