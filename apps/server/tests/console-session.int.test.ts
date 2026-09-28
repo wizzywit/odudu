@@ -248,7 +248,7 @@ describe('a state-changing request to /console/api/', () => {
 
       expect(res.statusCode).toBe(403);
       expect(res.headers['content-type']).toMatch(/^application\/problem\+json/u);
-      expect(res.json()).toMatchObject({ type: 'about:blank#forbidden', status: 403 });
+      expect(res.json()).toMatchObject({ type: 'about:blank', title: 'Forbidden', status: 403 });
       expect(await owner.db.execute(sql`SELECT count(*)::int AS n FROM audit_events`)).toEqual(
         audited,
       );
@@ -282,7 +282,11 @@ describe('a state-changing request to /console/auth/', () => {
           headers: { host: stack.base.host },
         });
         expect(refused.statusCode).toBe(403);
-        expect(refused.json()).toMatchObject({ type: 'about:blank#forbidden', status: 403 });
+        expect(refused.json()).toMatchObject({
+          type: 'about:blank',
+          title: 'Forbidden',
+          status: 403,
+        });
 
         const passed = await stack.app.inject({
           method: 'POST',

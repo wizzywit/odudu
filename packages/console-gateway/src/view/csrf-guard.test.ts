@@ -49,7 +49,7 @@ describe('the console CSRF guard', () => {
 
     expect(res.statusCode).toBe(403);
     expect(res.headers['content-type']).toMatch(/^application\/problem\+json/u);
-    expect(res.json()).toMatchObject({ type: 'about:blank#forbidden', status: 403 });
+    expect(res.json()).toMatchObject({ type: 'about:blank', title: 'Forbidden', status: 403 });
     expect(reached).toEqual([]);
   });
 

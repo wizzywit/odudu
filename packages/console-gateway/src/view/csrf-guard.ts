@@ -11,7 +11,7 @@ export function registerCsrfGuard(fastify: FastifyInstance, origin: string): voi
     request.log.warn({ reason }, 'console write refused as cross-site');
     return sendProblem(reply, request, {
       status: 403,
-      type: 'about:blank#forbidden',
+      type: 'about:blank',
       title: 'Forbidden',
       detail: `refused as cross-site: ${reason}`,
     });
