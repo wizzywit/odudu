@@ -96,6 +96,27 @@ module.exports = {
       to: { path: '(^|/)apps/admin-console/src/shared/(?:transport|repository)/' },
     },
     {
+      name: 'console-nothing-imports-gallery',
+      severity: 'error',
+      comment:
+        'gallery/ is a development-only entry that the production build never reaches; ' +
+        'anything that imported it would drag it into the bundle.',
+      from: { path: '(^|/)apps/admin-console/src/(?:app|shared|features)/' },
+      to: { path: '(^|/)apps/admin-console/src/gallery/' },
+    },
+    {
+      name: 'console-gallery-shows-only-view',
+      severity: 'error',
+      comment:
+        'The gallery renders the design system with sample data, so it needs shared/view and ' +
+        'the pure rules in shared/service, and never a store, the transport or a feature.',
+      from: { path: '(^|/)apps/admin-console/src/gallery/' },
+      to: {
+        path: '(^|/)apps/admin-console/src/',
+        pathNot: '(^|/)apps/admin-console/src/(?:gallery|shared/view|shared/service)/',
+      },
+    },
+    {
       name: 'no-server-to-testing',
       severity: 'error',
       comment:

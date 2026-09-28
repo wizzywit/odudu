@@ -23,6 +23,10 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
     targets: ['apps/admin-console/src/shared/view/**'],
   },
   {
+    file: 'apps/admin-console/src/gallery/Gallery.test.tsx',
+    targets: ['apps/admin-console/src/shared/view/**', 'apps/admin-console/src/gallery/**'],
+  },
+  {
     file: 'packages/protocol-admin/src/view/routes/admin-tx.test.ts',
     targets: ['packages/protocol-admin/src/view/**'],
   },

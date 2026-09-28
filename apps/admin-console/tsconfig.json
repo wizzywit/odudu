@@ -8,5 +8,5 @@
     "types": ["vite/client"],
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests", "scripts"]
 }

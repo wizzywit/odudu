@@ -9,7 +9,8 @@ const upstream = process.env.ODUDU_CONSOLE_UPSTREAM ?? 'http://localhost:3000';
 export default defineConfig({
   base: '/console/',
   plugins: [react()],
-  build: { outDir: 'dist' },
+  // gallery.html is a development-only page; the build reaches index.html alone.
+  build: { outDir: 'dist', rolldownOptions: { input: 'index.html' } },
   server: {
     proxy: {
       '/console/api': upstream,

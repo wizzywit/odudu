@@ -258,4 +258,29 @@ describe('boundary rules', { timeout: 60_000 }, () => {
       ),
     ).toBe(true);
   });
+
+  it('permits the gallery importing shared/view and shared/service', async () => {
+    const output = await cruiseFixtures();
+    const gallery = output.modules.find((m) => m.source.endsWith('src/gallery/Gallery.ts'));
+    expect(gallery?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(2);
+    expect(
+      output.summary.violations.filter((v) => v.from.endsWith('src/gallery/Gallery.ts')),
+    ).toHaveLength(0);
+  });
+
+  it('rejects the gallery importing anything else of the console', async () => {
+    const found = await violations('console-gallery-shows-only-view');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('src/gallery/reachesTransport.ts') &&
+          v.to.endsWith('shared/transport/client.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects console code importing the gallery', async () => {
+    const found = await violations('console-nothing-imports-gallery');
+    expect(found.some((v) => v.from.endsWith('shared/repository/galleryLeak.ts'))).toBe(true);
+  });
 });
