@@ -14,11 +14,36 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { NavigationGuard } from '#/app/NavigationGuard.tsx';
 import { Providers } from '#/app/Providers.tsx';
 import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer.tsx';
+import { useDirtySection } from '#/shared/repository/useDirtySection.ts';
+import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
+import { Tabs } from '#/shared/view/Tabs.tsx';
 
 afterEach(() => {
   useUnsavedGuard.getState().reset();
 });
+
+function DirtyGeneral() {
+  useDirtySection('client/general', 'General', true);
+  return <p>General panel</p>;
+}
+
+function Client() {
+  const { tab, selectTab } = useRecordTab(['general', 'tokens'] as const);
+  return (
+    <Tabs
+      label="Client"
+      selectedKey={tab}
+      onSelectionChange={(id) => {
+        if (id === 'general' || id === 'tokens') selectTab(id);
+      }}
+      tabs={[
+        { id: 'general', label: 'General', dirty: true, panel: <DirtyGeneral /> },
+        { id: 'tokens', label: 'Tokens', panel: <p>Tokens panel</p> },
+      ]}
+    />
+  );
+}
 
 function mount(history: RouterHistory) {
   const root = createRootRoute({
@@ -39,7 +64,8 @@ function mount(history: RouterHistory) {
     path: '/keys',
     component: () => <h1>Signing keys</h1>,
   });
-  const router = createRouter({ routeTree: root.addChildren([clients, keys]), history });
+  const client = createRoute({ getParentRoute: () => root, path: '/client', component: Client });
+  const router = createRouter({ routeTree: root.addChildren([clients, keys, client]), history });
   render(
     <Providers>
       <RouterProvider router={router} />
@@ -93,6 +119,30 @@ describe('in-app navigation', () => {
     });
     await user.click(await screen.findByRole('button', { name: 'Discard changes and leave' }));
     expect(await screen.findByRole('heading', { name: 'Signing keys' })).toBeVisible();
+  });
+});
+
+describe('a tab change inside a record', () => {
+  it('asks first, keeping the tab and its work on stay, and changes tab on discard', async () => {
+    const user = userEvent.setup();
+    mount(createMemoryHistory({ initialEntries: ['/client'] }));
+    await screen.findByText('General panel');
+
+    await user.click(screen.getByRole('tab', { name: 'Tokens' }));
+    await user.click(
+      await screen
+        .findByRole('alertdialog', { name: 'Leave without saving?' })
+        .then(() => screen.getByRole('button', { name: 'Stay' })),
+    );
+    expect(screen.getByRole('tab', { name: 'General, unsaved changes' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByText('General panel')).toBeVisible();
+
+    await user.click(screen.getByRole('tab', { name: 'Tokens' }));
+    await user.click(await screen.findByRole('button', { name: 'Discard changes and leave' }));
+    expect(await screen.findByText('Tokens panel')).toBeVisible();
   });
 });
 
