@@ -132,17 +132,18 @@ const TARGET_CEILING =
   ' Refused with `403` when the subject holds an admin capability the caller does not ' +
   '(the target ceiling).';
 
-// The same, for every route that mutates one client: a confidential client
-// authenticates as its service account.
-// And for every route that can take an admin capability away from whoever
-// holds it through a group, a role or a scope.
+// For every route that can take an admin capability away from whoever holds
+// it through a group, a role, a scope or a client's roles.
 const REMOVAL_CEILING =
   'Refused with `403` when what it removes reaches an admin capability the caller does not hold.';
 
+// For a wholesale replacement of a role list, judged by its delta.
 const DELTA_CEILING =
   ' Refused with `403` when a role it adds or leaves out reaches an admin capability the ' +
   'caller does not hold; a role it keeps is not counted.';
 
+// The target ceiling, for every route that mutates one client: a confidential
+// client authenticates as its service account.
 const SERVICE_ACCOUNT_CEILING =
   'Refused with `403` when the client\u2019s service account holds an admin capability ' +
   'the caller does not (the target ceiling).';
