@@ -1,4 +1,5 @@
 .rail {
+  container: rail / inline-size;
   display: flex;
   flex-direction: column;
   min-block-size: 100%;
@@ -80,11 +81,9 @@
   border-block-start: 1px solid var(--border-rail);
 }
 
-/* Collapsed between 640 and 1023: every item keeps its words, the groups
-   lose their headings and the rail its padding. `shell` is AppShell's
-   container; Vite's postcss-modules leaves container names unscoped, which
-   lightningcss's CSS modules would not. */
-@container shell (width < 1024px) {
+/* Collapsed below the full rail's 240 px, which is the 192 px column the
+   shell gives it between 640 and 1023: every item keeps its words. */
+@container rail (width < 240px) {
   .heading {
     position: absolute;
     inline-size: 1px;
