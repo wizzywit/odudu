@@ -1,5 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { tenantSmtp } from '#/schema/tenant-smtp';
 
 export interface TenantSmtpRecord {
@@ -45,8 +45,12 @@ export function tenantSmtpRepository(tx: TenantScopedDatabase) {
     },
 
     // Held until the transaction ends, so a conditional write compares
-    // against the row it replaces. Nothing to lock when there is no row.
+    // against the row it replaces. The advisory lock covers a tenant with no
+    // row yet, which a row lock cannot: two first writes would both match.
     async lockByTenantId(tenantId: string): Promise<TenantSmtpRecord | null> {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext('tenant_smtp'), hashtext(${tenantId}))`,
+      );
       const rows = await tx
         .select()
         .from(tenantSmtp)

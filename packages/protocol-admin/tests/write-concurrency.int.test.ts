@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { replaceFlow } from '#/usecase/flow';
 import { retireKey } from '#/usecase/keys';
+import { putSmtp } from '#/usecase/smtp';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -180,5 +181,51 @@ describe('two concurrent retirements of the last two keys for one algorithm', ()
       tx.select().from(signingKeys).where(eq(signingKeys.alg, 'RS256')),
     );
     expect(left.filter((key) => key.status !== 'retired')).toHaveLength(1);
+  });
+});
+
+describe('two concurrent first SMTP writes under the empty configuration\u2019s ETag', () => {
+  // With no row, there is nothing for a row lock to hold, so both would
+  // compare against the empty configuration and both would win.
+  it('lets the first win and refuses the second as stale', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const empty = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/smtp`,
+      headers: { authorization: `Bearer ${await fixture.adminToken(t.name, ['manage-tenant'])}` },
+    });
+    const etag = empty.headers.etag;
+    if (typeof etag !== 'string') throw new Error('no ETag on the empty configuration');
+    const write = (host: string) => ({
+      tenantId: t.id,
+      ifMatch: etag,
+      host,
+      port: 587,
+      fromAddress: 'noreply@example.test',
+      username: null,
+      password: { kind: 'keep' } as const,
+      starttls: false,
+      ...ACTOR,
+    });
+    const deps = { audit: AUDIT, kek: Buffer.alloc(32, 7), deploymentSmtp: false };
+    const held = gate();
+
+    const first = withTenant(fixture.app.db, t.id, async (tx) => {
+      const outcome = await putSmtp(tx, deps, write('first.example.test'));
+      held.arrive();
+      await held.open;
+      return outcome;
+    });
+
+    await held.reached;
+    const second = withTenant(fixture.app.db, t.id, (tx) =>
+      putSmtp(tx, deps, write('second.example.test')),
+    );
+
+    await awaitBlockedTransaction();
+    held.release();
+
+    expect((await first).kind).toBe('ok');
+    expect((await second).kind).toBe('precondition_failed');
   });
 });
