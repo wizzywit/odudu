@@ -16,7 +16,11 @@ const HEADER_NAMES = ['content-security-policy', 'x-frame-options', 'referrer-po
 // licenses a self-hosted script and a style hash rather than describing a
 // markup-only page. Every other view-layer file gets these headers only by
 // going through one of the first two.
-const EXEMPT_FILES = ['html-response.ts', 'verification-html.ts', 'spa.ts'];
+const EXEMPT_FILES = [
+  'packages/protocol-oidc/src/view/html-response.ts',
+  'packages/account/src/view/verification-html.ts',
+  'packages/console-gateway/src/view/spa.ts',
+];
 
 async function sourcesUnder(dir: string): Promise<{ path: string; text: string }[]> {
   const found: { path: string; text: string }[] = [];
@@ -160,11 +164,18 @@ describe('[ODUDU-VIEW-HTML-01] an HTML response cannot leave without its framing
   // names; every view-layer file gets them by spreading its result rather
   // than naming a header itself, which is what let referrer-policy diverge
   // between the two exits this file and verification-html.ts now share.
+  // By path, so a file of the same name anywhere else is held to the rule.
+  it('exempts only files that exist, each named by its path from the repository root', async () => {
+    const sources = new Set((await viewSources()).map((f) => f.path.slice(REPO_ROOT.length + 1)));
+    expect(EXEMPT_FILES.filter((path) => !sources.has(path))).toEqual([]);
+  });
+
   it('is one of only two files across every package that names a page header', async () => {
     const offenders = (await viewSources())
-      .filter((f) => !EXEMPT_FILES.includes(f.path.split('/').pop() ?? ''))
+      .map((f) => ({ ...f, path: f.path.slice(REPO_ROOT.length + 1) }))
+      .filter((f) => !EXEMPT_FILES.includes(f.path))
       .filter((f) => HEADER_NAMES.some((name) => f.text.includes(name)))
-      .map((f) => f.path.slice(REPO_ROOT.length + 1));
+      .map((f) => f.path);
     expect(offenders).toEqual([]);
   });
 });
