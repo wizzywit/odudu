@@ -1,14 +1,17 @@
 import { wrapSecret } from '@odudu/crypto';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
-import { ADMIN_API_AUDIENCE, ADMIN_CLIENT_ID, isValidTenantName } from '@odudu/domain-tenant';
+import {
+  ADMIN_API_AUDIENCE,
+  ADMIN_CLIENT_ID,
+  CONSOLE_CALLBACK_PATH,
+  isValidTenantName,
+} from '@odudu/domain-tenant';
 import { consoleLoginRepository } from '#/repository/console-logins';
 import { tenantDirectory } from '#/repository/tenants';
 import { codeChallenge, codeVerifier } from '#/service/pkce';
 import { safeReturnTo } from '#/service/return-to';
 import { bindToTenant, randomSecret, sha256 } from '#/service/secrets';
 import { CONSOLE_LOGIN_SECONDS } from '#/service/session-lifetime';
-
-export const CALLBACK_PATH = '/console/auth/callback';
 
 export interface LoginDeps {
   readonly database: DatabaseHandle;
@@ -28,7 +31,7 @@ export type BeginLoginResult =
   | { readonly kind: 'refused' };
 
 export function callbackUri(base: URL): string {
-  return new URL(CALLBACK_PATH, base).toString();
+  return new URL(CONSOLE_CALLBACK_PATH, base).toString();
 }
 
 export async function beginLogin(deps: LoginDeps, input: BeginLogin): Promise<BeginLoginResult> {

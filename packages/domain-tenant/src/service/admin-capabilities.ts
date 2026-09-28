@@ -8,6 +8,11 @@ export const ADMIN_CLIENT_ID = 'odudu-admin';
 // is no issuer to register in the client's audiences when it is created.
 export const ADMIN_API_AUDIENCE = 'urn:odudu:params:admin-api';
 
+// Where the console gateway is served, under ODUDU_PUBLIC_BASE_URL: the admin
+// client registers these, and the gateway names them in its requests.
+export const CONSOLE_CALLBACK_PATH = '/console/auth/callback';
+export const CONSOLE_POST_LOGOUT_PATH = '/console/';
+
 // Design rationale: docs/superpowers/specs/2026-09-10-odudu-design.md §5.
 export const SYSTEM_TENANT_NAME = 'system';
 

@@ -1,6 +1,8 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
   ADMIN_API_AUDIENCE,
+  CONSOLE_CALLBACK_PATH,
+  CONSOLE_POST_LOGOUT_PATH,
   provisionAdminClient as provisionClientAndRoles,
   type ProvisionAdminClientOptions as ClientAndRolesOptions,
   type ProvisionedAdminClient,
@@ -16,9 +18,6 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
  * `registerConsoleUris`, under `ODUDU_PUBLIC_BASE_URL`.
  */
 export const ADMIN_CLIENT_REDIRECT_URI = 'http://127.0.0.1:8080/callback';
-
-export const CONSOLE_CALLBACK_PATH = '/console/auth/callback';
-export const CONSOLE_POST_LOGOUT_PATH = '/console/';
 
 export interface ProvisionAdminClientOptions extends ClientAndRolesOptions {
   /**
