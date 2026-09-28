@@ -1021,6 +1021,30 @@ by the current base's, and every other URI on the client, the loopback
 included, is kept. With `ODUDU_CONSOLE=false` it refuses, having nothing to
 register, and nothing else touches a registered console URI either.
 
+**The console signs in through a gateway under `/console`**, which holds the
+tokens server-side and gives the browser nothing but a session cookie:
+
+- `GET /console/auth/login?tenant=&return_to=` stores a pending sign-in and
+  redirects to the tenant's authorization endpoint as `odudu-admin`, with
+  PKCE and the admin API's `resource`. `return_to` must be a `/console/`
+  path; anything else falls back to `/console/`.
+- `GET /console/auth/callback` checks `state` against the login cookie and
+  the RFC 9207 `iss`, exchanges the code, verifies the ID token and its
+  nonce, and sets the session cookie. Every refusal is the same `400` page.
+- `GET /console/api/session` answers `{ tenant, subject_id, username }`. An
+  ended session answers `401` with the problem type
+  `about:blank#console-session-ended` and clears the cookie.
+
+The session cookie is `__Host-odudu-console` (`HttpOnly; Secure;
+SameSite=Strict; Path=/`), or `odudu-console` without `Secure` over plain
+HTTP. Its value is `<tenant id>.<secret>`, and only the secret's SHA-256 is
+stored. A session ends after 30 minutes idle or 12 hours in all. A request
+carrying that cookie twice is treated as carrying none. Any request to
+`/console/api/` other than `GET`, `HEAD` or `OPTIONS` must carry
+`Origin` equal to the origin of `ODUDU_PUBLIC_BASE_URL` and the header
+`X-Odudu-Console: 1`, or it is refused `403` before anything else runs.
+A transcript of each request follows with the gateway's own documentation.
+
 **One pass deletes everything that expires.** Every login writes an
 `authentication_sessions` row, every redemption an `authorization_codes`
 row, and every refresh rotation a `refresh_tokens` row; no repository in the

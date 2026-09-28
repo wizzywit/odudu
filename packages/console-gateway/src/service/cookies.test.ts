@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   clearedLoginCookie,
   loginCookie,
+  clearedSessionCookie,
   loginCookieName,
   readCookie,
   sessionCookie,
@@ -44,6 +45,15 @@ describe('the session cookie', () => {
       'odudu-console=t.s; HttpOnly; SameSite=Strict; Path=/',
     );
   });
+
+  it('is cleared with the same name, attributes and path', () => {
+    expect(clearedSessionCookie(true)).toBe(
+      '__Host-odudu-console=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0; Secure',
+    );
+    expect(clearedSessionCookie(false)).toBe(
+      'odudu-console=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0',
+    );
+  });
 });
 
 describe('readCookie', () => {
@@ -57,5 +67,21 @@ describe('readCookie', () => {
     expect(readCookie(undefined, 'odudu-console')).toBeUndefined();
     expect(readCookie('other=1', 'odudu-console')).toBeUndefined();
     expect(readCookie('odudu-console=', 'odudu-console')).toBeUndefined();
+  });
+
+  // A second cookie of the same name is one a sibling subdomain or an
+  // attacker's script could have planted beside the real one, and nothing
+  // in the header says which is which.
+  it('answers undefined for a name that appears twice, whatever the values', () => {
+    expect(readCookie('odudu-console=a.b; odudu-console=a.b', 'odudu-console')).toBeUndefined();
+    expect(
+      readCookie('odudu-console=a.b; x=1; odudu-console=c.d', 'odudu-console'),
+    ).toBeUndefined();
+    expect(readCookie('odudu-console=; odudu-console=c.d', 'odudu-console')).toBeUndefined();
+  });
+
+  it('tolerates malformed pairs around the one it wants', () => {
+    expect(readCookie('garbage; =x; odudu-console=a.b;;', 'odudu-console')).toBe('a.b');
+    expect(readCookie(';;;', 'odudu-console')).toBeUndefined();
   });
 });

@@ -1,6 +1,7 @@
 import { type DatabaseHandle } from '@odudu/db';
 import { type FastifyPluginAsync } from 'fastify';
 import { oduduClient } from '#/adapter/odudu-client';
+import { registerConsoleApi } from '#/view/api';
 import { registerAuthRoutes } from '#/view/routes/auth';
 
 export {
@@ -38,17 +39,20 @@ export function consoleGateway(deps: ConsoleGatewayDeps): FastifyPluginAsync {
     kek: deps.kek,
     base,
   };
+  const now = deps.now ?? (() => new Date());
   return (fastify) => {
     const odudu = oduduClient(fastify, base);
     fastify.register((auth) => {
-      registerAuthRoutes(auth, {
-        login,
-        callback: { ...login, odudu },
-        tls,
-        now: deps.now ?? (() => new Date()),
-      });
+      registerAuthRoutes(auth, { login, callback: { ...login, odudu }, tls, now });
       return Promise.resolve();
     });
+    fastify.register(
+      (api) => {
+        registerConsoleApi(api, { database: deps.database, tls, now, origin: base.origin });
+        return Promise.resolve();
+      },
+      { prefix: '/console/api' },
+    );
     return Promise.resolve();
   };
 }

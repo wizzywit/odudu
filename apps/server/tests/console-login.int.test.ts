@@ -1,16 +1,25 @@
 import { unwrapSecret } from '@odudu/crypto';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, type DatabaseHandle } from '@odudu/db';
 import { ADMIN_CLIENT_ID, SYSTEM_TENANT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
-import { FakeClock, loadConfig, newId } from '@odudu/kernel';
+import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { sql } from 'drizzle-orm';
-import { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
-import { createHash } from 'node:crypto';
-import { Writable } from 'node:stream';
+import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp } from '#/app';
 import { seedAdmin } from '#/cli/seed';
-import { createLogger } from '#/logger';
+import {
+  beginLogin,
+  browse,
+  type ConsoleStack,
+  Jar,
+  KEK,
+  pathOf,
+  post,
+  RETURN_TO,
+  sha256,
+  signInAtOp,
+  startConsoleApp,
+} from '#/testing/console-harness';
 
 // The console's sign-in through the real composition: the gateway is an
 // ordinary public client of the server it is mounted in, so each test here
@@ -24,15 +33,12 @@ let appHandle: DatabaseHandle | undefined;
 let owner: DatabaseHandle;
 let appDb: DatabaseHandle;
 
-const KEK = Buffer.alloc(32, 7);
 const BASE_HOST = 'console.example.test';
 const BASE = `http://${BASE_HOST}`;
 const ISSUER = `${BASE}/tenants/${SYSTEM_TENANT_NAME}`;
 const REDIRECT_URI = `${BASE}/console/auth/callback`;
-const NEW_PASSWORD = 'Str0ng-Passw0rd!42';
 const LOGIN_COOKIE = 'odudu-console-login';
 const SESSION_COOKIE = 'odudu-console';
-const RETURN_TO = '/console/tenants/system/clients?page=2';
 const REFUSAL = 'sign-in could not be completed';
 
 beforeAll(async () => {
@@ -62,148 +68,8 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-interface TestApp {
-  readonly app: FastifyInstance;
-  readonly clock: FakeClock;
-  readonly logs: string[];
-  // Every /token response body the server sent, the gateway's included.
-  readonly tokenResponses: string[];
-}
-
-async function startApp(): Promise<TestApp> {
-  const logs: string[] = [];
-  const destination = new Writable({
-    write(chunk: Buffer, _encoding, done) {
-      logs.push(chunk.toString('utf8'));
-      done();
-    },
-  });
-  const config = loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'trace' });
-  const clock = new FakeClock(new Date());
-  const app = buildApp({
-    database: appDb,
-    ownerDatabase: owner,
-    kek: KEK,
-    logger: createLogger(config, destination),
-    publicBaseUrl: BASE,
-    consoleBaseUrl: BASE,
-    consoleNow: () => clock.now(),
-  });
-  const tokenResponses: string[] = [];
-  app.addHook('onSend', async (request, _reply, payload) => {
-    if (request.url.endsWith('/protocol/openid-connect/token') && typeof payload === 'string') {
-      tokenResponses.push(payload);
-    }
-    return payload;
-  });
-  await app.ready();
-  return { app, clock, logs, tokenResponses };
-}
-
-class Jar {
-  readonly cookies = new Map<string, string>();
-
-  take(res: LightMyRequestResponse): void {
-    for (const c of res.cookies) {
-      if (c.value === '' || (c.maxAge !== undefined && c.maxAge <= 0)) this.cookies.delete(c.name);
-      else this.cookies.set(c.name, c.value);
-    }
-  }
-
-  header(): Record<string, string> {
-    if (this.cookies.size === 0) return {};
-    return { cookie: [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ') };
-  }
-}
-
-async function browse(
-  app: FastifyInstance,
-  jar: Jar,
-  url: string,
-  host = BASE_HOST,
-): Promise<LightMyRequestResponse> {
-  const res = await app.inject({ url, headers: { host, ...jar.header() } });
-  jar.take(res);
-  return res;
-}
-
-async function post(
-  app: FastifyInstance,
-  jar: Jar,
-  url: string,
-  fields: Record<string, string>,
-): Promise<LightMyRequestResponse> {
-  const res = await app.inject({
-    method: 'POST',
-    url,
-    payload: new URLSearchParams(fields).toString(),
-    headers: {
-      host: BASE_HOST,
-      'content-type': 'application/x-www-form-urlencoded',
-      ...jar.header(),
-    },
-  });
-  jar.take(res);
-  return res;
-}
-
-function field(body: string, name: string): string {
-  const value = new RegExp(`name="${name}" value="([^"]*)"`, 'u').exec(body)?.[1];
-  if (value === undefined) throw new Error(`${name} not found`);
-  return value;
-}
-
-function pathOf(location: string): string {
-  const url = new URL(location, BASE);
-  return url.pathname + url.search;
-}
-
-function sha256(value: string): Buffer {
-  return createHash('sha256').update(value, 'utf8').digest();
-}
-
-async function beginLogin(
-  app: FastifyInstance,
-  jar: Jar,
-  host = BASE_HOST,
-): Promise<{ authorize: URL; state: string }> {
-  const query = new URLSearchParams({ tenant: SYSTEM_TENANT_NAME, return_to: RETURN_TO });
-  const res = await browse(app, jar, `/console/auth/login?${query.toString()}`, host);
-  expect(res.statusCode).toBe(302);
-  const authorize = new URL(String(res.headers.location));
-  return { authorize, state: authorize.searchParams.get('state') ?? '' };
-}
-
-// Signs a freshly seeded administrator in at the server's own login form,
-// through its forced password change, and answers the callback URL the
-// authorization endpoint redirected to.
-async function signInAtOp(
-  app: FastifyInstance,
-  jar: Jar,
-  authorize: URL,
-): Promise<{ callback: string; subjectId: string }> {
-  const username = `ada-${newId()}`;
-  const { password, subjectId } = await seedAdmin({ username });
-  const page = await browse(app, jar, authorize.pathname + authorize.search);
-  const actions = `/tenants/${SYSTEM_TENANT_NAME}/login-actions`;
-  const first = await post(app, jar, `${actions}/authenticate`, {
-    auth_session_id: field(page.body, 'auth_session_id'),
-    username,
-    password,
-  });
-  const changed = await post(app, jar, `${actions}/required-action?action=update-password`, {
-    auth_session_id: field(first.body, 'auth_session_id'),
-    password: NEW_PASSWORD,
-  });
-  const signedIn = await post(app, jar, `${actions}/authenticate`, {
-    auth_session_id: field(changed.body, 'auth_session_id'),
-    username,
-    password: NEW_PASSWORD,
-  });
-  expect(signedIn.statusCode).toBe(302);
-  const callback = String(signedIn.headers.location);
-  expect(callback.startsWith(`${REDIRECT_URI}?`)).toBe(true);
-  return { callback, subjectId };
+function startApp(): Promise<ConsoleStack> {
+  return startConsoleApp({ database: appDb, ownerDatabase: owner }, BASE);
 }
 
 async function sessionsFor(subjectId: string): Promise<Record<string, unknown>[]> {
@@ -223,10 +89,10 @@ function claimsOf(jwt: string): Record<string, unknown> {
 
 describe('GET /console/auth/login', () => {
   it('redirects to the tenant authorization endpoint as the admin client', async () => {
-    const { app } = await startApp();
+    const stack = await startApp();
     try {
       const jar = new Jar();
-      const { authorize, state } = await beginLogin(app, jar);
+      const { authorize, state } = await beginLogin(stack, jar);
       expect(authorize.origin + authorize.pathname).toBe(`${ISSUER}/protocol/openid-connect/auth`);
       const params = Object.fromEntries(authorize.searchParams);
       expect(params).toMatchObject({
@@ -249,7 +115,7 @@ describe('GET /console/auth/login', () => {
       expect(rows[0]?.return_to).toBe(RETURN_TO);
       expect(rows[0]?.nonce).toBe(params.nonce);
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 
@@ -258,33 +124,34 @@ describe('GET /console/auth/login', () => {
     ['an unknown tenant', 'no-such-tenant'],
     ['no tenant at all', undefined],
   ])('refuses %s', async (_label, tenant) => {
-    const { app } = await startApp();
+    const stack = await startApp();
     try {
       const query = tenant === undefined ? '' : `?tenant=${tenant}`;
-      const res = await browse(app, new Jar(), `/console/auth/login${query}`);
+      const res = await browse(stack, new Jar(), `/console/auth/login${query}`);
       expect(res.statusCode).toBe(400);
       expect(res.body).toContain(REFUSAL);
       expect(res.headers['set-cookie']).toBeUndefined();
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 });
 
 describe('GET /console/auth/callback', () => {
   it('signs the administrator in and keeps every secret out of logs and audit', async () => {
-    const { app, logs } = await startApp();
+    const stack = await startApp();
+    const { logs } = stack;
     try {
       const jar = new Jar();
-      const { authorize, state } = await beginLogin(app, jar);
+      const { authorize, state } = await beginLogin(stack, jar);
       const login = (await owner.db.execute(
         sql`SELECT verifier_wrapped, nonce FROM console_logins WHERE state_hash = ${sha256(state)}`,
       )) as unknown as { verifier_wrapped: string; nonce: string }[];
       const verifier = unwrapSecret(login[0]?.verifier_wrapped ?? '', KEK);
-      const { callback, subjectId } = await signInAtOp(app, jar, authorize);
+      const { callback, subjectId, username } = await signInAtOp(stack, jar, authorize);
       const code = new URL(callback).searchParams.get('code') ?? '';
 
-      const res = await browse(app, jar, pathOf(callback));
+      const res = await browse(stack, jar, pathOf(stack, callback));
 
       expect(res.statusCode).toBe(302);
       expect(res.headers.location).toBe(RETURN_TO);
@@ -310,6 +177,10 @@ describe('GET /console/auth/callback', () => {
       const created = new Date(String(session.created_at)).getTime();
       expect(new Date(String(session.expires_at)).getTime() - created).toBe(12 * 60 * 60 * 1000);
 
+      const me = await browse(stack, jar, '/console/api/session');
+      expect(me.statusCode).toBe(200);
+      expect(me.json()).toEqual({ tenant: SYSTEM_TENANT_NAME, subject_id: subjectId, username });
+
       const audit = (await owner.db.execute(
         sql`SELECT detail::text AS detail FROM audit_events`,
       )) as unknown as { detail: string | null }[];
@@ -317,6 +188,7 @@ describe('GET /console/auth/callback', () => {
         logs.join('\n'),
         audit.map((row) => row.detail ?? '').join('\n'),
         res.body,
+        me.body,
       ].join('\n');
       const secrets = {
         code,
@@ -334,109 +206,111 @@ describe('GET /console/auth/callback', () => {
         expect(exposed.includes(secret), name).toBe(false);
       }
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 
   it('completes against the base issuer whatever Host the browser sends', async () => {
-    const { app } = await startApp();
+    const stack = await startApp();
     try {
       const jar = new Jar();
-      const { authorize } = await beginLogin(app, jar, 'evil.example');
+      const { authorize } = await beginLogin(stack, jar, 'evil.example');
       expect(authorize.origin).toBe(BASE);
-      const { callback, subjectId } = await signInAtOp(app, jar, authorize);
+      const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
       expect(new URL(callback).searchParams.get('iss')).toBe(ISSUER);
 
-      const res = await browse(app, jar, pathOf(callback), 'evil.example');
+      const res = await browse(stack, jar, pathOf(stack, callback), 'evil.example');
 
       expect(res.statusCode).toBe(302);
       expect(await sessionsFor(subjectId)).toHaveLength(1);
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 
   it('refuses a missing or mismatched login cookie, and still accepts the right one', async () => {
-    const { app } = await startApp();
+    const stack = await startApp();
     try {
       const jar = new Jar();
-      const { authorize, state } = await beginLogin(app, jar);
-      const { callback, subjectId } = await signInAtOp(app, jar, authorize);
+      const { authorize, state } = await beginLogin(stack, jar);
+      const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
 
       jar.cookies.delete(LOGIN_COOKIE);
-      expectRefused(await browse(app, jar, pathOf(callback)));
+      expectRefused(await browse(stack, jar, pathOf(stack, callback)));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
 
       jar.cookies.set(LOGIN_COOKIE, `${SYSTEM_TENANT_ID}.bm90LXRoZS1zdGF0ZQ`);
-      expectRefused(await browse(app, jar, pathOf(callback)));
+      expectRefused(await browse(stack, jar, pathOf(stack, callback)));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
 
       jar.cookies.set(LOGIN_COOKIE, state);
-      expect((await browse(app, jar, pathOf(callback))).statusCode).toBe(302);
+      expect((await browse(stack, jar, pathOf(stack, callback))).statusCode).toBe(302);
       expect(await sessionsFor(subjectId)).toHaveLength(1);
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 
   it('refuses a replayed state', async () => {
-    const { app } = await startApp();
+    const stack = await startApp();
     try {
       const jar = new Jar();
-      const { authorize, state } = await beginLogin(app, jar);
-      const { callback, subjectId } = await signInAtOp(app, jar, authorize);
-      expect((await browse(app, jar, pathOf(callback))).statusCode).toBe(302);
+      const { authorize, state } = await beginLogin(stack, jar);
+      const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
+      expect((await browse(stack, jar, pathOf(stack, callback))).statusCode).toBe(302);
 
       jar.cookies.set(LOGIN_COOKIE, state);
-      expectRefused(await browse(app, jar, pathOf(callback)));
+      expectRefused(await browse(stack, jar, pathOf(stack, callback)));
       expect(await sessionsFor(subjectId)).toHaveLength(1);
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 
   it('refuses a login that has expired', async () => {
-    const { app, clock } = await startApp();
+    const stack = await startApp();
+    const { clock } = stack;
     try {
       const jar = new Jar();
-      const { authorize } = await beginLogin(app, jar);
-      const { callback, subjectId } = await signInAtOp(app, jar, authorize);
+      const { authorize } = await beginLogin(stack, jar);
+      const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
       clock.advance(11 * 60 * 1000);
 
-      expectRefused(await browse(app, jar, pathOf(callback)));
+      expectRefused(await browse(stack, jar, pathOf(stack, callback)));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 
   it('refuses an iss naming another tenant', async () => {
-    const { app } = await startApp();
+    const stack = await startApp();
     try {
       const jar = new Jar();
-      const { authorize } = await beginLogin(app, jar);
-      const { callback, subjectId } = await signInAtOp(app, jar, authorize);
+      const { authorize } = await beginLogin(stack, jar);
+      const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
       const forged = new URL(callback);
       forged.searchParams.set('iss', `${BASE}/tenants/acme`);
 
-      expectRefused(await browse(app, jar, pathOf(forged.toString())));
+      expectRefused(await browse(stack, jar, pathOf(stack, forged.toString())));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 
   it('refuses an ID token whose nonce is not the login’s, and revokes its grant', async () => {
-    const { app, tokenResponses } = await startApp();
+    const stack = await startApp();
+    const { tokenResponses } = stack;
     try {
       const jar = new Jar();
-      const { authorize, state } = await beginLogin(app, jar);
+      const { authorize, state } = await beginLogin(stack, jar);
       await owner.db.execute(
         sql`UPDATE console_logins SET nonce = 'tampered' WHERE state_hash = ${sha256(state)}`,
       );
-      const { callback, subjectId } = await signInAtOp(app, jar, authorize);
+      const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
 
-      expectRefused(await browse(app, jar, pathOf(callback)));
+      expectRefused(await browse(stack, jar, pathOf(stack, callback)));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
 
       expect(tokenResponses).toHaveLength(1);
@@ -444,7 +318,7 @@ describe('GET /console/auth/callback', () => {
         refresh_token: string;
       };
       const refreshed = await post(
-        app,
+        stack,
         new Jar(),
         `/tenants/${SYSTEM_TENANT_NAME}/protocol/openid-connect/token`,
         { grant_type: 'refresh_token', refresh_token: refreshToken, client_id: ADMIN_CLIENT_ID },
@@ -452,73 +326,73 @@ describe('GET /console/auth/callback', () => {
       expect(refreshed.statusCode).toBe(400);
       expect(refreshed.json<{ error: string }>().error).toBe('invalid_grant');
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 
   it('refuses a callback that names no issuer', async () => {
-    const { app } = await startApp();
+    const stack = await startApp();
     try {
       const jar = new Jar();
-      const { authorize } = await beginLogin(app, jar);
-      const { callback, subjectId } = await signInAtOp(app, jar, authorize);
+      const { authorize } = await beginLogin(stack, jar);
+      const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
       const stripped = new URL(callback);
       stripped.searchParams.delete('iss');
 
-      expectRefused(await browse(app, jar, pathOf(stripped.toString())));
+      expectRefused(await browse(stack, jar, pathOf(stack, stripped.toString())));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 
   it('refuses a state and cookie whose tenant prefix was edited, leaving the login', async () => {
-    const { app } = await startApp();
+    const stack = await startApp();
     try {
       const other = newId();
       await owner.db.execute(
         sql`INSERT INTO tenants (id, name) VALUES (${other}, ${`edited-${other.slice(-12)}`})`,
       );
       const jar = new Jar();
-      const { authorize, state } = await beginLogin(app, jar);
-      const { callback, subjectId } = await signInAtOp(app, jar, authorize);
+      const { authorize, state } = await beginLogin(stack, jar);
+      const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
       const edited = `${other}.${state.split('.')[1] ?? ''}`;
       const forged = new URL(callback);
       forged.searchParams.set('state', edited);
       jar.cookies.set(LOGIN_COOKIE, edited);
 
-      expectRefused(await browse(app, jar, pathOf(forged.toString())));
+      expectRefused(await browse(stack, jar, pathOf(stack, forged.toString())));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
       const left = await owner.db.execute(
         sql`SELECT id FROM console_logins WHERE state_hash = ${sha256(state)}`,
       );
       expect(left).toHaveLength(1);
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 
   it('turns an error code outside the registered set into server_error', async () => {
-    const { app } = await startApp();
+    const stack = await startApp();
     try {
       const jar = new Jar();
-      const { state } = await beginLogin(app, jar);
+      const { state } = await beginLogin(stack, jar);
       const query = new URLSearchParams({ error: 'made_up_code', state, iss: ISSUER });
 
-      const res = await browse(app, jar, `/console/auth/callback?${query.toString()}`);
+      const res = await browse(stack, jar, `/console/auth/callback?${query.toString()}`);
 
       expect(res.statusCode).toBe(302);
       expect(res.headers.location).toBe('/console/?login_error=server_error');
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 
   it('passes on only the error code of an OP error response', async () => {
-    const { app } = await startApp();
+    const stack = await startApp();
     try {
       const jar = new Jar();
-      const { state } = await beginLogin(app, jar);
+      const { state } = await beginLogin(stack, jar);
       const query = new URLSearchParams({
         error: 'access_denied',
         error_description: 'the user said no',
@@ -526,7 +400,7 @@ describe('GET /console/auth/callback', () => {
         iss: ISSUER,
       });
 
-      const res = await browse(app, jar, `/console/auth/callback?${query.toString()}`);
+      const res = await browse(stack, jar, `/console/auth/callback?${query.toString()}`);
 
       expect(res.statusCode).toBe(302);
       expect(res.headers.location).toBe('/console/?login_error=access_denied');
@@ -536,7 +410,7 @@ describe('GET /console/auth/callback', () => {
       );
       expect(left).toHaveLength(0);
     } finally {
-      await app.close();
+      await stack.app.close();
     }
   });
 });

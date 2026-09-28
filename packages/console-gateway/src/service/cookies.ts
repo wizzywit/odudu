@@ -34,13 +34,26 @@ export function sessionCookie(value: string, tls: boolean): string {
   return cookie(sessionCookieName(tls), value, ['HttpOnly', 'SameSite=Strict', 'Path=/'], tls);
 }
 
+export function clearedSessionCookie(tls: boolean): string {
+  return cookie(
+    sessionCookieName(tls),
+    '',
+    ['HttpOnly', 'SameSite=Strict', 'Path=/', 'Max-Age=0'],
+    tls,
+  );
+}
+
+// A name present twice answers nothing: a cookie planted beside ours, by a
+// sibling subdomain or over plain HTTP, is indistinguishable from it here,
+// and taking either one lets the planter choose which session is used.
 export function readCookie(header: string | undefined, name: string): string | undefined {
   if (header === undefined) return undefined;
-  for (const pair of header.split(';')) {
+  const values = header.split(';').flatMap((pair) => {
     const index = pair.indexOf('=');
-    if (index === -1 || pair.slice(0, index).trim() !== name) continue;
-    const value = pair.slice(index + 1).trim();
-    return value === '' ? undefined : value;
-  }
-  return undefined;
+    return index !== -1 && pair.slice(0, index).trim() === name
+      ? [pair.slice(index + 1).trim()]
+      : [];
+  });
+  const [value] = values;
+  return values.length === 1 && value !== '' ? value : undefined;
 }
