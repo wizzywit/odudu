@@ -726,7 +726,8 @@ reach before the rename capture; no transcript names it and no endpoint
 deletes a tenant, so it stays until that stack is next rebuilt from an
 empty volume. The export, import and settings-range transcripts left
 `export-demo`, `import-source`, `import-demo` and `settings-range-demo`
-beside it, for the same reason.
+beside it, for the same reason. The console foundation's Playwright spike
+left `spike-console-0928` ("Part 3 spikes" below).
 
 ## Part 2 spikes
 
@@ -969,3 +970,161 @@ each fixed on the branch.
   status instead of turning it into a `500` page. Logout answers
   `200 {redirect}` rather than a `302`, because only the browser's own
   navigation carries the SSO cookie (S4 above).
+
+## Part 3 spikes
+
+Three assumptions the console foundation builds on, run on 2026-09-28 in a
+scratch app, `apps/_spike-console`, inside the workspace so that
+`workspace:*` resolution was real. The app, a temporary `spike-dom` project
+in the root `vitest.config.ts`, and the lockfile change were removed
+afterwards. Pins: `vite@8.3.1`, `@vitejs/plugin-react@6.1.1`,
+`react@19.3.0`, `react-dom@19.3.0`, `@types/react@19.3.0`,
+`@types/react-dom@19.3.0`, `react-aria-components@1.21.1`, `zod@4.6.1`,
+`@testing-library/react@16.3.3`, `@testing-library/dom@10.4.2`,
+`@testing-library/user-event@14.6.7`, `@testing-library/jest-dom@7.0.1`,
+`jsdom@30.1.1`, `axe-core@4.13.0` (the version `@axe-core/playwright@4.13.0`
+takes, `~4.13.0`), `playwright@1.63.0`, and the repository's own
+`vitest@5.0.0` and `typescript@6.0.3`. All were published at least 24 hours
+before the run. verified: `npm view <pkg> version time --json` for each.
+
+### Vite and `@odudu/contracts`
+
+Confirmed, with no Vite configuration beyond `base: '/console/'` and
+`react()`. No `resolve.conditions` and no `optimizeDeps` entry were needed.
+The app imported `tenantSchema` from `@odudu/contracts/admin`, whose
+`tenants.ts` imports `#/admin/shared`, and parsed a fixture with it.
+
+- **Type-check** passes with a tsconfig that extends `tsconfig.base.json`
+  and overrides `lib: ["es2023", "dom", "dom.iterable"]`,
+  `module: "esnext"`, `moduleResolution: "bundler"`, `jsx: "react-jsx"` and
+  `types: ["vite/client"]`. `module` has to move with `moduleResolution`:
+  keeping the base's `nodenext` fails with `TS5095` and `TS5109`. Under
+  `bundler`, TypeScript resolved `@odudu/contracts/admin` to
+  `packages/contracts/src/admin/index.ts` and `#/admin/shared` to
+  `src/admin/shared.ts` through the package's `imports` map. A deliberate
+  type error against the schema's inferred type was refused, so the check
+  is reading the contract.
+  verified: `pnpm typecheck` (`tsc -p tsconfig.json`), and
+  `npx tsc -p tsconfig.json --traceResolution | grep "successfully resolved"`
+- **`vite dev`** serves the contracts source through `/console/@fs/…`, with
+  `#/admin/shared` rewritten to an absolute `@fs` URL and `zod` pre-bundled.
+  Chromium rendered `parsed tenant: acme` with no console error.
+  verified: `npx vite --port 5199 --strictPort`, then
+  `curl -s http://localhost:5199/console/@fs/<repo>/packages/contracts/src/admin/tenants.ts | head -4`
+  and `node dev-check.mjs http://localhost:5199/console/`
+- **`vite build`** emits one `index.html` and one hashed entry chunk, with
+  no `#/` specifier left in it.
+  verified: `npx vite build`, then `grep -o '#/admin[^"]*' dist/assets/*.js`,
+  which printed nothing
+
+### React Aria under jsdom in Vitest 5
+
+Confirmed. The test was a Vitest project with `environment: 'jsdom'`. It
+rendered a React Aria `Button` and a `DialogTrigger`/`Modal`/`Dialog`,
+pressed the `Button` by click and by Enter, opened the dialog, and closed
+it once by its own button and once by Escape. `axe.run(document.body)`
+found no violation, either before the dialog opened or while it was open.
+Focus returned to the trigger both times. As a negative control, an
+unnamed `Button` does raise `button-name`.
+verified: `npx vitest run --project spike-dom` from the root: 2 files and
+2 tests passed, the control included.
+
+- The **setup file** is `import '@testing-library/jest-dom/vitest'`
+  followed by `afterEach(() => { cleanup(); })` from
+  `@testing-library/react`. `assumption:` the explicit `cleanup` is needed,
+  because Testing Library's own automatic cleanup registers itself only
+  when `afterEach` is a global, and this config does not set
+  `globals: true`. This was not run without it.
+- The **project needs no `@vitejs/plugin-react`**. Vitest 5's transform
+  compiled the `.tsx` with the automatic JSX runtime without it.
+- **The matchers only type-check when the setup file is inside the
+  tsconfig's `include`.** With only `src` included, `toHaveTextContent`
+  and the other matchers fail with `TS2339`.
+- **Focus returns asynchronously**, so the assertion needs
+  `await waitFor(() => { expect(opener).toHaveFocus(); })`. Asserted
+  straight after the close click, it fails.
+- jsdom prints `Not implemented: HTMLCanvasElement's getContext()` once per
+  run, and the run still passes. `assumption:` it comes from axe, which
+  cannot measure colour contrast under jsdom. Contrast therefore belongs to
+  the Playwright pages, not to the component tests.
+- The existing `unit` project matches `*.test.ts` only, so it did not also
+  collect the `.test.tsx` file.
+
+### Playwright against the dev stack
+
+This spike **falsified one assumption**, and it has a consequence for the
+plan. It confirmed the rest.
+
+The scratch app's `dist` was copied into the running dev container and only
+`odudu` was restarted:
+`docker cp apps/_spike-console/dist docker-odudu-1:/app/console` and
+`docker compose -f infra/docker/compose.yaml --env-file infra/docker/.env restart odudu`.
+`/app/console` does not exist in the image, so `docker cp` created it.
+After the restart, `GET /console/` answered `200` with `SHELL_CSP`
+byte-for-byte, and the hashed chunk answered `200 text/javascript`.
+verified: `curl -s -i http://localhost:3000/console/`
+
+The administrator was seeded into throwaway tenant `spike-console-0928`
+with a generated password:
+
+```
+docker compose exec -T odudu node dist/main.js seed tenant --name spike-console-0928
+docker compose exec -T odudu node dist/main.js seed user --tenant spike-console-0928 \
+  --username spike-admin --password "$SPIKE_PASSWORD" --email spike-admin@example.com
+docker compose exec -T odudu node dist/main.js seed grant-role --tenant spike-console-0928 \
+  --username spike-admin --role odudu-admin:tenant-admin
+```
+
+A Playwright 1.63.0 script (`chromium.launch()`, headless shell 1243)
+registered a `securitypolicyviolation` listener with `addInitScript` and
+collected console errors and page errors. It then opened `/console/`,
+pressed the `Button`, opened and dismissed the `Dialog`, and went to
+`/console/auth/login?tenant=spike-console-0928&return_to=/console/`. There
+it filled the tenant's sign-in form, submitted it, and landed back on
+`/console/`. `GET /console/api/session` then answered `200` with
+`{"tenant":"spike-console-0928","subject_id":"01a0e7c6-…","username":"spike-admin"}`.
+verified: `npx playwright install chromium`, then
+`SPIKE_TENANT=spike-console-0928 SPIKE_USERNAME=spike-admin SPIKE_PASSWORD=… node gateway-check.mjs`
+
+- **Falsified: the shell is not free of CSP violations as soon as it loads
+  a contracts schema.** The first run reported `script-src blocked eval`
+  on `/console/`. The cause is zod 4.6.1's `allowsEval` probe, a
+  `new Function("")` inside a `try`
+  (`zod/v4/core/util.js:218`). The throw is swallowed, but the browser has
+  already reported the violation. The probe runs when each `z.object` is
+  **constructed** (`zod/v4/core/schemas.js:1148`), so it fires as soon as
+  the `@odudu/contracts` modules are evaluated, before anything is parsed.
+  zod's own switch is `z.config({ jitless: true })`, and it has to run
+  before any module that imports `@odudu/contracts` is evaluated. Placed
+  in `main.tsx`'s body, after the imports, it still reported the violation,
+  because ES imports evaluate first. Moved into its own module
+  (`zodConfig.ts`), imported as the entry's **first** import, it reported
+  nothing. **Consequence for the plan:** the scaffold task adds that
+  first-imported module and `zod@4.6.1` as a direct dependency of
+  `apps/admin-console`, pinned to the same version as `@odudu/contracts`.
+  zod's `globalConfig` belongs to its module instance, so there must be
+  exactly one copy. verified: `ls node_modules/.pnpm | grep '^zod@'`
+  printed only `zod@4.6.1`. Without the module, the Playwright job's
+  "no `securitypolicyviolation`" guard fails on its first run. Component
+  tests do not load the entry, so they run zod's JIT path while production
+  runs jitless. Both paths parse the same way.
+- **Confirmed: the React Aria pressable style is admitted by its hash.**
+  The page's only `<style>` element is the exact `@layer { [data-react-aria-pressable] { touch-action: pan-x pan-y pinch-zoom; } }`
+  text. The `Button`'s computed `touch-action` is `manipulation`, which is
+  Chromium's serialisation of `pan-x pan-y pinch-zoom`; an element without
+  the rule would read `auto`. No `style-src` violation was reported.
+- **Confirmed: sign-in end to end with no violation**, once zod was
+  jitless. `shellErrors` and `allErrors` were both empty.
+- **On this plain-HTTP stack the console's cookies carry no `__Host-`
+  prefix and no `Secure`.** They are `odudu-console`
+  (`HttpOnly; SameSite=Strict`) and the tenant's `<tenant>-session`
+  (`SameSite=Lax`). The `__Host-` names appear only behind TLS, as in
+  `infra/conformance/run-console-check.sh`. A Playwright check against
+  `infra/docker` must not assert the prefixed names.
+- `--with-deps` on `ubuntu-latest` was not exercised, since this run was
+  on macOS. That half of the assumption stays open until the `e2e` job
+  first runs.
+
+Afterwards `/app/console` was removed and `odudu` restarted. `GET /console/`
+answers `503 console build unavailable` again, as it did before the spike.
+Tenant `spike-console-0928` and its user remain on the dev stack.
