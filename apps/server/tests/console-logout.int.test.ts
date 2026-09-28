@@ -251,6 +251,19 @@ describe('POST /console/auth/logout', () => {
     });
   });
 
+  it('answers a logout whose JSON body is empty as a client error, not a server one', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      const { subjectId } = await signIn(stack, jar);
+
+      const res = await logout(stack, jar, { ...WRITE, 'content-type': 'application/json' });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.headers['cache-control']).toBe('no-store');
+      expect(await consoleSessionsOf(subjectId)).toHaveLength(1);
+    });
+  });
+
   it('answers a logout with no session by sending the browser to the console', async () => {
     await withStack(async (stack) => {
       const res = await logout(stack, new Jar());

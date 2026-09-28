@@ -51,6 +51,8 @@ export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps
   // login's hashes and wrapped secrets, so only the error's kind is logged
   // and the browser sees the same page every refusal gets.
   fastify.setErrorHandler(async (error: FastifyError, request, reply) => {
+    const status = error.statusCode ?? 500;
+    if (status >= 400 && status < 500) return refuse(reply, status, [clearedLoginCookie(deps.tls)]);
     request.log.error({ err: { type: error.name, code: error.code } }, 'console sign-in failed');
     return refuse(reply, 500, [clearedLoginCookie(deps.tls)]);
   });
