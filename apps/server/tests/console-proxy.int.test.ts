@@ -535,6 +535,42 @@ describe('the access token', () => {
     );
   }, 30_000);
 
+  it('gives up on a session lock held past five seconds with 502, keeping the session', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      const { subjectId } = await signIn(stack, jar);
+      const before = await mustSession(subjectId);
+      stack.clock.set(new Date(before.access_expires_at.getTime() - 10_000));
+      const forwarded = stack.adminRequests.length;
+      const tokens = stack.tokenResponses.length;
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let locked: () => void = () => undefined;
+      const lockTaken = new Promise<void>((resolve) => {
+        locked = resolve;
+      });
+      const holder = owner.sql.begin(async (tx) => {
+        await tx`SELECT id FROM console_sessions WHERE subject_id = ${subjectId} FOR UPDATE`;
+        locked();
+        await held;
+      });
+      await lockTaken;
+
+      const res = await call(stack, jar, WHOAMI);
+      release();
+      await holder;
+
+      expectProblem(res, 502);
+      expect((await mustSession(subjectId)).refresh_token_wrapped).toBe(
+        before.refresh_token_wrapped,
+      );
+      expect(stack.adminRequests).toHaveLength(forwarded);
+      expect(stack.tokenResponses).toHaveLength(tokens);
+    });
+  }, 30_000);
+
   it('is not refreshed outside the window', async () => {
     await withStack(async (stack) => {
       const jar = new Jar();

@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { consoleSessions } from '#/schema/console-sessions';
 
 export type ConsoleSessionRecord = typeof consoleSessions.$inferSelect;
@@ -57,7 +57,10 @@ export function consoleSessionRepository(tx: TenantScopedDatabase) {
 
     // Serialises refreshes of one session, so two tabs refreshing together
     // present its refresh token once rather than tripping reuse detection.
+    // A wait past the timeout throws SQLSTATE 55P03 rather than holding a
+    // pooled connection indefinitely.
     async lockById(id: string): Promise<ConsoleSessionRecord | null> {
+      await tx.execute(sql`SET LOCAL lock_timeout = '5s'`);
       const rows = await tx
         .select()
         .from(consoleSessions)
