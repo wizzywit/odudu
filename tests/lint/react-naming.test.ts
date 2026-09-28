@@ -63,15 +63,19 @@ function hasExportModifier(node: ts.Node): boolean {
   );
 }
 
-// The file's own exported declarations, by exported name. A re-export from
-// another module is that module's declaration, and is judged there.
+const ANONYMOUS_DEFAULT = 'default';
+
+// The file's own exported declarations, by the name that classifies them: a
+// default export goes by its local name, or by ANONYMOUS_DEFAULT when it has
+// none. A re-export from another module is judged in that module.
 function exportedDeclarations(file: ts.SourceFile): Map<string, Callable | undefined> {
   const local = new Map<string, Callable | undefined>();
   const exported = new Map<string, Callable | undefined>();
   for (const statement of file.statements) {
-    if (ts.isFunctionDeclaration(statement) && statement.name !== undefined) {
-      local.set(statement.name.text, statement);
-      if (hasExportModifier(statement)) exported.set(statement.name.text, statement);
+    if (ts.isFunctionDeclaration(statement)) {
+      const name = statement.name?.text ?? ANONYMOUS_DEFAULT;
+      local.set(name, statement);
+      if (hasExportModifier(statement)) exported.set(name, statement);
     }
     if (ts.isVariableStatement(statement)) {
       for (const declaration of statement.declarationList.declarations) {
@@ -88,12 +92,21 @@ function exportedDeclarations(file: ts.SourceFile): Map<string, Callable | undef
     }
   }
   for (const statement of file.statements) {
+    if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
+      const expression = unwrap(statement.expression);
+      if (ts.isIdentifier(expression)) {
+        if (local.has(expression.text)) exported.set(expression.text, local.get(expression.text));
+      } else if (ts.isArrowFunction(expression) || ts.isFunctionExpression(expression)) {
+        exported.set(expression.name?.text ?? ANONYMOUS_DEFAULT, expression);
+      }
+    }
     if (!ts.isExportDeclaration(statement) || statement.moduleSpecifier !== undefined) continue;
     const clause = statement.exportClause;
     if (clause === undefined || !ts.isNamedExports(clause)) continue;
     for (const element of clause.elements) {
       const localName = (element.propertyName ?? element.name).text;
-      if (local.has(localName)) exported.set(element.name.text, local.get(localName));
+      const name = element.name.text === ANONYMOUS_DEFAULT ? localName : element.name.text;
+      if (local.has(localName)) exported.set(name, local.get(localName));
     }
   }
   return exported;
@@ -114,7 +127,10 @@ function namingViolations(fileName: string, source: string): Violation[] {
   const exportsComponent =
     tsx &&
     [...exported].some(
-      ([name, fn]) => PASCAL_NAME.test(name) && fn !== undefined && returnsJsx(fn),
+      ([name, fn]) =>
+        (PASCAL_NAME.test(name) || name === ANONYMOUS_DEFAULT) &&
+        fn !== undefined &&
+        returnsJsx(fn),
     );
   const stem = fileName.replace(/\.tsx?$/u, '');
 
@@ -140,6 +156,11 @@ const FAILING: Record<string, Violation[]> = {
   'sessionState.ts': ['hook-outside-use-file'],
   'clientTable.tsx': ['component-not-pascal'],
   'rowParts.tsx': ['component-not-pascal'],
+  'defaultArrow.tsx': ['component-not-pascal'],
+  'defaultFunction.tsx': ['component-not-pascal'],
+  'defaultIdentifier.tsx': ['component-not-pascal'],
+  'defaultHook.ts': ['hook-outside-use-file'],
+  'listedDefault.ts': ['hook-outside-use-file'],
 };
 
 describe("the console's file names", () => {

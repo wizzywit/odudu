@@ -68,6 +68,7 @@ module.exports = {
         "A console feature's index.ts is its only importable surface; everything else in it " +
         'can change without another feature noticing.',
       from: { path: '(^|/)apps/admin-console/src/features/([^/]+)/' },
+      // $2 is substituted unescaped; tests/lint/console-feature-names.test.ts keeps it regex-safe.
       to: { path: '(^|/)apps/admin-console/src/features/(?!$2/)[^/]+/(?!index\\.ts$)' },
     },
     {
