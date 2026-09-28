@@ -1,29 +1,24 @@
-import path from 'node:path';
-
 const PREFIX = '/console/';
+const BASE = 'https://console.invalid';
 
-function decodeOnce(value: string): string | undefined {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return undefined;
-  }
-}
+// A raw C0 control character or backslash, or a percent-encoded C0
+// control (%00-%1F, %7F) or percent-encoded percent sign (%25): each is
+// a way a downstream decoder — a proxy, a log line, a second `new URL`
+// call — could turn this value into something that escapes /console/ or
+// injects a header, even though the WHATWG parser below leaves it inert.
+const UNSAFE_RAW = /[\x00-\x1f\x7f\\]|%(?:25|0[0-9a-f]|1[0-9a-f]|7f)/i;
 
-/**
- * Confines a caller-supplied redirect target to the console's own tree.
- * Decodes once, normalises with `path.posix`, and refuses anything that
- * would leave `/console/` or carry a backslash a browser could read as a
- * host separator.
- */
 export function safeReturnTo(value: string | undefined): string {
-  if (value === undefined || value === '') return PREFIX;
+  if (value === undefined || value === '' || UNSAFE_RAW.test(value)) return PREFIX;
 
-  const decoded = decodeOnce(value);
-  if (decoded === undefined || decoded.includes('\\')) return PREFIX;
+  let url: URL;
+  try {
+    url = new URL(value, BASE);
+  } catch {
+    return PREFIX;
+  }
 
-  const normalised = path.posix.normalize(decoded);
-  if (!normalised.startsWith(PREFIX)) return PREFIX;
+  if (url.origin !== BASE || !url.pathname.startsWith(PREFIX)) return PREFIX;
 
-  return decoded;
+  return url.pathname + url.search + url.hash;
 }
