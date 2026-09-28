@@ -66,6 +66,13 @@ async function sessionsFor(subjectId: string): Promise<Record<string, unknown>[]
   return owner.db.execute(sql`SELECT id FROM console_sessions WHERE subject_id = ${subjectId}`);
 }
 
+async function lastSeen(subjectId: string): Promise<string[]> {
+  const rows = await owner.db.execute<{ last_seen_at: string }>(
+    sql`SELECT last_seen_at::text FROM console_sessions WHERE subject_id = ${subjectId}`,
+  );
+  return rows.map((row) => row.last_seen_at);
+}
+
 function setCookies(res: LightMyRequestResponse): string[] {
   const header = res.headers['set-cookie'];
   if (header === undefined) return [];
@@ -188,12 +195,12 @@ describe('the session cookie', () => {
   // re-provisions it and puts the plain one back afterwards.
   it('is __Host-odudu-console, Secure, under TLS, and is the one read back', async () => {
     const databases = { database: appDb, ownerDatabase: owner };
-    process.env.ODUDU_PUBLIC_BASE_URL = TLS_BASE;
-    await provisionConsole(databases, TLS_BASE);
     onTestFinished(async () => {
       process.env.ODUDU_PUBLIC_BASE_URL = BASE;
       await provisionConsole(databases, BASE);
     });
+    process.env.ODUDU_PUBLIC_BASE_URL = TLS_BASE;
+    await provisionConsole(databases, TLS_BASE);
     await withStack(TLS_BASE, async (stack) => {
       const jar = new Jar();
       const { response, subjectId } = await signIn(stack, jar);
@@ -220,6 +227,11 @@ describe('a state-changing request to /console/api/', () => {
     await withStack(BASE, async (stack) => {
       const jar = new Jar();
       const { subjectId } = await signIn(stack, jar);
+      // Past the touch interval, so a request that resolved the session
+      // would have moved last_seen_at.
+      stack.clock.advance(2 * MINUTE);
+      const seen = await lastSeen(subjectId);
+      expect(seen).toHaveLength(1);
       const audited = await owner.db.execute(sql`SELECT count(*)::int AS n FROM audit_events`);
 
       const res = await stack.app.inject({
@@ -240,7 +252,7 @@ describe('a state-changing request to /console/api/', () => {
       expect(await owner.db.execute(sql`SELECT count(*)::int AS n FROM audit_events`)).toEqual(
         audited,
       );
-      expect(await sessionsFor(subjectId)).toHaveLength(1);
+      expect(await lastSeen(subjectId)).toEqual(seen);
     });
   });
 
