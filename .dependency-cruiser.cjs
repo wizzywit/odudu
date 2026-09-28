@@ -173,6 +173,18 @@ module.exports = {
       },
     },
     {
+      name: 'console-nothing-ships-testing',
+      severity: 'error',
+      comment:
+        "src/testing/ holds the console's test fixtures, which import vitest. Only tests and " +
+        'src/testing/ itself may import it, so neither app/ nor main.tsx pulls it into the bundle.',
+      from: {
+        path: '(^|/)apps/admin-console/src/',
+        pathNot: '(^|/)apps/admin-console/src/testing/|\\.test\\.tsx?$',
+      },
+      to: { path: '(^|/)apps/admin-console/src/testing/' },
+    },
+    {
       name: 'console-nothing-imports-gallery',
       severity: 'error',
       comment:

@@ -377,6 +377,12 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toHaveLength(0);
   });
 
+  it('rejects console code outside src/testing/ and tests importing src/testing/', async () => {
+    const found = await violations('console-nothing-ships-testing');
+    const from = found.map((v) => v.from.replace(/^.*\/admin-console\/src\//u, '')).sort();
+    expect(from).toEqual(['app/shipsTesting.ts', 'main.tsx']);
+  });
+
   it('rejects console code importing the gallery', async () => {
     const found = await violations('console-nothing-imports-gallery');
     expect(found.some((v) => v.from.endsWith('shared/repository/galleryLeak.ts'))).toBe(true);
