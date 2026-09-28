@@ -5488,33 +5488,11 @@ and a replayed spent one are refused identically — so
 `ODUDU_RETENTION_ACTION_TOKEN_SECONDS`) is a courtesy window for an operator
 to read, not a bound ADR 0021's detection-window argument requires.
 
-`audit_events` reports `0` in every count below, in both passes. That is
-not this section's own capture — it was re-verified on a separate, minimal
-stack (seed a tenant, run `odudu reap`, confirm `audit_events` is `0` and
-last in `REAP_ORDER`'s order) rather than by re-walking the whole of
-[Path A](#path-a-authorization-code-with-pkce) — but it holds by
-construction regardless: the rows this walkthrough does write there — one
-per login step — are minutes old, and `audit_events`' own retention rule
-(`audit_retention_days`, 90 by default and unrelated to any window above)
-deletes nothing younger than a day.
-
-`console_sessions` and `console_logins` report `0` in every other count in
-this section for a plainer reason: nothing in this walkthrough signs in to
-the admin console, so neither table holds a row. Those two keys were not
-captured on this section's stack. Their rules were run separately, with `node
-dist/main.js reap` from a local build, against a migrated database
-holding one tenant, one subject, three console sessions (idle for 31
-minutes, past its own `expires_at`, and live) and two pending logins
-(expired, and live), inserted directly:
-
-```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":2,"console_logins":1,"sessions":0,"audit_events":0}}
-```
-
-A console session ends at thirty minutes idle or at its own `expires_at`,
-whichever comes first. A pending login ends at its `expires_at`. Neither
-table has a window beyond that: a row past either bound cannot be used
-again, so keeping it would serve no detection.
+`audit_events` reports `0` in every count below, in both passes. The rows
+this walkthrough writes there, one per login step, are minutes old, and
+`audit_events`' own retention rule (`audit_retention_days`, 90 by default
+and unrelated to any window above) deletes nothing younger than a day. The
+forty-day backdate below does not touch that table.
 
 What makes a row deletable is the **grant family** being past retention,
 which is seven days for a session-bound family and thirty for an offline
@@ -5554,6 +5532,41 @@ odudu reap
 ```
 {"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"sessions":0,"audit_events":0}}
 ```
+
+`console_sessions` and `console_logins` report `0` in every capture in this
+section so far, because nothing in this walkthrough signs in to the admin
+console. To see their rules work, insert rows directly into the same
+stack, right after the second run above: three console sessions for `ada`
+(idle for 31 minutes, past its own `expires_at`, and live) and two pending
+logins (expired, and live):
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -q -c "
+INSERT INTO console_sessions (id, tenant_id, subject_id, secret_hash, access_token_wrapped, refresh_token_wrapped, id_token_wrapped, access_expires_at, created_at, last_seen_at, expires_at)
+SELECT gen_random_uuid(), u.tenant_id, u.subject_id, sha256(gen_random_uuid()::text::bytea), 'a', 'r', 'i', now(), now() - s.age, now() - s.idle, now() + s.remaining
+  FROM users u JOIN tenants t ON t.id = u.tenant_id,
+       (VALUES (interval '1 hour', interval '31 minutes', interval '11 hours'),
+               (interval '13 hours', interval '1 minute', interval '-1 hour'),
+               (interval '1 hour', interval '1 minute', interval '11 hours')) AS s(age, idle, remaining)
+ WHERE t.name = 'demo' AND u.username = 'ada';
+INSERT INTO console_logins (id, tenant_id, state_hash, verifier_wrapped, nonce, return_to, expires_at)
+SELECT gen_random_uuid(), t.id, sha256(gen_random_uuid()::text::bytea), 'v', 'n', '/console/', now() + l.remaining
+  FROM tenants t, (VALUES (interval '-1 minute'), (interval '5 minutes')) AS l(remaining)
+ WHERE t.name = 'demo';
+"
+odudu reap
+```
+
+```
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":2,"console_logins":1,"sessions":0,"audit_events":0}}
+```
+
+The idle session and the expired one are removed, and so is the expired
+login. The live session and the live login remain. A console session ends
+after thirty minutes idle or at its own `expires_at`, whichever comes first.
+A pending login ends at its `expires_at`. Neither table keeps a row past
+that point, because a row past either bound cannot be used again, so
+keeping it would serve no detection.
 
 ### When the pass refuses, or finds nothing to look at
 
