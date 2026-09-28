@@ -14,8 +14,9 @@ function administrator(account: Account, ...extra: string[]): void {
     account.tenant,
     '--username',
     account.username,
-    '--password',
-    account.password,
+    // Joined with `=`: a base64url password can begin with `-`, which
+    // parseArgs would otherwise read as another option.
+    `--password=${account.password}`,
     ...extra,
   ]);
   seed([
