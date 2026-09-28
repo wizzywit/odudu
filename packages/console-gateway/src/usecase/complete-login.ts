@@ -17,6 +17,7 @@ import {
 import { CONSOLE_SESSION_ABSOLUTE_SECONDS } from '#/service/session-lifetime';
 import { callbackUri, type LoginDeps } from '#/usecase/begin-login';
 import { endGrant } from '#/usecase/end-grant';
+import { orUnavailable, type Unavailable } from '#/usecase/lock-timeout';
 import { endNamedSession, type ResolveSessionDeps } from '#/usecase/resolve-session';
 
 export interface CompleteLoginDeps extends LoginDeps, ResolveSessionDeps {}
@@ -36,7 +37,8 @@ export interface Callback {
 export type CallbackResult =
   | { readonly kind: 'signed-in'; readonly sessionCookie: string; readonly location: string }
   | { readonly kind: 'op-error'; readonly location: string }
-  | { readonly kind: 'refused' };
+  | { readonly kind: 'refused' }
+  | Unavailable;
 
 const REFUSED: CallbackResult = { kind: 'refused' };
 
@@ -107,6 +109,14 @@ export async function completeLogin(
   const issuer = await deps.odudu.issuerOf(tenantName, input.from);
   if (issuer === null || input.iss !== issuer) return REFUSED;
 
+  // One console session per browser, so switching tenants ends the old one.
+  // Before the exchange: a lock timeout here answers 502 with no grant made.
+  const replaced = await orUnavailable(async () => {
+    await endNamedSession(deps, input.cookieHeader, input.from);
+    return null;
+  });
+  if (replaced !== null) return replaced;
+
   const tokens = await deps.odudu.exchangeCode({
     tenant: tenantName,
     code: input.code,
@@ -149,8 +159,6 @@ async function admitTokens(
       : subjectOfIdToken(claims, { nonce: login.nonce, clientId: ADMIN_CLIENT_ID, now: input.now });
   if (sub === null) return null;
 
-  // One console session per browser: switching tenants signs in afresh.
-  await endNamedSession(deps, input.cookieHeader, input.from);
   const secret = randomSecret();
   const now = input.now.getTime();
   await withTenant(deps.database.db, login.tenantId, (tx) =>

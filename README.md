@@ -1032,8 +1032,9 @@ tokens server-side and gives the browser nothing but a session cookie:
   the RFC 9207 `iss`, exchanges the code, verifies the ID token and its
   nonce, and sets the session cookie. A console session the browser's
   cookie still names, in any tenant, is ended first and its grant revoked,
-  so switching tenants leaves one session. Every refusal is the same `400`
-  page.
+  so switching tenants leaves one session; a wait of more than 5 s for its
+  lock answers `502` before the code is exchanged. Every refusal is the same
+  `400` page.
   An error response from the authorization endpoint instead redirects
   `302` to `/console/?login_error=<code>`, carrying only the error code.
 - `GET /console/api/session` answers `{ tenant, subject_id, username }`. An

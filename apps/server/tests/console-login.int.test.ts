@@ -11,6 +11,7 @@ import {
   beginLogin,
   browse,
   type ConsoleStack,
+  holdSessionLock,
   Jar,
   KEK,
   pathOf,
@@ -253,6 +254,31 @@ describe('GET /console/auth/callback', () => {
       await stack.app.close();
     }
   });
+
+  it('answers 502 when the session it replaces is locked past five seconds, exchanging nothing', async () => {
+    const stack = await startApp();
+    try {
+      const first = new Jar();
+      const old = await signIn(stack, first);
+      const second = new Jar();
+      second.cookies.set(SESSION_COOKIE, first.cookies.get(SESSION_COOKIE) ?? '');
+      const { authorize } = await beginLogin(stack, second);
+      const next = await signInAtOp(stack, second, authorize);
+      const exchanges = stack.tokenResponses.length;
+      const release = await holdSessionLock(owner, old.subjectId);
+
+      const res = await browse(stack, second, pathOf(stack, next.callback));
+      await release();
+
+      expect(res.statusCode).toBe(502);
+      expect(String(res.headers['set-cookie'])).not.toMatch(/odudu-console=[^;]/u);
+      expect(stack.tokenResponses).toHaveLength(exchanges);
+      expect(await sessionsFor(old.subjectId)).toHaveLength(1);
+      expect(await sessionsFor(next.subjectId)).toHaveLength(0);
+    } finally {
+      await stack.app.close();
+    }
+  }, 30_000);
 
   it('refuses a missing or mismatched login cookie, and still accepts the right one', async () => {
     const stack = await startApp();
