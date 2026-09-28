@@ -40,6 +40,9 @@ only computation of this rule. It applies at three doors:
    (`replacementOverreach`, `capabilitiesReachableFrom`). Anything it removes,
    whether by removing an edge, deleting a row, or reparenting a group, must
    not take away a capability the caller lacks (`capabilitiesOfSubtree`).
+   That includes a removal made by a cascade: deleting a client takes its
+   roles with it, and deleting a scope takes its role mappings, so each is
+   judged by what the cascade removes.
 
 The shape of the built-in capability roles is closed. Nothing can be nested
 under them, and nothing provisioned can be removed from them, whether through
