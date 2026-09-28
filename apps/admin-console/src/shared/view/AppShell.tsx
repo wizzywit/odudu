@@ -117,7 +117,7 @@ export function AppShell({
       (active !== null && railColumn.current?.contains(active) === true);
     onCollapsedChange?.(!collapsed);
   };
-  useShortcut(collapsible ? toggle : undefined, shortcutsPaused);
+  useShortcut(collapsible ? toggle : undefined, shortcutsPaused || sheetOpen);
   useEffect(() => {
     if (!moveFocus.current) return;
     moveFocus.current = false;

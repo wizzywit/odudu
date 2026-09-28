@@ -417,6 +417,23 @@ describe('the rail shortcut', () => {
     await user.keyboard('[[');
     expect(screen.getByRole('button', { name: 'Expand menu' })).toBeInTheDocument();
   });
+
+  it('leaves the rail alone on [ while the unsaved-changes guard is asking', async () => {
+    const user = userEvent.setup();
+    renderAt('/console/acme', {
+      'GET /console/api/session': json(GRACE),
+      'GET /console/api/admin/tenants/acme/whoami': whoami(ALL),
+    });
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    act(() => {
+      useUnsavedGuard.getState().setDirty('acme/settings#sessions', 'Sessions');
+    });
+    await user.click(screen.getByRole('link', { name: 'Subjects' }));
+    await screen.findByRole('alertdialog', { name: 'Leave without saving?' });
+    await user.keyboard('[[');
+    expect(screen.getByRole('button', { name: 'Collapse menu', hidden: true })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Expand menu', hidden: true })).toBeNull();
+  });
 });
 
 describe('the theme', () => {

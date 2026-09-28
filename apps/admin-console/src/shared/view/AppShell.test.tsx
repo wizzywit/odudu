@@ -172,6 +172,15 @@ describe('collapsing the rail for full width', () => {
     expect(screen.getByRole('button', { name: 'Expand menu' })).toHaveFocus();
   });
 
+  it('ignores the shortcut while its own menu sheet is open', async () => {
+    const user = userEvent.setup();
+    render(<Collapsible />);
+    await user.click(screen.getByRole('button', { name: 'Menu' }));
+    fireEvent.keyDown(document.body, { key: '[' });
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('button', { name: 'Collapse menu' })).toBeInTheDocument();
+  });
+
   it('ignores the shortcut while a dialog is open', async () => {
     const user = userEvent.setup();
     render(<Collapsible paused />);
