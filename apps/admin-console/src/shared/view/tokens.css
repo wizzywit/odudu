@@ -1,7 +1,8 @@
 /*
- * Instrument's tokens. Every colour is light-dark(light, dark) in hex, which
- * tokens.test.ts reads to hold each ink to 4.5:1 on its surface. The theme
- * follows the system unless <html data-theme> names one.
+ * Instrument's tokens. Every colour is declared once, as light-dark(light,
+ * dark) in hex, which tokens.test.ts reads to hold each ink to 4.5:1 on its
+ * surface and amber apart from the other signals. The theme follows the
+ * system unless <html data-theme> names one.
  */
 :root {
   color-scheme: light dark;
@@ -23,8 +24,8 @@
 
   --signal-active: light-dark(#dcf0e6, #143a2d);
   --signal-active-ink: light-dark(#0a6344, #6fd8a8);
-  --signal-warning: light-dark(#f5ebcf, #3b3013);
-  --signal-warning-ink: light-dark(#735000, #e6bd5c);
+  --signal-warning: light-dark(#f1e6d8, #3a2c1e);
+  --signal-warning-ink: light-dark(#74502a, #d2a06a);
   --signal-danger: light-dark(#fae3d7, #48220f);
   --signal-danger-ink: light-dark(#9c3a0e, #f59d73);
   /* Amber means system authority and nothing else. */
