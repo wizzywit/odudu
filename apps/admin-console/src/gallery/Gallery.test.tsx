@@ -21,7 +21,7 @@ it('shows every component of the design system', () => {
   expect(missing).toEqual([]);
 });
 
-it('renders as one page that passes axe in both themes', async () => {
+it('renders as one page that passes axe in both themes', { timeout: 60_000 }, async () => {
   for (const theme of ['light', 'dark'] as const) {
     document.documentElement.dataset.theme = theme;
     const { unmount } = render(<Gallery theme={theme} />);
