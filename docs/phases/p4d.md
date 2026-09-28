@@ -727,3 +727,152 @@ deletes a tenant, so it stays until that stack is next rebuilt from an
 empty volume. The export, import and settings-range transcripts left
 `export-demo`, `import-source`, `import-demo` and `settings-range-demo`
 beside it, for the same reason.
+
+## Part 2 spikes
+
+Four behaviours the console gateway builds on, each run against the real
+composition (`buildApp` from `apps/server/src/app.ts`, `seedAdmin`, a real
+PostgreSQL through `startTestDatabase()`). The administrator signs in as
+`odudu-admin` through `/auth`, the forced password change and
+`/login-actions/authenticate`, with `scope=openid` and
+`resource=urn:odudu:params:admin-api` at both `/auth` and the code
+exchange. Every request is a Fastify `inject`, so the default `Host` is
+`localhost` and every issuer below reads `http://localhost/tenants/system`.
+
+verified, all four: `cd apps/server && pnpm vitest run --config ../../vitest.config.ts --project integration --silent=false --reporter=verbose tests/console-spike.int.test.ts`
+(the file was deleted afterwards; a copy is in
+`.superpowers/spikes/console-gateway/`)
+
+### `inject` from inside an encapsulated plugin
+
+A plugin registered with `app.register` after `buildApp` returns defines
+its own routes, and each calls `child.inject` on its own encapsulated
+instance with `remoteAddress: request.ip` and the caller's
+`authorization`. One forwards `GET /admin/tenants/system/whoami`, one
+`POST /admin/tenants/system/scopes`; both are called with
+`remoteAddress: '203.0.113.9'`. The admin routes are registered by a
+sibling plugin, `adminRoutes`. The whoami route is
+`/admin/tenants/:tenant/whoami`; there is no `/admin/whoami`. A read writes
+no audit row, so the address is checked on the mutation's row.
+
+```
+SPIKE S1 whoami through child inject: 200 {"subjectId":"01a0e612-…","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients",…],"crossTenant":false}
+SPIKE S1 POST scopes through child inject: 201
+SPIKE S1 audit row: [{"action":"scope.create","ip":"203.0.113.9","request_id":"01a0e612-ef8e-79cc-aff3-662f1487893b"}]
+```
+
+**Confirmed.** A child instance's `inject` dispatches through the root
+router and reaches routes a sibling registered. The forwarded
+`remoteAddress` becomes `request.ip` downstream and lands in `audit_events.ip`.
+The gateway does not need the root instance.
+
+### Refresh for `odudu-admin` on `scope=openid`
+
+The code exchange's refresh token is refreshed twice, each time with the
+token the previous response returned. The first refresh token is then
+replayed, and the newest refresh and access tokens are tried after it.
+
+```
+SPIKE S2 code exchange refresh_token issued: true
+SPIKE S2 aud0 [ 'urn:odudu:params:admin-api', 'http://localhost/tenants/system' ]
+SPIKE S2 refresh 1: 200 [ 'urn:odudu:params:admin-api', 'http://localhost/tenants/system' ] rotated: true id_token: false
+SPIKE S2 refresh 2: 200 [ 'urn:odudu:params:admin-api', 'http://localhost/tenants/system' ] rotated: true
+SPIKE S2 replay of the first refresh token: 400 {"error":"invalid_grant"}
+SPIKE S2 newest refresh token after the replay: 400 {"error":"invalid_grant"}
+SPIKE S2 newest access token after the replay, whoami: 401
+SPIKE S2 grant audit rows: [{"action":"grant.revoked_on_reuse","outcome":"allowed","detail":{"reason":"replayed"}}]
+```
+
+**Confirmed.** A refresh token is issued without `offline_access`, every
+refresh rotates it, and the admin audience is kept. A refresh response
+carries no `id_token`, so the gateway keeps the one from the code exchange
+for the logout hint. Replaying a rotated token has no grace window. The
+replay answers `invalid_grant`, revokes the whole grant and records
+`grant.revoked_on_reuse`. After that the newest refresh token is refused
+too, and the newest access token is refused by the admin API. So two
+requests that both refresh with the same token end the session. Refresh
+has to be serialised per session.
+
+### Discovery through `inject`
+
+`buildApp` gets `publicBaseUrl: 'https://idp.example.test'`, once with
+`trustProxy: false` and once with `true`. The discovery document is fetched
+with no `Host`, a foreign `Host`, the base's `Host`, the base's `Host` with
+`x-forwarded-proto: https`, and a foreign `Host` with
+`x-forwarded-host`/`x-forwarded-proto` naming the base. Each is sent from
+`remoteAddress` `203.0.113.9` and again from `10.0.0.1`, which give the same
+issuer in every case below.
+
+```
+SPIKE S3 trustProxy=false remote=203.0.113.9 headers={}: 200 http://localhost/tenants/system
+SPIKE S3 trustProxy=false remote=203.0.113.9 headers={"host":"evil.example"}: 200 http://evil.example/tenants/system
+SPIKE S3 trustProxy=false remote=203.0.113.9 headers={"host":"idp.example.test"}: 200 http://idp.example.test/tenants/system
+SPIKE S3 trustProxy=false remote=203.0.113.9 headers={"host":"idp.example.test","x-forwarded-proto":"https"}: 200 http://idp.example.test/tenants/system
+SPIKE S3 trustProxy=false remote=203.0.113.9 headers={"host":"evil.example","x-forwarded-host":"idp.example.test","x-forwarded-proto":"https"}: 200 http://evil.example/tenants/system
+SPIKE S3 trustProxy=true remote=203.0.113.9 headers={}: 200 http://localhost/tenants/system
+SPIKE S3 trustProxy=true remote=203.0.113.9 headers={"host":"evil.example"}: 200 http://evil.example/tenants/system
+SPIKE S3 trustProxy=true remote=203.0.113.9 headers={"host":"idp.example.test"}: 200 http://idp.example.test/tenants/system
+SPIKE S3 trustProxy=true remote=203.0.113.9 headers={"host":"idp.example.test","x-forwarded-proto":"https"}: 200 https://idp.example.test/tenants/system
+SPIKE S3 trustProxy=true remote=203.0.113.9 headers={"host":"evil.example","x-forwarded-host":"idp.example.test","x-forwarded-proto":"https"}: 200 https://idp.example.test/tenants/system
+```
+
+**Falsified.** `ODUDU_PUBLIC_BASE_URL` plays no part in the issuer. The
+issuer is `issuerBaseFor(request)` (`packages/protocol-oidc/src/view/issuer.ts`),
+which is `request.protocol` and `request.host`, canonicalised. So an
+injected request's issuer is whatever `Host` the inject sends. With
+`trustProxy` off, `request.protocol` is `http` for every inject, because
+light-my-request's mock socket is never `encrypted`. With it on,
+`x-forwarded-proto` and `x-forwarded-host` win. The admin API checks a
+token's `iss` against the issuer recomputed from its own request
+(`packages/protocol-admin/src/view/routes/router.ts`). The logout endpoint
+checks an `id_token_hint` against the issuer of the browser's own logout
+request (`packages/protocol-oidc/src/view/routes/logout.ts`).
+
+The consequence for the gateway: "the discovered issuer" means nothing
+until the gateway fixes the `Host` it injects with. The browser's `/auth`
+request derives the callback's `iss` from its own `Host` and scheme. The
+ID token is minted by the code exchange the gateway injects, so its `iss`
+comes from the gateway's inject. The two agree only if the gateway injects
+with the public base's authority and scheme. It must never pass the
+browser's `Host` through. With an `https` base and `ODUDU_TRUST_PROXY` off,
+no inject can produce the `https` issuer the browser sees. Before the login
+and callback are built, one of these has to be decided:
+
+- make `issuerBaseFor` return `ODUDU_PUBLIC_BASE_URL` when it is set, which
+  changes the issuer on every OIDC and admin route, not only the
+  gateway's;
+- or have the gateway inject `host` and `x-forwarded-proto` taken from the
+  base, and require `ODUDU_TRUST_PROXY` for an `https` base.
+
+### Logout with `id_token_hint` and a registered `post_logout_redirect_uri`
+
+`http://127.0.0.1:8080/console/` is written into `odudu-admin`'s
+`client_oidc_config.post_logout_redirect_uris` directly, since the seeded
+client registers none. The ID token's `sid` is the SSO session, and the
+browser's cookie is `system-session`. The logout request is a `GET` with
+`id_token_hint`, `client_id=odudu-admin`, that `post_logout_redirect_uri`
+and `state=ls`. It is sent once without the SSO cookie, then with it.
+
+```
+SPIKE S4 /auth with SSO cookie before logout: 302 http://127.0.0.1:8080/callback?code=…&state=st&iss=http%3A%2F%2Flocalhost%2Ftenants%2Fsystem
+SPIKE S4 logout without the SSO cookie: 302 http://127.0.0.1:8080/console/?state=ls (no set-cookie)
+SPIKE S4 /auth with SSO cookie after cookieless logout: 302 redirect with code
+SPIKE S4 logout: 302 http://127.0.0.1:8080/console/?state=ls [
+  'system-session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0',
+  'system-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'
+SPIKE S4 /auth replaying the pre-logout cookie: 200 (login form) true
+SPIKE S4 sessions rows for sid after logout: [{"n":1,"expired":true}]
+SPIKE S4 refresh after logout: 400 {"error":"invalid_grant"}
+SPIKE S4 access token after logout, whoami: 401
+```
+
+**Confirmed**, with the cookie. The logout redirects to the registered URI
+with `state` and clears both session cookies. It sets the session row's
+`expires_at` to now or earlier; the row is not deleted. A replay of the old
+cookie gets the login form. The session's grant is revoked, so both its
+refresh token and its access token are refused. Without the cookie the
+logout still answers the same `302` but ends nothing, and the SSO session
+signs straight back in. So the logout has to be a navigation by the browser,
+which the JSON-redirect design already requires. A test that follows the
+returned URL has to carry the SSO cookie, because the `302` alone proves
+nothing.
