@@ -17,7 +17,7 @@ import {
 import { CONSOLE_SESSION_ABSOLUTE_SECONDS } from '#/service/session-lifetime';
 import { callbackUri, type LoginDeps } from '#/usecase/begin-login';
 import { endGrant } from '#/usecase/end-grant';
-import { orUnavailable, type Unavailable } from '#/usecase/lock-timeout';
+import { orUnavailable } from '#/usecase/lock-timeout';
 import { endNamedSession, type ResolveSessionDeps } from '#/usecase/resolve-session';
 
 export interface CompleteLoginDeps extends LoginDeps, ResolveSessionDeps {}
@@ -37,8 +37,7 @@ export interface Callback {
 export type CallbackResult =
   | { readonly kind: 'signed-in'; readonly sessionCookie: string; readonly location: string }
   | { readonly kind: 'op-error'; readonly location: string }
-  | { readonly kind: 'refused' }
-  | Unavailable;
+  | { readonly kind: 'refused' };
 
 const REFUSED: CallbackResult = { kind: 'refused' };
 
@@ -109,14 +108,6 @@ export async function completeLogin(
   const issuer = await deps.odudu.issuerOf(tenantName, input.from);
   if (issuer === null || input.iss !== issuer) return REFUSED;
 
-  // One console session per browser, so switching tenants ends the old one.
-  // Before the exchange: a lock timeout here answers 502 with no grant made.
-  const replaced = await orUnavailable(async () => {
-    await endNamedSession(deps, input.cookieHeader, input.from);
-    return null;
-  });
-  if (replaced !== null) return replaced;
-
   const tokens = await deps.odudu.exchangeCode({
     tenant: tenantName,
     code: input.code,
@@ -128,15 +119,28 @@ export async function completeLogin(
 
   // From here a live grant exists, and a sign-in that stops short of a
   // session, by refusal or by a throw, must not leave it behind.
+  let signedIn: CallbackResult | null;
   try {
-    const signedIn = await admitTokens(deps, input, taken, issuer, tokens);
-    if (signedIn !== null) return signedIn;
+    signedIn = await admitTokens(deps, input, taken, issuer, tokens);
   } catch (error: unknown) {
     await endGrant(deps.odudu, tenantName, tokens.refreshToken, input.from);
     throw error;
   }
-  await endGrant(deps.odudu, tenantName, tokens.refreshToken, input.from);
-  return REFUSED;
+  if (signedIn === null) {
+    await endGrant(deps.odudu, tenantName, tokens.refreshToken, input.from);
+    return REFUSED;
+  }
+  await endReplacedSession(deps, input);
+  return signedIn;
+}
+
+// One console session per browser, so a sign-in ends the one its cookie
+// named, but only once the new session exists: a refused or abandoned
+// sign-in leaves the administrator where they were. A lock held on the old
+// row costs only its revoke; the new cookie replaces the old in this
+// browser, and the row idles out.
+async function endReplacedSession(deps: CompleteLoginDeps, input: Callback): Promise<void> {
+  await orUnavailable(() => endNamedSession(deps, input.cookieHeader, input.from));
 }
 
 async function admitTokens(

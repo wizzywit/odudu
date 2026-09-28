@@ -255,7 +255,54 @@ describe('GET /console/auth/callback', () => {
     }
   });
 
-  it('answers 502 when the session it replaces is locked past five seconds, exchanging nothing', async () => {
+  // The old session ends only once the new one exists: a sign-in that is
+  // refused or abandoned leaves the administrator where they were.
+  it('keeps the old session when the new sign-in is refused', async () => {
+    const stack = await startApp();
+    try {
+      const first = new Jar();
+      const old = await signIn(stack, first);
+      const second = new Jar();
+      second.cookies.set(SESSION_COOKIE, first.cookies.get(SESSION_COOKIE) ?? '');
+      const { authorize, state } = await beginLogin(stack, second);
+      await owner.db.execute(
+        sql`UPDATE console_logins SET nonce = 'tampered' WHERE state_hash = ${sha256(state)}`,
+      );
+      const next = await signInAtOp(stack, second, authorize);
+
+      expectRefused(await browse(stack, second, pathOf(stack, next.callback)));
+
+      expect(await sessionsFor(old.subjectId)).toHaveLength(1);
+      const session = await browse(stack, first, '/console/api/session');
+      expect(session.statusCode).toBe(200);
+      expect(session.json<{ subject_id: string }>().subject_id).toBe(old.subjectId);
+    } finally {
+      await stack.app.close();
+    }
+  });
+
+  it('keeps the old session when the new sign-in is cancelled at the OP', async () => {
+    const stack = await startApp();
+    try {
+      const first = new Jar();
+      const old = await signIn(stack, first);
+      const second = new Jar();
+      second.cookies.set(SESSION_COOKIE, first.cookies.get(SESSION_COOKIE) ?? '');
+      const { state } = await beginLogin(stack, second);
+      const query = new URLSearchParams({ error: 'access_denied', state, iss: ISSUER });
+
+      const res = await browse(stack, second, `/console/auth/callback?${query.toString()}`);
+
+      expect(res.headers.location).toBe('/console/?login_error=access_denied');
+      expect(String(res.headers['set-cookie'])).not.toMatch(/odudu-console=;/u);
+      expect(await sessionsFor(old.subjectId)).toHaveLength(1);
+      expect((await browse(stack, first, '/console/api/session')).statusCode).toBe(200);
+    } finally {
+      await stack.app.close();
+    }
+  });
+
+  it('admits the new sign-in while the session it replaces is locked past five seconds', async () => {
     const stack = await startApp();
     try {
       const first = new Jar();
@@ -264,17 +311,16 @@ describe('GET /console/auth/callback', () => {
       second.cookies.set(SESSION_COOKIE, first.cookies.get(SESSION_COOKIE) ?? '');
       const { authorize } = await beginLogin(stack, second);
       const next = await signInAtOp(stack, second, authorize);
-      const exchanges = stack.tokenResponses.length;
       const release = await holdSessionLock(owner, old.subjectId);
 
       const res = await browse(stack, second, pathOf(stack, next.callback));
       await release();
 
-      expect(res.statusCode).toBe(502);
-      expect(String(res.headers['set-cookie'])).not.toMatch(/odudu-console=[^;]/u);
-      expect(stack.tokenResponses).toHaveLength(exchanges);
-      expect(await sessionsFor(old.subjectId)).toHaveLength(1);
-      expect(await sessionsFor(next.subjectId)).toHaveLength(0);
+      expect(res.statusCode).toBe(302);
+      expect(String(res.headers['set-cookie'])).toMatch(/odudu-console=[^;]/u);
+      expect(await sessionsFor(next.subjectId)).toHaveLength(1);
+      const session = await browse(stack, second, '/console/api/session');
+      expect(session.json<{ subject_id: string }>().subject_id).toBe(next.subjectId);
     } finally {
       await stack.app.close();
     }

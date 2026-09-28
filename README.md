@@ -1034,10 +1034,12 @@ tokens server-side and gives the browser nothing but a session cookie:
 - `GET /console/auth/callback` checks `state` against the login cookie and
   the RFC 9207 `iss`, exchanges the code, verifies the ID token and its
   nonce, and sets the session cookie. A console session the browser's
-  cookie still names, in any tenant, is ended first and its grant revoked,
-  so switching tenants leaves one session; a wait of more than 5 s for its
-  lock answers `502` before the code is exchanged. Every refusal is the same
-  `400` page.
+  cookie still names, in any tenant, is ended and its grant revoked once
+  the new session is written, so switching tenants leaves one session and a
+  refused or cancelled sign-in leaves the old one as it was; a wait of more
+  than 5 s for the old session's lock skips its revoke rather than failing
+  the sign-in, and the old row idles out. Every refusal is the same `400`
+  page.
   An error response from the authorization endpoint instead redirects
   `302` to `/console/?login_error=<code>`, carrying only the error code.
 - `GET /console/api/session` answers `{ tenant, subject_id, username }`. An
