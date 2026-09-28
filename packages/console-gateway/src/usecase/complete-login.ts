@@ -5,7 +5,7 @@ import { consoleLoginRepository, type ConsoleLoginRecord } from '#/repository/co
 import { consoleSessionRepository } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
 import { subjectOfIdToken } from '#/service/id-token';
-import { type OduduPort, type TokenSet } from '#/service/odudu-port';
+import { type TokenSet } from '#/service/odudu-port';
 import { safeReturnTo } from '#/service/return-to';
 import {
   bindToTenant,
@@ -17,10 +17,9 @@ import {
 import { CONSOLE_SESSION_ABSOLUTE_SECONDS } from '#/service/session-lifetime';
 import { callbackUri, type LoginDeps } from '#/usecase/begin-login';
 import { endGrant } from '#/usecase/end-grant';
+import { endNamedSession, type ResolveSessionDeps } from '#/usecase/resolve-session';
 
-export interface CompleteLoginDeps extends LoginDeps {
-  readonly odudu: OduduPort;
-}
+export interface CompleteLoginDeps extends LoginDeps, ResolveSessionDeps {}
 
 export interface Callback {
   readonly code: string | undefined;
@@ -28,6 +27,8 @@ export interface Callback {
   readonly iss: string | undefined;
   readonly error: string | undefined;
   readonly loginCookie: string | undefined;
+  /** The whole `Cookie` header, for a console session this sign-in replaces. */
+  readonly cookieHeader: string | undefined;
   readonly ip: string;
   readonly now: Date;
 }
@@ -148,6 +149,8 @@ async function admitTokens(
       : subjectOfIdToken(claims, { nonce: login.nonce, clientId: ADMIN_CLIENT_ID, now: input.now });
   if (sub === null) return null;
 
+  // One console session per browser: switching tenants signs in afresh.
+  await endNamedSession(deps, input.cookieHeader, input.ip);
   const secret = randomSecret();
   const now = input.now.getTime();
   await withTenant(deps.database.db, login.tenantId, (tx) =>

@@ -70,6 +70,7 @@ export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps
       iss: single(request.query, 'iss'),
       error: single(request.query, 'error'),
       loginCookie: readCookie(request.headers.cookie, loginCookieName(deps.tls)),
+      cookieHeader: request.headers.cookie,
       ip: request.ip,
       now: deps.now(),
     });

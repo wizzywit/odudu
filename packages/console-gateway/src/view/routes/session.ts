@@ -21,7 +21,7 @@ export function sessionEnded(
 
 export function registerSessionRoutes(fastify: FastifyInstance, deps: SessionRouteDeps): void {
   fastify.get('/session', async (request, reply) => {
-    const resolved = await resolveSession(deps, request.headers.cookie, deps.now());
+    const resolved = await resolveSession(deps, request.headers.cookie, deps.now(), request.ip);
     if (resolved.kind === 'ended') return sessionEnded(reply, request, deps.tls);
     const summary = await describeSession(deps, resolved.session);
     if (summary === null) return sessionEnded(reply, request, deps.tls);

@@ -1030,7 +1030,10 @@ tokens server-side and gives the browser nothing but a session cookie:
   path; anything else falls back to `/console/`.
 - `GET /console/auth/callback` checks `state` against the login cookie and
   the RFC 9207 `iss`, exchanges the code, verifies the ID token and its
-  nonce, and sets the session cookie. Every refusal is the same `400` page.
+  nonce, and sets the session cookie. A console session the browser's
+  cookie still names, in any tenant, is ended first and its grant revoked,
+  so switching tenants leaves one session. Every refusal is the same `400`
+  page.
   An error response from the authorization endpoint instead redirects
   `302` to `/console/?login_error=<code>`, carrying only the error code.
 - `GET /console/api/session` answers `{ tenant, subject_id, username }`. An
@@ -1062,7 +1065,8 @@ tokens server-side and gives the browser nothing but a session cookie:
 The session cookie is `__Host-odudu-console` (`HttpOnly; Secure;
 SameSite=Strict; Path=/`), or `odudu-console` without `Secure` over plain
 HTTP. Its value is `<tenant id>.<secret>`, and only the secret's SHA-256 is
-stored. A session ends after 30 minutes idle or 12 hours in all. A request
+stored. A session ends after 30 minutes idle or 12 hours in all, and the
+request that finds it over deletes it and revokes its grant. A request
 carrying that cookie twice is treated as carrying none. Any request to
 `/console/api/` or `/console/auth/` other than `GET`, `HEAD` or `OPTIONS`
 must carry `Origin` equal to the origin of `ODUDU_PUBLIC_BASE_URL` and the

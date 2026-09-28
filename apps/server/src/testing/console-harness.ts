@@ -1,7 +1,9 @@
+import { unwrapSecret } from '@odudu/crypto';
 import { type DatabaseHandle } from '@odudu/db';
-import { SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
+import { ADMIN_API_AUDIENCE, ADMIN_CLIENT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { FakeClock, loadConfig, newId } from '@odudu/kernel';
 import { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
+import { sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { type IncomingHttpHeaders } from 'node:http';
 import { Writable } from 'node:stream';
@@ -234,4 +236,35 @@ export async function signIn(
   const response = await browse(stack, jar, pathOf(stack, signed.callback));
   expect(response.statusCode).toBe(302);
   return { ...signed, response };
+}
+
+/** The refresh token of the subject's one console session, read as the gateway stored it. */
+export async function storedRefreshToken(
+  owner: DatabaseHandle,
+  subjectId: string,
+): Promise<string> {
+  const rows = await owner.db.execute<{ refresh_token_wrapped: string }>(
+    sql`SELECT refresh_token_wrapped FROM console_sessions WHERE subject_id = ${subjectId}`,
+  );
+  expect(rows).toHaveLength(1);
+  const [row] = rows;
+  if (row === undefined) throw new Error('no console session');
+  return unwrapSecret(row.refresh_token_wrapped, KEK);
+}
+
+/** Presents a refresh token at the tenant's token endpoint: `ok`, or the error code. */
+export async function refreshAtOp(stack: ConsoleStack, refreshToken: string): Promise<string> {
+  const res = await post(
+    stack,
+    new Jar(),
+    `/tenants/${SYSTEM_TENANT_NAME}/protocol/openid-connect/token`,
+    {
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: ADMIN_CLIENT_ID,
+      resource: ADMIN_API_AUDIENCE,
+    },
+  );
+  if (res.statusCode === 200) return 'ok';
+  return res.json<{ error: string }>().error;
 }

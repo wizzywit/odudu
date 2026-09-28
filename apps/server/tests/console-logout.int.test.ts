@@ -273,6 +273,24 @@ describe('POST /console/auth/logout', () => {
     });
   });
 
+  // Resolving the cookie is what found the session over, and that is where
+  // its grant was revoked; the logout itself has nothing left to present.
+  it('answers a logout of an idled-out session as one with none, its grant already ended', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      const { subjectId } = await signIn(stack, jar);
+      const { refreshToken } = await onlySession(subjectId);
+
+      stack.clock.advance(30 * 60_000 + 1000);
+      const res = await logout(stack, jar);
+
+      expect(redirectOf(res)).toBe('/console/');
+      expectSessionCookieCleared(res);
+      expect(await consoleSessionsOf(subjectId)).toHaveLength(0);
+      expect(await refreshAtOp(stack, refreshToken)).toBe('invalid_grant');
+    });
+  });
+
   it('answers a second logout with the same cookie the same way as one with none', async () => {
     await withStack(async (stack) => {
       const jar = new Jar();

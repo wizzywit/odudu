@@ -40,6 +40,7 @@ export async function forwardAdminCall(
     deps,
     typeof cookie === 'string' ? cookie : undefined,
     call.now,
+    call.ip,
   );
   if (resolved.kind === 'ended') return resolved;
   const token = await freshAccessToken(deps, resolved.session, call.now, call.ip);

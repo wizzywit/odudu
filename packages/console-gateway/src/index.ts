@@ -52,7 +52,7 @@ export function consoleGateway(deps: ConsoleGatewayDeps): FastifyPluginAsync {
       (auth) => {
         registerAuthRoutes(auth, {
           login,
-          callback: { ...login, odudu },
+          callback: { ...login, odudu, tls },
           logout: { database: deps.database, kek: deps.kek, odudu, base, tls, now },
           tls,
           now,

@@ -15,10 +15,13 @@ import {
   KEK,
   pathOf,
   post,
+  refreshAtOp,
   RETURN_TO,
   sha256,
+  signIn,
   signInAtOp,
   startConsoleApp,
+  storedRefreshToken,
 } from '#/testing/console-harness';
 
 // The console's sign-in through the real composition: the gateway is an
@@ -223,6 +226,29 @@ describe('GET /console/auth/callback', () => {
 
       expect(res.statusCode).toBe(302);
       expect(await sessionsFor(subjectId)).toHaveLength(1);
+    } finally {
+      await stack.app.close();
+    }
+  });
+
+  // The ordinary way to switch tenants: a new sign-in from a browser that
+  // still holds a console cookie replaces the session that cookie named.
+  it('ends the session an existing console cookie names, revoking its grant', async () => {
+    const stack = await startApp();
+    try {
+      const first = new Jar();
+      const old = await signIn(stack, first);
+      const oldRefreshToken = await storedRefreshToken(owner, old.subjectId);
+      const second = new Jar();
+      second.cookies.set(SESSION_COOKIE, first.cookies.get(SESSION_COOKIE) ?? '');
+
+      const next = await signIn(stack, second);
+
+      expect(await sessionsFor(old.subjectId)).toHaveLength(0);
+      expect(await refreshAtOp(stack, oldRefreshToken)).toBe('invalid_grant');
+      expect(await sessionsFor(next.subjectId)).toHaveLength(1);
+      const session = await browse(stack, second, '/console/api/session');
+      expect(session.json<{ subject_id: string }>().subject_id).toBe(next.subjectId);
     } finally {
       await stack.app.close();
     }

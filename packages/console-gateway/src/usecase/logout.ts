@@ -3,13 +3,10 @@ import { withTenant } from '@odudu/db';
 import { ADMIN_CLIENT_ID, CONSOLE_POST_LOGOUT_PATH } from '@odudu/domain-tenant';
 import { consoleSessionRepository } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
-import { type OduduPort } from '#/service/odudu-port';
 import { endGrant } from '#/usecase/end-grant';
 import { resolveSession, type ResolveSessionDeps } from '#/usecase/resolve-session';
 
 export interface LogoutDeps extends ResolveSessionDeps {
-  readonly kek: Uint8Array;
-  readonly odudu: OduduPort;
   readonly base: URL;
 }
 
@@ -30,7 +27,7 @@ const TO_CONSOLE: LoggedOut = { redirect: CONSOLE_POST_LOGOUT_PATH };
 // session can only be ended by the browser itself, since only its own
 // navigation to the tenant's logout endpoint carries the tenant's cookie.
 export async function logout(deps: LogoutDeps, input: Logout): Promise<LoggedOut> {
-  const resolved = await resolveSession(deps, input.cookieHeader, input.now);
+  const resolved = await resolveSession(deps, input.cookieHeader, input.now, input.ip);
   if (resolved.kind === 'ended') return TO_CONSOLE;
   const { tenantId, id } = resolved.session;
   const taken = await withTenant(deps.database.db, tenantId, async (tx) => {

@@ -12,8 +12,10 @@ import {
   type ConsoleStack,
   Jar,
   KEK,
+  refreshAtOp,
   signIn,
   startConsoleApp,
+  storedRefreshToken,
 } from '#/testing/console-harness';
 
 let containerHandle: TestDatabase | undefined;
@@ -109,26 +111,29 @@ describe('GET /console/api/session', () => {
     });
   });
 
-  it('ends a session idle for thirty minutes and a second, deleting its row', async () => {
+  it('ends a session idle for thirty minutes and a second, deleting its row and grant', async () => {
     await withStack(BASE, async (stack) => {
       const jar = new Jar();
       const { subjectId } = await signIn(stack, jar);
       const cookie = jar.cookies.get(SESSION_COOKIE) ?? '';
+      const refreshToken = await storedRefreshToken(owner, subjectId);
 
       stack.clock.advance(30 * MINUTE + 1000);
       const res = await browse(stack, jar, '/console/api/session');
 
       expectEnded(res);
       expect(await sessionsFor(subjectId)).toHaveLength(0);
+      expect(await refreshAtOp(stack, refreshToken)).toBe('invalid_grant');
       jar.cookies.set(SESSION_COOKIE, cookie);
       expectEnded(await browse(stack, jar, '/console/api/session'));
     });
   });
 
-  it('ends a session at twelve hours however active, deleting its row', async () => {
+  it('ends a session at twelve hours however active, deleting its row and grant', async () => {
     await withStack(BASE, async (stack) => {
       const jar = new Jar();
       const { subjectId } = await signIn(stack, jar);
+      const refreshToken = await storedRefreshToken(owner, subjectId);
 
       let elapsed = 0;
       while (elapsed + 25 * MINUTE < 12 * 60 * MINUTE) {
@@ -140,6 +145,7 @@ describe('GET /console/api/session', () => {
 
       expectEnded(await browse(stack, jar, '/console/api/session'));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
+      expect(await refreshAtOp(stack, refreshToken)).toBe('invalid_grant');
     });
   });
 

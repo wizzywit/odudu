@@ -87,7 +87,7 @@ async function authServer(odudu: OduduPort, logs: string[]): Promise<FastifyInst
     (auth) => {
       registerAuthRoutes(auth, {
         login,
-        callback: { ...login, odudu },
+        callback: { ...login, odudu, tls: false },
         logout: { database: app, kek: KEK, odudu, base, tls: false, now },
         tls: false,
         now,
