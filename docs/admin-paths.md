@@ -436,7 +436,8 @@ and the same query then reads:
 ```
 
 A run under another base replaces both console URIs rather than adding a
-second pair, and keeps the loopback:
+second pair, and keeps the loopback. Captured again after rebuilding the
+image at this commit:
 
 ```bash
 docker compose exec -T -e ODUDU_PUBLIC_BASE_URL=http://127.0.0.1:3000 odudu \
@@ -445,18 +446,44 @@ docker compose exec -T -e ODUDU_PUBLIC_BASE_URL=http://127.0.0.1:3000 odudu \
 
 ```
 provisioned 31 tenants
+```
+
+The same psql query then reads:
+
+```
                                 redirect_uris                                 |    post_logout_redirect_uris
 ------------------------------------------------------------------------------+----------------------------------
  {http://127.0.0.1:8080/callback,http://127.0.0.1:3000/console/auth/callback} | {http://127.0.0.1:3000/console/}
 (1 row)
 ```
 
-A second run under the stack's own base put back the
-`http://localhost:3000` pair shown above. With the console off the command
-refuses, since it has nothing to register, and exits `1`:
+Running the plain command again, under the stack's own base:
 
 ```bash
-docker compose exec -T -e ODUDU_CONSOLE=false odudu node dist/main.js console provision
+docker compose exec -T odudu node dist/main.js console provision 2>/dev/null
+```
+
+```
+provisioned 31 tenants
+```
+
+puts the `http://localhost:3000` pair back, and the query reads:
+
+```
+                                redirect_uris                                 |    post_logout_redirect_uris
+------------------------------------------------------------------------------+----------------------------------
+ {http://127.0.0.1:8080/callback,http://localhost:3000/console/auth/callback} | {http://localhost:3000/console/}
+(1 row)
+```
+
+With the console off the command refuses, since it has nothing to
+register, and exits `1`. The refusal is written to stderr, so this block
+merges stderr instead of discarding it. It is unfiltered: the refusal comes
+before anything loads Web Crypto, so no experimental-feature warning is
+printed, and the refusal is the only line:
+
+```bash
+docker compose exec -T -e ODUDU_CONSOLE=false odudu node dist/main.js console provision 2>&1
 ```
 
 ```

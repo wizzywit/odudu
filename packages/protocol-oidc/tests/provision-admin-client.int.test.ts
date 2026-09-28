@@ -147,4 +147,27 @@ describe("provisionAdminClient: the console's URIs", () => {
       postLogoutRedirectUris: ['https://tools.example.test/', 'https://idp.example.test/console/'],
     });
   });
+
+  it('drops a console path under any origin or query, leaving one entry for the current base', async () => {
+    const tenantId = await freshTenant();
+    await provision(tenantId, {});
+    await withTenant(app.db, tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      if (client === null) throw new Error('the admin client was not provisioned');
+      await clientOidcConfigRepository(tx).update(client.id, {
+        redirectUris: [
+          ADMIN_CLIENT_REDIRECT_URI,
+          'https://evil.example/console/auth/callback',
+          'https://idp.example.test/console/auth/callback?x=1',
+        ],
+      });
+    });
+
+    await provision(tenantId, { consoleBaseUrl: 'https://idp.example.test' });
+
+    expect((await registeredUris(tenantId)).redirectUris).toEqual([
+      ADMIN_CLIENT_REDIRECT_URI,
+      'https://idp.example.test/console/auth/callback',
+    ]);
+  });
 });

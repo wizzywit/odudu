@@ -5,7 +5,8 @@ import {
   tenants,
   type DatabaseHandle,
 } from '@odudu/db';
-import { ADMIN_CLIENT_ID, clients, SYSTEM_TENANT_ID } from '@odudu/domain-tenant';
+import { roles } from '@odudu/domain-authz';
+import { ADMIN_CLIENT_ID, clients, MANAGE_TENANTS, SYSTEM_TENANT_ID } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { ADMIN_CLIENT_REDIRECT_URI, clientOidcConfig } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -67,6 +68,21 @@ async function adminClientUris(
   return rows[0];
 }
 
+async function holdsManageTenants(tenantId: string): Promise<boolean> {
+  const rows = await owner.db
+    .select({ id: roles.id })
+    .from(roles)
+    .innerJoin(clients, eq(clients.id, roles.clientId))
+    .where(
+      and(
+        eq(clients.tenantId, tenantId),
+        eq(clients.clientId, ADMIN_CLIENT_ID),
+        eq(roles.name, MANAGE_TENANTS),
+      ),
+    );
+  return rows.length > 0;
+}
+
 function registeredUnder(base: string): {
   redirectUris: string[];
   postLogoutRedirectUris: string[];
@@ -116,6 +132,8 @@ describe('odudu console provision', () => {
     expect(message).toBe(`provisioned ${String(everyTenant.length)} tenants`);
     expect(await adminClientUris(SYSTEM_TENANT_ID)).toEqual(registeredUnder(NEW_BASE));
     expect(await adminClientUris(tenant)).toEqual(registeredUnder(NEW_BASE));
+    expect(await holdsManageTenants(SYSTEM_TENANT_ID)).toBe(true);
+    expect(await holdsManageTenants(tenant)).toBe(false);
   });
 
   it('refuses with no base URL, naming the base and the switch', async () => {

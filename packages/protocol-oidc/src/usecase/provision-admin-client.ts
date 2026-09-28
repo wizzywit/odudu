@@ -8,12 +8,12 @@ import {
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
 /**
- * The loopback redirect the built-in admin client is provisioned with.
- * There is no administration console and no configured base URL when the
- * client is created, and RFC 8252 §7.3 makes a loopback URI the right
- * answer for a native client — but redirect matching here is exact
- * (`#/service/redirect-uri.ts`), so this one port is the only one that
- * works until the console's own URI can be registered.
+ * The loopback redirect the built-in admin client is always provisioned
+ * with, for an administrator with no console: RFC 8252 §7.3 makes a
+ * loopback URI the right answer for a native tool, and redirect matching
+ * is exact (`#/service/redirect-uri.ts`), so this port is the one such a
+ * tool listens on. The console's own URIs are added beside it by
+ * `registerConsoleUris`, under `ODUDU_PUBLIC_BASE_URL`.
  */
 export const ADMIN_CLIENT_REDIRECT_URI = 'http://127.0.0.1:8080/callback';
 
