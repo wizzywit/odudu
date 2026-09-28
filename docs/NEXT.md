@@ -15,7 +15,7 @@ the admin API
 ([spec](superpowers/specs/2026-09-24-p4c-admin-api-design.md)); P4e was
 authentication and token audit events
 ([spec](superpowers/specs/2026-09-26-p4e-audit-events-design.md)); **P4d is
-next** — the admin console and the admin API it needs
+in progress** — the admin console and the admin API it needs
 ([spec](superpowers/specs/2026-09-26-p4d-admin-console-design.md)); **P4f**,
 self-service through a "me" API and application-initiated actions, replaced
 the account console; P4b stays theming and stays last.
@@ -34,6 +34,15 @@ administrator with a single-use password and a forced change. The narrative
 is [docs/admin-paths.md](admin-paths.md), every transcript in it executed;
 the reference is the OpenAPI document at `/admin/openapi.json`.
 
+**P4d's Part 1 — the admin API the console needs — is on the branch.** It
+added `whoami` capabilities, prefix search with filter-bound keyset cursors,
+bounded counts, a target ceiling on every mutation of a subject or client
+that holds admin capabilities, username rename behind `username_editable`,
+tenant export and import, and per-package Turbo test caching in CI
+(ADRs 0038 and 0039; [docs/phases/p4d.md](phases/p4d.md)). Part 2, the
+console gateway, inherits `whoami`, the cursors and counts, and that ceiling
+as the only authority on what an operator may change.
+
 **P4e filled that audit trail.** Beside `admin_mutation`, it writes
 `admin_access`, `authentication`, `session`, `token` and `credential` rows,
 each in the transaction that did the work, each carrying the request's
@@ -44,7 +53,7 @@ on the grant, closing ADR 0036's follow-up.
 
 What turned out to be **wrong** while building each is in
 [docs/phases/p4c.md](phases/p4c.md) and [docs/phases/p4e.md](phases/p4e.md),
-not here. Two themes are worth reading before P4d starts: a mechanism built
+not here. Two themes are worth keeping in view while P4d is built: a mechanism built
 with no caller (P4c), and an audit write that changes what it records — an
 extra statement, an aborted transaction, a lock (P4e).
 

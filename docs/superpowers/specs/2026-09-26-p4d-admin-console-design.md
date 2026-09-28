@@ -288,7 +288,8 @@ not a tenant.
 
 ### 4.6 Export and import
 
-**Export.** `GET /admin/tenants/{tenant}/export`, requiring `manage-tenant`,
+**Export.** `GET /admin/tenants/{tenant}/export`, requiring `manage-tenant`
+and `manage-clients` (every other client read needs the latter),
 answers `application/vnd.odudu.tenant+json` carrying `version: 1`:
 settings, the authentication flow, clients (every field but the secret),
 roles and composites, groups and their roles, scopes with their role
