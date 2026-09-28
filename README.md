@@ -755,10 +755,10 @@ afterwards unless `E2E_KEEP_STACK=1`, and arguments after the script go to
 its Vite dev server, which proxies `/console/api` and `/console/auth` to a
 running server — `http://localhost:3000` by default, the port a host-run
 server above listens on. Name a different one, such as the throwaway
-stack below's 3080, with:
+stack below's 3090, with:
 
 ```bash
-ODUDU_CONSOLE_UPSTREAM=http://localhost:3080 pnpm --filter @odudu/admin-console dev
+ODUDU_CONSOLE_UPSTREAM=http://localhost:3090 pnpm --filter @odudu/admin-console dev
 ```
 
 `pnpm --filter @odudu/admin-console build` produces the static bundle the
@@ -778,14 +778,14 @@ Serves it at http://localhost:5173/console/gallery.html; `?theme=dark` and
 It is a development-only page — `build` above never bundles it.
 
 **Try the console**, in a stack that leaves no trace: its own compose
-project, `odudu-try`, on ports 3080 and 5462, beside anything already
+project, `odudu-try`, on ports 3090 and 5472, beside anything already
 running:
 
 ```bash
 cd infra/docker
-export COMPOSE_PROJECT_NAME=odudu-try ODUDU_HOST_PORT=3080 POSTGRES_HOST_PORT=5462
+export COMPOSE_PROJECT_NAME=odudu-try ODUDU_HOST_PORT=3090 POSTGRES_HOST_PORT=5472
 docker compose up -d --build
-until curl -fsS http://localhost:3080/health/ready; do sleep 2; done
+until curl -fsS http://localhost:3090/health/ready; do sleep 2; done
 ```
 
 Bootstrap the first administrator, whose one-time password is printed
@@ -806,9 +806,9 @@ docker compose exec -T odudu node dist/main.js seed grant-role \
   --tenant demo --username grace --role odudu-admin:tenant-admin
 ```
 
-Open http://localhost:3080/console/ and sign in as either: `ada` lives in
+Open http://localhost:3090/console/ and sign in as either: `ada` lives in
 `system`, so she types `system` at the tenant question (or opens
-http://localhost:3080/console/system), and from there system authority
+http://localhost:3090/console/system), and from there system authority
 reaches every tenant; `grace` signs in to `demo`, and is asked for a new
 password first. Tear the stack down,
 volumes included, when you're done:
