@@ -39,9 +39,11 @@ added `whoami` capabilities, prefix search with filter-bound keyset cursors,
 bounded counts, a target ceiling on every mutation of a subject or client
 that holds admin capabilities, username rename behind `username_editable`,
 tenant export and import, and per-package Turbo test caching in CI
-(ADRs 0038 and 0039; [docs/phases/p4d.md](phases/p4d.md)). Part 2, the
-console gateway, inherits `whoami`, the cursors and counts, and that ceiling
-as the only authority on what an operator may change.
+(ADRs 0038 and 0039; [docs/phases/p4d.md](phases/p4d.md)). Parts 1 and 2
+have landed — Part 2 is the console gateway under `/console`
+([docs/console-paths.md](console-paths.md)) — and Part 3, the console
+foundation, is next, inheriting `whoami`, the cursors and counts, and that
+ceiling as the only authority on what an operator may change.
 
 **P4e filled that audit trail.** Beside `admin_mutation`, it writes
 `admin_access`, `authentication`, `session`, `token` and `credential` rows,
@@ -131,6 +133,19 @@ sets it, so it is a correlation to show rather than evidence (ADR 0037's
 third amendment); and a refresh whose
 rotation committed before a refusal leaves both an `allowed` and a
 `refused` row under one request id ([p4e.md](phases/p4e.md)).
+
+**P4d's Part 3 inherits the gateway.** The SPA talks to nothing but
+`/console/api/session`, `/console/api/admin/*` (the admin API, forwarded),
+`/console/auth/login?tenant=&return_to=` and `POST /console/auth/logout`,
+which it sends with no body and answers by navigating to the returned
+`redirect` itself ([docs/console-paths.md](console-paths.md)). A `401` of
+type `about:blank#console-session-ended` means sign in again; the admin
+API's own `401` and `403` are passed back as they are. Every write carries
+`X-Odudu-Console: 1` and a same-origin `Origin`, or it is refused `403`.
+The shell's CSP allows React Aria's pressable style by its hash, and Part 3
+owes the test that recomputes that hash from the pinned React Aria when it
+adds the dependency ([p4d.md](phases/p4d.md), "React Aria under a strict
+CSP"), with the iOS element's hash beside it.
 
 **Two recovery-code gaps that need self-service.** A subject cannot
 ask for a fresh set before running out, and nothing warns as the list gets

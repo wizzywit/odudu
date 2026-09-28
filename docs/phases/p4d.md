@@ -900,3 +900,67 @@ ever sees it, so `..`, `%2e%2e` and `\` are gone before routing starts. A
 raw socket sends the request line exactly as written, which is what a
 traversal test has to use to exercise the route's own handling rather than
 the test harness's own normalisation.
+
+## Part 2 — what building the gateway found
+
+The gateway's transcripts are in [docs/console-paths.md](../console-paths.md).
+These are the defects and false assumptions that building it turned up,
+each fixed on the branch.
+
+- **The issuer comes from `Host`, not from `ODUDU_PUBLIC_BASE_URL`** (S3
+  above). The gateway injects `host`, `x-forwarded-host` and
+  `x-forwarded-proto` taken from the base, never the browser's, and the
+  server refuses to boot with an `https` base while `ODUDU_TRUST_PROXY` is
+  off. `console-login.int.test.ts` completes a sign-in sent with
+  `Host: evil.example`.
+- **A replayed refresh token revokes the whole grant** (S2 above), so two
+  concurrent refreshes would end the session. A per-process single-flight
+  keyed by session sits in front of a `FOR UPDATE` re-check. With either
+  one removed, the two-instance race test calls `/token` twice.
+- **`safeReturnTo` let a double-encoded traversal out.** Decoding once and
+  then applying `path.posix.normalize` passed `/console/%252e%252e/admin`,
+  which a browser resolves to `/admin`. `verified:`
+  `node -e` printed `/console/%2e%2e/admin true /admin` for the old
+  decode, the old prefix check and WHATWG resolution. It now parses with
+  `new URL` against a sentinel origin and returns that normalisation, and
+  refuses C0 controls, backslashes and `%25` (`ab736a2`).
+- **A callback refused after the code exchange dropped live tokens without
+  revoking them.** Everything from fetching the keys to writing the session
+  now runs in one guarded step, and the grant is revoked whether that step
+  refuses or throws (`d37be33`, `e9b67d2`). The tampered-nonce test shows
+  the refresh token then answers `invalid_grant`.
+- **The refresh deadlocked the pool.** A refresh held its connection across
+  the in-process `/token` call, which needs a connection of its own, while
+  concurrent touches waited on the same row lock. A burst of 13 requests
+  on a pool of 5 hung. The fix is a per-process semaphore of
+  `max(1, min(2, max - 2))` refreshes, a touch that takes
+  `FOR UPDATE SKIP LOCKED`, and a 5 s `lock_timeout` answering `502`. The
+  burst hung again with the semaphore removed and with the touch made
+  blocking again. `verified:` `node -e` against postgres@3.4.9 printed `5`
+  for `sql.options.max` with `{max:5}`.
+- **The proxy needs its own escape check.** light-my-request resolves the
+  injected URL with WHATWG `URL`, so `/console/api/admin/%2e%2e/tenants/…`
+  would have carried the gateway's bearer token to an OIDC endpoint.
+  `upstreamPath` answers `404` for any path that resolves outside `/admin/`
+  and forwards nothing. A raw-socket test pins this as well.
+- **`inject` collapses dot segments before routing** ("Router and inject"
+  above), so three of four traversal tests on the shell never reached
+  it, and the first account blamed find-my-way, wrongly. The same test
+  exposed a real shadowing bug: the shell's `/console/*` caught unknown API
+  and sign-in paths, because `setNotFoundHandler` runs only when nothing
+  matches. Both prefixes now claim themselves with catch-all routes.
+- **The shell followed symlinks out of the build directory** and served
+  dotfiles. The boot walk now takes only regular files (`lstat`-based
+  dirents), skips dotfiles, and skips an asset over 10 MB (`75afcfd`).
+- **Every README command running `apps/server/src/main.ts` failed on
+  Node 24.** A parameter property in `SessionEntry` is not erasable under
+  type stripping. It is now a declared field, and `erasableSyntaxOnly` in
+  `tsconfig.base.json` makes typecheck refuse the next one (`7db31d0`).
+  `verified:` `node --experimental-strip-types` imported the file, and
+  README's `main.ts reap` ran end to end.
+- **Smaller rulings.** A browser drops a `__Host-` cookie whose `Path` is
+  not `/`, so the login cookie keeps the prefix with `Path=/`. A cookie
+  sent twice counts as none. `/console/auth` keeps a `4xx` error's own
+  status instead of turning it into a `500` page. Logout answers
+  `200 {redirect}` rather than a `302`, because only the browser's own
+  navigation carries the SSO cookie (S4 above).
