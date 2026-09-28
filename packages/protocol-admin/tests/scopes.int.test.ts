@@ -894,7 +894,7 @@ describe('audit', () => {
     expect(refused.events).toHaveLength(0);
   });
 
-  it('calls audit zero times refusing to delete the scope named openid', async () => {
+  it('calls audit once, with a refused row, refusing to delete the scope named openid', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const openidId = await scopeIdByName(t.id, 'openid');
 
@@ -912,7 +912,11 @@ describe('audit', () => {
       ),
     );
     expect(outcome.kind).toBe('openid_guarded');
-    expect(refused.events).toHaveLength(0);
+    expect(refused.events).toHaveLength(1);
+    expect(refused.events[0]).toMatchObject({ outcome: 'refused' });
+    expect(typeof (refused.events[0] as { detail?: { reason?: unknown } }).detail?.reason).toBe(
+      'string',
+    );
 
     const stillThere = await withTenant(fixture.app.db, t.id, (tx) =>
       clientScopeRepository(tx).byId(openidId),
@@ -981,7 +985,7 @@ describe('audit', () => {
     expect(refused.events).toHaveLength(0);
   });
 
-  it('calls audit zero times refusing to unassign a scope from the built-in admin client', async () => {
+  it('calls audit once, with a refused row, refusing to unassign from the built-in admin client', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const adminClient = await withTenant(fixture.app.db, t.id, (tx) =>
       clientRepository(tx).byClientId(ADMIN_CLIENT_ID),
@@ -1005,7 +1009,11 @@ describe('audit', () => {
       ),
     );
     expect(outcome.kind).toBe('builtin_admin_guarded');
-    expect(refused.events).toHaveLength(0);
+    expect(refused.events).toHaveLength(1);
+    expect(refused.events[0]).toMatchObject({ outcome: 'refused' });
+    expect(typeof (refused.events[0] as { detail?: { reason?: unknown } }).detail?.reason).toBe(
+      'string',
+    );
   });
 
   it('calls audit exactly once replacing roles, and not on a capability-ceiling refusal', async () => {

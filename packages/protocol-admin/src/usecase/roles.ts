@@ -389,8 +389,20 @@ export async function deleteRole(
 ): Promise<DeleteRoleOutcome> {
   const role = await lockRoleForAmend(tx, input.roleId);
   if (role === null) return { kind: 'not_found' };
-  const guarded = await guardsAdministrators(tx, role);
-  if (guarded !== null) return { kind: 'builtin_admin_guarded', reason: guarded };
+  const reason = await guardsAdministrators(tx, role);
+  if (reason !== null) {
+    await deps.audit(tx, {
+      action: 'role.delete',
+      resourceType: 'role',
+      resourceId: input.roleId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'builtin_admin_guarded', reason };
+  }
   const denied = overreach(
     await capabilitiesReachableFrom(tx, [input.roleId]),
     input.callerCapabilities,
@@ -636,12 +648,20 @@ export async function removeRoleComposite(
   if (parent === null) return { kind: 'not_found' };
   const owner = await builtinAdminClientOf(tx, parent.clientId);
   if (owner !== null) {
-    return {
-      kind: 'builtin_admin_guarded',
-      reason:
-        `${parent.name} is a capability of ${owner}, this tenant's built-in admin client, ` +
-        'and removing a composite from it would strip that from every administrator holding it',
-    };
+    const reason =
+      `${parent.name} is a capability of ${owner}, this tenant's built-in admin client, ` +
+      'and removing a composite from it would strip that from every administrator holding it';
+    await deps.audit(tx, {
+      action: 'role.composite_remove',
+      resourceType: 'role',
+      resourceId: input.parentRoleId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'builtin_admin_guarded', reason };
   }
 
   if (!isUuid(input.childRoleId)) return { kind: 'not_found' };

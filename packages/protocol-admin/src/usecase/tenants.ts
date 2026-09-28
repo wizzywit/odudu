@@ -400,10 +400,18 @@ export async function amendTenant(
   // so disabling it locks every tenant's administration out at once, with
   // `psql` the only way back.
   if (input.values.enabled === false && current.name === SYSTEM_TENANT_NAME) {
-    return {
-      kind: 'system_tenant_guarded',
-      reason: SYSTEM_TENANT_DISABLE_REFUSED,
-    };
+    const reason = SYSTEM_TENANT_DISABLE_REFUSED;
+    await deps.audit(tx, {
+      action: 'tenant.amend',
+      resourceType: 'tenant',
+      resourceId: input.tenantId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'system_tenant_guarded', reason };
   }
 
   if (matches(input.ifMatch, etagOf(tenantWireShape(current))) === 'mismatch') {

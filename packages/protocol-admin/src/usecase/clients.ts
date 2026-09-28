@@ -915,20 +915,27 @@ export async function amendClient(
   // the database still carries this column, so it cannot slip past the
   // check that way.
   if (clientRow.builtinAdmin) {
-    if (input.values.enabled === false) {
-      return {
-        kind: 'builtin_admin_guarded',
-        reason: `${clientRow.clientId} is this tenant's built-in admin client and cannot be disabled`,
-      };
-    }
     const guarded = Object.keys(input.values).find(
       (field) => !BUILTIN_ADMIN_AMENDABLE_FIELDS.includes(field),
     );
-    if (guarded !== undefined) {
-      return {
-        kind: 'builtin_admin_guarded',
-        reason: `${guarded} on ${clientRow.clientId}, this tenant's built-in admin client, is not amendable: it could leave every administrator of this tenant locked out`,
-      };
+    const reason =
+      input.values.enabled === false
+        ? `${clientRow.clientId} is this tenant's built-in admin client and cannot be disabled`
+        : guarded === undefined
+          ? null
+          : `${guarded} on ${clientRow.clientId}, this tenant's built-in admin client, is not amendable: it could leave every administrator of this tenant locked out`;
+    if (reason !== null) {
+      await deps.audit(tx, {
+        action: 'client.amend',
+        resourceType: 'client',
+        resourceId: input.clientDbId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { reason },
+      });
+      return { kind: 'builtin_admin_guarded', reason };
     }
   }
 
@@ -1165,10 +1172,18 @@ export async function deleteClient(
   );
   if (refused !== null) return refused;
   if (clientRow.builtinAdmin) {
-    return {
-      kind: 'builtin_admin_guarded',
-      reason: `${clientRow.clientId} is this tenant's built-in admin client and cannot be deleted`,
-    };
+    const reason = `${clientRow.clientId} is this tenant's built-in admin client and cannot be deleted`;
+    await deps.audit(tx, {
+      action: 'client.delete',
+      resourceType: 'client',
+      resourceId: input.clientDbId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'builtin_admin_guarded', reason };
   }
 
   await clientRepository(tx).delete(input.clientDbId);

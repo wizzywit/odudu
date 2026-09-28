@@ -132,7 +132,18 @@ export async function amendSettings(
     (setting) => setting.column === 'enabled' && setting.value === false,
   );
   if (disabling !== undefined && isSystemTenantId(input.tenantId)) {
-    return { kind: 'system_tenant_guarded', reason: SYSTEM_TENANT_DISABLE_REFUSED };
+    const reason = SYSTEM_TENANT_DISABLE_REFUSED;
+    await deps.audit(tx, {
+      action: 'tenant.amend_settings',
+      resourceType: 'tenant',
+      resourceId: input.tenantId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'system_tenant_guarded', reason };
   }
 
   // Locked, not merely read: the comparison and the UPDATE below have to be

@@ -992,7 +992,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
     expect(events).toHaveLength(0);
   });
 
-  it('does not call audit when the built-in admin guard refuses it', async () => {
+  it('calls audit once, with a refused row, when the built-in admin guard refuses it', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const admin = await fixture.builtinAdminClient(t.name);
     const events: unknown[] = [];
@@ -1018,7 +1018,9 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
       ),
     );
     expect(outcome.kind).toBe('builtin_admin_guarded');
-    expect(events).toHaveLength(0);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ outcome: 'refused' });
+    expect(typeof (events[0] as { detail?: { reason?: unknown } }).detail?.reason).toBe('string');
   });
 
   it('409s amending token_endpoint_auth_method across the public/confidential boundary', async () => {
@@ -1200,7 +1202,7 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
     expect(events).toHaveLength(1);
   });
 
-  it('does not call audit when the built-in admin guard refuses it', async () => {
+  it('calls audit once, with a refused row, when the built-in admin guard refuses it', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const admin = await fixture.builtinAdminClient(t.name);
     const events: unknown[] = [];
@@ -1223,7 +1225,9 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
       ),
     );
     expect(outcome.kind).toBe('builtin_admin_guarded');
-    expect(events).toHaveLength(0);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ outcome: 'refused' });
+    expect(typeof (events[0] as { detail?: { reason?: unknown } }).detail?.reason).toBe('string');
   });
 });
 

@@ -406,13 +406,21 @@ export async function deleteScope(
   // authorize-validation.ts). Losing it there locks every administrator of
   // this tenant out of a fresh login once their refresh token expires.
   if (scope.name === 'openid') {
-    return {
-      kind: 'openid_guarded',
-      reason:
-        'openid is deleted along with every client’s assignment of it, ' +
-        'this tenant’s built-in admin client’s included, and could lock ' +
-        'out every administrator of this tenant',
-    };
+    const reason =
+      'openid is deleted along with every client’s assignment of it, ' +
+      'this tenant’s built-in admin client’s included, and could lock ' +
+      'out every administrator of this tenant';
+    await deps.audit(tx, {
+      action: 'scope.delete',
+      resourceType: 'scope',
+      resourceId: input.scopeId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'openid_guarded', reason };
   }
 
   const deleted = await clientScopeRepository(tx).delete(input.scopeId);
@@ -713,13 +721,21 @@ export async function unassignScopeFromClient(
   // (`scopesAreGrantable`) — so unassigning here can lock every
   // administrator of this tenant out of a fresh login.
   if (client.builtinAdmin) {
-    return {
-      kind: 'builtin_admin_guarded',
-      reason:
-        `the scope ${scope.name} on ${client.clientId}, this tenant’s built-in ` +
-        'admin client, cannot be unassigned: it could leave every administrator ' +
-        'of this tenant locked out of /authorize',
-    };
+    const reason =
+      `the scope ${scope.name} on ${client.clientId}, this tenant’s built-in ` +
+      'admin client, cannot be unassigned: it could leave every administrator ' +
+      'of this tenant locked out of /authorize';
+    await deps.audit(tx, {
+      action: 'scope.unassign_from_client',
+      resourceType: 'scope',
+      resourceId: input.scopeId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'builtin_admin_guarded', reason };
   }
 
   const removed = await clientScopeRepository(tx).unassign(input.clientId, input.scopeId);

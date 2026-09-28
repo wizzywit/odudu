@@ -37,6 +37,7 @@ caller can cause:
 | Refusal after the client authenticated                                   | yes, while under budget | `auditRefusalBudget`: a public client proves nothing but a name |
 | Admin `401`                                                              | no, a `warn` line       | nothing needed                                                  |
 | Admin `403` to an authenticated caller                                   | yes                     | the caller is authenticated, and the row names it               |
+| Admin `409` guarding the built-in admin surface (amendment, 2026-09-28)  | yes                     | the caller is authenticated, and the row names it               |
 | Foreign-issuer admin token, signature valid                              | yes                     | the caller holds a genuine token, and the row names its subject |
 | Foreign-issuer admin token, forged or issuer not served here             | no, a `warn` line       | nothing needed                                                  |
 
@@ -166,3 +167,20 @@ what the caller chose to claim, and an investigation reads `ip`, the actor
 columns and `occurred_at` instead. Gating the header on `ODUDU_TRUST_PROXY`
 was rejected: it would break every transcript's scoping and protect a value
 that proves nothing either way.
+
+## Amendment, 2026-09-28 — a `409` guarding the built-in admin surface
+
+An admin `409` that refuses to change what every administrator of a tenant
+depends on is a refusal to an authenticated caller, and writes a row the way
+a `403` does, with the reason under `detail.reason`. That is
+`builtin_admin_guarded` — amending or deleting the tenant's built-in admin
+client, unassigning one of its scopes, deleting one of its roles, and adding
+or removing a composite of one — `openid_guarded`, on deleting the `openid`
+scope, and `system_tenant_guarded`, on disabling the system tenant through
+`PATCH /admin/tenants/{tenant}` or `PATCH /settings`. The same protection
+already wrote a row at create (`reserved_client_id`,
+`default_on_admin_client`), so the question an operator asks — who tried to
+delete `tenant-admin` — had an answer on one door and none on the others.
+A `409` that reports a conflict with the data rather than a guard, such as
+a cycle, a taken name or a stale `If-Match`, is not a refusal of the caller
+and writes nothing.

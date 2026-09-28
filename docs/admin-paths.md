@@ -3975,6 +3975,30 @@ curl -sS -X PATCH \
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"name_search: name_search is not a role field","instance":"01a0e12f-81c0-7b76-822a-dab3fa665a43"}
 ```
 
+Every `409` that guards the built-in admin client's roles writes a
+`refused` row with the refusal's text under `detail.reason`, the way a
+`403` does (ADR 0037's amendment of 2026-09-28): deleting one of those
+roles here, and adding or removing a composite of one below. Captured
+against `ceiling-removal`, from
+[a removal is judged by what it removes](#a-removal-is-judged-by-what-it-removes),
+as the system administrator, whose subject the row names:
+
+```bash
+RUN_START=$(date -u +%FT%T.000Z)
+T=http://localhost:3000/admin/tenants/ceiling-removal
+curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$T/roles/01a0e59a-b2d6-7148-a179-a3cff021a673"
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$T/audit?resource_type=role&resource_id=01a0e59a-b2d6-7148-a179-a3cff021a673&from=$RUN_START" \
+  | jq -c '.items[] | {action, outcome, actor_subject_id, detail}'
+```
+
+```
+{"type":"about:blank","title":"Conflict","status":409,"detail":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and deleting it would strip it from every administrator holding it","instance":"01a0e5ae-3e45-778c-a2cd-cf0bc8367b4d"}
+{"action":"role.delete","outcome":"refused","actor_subject_id":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","detail":{"reason":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and deleting it would strip it from every administrator holding it"}}
+```
+
 ## `POST /roles/:id/composites`
 
 Requires `manage-tenant`, and enforces the same capability ceiling
@@ -5280,20 +5304,25 @@ per resource type: a secret, a password hash or a private key never
 appears in it, whichever of the two it would have been, and a field on
 neither list is absent rather than shown.
 
-`outcome` is `allowed`, `refused` or `failed`. Two kinds of mutation
+`outcome` is `allowed`, `refused` or `failed`. Three kinds of mutation
 refusal record an `admin_mutation` row. **`POST /clients`** does — a
 reserved `client_id`, metadata `parseClientMetadata` rejects, or a tenant at
-its client capacity — and so does **every capability ceiling**:
-`POST /groups` and `PATCH /groups/{id}` choosing a parent,
-`PUT /subjects/{id}/roles`, `PUT /groups/{id}/roles`,
-`PUT /scopes/{id}/roles` and `POST /roles/{id}/composites`, and the target
-ceiling on every non-`GET` route under `/subjects/{id}`, each writing a
-row whose `detail` names the capabilities the caller does not hold. An
-attempted privilege escalation is the refusal worth recording even while
-refusals in general are not. Every other mutation above writes an
-`admin_mutation` row only when it succeeds; `?outcome=refused` against a
-resource type with neither of those doors returns no `admin_mutation` row,
-not because nothing was refused.
+its client capacity. So does **every capability ceiling**: `POST /groups`
+and `PATCH /groups/{id}` choosing a parent, `PUT /subjects/{id}/roles`,
+`PUT /groups/{id}/roles`, `PUT /scopes/{id}/roles` and
+`POST /roles/{id}/composites`; every removal judged by what it removes; the
+target ceiling on every non-`GET` route under `/subjects/{id}`; and the
+same ceiling on a client's service account — each writing a row whose
+`detail.denied` names the capabilities the caller does not hold. And so
+does **every `409` guarding the built-in admin surface**
+(`builtin_admin_guarded`, the `openid` scope's delete and disabling the
+system tenant), with the refusal's text under `detail.reason`, since the
+caller is authenticated (ADR 0037's amendment of 2026-09-28). An attempted
+privilege escalation is the refusal worth recording even while refusals in
+general are not. Every other mutation above writes an `admin_mutation` row
+only when it succeeds; `?outcome=refused` against a resource type with none
+of those doors returns no `admin_mutation` row, not because nothing was
+refused.
 
 The door in front of every route records two refusals of its own, as
 `admin_access` rows, whatever the route. A **`403`** to an authenticated
