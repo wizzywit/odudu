@@ -59,7 +59,7 @@ async function seededTenant(): Promise<SeededTenant> {
   const password = `pw-${newId()}`;
   const passwordHash = await hashPassword(password);
 
-  const token = await fixture.adminToken(t.name, ['manage-tenant']);
+  const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
   const put = await fixture.http.inject({
     method: 'PUT',
     url: `/admin/tenants/${t.name}/smtp`,
@@ -152,7 +152,7 @@ function parsed(payload: string): TenantDocument {
 describe('GET /admin/tenants/{tenant}/export', () => {
   it('answers a document that validates against tenantDocumentSchema', async () => {
     const t = await seededTenant();
-    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
 
     const res = await exportTenant(token, t.name);
 
@@ -177,7 +177,11 @@ describe('GET /admin/tenants/{tenant}/export', () => {
 
   it('carries no secret seeded into the tenant, in any stored or plaintext form', async () => {
     const t = await seededTenant();
-    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-users']);
+    const token = await fixture.adminToken(t.name, [
+      'manage-tenant',
+      'manage-clients',
+      'view-users',
+    ]);
 
     const res = await exportTenant(token, t.name, '?include=subjects');
 
@@ -189,7 +193,7 @@ describe('GET /admin/tenants/{tenant}/export', () => {
 
   it('lists each secret it leaves out under omitted, by its JSON path', async () => {
     const t = await seededTenant();
-    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
 
     const document = parsed((await exportTenant(token, t.name)).payload);
 
@@ -204,7 +208,11 @@ describe('GET /admin/tenants/{tenant}/export', () => {
 
   it('refers to roles, groups, scopes and clients by name, never by row id', async () => {
     const t = await seededTenant();
-    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-users']);
+    const token = await fixture.adminToken(t.name, [
+      'manage-tenant',
+      'manage-clients',
+      'view-users',
+    ]);
 
     const res = await exportTenant(token, t.name, '?include=subjects');
     const document = parsed(res.payload);
@@ -231,7 +239,7 @@ describe('GET /admin/tenants/{tenant}/export', () => {
 
   it('leaves the built-in admin client out, and marks its capability roles built in', async () => {
     const t = await seededTenant();
-    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
 
     const document = parsed((await exportTenant(token, t.name)).payload);
 
@@ -249,7 +257,11 @@ describe('GET /admin/tenants/{tenant}/export', () => {
 
   it('writes a tenant.export audit row naming whether subjects were included', async () => {
     const t = await seededTenant();
-    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-users']);
+    const token = await fixture.adminToken(t.name, [
+      'manage-tenant',
+      'manage-clients',
+      'view-users',
+    ]);
 
     expect((await exportTenant(token, t.name, '?include=subjects')).statusCode).toBe(200);
 
@@ -280,7 +292,11 @@ describe('GET /admin/tenants/{tenant}/export', () => {
       await roleRepository(tx).create({ tenantId: other.id, name: foreign.role });
       await groupRepository(tx).create({ tenantId: other.id, name: foreign.group, parentId: null });
     });
-    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-users']);
+    const token = await fixture.adminToken(t.name, [
+      'manage-tenant',
+      'manage-clients',
+      'view-users',
+    ]);
 
     const res = await exportTenant(token, t.name, '?include=subjects');
 
@@ -292,9 +308,29 @@ describe('GET /admin/tenants/{tenant}/export', () => {
     expect(document.subjects?.map((subject) => subject.username)).toEqual(['grace']);
   });
 
-  it('refuses ?include=subjects with 403 to a caller without view-users', async () => {
+  it('refuses a caller with manage-tenant alone, since a client is read with manage-clients', async () => {
     const t = await fixture.createTenant(`export-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await exportTenant(token, t.name);
+
+    expect(res.statusCode).toBe(403);
+    const refused = await withTenant(fixture.app.db, t.id, (tx) =>
+      tx.select().from(auditEvents).where(eq(auditEvents.action, 'capability.refused')),
+    );
+    expect(refused.map((row) => row.detail)).toContainEqual({
+      capability: 'manage-clients',
+      reason: 'missing_capability',
+    });
+    const exported = await withTenant(fixture.app.db, t.id, (tx) =>
+      tx.select().from(auditEvents).where(eq(auditEvents.action, 'tenant.export')),
+    );
+    expect(exported).toEqual([]);
+  });
+
+  it('refuses ?include=subjects with 403 to a caller without view-users', async () => {
+    const t = await fixture.createTenant(`export-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
 
     const res = await exportTenant(token, t.name, '?include=subjects');
 
@@ -326,7 +362,7 @@ describe('GET /admin/tenants/{tenant}/export', () => {
         .set({ jwks: { keys: [publicKey, { ...publicKey, kid: 'two', ...privateValues }] } })
         .where(eq(clientOidcConfig.clientId, client.id)),
     );
-    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
 
     const res = await exportTenant(token, t.name);
 
@@ -342,7 +378,11 @@ describe('GET /admin/tenants/{tenant}/export', () => {
 
   it('refuses an unknown include with 400', async () => {
     const t = await fixture.createTenant(`export-${newId()}`);
-    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-users']);
+    const token = await fixture.adminToken(t.name, [
+      'manage-tenant',
+      'manage-clients',
+      'view-users',
+    ]);
 
     expect((await exportTenant(token, t.name, '?include=sessions')).statusCode).toBe(400);
   });
@@ -361,7 +401,11 @@ describe('GET /admin/tenants/{tenant}/export', () => {
         SELECT id, ${t.id}, 'bulk-' || id FROM made
       `),
     );
-    const token = await fixture.adminToken(t.name, ['manage-tenant', 'view-users']);
+    const token = await fixture.adminToken(t.name, [
+      'manage-tenant',
+      'manage-clients',
+      'view-users',
+    ]);
 
     const res = await exportTenant(token, t.name, '?include=subjects');
 

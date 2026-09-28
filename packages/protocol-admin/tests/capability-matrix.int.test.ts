@@ -96,6 +96,12 @@ function methodOf(route: AdminRoute): RouteMethod {
 
 // `tenantScopedRoutes`/`systemRoutes` are filtered to `capability !== null`,
 // which `Array.prototype.filter` does not carry into the element type.
+// A route its handler holds to a further capability beside its own: export
+// carries every client, which every other route reads with manage-clients.
+const ALSO_REQUIRED: Readonly<Record<string, readonly AdminCapability[]>> = {
+  'GET /admin/tenants/:tenant/export': ['manage-clients'],
+};
+
 function requiredCapabilityOf(route: AdminRoute): AdminCapability {
   const capability = route.capability;
   if (capability === null) {
@@ -206,7 +212,9 @@ describe('the capability matrix', () => {
     for (const capability of TENANT_CAPABILITIES) {
       const token = await fixture.adminToken(t.name, [capability]);
       const res = await callWith(route, url, token);
-      const permitted = admits(capability, requiredCapabilityOf(route));
+      const permitted =
+        admits(capability, requiredCapabilityOf(route)) &&
+        (ALSO_REQUIRED[routeKey(route)] ?? []).every((also) => admits(capability, also));
       expect(res.statusCode === 403, `${capability} at ${routeKey(route)}`).toBe(!permitted);
     }
   });

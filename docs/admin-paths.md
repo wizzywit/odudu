@@ -654,7 +654,9 @@ amendment — is refused and changes nothing:
 
 ## `GET /export`
 
-`GET /admin/tenants/{tenant}/export` requires `manage-tenant` and answers
+`GET /admin/tenants/{tenant}/export` requires `manage-tenant` and
+`manage-clients` — the second because the document carries every client,
+which every other route reads with `manage-clients` — and answers
 the tenant's configuration as one document of media type
 `application/vnd.odudu.tenant+json`, carrying `"version": 1`: its settings,
 its authentication flow, its clients, its roles and their composites, its
@@ -809,6 +811,29 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"username":"grace","email":"grace@example.com","enabled":true,"profile":{"name":null,"given_name":null,"family_name":null,"middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null},"roles":[],"groups":["/finance"],"required_actions":["update-password"]}
 {"username":"tenant-operator","email":null,"enabled":true,"profile":{"name":null,"given_name":null,"family_name":null,"middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null},"roles":[{"name":"manage-tenant","client":"odudu-admin"}],"groups":[],"required_actions":[]}
 ["clients[0].secret","smtp.password","subjects[1].credentials"]
+```
+
+A caller holding `manage-tenant` without `manage-clients` is refused with
+`403`, writing the same `capability.refused` row the router writes for a
+route's own capability, naming `manage-clients`. Captured against
+`ceiling-removal` from
+[a removal is judged by what it removes](#a-removal-is-judged-by-what-it-removes),
+whose `$TENANT_TOKEN` holds `manage-tenant` alone, with the row read back
+as the system administrator:
+
+```bash
+RUN_START=$(date -u +%FT%T.000Z)
+curl -sS -H "Authorization: Bearer $TENANT_TOKEN" \
+  http://localhost:3000/admin/tenants/ceiling-removal/export
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/ceiling-removal/audit?action=capability.refused&from=$RUN_START" \
+  | jq -c '.items[] | {action, outcome, actor_subject_id, detail}'
+```
+
+```
+{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0e5c9-600a-7aa2-91da-e4cb637c903e"}
+{"action":"capability.refused","outcome":"refused","actor_subject_id":"01a0e59a-b35c-7fb5-aa5a-78cdc389b30b","detail":{"reason":"missing_capability","capability":"manage-clients"}}
 ```
 
 ## `POST /admin/tenant-imports`

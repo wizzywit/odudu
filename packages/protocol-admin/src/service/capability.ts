@@ -439,9 +439,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     querystringSchema: exportTenantQuerySchema,
     description:
       'The tenant\u2019s configuration, every reference by name, with no secret in it: each ' +
-      'secret a reader would expect is named under `omitted` by its JSON path. ' +
-      '`?include=subjects` adds subjects and additionally requires `view-users`, refused ' +
-      'with `403` otherwise and with `413` above 10,000 subjects.',
+      'secret a reader would expect is named under `omitted` by its JSON path. Additionally ' +
+      'requires `manage-clients`, the capability every other client read requires, refused ' +
+      'with `403` otherwise. `?include=subjects` adds subjects and additionally requires ' +
+      '`view-users`, refused with `403` otherwise and with `413` above 10,000 subjects.',
   },
   {
     method: 'GET',
