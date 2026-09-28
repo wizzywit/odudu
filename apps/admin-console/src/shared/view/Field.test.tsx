@@ -232,8 +232,13 @@ describe('UrlListField', () => {
     expect(within(group).getByRole('textbox', { name: 'Redirect URI 1' })).toHaveValue(
       'https://a.example.com/cb',
     );
-    await user.click(within(group).getByRole('button', { name: 'Remove redirect URI 1' }));
+    await user.click(
+      within(group).getByRole('button', {
+        name: 'Remove redirect URI 1, https://a.example.com/cb',
+      }),
+    );
     expect(within(group).getAllByRole('textbox')).toHaveLength(1);
+    expect(within(group).getByRole('button', { name: 'Add redirect URI' })).toHaveFocus();
     expect(within(group).getByRole('textbox', { name: 'Redirect URI 1' })).toHaveValue(
       'http://b.example.com/cb',
     );
@@ -245,8 +250,19 @@ describe('UrlListField', () => {
     await user.click(screen.getByRole('button', { name: 'Add redirect URI' }));
     const added = screen.getByRole('textbox', { name: 'Redirect URI 2' });
     expect(added).toHaveFocus();
+    expect(
+      screen.getByRole('button', { name: 'Remove redirect URI 2, empty' }),
+    ).toBeInTheDocument();
     await user.type(added, 'https://c.example.com/cb');
     expect(added).toHaveValue('https://c.example.com/cb');
+  });
+
+  it('keeps a row its own element when an earlier row is removed', async () => {
+    const user = userEvent.setup();
+    render(<Urls initial={['https://a.example.com/cb', 'https://b.example.com/cb']} />);
+    const second = screen.getByRole('textbox', { name: 'Redirect URI 2' });
+    await user.click(screen.getByRole('button', { name: /^Remove redirect URI 1,/u }));
+    expect(screen.getByRole('textbox', { name: 'Redirect URI 1' })).toBe(second);
   });
 
   it('ties an error to the row it names and the field error to the group', () => {
@@ -299,7 +315,8 @@ describe('KeyValueField', () => {
     expect(within(group).getByRole('textbox', { name: 'Value 1' })).toHaveValue('gold-plus');
     await user.click(within(group).getByRole('button', { name: 'Add claim' }));
     expect(within(group).getByRole('textbox', { name: 'Claim 2' })).toHaveFocus();
-    await user.click(within(group).getByRole('button', { name: 'Remove claim 1' }));
+    await user.click(within(group).getByRole('button', { name: 'Remove claim 1, tier' }));
+    expect(within(group).getByRole('button', { name: 'Add claim' })).toHaveFocus();
     expect(within(group).getAllByRole('textbox')).toHaveLength(2);
     expect(within(group).getByRole('textbox', { name: 'Claim 1' })).toHaveValue('');
     expect(describedBy(group)).toContain('Claim names must be unique.');

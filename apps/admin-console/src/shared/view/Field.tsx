@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   Button as AriaButton,
   FieldError,
@@ -272,6 +272,41 @@ function useRowFocus(count: number) {
   };
 }
 
+interface RowIds {
+  readonly ids: readonly string[];
+  readonly next: number;
+}
+
+function numbered(from: number, count: number): string[] {
+  return Array.from({ length: count }, (_, i) => `row-${String(from + i)}`);
+}
+
+// Each row keeps its own id, so removing one never hands its input, focus or
+// error to the row after it. A list changed from outside is renumbered.
+function useRowIds(count: number) {
+  const [rows, setRows] = useState<RowIds>(() => ({ ids: numbered(0, count), next: count }));
+  let shown = rows;
+  if (rows.ids.length !== count) {
+    const kept = rows.ids.slice(0, count);
+    const fresh = numbered(rows.next, count - kept.length);
+    shown = { ids: [...kept, ...fresh], next: rows.next + fresh.length };
+    setRows(shown);
+  }
+  return {
+    ids: shown.ids,
+    added: () => {
+      setRows((r) => ({ ids: [...r.ids, ...numbered(r.next, 1)], next: r.next + 1 }));
+    },
+    removed: (index: number) => {
+      setRows((r) => ({ ids: r.ids.filter((_, i) => i !== index), next: r.next }));
+    },
+  };
+}
+
+function removeName(noun: string, position: string, shows: string): string {
+  return `Remove ${noun} ${position}, ${shows === '' ? 'empty' : shows}`;
+}
+
 function ListGroup({
   label,
   description,
@@ -387,6 +422,7 @@ export function UrlListField({
   readonly onChange: (value: readonly string[]) => void;
 }) {
   const focus = useRowFocus(value.length);
+  const rows = useRowIds(value.length);
   const noun = itemLabel.charAt(0).toLowerCase() + itemLabel.slice(1);
   return (
     <ListGroup
@@ -398,6 +434,7 @@ export function UrlListField({
       addLabel={`Add ${noun}`}
       onAdd={() => {
         focus.added();
+        rows.added();
         onChange([...value, '']);
       }}
       rootRef={focus.root}
@@ -405,7 +442,7 @@ export function UrlListField({
       {value.map((url, i) => {
         const position = String(i + 1);
         return (
-          <div key={i} className={styles.row} data-row>
+          <div key={rows.ids[i]} className={styles.row} data-row>
             <RowInput
               label={`${itemLabel} ${position}`}
               type="url"
@@ -420,9 +457,10 @@ export function UrlListField({
               size="small"
               variant="quiet"
               isDisabled={isDisabled}
-              aria-label={`Remove ${noun} ${position}`}
+              aria-label={removeName(noun, position, url)}
               onPress={() => {
                 focus.removed();
+                rows.removed(i);
                 onChange(removeAt(value, i));
               }}
             >
@@ -457,6 +495,7 @@ export function KeyValueField({
   readonly onChange: (value: readonly KeyValuePair[]) => void;
 }) {
   const focus = useRowFocus(value.length);
+  const rows = useRowIds(value.length);
   const noun = keyLabel.toLowerCase();
   return (
     <ListGroup
@@ -468,6 +507,7 @@ export function KeyValueField({
       addLabel={`Add ${noun}`}
       onAdd={() => {
         focus.added();
+        rows.added();
         onChange([...value, { key: '', value: '' }]);
       }}
       rootRef={focus.root}
@@ -481,7 +521,7 @@ export function KeyValueField({
       {value.map((pair, i) => {
         const position = String(i + 1);
         return (
-          <div key={i} className={styles.row} data-row>
+          <div key={rows.ids[i]} className={styles.row} data-row>
             <div className={styles.pair}>
               <RowInput
                 label={`${keyLabel} ${position}`}
@@ -506,9 +546,10 @@ export function KeyValueField({
               size="small"
               variant="quiet"
               isDisabled={isDisabled}
-              aria-label={`Remove ${noun} ${position}`}
+              aria-label={removeName(noun, position, pair.key)}
               onPress={() => {
                 focus.removed();
+                rows.removed(i);
                 onChange(removeAt(value, i));
               }}
             >
