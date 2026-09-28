@@ -2,12 +2,14 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test as base, type Page } from '@playwright/test';
 import type { Account } from './stack.ts';
 
-// Reported by the browser for a request the console expects to be refused:
-// it reads its session to learn that it has none.
+// Reported by the browser for the one request the console expects to be
+// refused: it reads its session to learn that it has none. The console only
+// ever reads that path, so the path alone names GET /console/api/session; a
+// 401 anywhere else is a failure unless its test calls `forgive`.
 function expectedRefusal(text: string, url: string): boolean {
   return (
     text.startsWith('Failed to load resource: the server responded with a status of 401') &&
-    new URL(url).pathname.startsWith('/console/api/')
+    new URL(url).pathname === '/console/api/session'
   );
 }
 
