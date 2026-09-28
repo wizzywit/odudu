@@ -14,6 +14,7 @@ import {
   type ConsoleStack,
   Jar,
   KEK,
+  holdSessionLock,
   signIn,
   startConsoleApp,
 } from '#/testing/console-harness';
@@ -622,24 +623,10 @@ describe('the access token', () => {
       stack.clock.set(new Date(before.access_expires_at.getTime() - 10_000));
       const forwarded = stack.adminRequests.length;
       const tokens = stack.tokenResponses.length;
-      let release: () => void = () => undefined;
-      const held = new Promise<void>((resolve) => {
-        release = resolve;
-      });
-      let locked: () => void = () => undefined;
-      const lockTaken = new Promise<void>((resolve) => {
-        locked = resolve;
-      });
-      const holder = owner.sql.begin(async (tx) => {
-        await tx`SELECT id FROM console_sessions WHERE subject_id = ${subjectId} FOR UPDATE`;
-        locked();
-        await held;
-      });
-      await lockTaken;
+      const release = await holdSessionLock(owner, subjectId);
 
       const res = await call(stack, jar, WHOAMI);
-      release();
-      await holder;
+      await release();
 
       expectProblem(res, 502);
       expect((await mustSession(subjectId)).refresh_token_wrapped).toBe(
@@ -788,6 +775,23 @@ describe('an ended session or grant', () => {
       expect(stack.adminRequests).toHaveLength(forwarded);
     });
   });
+
+  it('gives up on an idled-out session whose lock is held past five seconds with 502, keeping it', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      const { subjectId } = await signIn(stack, jar);
+      stack.clock.advance(31 * 60_000);
+      const release = await holdSessionLock(owner, subjectId);
+
+      const res = await call(stack, jar, WHOAMI);
+      await release();
+
+      expectProblem(res, 502);
+      expect(await sessionOf(subjectId)).toBeDefined();
+      expectEnded(await call(stack, jar, WHOAMI));
+      expect(await sessionOf(subjectId)).toBeUndefined();
+    });
+  }, 30_000);
 
   it('answers the session-ended problem, deleting the row, at the absolute expiry', async () => {
     await withStack(async (stack) => {

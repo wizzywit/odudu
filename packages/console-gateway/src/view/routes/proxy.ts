@@ -3,7 +3,7 @@ import { type FastifyInstance } from 'fastify';
 import { type AdminMethod } from '#/service/odudu-port';
 import { upstreamPath } from '#/service/rewrite';
 import { forwardAdminCall, type ForwardDeps } from '#/usecase/forward';
-import { sendProblem } from '#/view/problem';
+import { BAD_GATEWAY, sendProblem } from '#/view/problem';
 import { sessionEnded } from '#/view/routes/session';
 
 export interface ProxyRouteDeps extends ForwardDeps {
@@ -50,11 +50,7 @@ export function registerProxyRoutes(api: FastifyInstance, deps: ProxyRouteDeps):
         });
         if (result.kind === 'ended') return sessionEnded(reply, request, deps.tls);
         if (result.kind === 'unavailable') {
-          return sendProblem(reply, request, {
-            status: 502,
-            type: 'about:blank',
-            title: 'Bad Gateway',
-          });
+          return sendProblem(reply, request, BAD_GATEWAY);
         }
         reply.code(result.status).headers(result.headers);
         return result.body.length === 0 ? reply.send() : reply.send(result.body);

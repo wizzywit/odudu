@@ -268,3 +268,28 @@ export async function refreshAtOp(stack: ConsoleStack, refreshToken: string): Pr
   if (res.statusCode === 200) return 'ok';
   return res.json<{ error: string }>().error;
 }
+
+/** Holds the subject's console_sessions row lock from another connection until released. */
+export async function holdSessionLock(
+  owner: DatabaseHandle,
+  subjectId: string,
+): Promise<() => Promise<void>> {
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let locked: () => void = () => undefined;
+  const lockTaken = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  const holder = owner.sql.begin(async (tx) => {
+    await tx`SELECT id FROM console_sessions WHERE subject_id = ${subjectId} FOR UPDATE`;
+    locked();
+    await held;
+  });
+  await lockTaken;
+  return async () => {
+    release();
+    await holder;
+  };
+}

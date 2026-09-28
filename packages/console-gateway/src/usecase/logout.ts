@@ -4,6 +4,7 @@ import { ADMIN_CLIENT_ID, CONSOLE_POST_LOGOUT_PATH } from '@odudu/domain-tenant'
 import { consoleSessionRepository } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
 import { endGrant } from '#/usecase/end-grant';
+import { orUnavailable, type Unavailable } from '#/usecase/lock-timeout';
 import { resolveSession, type ResolveSessionDeps } from '#/usecase/resolve-session';
 
 export interface LogoutDeps extends ResolveSessionDeps {
@@ -17,11 +18,9 @@ export interface Logout {
 }
 
 /** Where the browser goes next: the tenant's logout, or the console when there is none to end. */
-export interface LoggedOut {
-  readonly redirect: string;
-}
+export type LoggedOut = { readonly kind: 'redirect'; readonly redirect: string } | Unavailable;
 
-const TO_CONSOLE: LoggedOut = { redirect: CONSOLE_POST_LOGOUT_PATH };
+const TO_CONSOLE: LoggedOut = { kind: 'redirect', redirect: CONSOLE_POST_LOGOUT_PATH };
 
 // The gateway's session ends here whatever the server answers. The SSO
 // session can only be ended by the browser itself, since only its own
@@ -29,14 +28,18 @@ const TO_CONSOLE: LoggedOut = { redirect: CONSOLE_POST_LOGOUT_PATH };
 export async function logout(deps: LogoutDeps, input: Logout): Promise<LoggedOut> {
   const resolved = await resolveSession(deps, input.cookieHeader, input.now, input.ip);
   if (resolved.kind === 'ended') return TO_CONSOLE;
+  if (resolved.kind === 'unavailable') return resolved;
   const { tenantId, id } = resolved.session;
-  const taken = await withTenant(deps.database.db, tenantId, async (tx) => {
-    const session = await consoleSessionRepository(tx).take(id);
-    if (session === null) return null;
-    const tenant = await tenantNameRepository(tx).nameOf(tenantId);
-    return tenant === null ? null : { session, tenant };
-  });
+  const taken = await orUnavailable(() =>
+    withTenant(deps.database.db, tenantId, async (tx) => {
+      const session = await consoleSessionRepository(tx).take(id);
+      if (session === null) return null;
+      const tenant = await tenantNameRepository(tx).nameOf(tenantId);
+      return tenant === null ? null : { kind: 'taken' as const, session, tenant };
+    }),
+  );
   if (taken === null) return TO_CONSOLE;
+  if (taken.kind === 'unavailable') return taken;
 
   const { session, tenant } = taken;
   await endGrant(deps.odudu, tenant, unwrapSecret(session.refreshTokenWrapped, deps.kek), input.ip);
@@ -51,5 +54,5 @@ export async function logout(deps: LogoutDeps, input: Logout): Promise<LoggedOut
     post_logout_redirect_uri: new URL(CONSOLE_POST_LOGOUT_PATH, deps.base).toString(),
     client_id: ADMIN_CLIENT_ID,
   }).toString();
-  return { redirect: target.toString() };
+  return { kind: 'redirect', redirect: target.toString() };
 }

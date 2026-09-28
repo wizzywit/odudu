@@ -1,11 +1,12 @@
 import { unwrapSecret, wrapSecret } from '@odudu/crypto';
-import { isLockNotAvailable, withTenant, type DatabaseHandle } from '@odudu/db';
+import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { consoleSessionRepository, type ConsoleSessionRecord } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
 import { type OduduPort } from '#/service/odudu-port';
 import { accessNeedsRefresh } from '#/service/session-lifetime';
 import { type Semaphore } from '#/service/semaphore';
 import { type SingleFlight } from '#/service/single-flight';
+import { orUnavailable } from '#/usecase/lock-timeout';
 
 export type FreshToken =
   | { readonly kind: 'ok'; readonly accessToken: string }
@@ -35,22 +36,8 @@ export async function freshAccessToken(
     return { kind: 'ok', accessToken: unwrapSecret(session.accessTokenWrapped, deps.kek) };
   }
   return deps.refreshes(session.id, () =>
-    deps.refreshSlots(() => refreshOrGiveUp(deps, session, now, ip)),
+    deps.refreshSlots(() => orUnavailable(() => refreshUnderLock(deps, session, now, ip))),
   );
-}
-
-async function refreshOrGiveUp(
-  deps: FreshTokenDeps,
-  session: ConsoleSessionRecord,
-  now: Date,
-  ip: string,
-): Promise<FreshToken> {
-  try {
-    return await refreshUnderLock(deps, session, now, ip);
-  } catch (error: unknown) {
-    if (isLockNotAvailable(error)) return { kind: 'unavailable' };
-    throw error;
-  }
 }
 
 async function refreshUnderLock(

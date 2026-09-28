@@ -5,7 +5,7 @@ import {
   resolveSession,
   type ResolveSessionDeps,
 } from '#/usecase/resolve-session';
-import { SESSION_ENDED, sendProblem } from '#/view/problem';
+import { BAD_GATEWAY, SESSION_ENDED, sendProblem } from '#/view/problem';
 
 export interface SessionRouteDeps extends ResolveSessionDeps {
   readonly now: () => Date;
@@ -23,6 +23,7 @@ export function registerSessionRoutes(fastify: FastifyInstance, deps: SessionRou
   fastify.get('/session', async (request, reply) => {
     const resolved = await resolveSession(deps, request.headers.cookie, deps.now(), request.ip);
     if (resolved.kind === 'ended') return sessionEnded(reply, request, deps.tls);
+    if (resolved.kind === 'unavailable') return sendProblem(reply, request, BAD_GATEWAY);
     const summary = await describeSession(deps, resolved.session);
     if (summary === null) return sessionEnded(reply, request, deps.tls);
     return reply.header('cache-control', 'no-store').send({

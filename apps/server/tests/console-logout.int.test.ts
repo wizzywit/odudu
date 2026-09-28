@@ -10,6 +10,7 @@ import { seedAdmin } from '#/cli/seed';
 import {
   beginLogin,
   browse,
+  holdSessionLock,
   type ConsoleStack,
   Jar,
   KEK,
@@ -250,6 +251,23 @@ describe('POST /console/auth/logout', () => {
       expect((await browse(stack, jar, '/console/api/session')).statusCode).toBe(200);
     });
   });
+
+  it('gives up on a session lock held past five seconds with 502, keeping the session', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      const { subjectId } = await signIn(stack, jar);
+      const release = await holdSessionLock(owner, subjectId);
+
+      const res = await logout(stack, jar);
+      await release();
+
+      expect(res.statusCode).toBe(502);
+      expect(res.headers['content-type']).toMatch(/^application\/problem\+json/u);
+      expect(setCookies(res)).toEqual([]);
+      expect(await consoleSessionsOf(subjectId)).toHaveLength(1);
+      expect((await browse(stack, jar, '/console/api/session')).statusCode).toBe(200);
+    });
+  }, 30_000);
 
   it('answers a logout whose JSON body is empty as a client error, not a server one', async () => {
     await withStack(async (stack) => {

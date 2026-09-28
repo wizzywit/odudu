@@ -12,6 +12,12 @@ export const SESSION_ENDED: ConsoleProblem = {
   title: 'Unauthorized',
 };
 
+export const BAD_GATEWAY: ConsoleProblem = {
+  status: 502,
+  type: 'about:blank',
+  title: 'Bad Gateway',
+};
+
 export function sendProblem(
   reply: FastifyReply,
   request: FastifyRequest,

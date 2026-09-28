@@ -8,6 +8,7 @@ import { type OduduPort } from '#/service/odudu-port';
 import { sha256, splitTenantBound } from '#/service/secrets';
 import { sessionHasEnded, sessionNeedsTouch } from '#/service/session-lifetime';
 import { endGrant } from '#/usecase/end-grant';
+import { orUnavailable } from '#/usecase/lock-timeout';
 
 export interface ResolveSessionDeps {
   readonly database: DatabaseHandle;
@@ -16,8 +17,12 @@ export interface ResolveSessionDeps {
   readonly tls: boolean;
 }
 
+// `unavailable`: the session is over, but a refresh held its row past the
+// lock timeout, so the row and its grant are left for the next request.
 export type ResolvedSession =
-  { readonly kind: 'ok'; readonly session: ConsoleSessionRecord } | { readonly kind: 'ended' };
+  | { readonly kind: 'ok'; readonly session: ConsoleSessionRecord }
+  | { readonly kind: 'ended' }
+  | { readonly kind: 'unavailable' };
 
 const ENDED: ResolvedSession = { kind: 'ended' };
 
@@ -59,18 +64,20 @@ export async function resolveSession(
 ): Promise<ResolvedSession> {
   const bound = boundCookie(deps, cookieHeader);
   if (bound === null) return ENDED;
-  const found = await withTenant(
-    deps.database.db,
-    bound.tenantId,
-    async (tx): Promise<ResolvedSession | Taken | null> => {
-      const sessions = consoleSessionRepository(tx);
-      const session = await sessions.bySecretHash(sha256(bound.secret));
-      if (session === null) return ENDED;
-      if (sessionHasEnded(session, now)) return takeRow(tx, deps, session);
-      if (!sessionNeedsTouch(session, now)) return { kind: 'ok', session };
-      if ((await sessions.touch(session.id, now)) === 'gone') return ENDED;
-      return { kind: 'ok', session: { ...session, lastSeenAt: now } };
-    },
+  const found = await orUnavailable(() =>
+    withTenant(
+      deps.database.db,
+      bound.tenantId,
+      async (tx): Promise<ResolvedSession | Taken | null> => {
+        const sessions = consoleSessionRepository(tx);
+        const session = await sessions.bySecretHash(sha256(bound.secret));
+        if (session === null) return ENDED;
+        if (sessionHasEnded(session, now)) return takeRow(tx, deps, session);
+        if (!sessionNeedsTouch(session, now)) return { kind: 'ok', session };
+        if ((await sessions.touch(session.id, now)) === 'gone') return ENDED;
+        return { kind: 'ok', session: { ...session, lastSeenAt: now } };
+      },
+    ),
   );
   if (found === null) return ENDED;
   if (found.kind !== 'taken') return found;

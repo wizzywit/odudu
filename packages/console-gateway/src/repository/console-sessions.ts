@@ -99,7 +99,9 @@ export function consoleSessionRepository(tx: TenantScopedDatabase) {
 
     // A refresh holding the row's lock finishes first, so what is answered
     // is the refresh token as it stands once no refresh can reach it again.
+    // It waits no longer than lockById does, and throws 55P03 the same way.
     async take(id: string): Promise<ConsoleSessionRecord | null> {
+      await tx.execute(sql`SET LOCAL lock_timeout = '5s'`);
       const rows = await tx.delete(consoleSessions).where(eq(consoleSessions.id, id)).returning();
       return rows[0] ?? null;
     },

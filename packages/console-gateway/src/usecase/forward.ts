@@ -42,7 +42,7 @@ export async function forwardAdminCall(
     call.now,
     call.ip,
   );
-  if (resolved.kind === 'ended') return resolved;
+  if (resolved.kind !== 'ok') return resolved;
   const token = await freshAccessToken(deps, resolved.session, call.now, call.ip);
   if (token.kind !== 'ok') return token;
 

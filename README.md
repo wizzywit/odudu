@@ -1060,13 +1060,15 @@ tokens server-side and gives the browser nothing but a session cookie:
   The SPA navigates there itself, because only the browser's own request
   carries the tenant's SSO cookie; without it the logout endpoint still
   redirects but ends nothing. With no session the answer is
-  `{ "redirect": "/console/" }`.
+  `{ "redirect": "/console/" }`. A wait of more than 5 s for the session's
+  lock answers `502`, keeping the session and its cookie.
 
 The session cookie is `__Host-odudu-console` (`HttpOnly; Secure;
 SameSite=Strict; Path=/`), or `odudu-console` without `Secure` over plain
 HTTP. Its value is `<tenant id>.<secret>`, and only the secret's SHA-256 is
 stored. A session ends after 30 minutes idle or 12 hours in all, and the
-request that finds it over deletes it and revokes its grant. A request
+request that finds it over deletes it and revokes its grant, or answers
+`502` and leaves it, if a refresh holds its lock for more than 5 s. A request
 carrying that cookie twice is treated as carrying none. Any request to
 `/console/api/` or `/console/auth/` other than `GET`, `HEAD` or `OPTIONS`
 must carry `Origin` equal to the origin of `ODUDU_PUBLIC_BASE_URL` and the
