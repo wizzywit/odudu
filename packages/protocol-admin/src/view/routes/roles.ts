@@ -447,6 +447,7 @@ export function setRoleDefaultHandler(deps: RolesRouteDeps): AdminRouteHandler {
         {
           roleId: id,
           value: body.default,
+          ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -463,6 +464,8 @@ export function setRoleDefaultHandler(deps: RolesRouteDeps): AdminRouteHandler {
         );
       case 'default_role_capability':
         return sendProblem(reply, request, defaultRoleCapabilityProblem(outcome.capabilities));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
       case 'ok':
         reply.header('etag', outcome.etag);
         return reply.code(200).send(outcome.role);

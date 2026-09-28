@@ -796,6 +796,7 @@ async function removeRoleCompositeUnguarded(
 export interface SetRoleDefaultInput {
   readonly roleId: string;
   readonly value: boolean;
+  readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -808,7 +809,8 @@ export interface SetRoleDefaultDeps {
 export type SetRoleDefaultOutcome =
   | { kind: 'not_found' }
   | { kind: 'default_role_capability'; capabilities: readonly string[] }
-  | { kind: 'ok'; role: Role; etag: string };
+  | { kind: 'ok'; role: Role; etag: string }
+  | { kind: 'precondition_failed' };
 
 // Stricter than the capability ceiling `addRoleComposite` applies, and so
 // subsuming it: the ceiling admits what the caller holds, this admits no
@@ -821,6 +823,7 @@ export async function setRoleDefault(
   const locked = await lockRoleForAmend(tx, input.roleId);
   if (locked === null) return { kind: 'not_found' };
   const before = await roleWire(tx, locked);
+  if (matches(input.ifMatch, etagOf(before)) === 'mismatch') return { kind: 'precondition_failed' };
 
   if (input.value) {
     await lockDefaultRoleReach(tx);

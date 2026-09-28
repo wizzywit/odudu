@@ -645,7 +645,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: roleSchema,
     bodySchema: setRoleDefaultRequestSchema,
     description:
-      'Sets whether every subject created afterwards, self-registered ones included, is granted this role. `true` is refused with `403` when the role reaches any admin capability, whoever the caller is; `false` is never refused.',
+      'Sets whether every subject created afterwards, self-registered ones included, is granted this role. `true` is refused with `403` when the role reaches any admin capability, whoever the caller is; `false` is never refused. Answers the role\u2019s `ETag`; `If-Match` is optional, and a stale one is refused with `412`.',
   },
   {
     method: 'GET',

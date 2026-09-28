@@ -4752,7 +4752,9 @@ HTTP/1.1 412 Precondition Failed
 ## `PUT /roles/:id/default`
 
 Requires `manage-tenant`. The body is `{"default": true}` or
-`{"default": false}`, and the answer is the role with its `ETag`. A role
+`{"default": false}`, and the answer is the role with its `ETag`.
+`If-Match` is optional: sent, it is compared with the role as it stands
+under the write's own lock, and a stale one is refused with `412`. A role
 marked default is granted to **every subject created afterwards** —
 through `POST /subjects` and through self-registration alike, which share
 `composeUserSubject` (`packages/protocol-admin/src/usecase/subjects.ts`) —

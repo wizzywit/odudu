@@ -290,3 +290,26 @@ describe('composite writes answer an ETag and honour If-Match when given', () =>
     expect(etagHeader(removed)).toBe(empty);
   });
 });
+
+describe('a role default honours If-Match when given', () => {
+  it('answers the role’s ETag, and 412s a stale one', async () => {
+    const caller = await tenantCaller();
+    const created = await caller.call('POST', '/roles', { name: `d-${newId()}` });
+    const id = created.json<{ id: string }>().id;
+
+    const stale = await caller.call('PUT', `/roles/${id}/default`, { default: true }, STALE);
+    expect(stale.statusCode, stale.body).toBe(412);
+    expect((await caller.call('GET', `/roles/${id}`)).json()).toMatchObject({
+      default_for_new_subjects: false,
+    });
+
+    const set = await caller.call(
+      'PUT',
+      `/roles/${id}/default`,
+      { default: true },
+      etagHeader(created),
+    );
+    expect(set.statusCode, set.body).toBe(200);
+    expect(etagHeader(set)).toBe(etagHeader(await caller.call('GET', `/roles/${id}`)));
+  });
+});
