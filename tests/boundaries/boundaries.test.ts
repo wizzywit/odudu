@@ -166,6 +166,13 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toBe(true);
   });
 
+  it('lets a test beside a layer reach src/testing/', async () => {
+    const found = await violations('no-layer-to-testing');
+    expect(found.some((v) => v.from.endsWith('domain-example/src/view/good-view.test.tsx'))).toBe(
+      false,
+    );
+  });
+
   it('does not flag a clean service for no-layer-to-testing', async () => {
     const found = await violations('no-layer-to-testing');
     expect(found.some((v) => v.from.endsWith('domain-example/src/service/some-service.ts'))).toBe(

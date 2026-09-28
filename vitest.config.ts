@@ -65,6 +65,9 @@ export default defineConfig({
           include: dom,
           exclude: ['**/node_modules/**', '**/dist/**'],
           environment: 'jsdom',
+          // An unprocessed CSS file imports as '', even with ?raw; the contrast
+          // and font tests read these two files' source.
+          css: { include: [/\/shared\/view\/(?:tokens|fonts)\.css/u] },
           setupFiles: [...SETUP, join(REPO_ROOT, CONSOLE, 'tests/setup.ts')],
         },
       },

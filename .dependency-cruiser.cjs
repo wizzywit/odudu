@@ -173,9 +173,10 @@ module.exports = {
         "`src/testing/` holds fixtures reused across a package's own test files, reachable " +
         'only via `#/` because ESLint forbids relative test imports and `#/*` maps to ' +
         '`./src/*.ts` (see packages/protocol-oidc/src/testing/). None of the five layers has a ' +
-        'legitimate reason to depend on test-only code.',
+        'legitimate reason to depend on test-only code; a test beside one is not layer code.',
       from: {
         path: '/src/(?:(?:view|usecase|repository|adapter|service)|.*/(?:view|usecase|repository|adapter|service))(?:/|\\.tsx?$)',
+        pathNot: '\\.test\\.tsx?$',
       },
       to: { path: '/src/(?:testing|.*/testing)/' },
     },

@@ -1,0 +1,145 @@
+/* The breakpoints are the shell's own width, not the viewport's: 1024 and
+   wider a full rail, 640 to 1023 a collapsed one, narrower a top bar whose
+   menu opens the rail as a sheet. */
+.shell {
+  container: shell / inline-size;
+  min-block-size: 100vh;
+}
+
+.frame {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-block-size: 100vh;
+}
+
+.skip {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-start: var(--space-2);
+  z-index: 60;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-overlay);
+  transform: translateY(-200%);
+}
+
+.skip:focus-visible {
+  transform: none;
+}
+
+.rail {
+  position: sticky;
+  inset-block-start: 0;
+  block-size: 100vh;
+  overflow-y: auto;
+  background: var(--surface-rail);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.topBar {
+  display: none;
+}
+
+.main {
+  flex: 1;
+  inline-size: 100%;
+  max-inline-size: 1200px;
+  padding: 0 var(--space-8) var(--space-8);
+  outline: none;
+}
+
+@container shell (width < 1024px) {
+  .frame {
+    grid-template-columns: 192px minmax(0, 1fr);
+  }
+
+  .main {
+    padding-inline: var(--space-6);
+  }
+}
+
+@container shell (width < 640px) {
+  .frame {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rail {
+    display: none;
+  }
+
+  .topBar {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-block-size: 48px;
+    padding: 0 var(--space-4);
+    color: var(--ink-rail);
+    background: var(--surface-rail);
+  }
+
+  .main {
+    padding-inline: var(--space-4);
+  }
+}
+
+.brand {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgb(11 14 13 / 45%);
+}
+
+.overlay[data-entering] {
+  animation: fade var(--motion-panel) var(--ease);
+}
+
+.sheet {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: min(300px, 86vw);
+  background: var(--surface-rail);
+  box-shadow: var(--shadow-overlay);
+}
+
+.sheet[data-entering] {
+  animation: slide var(--motion-panel) var(--ease);
+}
+
+.dialog,
+.sheetRail {
+  block-size: 100%;
+  overflow-y: auto;
+  outline: none;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+}

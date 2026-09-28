@@ -1,0 +1,27 @@
+.copy {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  max-inline-size: 100%;
+}
+
+.value {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  font-size: var(--type-13);
+  color: var(--ink-primary);
+  background: var(--surface-sunken);
+  overflow-wrap: anywhere;
+}
+
+.outcome {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--signal-active-ink);
+}
+
+.outcome[data-outcome='failed'] {
+  color: var(--signal-danger-ink);
+}
