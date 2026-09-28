@@ -72,6 +72,10 @@ const publicBaseUrl = z
     return `${parsed.protocol}//${parsed.host}`;
   });
 
+// The container image's own layout for the built console; shared with
+// `apps/server/src/app.ts`'s own default so the two can never drift apart.
+export const DEFAULT_CONSOLE_DIR = '/app/console';
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   ODUDU_HTTP_HOST: z.string().min(1).default('0.0.0.0'),
@@ -256,7 +260,7 @@ const schema = z.object({
   // that base, never from a request (apps/server/src/config-guard.ts).
   ODUDU_CONSOLE: enabledEnvVar,
   // The built console's static files, as the container image lays them out.
-  ODUDU_CONSOLE_DIR: z.string().min(1).default('/app/console'),
+  ODUDU_CONSOLE_DIR: z.string().min(1).default(DEFAULT_CONSOLE_DIR),
   // Lets a bounded address-checked fetch — the JWKS fetcher
   // (@odudu/protocol-oidc's client-keys repository) or the back-channel
   // logout transport (apps/server/src/logout-delivery-transport.ts) —

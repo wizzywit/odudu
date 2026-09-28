@@ -20,7 +20,7 @@ import {
   userRepository,
   verifyPassword,
 } from '@odudu/domain-identity';
-import { newId } from '@odudu/kernel';
+import { DEFAULT_CONSOLE_DIR, newId } from '@odudu/kernel';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -273,8 +273,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         ownerDatabase: deps.ownerDatabase,
         kek: deps.kek,
         publicBaseUrl: deps.consoleBaseUrl,
-        // Matches ODUDU_CONSOLE_DIR's own default (packages/kernel/src/config.ts).
-        consoleDir: deps.consoleDir ?? '/app/console',
+        consoleDir: deps.consoleDir ?? DEFAULT_CONSOLE_DIR,
         ...(deps.consoleNow === undefined ? {} : { now: deps.consoleNow }),
       }),
     );

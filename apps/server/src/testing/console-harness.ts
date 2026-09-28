@@ -17,6 +17,10 @@ import { createLogger } from '#/logger';
 export const KEK = Buffer.alloc(32, 7);
 export const NEW_PASSWORD = 'Str0ng-Passw0rd!42';
 export const RETURN_TO = '/console/tenants/system/clients?page=2';
+// Deliberately absent, rather than relying on DEFAULT_CONSOLE_DIR being
+// unset on the machine running the tests: a test that does not pass its
+// own `consoleDir` gets the gateway's 503 fallback, not a real build.
+const NO_CONSOLE_BUILD = '/nonexistent/odudu-console-test-fixture';
 
 export interface ConsoleDatabases {
   readonly database: DatabaseHandle;
@@ -75,7 +79,7 @@ export async function startConsoleApp(
     // An https base is served behind a proxy: boot refuses it otherwise.
     trustProxy: baseUrl.protocol === 'https:',
     ...(options.throttle === undefined ? {} : { throttle: options.throttle }),
-    ...(options.consoleDir === undefined ? {} : { consoleDir: options.consoleDir }),
+    consoleDir: options.consoleDir ?? NO_CONSOLE_BUILD,
   });
   const tokenResponses: string[] = [];
   app.addHook('onSend', async (request, _reply, payload) => {

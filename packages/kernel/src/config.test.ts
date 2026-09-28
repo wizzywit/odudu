@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { consoleBaseUrl, loadConfig } from '#/config';
+import { consoleBaseUrl, DEFAULT_CONSOLE_DIR, loadConfig } from '#/config';
 import { OduduError } from '#/errors';
 
 const VALID_KEK = Buffer.alloc(32, 9).toString('base64');
@@ -269,10 +269,11 @@ describe('loadConfig', () => {
     }
   });
 
-  it('serves the console by default, from /app/console', () => {
+  it('serves the console by default, from DEFAULT_CONSOLE_DIR', () => {
     const config = loadConfig(minimal);
     expect(config.ODUDU_CONSOLE).toBe(true);
-    expect(config.ODUDU_CONSOLE_DIR).toBe('/app/console');
+    expect(DEFAULT_CONSOLE_DIR).toBe('/app/console');
+    expect(config.ODUDU_CONSOLE_DIR).toBe(DEFAULT_CONSOLE_DIR);
   });
 
   it('turns the console off only on the literal string false', () => {
