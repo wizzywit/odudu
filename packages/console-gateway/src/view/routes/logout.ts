@@ -1,7 +1,9 @@
 import { type FastifyInstance } from 'fastify';
+import { STATUS_CODES } from 'node:http';
 import { clearedSessionCookie } from '#/service/cookies';
 import { logout, type LogoutDeps } from '#/usecase/logout';
 import { BAD_GATEWAY, sendProblem } from '#/view/problem';
+import { answerErrors } from '#/view/scope';
 
 export interface LogoutRouteDeps extends LogoutDeps {
   readonly now: () => Date;
@@ -9,19 +11,31 @@ export interface LogoutRouteDeps extends LogoutDeps {
 
 // A JSON body rather than a 302: the CSRF guard needs a custom header, so
 // this is a fetch, and a fetch that follows a redirect cannot move the page.
-// The SPA navigates to the answer itself.
+// The SPA navigates to the answer itself. Its own scope, so a failure is
+// answered as the fetch expects rather than as the sign-in's page.
 export function registerLogoutRoute(fastify: FastifyInstance, deps: LogoutRouteDeps): void {
-  fastify.post('/logout', async (request, reply) => {
-    const result = await logout(deps, {
-      cookieHeader: request.headers.cookie,
-      ip: request.ip,
-      now: deps.now(),
+  fastify.register((scope) => {
+    answerErrors(scope, 'console logout failed', (request, reply, status) =>
+      sendProblem(reply.header('set-cookie', clearedSessionCookie(deps.tls)), request, {
+        status,
+        type: 'about:blank',
+        title: STATUS_CODES[status] ?? 'Bad Request',
+      }),
+    );
+
+    scope.post('/logout', async (request, reply) => {
+      const result = await logout(deps, {
+        cookieHeader: request.headers.cookie,
+        ip: request.ip,
+        now: deps.now(),
+      });
+      // The session was kept, so its cookie is too, and the logout can be retried.
+      if (result.kind === 'unavailable') return sendProblem(reply, request, BAD_GATEWAY);
+      return reply
+        .header('cache-control', 'no-store')
+        .header('set-cookie', clearedSessionCookie(deps.tls))
+        .send({ redirect: result.redirect });
     });
-    // The session was kept, so its cookie is too, and the logout can be retried.
-    if (result.kind === 'unavailable') return sendProblem(reply, request, BAD_GATEWAY);
-    return reply
-      .header('cache-control', 'no-store')
-      .header('set-cookie', clearedSessionCookie(deps.tls))
-      .send({ redirect: result.redirect });
+    return Promise.resolve();
   });
 }

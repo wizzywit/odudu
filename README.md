@@ -1063,7 +1063,8 @@ tokens server-side and gives the browser nothing but a session cookie:
   carries the tenant's SSO cookie; without it the logout endpoint still
   redirects but ends nothing. With no session the answer is
   `{ "redirect": "/console/" }`. A wait of more than 5 s for the session's
-  lock answers `502`, keeping the session and its cookie.
+  lock answers `502`, keeping the session and its cookie. Any other
+  failure answers problem+json and clears the cookie.
 
 The session cookie is `__Host-odudu-console` (`HttpOnly; Secure;
 SameSite=Strict; Path=/`), or `odudu-console` without `Secure` over plain

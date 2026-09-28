@@ -152,8 +152,12 @@ async function seedSession(): Promise<SeededSession> {
   return { cookie: bindToTenant(tenantId, secret), tenantId };
 }
 
-async function logout(odudu: OduduPort, cookie: string): Promise<LightMyRequestResponse> {
-  const server = await authServer(odudu, []);
+async function logout(
+  odudu: OduduPort,
+  cookie: string,
+  logs: string[] = [],
+): Promise<LightMyRequestResponse> {
+  const server = await authServer(odudu, logs);
   try {
     return await server.inject({
       method: 'POST',
@@ -240,6 +244,22 @@ describe('a logout the server answers badly', () => {
     expect(redirect.searchParams.get('id_token_hint')).toBe('id-token-hint');
     expect(String(res.headers['set-cookie'])).toContain('odudu-console=; ');
     expect(await sessionCount(tenantId)).toBe(0);
+  });
+
+  it('answers a failure as problem+json, clearing the session cookie, not the sign-in page', async () => {
+    const logs: string[] = [];
+    const { cookie } = await seedSession();
+
+    const res = await logout(throwingPort, cookie, logs);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.headers['content-type']).toMatch(/^application\/problem\+json/u);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.json()).toMatchObject({ status: 500, type: 'about:blank' });
+    expect(res.body).not.toContain('sign-in could not be completed');
+    expect(String(res.headers['set-cookie'])).toMatch(/^odudu-console=; .*Max-Age=0/u);
+    expect(logs.join('\n')).toContain('console logout failed');
+    expect(logs.join('\n')).not.toContain(SENTINEL);
   });
 
   it('sends the browser to the console when the tenant’s issuer cannot be discovered', async () => {

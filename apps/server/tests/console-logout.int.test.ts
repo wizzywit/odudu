@@ -278,6 +278,9 @@ describe('POST /console/auth/logout', () => {
 
       expect(res.statusCode).toBe(400);
       expect(res.headers['cache-control']).toBe('no-store');
+      expect(res.headers['content-type']).toMatch(/^application\/problem\+json/u);
+      expect(res.json()).toMatchObject({ status: 400, type: 'about:blank' });
+      expectSessionCookieCleared(res);
       expect(await consoleSessionsOf(subjectId)).toHaveLength(1);
     });
   });
