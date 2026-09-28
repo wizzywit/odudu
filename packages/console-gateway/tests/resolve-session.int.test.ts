@@ -151,7 +151,7 @@ describe('resolveSession', () => {
     expect(await resolveSession(deps, header, SIGNED_IN)).toEqual({ kind: 'ended' });
   });
 
-  it('ends a session deleted between its read and its touch', async () => {
+  it('admits a session whose row is locked without waiting for the lock', async () => {
     const { session, cookie } = await seedSession();
     let release: () => void = () => undefined;
     const held = new Promise<void>((resolve) => {
@@ -161,20 +161,19 @@ describe('resolveSession', () => {
     const lockTaken = new Promise<void>((resolve) => {
       locked = resolve;
     });
-    const deleting = withTenant(owner.db, session.tenantId, async (tx) => {
+    const holding = withTenant(owner.db, session.tenantId, async (tx) => {
       await consoleSessionRepository(tx).lockById(session.id);
       locked();
       await held;
-      await consoleSessionRepository(tx).delete(session.id);
     });
     await lockTaken;
 
-    const resolving = resolveSession(deps, cookie, at(MINUTE));
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    const result = await resolveSession(deps, cookie, at(MINUTE));
     release();
-    await deleting;
+    await holding;
 
-    expect(await resolving).toEqual({ kind: 'ended' });
+    expect(result).toMatchObject({ kind: 'ok', session: { id: session.id } });
+    expect((await rowOf(session))?.lastSeenAt).toEqual(SIGNED_IN);
   });
 
   it('takes neither of two session cookies, leaving both sessions alone', async () => {

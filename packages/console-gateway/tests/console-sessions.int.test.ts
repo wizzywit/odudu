@@ -193,8 +193,48 @@ describe('consoleSessionRepository', () => {
     );
     const found = await withTenant(app.db, tenantId, (tx) => sessionById(tx, created));
 
-    expect(touched).toBe(true);
+    expect(touched).toBe('touched');
     expect(found?.lastSeenAt).toEqual(later);
+  });
+
+  it('skips a touch while the row is locked, without waiting, and says so', async () => {
+    const tenantId = newId();
+    const created = await withTenant(app.db, tenantId, (tx) => seedSession(tx, tenantId));
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked: () => void = () => undefined;
+    const isLocked = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const holder = withTenant(app.db, tenantId, async (tx) => {
+      await consoleSessionRepository(tx).lockById(created.id);
+      locked();
+      await held;
+    });
+    await isLocked;
+
+    const touched = await withTenant(app.db, tenantId, (tx) =>
+      consoleSessionRepository(tx).touch(created.id, new Date(NOW.getTime() + 3 * MINUTE)),
+    );
+    release();
+    await holder;
+    const found = await withTenant(app.db, tenantId, (tx) => sessionById(tx, created));
+
+    expect(touched).toBe('locked');
+    expect(found?.lastSeenAt).toEqual(NOW);
+  });
+
+  it('reports a touch of a row that does not exist as gone', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedSession(tx, tenantId));
+
+    const touched = await withTenant(app.db, tenantId, (tx) =>
+      consoleSessionRepository(tx).touch(newId(), NOW),
+    );
+
+    expect(touched).toBe('gone');
   });
 
   it('replaces the access and refresh tokens and keeps the ID token', async () => {
@@ -337,7 +377,7 @@ describe('consoleSessionRepository under a foreign tenant', () => {
       attempt: (tx, seeded) =>
         consoleSessionRepository(tx).touch(seeded.id, new Date(NOW.getTime() + MINUTE)),
       expectBlocked: (result) => {
-        expect(result).toBe(false);
+        expect(result).toBe('gone');
       },
       verifyTenantAUnaffected: expectSessionUnchanged,
     });

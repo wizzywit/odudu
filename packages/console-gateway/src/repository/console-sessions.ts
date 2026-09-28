@@ -12,6 +12,9 @@ export interface ConsoleSessionTokens {
   readonly accessExpiresAt: Date;
 }
 
+/** `locked`: another transaction holds the row, so this touch was skipped. */
+export type TouchOutcome = 'touched' | 'locked' | 'gone';
+
 export interface NewConsoleSession {
   readonly tenantId: string;
   readonly subjectId: string;
@@ -63,13 +66,23 @@ export function consoleSessionRepository(tx: TenantScopedDatabase) {
       return rows[0] ?? null;
     },
 
-    async touch(id: string, now: Date): Promise<boolean> {
-      const rows = await tx
-        .update(consoleSessions)
-        .set({ lastSeenAt: now })
+    // Never waits: a refresh holds the row's lock across a call that needs
+    // a pooled connection, and a touch queued behind it would hold another.
+    async touch(id: string, now: Date): Promise<TouchOutcome> {
+      const free = await tx
+        .select({ id: consoleSessions.id })
+        .from(consoleSessions)
         .where(eq(consoleSessions.id, id))
-        .returning({ id: consoleSessions.id });
-      return rows.length > 0;
+        .for('update', { skipLocked: true });
+      if (free.length === 0) {
+        const exists = await tx
+          .select({ id: consoleSessions.id })
+          .from(consoleSessions)
+          .where(eq(consoleSessions.id, id));
+        return exists.length > 0 ? 'locked' : 'gone';
+      }
+      await tx.update(consoleSessions).set({ lastSeenAt: now }).where(eq(consoleSessions.id, id));
+      return 'touched';
     },
 
     async replaceTokens(id: string, tokens: ConsoleSessionTokens): Promise<boolean> {
