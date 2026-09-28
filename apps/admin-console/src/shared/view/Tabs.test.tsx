@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
+import tabsCss from '#/shared/view/Tabs.module.css?raw';
 import { Tabs } from '#/shared/view/Tabs.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
@@ -57,4 +58,27 @@ it('passes axe in both themes', async () => {
     light: [],
     dark: [],
   });
+});
+
+function rule(selector: string): string {
+  const css = tabsCss.replace(/\/\*[\s\S]*?\*\//gu, '');
+  const found = [...css.matchAll(/([^{}]+)\{([^}]*)\}/gu)].find(
+    ([, head = '']) => head.trim() === selector,
+  );
+  return found?.[2] ?? '';
+}
+
+it('heads the panel below it, so the page grid never shows behind the tabs', () => {
+  expect(rule('.list')).toMatch(/background:\s*var\(--surface-panel\)/u);
+  expect(rule('.list')).toMatch(/border:\s*1px solid var\(--border\)/u);
+  expect(rule('.panel')).toMatch(/background:\s*var\(--surface-panel\)/u);
+  expect(rule('.panel')).toMatch(/border:\s*1px solid var\(--border\)/u);
+  expect(rule('.panel')).toMatch(/border-block-start:\s*0/u);
+});
+
+it('sets unselected tabs on the muted surface and merges the selected one into the panel', () => {
+  expect(rule('.tab')).toMatch(/background:\s*var\(--surface-sunken\)/u);
+  expect(rule('.tab[data-selected]')).toMatch(/background:\s*var\(--surface-panel\)/u);
+  expect(rule('.tab[data-selected]')).toMatch(/border-block-end-color:\s*var\(--surface-panel\)/u);
+  expect(rule('.tab[data-selected]')).toMatch(/var\(--signal-active-ink\)/u);
 });
