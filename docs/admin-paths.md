@@ -1844,6 +1844,39 @@ echo
 {"items":[{"id":"01a0e58a-cf92-7f1d-8ace-8224c2aab302","occurred_at":"2026-09-28T01:04:34.701Z","event_type":"admin_mutation","action":"client.delete","outcome":"refused","actor_tenant_id":"01a0e58a-ab08-7733-92ed-2e54588af553","actor_subject_id":"01a0e58a-ab8f-7377-a87c-50e28671b6ee","actor_client_id":"01a0e58a-abee-7e81-ab83-51c418d622bd","resource_type":"client","resource_id":"01a0e58a-ac43-7148-8881-6c3fdc6cf1ae","request_id":"01a0e58a-cf82-7fe7-9b0b-2d1ddc99a45f","ip":"172.20.0.1","detail":{"denied":["view-audit","manage-sessions","manage-keys","manage-tenant","manage-users","view-users"]}},{"id":"01a0e58a-cf74-7295-9c54-9abb75615a75","occurred_at":"2026-09-28T01:04:34.670Z","event_type":"admin_mutation","action":"client.amend","outcome":"refused","actor_tenant_id":"01a0e58a-ab08-7733-92ed-2e54588af553","actor_subject_id":"01a0e58a-ab8f-7377-a87c-50e28671b6ee","actor_client_id":"01a0e58a-abee-7e81-ab83-51c418d622bd","resource_type":"client","resource_id":"01a0e58a-ac43-7148-8881-6c3fdc6cf1ae","request_id":"01a0e58a-cf59-7be6-9f42-f3c8935d7152","ip":"172.20.0.1","detail":{"denied":["view-audit","manage-sessions","manage-keys","manage-tenant","manage-users","view-users"]}},{"id":"01a0e58a-cf47-7573-8001-0dc35f83d319","occurred_at":"2026-09-28T01:04:34.626Z","event_type":"admin_mutation","action":"client.rotate_secret","outcome":"refused","actor_tenant_id":"01a0e58a-ab08-7733-92ed-2e54588af553","actor_subject_id":"01a0e58a-ab8f-7377-a87c-50e28671b6ee","actor_client_id":"01a0e58a-abee-7e81-ab83-51c418d622bd","resource_type":"client","resource_id":"01a0e58a-ac43-7148-8881-6c3fdc6cf1ae","request_id":"01a0e58a-cf29-709d-9802-4f44423e6326","ip":"172.20.0.1","detail":{"denied":["view-audit","manage-sessions","manage-keys","manage-tenant","manage-users","view-users"]}}]}
 ```
 
+The two scope routes, from `scopes-robot` in the same tenant, a client whose
+service account was given `manage-tenant` alone, so `$SCOPES_TOKEN` carries
+the capability the scope routes require and nothing else. Assigning `profile` to
+`root-robot` and unassigning it are refused, assigning it to `plain-robot`
+is not, and the rows on `profile` since `RUN_START` are the two refusals
+and that assignment:
+
+```bash
+RUN_START=$(date -u +%FT%T.000Z)
+PROFILE=http://localhost:3000/admin/tenants/ceiling-clients/scopes/01a0e58a-ab1f-7f4e-9e3e-c4574290cf56
+curl -sS -X PUT -H "Authorization: Bearer $SCOPES_TOKEN" -H 'content-type: application/json' \
+  -d '{"assignment":"optional"}' "$PROFILE/clients/01a0e58a-ac43-7148-8881-6c3fdc6cf1ae"
+echo
+curl -sS -X DELETE -H "Authorization: Bearer $SCOPES_TOKEN" \
+  "$PROFILE/clients/01a0e58a-ac43-7148-8881-6c3fdc6cf1ae"
+echo
+curl -sS -o /dev/null -w '%{http_code}\n' -X PUT -H "Authorization: Bearer $SCOPES_TOKEN" \
+  -H 'content-type: application/json' -d '{"assignment":"default"}' \
+  "$PROFILE/clients/01a0e58a-aca8-786f-a574-21674f047897"
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/ceiling-clients/audit?resource_type=scope&resource_id=01a0e58a-ab1f-7f4e-9e3e-c4574290cf56&from=$RUN_START" \
+  | jq -c '.items[] | {action, outcome, detail}'
+```
+
+```
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the client's service account holds what the caller does not: view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e5f3-37b7-7731-ab4c-f6f314031a4f"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the client's service account holds what the caller does not: view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e5f3-37d3-76c0-b950-7753abe49ebb"}
+200
+{"action":"scope.assign_to_client","outcome":"allowed","detail":{}}
+{"action":"scope.unassign_from_client","outcome":"refused","detail":{"denied":["view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"]}}
+{"action":"scope.assign_to_client","outcome":"refused","detail":{"denied":["view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"]}}
+```
+
 ## `GET /registration-tokens`, `POST /registration-tokens` and `DELETE /registration-tokens/:id`
 
 All three require `manage-clients`, the same capability the client routes
