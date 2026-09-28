@@ -1,5 +1,5 @@
 /* The breakpoints are the shell's own width, not the viewport's: 1024 and
-   wider a full rail, 640 to 1023 a collapsed one, narrower a top bar whose
+   wider a full rail, 640 to 1023 a narrower one, below that a top bar whose
    menu opens the rail as a sheet. A rail collapsed by choice takes the
    narrow layout's top bar and sheet at any width. */
 .shell {

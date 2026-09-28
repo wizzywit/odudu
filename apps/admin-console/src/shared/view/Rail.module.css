@@ -81,7 +81,7 @@
   border-block-start: 1px solid var(--border-rail);
 }
 
-/* Collapsed below the full rail's 240 px, which is the 192 px column the
+/* Narrower below the full rail's 240 px, which is the 192 px column the
    shell gives it between 640 and 1023: every item keeps its words. */
 @container rail (width < 240px) {
   .heading {

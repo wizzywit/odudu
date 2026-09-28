@@ -1128,3 +1128,12 @@ verified: `npx playwright install chromium`, then
 Afterwards `/app/console` was removed and `odudu` restarted. `GET /console/`
 answers `503 console build unavailable` again, as it did before the spike.
 Tenant `spike-console-0928` and its user remain on the dev stack.
+
+## Part 3 — the console's bundle
+
+The built console is one JavaScript chunk of 561 KB (Vite warns above
+500 KB): React, React Aria, TanStack Router and Query, and zod, with every
+area still a placeholder. Route-level code splitting and a vendor chunk are
+placed in P4d's fourth part, where the feature routes arrive and there is
+something to split along; splitting placeholders now would only measure
+the router.

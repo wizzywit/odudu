@@ -510,6 +510,11 @@ layer has several files and a single file named for the layer when it has
 one. A layer a feature does not need does not exist. Every file is therefore
 classified by its path alone.
 
+Browser storage is an outside system like the gateway, so it belongs to an
+adapter: a feature's `adapter/` may hold its own `localStorage` or
+`sessionStorage` access, and `shared/adapter/` what two features share. The
+repository decides what to remember and when.
+
 Features: `session`, `shell`, `overview`, `tenants`, `system-admins`,
 `subjects`, `groups`, `roles`, `clients`, `scopes`, `registration-tokens`,
 `flow`, `keys`, `settings`, `smtp`, `import-export`, `audit`.
@@ -720,7 +725,7 @@ A tenant cannot be deleted: the API has no such route. It can be disabled.
   makes each instant.
 
 **Responsive by container queries**: at 1024 px and wider, the full rail and
-multi-column tables; from 640 to 1023, a collapsed rail and fewer columns;
+multi-column tables; from 640 to 1023, a narrower rail and fewer columns;
 under 640, a top bar with a menu sheet, tables as stacked rows, save bars
 sticky at the bottom and toasts above the thumb zone. From 640 up the rail
 can also be collapsed for full width, and collapsed means gone rather than
