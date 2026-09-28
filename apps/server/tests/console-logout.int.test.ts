@@ -109,11 +109,13 @@ async function onlySession(subjectId: string): Promise<StoredSession> {
   return session;
 }
 
+// Compares against the host's clock, not the container's: `expires_at` was
+// written from `Date.now()`, and the two clocks are not the same clock.
 async function ssoSessionsExpired(subjectId: string): Promise<boolean[]> {
-  const rows = await owner.db.execute<{ expired: boolean }>(
-    sql`SELECT expires_at <= now() AS expired FROM sessions WHERE subject_id = ${subjectId}`,
+  const rows = await owner.db.execute<{ expires_at: string }>(
+    sql`SELECT expires_at::text FROM sessions WHERE subject_id = ${subjectId}`,
   );
-  return rows.map((row) => row.expired);
+  return rows.map((row) => new Date(row.expires_at).getTime() <= Date.now());
 }
 
 function ssoOnly(jar: Jar): Jar {
