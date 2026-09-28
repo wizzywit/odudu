@@ -179,15 +179,10 @@ shape of what it is filling.
 set once for every route in the route table (`registerAdminRoutes`,
 `packages/protocol-admin/src/view/routes/router.ts`), refusals included —
 `/admin/openapi.json`, which is public and the same for every caller, is
-not one of them:
-each is specific to the caller that asked, and several carry a secret shown
-once — a registration token, a client secret, a one-time password. It was
-added after most of the transcripts below were captured, so a header block
-captured before it does not show the line; the ones under
-`DELETE /subjects/:id/lockout`, `POST /subjects/:id/password` and
-`DELETE /subjects/:id/sessions` were captured after, and do — as are the
-`demo-fields-check` and filtered-listing blocks under `POST /clients` and
-`GET /clients`, recaptured for `builtin_admin` and `service_subject_id`.
+not one of them: each is specific to the caller that asked, and several
+carry a secret shown once — a registration token, a client secret, a
+one-time password. A handful of header blocks below predate this and were
+not re-run — each says so, and why, where it appears.
 
 | Method   | Path                                                             | What it is                                |
 | -------- | ---------------------------------------------------------------- | ----------------------------------------- |
@@ -454,6 +449,11 @@ Keep-Alive: timeout=72
 {"items":[{"id":"01a0dc4f-d714-7bef-a239-11d5bd1f2a72","name":"register-audit","display_name":null,"enabled":true,"created_at":"2026-09-26T06:03:35.061Z"}],"next":"eyJhZnRlciI6IjAxYTBkYzRmLWQ3MTQtN2JlZi1hMjM5LTExZDViZDFmMmE3MiIsInNvcnQiOiJyZWdpc3Rlci1hdWRpdCIsImNvbGxlY3Rpb24iOiJ0ZW5hbnRzIiwidGVuYW50SWQiOiIwMTk5YWEwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDEiLCJmaWx0ZXJzIjoiMUo1ZVF0UmJjX2QtVnhmRjUzNEUzekYtbDVwMGZfVUxMa0JWRm1xNXVjWSJ9.p9t40iB1ExaYswHRfklYb0tEVuUEstFAYbb5vOsM8AE"}
 ```
 
+_(Not re-run for the `cache-control: no-store` pass: this walks the whole
+`/admin/tenants` collection, and later sections have since created more
+tenants matching `re` — there is no `DELETE /admin/tenants` route to bring
+the set back to the four rows this pagination narrates.)_
+
 Following that link, then replaying its cursor with `?enabled=true` added:
 
 ```bash
@@ -538,6 +538,12 @@ content-type: application/json; charset=utf-8
 {"id":"01a0d6fc-3626-7e23-94d7-3b1b666e278f","name":"demo","display_name":"Demo","enabled":true,"created_at":"2026-09-25T05:14:08.294Z"}
 ```
 
+_(Not re-run for the `cache-control: no-store` pass: this is the first
+stack's own creation of `demo`, and that stack was torn down; the `demo`
+this document's later sections run against is a different tenant, created
+on the fourth stack, so replaying this exact create would only get
+`409 name already in use`.)_
+
 Both refusals, against that same stack — the reserved name, then the name
 the call above had just taken:
 
@@ -559,9 +565,15 @@ curl -sS -D - -X POST \
 
 ```
 HTTP/1.1 400 Bad Request
+x-request-id: 01a0e542-e156-726d-ac00-964c8612ed46
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
+content-length: 223
+Date: Sun, 27 Sep 2026 23:46:00 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"a tenant name must be 1-63 lowercase letters, digits or hyphens, and must not start or end with a hyphen","instance":"01a0e05c-e39b-7443-965e-2c1ac9f260ff"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"a tenant name must be 1-63 lowercase letters, digits or hyphens, and must not start or end with a hyphen","instance":"01a0e542-e156-726d-ac00-964c8612ed46"}
 ```
 
 ## `GET /admin/tenants/{tenant}` and `PATCH /admin/tenants/{tenant}`
@@ -609,6 +621,9 @@ content-length: 136
 
 {"id":"01a0d7ee-b611-71a0-b223-5a57ecbe83d8","name":"demo","display_name":"Demo","enabled":true,"created_at":"2026-09-25T09:39:00.754Z"}
 ```
+
+_(Not re-run for the `cache-control: no-store` pass: the second stack's
+`demo`, id `01a0d7ee-b611-…`, was torn down along with that stack.)_
 
 ```bash
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -1212,10 +1227,15 @@ curl -sS -D - -X POST \
 
 ```
 HTTP/1.1 201 Created
+x-request-id: 01a0e543-7878-71b4-9222-62e149311e9d
+cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 1800
+Date: Sun, 27 Sep 2026 23:46:39 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"id":"01a0e356-de3a-7fb4-8a1a-d03943296a95","client_id":"demo-fields-check","name":"demo-fields-check","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T14:48:36.097Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e356-de06-7bdf-b08c-bf09f5f3d01c","scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}],"client_secret":"sMNd6TboNud0pmJulbT_YBA1FWS4fgmkhb6OKnthX24"}
+{"id":"01a0e543-78ac-70c2-8a83-8f3e28c204e4","client_id":"demo-fields-check","name":"demo-fields-check","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T23:46:39.362Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e543-7887-7984-a3f4-5f597a1cd408","scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}],"client_secret":"vC4lHpmvSJnagQ0RZeaB0TPiY9DQsQp4u3O21XUX1XY"}
 ```
 
 `GET`ting it back shows both fields still set, from the row rather than the
@@ -1225,16 +1245,21 @@ create response — and now also carries `builtin_admin` and
 ```bash
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/demo/clients/01a0e356-de3a-7fb4-8a1a-d03943296a95
+  http://localhost:3000/admin/tenants/demo/clients/01a0e543-78ac-70c2-8a83-8f3e28c204e4
 ```
 
 ```
 HTTP/1.1 200 OK
-etag: "2f056d52fc3fd934af102da0a3ece8e079a474677ae96f33b4fc0a592f1feb9a"
+x-request-id: 01a0e543-8946-72b8-a38f-31c7ae586a9d
+cache-control: no-store
+etag: "64e7e5a995c551cc91032a937414575b23c4a7665155927b4c5e7082bddd78ed"
 content-type: application/json; charset=utf-8
 content-length: 1738
+Date: Sun, 27 Sep 2026 23:46:43 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"id":"01a0e356-de3a-7fb4-8a1a-d03943296a95","client_id":"demo-fields-check","name":"demo-fields-check","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T14:48:36.097Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e356-de06-7bdf-b08c-bf09f5f3d01c","scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}]}
+{"id":"01a0e543-78ac-70c2-8a83-8f3e28c204e4","client_id":"demo-fields-check","name":"demo-fields-check","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T23:46:39.362Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e543-7887-7984-a3f4-5f597a1cd408","scopes":[{"id":"01a0db22-1c49-77ff-a5fa-142643a0007b","name":"openid","assignment":"default"},{"id":"01a0db22-1c4e-7a48-8315-7c43645f6a9f","name":"profile","assignment":"default"},{"id":"01a0db22-1c50-7331-bf7e-b42d450e2722","name":"email","assignment":"default"},{"id":"01a0db22-1c51-7727-bbbf-0b638aff4a8c","name":"address","assignment":"default"},{"id":"01a0db22-1c52-7250-9cf8-64f1fa48b24b","name":"phone","assignment":"default"},{"id":"01a0db22-1c54-7d81-8481-01d0e0fdfb72","name":"roles","assignment":"default"},{"id":"01a0db22-1c56-7da8-8d78-5c6f6da9846f","name":"groups","assignment":"default"},{"id":"01a0db22-1c57-79be-98ea-a35bc621100b","name":"offline_access","assignment":"optional"}]}
 ```
 
 An unknown field, on the same tenant:
@@ -1249,10 +1274,15 @@ curl -sS -D - -X POST \
 
 ```
 HTTP/1.1 400 Bad Request
+x-request-id: 01a0e542-e179-7d0a-9b03-1c9fd67cd6c5
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 155
+Date: Sun, 27 Sep 2026 23:46:00 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"colour: colour is not a client field","instance":"01a0dee4-4e6c-73bf-a05e-86cf72f751a8"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"colour: colour is not a client field","instance":"01a0e542-e179-7d0a-9b03-1c9fd67cd6c5"}
 ```
 
 A tenant at its `max_clients` cap (`GET`/`PATCH /settings` above) refuses
@@ -1298,10 +1328,15 @@ with the tenant above:
 
 ```
 HTTP/1.1 201 Created
+x-request-id: 01a0e544-4ad4-72ca-8cfd-1527b7764f81
+cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 1738
+Date: Sun, 27 Sep 2026 23:47:33 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"id":"01a0e35a-8bd9-7f9c-81f9-e251c8d25583","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T14:52:37.170Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e35a-8bb5-7719-8322-4d8e7949f15f","scopes":[{"id":"01a0e358-cee4-7fba-a335-268c8ab959e9","name":"openid","assignment":"default"},{"id":"01a0e358-cee5-75f5-a535-c5338eb7f2de","name":"profile","assignment":"default"},{"id":"01a0e358-cee6-7128-8632-ee78c48f0871","name":"email","assignment":"default"},{"id":"01a0e358-cee7-7bac-80a9-699c01de36bc","name":"address","assignment":"default"},{"id":"01a0e358-cee8-79a4-bfa3-ccd3f3a6f617","name":"phone","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d123f51b6827","name":"roles","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d1240fcd752d","name":"groups","assignment":"default"},{"id":"01a0e358-ceea-7434-ac57-90739d28612e","name":"offline_access","assignment":"optional"}],"client_secret":"6Kf4ZAxcvlfvnC4EkWL1bMhTMwEizm2FYme1U_zIy-E"}
+{"id":"01a0e544-4b27-7f48-b0ef-8bde8f19c378","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T23:47:33.233Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e544-4af7-76d7-8d38-3743f21d1e0c","scopes":[{"id":"01a0e358-cee4-7fba-a335-268c8ab959e9","name":"openid","assignment":"default"},{"id":"01a0e358-cee5-75f5-a535-c5338eb7f2de","name":"profile","assignment":"default"},{"id":"01a0e358-cee6-7128-8632-ee78c48f0871","name":"email","assignment":"default"},{"id":"01a0e358-cee7-7bac-80a9-699c01de36bc","name":"address","assignment":"default"},{"id":"01a0e358-cee8-79a4-bfa3-ccd3f3a6f617","name":"phone","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d123f51b6827","name":"roles","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d1240fcd752d","name":"groups","assignment":"default"},{"id":"01a0e358-ceea-7434-ac57-90739d28612e","name":"offline_access","assignment":"optional"}],"client_secret":"cjbOyM7ptwsZ4F7klPeK9VrIFUJ5P1chXzmaLo3Z0Mg"}
 ```
 
 `client_secret` is the only member of that object nothing reads back.
@@ -1422,7 +1457,9 @@ content-length: 1594
 The create response above was 1656 bytes and this one is 1594: the
 difference is the secret, present there and absent here. (This read shows
 headers only, from `demo` — a different, already-torn-down stack than
-`client-facts-demo` above; the two never share an id.)
+`client-facts-demo` above; the two never share an id.) Not re-run for the
+`cache-control: no-store` pass, for the same reason: that stack, and the
+client this id names, are gone.
 
 ## `PATCH /clients/{id}`
 
@@ -1534,6 +1571,9 @@ content-type: application/json; charset=utf-8
 content-length: 1620
 ```
 
+_(Not re-run for the `cache-control: no-store` pass: the client this
+amends, and the stack it lived on, are gone.)_
+
 Replaying the identical request — same `If-Match`, now one generation
 stale — is refused and changes nothing:
 
@@ -1567,11 +1607,11 @@ whole client, so `enabled` can be read back from it, alongside
 ```bash
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -d '{"enabled": false}' \
-  http://localhost:3000/admin/tenants/client-facts-demo/clients/01a0e35a-8bd9-7f9c-81f9-e251c8d25583
+  http://localhost:3000/admin/tenants/client-facts-demo/clients/01a0e544-4b27-7f48-b0ef-8bde8f19c378
 ```
 
 ```
-{"id":"01a0e35a-8bd9-7f9c-81f9-e251c8d25583","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T14:52:37.170Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e35a-8bb5-7719-8322-4d8e7949f15f","scopes":[{"id":"01a0e358-cee4-7fba-a335-268c8ab959e9","name":"openid","assignment":"default"},{"id":"01a0e358-cee5-75f5-a535-c5338eb7f2de","name":"profile","assignment":"default"},{"id":"01a0e358-cee6-7128-8632-ee78c48f0871","name":"email","assignment":"default"},{"id":"01a0e358-cee7-7bac-80a9-699c01de36bc","name":"address","assignment":"default"},{"id":"01a0e358-cee8-79a4-bfa3-ccd3f3a6f617","name":"phone","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d123f51b6827","name":"roles","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d1240fcd752d","name":"groups","assignment":"default"},{"id":"01a0e358-ceea-7434-ac57-90739d28612e","name":"offline_access","assignment":"optional"}]}
+{"id":"01a0e544-4b27-7f48-b0ef-8bde8f19c378","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T23:47:33.233Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e544-4af7-76d7-8d38-3743f21d1e0c","scopes":[{"id":"01a0e358-cee4-7fba-a335-268c8ab959e9","name":"openid","assignment":"default"},{"id":"01a0e358-cee5-75f5-a535-c5338eb7f2de","name":"profile","assignment":"default"},{"id":"01a0e358-cee6-7128-8632-ee78c48f0871","name":"email","assignment":"default"},{"id":"01a0e358-cee7-7bac-80a9-699c01de36bc","name":"address","assignment":"default"},{"id":"01a0e358-cee8-79a4-bfa3-ccd3f3a6f617","name":"phone","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d123f51b6827","name":"roles","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d1240fcd752d","name":"groups","assignment":"default"},{"id":"01a0e358-ceea-7434-ac57-90739d28612e","name":"offline_access","assignment":"optional"}]}
 ```
 
 `odudu-admin`, `builtin_admin` true, the same request against the other id
@@ -1610,11 +1650,15 @@ curl -sS -D - -X DELETE \
 ```
 
 ```
-{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be deleted","instance":"01a0e35a-dd82-77ba-b7b1-7e1b27a2538b"}
-{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0e35a-dd99-7509-be6e-6aca2e0d2a2e"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be deleted","instance":"01a0e545-18e2-7933-b82a-94a72560ba3a"}
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0e545-18f9-7fa9-a6c4-dac5e100a05e"}
 
 HTTP/1.1 204 No Content
-x-request-id: 01a0e35a-ddae-70a2-b313-94a2be85aa60
+x-request-id: 01a0e545-190d-7938-8b58-30924a1e8828
+cache-control: no-store
+Date: Sun, 27 Sep 2026 23:48:26 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 ```
 
 ## `POST /clients/{id}/secret`
@@ -1630,7 +1674,7 @@ has no secret to rotate, refused with `409`.
 ```bash
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/client-facts-demo/clients/01a0e35a-8bd9-7f9c-81f9-e251c8d25583/secret
+  http://localhost:3000/admin/tenants/client-facts-demo/clients/01a0e544-4b27-7f48-b0ef-8bde8f19c378/secret
 ```
 
 Captured immediately after the disable above, which is why `enabled` reads
@@ -1639,7 +1683,7 @@ being on the built-in client rather than on a disabled one. `demo-backend`
 was deleted afterward, in the `DELETE` section above.
 
 ```
-{"id":"01a0e35a-8bd9-7f9c-81f9-e251c8d25583","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T14:52:37.170Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e35a-8bb5-7719-8322-4d8e7949f15f","scopes":[{"id":"01a0e358-cee4-7fba-a335-268c8ab959e9","name":"openid","assignment":"default"},{"id":"01a0e358-cee5-75f5-a535-c5338eb7f2de","name":"profile","assignment":"default"},{"id":"01a0e358-cee6-7128-8632-ee78c48f0871","name":"email","assignment":"default"},{"id":"01a0e358-cee7-7bac-80a9-699c01de36bc","name":"address","assignment":"default"},{"id":"01a0e358-cee8-79a4-bfa3-ccd3f3a6f617","name":"phone","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d123f51b6827","name":"roles","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d1240fcd752d","name":"groups","assignment":"default"},{"id":"01a0e358-ceea-7434-ac57-90739d28612e","name":"offline_access","assignment":"optional"}],"client_secret":"tLlFbFQrUuAFpiT3BB10CwaL3l5zpEM8UIgguZH-1ME"}
+{"id":"01a0e544-4b27-7f48-b0ef-8bde8f19c378","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T23:47:33.233Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0e544-4af7-76d7-8d38-3743f21d1e0c","scopes":[{"id":"01a0e358-cee4-7fba-a335-268c8ab959e9","name":"openid","assignment":"default"},{"id":"01a0e358-cee5-75f5-a535-c5338eb7f2de","name":"profile","assignment":"default"},{"id":"01a0e358-cee6-7128-8632-ee78c48f0871","name":"email","assignment":"default"},{"id":"01a0e358-cee7-7bac-80a9-699c01de36bc","name":"address","assignment":"default"},{"id":"01a0e358-cee8-79a4-bfa3-ccd3f3a6f617","name":"phone","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d123f51b6827","name":"roles","assignment":"default"},{"id":"01a0e358-cee9-7a50-96e3-d1240fcd752d","name":"groups","assignment":"default"},{"id":"01a0e358-ceea-7434-ac57-90739d28612e","name":"offline_access","assignment":"optional"}],"client_secret":"-YByClInh-ftcH8ApybVfAyFU66OLzHiLnebGt5F4Uk"}
 ```
 
 ## `GET /registration-tokens`, `POST /registration-tokens` and `DELETE /registration-tokens/:id`
@@ -1888,11 +1932,12 @@ curl -sS -D - \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e0eb-ae5c-797f-b148-b9216b567fab
+x-request-id: 01a0e54f-856d-7358-814e-3ea57c9969a3
+cache-control: no-store
 link: </admin/tenants/demo/subjects?limit=1&username=ADA&cursor=eyJhZnRlciI6IjAxYTBkYjIyLTFjOTItNzczMC05ZDM3LTQwODVmMjhlY2EyYyIsInNvcnQiOiJhZGEiLCJjb2xsZWN0aW9uIjoic3ViamVjdHMiLCJ0ZW5hbnRJZCI6IjAxYTBkYjIyLTFjMzItN2QxNy1iMzUxLTY5N2Q3OTExMDMzYyIsImZpbHRlcnMiOiJzWGl1TzdkZGVoRzhlYVUyUWkySWotRnJjVVAyMWVwTUJBWmxEc3FQYUVVIn0.B6FJzxJCoNTpoBieeq3YyEMKs61JZhl0gdcXVbNv8m0>; rel="next"
 content-type: application/json; charset=utf-8
 content-length: 478
-Date: Sun, 27 Sep 2026 03:32:17 GMT
+Date: Sun, 27 Sep 2026 23:59:49 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -1971,6 +2016,11 @@ content-type: application/json; charset=utf-8
 {"id":"01a0d6fd-9453-7bf0-9823-a5fc6ea34836","type":"user","username":"ada","email":"ada@demo.example","enabled":true,"created_at":"2026-09-25T05:15:37.939Z"}
 ```
 
+_(Not re-run for the `cache-control: no-store` pass: this is the first
+stack's original creation of `ada`, and `demo` on this stack already holds
+a different `ada` — created later, on the fourth stack — so replaying the
+same username would conflict rather than reproduce this create.)_
+
 A body carrying `password` and a username already in use, in that order,
 recaptured against the fourth stack once a closed schema's refusal started
 naming the field it refused. The first refusal is the generated schema's,
@@ -2016,6 +2066,9 @@ content-type: application/json; charset=utf-8
 {"id":"01a0d6fd-9453-7bf0-9823-a5fc6ea34836","type":"user","username":"ada","email":"ada@demo.example","enabled":true,"created_at":"2026-09-25T05:15:37.939Z"}
 ```
 
+_(Not re-run for the `cache-control: no-store` pass: this `ada`, from the
+first stack, is gone.)_
+
 ## `PATCH /subjects/:id`
 
 Requires `manage-users`. Amends `email` and `enabled` — and `username`,
@@ -2049,6 +2102,9 @@ content-type: application/json; charset=utf-8
 
 {"id":"01a0d6fd-9453-7bf0-9823-a5fc6ea34836","type":"user","username":"ada","email":"ada@demo.example","enabled":false,"created_at":"2026-09-25T05:15:37.939Z"}
 ```
+
+_(Not re-run for the `cache-control: no-store` pass: same reason as the
+read above.)_
 
 The `ETag` is the one `GET /subjects/:id` above returned, recomputed — a
 caller that read before this write holds a stale one.
@@ -2366,10 +2422,16 @@ curl -sS -D - \
 
 ```
 HTTP/1.1 200 OK
-etag: "267a109a381700700ebf7e25c03d8727def9ea86f79aec8bb6d014b4c3843e43"
+x-request-id: 01a0e547-2b15-7670-ae92-02b8e9908ee0
+cache-control: no-store
+etag: "89eee16f2b512c80447670ad49fb70fe65db78a9c41a4fa4bf5e3db6d43ee154"
 content-type: application/json; charset=utf-8
+content-length: 481
+Date: Sun, 27 Sep 2026 23:50:41 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"name":null,"given_name":null,"family_name":null,"middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":null}
+{"name":null,"given_name":null,"family_name":null,"middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T23:50:36.116Z"}
 ```
 
 Amending `given_name` and `family_name` stamps `profile_updated_at`:
@@ -2384,10 +2446,16 @@ curl -sS -D - -X PATCH \
 
 ```
 HTTP/1.1 200 OK
-etag: "adeeacb83e1d9fd1590e1265a8d85bad6e9e4aedec3a05fd3f97a3b3ad2b86a8"
+x-request-id: 01a0e547-2b2e-778d-9e34-27579c864153
+cache-control: no-store
+etag: "aefc948e4d8f2d7760fb5c2128aad70532e78b41c0154c739aa7b0fc6fc34378"
 content-type: application/json; charset=utf-8
+content-length: 488
+Date: Sun, 27 Sep 2026 23:50:41 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:45:11.956Z"}
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":false,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T23:50:41.728Z"}
 ```
 
 `email_verified` is set the same way, against the address `PATCH
@@ -2403,10 +2471,16 @@ curl -sS -D - -X PATCH \
 
 ```
 HTTP/1.1 200 OK
-etag: "3a710428d272acb7e9b618c2b44c40763ba8ea12885ba473e339246de28314a3"
+x-request-id: 01a0e547-2b52-728e-8ee6-66c374744e5f
+cache-control: no-store
+etag: "c259cc5c1665ca05b130f21449a01b5bbcf9c5ccae407ff1c43ed5e0a9dc6985"
 content-type: application/json; charset=utf-8
+content-length: 487
+Date: Sun, 27 Sep 2026 23:50:41 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:45:16.762Z"}
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":null,"phone_number_verified":false,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T23:50:41.782Z"}
 ```
 
 `email` in the same body is refused, naming the route that owns it instead
@@ -2422,9 +2496,15 @@ curl -sS -D - -X PATCH \
 
 ```
 HTTP/1.1 400 Bad Request
+x-request-id: 01a0e547-2b84-7f00-bb1c-fe44458667f9
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
+content-length: 221
+Date: Sun, 27 Sep 2026 23:50:41 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"email: email is amended through PATCH /admin/tenants/{tenant}/subjects/{id}, not a subject’s profile","instance":"01a0e278-2b7b-7f14-9c5a-be94cf1bf0ad"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"email: email is amended through PATCH /admin/tenants/{tenant}/subjects/{id}, not a subject’s profile","instance":"01a0e547-2b84-7f00-bb1c-fe44458667f9"}
 ```
 
 Verifying a well-shaped number:
@@ -2439,10 +2519,16 @@ curl -sS -D - -X PATCH \
 
 ```
 HTTP/1.1 200 OK
-etag: "39a2ece13ab08bc829e356bfd46c99c0e173ff0eba6aa8db6391d6e8863474ef"
+x-request-id: 01a0e547-4bb2-740b-9545-5552114faa8c
+cache-control: no-store
+etag: "79e6637e8dce86bf009affff462a1ab69fa0cf94d21f3fbfae877ec71c0adb26"
 content-type: application/json; charset=utf-8
+content-length: 496
+Date: Sun, 27 Sep 2026 23:50:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+14155552671","phone_number_verified":true,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:45:25.787Z"}
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+14155552671","phone_number_verified":true,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T23:50:50.072Z"}
 ```
 
 Submitting a different number, with no `phone_number_verified` in the
@@ -2458,10 +2544,16 @@ curl -sS -D - -X PATCH \
 
 ```
 HTTP/1.1 200 OK
-etag: "d2fb8fa7b8fe0b7a00bcd444414a31fe6bde329f6772cb71a6eed4b86c5f9250"
+x-request-id: 01a0e547-4bed-7ba2-8f0c-93fcf7f89fee
+cache-control: no-store
+etag: "7fa28e5a48761a7ec3dee2a5022f92b32fef01fa2a10a0f2ac94c3202833766a"
 content-type: application/json; charset=utf-8
+content-length: 498
+Date: Sun, 27 Sep 2026 23:50:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+442083661177","phone_number_verified":false,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:45:30.682Z"}
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+442083661177","phone_number_verified":false,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T23:50:50.114Z"}
 ```
 
 After re-verifying that same number, resubmitting it — an echoed
@@ -2480,10 +2572,16 @@ curl -sS -D - -X PATCH \
 
 ```
 HTTP/1.1 200 OK
-etag: "beb25e78969b977eb2d09cd7bbae060b8b8139e8a11b6b84b3f456c8444792a3"
+x-request-id: 01a0e547-4c11-77a2-b446-fc99f2003d15
+cache-control: no-store
+etag: "aff9c3a5c78bb68b2afc724e43278c86673c405b56abc4dc47af252e0e9e9799"
 content-type: application/json; charset=utf-8
+content-length: 497
+Date: Sun, 27 Sep 2026 23:50:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+442083661177","phone_number_verified":true,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:57:41.729Z"}
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+442083661177","phone_number_verified":true,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T23:50:50.143Z"}
 ```
 
 ```bash
@@ -2496,10 +2594,16 @@ curl -sS -D - -X PATCH \
 
 ```
 HTTP/1.1 200 OK
-etag: "beb25e78969b977eb2d09cd7bbae060b8b8139e8a11b6b84b3f456c8444792a3"
+x-request-id: 01a0e547-4c2d-7def-a747-d1dba8d58b68
+cache-control: no-store
+etag: "aff9c3a5c78bb68b2afc724e43278c86673c405b56abc4dc47af252e0e9e9799"
 content-type: application/json; charset=utf-8
+content-length: 497
+Date: Sun, 27 Sep 2026 23:50:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+442083661177","phone_number_verified":true,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T10:57:41.729Z"}
+{"name":null,"given_name":"Grace","family_name":"Hopper","middle_name":null,"nickname":null,"preferred_username":null,"profile":null,"picture":null,"website":null,"gender":null,"birthdate":null,"zoneinfo":null,"locale":null,"phone_number":"+442083661177","phone_number_verified":true,"email_verified":true,"address_formatted":null,"address_street":null,"address_locality":null,"address_region":null,"address_postal_code":null,"address_country":null,"profile_updated_at":"2026-09-27T23:50:50.143Z"}
 ```
 
 The `ETag` and `profile_updated_at` are unchanged from the call before —
@@ -2525,9 +2629,15 @@ curl -sS -D - -X PATCH \
 
 ```
 HTTP/1.1 400 Bad Request
+x-request-id: 01a0e547-4c44-74b8-89e5-8a86fb82abc9
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
+content-length: 203
+Date: Sun, 27 Sep 2026 23:50:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"phone_number: phone_number must be E.164-shaped for phone_number_verified to be true","instance":"01a0e278-5feb-777d-a758-892571e6bd16"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"phone_number: phone_number must be E.164-shaped for phone_number_verified to be true","instance":"01a0e547-4c44-74b8-89e5-8a86fb82abc9"}
 ```
 
 ## `DELETE /subjects/:id`
@@ -2710,8 +2820,9 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a0e2c8-c6d3-7a4e-96b8-9e045421b500
-Date: Sun, 27 Sep 2026 12:13:24 GMT
+x-request-id: 01a0e549-9280-7269-b3b5-d8e3445520e2
+cache-control: no-store
+Date: Sun, 27 Sep 2026 23:53:19 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -2789,14 +2900,15 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 {"items":[]}
 HTTP/1.1 404 Not Found
-x-request-id: 01a0e2c9-5d4f-7c00-9d8a-d1f4be3d52c2
+x-request-id: 01a0e549-ab03-724b-97c8-19cd00007fd8
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 105
-Date: Sun, 27 Sep 2026 12:14:02 GMT
+Date: Sun, 27 Sep 2026 23:53:25 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0e2c9-5d4f-7c00-9d8a-d1f4be3d52c2"}
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0e549-ab03-724b-97c8-19cd00007fd8"}
 ```
 
 An unknown subject on the read answers `404`:
@@ -2809,14 +2921,15 @@ curl -sS -D - \
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a0e2c9-6ce7-7409-8336-e8ee00c17b7b
+x-request-id: 01a0e549-ab20-73c2-bca2-893d8cebf52b
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 164
-Date: Sun, 27 Sep 2026 12:14:06 GMT
+Date: Sun, 27 Sep 2026 23:53:25 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no subject 0199aa00-0000-7000-8000-0000000000ff","instance":"01a0e2c9-6ce7-7409-8336-e8ee00c17b7b"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no subject 0199aa00-0000-7000-8000-0000000000ff","instance":"01a0e549-ab20-73c2-bca2-893d8cebf52b"}
 ```
 
 ## `DELETE /subjects/:id/lockout`
@@ -3157,6 +3270,9 @@ content-length: 31
 {"actions":["update-password"]}
 ```
 
+_(Not re-run for the `cache-control: no-store` pass: this `grace`, and the
+second stack she lived on, are gone.)_
+
 The same write twice: without the header, then with it.
 
 ```bash
@@ -3188,6 +3304,8 @@ content-length: 30
 
 {"actions":["configure-totp"]}
 ```
+
+_(Not re-run for the same reason as the read above.)_
 
 Replaying the first `ETag`, now one generation stale, changes nothing:
 
@@ -3253,6 +3371,9 @@ content-length: 81
 
 {"items":[{"id":"01a0d7ef-2c44-7f99-9fbb-e9f05075340c","name":"billing-viewer"}]}
 ```
+
+_(Not re-run for the `cache-control: no-store` pass: this `grace`, and the
+second stack she lived on, are gone.)_
 
 **The tag is over the list, not over the resource.** An empty assignment
 hashes to `"eef46741…"` whichever subject, group or scope it belongs to —
@@ -3363,6 +3484,10 @@ content-length: 228
 {"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0e1ec-0083-737b-8c88-ac45ffbcc960"}
 ```
 
+_(Not re-run for the `cache-control: no-store` pass: `$HELPDESK_TOKEN`'s
+one-time seeded password is gone, and minting a fresh one would mean
+resetting `helpdesk`'s credential mid-narrative rather than replaying it.)_
+
 `oncall` names no role, and is refused for everything `tenant-admin`
 composites that `helpdesk` does not hold — reached through its parent.
 The membership is still empty, under the same tag, so the same `If-Match`
@@ -3412,6 +3537,9 @@ content-length: 153
 
 {"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0e1ec-00ed-7f35-b795-f915e209b3ed"}
 ```
+
+_(Not re-run for the same reason as the block above: `$HELPDESK_TOKEN`'s
+credential is gone.)_
 
 Both writes that reached the ceiling are in the trail, scoped here to
 `mei` — the refusal naming what was denied, the replacement the ids
@@ -3506,6 +3634,9 @@ x-request-id: 01a0d6fe-9e09-7004-9844-b3c1b3abb219
 
 {"items":[]}
 ```
+
+_(Not re-run for the `cache-control: no-store` pass: this `bob`, and the
+first stack he lived on, are gone.)_
 
 ## `DELETE /subjects/:id/sessions`
 
@@ -3704,11 +3835,12 @@ curl -sS -D - \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e12f-56f7-713c-a7ad-f34cf6e53d6e
+x-request-id: 01a0e550-5ad4-7342-ad03-4f5ef4921e7f
+cache-control: no-store
 link: </admin/tenants/demo/roles?limit=1&name=billing&cursor=eyJhZnRlciI6IjAxYTBlMTJmLTIzMDUtNzljZS1hMjE1LTkxNzhjZDI5NjVmMyIsInNvcnQiOiJiaWxsaW5nLWFkbWluIiwiY29sbGVjdGlvbiI6InJvbGVzIiwidGVuYW50SWQiOiIwMWEwZGIyMi0xYzMyLTdkMTctYjM1MS02OTdkNzkxMTAzM2MiLCJmaWx0ZXJzIjoiM0w4aEJkRGMyWVZnelVseHhtSlVYZGluWHJDMG10NHZMTXF1TlNTdEdOdyJ9.iZoSKcoDG6ddEPmuwpJz9_8HnSzithN61rivI_t-R24>; rel="next"
 content-type: application/json; charset=utf-8
 content-length: 507
-Date: Sun, 27 Sep 2026 04:46:11 GMT
+Date: Mon, 28 Sep 2026 00:00:43 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -3800,6 +3932,9 @@ x-request-id: 01a0d708-2e22-71ab-8a25-e41d970f8e2d
 {"type":"about:blank","title":"Conflict","status":409,"detail":"would create a role composite cycle","instance":"01a0d708-2e41-73a0-be98-e03b41380809"}
 ```
 
+_(Not re-run for the `cache-control: no-store` pass: these roles, from the
+first stack's `demo`, are gone.)_
+
 ## `GET /roles/:id/composites` and `DELETE /roles/:id/composites/:childId`
 
 Both require `manage-tenant`. The read answers the role's **direct**
@@ -3849,20 +3984,22 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a0e201-617f-77c6-acad-fb3753ebfc56
-Date: Sun, 27 Sep 2026 08:35:36 GMT
+x-request-id: 01a0e54b-9efd-72e1-8570-e9e93b2a233f
+cache-control: no-store
+Date: Sun, 27 Sep 2026 23:55:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 HTTP/1.1 404 Not Found
-x-request-id: 01a0e201-6195-716e-bdfe-b349affe29f2
+x-request-id: 01a0e54b-9f15-794e-9aab-94638d13b7d8
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 214
-Date: Sun, 27 Sep 2026 08:35:36 GMT
+Date: Sun, 27 Sep 2026 23:55:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no composite 01a0e200-e940-79e0-8e90-e06ecfbce38d under role 01a0e200-e915-73be-ac2d-5408ba17401f","instance":"01a0e201-6195-716e-bdfe-b349affe29f2"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no composite 01a0e200-e940-79e0-8e90-e06ecfbce38d under role 01a0e200-e915-73be-ac2d-5408ba17401f","instance":"01a0e54b-9f15-794e-9aab-94638d13b7d8"}
 {"items":[{"id":"01a0e200-e929-7766-aa36-a3e32a889c02","name":"billing-viewer","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.641Z"}]}
 ```
 
@@ -3881,14 +4018,15 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 {"items":[{"id":"01a0e200-e8ea-75e4-b83e-2592d7c1cde1","name":"manage-clients","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"},{"id":"01a0e200-e8ef-7f3d-941e-bd03009b6264","name":"manage-keys","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"},{"id":"01a0e200-e8f1-7633-9840-d7cf7d632f3b","name":"manage-sessions","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"},{"id":"01a0e200-e8ed-7b9a-80ea-d2e48d5276dd","name":"manage-tenant","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"},{"id":"01a0e200-e8e7-721f-8493-289260dce880","name":"manage-users","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"},{"id":"01a0e200-e8f4-7691-aa01-24d881374b0d","name":"view-audit","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"},{"id":"01a0e200-e8e4-733c-89c0-640f39ad46d4","name":"view-users","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"}]}
 HTTP/1.1 409 Conflict
-x-request-id: 01a0e201-61d3-77f3-81e9-b471a73e5446
+x-request-id: 01a0e54b-f4f3-78a8-9e21-de5aef89ccb5
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 283
-Date: Sun, 27 Sep 2026 08:35:36 GMT
+Date: Sun, 27 Sep 2026 23:55:55 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and removing a composite from it would strip that from every administrator holding it","instance":"01a0e201-61d3-77f3-81e9-b471a73e5446"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and removing a composite from it would strip that from every administrator holding it","instance":"01a0e54b-f4f3-78a8-9e21-de5aef89ccb5"}
 ```
 
 The trail holds the one removal that landed; the guarded one wrote nothing:
@@ -3940,24 +4078,25 @@ curl -sS -D - -X PUT \
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"username": "rosa"}' \
+  -d '{"username": "rosa2"}' \
   http://localhost:3000/admin/tenants/composites-demo/subjects
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/composites-demo/subjects/01a0e201-839d-7d01-abea-59f4e85817c3/roles
+  http://localhost:3000/admin/tenants/composites-demo/subjects/01a0e54c-7a76-7b04-8e4d-33000eadb657/roles
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e201-8376-7b28-8303-fc94e6b69839
+x-request-id: 01a0e54c-7a3a-76b9-b920-57ff921bfb04
+cache-control: no-store
 etag: "62cc8c5e3e079f49b1b4686b6e667a740239a7857a86cc68fee65ac1e890f549"
 content-type: application/json; charset=utf-8
 content-length: 169
-Date: Sun, 27 Sep 2026 08:35:45 GMT
+Date: Sun, 27 Sep 2026 23:56:29 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"id":"01a0e200-e957-7d56-99cb-7e27217d00d4","name":"member","description":null,"client_id":null,"default_for_new_subjects":true,"created_at":"2026-09-27T08:35:05.687Z"}
-{"id":"01a0e201-839d-7d01-abea-59f4e85817c3","type":"user","username":"rosa","email":null,"enabled":true,"created_at":"2026-09-27T08:35:45.180Z"}
+{"id":"01a0e54c-7a76-7b04-8e4d-33000eadb657","type":"user","username":"rosa2","email":null,"enabled":true,"created_at":"2026-09-27T23:56:29.685Z"}
 {"items":[{"id":"01a0e200-e957-7d56-99cb-7e27217d00d4","name":"member"}]}
 ```
 
@@ -3972,15 +4111,15 @@ curl -sS -X PUT \
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"username": "sven"}' \
+  -d '{"username": "sven2"}' \
   http://localhost:3000/admin/tenants/composites-demo/subjects
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/composites-demo/subjects/01a0e201-a311-7f3a-bf62-62fde1593ac5/roles
+  http://localhost:3000/admin/tenants/composites-demo/subjects/01a0e54d-2437-7b0f-99cc-42c9ada2f08a/roles
 ```
 
 ```
 {"id":"01a0e200-e957-7d56-99cb-7e27217d00d4","name":"member","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.687Z"}
-{"id":"01a0e201-a311-7f3a-bf62-62fde1593ac5","type":"user","username":"sven","email":null,"enabled":true,"created_at":"2026-09-27T08:35:53.232Z"}
+{"id":"01a0e54d-2437-7b0f-99cc-42c9ada2f08a","type":"user","username":"sven2","email":null,"enabled":true,"created_at":"2026-09-27T23:57:13.142Z"}
 {"items":[]}
 ```
 
@@ -4003,14 +4142,15 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 {"items":[{"id":"01a0e200-e8e7-721f-8493-289260dce880","name":"manage-users","description":null,"client_id":"01a0e200-e8d8-70e4-aafc-f3352d920280","default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.530Z"}]}
 HTTP/1.1 403 Forbidden
-x-request-id: 01a0e201-ceae-7b05-82f9-70e09ff27d90
+x-request-id: 01a0e54d-7359-7bd3-9a1c-7a09fb6b4bcd
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 233
-Date: Sun, 27 Sep 2026 08:36:04 GMT
+Date: Sun, 27 Sep 2026 23:57:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: manage-users, view-users","instance":"01a0e201-ceae-7b05-82f9-70e09ff27d90"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: manage-users, view-users","instance":"01a0e54d-7359-7bd3-9a1c-7a09fb6b4bcd"}
 {"id":"01a0e200-e96e-7966-b576-b0af1d3dac8c","name":"helpdesk-lead","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.710Z"}
 ```
 
@@ -4064,14 +4204,15 @@ curl -sS -X PUT \
 ```
 {"id":"01a0e200-e957-7d56-99cb-7e27217d00d4","name":"member","description":null,"client_id":null,"default_for_new_subjects":true,"created_at":"2026-09-27T08:35:05.687Z"}
 HTTP/1.1 403 Forbidden
-x-request-id: 01a0e201-f580-7a0a-9a12-33906a3ba5ae
+x-request-id: 01a0e54d-b5fc-7bb4-8ee6-7fc70b30834e
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 219
-Date: Sun, 27 Sep 2026 08:36:14 GMT
+Date: Sun, 27 Sep 2026 23:57:50 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: view-users","instance":"01a0e201-f580-7a0a-9a12-33906a3ba5ae"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: view-users","instance":"01a0e54d-b5fc-7bb4-8ee6-7fc70b30834e"}
 {"id":"01a0e200-e957-7d56-99cb-7e27217d00d4","name":"member","description":null,"client_id":null,"default_for_new_subjects":false,"created_at":"2026-09-27T08:35:05.687Z"}
 ```
 
@@ -4222,6 +4363,9 @@ content-length: 81
 {"items":[{"id":"01a0d7ef-2c44-7f99-9fbb-e9f05075340c","name":"billing-viewer"}]}
 ```
 
+_(Not re-run for the `cache-control: no-store` pass: this `engineering`
+group, and the second stack it lived on, are gone.)_
+
 ## `GET /scopes`, `POST /scopes`, `GET /scopes/:id`, `PATCH /scopes/:id` and `DELETE /scopes/:id`
 
 All five require `manage-tenant`. `include_in_id_token` and
@@ -4262,14 +4406,15 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a0e237-278a-70a6-b813-5dffb42046c5
+x-request-id: 01a0e54e-01a4-7cc2-8360-43e58099b468
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 285
-Date: Sun, 27 Sep 2026 09:34:20 GMT
+Date: Sun, 27 Sep 2026 23:58:09 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"openid is deleted along with every client’s assignment of it, this tenant’s built-in admin client’s included, and could lock out every administrator of this tenant","instance":"01a0e237-278a-70a6-b813-5dffb42046c5"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"openid is deleted along with every client’s assignment of it, this tenant’s built-in admin client’s included, and could lock out every administrator of this tenant","instance":"01a0e54e-01a4-7cc2-8360-43e58099b468"}
 ```
 
 **Search** is `?name=`, the same prefix match `GET /roles` describes, over
@@ -4355,6 +4500,9 @@ content-length: 81
 {"items":[{"id":"01a0d7ef-2c44-7f99-9fbb-e9f05075340c","name":"billing-viewer"}]}
 ```
 
+_(Not re-run for the `cache-control: no-store` pass: this `billing` scope,
+and the second stack it lived on, are gone.)_
+
 ## `PUT /scopes/:id/clients/:clientId`
 
 Requires `manage-tenant`. Assigns the scope to the client as `default` or
@@ -4427,14 +4575,15 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a0e237-17bb-77d0-9961-5a14d3c4198e
+x-request-id: 01a0e54e-328a-7b7e-b4c1-59ffbdc17acf
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 284
-Date: Sun, 27 Sep 2026 09:34:16 GMT
+Date: Sun, 27 Sep 2026 23:58:22 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"the scope openid on odudu-admin, this tenant’s built-in admin client, cannot be unassigned: it could leave every administrator of this tenant locked out of /authorize","instance":"01a0e237-17bb-77d0-9961-5a14d3c4198e"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the scope openid on odudu-admin, this tenant’s built-in admin client, cannot be unassigned: it could leave every administrator of this tenant locked out of /authorize","instance":"01a0e54e-328a-7b7e-b4c1-59ffbdc17acf"}
 ```
 
 Captured against a tenant `scope-unassign-demo` made for this section, on a
@@ -4470,21 +4619,23 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a0e227-a129-7105-b91d-53ce8566a8c7
-Date: Sun, 27 Sep 2026 09:17:23 GMT
+x-request-id: 01a0e54e-e2a4-732c-b8c7-83e2109cfdd6
+cache-control: no-store
+Date: Sun, 27 Sep 2026 23:59:07 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"id":"01a0e227-7650-759d-af14-bc3503b8344d","client_id":"scope-unassign-app","name":"scope-unassign-app","type":"public","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-27T09:17:12.141Z","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":null,"scopes":[{"id":"01a0e227-2505-73bb-8089-4caaa4028c12","name":"profile","assignment":"default"},{"id":"01a0e227-2506-783e-b180-60acaed1c1c9","name":"email","assignment":"default"},{"id":"01a0e227-250a-7a06-a417-18a9e4d8b123","name":"address","assignment":"default"},{"id":"01a0e227-250b-73a5-ae11-e114da20987b","name":"phone","assignment":"default"},{"id":"01a0e227-250c-7d5c-8063-9d2518215319","name":"roles","assignment":"default"},{"id":"01a0e227-250d-7438-aed1-a1f8da08f107","name":"groups","assignment":"default"},{"id":"01a0e227-250e-7407-9493-402eaec43c8b","name":"offline_access","assignment":"optional"}]}
 HTTP/1.1 404 Not Found
-x-request-id: 01a0e227-b89a-7db8-9c8b-78707a938f58
+x-request-id: 01a0e54e-e2d2-74ed-8d4a-1763ea426806
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 222
-Date: Sun, 27 Sep 2026 09:17:29 GMT
+Date: Sun, 27 Sep 2026 23:59:07 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"detail":"scope 01a0e227-2504-77b3-8bb0-880aa7cb21fb is not assigned to client 01a0e227-7650-759d-af14-bc3503b8344d","instance":"01a0e227-b89a-7db8-9c8b-78707a938f58"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"scope 01a0e227-2504-77b3-8bb0-880aa7cb21fb is not assigned to client 01a0e227-7650-759d-af14-bc3503b8344d","instance":"01a0e54e-e2d2-74ed-8d4a-1763ea426806"}
 ```
 
 `/authorize`, asked for `openid` again, now refuses it the same way an
@@ -4569,6 +4720,9 @@ content-length: 90
 
 {"available":["sub","profile","email","roles","groups","address","phone"],"bound":["sub"]}
 ```
+
+_(Not re-run for the `cache-control: no-store` pass: this `billing` scope,
+and the second stack it lived on, are gone.)_
 
 A name the registry does not carry, refused with the names it does:
 
@@ -4732,10 +4886,14 @@ curl -sS -D - -X PUT \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0d7ef-b40f-72df-bac4-b001431af1ff
+x-request-id: 01a0e550-c55d-7ed5-84f0-518aa451e8ff
+cache-control: no-store
 etag: "c46d3990450c6fdda560192fb31bb5c43d939d3ec27ba6861173ef4c2992e589"
 content-type: application/json; charset=utf-8
 content-length: 200
+Date: Mon, 28 Sep 2026 00:01:11 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
 {"items":[{"index":0,"authenticator":"password","requirement":"required"},{"index":1,"authenticator":"otp","requirement":"conditional"},{"index":2,"authenticator":"passkey","requirement":"disabled"}]}
 ```
@@ -4896,15 +5054,23 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 HTTP/1.1 404 Not Found
-x-request-id: 01a0d7ef-02cb-780c-ad5a-3738cc84f2dc
+x-request-id: 01a0e551-7c0f-73d4-a398-ebf818b808db
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 154
+Date: Mon, 28 Sep 2026 00:01:57 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"detail":"this tenant has no SMTP configuration","instance":"01a0d7ef-02cb-780c-ad5a-3738cc84f2dc"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"this tenant has no SMTP configuration","instance":"01a0e551-7c0f-73d4-a398-ebf818b808db"}
 {"configured":true,"host":"smtp.example.test","port":587,"from_address":"noreply@demo.example","username":null,"password_set":false,"starttls":false}
 
 HTTP/1.1 204 No Content
-x-request-id: 01a0d7ef-030e-7e73-85f7-75a347bd86c7
+x-request-id: 01a0e551-7c4f-7a78-ad31-e30c0f3167f0
+cache-control: no-store
+Date: Mon, 28 Sep 2026 00:01:57 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 
 {"configured":false,"host":null,"port":null,"from_address":null,"username":null,"password_set":false,"starttls":null}
 ```
@@ -5178,18 +5344,20 @@ curl -sS -D - -H "Authorization: Bearer not-a-token" \
 ```
 HTTP/1.1 401 Unauthorized
 x-request-id: foreign-issuer-doc
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 90
-Date: Sat, 26 Sep 2026 04:50:58 GMT
+Date: Mon, 28 Sep 2026 00:02:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"type":"about:blank","title":"Unauthorized","status":401,"instance":"foreign-issuer-doc"}
 HTTP/1.1 401 Unauthorized
 x-request-id: foreign-issuer-doc
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 90
-Date: Sat, 26 Sep 2026 04:51:03 GMT
+Date: Mon, 28 Sep 2026 00:02:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -5239,14 +5407,15 @@ curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 HTTP/1.1 403 Forbidden
 x-request-id: capability-refused-doc
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 91
-Date: Sat, 26 Sep 2026 04:51:08 GMT
+Date: Mon, 28 Sep 2026 00:03:02 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"type":"about:blank","title":"Forbidden","status":403,"instance":"capability-refused-doc"}
-{"items":[{"id":"01a0dc0d-82ec-7888-ab05-4e8c931ffd35","occurred_at":"2026-09-26T04:51:08.139Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
+{"items":[{"id":"01a0e552-794d-7b52-846a-9a58d4308e52","occurred_at":"2026-09-28T00:03:02.604Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}},{"id":"01a0dc0d-82ec-7888-ab05-4e8c931ffd35","occurred_at":"2026-09-26T04:51:08.139Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
 ```
 
 ## `GET /admin/tenants/count`, `GET /subjects/count`, `GET /clients/count`, `GET /roles/count`, `GET /groups/count` and `GET /scopes/count`
