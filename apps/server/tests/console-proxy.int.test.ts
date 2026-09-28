@@ -75,7 +75,7 @@ async function withStack(
 }
 
 interface Call {
-  readonly method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  readonly method?: 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   readonly headers?: Record<string, string>;
   readonly payload?: string | Buffer;
 }
@@ -92,7 +92,7 @@ async function call(
     remoteAddress: BROWSER_IP,
     headers: {
       host: stack.base.host,
-      ...(method === 'GET' ? {} : WRITE),
+      ...(method === 'GET' || method === 'HEAD' ? {} : WRITE),
       ...headers,
       ...jar.header(),
     },
@@ -194,6 +194,30 @@ describe('* /console/api/admin/*', () => {
       const gone = await call(stack, jar, `${SCOPES}/${id}`);
       expectProblem(gone, 404);
       expect(gone.json()).toMatchObject({ type: 'about:blank' });
+    });
+  });
+
+  it('round-trips a HEAD with the resource’s ETag and no body', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      await signIn(stack, jar);
+      const created = await call(stack, jar, SCOPES, {
+        method: 'POST',
+        ...json({ name: `head-${newId().slice(-12)}` }),
+      });
+      const { id } = created.json<{ id: string }>();
+      const read = await call(stack, jar, `${SCOPES}/${id}`);
+
+      const head = await call(stack, jar, `${SCOPES}/${id}`, { method: 'HEAD' });
+
+      expect(head.statusCode).toBe(200);
+      expect(head.headers.etag).toBe(read.headers.etag);
+      expect(head.headers['content-type']).toBe(read.headers['content-type']);
+      expect(head.body).toBe('');
+      expect(stack.adminRequests.at(-1)).toMatchObject({
+        method: 'HEAD',
+        url: `/admin/tenants/${SYSTEM_TENANT_NAME}/scopes/${id}`,
+      });
     });
   });
 
@@ -706,6 +730,25 @@ describe('an ended session or grant', () => {
       const forwarded = stack.adminRequests.length;
 
       expectEnded(await call(stack, jar, WHOAMI));
+      expect(stack.adminRequests).toHaveLength(forwarded);
+    });
+  });
+
+  it('answers the session-ended problem, deleting the row, at the absolute expiry', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      const { subjectId } = await signIn(stack, jar);
+      const expiresAt = new Date(stack.clock.now().getTime() + 1000);
+      await owner.db.execute(
+        sql`UPDATE console_sessions SET expires_at = ${expiresAt.toISOString()}::timestamptz
+            WHERE subject_id = ${subjectId}`,
+      );
+      expect((await call(stack, jar, WHOAMI)).statusCode).toBe(200);
+      stack.clock.advance(1000);
+      const forwarded = stack.adminRequests.length;
+
+      expectEnded(await call(stack, jar, WHOAMI));
+      expect(await sessionOf(subjectId)).toBeUndefined();
       expect(stack.adminRequests).toHaveLength(forwarded);
     });
   });
