@@ -59,6 +59,13 @@ docker compose exec -T odudu node dist/main.js seed user --tenant console-paths 
 page. The sections are in the order they ran, one curl cookie jar (`jar`)
 throughout, so each section's cookies are the ones the section before it set.
 
+Four sections come from **a second run**, twenty minutes after the first, on
+the same container and tenant, with a new, empty `jar` and a new sign-in:
+the refused callbacks, the path that escapes `/admin/`, the refresh and the
+refresh that cannot take the lock, run in that order. Each says so in its
+first line. The first run had left the tenant no `console_sessions` row, as
+its last query shows.
+
 ## `GET /console/auth/login`
 
 The console's sign-in starts here. `return_to` is where the callback sends
@@ -175,6 +182,201 @@ cookie, set the session cookie and redirected to `return_to`. The session
 cookie is `<tenant id>.<secret>` again, and only the secret's SHA-256 is
 stored. The tokens stay in the `console_sessions` row, wrapped under the KEK,
 and none of them reaches the browser.
+
+## `GET /console/auth/callback`, refused
+
+From the second run. It signed in as the first run did, with the same
+`login`, authorization-endpoint and `authenticate` requests; the two that
+set what this section uses answered:
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a0e740-cbe4-73a4-b368-87f79787f406
+cache-control: no-store
+set-cookie: odudu-console-login=01a0e72d-5927-73c3-b14d-a5b60d1ca9ad.dM8FyhoJLRwaXvAcMLV-gpEdj-h3ZXpxom7_PcIWcUY; HttpOnly; SameSite=Lax; Path=/; Max-Age=600
+location: http://localhost:3000/tenants/console-paths/protocol/openid-connect/auth?response_type=code&client_id=odudu-admin&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fconsole%2Fauth%2Fcallback&scope=openid&resource=urn%3Aodudu%3Aparams%3Aadmin-api&state=01a0e72d-5927-73c3-b14d-a5b60d1ca9ad.dM8FyhoJLRwaXvAcMLV-gpEdj-h3ZXpxom7_PcIWcUY&nonce=inB4oeD2LGFfK9sZ4pRc2B9X9_dr6-7491ikkBQVeds&code_challenge=ccgs9I0-exnmcWELhDzk0EcUHEUvfIO3lFy2uHHeVmA&code_challenge_method=S256
+content-length: 0
+Date: Mon, 28 Sep 2026 09:02:58 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a0e741-0d3a-7b29-a113-77c194ddb583
+set-cookie: console-paths-session=01a0e741-0d89-724a-b675-8a86b18260ba:mfT66x18qplXy4Bllzeb0RgQetsFvoepwSNfNmALat4; HttpOnly; SameSite=Lax; Path=/
+set-cookie: console-paths-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: http://localhost:3000/console/auth/callback?code=5XkP0a7ZCxb_UMuoocehlzQyG3L9n3eHtnMkMg5vZxQ&state=01a0e72d-5927-73c3-b14d-a5b60d1ca9ad.dM8FyhoJLRwaXvAcMLV-gpEdj-h3ZXpxom7_PcIWcUY&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsole-paths
+content-length: 0
+Date: Mon, 28 Sep 2026 09:03:15 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+A copy of the jar, `jar-before-callback`, was taken here. A refused callback
+clears the login cookie, so each refused request below is sent without
+`-c`, and the jar it reads still holds the login cookie.
+
+**A `state` that does not match the login cookie.** The code and `iss` are
+the real ones; the `state` keeps the tenant half and replaces the secret:
+
+```bash
+curl -sS -D - -b jar 'http://localhost:3000/console/auth/callback?code=5XkP0a7ZCxb_UMuoocehlzQyG3L9n3eHtnMkMg5vZxQ&state=01a0e72d-5927-73c3-b14d-a5b60d1ca9ad.not-the-login-cookie&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsole-paths'
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a0e741-390e-7091-bf83-07e31b252605
+set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+cache-control: no-store
+content-type: text/html; charset=utf-8
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
+x-frame-options: DENY
+referrer-policy: no-referrer
+content-length: 187
+Date: Mon, 28 Sep 2026 09:03:26 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sign-in failed</title></head>
+<body>
+<h1>Sign-in failed</h1>
+<p>The sign-in could not be completed.</p>
+</body>
+</html>
+```
+
+A mismatched `state` is refused before the pending sign-in is read, so the
+pending sign-in and the code both survived it. The real callback, with the
+same code, then signed in:
+
+```bash
+curl -sS -D - -c jar -b jar 'http://localhost:3000/console/auth/callback?code=5XkP0a7ZCxb_UMuoocehlzQyG3L9n3eHtnMkMg5vZxQ&state=01a0e72d-5927-73c3-b14d-a5b60d1ca9ad.dM8FyhoJLRwaXvAcMLV-gpEdj-h3ZXpxom7_PcIWcUY&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsole-paths'
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a0e741-59d5-79b5-b13f-4b6ef887c835
+cache-control: no-store
+set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: odudu-console=01a0e72d-5927-73c3-b14d-a5b60d1ca9ad.dB3bP0KksZ4nMzHuO9BJi2pCn-9Ge4_pHfpkgSMrDQI; HttpOnly; SameSite=Strict; Path=/
+location: /console/x
+content-length: 0
+Date: Mon, 28 Sep 2026 09:03:34 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+**The same callback again.** The copy of the jar still holds the login
+cookie, and its value is the `state` being replayed, so the refusal below
+is not the missing or mismatched cookie refused above:
+
+```bash
+grep odudu-console-login jar-before-callback | cut -f6,7
+```
+
+```
+odudu-console-login	01a0e72d-5927-73c3-b14d-a5b60d1ca9ad.dM8FyhoJLRwaXvAcMLV-gpEdj-h3ZXpxom7_PcIWcUY
+```
+
+```bash
+curl -sS -D - -b jar-before-callback 'http://localhost:3000/console/auth/callback?code=5XkP0a7ZCxb_UMuoocehlzQyG3L9n3eHtnMkMg5vZxQ&state=01a0e72d-5927-73c3-b14d-a5b60d1ca9ad.dM8FyhoJLRwaXvAcMLV-gpEdj-h3ZXpxom7_PcIWcUY&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fconsole-paths'
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a0e741-88cb-725c-8b08-0e2f2773ca7b
+set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+cache-control: no-store
+content-type: text/html; charset=utf-8
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
+x-frame-options: DENY
+referrer-policy: no-referrer
+content-length: 187
+Date: Mon, 28 Sep 2026 09:03:46 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sign-in failed</title></head>
+<body>
+<h1>Sign-in failed</h1>
+<p>The sign-in could not be completed.</p>
+</body>
+</html>
+```
+
+The first callback took the pending sign-in, so the replay found none and
+was refused before the code was presented again.
+
+**An error from the authorization endpoint.** A new sign-in gave a new
+login cookie and `state`:
+
+```bash
+curl -sS -D - -c jar -b jar \
+  'http://localhost:3000/console/auth/login?tenant=console-paths&return_to=/console/x'
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a0e741-a7d9-7a8b-9954-884464ed0bc8
+cache-control: no-store
+set-cookie: odudu-console-login=01a0e72d-5927-73c3-b14d-a5b60d1ca9ad.LQ36gGqeZQx-EjuRFtt7o9mUFB4QkwRJRCROC9wESTo; HttpOnly; SameSite=Lax; Path=/; Max-Age=600
+location: http://localhost:3000/tenants/console-paths/protocol/openid-connect/auth?response_type=code&client_id=odudu-admin&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fconsole%2Fauth%2Fcallback&scope=openid&resource=urn%3Aodudu%3Aparams%3Aadmin-api&state=01a0e72d-5927-73c3-b14d-a5b60d1ca9ad.LQ36gGqeZQx-EjuRFtt7o9mUFB4QkwRJRCROC9wESTo&nonce=pcd5eoUxYu76CbdxKeaPz1A5PaJjVBUHidls9nErraI&code_challenge=HWdl9bQiMkQIYgkZeI7AUGsJjlm5vXB20XleoMvHVEk&code_challenge_method=S256
+content-length: 0
+Date: Mon, 28 Sep 2026 09:03:54 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+The callback an authorization endpoint sends when the user refuses, with
+that pending `state` and its login cookie:
+
+```bash
+curl -sS -D - -c jar -b jar \
+  'http://localhost:3000/console/auth/callback?error=access_denied&state=01a0e72d-5927-73c3-b14d-a5b60d1ca9ad.LQ36gGqeZQx-EjuRFtt7o9mUFB4QkwRJRCROC9wESTo'
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a0e741-ccd5-7a04-a3e7-111123c5bf6e
+cache-control: no-store
+set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: /console/?login_error=access_denied
+content-length: 0
+Date: Mon, 28 Sep 2026 09:04:04 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+The gateway took the pending sign-in and cleared its cookie.
+
+What the tenant held afterwards, with the same `psql` as the first run's
+closing queries and the same trimmed header spaces:
+
+```sql
+select id, created_at from console_sessions where tenant_id = '01a0e72d-5927-73c3-b14d-a5b60d1ca9ad';
+select count(*) as console_logins from console_logins where tenant_id = '01a0e72d-5927-73c3-b14d-a5b60d1ca9ad';
+```
+
+```
+                  id                  |         created_at
+--------------------------------------+----------------------------
+ 01a0e741-5a28-749e-908e-9382b6129149 | 2026-09-28 09:03:34.869+00
+(1 row)
+
+ console_logins
+----------------
+              0
+(1 row)
+```
+
+One session, created at 09:03:34 by the callback that signed in. The two
+refusals and the error callback created none, and no pending sign-in is
+left. That session is the one every later second-run section uses.
 
 ## `GET /console/api/session`
 
@@ -392,6 +594,346 @@ Keep-Alive: timeout=72
 {"id":"01a0e72e-d2f9-7a02-8e77-615c6b2395fa","type":"user","username":"lovelace","email":"lovelace@example.com","enabled":true,"created_at":"2026-09-28T08:43:20.696Z"}
 ```
 
+## A path that escapes `/admin/`
+
+From the second run, on its session. The proxy resolves the path it would
+forward, dot segments and their percent-encoded form included, and refuses
+`404` before reading the session when the result is outside `/admin/`.
+`--path-as-is` stops curl from resolving the dot segments itself. Both
+requests were sent between the two timestamps printed around them:
+
+```bash
+node -e 'console.log(new Date().toISOString())'
+curl --path-as-is -sS -D - -b jar 'http://localhost:3000/console/api/admin/%2e%2e/tenants/console-paths/protocol/openid-connect/token'
+curl --path-as-is -sS -D - -b jar 'http://localhost:3000/console/api/admin/../tenants/console-paths/protocol/openid-connect/token'
+node -e 'console.log(new Date().toISOString())'
+```
+
+```
+2026-09-28T09:04:13.850Z
+HTTP/1.1 404 Not Found
+x-request-id: 01a0e741-f233-7329-b0e0-5fd2a413d773
+content-type: application/problem+json; charset=utf-8
+cache-control: no-store
+content-length: 115
+Date: Mon, 28 Sep 2026 09:04:13 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"status":404,"type":"about:blank#not-found","title":"Not Found","instance":"01a0e741-f233-7329-b0e0-5fd2a413d773"}
+HTTP/1.1 404 Not Found
+x-request-id: 01a0e741-f240-7a00-8b03-5531fda52ef8
+content-type: application/problem+json; charset=utf-8
+cache-control: no-store
+content-length: 115
+Date: Mon, 28 Sep 2026 09:04:13 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"status":404,"type":"about:blank#not-found","title":"Not Found","instance":"01a0e741-f240-7a00-8b03-5531fda52ef8"}
+2026-09-28T09:04:13.918Z
+```
+
+The admin API's audit trail for that window, read through the proxy on the
+same session, is empty:
+
+```bash
+curl -sS -D - -b jar \
+  'http://localhost:3000/console/api/admin/tenants/console-paths/audit?from=2026-09-28T09:04:13.850Z&to=2026-09-28T09:04:13.918Z'
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e742-a8da-7abf-8bce-3c843cc365d0
+content-type: application/json; charset=utf-8
+cache-control: no-store
+content-length: 12
+Date: Mon, 28 Sep 2026 09:05:00 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[]}
+```
+
+An empty audit trail alone proves little, since a forwarded `GET` writes no
+audit row. What does prove it is the server's request log, which records a
+forwarded call as a request of its own. The proxy's `404` is byte-identical
+to the one the gateway answers for an unknown `/console/api/` path, so a
+third request shows which route took these paths: the same `%2e%2e` form,
+resolving back inside `/admin/`, between two more timestamps.
+
+```bash
+node -e 'console.log(new Date().toISOString())'
+curl --path-as-is -sS -D - -b jar \
+  'http://localhost:3000/console/api/admin/%2e%2e/admin/tenants/console-paths/subjects?limit=1'
+node -e 'console.log(new Date().toISOString())'
+```
+
+```
+2026-09-28T09:04:42.087Z
+HTTP/1.1 200 OK
+x-request-id: 01a0e742-6084-7ca6-a3a2-815d725c5921
+content-type: application/json; charset=utf-8
+link: </console/api/admin/tenants/console-paths/subjects?limit=1&cursor=eyJhZnRlciI6IjAxYTBlNzJkLTViYTktNzhjZC1iODc3LTdlYTZkNDA3NjAyOCIsImNvbGxlY3Rpb24iOiJzdWJqZWN0cyIsInRlbmFudElkIjoiMDFhMGU3MmQtNTkyNy03M2MzLWIxNGQtYTViNjBkMWNhOWFkIiwiZmlsdGVycyI6IlQxUE5vWXdycWd3RFZMdGZtajdMNWUwU3EwMk9FYnFIUEM4UkZoSUN1VVUifQ.wxCYgMzM9KahHxwDlrS6SAK5sacypLuVFOf9quYa9S8>; rel="next"
+cache-control: no-store
+content-length: 465
+Date: Mon, 28 Sep 2026 09:04:42 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0e72d-5ba9-78cd-b877-7ea6d4076028","type":"user","username":"grace","email":"grace@example.com","enabled":true,"created_at":"2026-09-28T08:41:44.607Z"}],"next":"eyJhZnRlciI6IjAxYTBlNzJkLTViYTktNzhjZC1iODc3LTdlYTZkNDA3NjAyOCIsImNvbGxlY3Rpb24iOiJzdWJqZWN0cyIsInRlbmFudElkIjoiMDFhMGU3MmQtNTkyNy03M2MzLWIxNGQtYTViNjBkMWNhOWFkIiwiZmlsdGVycyI6IlQxUE5vWXdycWd3RFZMdGZtajdMNWUwU3EwMk9FYnFIUEM4UkZoSUN1VVUifQ.wxCYgMzM9KahHxwDlrS6SAK5sacypLuVFOf9quYa9S8"}
+2026-09-28T09:04:42.251Z
+```
+
+The request log for each window, the escapes' first:
+
+```bash
+docker logs --since 2026-09-28T09:04:13.850Z --until 2026-09-28T09:04:13.918Z docker-odudu-1 2>&1 \
+  | jq -c 'select(.msg == "incoming request") | [.req.method, .req.url]'
+docker logs --since 2026-09-28T09:04:42.087Z --until 2026-09-28T09:04:42.251Z docker-odudu-1 2>&1 \
+  | jq -c 'select(.msg == "incoming request") | [.req.method, .req.url]'
+```
+
+```
+["GET","/console/api/admin/%2e%2e/tenants/console-paths/protocol/openid-connect/token"]
+["GET","/console/api/admin/../tenants/console-paths/protocol/openid-connect/token"]
+```
+
+```
+["GET","/console/api/admin/%2e%2e/admin/tenants/console-paths/subjects"]
+["GET","/admin/tenants/console-paths/subjects"]
+```
+
+The two escapes reached the server and nothing followed them. The third
+request was followed by its forward to `/admin/`.
+
+## A refresh
+
+From the second run, on its session, `01a0e741-5a28-…`. Every request above
+ran on an access token with more than 30 s left. The gateway refreshes
+before forwarding when less is left, and the token lives 300 s, so this
+section waited until the stored expiry was 18 s away. These ran one after
+another, `$FROM` being the timestamp printed first:
+
+```bash
+node -e 'console.log(new Date().toISOString())'
+curl -sS -D - -b jar \
+  http://localhost:3000/console/api/admin/tenants/console-paths/subjects/01a0e72d-5ba9-78cd-b877-7ea6d4076028
+curl -sS -D - -b jar \
+  "http://localhost:3000/console/api/admin/tenants/console-paths/audit?event_type=token&from=$FROM"
+curl -sS -D - -b jar \
+  "http://localhost:3000/console/api/admin/tenants/console-paths/audit?action=grant.revoked_on_reuse&from=$FROM"
+```
+
+with this query, through the same `psql`, run before the `GET` and again
+after it:
+
+```sql
+select access_expires_at, access_expires_at - now() as remaining from console_sessions where id = '01a0e741-5a28-749e-908e-9382b6129149';
+```
+
+Before:
+
+```
+     access_expires_at      |    remaining
+----------------------------+-----------------
+ 2026-09-28 09:08:34.869+00 | 00:00:18.238342
+(1 row)
+```
+
+`$FROM`, then the `GET`:
+
+```
+2026-09-28T09:08:16.679Z
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e745-a6bb-78aa-b182-6b87b290896d
+content-type: application/json; charset=utf-8
+etag: "c50e0060774baca49d598875d211f5ea891a6755d4c36f6107205c5301e08af9"
+cache-control: no-store
+content-length: 161
+Date: Mon, 28 Sep 2026 09:08:16 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a0e72d-5ba9-78cd-b877-7ea6d4076028","type":"user","username":"grace","email":"grace@example.com","enabled":true,"created_at":"2026-09-28T08:41:44.607Z"}
+```
+
+After, the expiry is 300 s from the refresh:
+
+```
+    access_expires_at     |    remaining
+--------------------------+-----------------
+ 2026-09-28 09:13:16.7+00 | 00:04:59.794902
+(1 row)
+```
+
+The tenant's `token` audit rows since `$FROM` are one `token.refresh`, on
+the grant the sign-in created:
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e745-a79a-7d60-9932-578111766527
+content-type: application/json; charset=utf-8
+cache-control: no-store
+content-length: 511
+Date: Mon, 28 Sep 2026 09:08:16 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0e745-a710-745c-a343-2ef6e3ea689b","occurred_at":"2026-09-28T09:08:16.761Z","event_type":"token","action":"token.refresh","outcome":"allowed","actor_tenant_id":"01a0e72d-5927-73c3-b14d-a5b60d1ca9ad","actor_subject_id":"01a0e72d-5ba9-78cd-b877-7ea6d4076028","actor_client_id":"01a0e72d-599e-701c-87a2-7672d411bed2","resource_type":"grant","resource_id":"01a0e741-5a0b-706e-8ae5-3f10ef8a7447","request_id":"01a0e745-a6ce-761b-b162-9a095086871d","ip":"172.20.0.1","detail":{"scope":"openid"}}]}
+```
+
+and the refresh token was presented once, since reuse detection revoked
+nothing:
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e745-a7b2-78d5-919f-238160cd4bb4
+content-type: application/json; charset=utf-8
+cache-control: no-store
+content-length: 12
+Date: Mon, 28 Sep 2026 09:08:16 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[]}
+```
+
+## A refresh that cannot take the lock
+
+From the second run, on its session, about 4.5 minutes after the refresh
+above. A refresh holds the session's row lock, waiting at most 5 s for it,
+so that two refreshes of one session never present its refresh token
+twice. Here `psql` holds that lock for 12 s while a request that needs a
+refresh arrives. The lock is taken by this file, `q-lock.sql`, through the
+same `psql`:
+
+```sql
+BEGIN;
+SELECT id, clock_timestamp() AS locked_at FROM console_sessions WHERE id = '01a0e741-5a28-749e-908e-9382b6129149' FOR UPDATE;
+SELECT pg_sleep(12);
+SELECT clock_timestamp() AS releasing_at;
+COMMIT;
+```
+
+The steps, in order: the expiry query from the section above; `$FROM`;
+the lock file started in the background; one second later the `GET`, with
+curl printing its total time; then, once `psql` had committed, the same
+`GET`, the expiry query, and the `token` audit rows since `$FROM`.
+
+```bash
+node -e 'console.log(new Date().toISOString())'
+docker exec -i docker-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < q-lock.sql &
+sleep 1
+curl -sS -D - -w 'time_total: %{time_total}\n' -b jar \
+  http://localhost:3000/console/api/admin/tenants/console-paths/subjects/01a0e72d-5ba9-78cd-b877-7ea6d4076028
+wait
+curl -sS -D - -b jar \
+  http://localhost:3000/console/api/admin/tenants/console-paths/subjects/01a0e72d-5ba9-78cd-b877-7ea6d4076028
+curl -sS -D - -b jar \
+  "http://localhost:3000/console/api/admin/tenants/console-paths/audit?event_type=token&from=$FROM"
+```
+
+Before, the token was inside the refresh window:
+
+```
+    access_expires_at     |   remaining
+--------------------------+----------------
+ 2026-09-28 09:13:16.7+00 | 00:00:24.50695
+(1 row)
+```
+
+```
+2026-09-28T09:12:52.238Z
+```
+
+The lock, held from 09:12:52.31 to 09:13:04.34. The `pg_sleep` value line
+is a single space, trimmed below like the header spaces:
+
+```
+BEGIN
+                  id                  |           locked_at
+--------------------------------------+-------------------------------
+ 01a0e741-5a28-749e-908e-9382b6129149 | 2026-09-28 09:12:52.309939+00
+(1 row)
+
+ pg_sleep
+----------
+
+(1 row)
+
+         releasing_at
+-------------------------------
+ 2026-09-28 09:13:04.335897+00
+(1 row)
+
+COMMIT
+```
+
+The `GET` sent while it was held waited 5 s for the lock and was answered
+`502`, at 09:12:58, inside the lock's twelve seconds. curl's `time_total`
+follows the body on the same line, since the body ends without a newline:
+
+```
+HTTP/1.1 502 Bad Gateway
+x-request-id: 01a0e749-df15-7dbe-b907-884d3f3c8f06
+content-type: application/problem+json; charset=utf-8
+cache-control: no-store
+content-length: 107
+Date: Mon, 28 Sep 2026 09:12:58 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"status":502,"type":"about:blank","title":"Bad Gateway","instance":"01a0e749-df15-7dbe-b907-884d3f3c8f06"}time_total: 5.108921
+```
+
+The session was kept. The `GET` after the commit refreshed and was
+forwarded:
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e74a-0a6f-7b2c-a0ae-7c071decec61
+content-type: application/json; charset=utf-8
+etag: "c50e0060774baca49d598875d211f5ea891a6755d4c36f6107205c5301e08af9"
+cache-control: no-store
+content-length: 161
+Date: Mon, 28 Sep 2026 09:13:04 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a0e72d-5ba9-78cd-b877-7ea6d4076028","type":"user","username":"grace","email":"grace@example.com","enabled":true,"created_at":"2026-09-28T08:41:44.607Z"}
+```
+
+```
+     access_expires_at      |    remaining
+----------------------------+-----------------
+ 2026-09-28 09:18:04.367+00 | 00:04:59.799211
+(1 row)
+```
+
+Since `$FROM` there is one `token.refresh`, the one after the commit. The
+request that timed out on the lock never reached the token endpoint:
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e74a-0b4f-77e3-b5d8-2b5d42acd4ca
+content-type: application/json; charset=utf-8
+cache-control: no-store
+content-length: 511
+Date: Mon, 28 Sep 2026 09:13:04 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0e74a-0a95-71ab-ad6b-de15e65bb772","occurred_at":"2026-09-28T09:13:04.396Z","event_type":"token","action":"token.refresh","outcome":"allowed","actor_tenant_id":"01a0e72d-5927-73c3-b14d-a5b60d1ca9ad","actor_subject_id":"01a0e72d-5ba9-78cd-b877-7ea6d4076028","actor_client_id":"01a0e72d-599e-701c-87a2-7672d411bed2","resource_type":"grant","resource_id":"01a0e741-5a0b-706e-8ae5-3f10ef8a7447","request_id":"01a0e74a-0a7b-7f8e-9764-6e7e42b23b8d","ip":"172.20.0.1","detail":{"scope":"openid"}}]}
+```
+
+The second run's session was not logged out, so its `console_sessions` row
+is still there. It is the same throwaway tenant's, and it ends idle 30
+minutes later.
+
 ## `POST /console/auth/logout`
 
 Sent with no body. The same CSRF guard applies here.
@@ -520,21 +1062,14 @@ Keep-Alive: timeout=72
 console build unavailable
 ```
 
-## What this run does not show
+## What these runs do not show
 
-Each item below is tested, not captured, because this run never reached it:
+Each item below is tested, not captured:
 
-- **A refresh.** An access token is refreshed only within 30 s of expiry,
-  and every request above ran on the code exchange's token. The single
-  refresh per session, the `502` on a token-endpoint failure or a lock wait
-  over 5 s, and the session-ended `401` on a refused refresh are in
-  `apps/server/tests/console-proxy.int.test.ts`.
-- **A path that escapes `/admin/`**, such as `/console/api/admin/%2e%2e/…`,
-  which the proxy refuses with `404` before forwarding anything. Also in
-  `apps/server/tests/console-proxy.int.test.ts`, both through `inject` and
-  over a real socket.
-- **A refused callback**, and the `302` to `/console/?login_error=<code>`
-  after an error from the authorization endpoint. These are in
-  `apps/server/tests/console-login.int.test.ts`.
+- **The `502` on a token-endpoint failure.** A healthy stack's token
+  endpoint answers a live grant's refresh, so this needs a fault injected
+  into it. It is in `apps/server/tests/console-proxy.int.test.ts`, beside
+  the session-ended `401` when the token endpoint refuses the refresh token,
+  which these runs did not attempt either.
 - **The `__Host-` cookies**, which need an `https` base. These are in
   `apps/server/tests/console-session.int.test.ts`.
