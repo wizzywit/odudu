@@ -20,3 +20,9 @@
   font-variant-numeric: tabular-nums;
   color: var(--ink-muted);
 }
+
+.limit {
+  flex-basis: 100%;
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}

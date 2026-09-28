@@ -1,5 +1,11 @@
-import { useState } from 'react';
-import { advance, retreat, type CursorTrail } from '#/shared/service/cursorTrail.ts';
+import { useId, useState } from 'react';
+import {
+  advance,
+  canAdvance,
+  MAX_PAGES,
+  retreat,
+  type CursorTrail,
+} from '#/shared/service/cursorTrail.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import styles from '#/shared/view/Pager.module.css';
 
@@ -19,6 +25,8 @@ export function Pager({
   readonly loadingMore?: boolean;
 }) {
   const noun = label.toLowerCase();
+  const limitReason = useId();
+  const atLimit = next !== null && !canAdvance(trail, next);
   // Once more rows are appended the list spans pages, so no single number fits.
   const [appendedOn, setAppendedOn] = useState<string | null>(null);
   const appended = appendedOn === trail.join(' ');
@@ -54,7 +62,8 @@ export function Pager({
           size="small"
           variant="quiet"
           aria-label="Next page"
-          isDisabled={next === null}
+          isDisabled={next === null || atLimit}
+          {...(atLimit ? { 'aria-describedby': limitReason } : {})}
           onPress={() => {
             if (next !== null) onTrailChange(advance(trail, next));
           }}
@@ -62,6 +71,11 @@ export function Pager({
           Next
         </Button>
       </div>
+      {atLimit ? (
+        <p id={limitReason} className={styles.limit}>
+          {`Paged as far as ${String(MAX_PAGES)} pages. Narrow the list to see further.`}
+        </p>
+      ) : null}
     </nav>
   );
 }

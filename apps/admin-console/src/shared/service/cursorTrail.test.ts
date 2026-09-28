@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   advance,
+  canAdvance,
   currentCursor,
+  MAX_PAGES,
   retreat,
   trailFromSearch,
   trailToSearch,
+  type CursorTrail,
 } from '#/shared/service/cursorTrail.ts';
 
 it('starts on the first page, which has no cursor', () => {
@@ -62,8 +65,42 @@ describe('the trail in the URL', () => {
     }
   });
 
-  it('refuses a trail longer than anybody pages by hand', () => {
-    const long = new URLSearchParams(Array.from({ length: 101 }, () => ['after', C2]));
-    expect(trailFromSearch(long)).toEqual([]);
+  it('reads a trail at the page limit, and refuses one past it', () => {
+    const at = new URLSearchParams(Array.from({ length: MAX_PAGES }, () => ['after', C2]));
+    expect(trailFromSearch(at)).toHaveLength(MAX_PAGES);
+    const past = new URLSearchParams(Array.from({ length: MAX_PAGES + 1 }, () => ['after', C2]));
+    expect(trailFromSearch(past)).toEqual([]);
+  });
+
+  it('refuses a trail whose cursors together outgrow a safe URL', () => {
+    const wide = `${'a'.repeat(1500)}.b`;
+    const search = new URLSearchParams(Array.from({ length: 5 }, () => ['after', wide]));
+    expect(trailFromSearch(search)).toEqual([]);
+  });
+});
+
+const PAGE = 'b2Zmc2V0LTI.dGFnMg';
+
+describe('the page limit on the way forward', () => {
+  it('advances up to the limit and no further', () => {
+    const full: CursorTrail = Array.from({ length: MAX_PAGES }, () => PAGE);
+    const almost = full.slice(1);
+    expect(canAdvance(almost, PAGE)).toBe(true);
+    expect(advance(almost, PAGE)).toHaveLength(MAX_PAGES);
+    expect(canAdvance(full, PAGE)).toBe(false);
+    expect(advance(full, PAGE)).toBe(full);
+  });
+
+  it('stops before the cursors outgrow a safe URL, whatever the page count', () => {
+    const wide = `${'a'.repeat(1500)}.b`;
+    const trail = [wide, wide, wide];
+    expect(canAdvance(trail, wide)).toBe(false);
+    expect(trailFromSearch(trailToSearch(advance(trail, wide)))).toEqual(trail);
+  });
+
+  it('never writes a trail it would refuse to read', () => {
+    let trail: CursorTrail = [];
+    for (let page = 0; page < MAX_PAGES + 5; page += 1) trail = advance(trail, PAGE);
+    expect(trailFromSearch(trailToSearch(trail))).toEqual(trail);
   });
 });

@@ -7,8 +7,25 @@ export function currentCursor(trail: CursorTrail): string | undefined {
   return trail.at(-1);
 }
 
+// The URL the trail is written into has to reach the server whole: nginx's
+// default request line is 8 KiB (large_client_header_buffers), below Node's
+// 16 KiB header limit. An admin API cursor runs to about 320 characters, so
+// twenty pages are about 6.6 KB of `after=`, and the budget below holds the
+// trail to that even when the cursors are longer.
+export const MAX_PAGES = 20;
+const TRAIL_BUDGET = 6_000;
+
+function weight(trail: CursorTrail): number {
+  return trail.reduce((sum, cursor) => sum + cursor.length, 0);
+}
+
+export function canAdvance(trail: CursorTrail, next: string): boolean {
+  return trail.length < MAX_PAGES && weight(trail) + next.length <= TRAIL_BUDGET;
+}
+
+// At the limit the trail stays as it is; the pager says why Next is off.
 export function advance(trail: CursorTrail, next: string): CursorTrail {
-  return [...trail, next];
+  return canAdvance(trail, next) ? [...trail, next] : trail;
 }
 
 export function retreat(trail: CursorTrail): CursorTrail {
@@ -16,7 +33,6 @@ export function retreat(trail: CursorTrail): CursorTrail {
 }
 
 const PARAM = 'after';
-const MAX_PAGES = 100;
 const MAX_CURSOR = 2048;
 // The admin API's cursor: a base64url payload and a base64url tag.
 const CURSOR = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u;
@@ -27,6 +43,7 @@ export function trailFromSearch(search: URLSearchParams | string): CursorTrail {
   const trail = new URLSearchParams(search).getAll(PARAM);
   const valid =
     trail.length <= MAX_PAGES &&
+    weight(trail) <= TRAIL_BUDGET &&
     trail.every((cursor) => cursor.length <= MAX_CURSOR && CURSOR.test(cursor));
   return valid ? trail : [];
 }
