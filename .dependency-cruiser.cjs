@@ -33,6 +33,15 @@ module.exports = {
       to: { path: '(^|/)packages/authn-flows/' },
     },
     {
+      name: 'console-gateway-imports-no-protocol',
+      severity: 'error',
+      comment:
+        'The console gateway is a backend-for-frontend under /console; it never reaches a ' +
+        'protocol implementation or a login-flow rendering package directly.',
+      from: { path: '(^|/)packages/console-gateway/' },
+      to: { path: '(^|/)packages/(?:protocol-|authn-flows)[^/]*/' },
+    },
+    {
       name: 'no-protocol-to-protocol',
       severity: 'error',
       comment:

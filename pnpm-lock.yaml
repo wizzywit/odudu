@@ -284,6 +284,34 @@ importers:
         specifier: 5.0.0
         version: 5.0.0(@types/node@24.13.4)(vite@8.2.2(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13)(yaml@2.9.0))
 
+  packages/console-gateway:
+    dependencies:
+      '@odudu/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@odudu/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+      '@odudu/db':
+        specifier: workspace:*
+        version: link:../db
+      '@odudu/domain-tenant':
+        specifier: workspace:*
+        version: link:../domain-tenant
+      '@odudu/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      fastify:
+        specifier: 5.12.3
+        version: 5.12.3
+    devDependencies:
+      '@odudu/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+      vitest:
+        specifier: 5.0.0
+        version: 5.0.0(@types/node@24.13.4)(vite@8.2.2(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13)(yaml@2.9.0))
+
   packages/contracts:
     dependencies:
       zod:

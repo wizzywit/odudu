@@ -68,6 +68,13 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toBe(false);
   });
 
+  it('rejects the console gateway importing a protocol package', async () => {
+    const found = await violations('console-gateway-imports-no-protocol');
+    expect(
+      found.some((v) => v.from.includes('console-gateway') && v.to.includes('protocol-oidc')),
+    ).toBe(true);
+  });
+
   it('permits the admin API to import a protocol package', async () => {
     const found = await violations('no-protocol-to-protocol');
     expect(
