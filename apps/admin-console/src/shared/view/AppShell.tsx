@@ -1,4 +1,5 @@
 import {
+  startTransition,
   useEffect,
   useRef,
   useState,
@@ -97,12 +98,16 @@ export function AppShell({
   const [sheetOpen, setSheetOpen] = useState(false);
   // A destination, or an action such as signing out, is the sheet's work
   // done: it closes, so a dialog the action raises never sits on top of it.
+  // As a transition, so the control is still mounted when React Aria's own
+  // click handler runs: a discrete update would unmount it first in Chromium.
   const closeOnDestination = (event: MouseEvent<HTMLDivElement>): void => {
     if (
       event.target instanceof Element &&
       event.target.closest('a[href], button, label') !== null
     ) {
-      setSheetOpen(false);
+      startTransition(() => {
+        setSheetOpen(false);
+      });
     }
   };
   const railColumn = useRef<HTMLElement>(null);
