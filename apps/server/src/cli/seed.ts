@@ -1241,6 +1241,7 @@ async function runUserCommand(
       username: { type: 'string' },
       password: { type: 'string' },
       email: { type: 'string' },
+      'require-password-change': { type: 'boolean' },
     },
   });
 
@@ -1290,6 +1291,9 @@ async function runUserCommand(
       type: 'password',
       secret: { kind: 'password', hash: await hashPassword(password) },
     });
+    if (values['require-password-change'] === true) {
+      await requiredActionRepository(tx).add(tenantId, subject.id, 'update-password');
+    }
     return subject.id;
   });
 

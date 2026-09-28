@@ -1009,6 +1009,35 @@ describe('seed registration-token', () => {
   });
 });
 
+describe('seed user --require-password-change', () => {
+  async function seedUser(...extra: string[]) {
+    const tenant = `forced-${newId()}`;
+    await seed(['tenant', '--name', tenant]);
+    const result = await seed([
+      'user',
+      '--tenant',
+      tenant,
+      '--username',
+      'grace',
+      '--password',
+      'correct horse battery',
+      ...extra,
+    ]);
+    if (result.command !== 'user') throw new Error('expected user');
+    return withTenant(owner.db, result.tenantId, (tx) =>
+      requiredActionRepository(tx).pendingFor(result.userSubjectId),
+    );
+  }
+
+  it('queues a forced password change for the user it creates', async () => {
+    expect(await seedUser('--require-password-change')).toEqual(['update-password']);
+  });
+
+  it('queues nothing without it', async () => {
+    expect(await seedUser()).toEqual([]);
+  });
+});
+
 async function countAdminClients(tenantId: string): Promise<number> {
   const rows = await owner.db
     .select()

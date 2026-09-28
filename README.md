@@ -1000,6 +1000,27 @@ one. The account's first login is forced through a password change —
 `update-password` is queued as a required action the moment the subject is
 created.
 
+A tenant's own administrator can be given the same first login.
+`seed user --require-password-change` queues `update-password` for the user
+it creates, and `seed grant-role` with `odudu-admin:tenant-admin` makes that
+user the tenant's administrator. Run against `infra/docker`:
+
+```bash
+docker compose exec -T odudu node dist/main.js seed user \
+  --tenant demo --username grace --password correct-horse-battery \
+  --require-password-change
+docker compose exec -T odudu node dist/main.js seed grant-role \
+  --tenant demo --username grace --role odudu-admin:tenant-admin
+```
+
+```
+{"command":"user","tenant":"demo","tenantId":"01a0e90b-af49-71c1-bd40-4ab9466ce05d","username":"grace","userSubjectId":"01a0e90b-b209-7283-86f1-aac6a0b2be8d"}
+{"command":"grant-role","tenant":"demo","tenantId":"01a0e90b-af49-71c1-bd40-4ab9466ce05d","username":"grace","role":"odudu-admin:tenant-admin"}
+```
+
+grace's first sign-in asks for a new password, then asks her to sign in
+with it. Without the flag, `seed user` queues nothing.
+
 The `odudu-admin` client is provisioned as a public client authorised with
 `authorization_code` and `refresh_token`, carrying the tenant's default
 scopes, the admin API's resource identifier `urn:odudu:params:admin-api` as
