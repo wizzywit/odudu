@@ -1,5 +1,11 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { ancestorsOf, effectiveRoles, groupRoles, rolesReachableFrom } from '@odudu/domain-authz';
+import {
+  ancestorsOf,
+  descendantsOf,
+  effectiveRoles,
+  groupRoles,
+  rolesReachableFrom,
+} from '@odudu/domain-authz';
 import { ADMIN_CLIENT_ID, MANAGE_TENANTS, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { inArray } from 'drizzle-orm';
 
@@ -7,10 +13,9 @@ import { inArray } from 'drizzle-orm';
  * The admin-client capability names a set of roles actually grants, each
  * expanded through `role_composites` rather than taken at face value — a
  * composite that nests a capability instead of naming it directly must
- * still be caught. Shared by every capability ceiling in this package
- * (`setRoles`, `addRoleComposite`, `setGroupRoles`, `setScopeRoles`,
- * `setSubjectGroups`, `amendGroup`'s reparent guard): one traversal, never
- * a copy of it.
+ * still be caught. Shared by every capability ceiling in this package, on
+ * what a write grants and on what a removal takes away: one traversal,
+ * never a copy of it.
  */
 export async function capabilitiesReachableFrom(
   tx: TenantScopedDatabase,
@@ -47,6 +52,36 @@ export async function capabilitiesOfGroupsAndAncestors(
     tx,
     mapped.map((row) => row.roleId),
   );
+}
+
+/**
+ * What deleting `groupId` takes from the subjects in it and beneath it: its
+ * subtree goes with it (`groups_parent_fk` cascades), and with it every role
+ * mapped anywhere in that subtree or inherited from above it.
+ */
+export async function capabilitiesOfSubtree(
+  tx: TenantScopedDatabase,
+  groupId: string,
+): Promise<ReadonlySet<string>> {
+  return capabilitiesOfGroupsAndAncestors(tx, [groupId, ...(await descendantsOf(tx, groupId))]);
+}
+
+/**
+ * A wholesale replacement of a role set, judged by its delta: what `next`
+ * adds to `current` and what it takes away both have to be within `held`,
+ * and a role kept in both is never counted.
+ */
+export async function replacementOverreach(
+  tx: TenantScopedDatabase,
+  current: readonly string[],
+  next: readonly string[],
+  held: ReadonlySet<string>,
+): Promise<readonly string[]> {
+  const changed = [
+    ...next.filter((id) => !current.includes(id)),
+    ...current.filter((id) => !next.includes(id)),
+  ];
+  return overreach(await capabilitiesReachableFrom(tx, changed), held);
 }
 
 /** The capability ceiling itself (CWE-269): what `requested` names that `held` does not. */

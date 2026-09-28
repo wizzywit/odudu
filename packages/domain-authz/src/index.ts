@@ -17,5 +17,6 @@ export {
   groupRepository,
   effectiveGroupPaths,
   ancestorsOf,
+  descendantsOf,
   type NewGroup,
 } from '#/repository/groups';

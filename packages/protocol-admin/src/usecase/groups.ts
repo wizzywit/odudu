@@ -5,8 +5,9 @@ import { isUuid, OduduError } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, type SQL } from 'drizzle-orm';
 import {
   capabilitiesOfGroupsAndAncestors,
-  capabilitiesReachableFrom,
+  capabilitiesOfSubtree,
   overreach,
+  replacementOverreach,
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
@@ -213,9 +214,9 @@ export interface AmendGroupInput {
   /**
    * The caller's own admin-client capability names — the same ceiling
    * `setRoles` (#/usecase/subjects.ts) enforces, applied here to
-   * reparenting: moving a group under a new parent must never hand it (and
-   * every subject placed in it) a capability the caller does not itself
-   * hold, via the new parent's own roles or any of its ancestors'.
+   * reparenting in both directions: moving a group must never hand its
+   * subjects a capability the caller does not hold, through the new
+   * parent's chain, nor take one away, through the old parent's.
    */
   readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
@@ -289,8 +290,16 @@ export async function amendGroup(
     if (!isUuid(parentId) || (await groupRepository(tx).byId(parentId)) === null) {
       return { kind: 'unknown_parent' };
     }
-    const requestedCapabilities = await capabilitiesOfGroupsAndAncestors(tx, [parentId]);
-    const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  }
+
+  if (parentId !== undefined) {
+    const gained =
+      typeof parentId === 'string' ? await capabilitiesOfGroupsAndAncestors(tx, [parentId]) : [];
+    const lost =
+      locked.parentId === null || locked.parentId === parentId
+        ? []
+        : await capabilitiesOfGroupsAndAncestors(tx, [locked.parentId]);
+    const denied = overreach(new Set([...gained, ...lost]), input.callerCapabilities);
     if (denied.length > 0) {
       await deps.audit(tx, {
         action: 'group.amend',
@@ -336,6 +345,8 @@ export async function amendGroup(
 
 export interface DeleteGroupInput {
   readonly groupId: string;
+  /** See `AmendGroupInput`'s: what the delete takes away is held to it. */
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -345,13 +356,35 @@ export interface DeleteGroupDeps {
   readonly audit: Audit;
 }
 
-export type DeleteGroupOutcome = { kind: 'not_found' } | { kind: 'deleted' };
+export type DeleteGroupOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'deleted' };
 
 export async function deleteGroup(
   tx: TenantScopedDatabase,
   deps: DeleteGroupDeps,
   input: DeleteGroupInput,
 ): Promise<DeleteGroupOutcome> {
+  if ((await lockGroupForAmend(tx, input.groupId)) === null) return { kind: 'not_found' };
+  const denied = overreach(
+    await capabilitiesOfSubtree(tx, input.groupId),
+    input.callerCapabilities,
+  );
+  if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'group.delete',
+      resourceType: 'group',
+      resourceId: input.groupId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
+    return { kind: 'capability_ceiling', requested: denied };
+  }
+
   const deleted = await groupRepository(tx).delete(input.groupId);
   if (!deleted) return { kind: 'not_found' };
 
@@ -468,11 +501,15 @@ export async function setGroupRoles(
     return { kind: 'unknown_role', roleIds: missing };
   }
 
-  // The same ceiling `setRoles` (#/usecase/subjects.ts) enforces: mapping a
-  // role onto a group the caller belongs to must never hand it, and every
-  // subject in it, a capability the caller does not itself hold.
-  const requestedCapabilities = await capabilitiesReachableFrom(tx, uniqueRoleIds);
-  const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  // The same ceiling `setRoles` (#/usecase/subjects.ts) enforces, on the
+  // delta: a role mapped here must not hand the group's subjects a
+  // capability the caller does not hold, nor a role left out take one away.
+  const denied = await replacementOverreach(
+    tx,
+    (await mappedRoles(tx, input.groupId)).map((role) => role.id),
+    uniqueRoleIds,
+    input.callerCapabilities,
+  );
   if (denied.length > 0) {
     await deps.audit(tx, {
       action: 'group.roles_set',

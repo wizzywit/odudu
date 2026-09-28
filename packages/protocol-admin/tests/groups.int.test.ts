@@ -859,6 +859,7 @@ describe('audit', () => {
         { audit: ok.audit },
         {
           groupId: group.id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -875,6 +876,7 @@ describe('audit', () => {
         { audit: refused.audit },
         {
           groupId: newId(),
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',

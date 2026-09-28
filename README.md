@@ -898,7 +898,8 @@ refuses authority the caller does not hold itself
 subject, or a client (on the service account it authenticates as), is
 refused with `403` when that subject holds an admin capability the caller
 does not — so `manage-clients` alone cannot rotate the secret of a
-`tenant-admin` service account. A subject's OIDC profile
+`tenant-admin` service account — and a group, role or scope edit is refused
+when what it removes reaches a capability the caller does not hold. A subject's OIDC profile
 claims — everything `odudu seed profile` sets — are no longer a CLI-only
 surface either: `GET`/`PATCH /admin/tenants/{tenant}/subjects/:id/profile`
 read and amend them, `email_verified`/`phone_number_verified` included.

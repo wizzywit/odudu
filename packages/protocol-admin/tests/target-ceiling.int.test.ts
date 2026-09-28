@@ -583,3 +583,200 @@ describe('the target ceiling holds on every route that mutates a client', () => 
     expect(res.json<{ detail: string }>().detail).toContain('manage-tenant');
   });
 });
+
+interface Graph {
+  readonly tenant: { id: string; name: string };
+  readonly tenantAdminRoleId: string;
+  readonly harmlessRoleId: string;
+  readonly parentGroupId: string;
+  readonly childGroupId: string;
+  readonly nestingRoleId: string;
+  readonly scopeId: string;
+}
+
+// A group `parent` mapped to `tenant-admin` with a plain `child` under it, a
+// tenant role nesting `tenant-admin`, a role reaching nothing, and a scope
+// mapped to `tenant-admin` — every edge a removal could take it off by.
+async function graphWithTenantAdmin(): Promise<Graph> {
+  const tenant = await fixture.createTenant(`removal-${newId()}`);
+  return withTenant(fixture.app.db, tenant.id, async (tx) => {
+    const adminClient = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+    const tenantAdmin = await roleRepository(tx).byName(TENANT_ADMIN, adminClient?.id ?? null);
+    if (tenantAdmin === null) throw new Error('fixture: no tenant-admin role');
+    const harmless = await roleRepository(tx).create({ tenantId: tenant.id, name: 'harmless' });
+    const nesting = await roleRepository(tx).create({ tenantId: tenant.id, name: 'nesting' });
+    await roleRepository(tx).addComposite(nesting.id, tenantAdmin.id);
+    const groups = groupRepository(tx);
+    const parent = await groups.create({ tenantId: tenant.id, name: 'parent', parentId: null });
+    const child = await groups.create({ tenantId: tenant.id, name: 'child', parentId: parent.id });
+    await groups.setRoles(parent.id, [tenantAdmin.id]);
+    const scope = await clientScopeRepository(tx).create({ tenantId: tenant.id, name: 'ops' });
+    await roleRepository(tx).setClientScopeRoles(scope.id, [tenantAdmin.id]);
+    return {
+      tenant,
+      tenantAdminRoleId: tenantAdmin.id,
+      harmlessRoleId: harmless.id,
+      parentGroupId: parent.id,
+      childGroupId: child.id,
+      nestingRoleId: nesting.id,
+      scopeId: scope.id,
+    };
+  });
+}
+
+async function replaceWithEtag(
+  url: string,
+  token: string,
+  payload: Record<string, unknown>,
+): Promise<LightMyRequestResponse> {
+  const headers = { authorization: `Bearer ${token}` };
+  const read = await fixture.http.inject({ method: 'GET', url, headers });
+  return fixture.http.inject({
+    method: 'PUT',
+    url,
+    headers: { ...headers, 'if-match': String(read.headers.etag) },
+    payload,
+  });
+}
+
+type Removal =
+  | 'group roles'
+  | 'group delete'
+  | 'child delete'
+  | 'reparent'
+  | 'role delete'
+  | 'composite remove'
+  | 'scope roles';
+
+const REMOVAL_ACTION: Record<Removal, string> = {
+  'group roles': 'group.roles_set',
+  'group delete': 'group.delete',
+  'child delete': 'group.delete',
+  reparent: 'group.amend',
+  'role delete': 'role.delete',
+  'composite remove': 'role.composite_remove',
+  'scope roles': 'scope.roles_set',
+};
+
+function remove(removal: Removal, g: Graph, token: string): Promise<LightMyRequestResponse> {
+  const base = `/admin/tenants/${g.tenant.name}`;
+  const authorization = `Bearer ${token}`;
+  switch (removal) {
+    case 'group roles':
+      return replaceWithEtag(`${base}/groups/${g.parentGroupId}/roles`, token, { role_ids: [] });
+    case 'group delete':
+      return fixture.http.inject({
+        method: 'DELETE',
+        url: `${base}/groups/${g.parentGroupId}`,
+        headers: { authorization },
+      });
+    case 'child delete':
+      return fixture.http.inject({
+        method: 'DELETE',
+        url: `${base}/groups/${g.childGroupId}`,
+        headers: { authorization },
+      });
+    case 'reparent':
+      return fixture.http.inject({
+        method: 'PATCH',
+        url: `${base}/groups/${g.childGroupId}`,
+        headers: { authorization, 'content-type': 'application/json' },
+        payload: { parent_id: null },
+      });
+    case 'role delete':
+      return fixture.http.inject({
+        method: 'DELETE',
+        url: `${base}/roles/${g.nestingRoleId}`,
+        headers: { authorization },
+      });
+    case 'composite remove':
+      return fixture.http.inject({
+        method: 'DELETE',
+        url: `${base}/roles/${g.nestingRoleId}/composites/${g.tenantAdminRoleId}`,
+        headers: { authorization },
+      });
+    case 'scope roles':
+      return replaceWithEtag(`${base}/scopes/${g.scopeId}/roles`, token, { role_ids: [] });
+  }
+}
+
+async function graphStateOf(g: Graph): Promise<unknown> {
+  return withTenant(fixture.app.db, g.tenant.id, async (tx) => ({
+    groups: [
+      await groupRepository(tx).byId(g.parentGroupId),
+      await groupRepository(tx).byId(g.childGroupId),
+    ],
+    mapped: [...(await tx.execute(sql`SELECT group_id, role_id FROM group_roles ORDER BY 1, 2`))],
+    composites: (await roleRepository(tx).directComposites(g.nestingRoleId)).map((r) => r.id),
+    nesting: await roleRepository(tx).byId(g.nestingRoleId),
+    scoped: [
+      ...(await tx.execute(
+        sql`SELECT role_id FROM client_scope_roles WHERE client_scope_id = ${g.scopeId}`,
+      )),
+    ],
+  }));
+}
+
+const REMOVALS = Object.keys(REMOVAL_ACTION) as Removal[];
+
+describe('a removal is judged by the admin capabilities it removes', () => {
+  it.each(REMOVALS)(
+    '%s: refuses manage-tenant alone taking tenant-admin away, changing nothing',
+    async (removal) => {
+      const g = await graphWithTenantAdmin();
+      const before = await graphStateOf(g);
+
+      const res = await remove(
+        removal,
+        g,
+        await fixture.adminToken(g.tenant.name, ['manage-tenant']),
+      );
+
+      expect(res.statusCode).toBe(403);
+      expect(await graphStateOf(g)).toEqual(before);
+      const rows = await withTenant(fixture.app.db, g.tenant.id, (tx) =>
+        auditRepository(tx).list({ limit: 50 }),
+      );
+      const refused = rows.filter(
+        (row) => row.action === REMOVAL_ACTION[removal] && row.outcome === 'refused',
+      );
+      expect(refused).toHaveLength(1);
+      const denied = (refused[0]?.detail as { denied?: string[] } | null)?.denied ?? [];
+      expect(denied).toContain('manage-users');
+      expect(denied).not.toContain('manage-tenant');
+    },
+  );
+
+  it.each(REMOVALS)('%s: admits a tenant-admin', async (removal) => {
+    const g = await graphWithTenantAdmin();
+
+    const res = await remove(removal, g, await fixture.adminToken(g.tenant.name, [TENANT_ADMIN]));
+
+    expect(res.statusCode).toBeLessThan(300);
+  });
+
+  it('judges a replacement by its delta: a role added beside a retained tenant-admin is admitted', async () => {
+    const g = await graphWithTenantAdmin();
+    const token = await fixture.adminToken(g.tenant.name, ['manage-tenant']);
+    const base = `/admin/tenants/${g.tenant.name}`;
+    const both = { role_ids: [g.tenantAdminRoleId, g.harmlessRoleId] };
+
+    const group = await replaceWithEtag(`${base}/groups/${g.parentGroupId}/roles`, token, both);
+    const scope = await replaceWithEtag(`${base}/scopes/${g.scopeId}/roles`, token, both);
+
+    expect(group.statusCode).toBe(200);
+    expect(scope.statusCode).toBe(200);
+  });
+
+  it('admits manage-tenant removing what reaches no capability', async () => {
+    const g = await graphWithTenantAdmin();
+    const token = await fixture.adminToken(g.tenant.name, ['manage-tenant']);
+    const res = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${g.tenant.name}/roles/${g.harmlessRoleId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(204);
+  });
+});

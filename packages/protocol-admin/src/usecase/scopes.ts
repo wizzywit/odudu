@@ -14,7 +14,7 @@ import {
 } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, type SQL } from 'drizzle-orm';
-import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
+import { replacementOverreach } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
@@ -435,11 +435,11 @@ export interface SetScopeRolesInput {
   readonly roleIds: readonly string[];
   /**
    * The caller's own admin-client capability names — the same ceiling
-   * `setRoles` (#/usecase/subjects.ts) enforces. `reachableRoleIds`
-   * (read fresh per token issuance, @odudu/protocol-oidc) is what turns a
-   * scope's role mapping into claims on a token, so mapping a role here
-   * must never surface a capability the caller does not itself hold into a
-   * client that previously could not reach it.
+   * `setRoles` (#/usecase/subjects.ts) enforces, on the delta.
+   * `reachableRoleIds` (read fresh per token issuance, @odudu/protocol-oidc)
+   * turns a scope's role mapping into claims on a token, so a role mapped
+   * here must never surface a capability the caller does not hold, nor a
+   * role left out withdraw one.
    */
   readonly callerCapabilities: ReadonlySet<string>;
   readonly ifMatch: string | undefined;
@@ -543,8 +543,12 @@ export async function setScopeRoles(
     return { kind: 'unknown_role', roleIds: missing };
   }
 
-  const requestedCapabilities = await capabilitiesReachableFrom(tx, uniqueRoleIds);
-  const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  const denied = await replacementOverreach(
+    tx,
+    (await mappedRoles(tx, input.scopeId)).map((role) => role.id),
+    uniqueRoleIds,
+    input.callerCapabilities,
+  );
   if (denied.length > 0) {
     await deps.audit(tx, {
       action: 'scope.roles_set',

@@ -22,7 +22,13 @@ import {
   type Audit,
   type CreateGroupOutcome,
 } from '#/usecase/groups';
-import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import {
+  ifMatchRequired,
+  ifMatchStale,
+  problem,
+  removalCeiling,
+  sendProblem,
+} from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -271,6 +277,10 @@ export function deleteGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
     if (id === undefined) {
       throw new Error('protocol-admin: DELETE group route received no :id');
     }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteGroup(
@@ -278,6 +288,7 @@ export function deleteGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
         { audit: deps.audit },
         {
           groupId: id,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -288,6 +299,8 @@ export function deleteGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
     switch (outcome.kind) {
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'capability_ceiling':
+        return sendProblem(reply, request, removalCeiling(outcome.requested));
       case 'deleted':
         return reply.code(204).send();
     }

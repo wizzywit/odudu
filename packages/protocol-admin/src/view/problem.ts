@@ -30,6 +30,16 @@ export function ifMatchRequired(resource: string): Problem {
   );
 }
 
+/** A removal that would take from its holders an admin capability the caller does not hold. */
+export function removalCeiling(denied: readonly string[]): Problem {
+  return problem(
+    403,
+    'about:blank',
+    'Forbidden',
+    `this removes what the caller does not hold: ${denied.join(', ')}`,
+  );
+}
+
 export function ifMatchStale(): Problem {
   return problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches');
 }

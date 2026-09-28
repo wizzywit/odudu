@@ -24,7 +24,7 @@ import {
   type Audit,
   type CreateRoleOutcome,
 } from '#/usecase/roles';
-import { problem, sendProblem, type Problem } from '#/view/problem';
+import { problem, removalCeiling, sendProblem, type Problem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -242,6 +242,10 @@ export function deleteRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
     if (id === undefined) {
       throw new Error('protocol-admin: DELETE role route received no :id');
     }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteRole(
@@ -249,6 +253,7 @@ export function deleteRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
         { audit: deps.audit },
         {
           roleId: id,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -261,6 +266,8 @@ export function deleteRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'builtin_admin_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'capability_ceiling':
+        return sendProblem(reply, request, removalCeiling(outcome.requested));
       case 'deleted':
         return reply.code(204).send();
     }
@@ -361,6 +368,10 @@ export function removeRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHand
     if (id === undefined || childId === undefined) {
       throw new Error('protocol-admin: DELETE composite route received no :id or :childId');
     }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       removeRoleComposite(
@@ -369,6 +380,7 @@ export function removeRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHand
         {
           parentRoleId: id,
           childRoleId: childId,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -385,6 +397,8 @@ export function removeRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHand
         );
       case 'builtin_admin_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'capability_ceiling':
+        return sendProblem(reply, request, removalCeiling(outcome.requested));
       case 'removed':
         return reply.code(204).send();
     }

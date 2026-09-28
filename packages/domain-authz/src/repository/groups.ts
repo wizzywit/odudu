@@ -63,9 +63,8 @@ export async function effectiveGroupPaths(
 // Descendants reachable from `startId` by following parent_id edges
 // downward (child -> parent points up, so this walks the reverse
 // direction). UNION, not UNION ALL: the same termination reasoning as
-// role_composites' closure — see docs/superpowers/p2a-spike-log.md. Exported
-// only for groups.int.test.ts's cyclic-parent_id termination probe; the
-// package's public surface (src/index.ts) does not re-export it.
+// role_composites' closure — see docs/superpowers/p2a-spike-log.md. What
+// deleting a group takes with it, since `groups_parent_fk` cascades.
 export async function descendantsOf(
   tx: TenantScopedDatabase,
   startId: string,

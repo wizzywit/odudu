@@ -3804,7 +3804,9 @@ strip a deleted one from every administrator holding it: a caller with
 `manage-tenant` itself, and lock the tenant out of its own admin API. It is
 the same guard `PATCH /clients/{id}` puts on that client's own lockout
 fields, on the roles the client owns. The check reads the `builtin_admin`
-column, so renaming the client in the database does not evade it.
+column, so renaming the client in the database does not evade it. Any
+other role is deleted unless it reaches an admin capability the caller does
+not hold ([a removal is judged by what it removes](#a-removal-is-judged-by-what-it-removes)).
 
 ```bash
 curl -sS -X POST \
@@ -4011,8 +4013,9 @@ parent — the same lockout `DELETE /roles/:id` refuses for the role itself,
 and read from the same `builtin_admin` column. That includes an edge an
 operator added under a built-in capability role through
 `POST /roles/:id/composites`: it cannot be removed, and goes only when its child is deleted.
-An edge between ordinary roles is removed whatever it nests, a capability
-included.
+An edge between ordinary roles is removed whatever it nests, unless what
+the child reaches includes an admin capability the caller does not hold
+([a removal is judged by what it removes](#a-removal-is-judged-by-what-it-removes)).
 
 Captured against the fourth stack in `composites-demo`, created through
 `POST /admin/tenants` for it. `billing-admin` nests `billing-viewer` and
@@ -4299,7 +4302,8 @@ cascades on the parent, so every descendant is deleted with it, and each
 of those takes its own `group_roles` mappings and `subject_groups`
 memberships along. A child does not survive as a new root, and there is no
 confirmation step — a `DELETE` of a group near the top of a tree removes
-everything under it.
+everything under it. Both a reparent and a `DELETE` are also held to what
+they take away ([a removal is judged by what it removes](#a-removal-is-judged-by-what-it-removes)).
 
 ```bash
 curl -sS -X PATCH \
@@ -4385,8 +4389,11 @@ curl -sS \
 Both require `manage-tenant`. The write replaces the group's role mapping
 wholesale — a role left out of the list is one the caller clears, not one
 left alone — the same replace-all shape `PUT /subjects/:id/roles` uses for
-a subject's own assignments. An unknown role id answers `400`, and a role
-set reaching past the caller's own capabilities `403`.
+a subject's own assignments. An unknown role id answers `400`, and `403`
+refuses a replacement whose **delta** reaches past the caller's own
+capabilities: a role it adds, or a role it leaves out. A role kept in both
+lists is not counted, so an administrator short of `tenant-admin` may add a
+role beside it on a group mapped to it, and may not take it away.
 
 **`If-Match` is mandatory here, not optional.** This route replaces an
 authorization-bearing list whole, so a stale write reinstates exactly what
@@ -4428,6 +4435,74 @@ content-length: 81
 
 _(Not re-run for the `cache-control: no-store` pass: this `engineering`
 group, and the second stack it lived on, are gone.)_
+
+### A removal is judged by what it removes
+
+**A write that takes an admin capability away from whoever holds it through
+a group, a role or a scope is refused unless the caller holds that
+capability.** The reach is what the removed edge or row carries, expanded
+through `role_composites` the way every ceiling here expands it, and it is
+judged without enumerating the subjects affected. Five doors:
+
+- `PUT /groups/:id/roles` and `PUT /scopes/:id/roles`, on the roles the new
+  list leaves out.
+- `DELETE /groups/:id`, on every role mapped to the group, to anything in
+  its subtree, and to anything above it, since the subtree's members lose
+  all of them.
+- `PATCH /groups/:id` with a new `parent_id`, on what the old parent's
+  chain handed the group, alongside the ceiling on what the new one hands it.
+- `DELETE /roles/:id`, on what the role reaches.
+- `DELETE /roles/:id/composites/:childId`, on what the child reaches.
+
+Without it, a caller holding `manage-tenant` alone could strip
+`tenant-admin` from every member of a group mapped to it, although it could
+neither grant it nor act on one of those members directly. The refusal is a
+`403` naming what the caller lacks, and a `refused` row with
+`detail.denied` under the action attempted.
+
+Captured against a tenant `ceiling-removal` created for it. `admins` is a
+group mapped to `tenant-admin`, with `on-call` beneath it; `ops-bundle` is a
+tenant role nesting `tenant-admin`; and `$TENANT_TOKEN` is the
+`client_credentials` token of a client whose service account was given
+`manage-tenant` alone. Emptying `admins`, deleting it, moving `on-call` out
+from under it, deleting `ops-bundle` and taking `tenant-admin` out of it are
+each refused, and the rows since `RUN_START` are those five:
+
+```bash
+RUN_START=$(date -u +%FT%T.000Z)
+T=http://localhost:3000/admin/tenants/ceiling-removal
+ADMINS=$T/groups/01a0e59a-b40e-70ab-a0d2-6aee1c1e9e6c
+BUNDLE=$T/roles/01a0e59a-b48d-7b81-b9df-2bf4509c07d5
+ETAG=$(curl -sS -D - -o /dev/null -H "Authorization: Bearer $TENANT_TOKEN" "$ADMINS/roles" | tr -d '\r' | sed -n 's/^etag: //p')
+curl -sS -X PUT -H "Authorization: Bearer $TENANT_TOKEN" -H 'content-type: application/json' \
+  -H "If-Match: $ETAG" -d '{"role_ids":[]}' "$ADMINS/roles"
+echo
+curl -sS -X DELETE -H "Authorization: Bearer $TENANT_TOKEN" "$ADMINS"
+echo
+curl -sS -X PATCH -H "Authorization: Bearer $TENANT_TOKEN" -H 'content-type: application/json' \
+  -d '{"parent_id":null}' "$T/groups/01a0e59a-b430-7684-b079-11c1abfaafa3"
+echo
+curl -sS -X DELETE -H "Authorization: Bearer $TENANT_TOKEN" "$BUNDLE"
+echo
+curl -sS -X DELETE -H "Authorization: Bearer $TENANT_TOKEN" \
+  "$BUNDLE/composites/01a0e59a-b2d6-7148-a179-a3cff021a673"
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$T/audit?outcome=refused&from=$RUN_START" \
+  | jq -c '.items[] | {action, resource_type, resource_id, detail}'
+```
+
+```
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e59a-e4cc-7c2d-984e-982ce932a268"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes what the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e59a-e4ec-78db-97be-fe9951022c9a"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e59a-e50a-7406-9f96-59ccdb600fa9"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes what the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e59a-e530-787d-acb6-c9f3d1e05bcd"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"this removes what the caller does not hold: tenant-admin, view-users, manage-users, manage-clients, manage-keys, manage-sessions, view-audit","instance":"01a0e59a-e54b-76dd-8b56-c3805b3bc996"}
+{"action":"role.composite_remove","resource_type":"role","resource_id":"01a0e59a-b48d-7b81-b9df-2bf4509c07d5","detail":{"denied":["tenant-admin","view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"],"child_role_id":"01a0e59a-b2d6-7148-a179-a3cff021a673"}}
+{"action":"role.delete","resource_type":"role","resource_id":"01a0e59a-b48d-7b81-b9df-2bf4509c07d5","detail":{"denied":["tenant-admin","view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"]}}
+{"action":"group.amend","resource_type":"group","resource_id":"01a0e59a-b430-7684-b079-11c1abfaafa3","detail":{"denied":["tenant-admin","view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"]}}
+{"action":"group.delete","resource_type":"group","resource_id":"01a0e59a-b40e-70ab-a0d2-6aee1c1e9e6c","detail":{"denied":["tenant-admin","view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"]}}
+{"action":"group.roles_set","resource_type":"group","resource_id":"01a0e59a-b40e-70ab-a0d2-6aee1c1e9e6c","detail":{"denied":["tenant-admin","view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"]}}
+```
 
 ## `GET /scopes`, `POST /scopes`, `GET /scopes/:id`, `PATCH /scopes/:id` and `DELETE /scopes/:id`
 
@@ -4522,7 +4597,8 @@ curl -sS \
 
 Both require `manage-tenant`. The write replaces the scope's role mapping
 wholesale, the same replace-all shape `PUT /groups/:id/roles` uses. An
-unknown role id answers `400`.
+unknown role id answers `400`, and the same `403` refuses a delta that adds
+or leaves out a role reaching an admin capability the caller does not hold.
 
 **`If-Match` is mandatory here, not optional.** This route replaces an
 authorization-bearing list whole, so a stale write reinstates exactly what

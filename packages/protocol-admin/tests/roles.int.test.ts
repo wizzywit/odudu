@@ -641,6 +641,7 @@ describe('audit', () => {
         { audit: ok.audit },
         {
           roleId: id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -657,6 +658,7 @@ describe('audit', () => {
         { audit: refused.audit },
         {
           roleId: newId(),
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1173,13 +1175,15 @@ describe('DELETE /admin/tenants/{t}/roles/{id}/composites/{childId}', () => {
     },
   );
 
-  it('lets an ordinary role give up a capability it nests', async () => {
+  it('lets an ordinary role give up a capability it nests, to a caller holding it', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const parentId = await plainRole(t.id);
     const manageUsersId = await capabilityRoleId(t.id, 'manage-users');
     await nest(t.id, parentId, manageUsersId);
-    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const short = await fixture.adminToken(t.name, ['manage-tenant']);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-users']);
 
+    expect((await removeComposite(t.name, parentId, manageUsersId, short)).statusCode).toBe(403);
     expect((await removeComposite(t.name, parentId, manageUsersId, token)).statusCode).toBe(204);
   });
 });

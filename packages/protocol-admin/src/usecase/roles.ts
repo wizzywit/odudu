@@ -331,6 +331,8 @@ export async function amendRole(
 
 export interface DeleteRoleInput {
   readonly roleId: string;
+  /** The caller's own admin capabilities: what the delete takes from every holder is held to them. */
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -341,7 +343,10 @@ export interface DeleteRoleDeps {
 }
 
 export type DeleteRoleOutcome =
-  { kind: 'not_found' } | { kind: 'builtin_admin_guarded'; reason: string } | { kind: 'deleted' };
+  | { kind: 'not_found' }
+  | { kind: 'builtin_admin_guarded'; reason: string }
+  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'deleted' };
 
 // The `client_id` of the tenant's built-in admin client when `clientDbId`
 // names it, else null. Reads `builtinAdmin`, never the `client_id` string,
@@ -382,10 +387,27 @@ export async function deleteRole(
   deps: DeleteRoleDeps,
   input: DeleteRoleInput,
 ): Promise<DeleteRoleOutcome> {
-  const role = await roleRepository(tx).byId(input.roleId);
+  const role = await lockRoleForAmend(tx, input.roleId);
   if (role === null) return { kind: 'not_found' };
   const guarded = await guardsAdministrators(tx, role);
   if (guarded !== null) return { kind: 'builtin_admin_guarded', reason: guarded };
+  const denied = overreach(
+    await capabilitiesReachableFrom(tx, [input.roleId]),
+    input.callerCapabilities,
+  );
+  if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'role.delete',
+      resourceType: 'role',
+      resourceId: input.roleId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
+    return { kind: 'capability_ceiling', requested: denied };
+  }
 
   const deleted = await roleRepository(tx).delete(input.roleId);
   if (!deleted) return { kind: 'not_found' };
@@ -562,6 +584,8 @@ export async function listRoleComposites(
 export interface RemoveRoleCompositeInput {
   readonly parentRoleId: string;
   readonly childRoleId: string;
+  /** See `DeleteRoleInput`'s: what the edge hands every holder of the parent is held to them. */
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -572,7 +596,10 @@ export interface RemoveRoleCompositeDeps {
 }
 
 export type RemoveRoleCompositeOutcome =
-  { kind: 'not_found' } | { kind: 'builtin_admin_guarded'; reason: string } | { kind: 'removed' };
+  | { kind: 'not_found' }
+  | { kind: 'builtin_admin_guarded'; reason: string }
+  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'removed' };
 
 // The edge-level twin of `guardsAdministrators`: taking `manage-users` out of
 // `tenant-admin`, or `view-users` out of `manage-users`, strips it from every
@@ -592,6 +619,28 @@ export async function removeRoleComposite(
         `${parent.name} is a capability of ${owner}, this tenant's built-in admin client, ` +
         'and removing a composite from it would strip that from every administrator holding it',
     };
+  }
+
+  if (!isUuid(input.childRoleId)) return { kind: 'not_found' };
+  await lockRolesForComposite(tx, input.parentRoleId, input.childRoleId);
+  const children = await roleRepository(tx).directComposites(input.parentRoleId);
+  if (!children.some((child) => child.id === input.childRoleId)) return { kind: 'not_found' };
+  const denied = overreach(
+    await capabilitiesReachableFrom(tx, [input.childRoleId]),
+    input.callerCapabilities,
+  );
+  if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'role.composite_remove',
+      resourceType: 'role',
+      resourceId: input.parentRoleId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { child_role_id: input.childRoleId, denied },
+    });
+    return { kind: 'capability_ceiling', requested: denied };
   }
 
   const removed = await roleRepository(tx).removeComposite(input.parentRoleId, input.childRoleId);
