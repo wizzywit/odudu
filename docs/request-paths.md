@@ -9215,6 +9215,9 @@ like the wrong secret.
 [docs/admin-paths.md](admin-paths.md) documents the admin API — the
 endpoints under `/admin/tenants/{tenant}/` — separately from this document,
 because it serves an operator rather than an application integrator.
+[docs/console-paths.md](console-paths.md) documents the console gateway
+under `/console`, which signs an administrator in and forwards the console's
+calls to that API.
 
 ## What is not implemented
 
@@ -9495,6 +9498,12 @@ session lifecycle. A citation of either half here means that half.
   `/introspect` and the admin API's own checks do record their refusals.
   The request log shows each such request's path and status, not its
   reason.
+- **The console's single-page app is not built.** The gateway under
+  `/console` signs an administrator in and forwards to the admin API
+  ([docs/console-paths.md](console-paths.md)), but the image ships no
+  console build, so `GET /console/` and every other shell path answer
+  `503` until `ODUDU_CONSOLE_DIR` names one. Planned: **P4d**, whose third
+  part, the console foundation, builds the SPA the gateway serves.
 
 **Endpoints that do not exist at all**
 

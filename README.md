@@ -1068,8 +1068,8 @@ carrying that cookie twice is treated as carrying none. Any request to
 must carry `Origin` equal to the origin of `ODUDU_PUBLIC_BASE_URL` and the
 header `X-Odudu-Console: 1`, or it is refused `403` before anything else
 runs.
-A transcript of each request, executed against a running stack, arrives
-with the gateway's documentation as docs/console-paths.md, beside
+A transcript of each request, executed against a running stack, is in
+[`docs/console-paths.md`](docs/console-paths.md), beside
 [docs/admin-paths.md](docs/admin-paths.md).
 
 **One pass deletes everything that expires.** Every login writes an
