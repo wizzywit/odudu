@@ -47,7 +47,10 @@ module.exports = {
       comment:
         'The console gateway reaches the server only as an OAuth client does, so of the ' +
         'workspace it may import the kernel, db, crypto, contracts, domain-tenant and ' +
-        'domain-identity packages and nothing else. Its tests may also use the test kit.',
+        'domain-identity packages and nothing else. The rule covers src/ minus its *.test.ts ' +
+        'files; those and everything under tests/ are held only by ' +
+        'console-gateway-imports-no-protocol, so they may import any package but the ' +
+        'protocol packages and authn-flows.',
       from: {
         path: '(^|/)packages/console-gateway/src/',
         pathNot: '\\.test\\.ts$',
