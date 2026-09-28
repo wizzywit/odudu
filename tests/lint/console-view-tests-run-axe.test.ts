@@ -4,15 +4,20 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-// Every view test asserts accessibility (spec §9's Unit row): importing
-// `axeInBothThemes` is not enough, since an unused import proves nothing —
-// the test has to actually call it.
+// Every view has a test beside it, and every view test asserts
+// accessibility (spec §9's Unit row): importing `axeInBothThemes` is not
+// enough, since an unused import proves nothing — the test has to call it.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
-const VIEW_TEST_GLOBS = [
-  'apps/admin-console/src/shared/view/**/*.test.tsx',
-  'apps/admin-console/src/features/*/view/**/*.test.tsx',
+const CONSOLE_SRC = 'apps/admin-console/src';
+// A view layer is a folder, or a single view.tsx beside the feature's other layers.
+const VIEW_TESTS = [
+  'shared/view/**/*.test.tsx',
+  'features/*/view/**/*.test.tsx',
+  'features/*/view.test.tsx',
 ];
+const VIEWS = ['shared/view/**/*.tsx', 'features/*/view/**/*.tsx', 'features/*/view.tsx'];
+const COMPONENT = /^(?:[A-Z][A-Za-z0-9]*|view)\.tsx$/u;
 const FIXTURES = 'tests/lint/fixtures/console-view-axe';
 const AXE_MODULE = '#/testing/axeInBothThemes.ts';
 const AXE_NAME = 'axeInBothThemes';
@@ -59,31 +64,58 @@ function runsAxe(fileName: string, source: string): boolean {
   return importsAxeHelper(file) && callsAxeHelper(file);
 }
 
-async function read(pattern: string): Promise<Map<string, string>> {
+async function read(root: string, patterns: readonly string[]): Promise<Map<string, string>> {
   const files = new Map<string, string>();
-  for await (const file of glob(pattern, { cwd: REPO_ROOT })) {
-    const posix = file.split(path.sep).join('/');
-    files.set(posix, await readFile(path.join(REPO_ROOT, file), 'utf8'));
+  for (const pattern of patterns) {
+    for await (const file of glob(`${root}/${pattern}`, { cwd: REPO_ROOT })) {
+      const posix = file.split(path.sep).join('/');
+      files.set(posix.slice(root.length + 1), await readFile(path.join(REPO_ROOT, file), 'utf8'));
+    }
   }
   return files;
 }
 
+async function withoutAxe(root: string): Promise<string[]> {
+  const tests = await read(root, VIEW_TESTS);
+  return [...tests]
+    .filter(([file, source]) => !runsAxe(path.posix.basename(file), source))
+    .map(([file]) => file)
+    .sort();
+}
+
+async function untested(root: string): Promise<string[]> {
+  const views = await read(root, VIEWS);
+  const tests = await read(root, VIEW_TESTS);
+  return [...views.keys()]
+    .filter((file) => COMPONENT.test(path.posix.basename(file)))
+    .filter((file) => !tests.has(file.replace(/\.tsx$/u, '.test.tsx')))
+    .sort();
+}
+
 describe("the console's view tests", () => {
   it('all run axe in both themes', async () => {
-    const files = new Map<string, string>();
-    for (const pattern of VIEW_TEST_GLOBS) {
-      for (const [file, source] of await read(pattern)) files.set(file, source);
-    }
-    expect(files.size).toBeGreaterThan(0);
-    expect([...files.keys()]).toContain('apps/admin-console/src/shared/view/DialogFrame.test.tsx');
-    const offenders = [...files]
-      .filter(([file, source]) => !runsAxe(path.posix.basename(file), source))
-      .map(([file]) => file);
-    expect(offenders).toEqual([]);
+    const tests = await read(CONSOLE_SRC, VIEW_TESTS);
+    expect([...tests.keys()]).toContain('shared/view/DialogFrame.test.tsx');
+    expect(await withoutAxe(CONSOLE_SRC)).toEqual([]);
+  });
+
+  it('exist beside every view', async () => {
+    const views = await read(CONSOLE_SRC, VIEWS);
+    expect([...views.keys()]).toContain('features/session/view/SignIn.tsx');
+    expect(await untested(CONSOLE_SRC)).toEqual([]);
+  });
+
+  it('are found in a single-file view layer, and missed beside a view, in the fixture tree', async () => {
+    const tree = `${FIXTURES}/tree`;
+    expect(await withoutAxe(tree)).toEqual(['features/roles/view.test.tsx']);
+    expect(await untested(tree)).toEqual([
+      'features/groups/view/GroupList.tsx',
+      'shared/view/Banner.tsx',
+    ]);
   });
 
   it('passes every conforming fixture', async () => {
-    const files = await read(`${FIXTURES}/pass/*`);
+    const files = await read(FIXTURES, ['pass/*']);
     expect(files.size).toBeGreaterThan(0);
     for (const [file, source] of files) {
       expect(runsAxe(path.posix.basename(file), source), file).toBe(true);
@@ -91,7 +123,7 @@ describe("the console's view tests", () => {
   });
 
   it('fails every non-conforming fixture', async () => {
-    const files = await read(`${FIXTURES}/fail/*`);
+    const files = await read(FIXTURES, ['fail/*']);
     expect(files.size).toBeGreaterThan(0);
     for (const [file, source] of files) {
       expect(runsAxe(path.posix.basename(file), source), file).toBe(false);

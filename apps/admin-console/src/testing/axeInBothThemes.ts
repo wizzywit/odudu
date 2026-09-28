@@ -12,12 +12,17 @@ const PAGE_RULES = {
   'page-has-heading-one': { enabled: false },
 };
 
-export async function axeInBothThemes(ui: () => ReactElement): Promise<Record<Theme, string[]>> {
+// `ready` waits for a page that reads before it renders what is to be checked.
+export async function axeInBothThemes(
+  ui: () => ReactElement,
+  ready: () => Promise<unknown> = () => Promise.resolve(),
+): Promise<Record<Theme, string[]>> {
   const found: Record<Theme, string[]> = { light: [], dark: [] };
   const root = document.documentElement;
   for (const theme of ['light', 'dark'] as const) {
     root.dataset.theme = theme;
     const { unmount } = render(ui());
+    await ready();
     const result = await axe.run(document.body, { rules: PAGE_RULES });
     found[theme] = result.violations.map((v) => `${v.id}: ${v.help}`);
     unmount();
