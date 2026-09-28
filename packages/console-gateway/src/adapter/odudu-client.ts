@@ -128,8 +128,10 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
         return { kind: 'refused' };
       }
       if (res.statusCode !== 200) return { kind: 'failed' };
+      // A 200 has rotated the refresh token whether or not its body can be
+      // read, so the stored one is spent and presenting it would revoke.
       const parsed = REFRESH_RESPONSE.safeParse(json(res));
-      if (!parsed.success) return { kind: 'failed' };
+      if (!parsed.success) return { kind: 'refused' };
       return {
         kind: 'refreshed',
         tokens: {

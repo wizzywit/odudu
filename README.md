@@ -1046,7 +1046,10 @@ tokens server-side and gives the browser nothing but a session cookie:
   The body limit is the tenant import's, 16 MiB. An access token within 30 s
   of expiry is refreshed first, once per session however many requests
   arrive together. A refused refresh ends the session with the
-  session-ended `401`; the admin API's own `401` is passed back as it is.
+  session-ended `401`, as does a `200` whose body cannot be read, since it
+  has already rotated the refresh token. Any other token-endpoint failure,
+  or a wait of more than 5 s for the session's lock, answers `502` and keeps
+  the session. The admin API's own `401` is passed back as it is.
 
 The session cookie is `__Host-odudu-console` (`HttpOnly; Secure;
 SameSite=Strict; Path=/`), or `odudu-console` without `Secure` over plain

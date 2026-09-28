@@ -21,8 +21,9 @@ export interface RefreshedTokens {
   readonly expiresInSeconds: number;
 }
 
-// `refused` is the token endpoint's invalid_grant: the grant is gone and
-// no retry can bring it back. `failed` is anything else.
+// `refused`: the stored refresh token can never be used again, either
+// because the answer was invalid_grant or because a 200 rotated it past
+// reading. `failed` is anything else, and the stored token still stands.
 export type RefreshOutcome =
   | { readonly kind: 'refreshed'; readonly tokens: RefreshedTokens }
   | { readonly kind: 'refused' }

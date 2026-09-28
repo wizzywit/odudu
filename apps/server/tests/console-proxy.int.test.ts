@@ -571,6 +571,69 @@ describe('the access token', () => {
     });
   }, 30_000);
 
+  describe('when the token endpoint misbehaves', () => {
+    let tokenEndpoint: 'real' | 'unavailable' | 'garbled' = 'real';
+    const misbehave = (app: FastifyInstance): void => {
+      app.addHook('onRequest', async (request, reply) => {
+        if (tokenEndpoint === 'real') return;
+        if (!request.url.endsWith('/protocol/openid-connect/token')) return;
+        if (tokenEndpoint === 'unavailable') return reply.code(503).send();
+        return reply.code(200).header('content-type', 'application/json').send('{"access_token":');
+      });
+    };
+
+    it('answers 502 to a failed refresh, keeps the session, and refreshes once it recovers', async () => {
+      await withStack(
+        async (stack) => {
+          const jar = new Jar();
+          const { subjectId } = await signIn(stack, jar);
+          const before = await mustSession(subjectId);
+          stack.clock.set(new Date(before.access_expires_at.getTime() - 10_000));
+          const forwarded = stack.adminRequests.length;
+          const revocations = await reuseRevocations();
+
+          tokenEndpoint = 'unavailable';
+          const failed = await call(stack, jar, WHOAMI);
+          tokenEndpoint = 'real';
+
+          expectProblem(failed, 502);
+          expect((await mustSession(subjectId)).refresh_token_wrapped).toBe(
+            before.refresh_token_wrapped,
+          );
+          expect(stack.adminRequests).toHaveLength(forwarded);
+
+          const tokens = stack.tokenResponses.length;
+          const recovered = await call(stack, jar, WHOAMI);
+          expect(recovered.statusCode, recovered.body).toBe(200);
+          expect(stack.tokenResponses.length - tokens).toBe(1);
+          expect(await reuseRevocations()).toBe(revocations);
+        },
+        { beforeReady: misbehave },
+      );
+    });
+
+    it('ends the session on a 200 it cannot read, whose token was already rotated', async () => {
+      await withStack(
+        async (stack) => {
+          const jar = new Jar();
+          const { subjectId } = await signIn(stack, jar);
+          const before = await mustSession(subjectId);
+          stack.clock.set(new Date(before.access_expires_at.getTime() - 10_000));
+          const forwarded = stack.adminRequests.length;
+
+          tokenEndpoint = 'garbled';
+          const res = await call(stack, jar, WHOAMI);
+          tokenEndpoint = 'real';
+
+          expectEnded(res);
+          expect(await sessionOf(subjectId)).toBeUndefined();
+          expect(stack.adminRequests).toHaveLength(forwarded);
+        },
+        { beforeReady: misbehave },
+      );
+    });
+  });
+
   it('is not refreshed outside the window', async () => {
     await withStack(async (stack) => {
       const jar = new Jar();
