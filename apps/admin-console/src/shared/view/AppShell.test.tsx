@@ -59,3 +59,10 @@ it('closes the sheet once a destination is chosen', async () => {
 it('passes axe in both themes', async () => {
   expect(await axeInBothThemes(shell)).toEqual({ light: [], dark: [] });
 });
+
+it('puts the narrow top bar in a banner, so none of the shell sits outside a landmark', () => {
+  render(shell());
+  const banner = screen.getByRole('banner');
+  expect(within(banner).getByText('Odudu')).toBeInTheDocument();
+  expect(within(banner).getByRole('button', { name: 'Menu' })).toBeInTheDocument();
+});

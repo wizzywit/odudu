@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
+import rawCss from '#/shared/view/Button.module.css?raw';
 import { Button } from '#/shared/view/Button.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
@@ -37,4 +38,14 @@ it('passes axe in both themes in every variant', async () => {
       </>
     )),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('looks disabled in every variant, not only the default one', () => {
+  const css = rawCss.replace(/\/\*[\s\S]*?\*\//gu, '');
+  const rules = [...css.matchAll(/([^{}]+)\{/gu)].map(([, selector = '']) => selector.trim());
+  const disabled = rules.findIndex(
+    (selector) => selector === '.button[data-variant][data-disabled]',
+  );
+  const lastVariant = rules.findLastIndex((selector) => selector.includes('[data-variant='));
+  expect(disabled).toBeGreaterThan(lastVariant);
 });

@@ -29,7 +29,7 @@ export function AppShell({
         </a>
         <div className={styles.rail}>{rail}</div>
         <div className={styles.column}>
-          <div className={styles.topBar}>
+          <header className={styles.topBar}>
             <span className={styles.brand}>{brand}</span>
             <DialogTrigger isOpen={sheetOpen} onOpenChange={setSheetOpen}>
               <Button size="small">Menu</Button>
@@ -43,7 +43,7 @@ export function AppShell({
                 </Modal>
               </ModalOverlay>
             </DialogTrigger>
-          </div>
+          </header>
           {contextBar}
           <main id="main" tabIndex={-1} className={styles.main}>
             {children}
