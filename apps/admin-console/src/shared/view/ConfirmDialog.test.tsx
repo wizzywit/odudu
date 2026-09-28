@@ -89,21 +89,33 @@ describe('a plain confirmation', () => {
 });
 
 describe('a typed confirmation', () => {
-  it('enables its confirm only on the exact text', async () => {
+  it('enables its confirm only on the exact text, ignoring stray spaces', async () => {
     const user = userEvent.setup();
     render(<Harness typed="acme" />);
     await user.click(screen.getByRole('button', { name: 'Disable tenant' }));
     const confirm = screen.getByRole('button', { name: 'Disable acme' });
     const input = screen.getByRole('textbox', { name: 'Type acme to confirm' });
     expect(confirm).toBeDisabled();
-    for (const attempt of ['acm', 'Acme', 'acme ', ' acme']) {
+    for (const attempt of ['acm', 'Acme', 'ACME', 'acmex']) {
       await user.clear(input);
       await user.type(input, attempt);
       expect(confirm).toBeDisabled();
     }
-    await user.clear(input);
-    await user.type(input, 'acme');
-    expect(confirm).toBeEnabled();
+    for (const attempt of ['acme', 'acme ', ' acme']) {
+      await user.clear(input);
+      await user.type(input, attempt);
+      expect(confirm).toBeEnabled();
+    }
+  });
+
+  it('shows that Enter confirms from the field', async () => {
+    const user = userEvent.setup();
+    render(<Harness typed="acme" />);
+    await user.click(screen.getByRole('button', { name: 'Disable tenant' }));
+    expect(screen.getByRole('button', { name: 'Disable acme' })).toHaveAccessibleDescription(
+      'Enter',
+    );
+    expect(screen.getByText('Enter', { selector: 'kbd' })).toBeVisible();
   });
 
   it('starts empty each time it opens', async () => {

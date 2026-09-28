@@ -1,7 +1,8 @@
-import { useState, type SubmitEvent, type ReactNode } from 'react';
+import { useId, useState, type SubmitEvent, type ReactNode } from 'react';
 import { Button } from '#/shared/view/Button.tsx';
 import { DialogFrame } from '#/shared/view/DialogFrame.tsx';
 import { TextField } from '#/shared/view/Field.tsx';
+import styles from '#/shared/view/ConfirmDialog.module.css';
 
 interface ConfirmProps {
   readonly title: string;
@@ -29,8 +30,10 @@ function OpenConfirm({
   onConfirm,
   onCancel,
 }: ConfirmProps) {
+  const shortcut = useId();
   const [entered, setEntered] = useState('');
-  const ready = !busy && (typed === undefined || entered === typed);
+  // Case counts; a space picked up by pasting the name does not.
+  const ready = !busy && (typed === undefined || entered.trim() === typed);
   const confirm = (): void => {
     if (ready) onConfirm();
   };
@@ -54,9 +57,19 @@ function OpenConfirm({
           >
             Cancel
           </Button>
-          <Button variant={tone} isDisabled={!ready} onPress={confirm}>
+          <Button
+            variant={tone}
+            isDisabled={!ready}
+            onPress={confirm}
+            {...(typed === undefined ? {} : { 'aria-describedby': shortcut })}
+          >
             {busy ? 'Working…' : confirmLabel}
           </Button>
+          {typed === undefined ? null : (
+            <kbd id={shortcut} className={styles.shortcut}>
+              Enter
+            </kbd>
+          )}
         </>
       }
     >
