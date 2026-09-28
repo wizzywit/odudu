@@ -11,6 +11,7 @@ import {
 } from '@odudu/account';
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { requiredActionRepository } from '@odudu/authn-flows';
+import { consoleGateway } from '@odudu/console-gateway';
 import {
   credentialRepository,
   evaluatePassword,
@@ -69,6 +70,8 @@ export interface AppDeps {
    * redirect and post-logout URIs under it.
    */
   readonly consoleBaseUrl?: string | undefined;
+  /** The console gateway's clock, so a test can age a pending sign-in. */
+  readonly consoleNow?: () => Date;
   /**
    * Whether to trust `X-Forwarded-*` headers when deriving `request.ip`.
    * Defaults to `false`: with no reverse proxy in front of the server,
@@ -257,6 +260,17 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(cookie);
 
   registerHealth(app, deps);
+  if (deps.consoleBaseUrl !== undefined) {
+    app.register(
+      consoleGateway({
+        database: deps.database,
+        ownerDatabase: deps.ownerDatabase,
+        kek: deps.kek,
+        publicBaseUrl: deps.consoleBaseUrl,
+        ...(deps.consoleNow === undefined ? {} : { now: deps.consoleNow }),
+      }),
+    );
+  }
   app.register(
     adminRoutes({
       database: deps.database,
