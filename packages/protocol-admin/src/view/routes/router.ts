@@ -137,7 +137,7 @@ async function handleRoute(
   );
   if (decision.kind === 'forbidden') {
     await recordRefusal(deps.database, request, targetTenant.id, (tx) =>
-      recordCapabilityRefused(tx, outcome.principal, decision.missing),
+      recordCapabilityRefused(tx, outcome.principal, decision.missing, decision.alsoAdmits),
     );
     return sendForbidden(request, reply);
   }

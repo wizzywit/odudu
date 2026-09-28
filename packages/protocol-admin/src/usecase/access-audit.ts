@@ -7,6 +7,7 @@ export async function recordCapabilityRefused(
   tx: TenantScopedDatabase,
   principal: AdminPrincipal,
   capability: AdminCapability,
+  alsoAdmits: readonly AdminCapability[] = [],
 ): Promise<void> {
   await auditRepository(tx).record({
     eventType: 'admin_access',
@@ -15,7 +16,11 @@ export async function recordCapabilityRefused(
     actorTenantId: principal.issuerTenantId,
     actorSubjectId: principal.subjectId,
     actorClientId: principal.clientDbId,
-    detail: { capability, reason: 'missing_capability' },
+    detail: {
+      capability,
+      ...(alsoAdmits.length === 0 ? {} : { also_admits: [...alsoAdmits] }),
+      reason: 'missing_capability',
+    },
   });
 }
 

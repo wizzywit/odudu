@@ -4510,7 +4510,10 @@ subject and needs the list to pick from. `GET /groups` is widened the same
 way. Nothing else under either path is — a role's own read, its
 composites and both counts still require `manage-tenant` — and what a user
 manager may assign is still held to its own capabilities by the ceiling
-(ADR 0040). Captured against the fifth stack in `admins-demo`, as `hana`, a
+(ADR 0040). A caller refused one of these lists gets the usual `403`, and
+its `capability.refused` row names `view-users` under `detail.also_admits`
+beside the `manage-tenant` it names as `capability`, since either would
+have admitted it. Captured against the fifth stack in `admins-demo`, as `hana`, a
 subject created there holding `view-users` alone and signed in through the
 tenant's own admin client, first `whoami`, then two lists and a count:
 

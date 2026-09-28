@@ -98,7 +98,7 @@ type AdminAccessInput =
   | (EventCommon & {
       readonly eventType: 'admin_access';
       readonly action: 'capability.refused';
-      readonly detail?: WithReason<{ capability: string }>;
+      readonly detail?: WithReason<{ capability: string; also_admits?: string[] }>;
     })
   | (EventCommon & {
       readonly eventType: 'admin_access';
@@ -196,7 +196,7 @@ export type AuditEventInput = AdminMutationInput | VocabularyEventInput;
 // event at all, even when its free-form action string collides with a
 // vocabulary one — its own allowlist lives in audit-detail.ts.
 const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> = {
-  'capability.refused': ['capability'],
+  'capability.refused': ['capability', 'also_admits'],
   'login.password': ['factor'],
   'login.otp': ['factor'],
   'login.recovery_code': ['factor'],
@@ -231,6 +231,9 @@ const STRING_DETAIL_KEYS: ReadonlySet<string> = new Set([
 function isValidDetailValue(key: string, value: unknown): boolean {
   if (key === 'mode') return value === 'delegation' || value === 'impersonation';
   if (key === 'via') return value === 'logout' || value === 'admin' || value === 'evicted';
+  if (key === 'also_admits') {
+    return Array.isArray(value) && value.every((item) => typeof item === 'string');
+  }
   if (STRING_DETAIL_KEYS.has(key)) return typeof value === 'string';
   return true;
 }

@@ -1,4 +1,7 @@
+import { withTenant } from '@odudu/db';
+import { auditEvents } from '@odudu/domain-audit';
 import { newId } from '@odudu/kernel';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 
@@ -43,5 +46,12 @@ describe('the role and group lists a user manager picks from', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(403);
+
+    const rows = await withTenant(fixture.app.db, t.id, (tx) =>
+      tx.select().from(auditEvents).where(eq(auditEvents.action, 'capability.refused')),
+    );
+    expect(rows.map((row) => row.detail)).toEqual([
+      { capability: 'manage-tenant', also_admits: ['view-users'], reason: 'missing_capability' },
+    ]);
   });
 });
