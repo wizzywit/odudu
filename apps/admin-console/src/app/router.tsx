@@ -5,10 +5,12 @@ import {
   Outlet,
   type RouterHistory,
 } from '@tanstack/react-router';
+import { NavigationGuard } from '#/app/NavigationGuard.tsx';
 
 function Shell() {
   return (
     <>
+      <NavigationGuard />
       <header>
         <h1>Odudu console</h1>
       </header>

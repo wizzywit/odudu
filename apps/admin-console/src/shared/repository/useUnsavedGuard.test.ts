@@ -62,3 +62,37 @@ it('answers only the latest departure it holds', () => {
   expect(first).not.toHaveBeenCalled();
   expect(second).toHaveBeenCalledOnce();
 });
+
+it('tells a held departure it was refused when the answer is stay', () => {
+  guard().setDirty('client/general', 'General');
+  const proceed = vi.fn();
+  const refused = vi.fn();
+  guard().request(proceed, refused);
+  guard().stay();
+  expect(refused).toHaveBeenCalledOnce();
+  expect(proceed).not.toHaveBeenCalled();
+});
+
+it('refuses a held departure that a later one replaces', () => {
+  guard().setDirty('client/general', 'General');
+  const refused = vi.fn();
+  guard().request(vi.fn(), refused);
+  guard().request(vi.fn());
+  expect(refused).toHaveBeenCalledOnce();
+});
+
+it('counts each leave, so sections still on screen can say they are dirty again', () => {
+  guard().setDirty('client/general', 'General');
+  const before = guard().generation;
+  guard().request(vi.fn());
+  guard().leave();
+  expect(guard().generation).toBe(before + 1);
+});
+
+it('marks the page released once a full-page departure is under way', () => {
+  expect(guard().released).toBe(false);
+  guard().release();
+  expect(guard().released).toBe(true);
+  guard().reset();
+  expect(guard().released).toBe(false);
+});
