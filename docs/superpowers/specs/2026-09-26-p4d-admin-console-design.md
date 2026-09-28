@@ -715,7 +715,15 @@ A tenant cannot be deleted: the API has no such route. It can be disabled.
 **Responsive by container queries**: at 1024 px and wider, the full rail and
 multi-column tables; from 640 to 1023, a collapsed rail and fewer columns;
 under 640, a top bar with a menu sheet, tables as stacked rows, save bars
-sticky at the bottom and toasts above the thumb zone.
+sticky at the bottom and toasts above the thumb zone. From 640 up the rail
+can also be collapsed for full width, and collapsed means gone rather than
+narrowed: the page takes the narrow layout's top bar, whose **Menu** opens
+the same sheet. A labelled "Collapse menu" at the rail's foot, with its
+shortcut `[` shown beside it, collapses it; the same shortcut, or "Expand
+menu" in the top bar, restores it. There is no icon-only rail, since it
+would need hover-only or unlabelled controls (§7.3). The choice is
+remembered in `localStorage`, every access guarded, and the amber context
+bar never collapses.
 
 **Components** in `shared/view`: AppShell, Rail, ContextBar, PageHeader,
 Tabs, Section with SaveBar, Field (text, number with unit, select, toggle,

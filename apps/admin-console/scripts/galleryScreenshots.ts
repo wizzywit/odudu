@@ -18,14 +18,19 @@ async function shoot(
     width,
     dialog,
     tabs = false,
-  }: { theme: Theme; width: number; dialog?: string; tabs?: boolean },
+    collapsed = false,
+  }: { theme: Theme; width: number; dialog?: string; tabs?: boolean; collapsed?: boolean },
 ): Promise<void> {
   const page = await browser.newPage({
     viewport: { width, height: 900 },
     colorScheme: theme,
     reducedMotion: 'reduce',
   });
-  const query = new URLSearchParams({ theme, ...(dialog === undefined ? {} : { dialog }) });
+  const query = new URLSearchParams({
+    theme,
+    ...(dialog === undefined ? {} : { dialog }),
+    ...(collapsed ? { rail: 'collapsed' } : {}),
+  });
   await page.goto(`http://localhost:${String(PORT)}/console/gallery.html?${query.toString()}`);
   await page.getByRole('heading', { level: 1, name: 'Instrument' }).waitFor();
   await page.evaluate(() => document.fonts.ready.then(() => true));
@@ -38,11 +43,14 @@ async function shoot(
     await page.close();
     return;
   }
-  const name =
-    dialog === undefined ? `gallery-${String(width)}-${theme}` : `dialog-${dialog}-${theme}`;
+  const name = collapsed
+    ? `gallery-${String(width)}-collapsed-${theme}`
+    : dialog === undefined
+      ? `gallery-${String(width)}-${theme}`
+      : `dialog-${dialog}-${theme}`;
   // A full-page capture keeps sticky and fixed layers where the first screen
   // put them, so the viewport is made as tall as the page instead.
-  if (dialog === undefined) {
+  if (dialog === undefined && !collapsed) {
     const height = await page.evaluate(() => document.documentElement.scrollHeight);
     await page.setViewportSize({ width, height });
   }
@@ -58,6 +66,7 @@ try {
     for (const width of WIDTHS) await shoot(browser, { theme, width });
     for (const dialog of DIALOGS) await shoot(browser, { theme, width: 1280, dialog });
     await shoot(browser, { theme, width: 1280, tabs: true });
+    await shoot(browser, { theme, width: 1280, collapsed: true });
   }
 } finally {
   await browser.close();

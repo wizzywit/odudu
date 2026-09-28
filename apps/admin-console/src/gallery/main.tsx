@@ -5,12 +5,13 @@ import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Gallery, type GalleryDialog, type GalleryTheme } from '#/gallery/Gallery.tsx';
 
-// ?theme=dark and ?dialog=typed make every state the screenshots need
-// reachable from a URL alone.
+// ?theme=dark, ?dialog=typed and ?rail=collapsed make every state the
+// screenshots need reachable from a URL alone.
 const params = new URLSearchParams(window.location.search);
 const DIALOGS = ['plain', 'typed', 'secret', 'unsaved'] as const;
 const requested = params.get('dialog');
 const dialog: GalleryDialog | null = DIALOGS.find((d) => d === requested) ?? null;
+const collapsed = params.get('rail') === 'collapsed';
 
 function applyTheme(theme: GalleryTheme): void {
   document.documentElement.dataset.theme = theme;
@@ -21,7 +22,14 @@ function Root() {
     params.get('theme') === 'dark' ? 'dark' : 'light',
   );
   applyTheme(theme);
-  return <Gallery initialDialog={dialog} theme={theme} onThemeChange={setTheme} />;
+  return (
+    <Gallery
+      initialDialog={dialog}
+      initialCollapsed={collapsed}
+      theme={theme}
+      onThemeChange={setTheme}
+    />
+  );
 }
 
 const root = document.getElementById('root');

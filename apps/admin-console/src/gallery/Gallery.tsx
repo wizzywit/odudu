@@ -355,16 +355,21 @@ function ThemeChoice({
 
 export function Gallery({
   initialDialog = null,
+  initialCollapsed = false,
   theme = 'light',
   onThemeChange = () => undefined,
 }: {
   readonly initialDialog?: GalleryDialog | null;
+  readonly initialCollapsed?: boolean;
   readonly theme?: GalleryTheme;
   readonly onThemeChange?: (theme: GalleryTheme) => void;
 }) {
   const [toasts, setToasts] = useState(TOASTS);
+  const [collapsed, setCollapsed] = useState(initialCollapsed);
   return (
     <AppShell
+      collapsed={collapsed}
+      onCollapsedChange={setCollapsed}
       rail={
         <Rail
           label="Tenant areas"
