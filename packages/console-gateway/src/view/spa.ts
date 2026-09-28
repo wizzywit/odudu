@@ -1,11 +1,11 @@
 import { type FastifyInstance, type FastifyPluginAsync, type FastifyReply } from 'fastify';
-import { readFile, readdir } from 'node:fs/promises';
+import { lstat, readFile, readdir } from 'node:fs/promises';
 import { extname, join, relative, sep } from 'node:path';
 
-// The exact policy Part 1's spike measured for the built React shell under
-// a strict CSP (docs/phases/p4d.md, "React Aria under a strict CSP"). Set
-// directly rather than through `pageHeaders` (@odudu/kernel): that
-// function's policy describes a markup-only page, and this one licenses a
+// The exact policy measured for the built React shell under a strict CSP —
+// see docs/phases/p4d.md, "React Aria under a strict CSP". Set directly
+// rather than through `pageHeaders` (@odudu/kernel): that function's
+// policy describes a markup-only page, and this one licenses a
 // self-hosted script and a style hash instead.
 const SHELL_CSP =
   "default-src 'self'; script-src 'self'; " +
@@ -24,12 +24,26 @@ const ASSET_CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.map': 'application/json; charset=utf-8',
 };
 
+// A console asset this large is not a hashed build artefact; refusing it
+// keeps a misconfigured `ODUDU_CONSOLE_DIR` from being read wholesale into
+// memory at boot.
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
 interface Asset {
   readonly content: Buffer;
   readonly contentType: string;
 }
 
-async function readAssets(assetsDir: string): Promise<Map<string, Asset>> {
+function errnoCode(err: unknown): string | undefined {
+  if (typeof err !== 'object' || err === null || !('code' in err)) return undefined;
+  const code = err.code;
+  return typeof code === 'string' ? code : undefined;
+}
+
+async function readAssets(
+  assetsDir: string,
+  warn: (message: string) => void,
+): Promise<Map<string, Asset>> {
   const assets = new Map<string, Asset>();
   async function walk(dir: string): Promise<void> {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -38,8 +52,17 @@ async function readAssets(assetsDir: string): Promise<Map<string, Asset>> {
         await walk(full);
         continue;
       }
+      // `readdir`'s dirents are lstat-based: a symlink is never `isFile()`,
+      // whatever it points at, so this keeps the walk from ever following
+      // one out of the built directory.
+      if (!entry.isFile() || entry.name.startsWith('.')) continue;
       const contentType = ASSET_CONTENT_TYPES[extname(entry.name)];
       if (contentType === undefined) continue;
+      const stats = await lstat(full);
+      if (stats.size > MAX_FILE_BYTES) {
+        warn(`console asset over 10 MB, refused: ${full}`);
+        continue;
+      }
       const key = relative(assetsDir, full).split(sep).join('/');
       assets.set(key, { content: await readFile(full), contentType });
     }
@@ -63,11 +86,18 @@ function sendShell(reply: FastifyReply, shell: Buffer): FastifyReply {
     .send(shell);
 }
 
-function registerUnavailable(fastify: FastifyInstance, consoleDir: string): void {
+function registerUnavailable(fastify: FastifyInstance, consoleDir: string, reason: string): void {
   fastify.log.warn(
-    `ODUDU_CONSOLE_DIR (${consoleDir}) has no console build; /console/* answers 503`,
+    `ODUDU_CONSOLE_DIR (${consoleDir}) has no console build (${reason}); /console/* answers 503`,
   );
   fastify.get('/console/*', (_request, reply) => sendUnavailable(reply));
+}
+
+async function readShell(indexPath: string): Promise<Buffer> {
+  const stats = await lstat(indexPath);
+  if (!stats.isFile()) throw Object.assign(new Error('not a regular file'), { code: 'ENOTFILE' });
+  if (stats.size > MAX_FILE_BYTES) throw Object.assign(new Error('over 10 MB'), { code: 'EFBIG' });
+  return readFile(indexPath);
 }
 
 // Reads the built console once, at registration, into an in-memory
@@ -80,14 +110,25 @@ export function spaRoutes(consoleDir: string): FastifyPluginAsync {
 
     let shell: Buffer;
     try {
-      shell = await readFile(join(consoleDir, 'index.html'));
-    } catch {
-      registerUnavailable(fastify, consoleDir);
+      shell = await readShell(join(consoleDir, 'index.html'));
+    } catch (err) {
+      registerUnavailable(fastify, consoleDir, errnoCode(err) ?? 'unknown error');
       return;
     }
-    const assets = await readAssets(join(consoleDir, 'assets')).catch(
-      () => new Map<string, Asset>(),
-    );
+
+    let assets: Map<string, Asset>;
+    try {
+      assets = await readAssets(join(consoleDir, 'assets'), (message) => {
+        fastify.log.warn(message);
+      });
+    } catch (err) {
+      const code = errnoCode(err);
+      if (code !== 'ENOENT') {
+        registerUnavailable(fastify, consoleDir, code ?? 'unknown error');
+        return;
+      }
+      assets = new Map();
+    }
 
     fastify.get<{ Params: { '*': string } }>('/console/assets/*', (request, reply) => {
       const asset = assets.get(request.params['*']);

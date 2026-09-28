@@ -1,5 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import http from 'node:http';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -13,9 +15,12 @@ const CSP =
   "frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 
 let app: FastifyInstance | undefined;
+const tempDirs: string[] = [];
 
 afterEach(async () => {
   await app?.close();
+  app = undefined;
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
 async function served(consoleDir: string, logs: string[] = []): Promise<FastifyInstance> {
@@ -72,6 +77,12 @@ function rawGet(port: number, path: string): Promise<RawResponse> {
 // the former proves the manifest lookup itself ran and refused the path.
 function isAssetRouteNotFound(res: RawResponse): boolean {
   return res.status === 404 && res.headers['content-type'] === undefined && res.body === '';
+}
+
+async function tempConsoleDir(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'odudu-console-'));
+  tempDirs.push(dir);
+  return dir;
 }
 
 describe('the console shell', () => {
@@ -131,14 +142,79 @@ describe('the console shell', () => {
     expect(res.headers.location).toBe('/console/');
   });
 
-  it('warns once naming ODUDU_CONSOLE_DIR and answers 503 when the directory is missing', async () => {
-    const logs: string[] = [];
-    const missing = join(FIXTURE_DIR, 'does-not-exist');
-    const server = await served(missing, logs);
+  it('refuses a symlinked asset, whatever it points at', async () => {
+    const dir = await tempConsoleDir();
+    await writeFile(join(dir, 'index.html'), '<p>shell');
+    await mkdir(join(dir, 'assets'));
+    await writeFile(join(dir, 'assets', 'app-3f2a.js'), 'console.log(1);\n');
+    // Outside the built directory entirely, same as a real leak would be.
+    await symlink(join(FIXTURE_DIR, 'index.html'), join(dir, 'assets', 'leak.js'));
+    const server = await served(dir);
+    const port = await listening(server);
 
-    const res = await server.inject({ url: '/console/tenants/x' });
+    const res = await rawGet(port, '/console/assets/leak.js');
 
-    expect(res.statusCode).toBe(503);
-    expect(logs.some((line) => line.includes('ODUDU_CONSOLE_DIR'))).toBe(true);
+    expect(isAssetRouteNotFound(res)).toBe(true);
   });
+
+  it('refuses a dotfile asset', async () => {
+    const dir = await tempConsoleDir();
+    await writeFile(join(dir, 'index.html'), '<p>shell');
+    await mkdir(join(dir, 'assets'));
+    await writeFile(join(dir, 'assets', '.hidden.js'), 'console.log(1);\n');
+    const server = await served(dir);
+    const port = await listening(server);
+
+    const res = await rawGet(port, '/console/assets/.hidden.js');
+
+    expect(isAssetRouteNotFound(res)).toBe(true);
+  });
+
+  it('skips an asset over 10 MB, with a warn line naming it, and still serves the rest', async () => {
+    const dir = await tempConsoleDir();
+    await writeFile(join(dir, 'index.html'), '<p>shell');
+    await mkdir(join(dir, 'assets'));
+    await writeFile(join(dir, 'assets', 'ok.js'), 'console.log(1);\n');
+    await writeFile(join(dir, 'assets', 'big.js'), Buffer.alloc(10 * 1024 * 1024 + 1, 'a'));
+    const logs: string[] = [];
+    const server = await served(dir, logs);
+
+    const big = await server.inject({ url: '/console/assets/big.js' });
+    const ok = await server.inject({ url: '/console/assets/ok.js' });
+
+    expect(big.statusCode).toBe(404);
+    expect(ok.statusCode).toBe(200);
+    expect(logs.join('')).toContain('big.js');
+  });
+
+  it(
+    'warns once naming ODUDU_CONSOLE_DIR and answers 503 when the directory is missing, ' +
+      'while sibling routes keep working',
+    async () => {
+      const logs: string[] = [];
+      const missing = join(FIXTURE_DIR, 'does-not-exist');
+      const destination = new Writable({
+        write(chunk: Buffer, _encoding, done) {
+          logs.push(chunk.toString('utf8'));
+          done();
+        },
+      });
+      const instance = Fastify({ logger: { level: 'warn', stream: destination } });
+      instance.get('/console/api/session', (_request, reply) => reply.send({ ok: true }));
+      instance.get('/console/auth/login', (_request, reply) => reply.send({ ok: true }));
+      await instance.register(spaRoutes(missing));
+      await instance.ready();
+      app = instance;
+
+      const shell = await instance.inject({ url: '/console/tenants/x' });
+      const api = await instance.inject({ url: '/console/api/session' });
+      const auth = await instance.inject({ url: '/console/auth/login' });
+
+      expect(shell.statusCode).toBe(503);
+      expect(api.statusCode).toBe(200);
+      expect(auth.statusCode).toBe(200);
+      const occurrences = logs.join('').match(/ODUDU_CONSOLE_DIR/gu) ?? [];
+      expect(occurrences).toHaveLength(1);
+    },
+  );
 });
