@@ -13,7 +13,12 @@ type Theme = (typeof THEMES)[number];
 
 async function shoot(
   browser: Browser,
-  { theme, width, dialog }: { theme: Theme; width: number; dialog?: string },
+  {
+    theme,
+    width,
+    dialog,
+    tabs = false,
+  }: { theme: Theme; width: number; dialog?: string; tabs?: boolean },
 ): Promise<void> {
   const page = await browser.newPage({
     viewport: { width, height: 900 },
@@ -24,6 +29,15 @@ async function shoot(
   await page.goto(`http://localhost:${String(PORT)}/console/gallery.html?${query.toString()}`);
   await page.getByRole('heading', { level: 1, name: 'Instrument' }).waitFor();
   await page.evaluate(() => document.fonts.ready.then(() => true));
+  if (tabs) {
+    // The toasts sit over the viewport; a close-up has no use for them.
+    const dismiss = page.getByRole('button', { name: /^Dismiss/u });
+    while ((await dismiss.count()) > 0) await dismiss.first().click();
+    const head = page.getByRole('tablist', { name: 'Client sections' }).locator('..');
+    await head.screenshot({ path: `${OUT}/tabs-${theme}.png` });
+    await page.close();
+    return;
+  }
   const name =
     dialog === undefined ? `gallery-${String(width)}-${theme}` : `dialog-${dialog}-${theme}`;
   // A full-page capture keeps sticky and fixed layers where the first screen
@@ -43,6 +57,7 @@ try {
   for (const theme of THEMES) {
     for (const width of WIDTHS) await shoot(browser, { theme, width });
     for (const dialog of DIALOGS) await shoot(browser, { theme, width: 1280, dialog });
+    await shoot(browser, { theme, width: 1280, tabs: true });
   }
 } finally {
   await browser.close();
