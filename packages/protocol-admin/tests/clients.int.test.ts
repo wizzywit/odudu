@@ -1,7 +1,8 @@
+import { PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { withTenant, type TenantScopedDatabase } from '@odudu/db';
 import { ClientIdConflictError, clientRepository, clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
+import { clientOidcConfig, clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { eq, sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -1457,5 +1458,72 @@ describe("the built-in admin client's guards", () => {
       headers: { authorization: `Bearer ${provisioner.token}` },
     });
     expect(after.statusCode).toBe(401);
+  });
+});
+
+// A private member stored before registration and the admin API refused
+// one: nothing serves it back, and no amendment is refused because of it.
+describe('a jwks stored with a private member', () => {
+  const publicKey = { kty: 'EC', crv: 'P-256', x: 'public-x', y: 'public-y', kid: 'one' };
+
+  async function legacyClient(): Promise<{ tenantName: string; id: string; secrets: string[] }> {
+    const t = await fixture.createTenant(`jwks-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {});
+    const privateValues = Object.fromEntries(
+      PRIVATE_JWK_MEMBERS.map((member) => [member, `private-${member}-${newId()}`]),
+    );
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      tx
+        .update(clientOidcConfig)
+        .set({ jwks: { keys: [{ ...publicKey, ...privateValues }] } })
+        .where(eq(clientOidcConfig.clientId, client.id)),
+    );
+    return { tenantName: t.name, id: client.id, secrets: Object.values(privateValues) };
+  }
+
+  it('is served without it, by the read and by the list', async () => {
+    const legacy = await legacyClient();
+    const headers = {
+      authorization: `Bearer ${await fixture.adminToken(legacy.tenantName, ['manage-clients'])}`,
+    };
+    const base = `/admin/tenants/${legacy.tenantName}/clients`;
+
+    const read = await fixture.http.inject({ method: 'GET', url: `${base}/${legacy.id}`, headers });
+    const list = await fixture.http.inject({ method: 'GET', url: base, headers });
+
+    expect(read.json<{ jwks: unknown }>().jwks).toEqual({ keys: [publicKey] });
+    for (const secret of legacy.secrets) {
+      expect(read.payload).not.toContain(secret);
+      expect(list.payload).not.toContain(secret);
+    }
+  });
+
+  it('does not refuse an amendment of another metadata field, and is stored without it', async () => {
+    const legacy = await legacyClient();
+    const token = await fixture.adminToken(legacy.tenantName, ['manage-clients']);
+    const url = `/admin/tenants/${legacy.tenantName}/clients/${legacy.id}`;
+    const read = await fixture.http.inject({
+      method: 'GET',
+      url,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        'if-match': String(read.headers.etag),
+      },
+      payload: { redirect_uris: ['https://app.example/other'] },
+    });
+
+    expect(res.statusCode, res.payload).toBe(200);
+    const [stored] = await fixture.owner.db
+      .select({ jwks: clientOidcConfig.jwks })
+      .from(clientOidcConfig)
+      .where(eq(clientOidcConfig.clientId, legacy.id));
+    expect(stored?.jwks).toEqual({ keys: [publicKey] });
   });
 });

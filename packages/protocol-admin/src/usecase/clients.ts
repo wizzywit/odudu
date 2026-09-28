@@ -29,6 +29,7 @@ import {
   refusalFor,
 } from '#/service/client-patch';
 import { etagOf, matches } from '#/service/etag';
+import { publicJwks } from '#/service/public-jwks';
 import {
   prefixRangeConditions,
   requireSearchKey,
@@ -630,7 +631,7 @@ export function clientWireShape(view: ClientView): Client {
     client_credentials_scopes: view.clientCredentialsScopes,
     web_origins: view.webOrigins,
     post_logout_redirect_uris: view.postLogoutRedirectUris,
-    jwks: view.jwks,
+    jwks: publicJwks(view.jwks).value,
     jwks_uri: view.jwksUri,
     frontchannel_logout_uri: view.frontchannelLogoutUri,
     backchannel_logout_uri: view.backchannelLogoutUri,
@@ -960,7 +961,7 @@ export async function amendClient(
         'token_endpoint_auth_method',
         configRow.tokenEndpointAuthMethod,
       ),
-      jwks: metadataFieldValue(input.values, 'jwks', configRow.jwks),
+      jwks: metadataFieldValue(input.values, 'jwks', publicJwks(configRow.jwks).value),
       jwks_uri: metadataFieldValue(input.values, 'jwks_uri', configRow.jwksUri),
       frontchannel_logout_uri: metadataFieldValue(
         input.values,

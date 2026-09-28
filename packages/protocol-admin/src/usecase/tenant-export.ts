@@ -14,7 +14,6 @@ import {
   type RoleReference,
   type TenantDocument,
 } from '@odudu/contracts/admin';
-import { PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
   clientScopeRoles,
@@ -39,6 +38,7 @@ import {
 import { clientOidcConfig } from '@odudu/protocol-oidc';
 import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
+import { publicJwks } from '#/service/public-jwks';
 import { profileWireShape } from '#/usecase/profile';
 
 export interface TenantExportAuditEvent {
@@ -93,8 +93,6 @@ function roleKey(reference: RoleReference): string {
 }
 
 const sortRoleReferences = byKey(roleKey);
-
-const PRIVATE_MEMBERS: ReadonlySet<string> = new Set(PRIVATE_JWK_MEMBERS);
 
 // Not strict, so parsing drops `profile_updated_at`: the claim is stamped
 // by the write that changes a profile, never carried from one tenant to another.
@@ -176,27 +174,6 @@ async function subjectRoleReferences(
       and(eq(subjectRoles.tenantId, tenantId), inArray(subjectRoles.subjectId, [...subjectIds])),
     );
   return referencesByOwner(rows, roleById);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-// Client metadata validation refuses a private member now, but a row
-// written before it did may still carry one; it is dropped here and the
-// key named under `omitted`, never copied into a document.
-function publicJwks(jwks: unknown): { value: unknown; strippedKeys: number[] } {
-  if (!isRecord(jwks) || !Array.isArray(jwks.keys)) return { value: jwks, strippedKeys: [] };
-  const strippedKeys: number[] = [];
-  const keys = jwks.keys.map((key: unknown, index) => {
-    if (!isRecord(key)) return key;
-    const kept = Object.fromEntries(
-      Object.entries(key).filter(([member]) => !PRIVATE_MEMBERS.has(member)),
-    );
-    if (Object.keys(kept).length !== Object.keys(key).length) strippedKeys.push(index);
-    return kept;
-  });
-  return { value: { ...jwks, keys }, strippedKeys };
 }
 
 interface ClientRow {

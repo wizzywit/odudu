@@ -1233,6 +1233,15 @@ constraints hold (`0013_access_token_ttl_ceiling.sql`,
 No transcript shows that refusal;
 `packages/protocol-admin/tests/client-ttl-check.int.test.ts` covers it.
 
+A `jwks` is served public members only, by the read, the list and every
+response that carries a client, the same stripping export applies
+(`publicJwks`, `packages/protocol-admin/src/service/public-jwks.ts`).
+Registration and this API refuse a private member, so only a row written
+before they did can hold one; a `PATCH` that reruns the metadata is judged
+on the stripped set, and writes it back without the member. No transcript
+shows it, since no stack this document was captured on holds such a row;
+`packages/protocol-admin/tests/clients.int.test.ts` writes one directly.
+
 Creating a client that names both, against `demo`. Recaptured after a
 rebuild that added `builtin_admin` and `service_subject_id` to a client's
 representation, so this id and secret are a later run's than the rest of
