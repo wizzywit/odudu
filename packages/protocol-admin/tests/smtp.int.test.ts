@@ -98,6 +98,19 @@ describe('PUT /admin/tenants/{t}/smtp', () => {
     expect(unwrapSecret(encrypted, KEK)).toBe('hunter2');
   });
 
+  it('refuses a port above 65535', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const res = await putSmtp(token, t.name, {
+      host: 'smtp.example.test',
+      port: 65536,
+      from_address: 'noreply@example.test',
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
   it('clears the password when a later PUT omits it', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);

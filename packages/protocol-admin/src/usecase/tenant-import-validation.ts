@@ -1,5 +1,6 @@
 import { startsALogin } from '@odudu/authn-flows';
 import {
+  smtpPortSchema,
   tenantDocumentSchema,
   type ExportedClient,
   type ImportError,
@@ -386,7 +387,9 @@ function flowAndSmtpProblems(
   const smtp = document.smtp;
   if (smtp === null) return;
   if (smtp.host === '') problems.add('document.smtp.host', 'is empty');
-  if (smtp.port <= 0) problems.add('document.smtp.port', 'is not a port');
+  if (!smtpPortSchema.safeParse(smtp.port).success) {
+    problems.add('document.smtp.port', 'is not a port');
+  }
   if (smtp.from_address === '') problems.add('document.smtp.from_address', 'is empty');
   if (smtp.username === '') problems.add('document.smtp.username', 'is empty; use null');
   if (smtp.username !== null && !smtp.starttls) {

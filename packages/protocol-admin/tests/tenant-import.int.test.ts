@@ -524,6 +524,29 @@ describe('POST /admin/tenant-imports', () => {
     expect(await tenantIdOf(name)).toBeNull();
   });
 
+  it('refuses an smtp port above 65535 alongside another problem, both by path', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    if (document.smtp === null) throw new Error('expected seededSource to configure smtp');
+    const name = `import-${newId()}`;
+
+    const res = await postImport(token, {
+      name,
+      document: {
+        ...document,
+        settings: { ...document.settings, password_min_length: 4 },
+        smtp: { ...document.smtp, port: 65536 },
+      },
+    });
+
+    expect(res.statusCode, res.payload).toBe(400);
+    expect((res.json<ImportRefusal>().errors ?? []).map((error) => error.path)).toEqual(
+      expect.arrayContaining(['document.smtp.port', 'document.settings.password_min_length']),
+    );
+    expect(await tenantIdOf(name)).toBeNull();
+  });
+
   it('refuses a grant of a capability the caller does not hold', async () => {
     const source = await seededSource();
     const document = await exportOf(await operatorToken(), source.name);

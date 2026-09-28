@@ -14,12 +14,16 @@ export const smtpConfigSchema = z.object({
 });
 export type SmtpConfig = z.infer<typeof smtpConfigSchema>;
 
+// The registered-port range (RFC 6335 §6): a socket cannot bind above it,
+// so a value outside is refused rather than stored to fail at send time.
+export const smtpPortSchema = z.number().int().min(1).max(65535);
+
 // A full replace, the same shape `PUT /scopes/:id/roles` gives its role
 // set: omitting `password` clears it rather than leaving a previous one in
 // place, since GET never hands one back to resend unchanged.
 export const putSmtpRequestSchema = z.object({
   host: z.string().min(1),
-  port: z.number().int().positive(),
+  port: smtpPortSchema,
   from_address: z.string().min(1),
   username: z.string().min(1).nullable().optional(),
   password: z.string().min(1).nullable().optional(),
