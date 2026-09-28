@@ -1072,4 +1072,6 @@ Each item below is tested, not captured:
   the session-ended `401` when the token endpoint refuses the refresh token,
   which these runs did not attempt either.
 - **The `__Host-` cookies**, which need an `https` base. These are in
-  `apps/server/tests/console-session.int.test.ts`.
+  `apps/server/tests/console-session.int.test.ts`, and the `conformance`
+  job's `infra/conformance/run-console-check.sh` asserts both over that
+  stack's TLS proxy ([its README](../infra/conformance/README.md#the-console-over-https)).

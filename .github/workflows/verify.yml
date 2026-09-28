@@ -91,6 +91,11 @@ jobs:
           MAVEN_CACHE: /tmp/conformance-m2
           SUITE_DIR: /tmp/conformance-suite
 
+      # The one run that observes the console's https mode: the __Host-
+      # names and Secure over the proxy's TLS. It gates the build.
+      - name: Check the console's cookies over https
+        run: ./infra/conformance/run-console-check.sh
+
       # Cannot pass by construction — ADR 0031 — so this step does not gate
       # the build. It still runs on every push, against the suite jar the
       # step above already built, so this proves the plan keeps running to
