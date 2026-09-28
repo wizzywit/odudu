@@ -1,0 +1,55 @@
+import { advance, retreat, type CursorTrail } from '#/shared/service/cursorTrail.ts';
+import { Button } from '#/shared/view/Button.tsx';
+import styles from '#/shared/view/Pager.module.css';
+
+export function Pager({
+  label,
+  trail,
+  next,
+  onTrailChange,
+  onLoadMore,
+  loadingMore = false,
+}: {
+  readonly label: string;
+  readonly trail: CursorTrail;
+  readonly next: string | null;
+  readonly onTrailChange: (trail: CursorTrail) => void;
+  readonly onLoadMore?: () => void;
+  readonly loadingMore?: boolean;
+}) {
+  const noun = label.toLowerCase();
+  return (
+    <nav aria-label={`Pages of ${noun}`} className={styles.pager}>
+      {onLoadMore === undefined || next === null ? null : (
+        <Button isDisabled={loadingMore} onPress={onLoadMore}>
+          {loadingMore ? `Loading more ${noun}…` : `Load more ${noun}`}
+        </Button>
+      )}
+      <div className={styles.steps}>
+        <Button
+          size="small"
+          variant="quiet"
+          aria-label="Previous page"
+          isDisabled={trail.length === 0}
+          onPress={() => {
+            onTrailChange(retreat(trail));
+          }}
+        >
+          Previous
+        </Button>
+        <span className={styles.page}>{`Page ${String(trail.length + 1)}`}</span>
+        <Button
+          size="small"
+          variant="quiet"
+          aria-label="Next page"
+          isDisabled={next === null}
+          onPress={() => {
+            if (next !== null) onTrailChange(advance(trail, next));
+          }}
+        >
+          Next
+        </Button>
+      </div>
+    </nav>
+  );
+}

@@ -13,5 +13,9 @@ it('casts shadows only from the toast and dialog layers', () => {
     ),
   );
   expect(Object.keys(modules).length).toBeGreaterThan(10);
-  expect(casting.sort()).toEqual(['AppShell.module.css .sheet', 'Toasts.module.css .toast']);
+  expect(casting.sort()).toEqual([
+    'AppShell.module.css .sheet',
+    'DialogFrame.module.css .modal',
+    'Toasts.module.css .toast',
+  ]);
 });
