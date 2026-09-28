@@ -1,7 +1,7 @@
 import { withTenant, type DatabaseHandle } from '@odudu/db';
+import { userRepository } from '@odudu/domain-identity';
 import { consoleSessionRepository, type ConsoleSessionRecord } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
-import { usernameRepository } from '#/repository/usernames';
 import { readCookie, sessionCookieName } from '#/service/cookies';
 import { sha256, splitTenantBound } from '#/service/secrets';
 import { sessionHasEnded, sessionNeedsTouch } from '#/service/session-lifetime';
@@ -54,7 +54,7 @@ export async function describeSession(
   return withTenant(deps.database.db, session.tenantId, async (tx) => {
     const tenant = await tenantNameRepository(tx).nameOf(session.tenantId);
     if (tenant === null) return null;
-    const username = await usernameRepository(tx).usernameOf(session.subjectId);
-    return { tenant, subjectId: session.subjectId, username };
+    const user = await userRepository(tx).bySubjectId(session.subjectId);
+    return { tenant, subjectId: session.subjectId, username: user?.username ?? null };
   });
 }

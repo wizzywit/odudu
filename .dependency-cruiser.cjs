@@ -42,6 +42,23 @@ module.exports = {
       to: { path: '(^|/)packages/(?:protocol-|authn-flows)[^/]*/' },
     },
     {
+      name: 'console-gateway-allowlist',
+      severity: 'error',
+      comment:
+        'The console gateway reaches the server only as an OAuth client does, so of the ' +
+        'workspace it may import the kernel, db, crypto, contracts, domain-tenant and ' +
+        'domain-identity packages and nothing else. Its tests may also use the test kit.',
+      from: {
+        path: '(^|/)packages/console-gateway/src/',
+        pathNot: '\\.test\\.ts$',
+      },
+      to: {
+        path: '(^|/)packages/',
+        pathNot:
+          '(^|/)node_modules/|(^|/)packages/(?:console-gateway|kernel|db|crypto|contracts|domain-tenant|domain-identity)/',
+      },
+    },
+    {
       name: 'no-protocol-to-protocol',
       severity: 'error',
       comment:

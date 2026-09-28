@@ -75,6 +75,24 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toBe(true);
   });
 
+  it('rejects the console gateway importing a package outside its allowlist', async () => {
+    const found = await violations('console-gateway-allowlist');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('console-gateway/src/foreign-domain.ts') && v.to.includes('/account/'),
+      ),
+    ).toBe(true);
+  });
+
+  it('permits the console gateway importing @odudu/domain-identity', async () => {
+    const output = await cruiseFixtures();
+    const fromAllowed = output.summary.violations.filter((v) =>
+      v.from.endsWith('console-gateway/src/allowed.ts'),
+    );
+    expect(fromAllowed).toHaveLength(0);
+  });
+
   it('permits the admin API to import a protocol package', async () => {
     const found = await violations('no-protocol-to-protocol');
     expect(

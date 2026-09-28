@@ -18,6 +18,7 @@
     "@odudu/contracts": "workspace:*",
     "@odudu/crypto": "workspace:*",
     "@odudu/db": "workspace:*",
+    "@odudu/domain-identity": "workspace:*",
     "@odudu/domain-tenant": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "drizzle-orm": "0.45.2",

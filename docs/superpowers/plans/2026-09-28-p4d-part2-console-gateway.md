@@ -29,7 +29,10 @@ used, and each carries its command.
 - **The gateway never imports a protocol package or `authn-flows`.** A
   dependency-cruiser rule enforces this, with a negative control. Allowed
   imports: `@odudu/kernel`, `@odudu/db`, `@odudu/crypto`, `@odudu/contracts`,
-  and `@odudu/domain-tenant` for the tenant-name rule.
+  `@odudu/domain-tenant` for the tenant-name rule, and
+  `@odudu/domain-identity` for the signed-in user's username. The
+  allowlist is itself a dependency-cruiser rule
+  (`console-gateway-allowlist`).
 - **Session lifetimes:**
   - a session ends at 30 minutes idle, 12 hours absolute, or on a refused
     refresh, whichever comes first;
