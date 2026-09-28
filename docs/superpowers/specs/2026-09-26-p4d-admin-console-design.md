@@ -564,7 +564,7 @@ Import / export; **Observe** — Audit trail.
 
 Overview shows the issuer with a copy control and a discovery link, bounded
 counts, a "needs attention" list (no SMTP while verification or reset is
-on; a pending key published long enough to promote; dynamic registration
+on; a `rotating` key — published, not signing — old enough to promote; dynamic registration
 open with no client cap headroom), and the latest audit rows.
 
 Record pages and their tabs:
@@ -578,7 +578,8 @@ Record pages and their tabs:
 | Scope   | General · Roles · Claim mappers · Clients · Activity                                       |
 
 Sign-in flow is one page of ordered steps with their requirement. Signing
-keys is one page of three lanes, pending, active and retired. Settings is
+keys is one page of three lanes by the stored status: `rotating`
+(published, not signing), `active` and `retired`. Settings is
 one page of sections by concern: sessions, remember-me, registration and
 recovery, usernames (whether they may be renamed), password policy, brute
 force, dynamic registration, retention. With `username_editable` on, a
