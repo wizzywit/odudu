@@ -684,6 +684,15 @@ A tenant cannot be deleted: the API has no such route. It can be disabled.
 - A `401` from the gateway keeps the draft in `sessionStorage` — never a
   field holding a secret — sends the user through sign-in, and restores the
   draft marked for review. Nothing is saved on their behalf.
+- Every tab shares one console cookie, so another tab's sign-in can replace
+  the session under this one. Each admin request names the subject its tab
+  shows in `X-Odudu-Console-Subject`, and the gateway answers a mismatch
+  `409` `about:blank#console-principal-changed`, forwarding nothing. That
+  refusal, or a session read naming somebody else, ends this tab's session
+  as a `401` does: its drafts are kept for the principal they were made as,
+  and a page says who the browser is signed in as now, offering to sign in
+  as the old principal again or to continue as the new one, which discards
+  them. `whoami` is cached per tenant and principal.
 - A `403` says which capability is missing and re-reads `whoami`.
 - An action against yourself — ending your own session, removing your own
   admin role, disabling your own subject — says so in its dialog. The

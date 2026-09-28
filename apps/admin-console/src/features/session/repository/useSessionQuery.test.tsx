@@ -24,18 +24,18 @@ it('drops every other cached read when the session is marked ended', async () =>
   );
   const { result } = renderHook(() => useSessionQuery(), { wrapper });
   await waitFor(() => {
-    expect(result.current.result?.ok).toBe(true);
+    expect(result.current.read?.result.ok).toBe(true);
   });
 
   act(() => {
-    result.current.markEnded();
+    result.current.markEnded(null);
   });
 
   expect(client.getQueryData(['whoami', 'acme'])).toBeUndefined();
   expect(client.getQueryData(['clients', 'acme'])).toBeUndefined();
-  expect(client.getQueryData(['session'])).toMatchObject({ ok: false });
+  expect(client.getQueryData(['session'])).toMatchObject({ result: { ok: false } });
   await waitFor(() => {
-    expect(result.current.result).toMatchObject({ ok: false, problem: { status: 401 } });
+    expect(result.current.read?.result).toMatchObject({ ok: false, problem: { status: 401 } });
   });
 });
 

@@ -297,7 +297,7 @@ describe('leaving', () => {
     await waitFor(() => {
       expect(leavePage).toHaveBeenCalledWith(redirect);
     });
-    expect(calls).toContainEqual({ method: 'POST', path: '/console/auth/logout' });
+    expect(calls).toContainEqual({ method: 'POST', path: '/console/auth/logout', subject: null });
   });
 
   it.each([

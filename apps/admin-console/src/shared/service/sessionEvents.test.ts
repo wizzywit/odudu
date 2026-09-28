@@ -15,6 +15,19 @@ describe('sessionEvents', () => {
     expect(second).toHaveBeenCalledOnce();
   });
 
+  it('keeps principalChanged subscribers apart from sessionEnded ones', () => {
+    const events = createSessionEvents();
+    const ended = vi.fn();
+    const changed = vi.fn();
+    events.on('sessionEnded', ended);
+    events.on('principalChanged', changed);
+
+    events.emit('principalChanged');
+
+    expect(changed).toHaveBeenCalledOnce();
+    expect(ended).not.toHaveBeenCalled();
+  });
+
   it('stops calling a subscriber once it unsubscribes', () => {
     const events = createSessionEvents();
     const listener = vi.fn();

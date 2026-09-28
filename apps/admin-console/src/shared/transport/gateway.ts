@@ -1,5 +1,5 @@
 import type { ZodType } from 'zod';
-import { isSessionEnded } from '#/shared/service/sessionEnded.ts';
+import { isPrincipalChanged, isSessionEnded } from '#/shared/service/sessionEnded.ts';
 import { sessionEvents, type SessionEvents } from '#/shared/service/sessionEvents.ts';
 import { nextCursor } from '#/shared/transport/cursor.ts';
 import { readEtag } from '#/shared/transport/etag.ts';
@@ -34,6 +34,9 @@ export type GatewayResult<T> = GatewaySuccess<T> | GatewayFailure;
 
 export interface Gateway {
   request<T>(method: Method, path: string, options: RequestOptions<T>): Promise<GatewayResult<T>>;
+  // The subject this tab shows as signed in, named on every admin request so
+  // the gateway refuses one a sign-in in another tab has made somebody else's.
+  believe(subjectId: string | null): void;
 }
 
 export interface GatewayDependencies {
@@ -45,6 +48,8 @@ export interface GatewayDependencies {
 }
 
 const BASE = '/console/api/';
+const ADMIN = 'admin/';
+const SUBJECT_HEADER = 'x-odudu-console-subject';
 const BACKOFF_MS = 250;
 const DEFAULT_TIMEOUT_MS = 30_000;
 // Not 502: the gateway sends that for a token-endpoint failure or after
@@ -115,6 +120,15 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
     });
   const events = dependencies.events ?? sessionEvents;
   const timeoutMs = dependencies.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  let believed: string | null = null;
+
+  function emit(name: 'sessionEnded' | 'principalChanged'): void {
+    try {
+      events.emit(name);
+    } catch (error) {
+      log(`a ${name} subscriber threw: ${String(error)}`);
+    }
+  }
 
   // The timeout covers the body as well as the headers, so a response that
   // stalls halfway is a network failure rather than a request that never ends.
@@ -156,6 +170,7 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
       const headers = new Headers({ accept: 'application/json' });
       if (method !== 'GET') headers.set('x-odudu-console', '1');
       if (options.ifMatch !== undefined) headers.set('if-match', options.ifMatch);
+      if (believed !== null && path.startsWith(ADMIN)) headers.set(SUBJECT_HEADER, believed);
       const init: RequestInit = { method, headers, credentials: 'same-origin' };
       if (options.body !== undefined) {
         headers.set('content-type', 'application/json');
@@ -177,13 +192,8 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
           return { ok: false, kind: 'defect' };
         }
         const problem = readProblem(response.status, response.headers.get('content-type'), text);
-        if (isSessionEnded(problem)) {
-          try {
-            events.emit('sessionEnded');
-          } catch (error) {
-            log(`a sessionEnded subscriber threw: ${String(error)}`);
-          }
-        }
+        if (isSessionEnded(problem)) emit('sessionEnded');
+        if (isPrincipalChanged(problem)) emit('principalChanged');
         return { ok: false, kind: 'problem', problem };
       }
 
@@ -207,6 +217,9 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
         etag: readEtag(response.headers),
         next: nextCursor(response.headers.get('link')),
       };
+    },
+    believe(subjectId) {
+      believed = subjectId;
     },
   };
 }

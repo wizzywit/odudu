@@ -1,5 +1,7 @@
 interface SessionEventMap {
   readonly sessionEnded: [];
+  // Another sign-in in this browser replaced the session this tab shows.
+  readonly principalChanged: [];
 }
 type SessionEventName = keyof SessionEventMap;
 type Listener<N extends SessionEventName> = (...args: SessionEventMap[N]) => void;
@@ -13,7 +15,10 @@ export interface SessionEvents {
 // rethrown afterwards, so one broken subscriber neither hides the event from
 // the rest nor goes unseen.
 export function createSessionEvents(): SessionEvents {
-  const listeners: { [N in SessionEventName]: Set<Listener<N>> } = { sessionEnded: new Set() };
+  const listeners: { [N in SessionEventName]: Set<Listener<N>> } = {
+    sessionEnded: new Set(),
+    principalChanged: new Set(),
+  };
   return {
     on(name, listener) {
       listeners[name].add(listener);

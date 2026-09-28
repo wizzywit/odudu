@@ -38,6 +38,8 @@ export function offline(): Answer {
 export interface Call {
   readonly method: string;
   readonly path: string;
+  // The X-Odudu-Console-Subject the request named, or null.
+  readonly subject: string | null;
 }
 
 // A gateway that answers from a table keyed by `METHOD /path` (query left
@@ -47,7 +49,7 @@ export function fakeTransport(routes: Record<string, Answer>) {
   const answerFor: Fetch = (url, init) => {
     const method = init.method ?? 'GET';
     const path = new URL(url, 'http://gateway.invalid').pathname;
-    calls.push({ method, path });
+    calls.push({ method, path, subject: new Headers(init.headers).get('x-odudu-console-subject') });
     const answer = routes[`${method} ${path}`] ?? problem(404, 'about:blank', 'Not Found');
     try {
       return Promise.resolve(answer());

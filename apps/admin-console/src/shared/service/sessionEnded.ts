@@ -8,3 +8,13 @@ export function isSessionEnded(problem: {
 }): boolean {
   return problem.status === 401 && problem.type === SESSION_ENDED_TYPE;
 }
+
+export const PRINCIPAL_CHANGED_TYPE = 'about:blank#console-principal-changed';
+
+// The gateway's 409 for a request naming a subject the session is not.
+export function isPrincipalChanged(problem: {
+  readonly status: number;
+  readonly type: string;
+}): boolean {
+  return problem.status === 409 && problem.type === PRINCIPAL_CHANGED_TYPE;
+}

@@ -287,6 +287,40 @@ describe('gateway.request, a refusal', () => {
   });
 });
 
+describe('gateway.request, the subject this tab believes it is', () => {
+  it('names it on every admin request once told, and never on the session read', async () => {
+    const { gateway, calls } = harness(json({}), json({}), json({}), json({}));
+    await gateway.request('GET', SUBJECT_PATH, { schema: z.unknown() });
+    gateway.believe('s1');
+    await gateway.request('POST', 'admin/tenants/acme/scopes', { schema: z.unknown(), body: {} });
+    await gateway.request('GET', 'session', { schema: z.unknown() });
+    gateway.believe(null);
+    await gateway.request('GET', SUBJECT_PATH, { schema: z.unknown() });
+
+    expect(calls.map((call) => headersOf(call).get('x-odudu-console-subject'))).toEqual([
+      null,
+      's1',
+      null,
+      null,
+    ]);
+  });
+
+  it('emits principalChanged on a 409 console-principal-changed, and not on a plain 409', async () => {
+    const { gateway, events } = harness(
+      problem(409, 'about:blank#console-principal-changed', 'Conflict'),
+      problem(409, 'about:blank', 'Conflict'),
+    );
+    const changed = vi.fn();
+    events.on('principalChanged', changed);
+
+    const refused = await gateway.request('GET', SUBJECT_PATH, { schema: subjectSchema });
+    await gateway.request('GET', SUBJECT_PATH, { schema: subjectSchema });
+
+    expect(changed).toHaveBeenCalledOnce();
+    expect(!refused.ok && refused.kind).toBe('problem');
+  });
+});
+
 describe('gateway.request, retries', () => {
   const offline = () => new TypeError('Failed to fetch');
 
