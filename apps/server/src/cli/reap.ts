@@ -314,7 +314,9 @@ export const RETENTION_RULES: Record<TableName, RetentionRule> = {
 
   // No policy window, for the reason client_assertion_jti has none: a
   // session past its absolute expiry or idle past CONSOLE_SESSION_IDLE_SECONDS
-  // has already ended, and the gateway would delete it on sight.
+  // has already ended, and the gateway would delete it on sight. Its grant
+  // is not revoked here: it is bound to the SSO session, whose idle limit
+  // ends it (apps/server/tests/console-session.int.test.ts).
   console_sessions: {
     after: [],
     statement: (now) => sql`

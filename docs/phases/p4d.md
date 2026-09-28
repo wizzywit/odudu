@@ -958,6 +958,11 @@ each fixed on the branch.
   `tsconfig.base.json` makes typecheck refuse the next one (`7db31d0`).
   `verified:` `node --experimental-strip-types` imported the file, and
   README's `main.ts reap` ran end to end.
+- **The reaper deletes console sessions without revoking, and needs no
+  revoke**: the grant is bound to the tenant's SSO session, and
+  `console-session.int.test.ts` "held a refresh token the server refuses
+  once its SSO session has idled out" pins that its token then answers
+  `invalid_grant`.
 - **Smaller rulings.** A browser drops a `__Host-` cookie whose `Path` is
   not `/`, so the login cookie keeps the prefix with `Path=/`. A cookie
   sent twice counts as none. `/console/auth` keeps a `4xx` error's own

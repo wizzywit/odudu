@@ -186,6 +186,39 @@ describe('GET /console/api/session', () => {
   });
 });
 
+// The reaper deletes expired console_sessions rows without revoking their
+// grants. What leaves nothing usable behind is that the grant is bound to
+// the tenant's SSO session, whose own idle limit ends it.
+describe('a console session the reaper deletes', () => {
+  it('held a refresh token the server refuses once its SSO session has idled out', async () => {
+    await withStack(BASE, async (stack) => {
+      const aged = await signIn(stack, new Jar());
+      const control = await signIn(stack, new Jar());
+      const agedToken = await storedRefreshToken(owner, aged.subjectId);
+      const controlToken = await storedRefreshToken(owner, control.subjectId);
+      const grants = await owner.db.execute<{ bound: boolean; remembered: boolean }>(
+        sql`SELECT g.session_id IS NOT NULL AS bound, s.remembered
+              FROM token_grants g JOIN sessions s ON s.id = g.session_id
+             WHERE g.subject_id = ${aged.subjectId} AND g.revoked_at IS NULL`,
+      );
+      expect(grants).toEqual([{ bound: true, remembered: false }]);
+      const [tenant] = await owner.db.execute<{ idle: number }>(
+        sql`SELECT sso_session_idle_seconds AS idle FROM tenants WHERE name = ${SYSTEM_TENANT_NAME}`,
+      );
+      const idle = tenant?.idle ?? 0;
+      expect(idle).toBeGreaterThan(0);
+
+      await owner.db.execute(
+        sql`UPDATE sessions SET last_active_at = now() - make_interval(secs => ${idle + 1})
+             WHERE subject_id = ${aged.subjectId}`,
+      );
+
+      expect(await refreshAtOp(stack, agedToken)).toBe('invalid_grant');
+      expect(await refreshAtOp(stack, controlToken)).toBe('ok');
+    });
+  });
+});
+
 describe('the session cookie', () => {
   it('is odudu-console without Secure over plain HTTP', async () => {
     await withStack(BASE, async (stack) => {
