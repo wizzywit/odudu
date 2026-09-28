@@ -9505,9 +9505,15 @@ session lifecycle. A citation of either half here means that half.
 - **The console's single-page app is a shell with no features.** The
   image builds `apps/admin-console` into `/app/console`, and the gateway
   under `/console` serves it ([docs/console-paths.md](console-paths.md)),
-  but the shell shows only its heading and a not-found page: nothing in it
-  reads or changes a tenant yet. Planned: **P4d**, whose fourth part adds
-  the console's features one at a time.
+  but beyond signing in, the rail, the tenant switch and sign-out, every
+  area is a placeholder: nothing in it reads or changes a tenant yet.
+  Planned: **P4d**, whose fourth part adds the console's features one at a
+  time.
+- **The tenant's sign-in pages do not pass WCAG 2.2 AA.** They are
+  unstyled, and axe reports `target-size` on `#passkey-submit`; the
+  console's browser tests hold that check as a `fixme`. Planned: **P4b**,
+  whose criterion requires every server-rendered page to pass axe in both
+  colour schemes.
 
 **Endpoints that do not exist at all**
 
