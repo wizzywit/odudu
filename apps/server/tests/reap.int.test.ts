@@ -502,6 +502,38 @@ describe('odudu reap', () => {
     expect(logins.map((row) => row.id)).toEqual([fixture.consoleLoginLiveId]);
   });
 
+  it('keeps a console session seen exactly thirty minutes ago, and deletes one seen earlier', async () => {
+    const tenantId = newId();
+    const subjectId = newId();
+    const atBoundary = newId();
+    const pastBoundary = newId();
+    await owner.db.execute(
+      sql`INSERT INTO tenants (id, name) VALUES (${tenantId}, ${`reap-${tenantId}`})`,
+    );
+    await owner.db.execute(
+      sql`INSERT INTO subjects (id, tenant_id, type) VALUES (${subjectId}, ${tenantId}, 'user')`,
+    );
+    await owner.db.execute(sql`
+      INSERT INTO console_sessions (id, tenant_id, subject_id, secret_hash, access_token_wrapped,
+                                    refresh_token_wrapped, id_token_wrapped, access_expires_at,
+                                    created_at, last_seen_at, expires_at)
+      VALUES
+        (${atBoundary}, ${tenantId}, ${subjectId}, sha256(gen_random_uuid()::text::bytea), 'a',
+         'r', 'i', ${at(0)}::timestamptz, ${at(-1 * HOUR)}::timestamptz,
+         ${at(-30 * MINUTE)}::timestamptz, ${at(0)}::timestamptz),
+        (${pastBoundary}, ${tenantId}, ${subjectId}, sha256(gen_random_uuid()::text::bytea), 'a',
+         'r', 'i', ${at(0)}::timestamptz, ${at(-1 * HOUR)}::timestamptz,
+         ${at(-30 * MINUTE - 1)}::timestamptz, ${at(11 * HOUR)}::timestamptz)
+    `);
+
+    await runPass();
+
+    const rows = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM console_sessions WHERE tenant_id = ${tenantId}`,
+    );
+    expect(rows.map((row) => row.id)).toEqual([atBoundary]);
+  });
+
   // Each rule's own statement, run under one tenant's context alone: the
   // DELETEs carry no tenant predicate, so the policy is all that spares
   // the other tenant's rows.
