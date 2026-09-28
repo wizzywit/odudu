@@ -137,3 +137,43 @@ it('passes axe in both themes', async () => {
     )),
   ).toEqual({ light: [], dark: [] });
 });
+
+function reactKeysIn(element: Element): string[] {
+  const fiberKey = Object.keys(element).find((key) => key.startsWith('__reactFiber$'));
+  const keys: string[] = [];
+  let fiber = (fiberKey === undefined ? undefined : Reflect.get(element, fiberKey)) as
+    { key: string | null; return: unknown } | null | undefined;
+  while (fiber !== null && fiber !== undefined) {
+    if (fiber.key !== null) keys.push(fiber.key);
+    fiber = fiber.return as typeof fiber;
+  }
+  return keys;
+}
+
+it('asks afresh when a different secret replaces the one shown, without keying on it', async () => {
+  const user = userEvent.setup();
+  const other = 'c2Vjb25kLXNlY3JldC0wMTkyZjdhNC04MWQw';
+  const { rerender } = render(
+    <SecretDialog
+      secret={SECRET}
+      title="New client secret"
+      label="client secret"
+      onClose={vi.fn()}
+    />,
+  );
+  await user.click(screen.getByRole('checkbox'));
+  expect(screen.getByRole('button', { name: 'Close' })).toBeEnabled();
+  rerender(
+    <SecretDialog
+      secret={other}
+      title="New client secret"
+      label="client secret"
+      onClose={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole('checkbox')).not.toBeChecked();
+  expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled();
+  const keys = reactKeysIn(screen.getByRole('checkbox'));
+  expect(keys.length).toBeGreaterThan(0);
+  expect(keys.filter((key) => key.includes(SECRET) || key.includes(other))).toEqual([]);
+});

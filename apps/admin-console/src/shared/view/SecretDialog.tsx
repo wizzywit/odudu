@@ -11,7 +11,12 @@ export function SecretDialog({
   secret,
   ...props
 }: SecretProps & { readonly secret: string | null }) {
-  return secret === null ? null : <OpenSecret key={secret} secret={secret} {...props} />;
+  // Each new secret remounts the dialog, so its acknowledgement starts
+  // unticked; a counter keys it, since a key is kept in React's tree.
+  const [shown, setShown] = useState({ secret, generation: 0 });
+  if (shown.secret !== secret) setShown({ secret, generation: shown.generation + 1 });
+  if (secret === null) return null;
+  return <OpenSecret key={String(shown.generation)} secret={secret} {...props} />;
 }
 
 interface SecretProps {
