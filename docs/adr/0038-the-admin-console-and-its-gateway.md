@@ -79,3 +79,19 @@ unsaved-changes guard — never for server data.
   (`console_sessions`, `console_logins`) under row-level security, reaped
   alongside every other session-shaped row; it is more moving parts than an
   in-browser client, accepted for the theft surface it removes.
+
+## Amendment (2026-09-28): one console session per browser
+
+A browser holds one console session. Signing in to another tenant asks
+first and replaces the session only once the new sign-in succeeds (spec
+§7.1). Operating several tenants is the system administrator's job: one
+sign-in in `system` reaches every tenant, in as many tabs as wanted, under
+the amber context bar. This is the model Keycloak's master realm and
+Auth0's tenant switcher use.
+
+Concurrent sessions for separate per-tenant accounts were weighed and not
+built. `__Host-` forbids scoping a cookie to one tenant's path, so they
+need one cookie name per tenant and every request routed to the right one,
+which reopens the tab-acting-as-someone-else risk the switch page closes.
+AWS's opt-in multi-session is the model if a need appears: bounded, opt-in,
+and isolated per session by subdomain.
