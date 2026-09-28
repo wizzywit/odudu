@@ -62,6 +62,8 @@ export interface ImportTenantDeps {
   readonly database: Database;
   readonly kek: Uint8Array;
   readonly audit: Audit;
+  /** Registers the console's URIs on the new admin client; unset while the console is off. */
+  readonly consoleBaseUrl?: string | undefined;
   readonly hashClientSecret: (secret: string) => Promise<string>;
   readonly tlsClientAuthEnabled: boolean;
   readonly claimMappers: MapperCatalogue;
@@ -419,11 +421,16 @@ export async function importTenant(
       deps.database,
       id,
       async (tx) => {
-        await insertProvisionedTenant(tx, deps.kek, {
-          id,
-          name: input.name,
-          displayName: input.displayName ?? document.settings.display_name,
-        });
+        await insertProvisionedTenant(
+          tx,
+          deps.kek,
+          {
+            id,
+            name: input.name,
+            displayName: input.displayName ?? document.settings.display_name,
+          },
+          deps.consoleBaseUrl,
+        );
         const clientSecrets = await writeDocument(tx, deps, id, document, metadata);
 
         await deps.audit(tx, {

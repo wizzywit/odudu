@@ -24,7 +24,12 @@ import {
   TENANT_NAME_RULE,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { clientOidcConfigRepository, tenantLookupRepository } from '@odudu/protocol-oidc';
+import {
+  ADMIN_CLIENT_REDIRECT_URI,
+  clientOidcConfig,
+  clientOidcConfigRepository,
+  tenantLookupRepository,
+} from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -722,6 +727,69 @@ describe('seed tenant provisions the admin client', () => {
     const second = await seed(options);
     expect(second.tenantId).toBe(tenantId);
     expect(await countAdminClients(tenantId)).toBe(1);
+  });
+});
+
+describe("seed registers the console's URIs on the admin client", () => {
+  const BASE = 'http://console.test';
+
+  async function adminClientUris(
+    tenantId: string,
+  ): Promise<{ redirectUris: string[]; postLogoutRedirectUris: string[] } | undefined> {
+    const rows = await owner.db
+      .select({
+        redirectUris: clientOidcConfig.redirectUris,
+        postLogoutRedirectUris: clientOidcConfig.postLogoutRedirectUris,
+      })
+      .from(clientOidcConfig)
+      .innerJoin(clients, eq(clients.id, clientOidcConfig.clientId))
+      .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, ADMIN_CLIENT_ID)));
+    return rows[0];
+  }
+
+  async function withBaseUrl<T>(env: Record<string, string>, run: () => Promise<T>): Promise<T> {
+    Object.assign(process.env, env);
+    try {
+      return await run();
+    } finally {
+      for (const key of Object.keys(env)) Reflect.deleteProperty(process.env, key);
+    }
+  }
+
+  const registered = {
+    redirectUris: [ADMIN_CLIENT_REDIRECT_URI, `${BASE}/console/auth/callback`],
+    postLogoutRedirectUris: [`${BASE}/console/`],
+  };
+
+  it('via `seed tenant`', async () => {
+    const result = await withBaseUrl({ ODUDU_PUBLIC_BASE_URL: BASE }, () =>
+      seed(['tenant', '--name', `console-${newId()}`]),
+    );
+    if (result.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await adminClientUris(result.tenantId)).toEqual(registered);
+  });
+
+  it('via `seed --tenant`', async () => {
+    const result = await withBaseUrl({ ODUDU_PUBLIC_BASE_URL: BASE }, () => seed(uniqueOptions()));
+    expect(await adminClientUris(result.tenantId)).toEqual(registered);
+  });
+
+  it('via `seed admin`', async () => {
+    const result = await withBaseUrl({ ODUDU_PUBLIC_BASE_URL: BASE }, () =>
+      seedAdmin({ username: `console-${newId()}` }),
+    );
+    expect(await adminClientUris(result.tenantId)).toEqual(registered);
+  });
+
+  it('registers nothing while the console is off', async () => {
+    const result = await withBaseUrl({ ODUDU_PUBLIC_BASE_URL: BASE, ODUDU_CONSOLE: 'false' }, () =>
+      seed(['tenant', '--name', `console-off-${newId()}`]),
+    );
+    if (result.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await adminClientUris(result.tenantId)).toEqual({
+      redirectUris: [ADMIN_CLIENT_REDIRECT_URI],
+      postLogoutRedirectUris: [],
+    });
   });
 });
 

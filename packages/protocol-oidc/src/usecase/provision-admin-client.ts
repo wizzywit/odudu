@@ -2,7 +2,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import {
   ADMIN_API_AUDIENCE,
   provisionAdminClient as provisionClientAndRoles,
-  type ProvisionAdminClientOptions,
+  type ProvisionAdminClientOptions as ClientAndRolesOptions,
   type ProvisionedAdminClient,
 } from '@odudu/domain-tenant';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
@@ -17,6 +17,18 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
  */
 export const ADMIN_CLIENT_REDIRECT_URI = 'http://127.0.0.1:8080/callback';
 
+export const CONSOLE_CALLBACK_PATH = '/console/auth/callback';
+export const CONSOLE_POST_LOGOUT_PATH = '/console/';
+
+export interface ProvisionAdminClientOptions extends ClientAndRolesOptions {
+  /**
+   * `ODUDU_PUBLIC_BASE_URL` while the console is on. Set, it replaces any
+   * registered console URI with this base's, created row or existing;
+   * unset, the registered URIs are left as they are.
+   */
+  readonly consoleBaseUrl?: string | undefined;
+}
+
 /**
  * The built-in admin client, whole: the client row and its capability
  * roles, which @odudu/domain-tenant owns, plus the OIDC configuration
@@ -30,7 +42,43 @@ export async function provisionAdminClient(
 ): Promise<ProvisionedAdminClient> {
   const provisioned = await provisionClientAndRoles(tx, tenantId, options);
   await provisionOidcConfig(tx, tenantId, provisioned.clientDbId);
+  if (options.consoleBaseUrl !== undefined) {
+    await registerConsoleUris(tx, provisioned.clientDbId, options.consoleBaseUrl);
+  }
   return provisioned;
+}
+
+function hasPath(uri: string, path: string): boolean {
+  return URL.canParse(uri) && new URL(uri).pathname === path;
+}
+
+function withConsoleUri(uris: readonly string[], path: string, baseUrl: string): string[] {
+  return [...uris.filter((uri) => !hasPath(uri, path)), `${baseUrl}${path}`];
+}
+
+async function registerConsoleUris(
+  tx: TenantScopedDatabase,
+  clientDbId: string,
+  baseUrl: string,
+): Promise<void> {
+  const repository = clientOidcConfigRepository(tx);
+  const config = await repository.byClientId(clientDbId);
+  if (config === null) throw new Error('the admin client has no OIDC configuration');
+  const redirectUris = withConsoleUri(config.redirectUris, CONSOLE_CALLBACK_PATH, baseUrl);
+  const postLogoutRedirectUris = withConsoleUri(
+    config.postLogoutRedirectUris,
+    CONSOLE_POST_LOGOUT_PATH,
+    baseUrl,
+  );
+  const same = (a: readonly string[], b: readonly string[]): boolean =>
+    a.length === b.length && a.every((value, index) => value === b[index]);
+  if (
+    same(redirectUris, config.redirectUris) &&
+    same(postLogoutRedirectUris, config.postLogoutRedirectUris)
+  ) {
+    return;
+  }
+  await repository.update(clientDbId, { redirectUris, postLogoutRedirectUris });
 }
 
 async function provisionOidcConfig(

@@ -4,10 +4,15 @@ import { signingKeyRepository } from '@odudu/crypto';
 import { tenants, withTenant, type RequestContext } from '@odudu/db';
 import { clientRepository, TENANT_CAPABILITIES, TENANT_NAME_RULE } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
+import { ADMIN_CLIENT_REDIRECT_URI, clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { eq, sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import {
+  FIXTURE_CONSOLE_BASE_URL,
+  startAdminFixture,
+  type AdminFixture,
+} from '#/testing/admin-fixture';
 import { createTenant } from '#/usecase/tenants';
 
 // Matches the fixture's own KEK (packages/protocol-admin/src/testing/
@@ -42,6 +47,28 @@ describe('POST /admin/tenants', () => {
       expect(await executionRepository(tx).forTenant(id)).not.toHaveLength(0);
       expect(await clientRepository(tx).byClientId('odudu-admin')).not.toBeNull();
     });
+  });
+
+  it("registers the console's redirect and post-logout URIs on the new admin client", async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: `console-${newId()}` },
+    });
+    expect(res.statusCode).toBe(201);
+    const { id } = res.json<{ id: string }>();
+    const config = await withTenant(fixture.app.db, id, async (tx) => {
+      const client = await clientRepository(tx).byClientId('odudu-admin');
+      if (client === null) throw new Error('the admin client was not provisioned');
+      return clientOidcConfigRepository(tx).byClientId(client.id);
+    });
+    expect(config?.redirectUris).toEqual([
+      ADMIN_CLIENT_REDIRECT_URI,
+      `${FIXTURE_CONSOLE_BASE_URL}/console/auth/callback`,
+    ]);
+    expect(config?.postLogoutRedirectUris).toEqual([`${FIXTURE_CONSOLE_BASE_URL}/console/`]);
   });
 
   it('records the caller’s request id and address on its own tenant.create row', async () => {

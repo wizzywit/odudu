@@ -434,21 +434,36 @@ the third authorised header site.
 
 ### 5.5 Configuration
 
-`ODUDU_CONSOLE` (`on` by default; `off` registers no `/console` route).
-With the console on, `ODUDU_PUBLIC_BASE_URL` is required, and boot refuses
-without it, naming both the variable and the switch. The redirect URI
-`${ODUDU_PUBLIC_BASE_URL}/console/auth/callback` is written onto a tenant's
-`odudu-admin` client by `provisionAdminClient`, idempotently, so a re-run
-corrects a changed base URL. It is never derived from a request's `Host`.
+`ODUDU_CONSOLE` (`true` by default; `false` registers no `/console` route).
+It follows the `true`/`false` spelling every other switch in
+`packages/kernel/src/config.ts` uses, rather than an `on`/`off` pair
+nothing else there has. With the console on, `ODUDU_PUBLIC_BASE_URL` is
+required, and boot refuses without it, naming both the variable and the
+switch. Boot also refuses an `https` base while `ODUDU_TRUST_PROXY` is off:
+the issuer is built from a request's scheme and host
+(`packages/protocol-oidc/src/view/issuer.ts`), a request the gateway
+injects in-process never arrives over TLS, and only a trusted
+`x-forwarded-proto` lets it see the `https` issuer the browser sees.
+`ODUDU_CONSOLE_DIR` (default `/app/console`) names the built SPA's
+directory.
 
-`provisionAdminClient` runs today when `POST /admin/tenants` creates a tenant
-(`packages/protocol-admin/src/usecase/tenants.ts:139`) and when
-`odudu seed admin` bootstraps `system` (`apps/server/src/cli/seed.ts:623`),
-but **not** from `odudu seed tenant` — so a tenant seeded from the CLI has no
-admin client, and no tenant-local administrator can ever reach it. This
-phase makes `seed tenant` provision it, and adds `odudu console provision`,
-which re-runs `provisionAdminClient` over every tenant: the command to run
-after setting or changing `ODUDU_PUBLIC_BASE_URL`.
+The redirect URI `${ODUDU_PUBLIC_BASE_URL}/console/auth/callback` and the
+post-logout redirect URI `${ODUDU_PUBLIC_BASE_URL}/console/` are written
+onto a tenant's `odudu-admin` client by `provisionAdminClient`,
+idempotently, so a re-run corrects a changed base URL: an entry with either
+path is replaced by the current base's, and every other entry, the loopback
+URI included, is kept. Neither is ever derived from a request's `Host`.
+
+`provisionAdminClient` runs when `POST /admin/tenants` creates a tenant and
+`POST /admin/tenant-imports` imports one
+(`insertProvisionedTenant`, `packages/protocol-admin/src/usecase/tenants.ts`),
+when `odudu seed admin` bootstraps `system`, and from `odudu seed tenant`
+and `odudu seed --tenant` (`apps/server/src/cli/seed.ts`), each passing the
+base while the console is on. `seed tenant` already provisioned the admin
+client before this phase (43c24a9); what this phase adds is the console's
+URIs on every one of those paths, and `odudu console provision`, which
+re-runs `provisionAdminClient` over every tenant: the command to run after
+setting or changing `ODUDU_PUBLIC_BASE_URL`.
 
 In development, Vite's server proxies `/console/api` and `/console/auth` to
 Fastify, so the browser stays same-origin and the cookie rules hold as they

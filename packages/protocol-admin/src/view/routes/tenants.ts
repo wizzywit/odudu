@@ -25,6 +25,7 @@ export interface TenantsRouteDeps {
   readonly cursorKey: Uint8Array;
   readonly kek: Uint8Array;
   readonly audit: Audit;
+  readonly consoleBaseUrl?: string | undefined;
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -102,7 +103,12 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
     const body = createTenantRequestSchema.parse(request.body);
 
     const outcome = await createTenant(
-      { database: deps.database, kek: deps.kek, audit: deps.audit },
+      {
+        database: deps.database,
+        kek: deps.kek,
+        audit: deps.audit,
+        consoleBaseUrl: deps.consoleBaseUrl,
+      },
       {
         name: body.name,
         displayName: body.display_name,

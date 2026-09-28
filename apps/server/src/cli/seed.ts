@@ -42,7 +42,7 @@ import {
   TENANT_SETTING_COLUMNS,
   tenantSettingProblems,
 } from '@odudu/domain-tenant';
-import { loadConfig, newId, OduduError } from '@odudu/kernel';
+import { consoleBaseUrl, loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
   GRANT_TYPES_PERMITTED,
@@ -368,6 +368,7 @@ async function performSeed(
   runtimeDb: Database,
   kek: Uint8Array,
   opts: SeedOptions,
+  consoleBase: string | undefined,
 ): Promise<SeedResult> {
   const {
     tenantId,
@@ -382,7 +383,7 @@ async function performSeed(
     // Idempotent, so a tenant seeded before this client existed gains one
     // here rather than being left without — only the flow and signing key
     // above are creation-only.
-    await provisionAdminClient(tx, tenantId);
+    await provisionAdminClient(tx, tenantId, { consoleBaseUrl: consoleBase });
 
     const existingClient = await clientRepository(tx).byClientId(opts.clientId);
     if (existingClient !== null) {
@@ -518,7 +519,13 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
     : owner;
 
   try {
-    const result = await performSeed(owner.db, runtime.db, config.ODUDU_KEK, opts);
+    const result = await performSeed(
+      owner.db,
+      runtime.db,
+      config.ODUDU_KEK,
+      opts,
+      consoleBaseUrl(config),
+    );
 
     // Sent only after performSeed's transaction commits (withTenant cannot
     // nest), and the userSubjectId check below only satisfies the compiler:
@@ -645,7 +652,10 @@ export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin>
         // client_scopes_name_unique.
         await provisionTenant(tx, tenantId);
       }
-      const { clientDbId } = await provisionAdminClient(tx, tenantId, { crossTenant: true });
+      const { clientDbId } = await provisionAdminClient(tx, tenantId, {
+        crossTenant: true,
+        consoleBaseUrl: consoleBaseUrl(config),
+      });
       await ensureSigningKey(tx, tenantId, config.ODUDU_KEK);
 
       if ((await userRepository(tx).byUsername(options.username)) !== null) {
@@ -936,6 +946,7 @@ async function runTenantCommand(
   runtimeDb: Database,
   kek: Uint8Array,
   argv: readonly string[],
+  consoleBase: string | undefined,
 ): Promise<TenantCommandResult> {
   const { values } = parseArgs({
     args: [...argv],
@@ -977,7 +988,9 @@ async function runTenantCommand(
   }
   // Idempotent, so a tenant this command finds rather than creates still
   // gets one if an earlier run predates the admin client's existence.
-  await withTenant(runtimeDb, tenantId, (tx) => provisionAdminClient(tx, tenantId));
+  await withTenant(runtimeDb, tenantId, (tx) =>
+    provisionAdminClient(tx, tenantId, { consoleBaseUrl: consoleBase }),
+  );
 
   if (settings.length > 0) {
     // The CHECK constraints (migrations 0028, 0035, 0041) remain the
@@ -1824,7 +1837,13 @@ async function runSeedCommand(argv: readonly string[]): Promise<SeedCommandResul
   try {
     switch (command) {
       case 'tenant':
-        return await runTenantCommand(owner.db, runtime.db, config.ODUDU_KEK, rest);
+        return await runTenantCommand(
+          owner.db,
+          runtime.db,
+          config.ODUDU_KEK,
+          rest,
+          consoleBaseUrl(config),
+        );
       case 'client':
         return await runClientCommand(owner.db, runtime.db, rest);
       case 'user':

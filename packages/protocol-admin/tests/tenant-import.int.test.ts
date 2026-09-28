@@ -24,11 +24,19 @@ import {
   tenantSettingsRepository,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { tenantLookupRepository } from '@odudu/protocol-oidc';
+import {
+  ADMIN_CLIENT_REDIRECT_URI,
+  clientOidcConfigRepository,
+  tenantLookupRepository,
+} from '@odudu/protocol-oidc';
 import { eq } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import {
+  FIXTURE_CONSOLE_BASE_URL,
+  startAdminFixture,
+  type AdminFixture,
+} from '#/testing/admin-fixture';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -300,6 +308,28 @@ describe('POST /admin/tenant-imports', () => {
     const imported = await kids(answer.tenant.id);
     expect(imported).toHaveLength(1);
     expect(await kids(source.id)).not.toContain(imported[0]);
+  });
+
+  it("registers the console's URIs on the imported tenant's admin client", async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const answer = (
+      await postImport(token, {
+        name: `import-${newId()}`,
+        document: await exportOf(token, source.name),
+      })
+    ).json<ImportAnswer>();
+
+    const config = await withTenant(fixture.app.db, answer.tenant.id, async (tx) => {
+      const client = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      if (client === null) throw new Error('the admin client was not provisioned');
+      return clientOidcConfigRepository(tx).byClientId(client.id);
+    });
+    expect(config?.redirectUris).toEqual([
+      ADMIN_CLIENT_REDIRECT_URI,
+      `${FIXTURE_CONSOLE_BASE_URL}/console/auth/callback`,
+    ]);
+    expect(config?.postLogoutRedirectUris).toEqual([`${FIXTURE_CONSOLE_BASE_URL}/console/`]);
   });
 
   it('gives imported subjects no credential and an update-password action', async () => {

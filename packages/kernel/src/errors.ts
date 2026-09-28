@@ -36,6 +36,7 @@ export type ErrorCode =
   | 'tenant_not_found'
   | 'reap_cannot_enumerate_tenants'
   | 'reap_requires_app_database_url'
+  | 'console_unknown_command'
   | 'reap_serving_role_bypasses_rls'
   | 'smtp_destination_refused'
   | 'outbox_cannot_enumerate_tenants'

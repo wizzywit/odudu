@@ -52,8 +52,10 @@ used, and each carries its command.
   spike (`docs/phases/p4d.md` "React Aria under a strict CSP"). The test
   that recomputes it from the pinned package lands in Part 3, with the
   dependency.
-- **`ODUDU_CONSOLE`** is `on` or `off`, defaulting to `on`. With it on, boot
-  refuses to start without `ODUDU_PUBLIC_BASE_URL`, naming both variables.
+- **`ODUDU_CONSOLE`** is `true` or `false`, defaulting to `true` — the
+  spelling every other switch in `config.ts` uses. With it on, boot
+  refuses to start without `ODUDU_PUBLIC_BASE_URL`, naming both variables,
+  and refuses an `https` base while `ODUDU_TRUST_PROXY` is off.
 - **The redirect URI** is `${ODUDU_PUBLIC_BASE_URL}/console/auth/callback`
   and the post-logout URI is `${ODUDU_PUBLIC_BASE_URL}/console/`. Both are
   written by `provisionAdminClient` and never derived from `Host`.
@@ -283,7 +285,7 @@ SECURITY` and the `app.tenant_id` policy, as in `0066_tenant_smtp.sql`.
   the browser sees (Part 2 spike S3).
 - `assertConsoleConfigured(config)` throws
   `OduduError('config_invalid', …)`, naming `ODUDU_PUBLIC_BASE_URL` and
-  `ODUDU_CONSOLE=off`, when the console is on and the base URL is unset.
+  `ODUDU_CONSOLE=false`, when the console is on and the base URL is unset.
 - Spec §5.5's "`seed tenant` does not provision it" is stale: 43c24a9
   already made it provision (`sed -n '960,980p' apps/server/src/cli/seed.ts`).
   Amend the sentence in the spec in this task.
@@ -291,7 +293,7 @@ SECURITY` and the `app.tenant_id` policy, as in `0066_tenant_smtp.sql`.
 - [ ] **Step 1: Failing tests.**
   - The config guard refuses to start without the base URL and names both
     variables.
-  - It passes with `ODUDU_CONSOLE=off`.
+  - It passes with `ODUDU_CONSOLE=false`.
   - Provisioning a new tenant writes both URIs.
   - Re-running with a changed base URL replaces them and keeps the
     loopback.

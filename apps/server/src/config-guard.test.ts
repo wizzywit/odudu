@@ -1,6 +1,7 @@
-import { loadConfig } from '@odudu/kernel';
+import { loadConfig, OduduError } from '@odudu/kernel';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  assertConsoleConfigured,
   assertProductionAppDatabaseUrl,
   assertProductionNoPrivateClientUrls,
   assertProductionPasskeyRelyingParty,
@@ -146,6 +147,72 @@ describe('assertProductionPasskeyRelyingParty', () => {
     const config = loadConfig({ ...base, NODE_ENV: 'development' });
     expect(() => {
       assertProductionPasskeyRelyingParty(config);
+    }).not.toThrow();
+  });
+});
+
+describe('assertConsoleConfigured', () => {
+  it('refuses to start the console without a base URL, naming the base and the switch', () => {
+    const config = loadConfig(base);
+    expect(() => {
+      assertConsoleConfigured(config);
+    }).toThrow(/ODUDU_PUBLIC_BASE_URL.*ODUDU_CONSOLE=false/su);
+  });
+
+  it('refuses in development as well as production', () => {
+    expect(() => {
+      assertConsoleConfigured(loadConfig({ ...base, NODE_ENV: 'production' }));
+    }).toThrow(OduduError);
+    expect(() => {
+      assertConsoleConfigured(loadConfig({ ...base, NODE_ENV: 'development' }));
+    }).toThrow(OduduError);
+  });
+
+  it('passes with the console off and no base URL', () => {
+    const config = loadConfig({ ...base, ODUDU_CONSOLE: 'false' });
+    expect(() => {
+      assertConsoleConfigured(config);
+    }).not.toThrow();
+  });
+
+  it('passes with an http base URL', () => {
+    const config = loadConfig({ ...base, ODUDU_PUBLIC_BASE_URL: 'http://localhost:3000' });
+    expect(() => {
+      assertConsoleConfigured(config);
+    }).not.toThrow();
+  });
+
+  // The issuer is built from the request's scheme, and a request the
+  // gateway injects in-process never arrives over TLS: only a trusted
+  // x-forwarded-proto lets it see the https issuer the browser sees.
+  it('refuses an https base URL while ODUDU_TRUST_PROXY is off, naming both', () => {
+    const config = loadConfig({ ...base, ODUDU_PUBLIC_BASE_URL: 'https://idp.example.test' });
+    expect(() => {
+      assertConsoleConfigured(config);
+    }).toThrow(
+      /ODUDU_TRUST_PROXY.*ODUDU_PUBLIC_BASE_URL|ODUDU_PUBLIC_BASE_URL.*ODUDU_TRUST_PROXY/su,
+    );
+  });
+
+  it('passes with an https base URL behind a trusted proxy', () => {
+    const config = loadConfig({
+      ...base,
+      ODUDU_PUBLIC_BASE_URL: 'https://idp.example.test',
+      ODUDU_TRUST_PROXY: 'true',
+    });
+    expect(() => {
+      assertConsoleConfigured(config);
+    }).not.toThrow();
+  });
+
+  it('ignores an https base without a trusted proxy when the console is off', () => {
+    const config = loadConfig({
+      ...base,
+      ODUDU_PUBLIC_BASE_URL: 'https://idp.example.test',
+      ODUDU_CONSOLE: 'false',
+    });
+    expect(() => {
+      assertConsoleConfigured(config);
     }).not.toThrow();
   });
 });

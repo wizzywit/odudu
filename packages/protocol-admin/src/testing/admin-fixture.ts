@@ -195,6 +195,9 @@ function basicAuth(clientId: string, secret: string): string {
   return `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}`;
 }
 
+/** The console base every tenant created through `POST /admin/tenants` here is registered under. */
+export const FIXTURE_CONSOLE_BASE_URL = 'http://console.test';
+
 export async function startAdminFixture(): Promise<AdminFixture> {
   const container: TestDatabase = await startTestDatabase();
   const owner = createDatabase(container.adminUrl);
@@ -235,6 +238,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
         clock,
         cursorKey: KEK,
         kek: KEK,
+        consoleBaseUrl: FIXTURE_CONSOLE_BASE_URL,
         claimMappers,
         retireResetLinks: (tx, subjectId) =>
           actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),

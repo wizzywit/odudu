@@ -91,6 +91,37 @@ export function assertProductionPasskeyRelyingParty(config: Config): void {
 }
 
 /**
+ * The console's redirect URI is `ODUDU_PUBLIC_BASE_URL` plus a path, never
+ * a request's `Host`, so a console with no base has nowhere to send a
+ * login back to. And the gateway reaches the OIDC endpoints by injecting
+ * requests in-process: the issuer is built from a request's scheme and
+ * host (packages/protocol-oidc/src/view/issuer.ts), an injected socket is
+ * never encrypted, so only a trusted `x-forwarded-proto` can make those
+ * calls see the `https` issuer the browser sees.
+ */
+export function assertConsoleConfigured(config: Config): void {
+  if (!config.ODUDU_CONSOLE) return;
+  const baseUrl = config.ODUDU_PUBLIC_BASE_URL;
+  if (baseUrl === undefined) {
+    throw new OduduError(
+      'config_invalid',
+      'ODUDU_PUBLIC_BASE_URL is required while the administration console is on: its ' +
+        'redirect URI is built from that base and never from a request header. Set it, or set ' +
+        'ODUDU_CONSOLE=false to serve no console.',
+    );
+  }
+  if (new URL(baseUrl).protocol === 'https:' && !config.ODUDU_TRUST_PROXY) {
+    throw new OduduError(
+      'config_invalid',
+      `ODUDU_PUBLIC_BASE_URL is ${baseUrl}, but ODUDU_TRUST_PROXY is off. The console reaches ` +
+        'this server in-process, where only a trusted x-forwarded-proto can present the https ' +
+        'issuer the browser sees. Set ODUDU_TRUST_PROXY=true behind the TLS-terminating proxy, ' +
+        'or set ODUDU_CONSOLE=false.',
+    );
+  }
+}
+
+/**
  * `ODUDU_TLS=false` makes @odudu/authn-flows drop the `__Host-` cookie
  * prefix — a weaker mode meant for local development only. Wiring the
  * warning here, at boot, is what makes it noisy instead of silent.

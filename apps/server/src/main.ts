@@ -1,13 +1,15 @@
 import { createDatabase } from '@odudu/db';
-import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
+import { consoleBaseUrl, loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
+import { consoleCommand } from '#/cli/console';
 import { reapCommand } from '#/cli/reap';
 import { sendLogoutsCommand } from '#/cli/send-logouts';
 import { sendMailCommand } from '#/cli/send-mail';
 import { seed } from '#/cli/seed';
 import { resolveSeedInvocation } from '#/cli/seed-invocation';
 import {
+  assertConsoleConfigured,
   assertProductionAppDatabaseUrl,
   assertProductionNoPrivateClientUrls,
   assertProductionPasskeyRelyingParty,
@@ -53,6 +55,16 @@ if (process.argv[2] === 'send-logouts') {
   }
 }
 
+if (process.argv[2] === 'console') {
+  try {
+    console.log(await consoleCommand(process.argv.slice(3)));
+    process.exit(0);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
 if (process.argv[2] === 'seed') {
   const invocation = resolveSeedInvocation(process.argv.slice(3));
   const result =
@@ -76,6 +88,7 @@ assertProductionAppDatabaseUrl(config);
 assertProductionTls(config);
 assertProductionPasskeyRelyingParty(config);
 assertProductionNoPrivateClientUrls(config);
+assertConsoleConfigured(config);
 warnIfTlsDisabled(config, (message) => {
   logger.warn({}, message);
 });
@@ -101,6 +114,7 @@ const app = buildApp({
   ...(config.ODUDU_PUBLIC_BASE_URL !== undefined
     ? { publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL }
     : {}),
+  consoleBaseUrl: consoleBaseUrl(config),
   trustProxy: config.ODUDU_TRUST_PROXY,
   tlsClientCertHeader: config.ODUDU_TLS_CLIENT_CERT_HEADER,
   throttle: {

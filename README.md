@@ -1000,12 +1000,26 @@ created.
 The `odudu-admin` client is provisioned as a public client authorised with
 `authorization_code` and `refresh_token`, carrying the tenant's default
 scopes, the admin API's resource identifier `urn:odudu:params:admin-api` as
-its registered audience, and one redirect URI, `http://127.0.0.1:8080/callback`. There is no
-administration console yet, so that loopback address (RFC 8252 §7.3) is
-the only place a code can be delivered: an administrator obtains a token by
-running a listener on that exact port and completing the flow with PKCE.
-Redirect matching is exact, and no command or endpoint can add a second
-URI to this client yet, so a console will need one before it can log in.
+its registered audience, and the loopback redirect URI
+`http://127.0.0.1:8080/callback` (RFC 8252 §7.3): an administrator with no
+console obtains a token by running a listener on that exact port and
+completing the flow with PKCE. While the console is on (`ODUDU_CONSOLE`,
+default `true`), the same client is also registered
+`${ODUDU_PUBLIC_BASE_URL}/console/auth/callback` as a redirect URI and
+`${ODUDU_PUBLIC_BASE_URL}/console/` as a post-logout redirect URI — by
+`seed admin`, `seed tenant`, `seed --tenant`, `POST /admin/tenants` and
+`POST /admin/tenant-imports` alike, and never from a request's `Host`.
+Redirect matching is exact, so after setting or changing
+`ODUDU_PUBLIC_BASE_URL`, re-register every tenant's admin client:
+
+```bash
+node --env-file=.env apps/server/src/main.ts console provision
+```
+
+It prints `provisioned <n> tenants`. Each tenant's console URIs are replaced
+by the current base's, and every other URI on the client, the loopback
+included, is kept. With `ODUDU_CONSOLE=false` it refuses, having nothing to
+register, and nothing else touches a registered console URI either.
 
 **One pass deletes everything that expires.** Every login writes an
 `authentication_sessions` row, every redemption an `authorization_codes`
@@ -1247,6 +1261,17 @@ A real deployment today looks like:
    sits in `email_outbox` unsent, and the flows that queued them still
    answer exactly as they do when mail is going out — by design, since the
    reset endpoint must not answer differently for an address that exists.
+9. **The administration console is on by default** (`ODUDU_CONSOLE=true`),
+   and while it is on the server refuses to boot in any environment
+   without `ODUDU_PUBLIC_BASE_URL`, naming both variables — its redirect
+   URI is built from that base alone. It also refuses an `https` base
+   while `ODUDU_TRUST_PROXY` is off: the console reaches this server's
+   OIDC endpoints in-process, the issuer is built from a request's scheme,
+   and only a trusted `x-forwarded-proto` lets such a request see the
+   `https` issuer the browser sees. Set `ODUDU_CONSOLE=false` to serve no
+   console at all. `ODUDU_CONSOLE_DIR` names the built console's
+   directory, `/app/console` by default. Run
+   `node dist/main.js console provision` once after changing the base.
 
 ### What is not built yet
 

@@ -188,6 +188,10 @@ export interface AdminRoutesDeps {
   // (createTenant, #/usecase/tenants.ts) — the same KEK `seedAdmin` and
   // `seed tenant` use.
   kek: Uint8Array;
+  // `ODUDU_PUBLIC_BASE_URL` while the console is on: a tenant created or
+  // imported here has the console's redirect and post-logout URIs
+  // registered on its admin client under this base. Unset, it has neither.
+  consoleBaseUrl?: string | undefined;
   // Gates `tls_client_auth` client creation the same way `/token` and
   // dynamic registration gate it (`OidcRoutesDeps.trustProxy`,
   // @odudu/protocol-oidc) — off by default, since a `tls_client_auth`
@@ -359,6 +363,7 @@ function buildAdminRoutes(
       cursorKey: deps.cursorKey,
       kek: deps.kek,
       audit: tenantAudit,
+      consoleBaseUrl: deps.consoleBaseUrl,
     };
     const tenantExportDeps: TenantExportRouteDeps = {
       database: deps.database.db,
@@ -369,6 +374,7 @@ function buildAdminRoutes(
       database: deps.database.db,
       kek: deps.kek,
       audit: tenantImportAudit,
+      consoleBaseUrl: deps.consoleBaseUrl,
       hashClientSecret: hashPassword,
       tlsClientAuthEnabled: deps.trustProxy ?? false,
       claimMappers: deps.claimMappers,

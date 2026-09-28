@@ -383,6 +383,104 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"subjectId":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-users"],"crossTenant":false}
 ```
 
+### The admin client's registered URIs
+
+`odudu-admin` is registered the loopback redirect URI
+`http://127.0.0.1:8080/callback` that the flow above ends on, and — while
+the console is on (`ODUDU_CONSOLE`, `true` by default) — two more built
+from `ODUDU_PUBLIC_BASE_URL`: the redirect URI
+`${ODUDU_PUBLIC_BASE_URL}/console/auth/callback` and the post-logout
+redirect URI `${ODUDU_PUBLIC_BASE_URL}/console/`. `seed admin`,
+`seed tenant`, `seed --tenant`, `POST /admin/tenants` and
+`POST /admin/tenant-imports` write them; none is ever taken from a
+request's `Host`. The query is scoped to the `system` tenant's own admin
+client, captured on the compose stack with this branch's image, whose
+database held 31 tenants. psql ends each header line with a space, trimmed
+in every block below:
+
+```bash
+docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+  "select c.redirect_uris, c.post_logout_redirect_uris from client_oidc_config c join clients k on k.id = c.client_id join tenants t on t.id = k.tenant_id where t.name = 'system' and k.client_id = 'odudu-admin';"
+```
+
+A `system` tenant seeded before the console existed carries the loopback
+alone:
+
+```
+          redirect_uris           | post_logout_redirect_uris
+----------------------------------+---------------------------
+ {http://127.0.0.1:8080/callback} | {}
+(1 row)
+```
+
+`odudu console provision` re-runs `provisionAdminClient` over every
+tenant — the command to run after setting or changing the base, since
+redirect matching is exact. Its stderr carries only Node's experimental
+Web Crypto warnings, discarded here:
+
+```bash
+docker compose exec -T odudu node dist/main.js console provision 2>/dev/null
+```
+
+```
+provisioned 31 tenants
+```
+
+and the same query then reads:
+
+```
+                                redirect_uris                                 |    post_logout_redirect_uris
+------------------------------------------------------------------------------+----------------------------------
+ {http://127.0.0.1:8080/callback,http://localhost:3000/console/auth/callback} | {http://localhost:3000/console/}
+(1 row)
+```
+
+A run under another base replaces both console URIs rather than adding a
+second pair, and keeps the loopback:
+
+```bash
+docker compose exec -T -e ODUDU_PUBLIC_BASE_URL=http://127.0.0.1:3000 odudu \
+  node dist/main.js console provision 2>/dev/null
+```
+
+```
+provisioned 31 tenants
+                                redirect_uris                                 |    post_logout_redirect_uris
+------------------------------------------------------------------------------+----------------------------------
+ {http://127.0.0.1:8080/callback,http://127.0.0.1:3000/console/auth/callback} | {http://127.0.0.1:3000/console/}
+(1 row)
+```
+
+A second run under the stack's own base put back the
+`http://localhost:3000` pair shown above. With the console off the command
+refuses, since it has nothing to register, and exits `1`:
+
+```bash
+docker compose exec -T -e ODUDU_CONSOLE=false odudu node dist/main.js console provision
+```
+
+```
+console provision has nothing to register while ODUDU_CONSOLE=false
+```
+
+The server itself refuses to boot with the console on and no base, and
+with an `https` base while `ODUDU_TRUST_PROXY` is off — the console
+reaches the OIDC endpoints in-process, and only a trusted
+`x-forwarded-proto` lets such a request see the `https` issuer the browser
+sees. Each was run as a second process inside the running container, so
+the guard fires before anything binds a port:
+
+```bash
+docker compose exec -T odudu env -u ODUDU_PUBLIC_BASE_URL node dist/main.js 2>&1 | grep '^OduduError'
+docker compose exec -T -e ODUDU_PUBLIC_BASE_URL=https://idp.example.test odudu \
+  node dist/main.js 2>&1 | grep '^OduduError'
+```
+
+```
+OduduError: ODUDU_PUBLIC_BASE_URL is required while the administration console is on: its redirect URI is built from that base and never from a request header. Set it, or set ODUDU_CONSOLE=false to serve no console.
+OduduError: ODUDU_PUBLIC_BASE_URL is https://idp.example.test, but ODUDU_TRUST_PROXY is off. The console reaches this server in-process, where only a trusted x-forwarded-proto can present the https issuer the browser sees. Set ODUDU_TRUST_PROXY=true behind the TLS-terminating proxy, or set ODUDU_CONSOLE=false.
+```
+
 ## `GET /admin/tenants`
 
 Lists tenants — every one, the `system` tenant included: hiding it would

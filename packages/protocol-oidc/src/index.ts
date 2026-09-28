@@ -872,7 +872,13 @@ export {
   type ClientTokenTtlRange,
 } from '#/service/client-token-ttl';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
-export { provisionAdminClient, ADMIN_CLIENT_REDIRECT_URI } from '#/usecase/provision-admin-client';
+export {
+  provisionAdminClient,
+  ADMIN_CLIENT_REDIRECT_URI,
+  CONSOLE_CALLBACK_PATH,
+  CONSOLE_POST_LOGOUT_PATH,
+  type ProvisionAdminClientOptions,
+} from '#/usecase/provision-admin-client';
 export { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
 export {
   parseClientMetadata,

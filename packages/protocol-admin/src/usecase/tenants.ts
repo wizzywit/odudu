@@ -80,6 +80,8 @@ export interface CreateTenantDeps {
   // `generateSigningKey`.
   readonly kek: Uint8Array;
   readonly audit: Audit;
+  /** Registers the console's URIs on the new admin client; unset while the console is off. */
+  readonly consoleBaseUrl?: string | undefined;
 }
 
 export type CreateTenantOutcome =
@@ -130,6 +132,7 @@ export async function insertProvisionedTenant(
   tx: TenantScopedDatabase,
   kek: Uint8Array,
   row: { readonly id: string; readonly name: string; readonly displayName: string | null },
+  consoleBaseUrl: string | undefined,
 ): Promise<TenantRecord> {
   let rows: TenantRecord[];
   try {
@@ -141,7 +144,7 @@ export async function insertProvisionedTenant(
   const created = rows[0];
   if (created === undefined) throw new Error('insert into tenants returned no row');
   await provisionTenant(tx, row.id);
-  await provisionAdminClient(tx, row.id);
+  await provisionAdminClient(tx, row.id, { consoleBaseUrl });
   await mintSigningKey(tx, row.id, kek);
   return created;
 }
@@ -178,11 +181,12 @@ export async function createTenant(
       deps.database,
       id,
       async (tx) => {
-        const created = await insertProvisionedTenant(tx, deps.kek, {
-          id,
-          name: input.name,
-          displayName: input.displayName ?? null,
-        });
+        const created = await insertProvisionedTenant(
+          tx,
+          deps.kek,
+          { id, name: input.name, displayName: input.displayName ?? null },
+          deps.consoleBaseUrl,
+        );
 
         // Written inside the same transaction as the row it describes: a
         // rollback below leaves no audit row for a tenant that never existed.

@@ -64,6 +64,12 @@ export interface AppDeps {
    */
   readonly publicBaseUrl?: string;
   /**
+   * `publicBaseUrl` while the console is on, and unset while it is off: a
+   * tenant created through the admin API is registered the console's
+   * redirect and post-logout URIs under it.
+   */
+  readonly consoleBaseUrl?: string | undefined;
+  /**
    * Whether to trust `X-Forwarded-*` headers when deriving `request.ip`.
    * Defaults to `false`: with no reverse proxy in front of the server,
    * those headers are client-controlled, and `request.ip` will later feed
@@ -258,6 +264,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       logger: deps.logger,
       cursorKey: deps.kek,
       kek: deps.kek,
+      consoleBaseUrl: deps.consoleBaseUrl,
       trustProxy: deps.trustProxy ?? false,
       claimMappers,
       allowPrivateSmtpHosts: deps.allowPrivateSmtpHosts ?? false,
