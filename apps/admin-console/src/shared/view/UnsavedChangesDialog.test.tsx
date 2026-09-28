@@ -1,4 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
+import { Button } from '#/shared/view/Button.tsx';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { UnsavedChangesDialog } from '#/shared/view/UnsavedChangesDialog.tsx';
@@ -35,6 +37,35 @@ it('stays on Escape', async () => {
   );
   await user.keyboard('{Escape}');
   expect(onStay).toHaveBeenCalledOnce();
+});
+
+it('returns focus to what asked to leave', async () => {
+  const user = userEvent.setup();
+  function Harness() {
+    const [open, setOpen] = useState(false);
+    const close = () => {
+      setOpen(false);
+    };
+    return (
+      <>
+        <Button
+          onPress={() => {
+            setOpen(true);
+          }}
+        >
+          Sign out
+        </Button>
+        <UnsavedChangesDialog isOpen={open} sections={['General']} onStay={close} onLeave={close} />
+      </>
+    );
+  }
+  render(<Harness />);
+  const trigger = screen.getByRole('button', { name: 'Sign out' });
+  await user.click(trigger);
+  await user.click(screen.getByRole('button', { name: 'Stay' }));
+  await waitFor(() => {
+    expect(trigger).toHaveFocus();
+  });
 });
 
 it('renders nothing while closed', () => {

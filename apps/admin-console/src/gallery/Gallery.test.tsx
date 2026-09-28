@@ -21,11 +21,17 @@ it('shows every component of the design system', () => {
   expect(missing).toEqual([]);
 });
 
-it('renders as one page that passes axe', async () => {
-  render(<Gallery />);
-  expect(screen.getByRole('heading', { level: 1, name: 'Instrument' })).toBeVisible();
-  const result = await axe.run(document.body);
-  expect(result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join('\n')}`)).toEqual(
-    [],
-  );
+it('renders as one page that passes axe in both themes', async () => {
+  for (const theme of ['light', 'dark'] as const) {
+    document.documentElement.dataset.theme = theme;
+    const { unmount } = render(<Gallery theme={theme} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Instrument' })).toBeVisible();
+    const result = await axe.run(document.body);
+    expect(
+      result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join('\n')}`),
+      theme,
+    ).toEqual([]);
+    unmount();
+  }
+  delete document.documentElement.dataset.theme;
 });
