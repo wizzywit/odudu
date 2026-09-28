@@ -42,10 +42,19 @@ export function consoleGateway(deps: ConsoleGatewayDeps): FastifyPluginAsync {
   const now = deps.now ?? (() => new Date());
   return (fastify) => {
     const odudu = oduduClient(fastify, base);
-    fastify.register((auth) => {
-      registerAuthRoutes(auth, { login, callback: { ...login, odudu }, tls, now });
-      return Promise.resolve();
-    });
+    fastify.register(
+      (auth) => {
+        registerAuthRoutes(auth, {
+          login,
+          callback: { ...login, odudu },
+          tls,
+          now,
+          origin: base.origin,
+        });
+        return Promise.resolve();
+      },
+      { prefix: '/console/auth' },
+    );
     fastify.register(
       (api) => {
         registerConsoleApi(api, { database: deps.database, tls, now, origin: base.origin });

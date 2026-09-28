@@ -258,3 +258,27 @@ describe('a state-changing request to /console/api/', () => {
     });
   });
 });
+
+describe('a state-changing request to /console/auth/', () => {
+  it.each(['/console/auth/login', '/console/auth/callback', '/console/auth/no-such-step'])(
+    'is refused 403 at %s without the headers, and not with them',
+    async (url) => {
+      await withStack(BASE, async (stack) => {
+        const refused = await stack.app.inject({
+          method: 'POST',
+          url,
+          headers: { host: stack.base.host },
+        });
+        expect(refused.statusCode).toBe(403);
+        expect(refused.json()).toMatchObject({ type: 'about:blank#forbidden', status: 403 });
+
+        const passed = await stack.app.inject({
+          method: 'POST',
+          url,
+          headers: { host: stack.base.host, origin: BASE, 'x-odudu-console': '1' },
+        });
+        expect(passed.statusCode).toBe(404);
+      });
+    },
+  );
+});

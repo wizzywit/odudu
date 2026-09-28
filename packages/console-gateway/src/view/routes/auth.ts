@@ -8,6 +8,7 @@ import {
 } from '#/service/cookies';
 import { beginLogin, type LoginDeps } from '#/usecase/begin-login';
 import { completeLogin, type CompleteLoginDeps } from '#/usecase/complete-login';
+import { registerCsrfGuard } from '#/view/csrf-guard';
 import { renderSignInRefused } from '#/view/refusal-html';
 import { sendPage } from '#/view/send-page';
 
@@ -16,6 +17,8 @@ export interface AuthRouteDeps {
   readonly callback: CompleteLoginDeps;
   readonly tls: boolean;
   readonly now: () => Date;
+  /** The origin of `ODUDU_PUBLIC_BASE_URL`, the only one a write may come from. */
+  readonly origin: string;
 }
 
 // A parameter given twice is as unusable as one never given.
@@ -37,7 +40,11 @@ function redirect(reply: FastifyReply, location: string, cookies: readonly strin
     .redirect(location, 302);
 }
 
+// Registered under the /console/auth prefix. Both steps are GETs, so the
+// guard refuses only a write, which no route here accepts.
 export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps): void {
+  registerCsrfGuard(fastify, deps.origin);
+
   // A failed query's message carries its parameters, which here are a
   // login's hashes and wrapped secrets, so only the error's kind is logged
   // and the browser sees the same page every refusal gets.
@@ -46,7 +53,9 @@ export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps
     return refuse(reply, 500, [clearedLoginCookie(deps.tls)]);
   });
 
-  fastify.get('/console/auth/login', async (request, reply) => {
+  fastify.setNotFoundHandler(async (_request, reply) => refuse(reply, 404, []));
+
+  fastify.get('/login', async (request, reply) => {
     const result = await beginLogin(deps.login, {
       tenant: single(request.query, 'tenant'),
       returnTo: single(request.query, 'return_to'),
@@ -56,7 +65,7 @@ export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps
     return redirect(reply, result.location, [loginCookie(result.state, deps.tls)]);
   });
 
-  fastify.get('/console/auth/callback', async (request, reply) => {
+  fastify.get('/callback', async (request, reply) => {
     const result = await completeLogin(deps.callback, {
       code: single(request.query, 'code'),
       state: single(request.query, 'state'),

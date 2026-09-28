@@ -83,12 +83,19 @@ async function callback(
   const server = Fastify({ logger: { level: 'trace', stream: destination } });
   const base = new URL('http://console.example.test');
   const login = { database: app, ownerDatabase: owner, kek: KEK, base };
-  registerAuthRoutes(server, {
-    login,
-    callback: { ...login, odudu },
-    tls: false,
-    now: () => new Date(),
-  });
+  server.register(
+    (auth) => {
+      registerAuthRoutes(auth, {
+        login,
+        callback: { ...login, odudu },
+        tls: false,
+        now: () => new Date(),
+        origin: base.origin,
+      });
+      return Promise.resolve();
+    },
+    { prefix: '/console/auth' },
+  );
   await server.ready();
   try {
     const query = new URLSearchParams({ code: 'c', state, iss: ISSUER });
