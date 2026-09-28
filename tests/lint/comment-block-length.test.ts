@@ -77,7 +77,7 @@ export function commentBlocks(source: string): CommentBlock[] {
 
     if (insideBlockComment) {
       if (line.includes('*/')) insideBlockComment = false;
-    } else if (line.startsWith('/*')) {
+    } else if (line.startsWith('/*') || line.startsWith('{/*')) {
       isComment = true;
       insideBlockComment = !line.includes('*/');
     } else if (line.startsWith('//')) {
@@ -86,7 +86,7 @@ export function commentBlocks(source: string): CommentBlock[] {
 
     if (isComment) {
       start ??= index + 1;
-      const delimiterOnly = line === '/**' || line === '/*' || line === '*/';
+      const delimiterOnly = ['/**', '/*', '*/', '{/*', '*/}'].includes(line);
       if (!delimiterOnly) weight += Math.max(1, Math.ceil(line.length / PRINT_WIDTH));
     } else if (line !== '') {
       flush();
@@ -148,6 +148,13 @@ describe('the ceiling cannot be met by reformatting', () => {
   it('leaves a comment trailing a line of code alone', () => {
     const blocks = commentBlocks('export const x = 1; // why\n');
     expect(blocks).toEqual([]);
+  });
+
+  it('counts a JSX comment as a block', () => {
+    const prose = essay.slice(0, 9).map((line) => line.replace('//', ' '));
+    const jsx = ['  {/*', ...prose, '  */}'].join('\n');
+    const blocks = commentBlocks(`const A = () => (\n  <p>\n${jsx}\n  </p>\n);\n`);
+    expect(blocks).toEqual([{ line: 3, weight: 9 }]);
   });
 
   it('gives a JSDoc block the same budget, not two lines less', () => {
