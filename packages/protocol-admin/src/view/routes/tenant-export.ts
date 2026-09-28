@@ -1,7 +1,7 @@
 import { exportTenantQuerySchema, TENANT_DOCUMENT_MEDIA_TYPE } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import { recordCapabilityRefused } from '#/usecase/access-audit';
-import { exportTenant, type Audit } from '#/usecase/tenant-export';
+import { exportTenant, tooManySubjectsDetail, type Audit } from '#/usecase/tenant-export';
 import { problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { recordRefusal, type AdminRouteHandler } from '#/view/routes/router';
@@ -56,9 +56,7 @@ export function exportTenantHandler(deps: TenantExportRouteDeps): AdminRouteHand
           413,
           'about:blank#export-too-large',
           'Content Too Large',
-          `the tenant holds more than ${String(outcome.cap)} subjects, too many to export ` +
-            'with ?include=subjects; export without it, and move users in bulk through ' +
-            'inbound provisioning (P7)',
+          tooManySubjectsDetail(outcome.cap),
         ),
       );
     }

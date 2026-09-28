@@ -1,5 +1,6 @@
 import { startsALogin } from '@odudu/authn-flows';
 import {
+  EXPORT_SUBJECT_CAP,
   smtpPortSchema,
   tenantDocumentSchema,
   type ExportedClient,
@@ -25,6 +26,7 @@ import {
 } from '@odudu/protocol-oidc';
 import { validateFlowSteps } from '#/service/flow-validation';
 import { CLAIM_KEY, PHONE_E164_MESSAGE, shapeInvalidityFor } from '#/usecase/profile';
+import { tooManySubjectsDetail } from '#/usecase/tenant-export';
 
 export interface ImportEnvironment {
   readonly knownMappers: readonly string[];
@@ -339,6 +341,9 @@ function scopeProblems(
 
 function subjectProblems(document: TenantDocument, graph: RoleGraph, problems: Problems): void {
   const subjects = document.subjects ?? [];
+  if (subjects.length > EXPORT_SUBJECT_CAP) {
+    problems.add('document.subjects', tooManySubjectsDetail(EXPORT_SUBJECT_CAP));
+  }
   const groupPaths = new Set(document.groups.map((group) => group.path));
   indexUnique(
     subjects,

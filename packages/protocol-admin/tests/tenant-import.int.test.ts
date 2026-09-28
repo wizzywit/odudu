@@ -1,5 +1,6 @@
 import { executionRepository, requiredActionRepository } from '@odudu/authn-flows';
 import {
+  EXPORT_SUBJECT_CAP,
   TENANT_IMPORT_BODY_LIMIT,
   tenantDocumentSchema,
   type TenantDocument,
@@ -430,6 +431,39 @@ describe('POST /admin/tenant-imports', () => {
         `document.roles[${String(document.roles.length + 1)}]`,
       ]),
     );
+  });
+
+  it(`refuses more than ${String(EXPORT_SUBJECT_CAP)} subjects at document.subjects, naming P7`, async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const grace = (document.subjects ?? []).find((subject) => subject.username === 'grace');
+    if (grace === undefined) throw new Error('expected seededSource to hold grace');
+    const name = `import-${newId()}`;
+    const subjects = Array.from({ length: EXPORT_SUBJECT_CAP + 1 }, (_, index) => ({
+      ...grace,
+      username: `user-${String(index)}`,
+      email: null,
+    }));
+
+    const res = await postImport(token, {
+      name,
+      document: {
+        ...document,
+        settings: { ...document.settings, password_min_length: 4 },
+        subjects,
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    const errors = res.json<ImportRefusal>().errors ?? [];
+    expect(errors.map((error) => error.path)).toEqual(
+      expect.arrayContaining(['document.subjects', 'document.settings.password_min_length']),
+    );
+    const cap = errors.find((error) => error.path === 'document.subjects');
+    expect(cap?.message).toContain(`more than ${String(EXPORT_SUBJECT_CAP)} subjects`);
+    expect(cap?.message).toContain('P7');
+    expect(await tenantIdOf(name)).toBeNull();
   });
 
   it('refuses a composite on a built-in role beyond what a new tenant provisions', async () => {

@@ -883,6 +883,10 @@ holds a round trip to exactly that.
 A document with the export's full 10,000 subjects runs to several
 megabytes, so this route admits a body of up to 16 MiB, where every other
 route keeps Fastify's default of one; a larger body is refused with `413`.
+A document holding more subjects than export would ever write — more than
+10,000 — is refused at `document.subjects` among the other problems, with
+the same text export's own `413` gives, since a smaller body can still hold
+that many.
 
 Captured against the fourth stack (the note at the top of this document)
 after its `odudu` service was rebuilt from this branch, as a new admin
@@ -1044,6 +1048,31 @@ curl -sS -X POST \
 
 ```
 {"type":"about:blank","title":"FastifyError","status":413,"detail":"Request body is too large","instance":"01a0e4ef-bb76-7124-83a5-7b6d680169cf"}
+```
+
+And a document of 10,001 copies of `grace`, each under its own username,
+built from a fresh export of `import-source` on the stack this document's
+latest sections were captured on — refused, and no tenant created:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3000/admin/tenants/import-source/export?include=subjects" > source.json
+jq -c '{name: "import-crowd", document: (.subjects = [range(10001) as $i
+    | .subjects[0] + {username: "user-\($i)", email: null}])}' source.json \
+  | curl -sS -X POST \
+      -H "Authorization: Bearer $ADMIN_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data-binary @- \
+      http://localhost:3000/admin/tenant-imports
+echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3000/admin/tenants/count?name=import-crowd'
+echo
+```
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.subjects","message":"the tenant holds more than 10000 subjects, too many to export with ?include=subjects; export without it, and move users in bulk through inbound provisioning (P7)"}],"instance":"01a0e5bf-423c-74c8-9938-4e0f9dfc0f84"}
+{"count":0,"capped":false}
 ```
 
 ## `GET /settings` and `PATCH /settings`

@@ -176,6 +176,15 @@ async function subjectRoleReferences(
   return referencesByOwner(rows, roleById);
 }
 
+/** Why a tenant's subjects are too many to move in one document, export and import alike. */
+export function tooManySubjectsDetail(cap: number): string {
+  return (
+    `the tenant holds more than ${String(cap)} subjects, too many to export ` +
+    'with ?include=subjects; export without it, and move users in bulk through ' +
+    'inbound provisioning (P7)'
+  );
+}
+
 interface ClientRow {
   readonly id: string;
   readonly serviceSubjectId: string | null;
