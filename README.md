@@ -1319,7 +1319,11 @@ A real deployment today looks like:
    while `ODUDU_TRUST_PROXY` is off: the console reaches this server's
    OIDC endpoints in-process, the issuer is built from a request's scheme,
    and only a trusted `x-forwarded-proto` lets such a request see the
-   `https` issuer the browser sees. Set `ODUDU_CONSOLE=false` to serve no
+   `https` issuer the browser sees. It refuses `ODUDU_TLS=true` with an
+   `http` base too, since the console cookie follows the base's scheme and
+   would lose `Secure` while every other cookie keeps it; an `http` base
+   with TLS off boots with a warning that the cookie is `odudu-console`
+   without `Secure`. Set `ODUDU_CONSOLE=false` to serve no
    console at all. `ODUDU_CONSOLE_DIR` names the built console's
    directory, `/app/console` by default. Run
    `node dist/main.js console provision` once after changing the base.

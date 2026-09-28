@@ -1,5 +1,5 @@
 import { relyingPartyId, warnIfCookieFallbackActive } from '@odudu/authn-flows';
-import { type Config, OduduError } from '@odudu/kernel';
+import { type Config, consoleBaseUrl, OduduError } from '@odudu/kernel';
 
 /**
  * `ODUDU_DATABASE_URL` is the owner role, which can switch row-level
@@ -119,6 +119,25 @@ export function assertConsoleConfigured(config: Config): void {
         'or set ODUDU_CONSOLE=false.',
     );
   }
+  if (config.ODUDU_TLS && new URL(baseUrl).protocol === 'http:') {
+    throw new OduduError(
+      'config_invalid',
+      `ODUDU_TLS is true, but ODUDU_PUBLIC_BASE_URL is ${baseUrl}. The console's cookie ` +
+        'follows the base, so it would lose Secure and the __Host- prefix while every other ' +
+        'session cookie keeps them. Give the base the https scheme it is served on, or set ' +
+        'ODUDU_CONSOLE=false.',
+    );
+  }
+}
+
+/** ADR 0020's boot warning, for the console cookie, whose mode follows the base's scheme. */
+export function warnIfConsoleCookieFallback(config: Config, log: (message: string) => void): void {
+  const baseUrl = consoleBaseUrl(config);
+  if (baseUrl === undefined || new URL(baseUrl).protocol !== 'http:') return;
+  log(
+    `console: serving the odudu-console cookie without the __Host- prefix or Secure, because ` +
+      `ODUDU_PUBLIC_BASE_URL (${baseUrl}) is http. This is expected for local development only.`,
+  );
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   assertProductionNoPrivateClientUrls,
   assertProductionPasskeyRelyingParty,
   assertProductionTls,
+  warnIfConsoleCookieFallback,
   warnIfTlsDisabled,
 } from '#/config-guard';
 
@@ -205,6 +206,34 @@ describe('assertConsoleConfigured', () => {
     }).not.toThrow();
   });
 
+  // The console cookie follows the base's scheme, so this pairing would
+  // serve it without Secure while every other session cookie keeps it.
+  it('refuses ODUDU_TLS=true with an http base URL, naming both', () => {
+    const config = loadConfig({
+      ...base,
+      ODUDU_TLS: 'true',
+      ODUDU_PUBLIC_BASE_URL: 'http://idp.example.test',
+    });
+    expect(() => {
+      assertConsoleConfigured(config);
+    }).toThrow(OduduError);
+    expect(() => {
+      assertConsoleConfigured(config);
+    }).toThrow(/ODUDU_TLS.*ODUDU_PUBLIC_BASE_URL|ODUDU_PUBLIC_BASE_URL.*ODUDU_TLS/su);
+  });
+
+  it('ignores ODUDU_TLS=true with an http base URL when the console is off', () => {
+    const config = loadConfig({
+      ...base,
+      ODUDU_TLS: 'true',
+      ODUDU_PUBLIC_BASE_URL: 'http://idp.example.test',
+      ODUDU_CONSOLE: 'false',
+    });
+    expect(() => {
+      assertConsoleConfigured(config);
+    }).not.toThrow();
+  });
+
   it('ignores an https base without a trusted proxy when the console is off', () => {
     const config = loadConfig({
       ...base,
@@ -214,5 +243,44 @@ describe('assertConsoleConfigured', () => {
     expect(() => {
       assertConsoleConfigured(config);
     }).not.toThrow();
+  });
+});
+
+describe('warnIfConsoleCookieFallback', () => {
+  it('warns once, naming the cookie, when the console is on with an http base URL', () => {
+    const config = loadConfig({ ...base, ODUDU_PUBLIC_BASE_URL: 'http://localhost:3000' });
+    const log = vi.fn();
+
+    warnIfConsoleCookieFallback(config, log);
+
+    expect(log).toHaveBeenCalledOnce();
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/odudu-console.*__Host-.*Secure/su));
+  });
+
+  it('does not warn with an https base URL', () => {
+    const config = loadConfig({
+      ...base,
+      ODUDU_PUBLIC_BASE_URL: 'https://idp.example.test',
+      ODUDU_TRUST_PROXY: 'true',
+      ODUDU_TLS: 'true',
+    });
+    const log = vi.fn();
+
+    warnIfConsoleCookieFallback(config, log);
+
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('does not warn with the console off', () => {
+    const config = loadConfig({
+      ...base,
+      ODUDU_PUBLIC_BASE_URL: 'http://localhost:3000',
+      ODUDU_CONSOLE: 'false',
+    });
+    const log = vi.fn();
+
+    warnIfConsoleCookieFallback(config, log);
+
+    expect(log).not.toHaveBeenCalled();
   });
 });

@@ -14,6 +14,7 @@ import {
   assertProductionNoPrivateClientUrls,
   assertProductionPasskeyRelyingParty,
   assertProductionTls,
+  warnIfConsoleCookieFallback,
   warnIfTlsDisabled,
 } from '#/config-guard';
 import { buildEmailSender, resolveSender, smtpDestinationPolicyFor } from '#/email';
@@ -90,6 +91,9 @@ assertProductionPasskeyRelyingParty(config);
 assertProductionNoPrivateClientUrls(config);
 assertConsoleConfigured(config);
 warnIfTlsDisabled(config, (message) => {
+  logger.warn({}, message);
+});
+warnIfConsoleCookieFallback(config, (message) => {
   logger.warn({}, message);
 });
 
