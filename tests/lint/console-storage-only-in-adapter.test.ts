@@ -14,12 +14,19 @@ const FIXTURES = 'tests/lint/fixtures/console-storage';
 
 const STORAGES = new Set(['localStorage', 'sessionStorage']);
 const GLOBALS = new Set(['globalThis', 'window', 'self']);
+// `document.defaultView` is the window by another road.
+const WINDOWS = new Set([...GLOBALS, 'defaultView']);
+
+function isWindow(node: ts.Expression): boolean {
+  if (ts.isIdentifier(node)) return GLOBALS.has(node.text);
+  return ts.isPropertyAccessExpression(node) && WINDOWS.has(node.name.text);
+}
 const ADAPTER = /(?:^|\/)adapter(?:\/|\.tsx?$)/u;
 const TEST = /\.test\.tsx?$/u;
 
-// A storage named as a value: bare, as a global's property, or destructured
-// from a global. A property of some other object that shares the name, a
-// string or a comment is not storage.
+// A storage named as a value: bare or in shorthand, as a window's property
+// by dot or by bracket, or destructured. A property of some other object
+// that shares the name, a string elsewhere or a comment is not storage.
 function storageLines(fileName: string, source: string): number[] {
   const file = ts.createSourceFile(
     fileName,
@@ -33,10 +40,17 @@ function storageLines(fileName: string, source: string): number[] {
     lines.add(file.getLineAndCharacterOfPosition(node.getStart()).line + 1);
   };
   const visit = (node: ts.Node): void => {
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isStringLiteralLike(node.argumentExpression) &&
+      STORAGES.has(node.argumentExpression.text)
+    ) {
+      at(node.argumentExpression);
+    }
     if (ts.isIdentifier(node) && STORAGES.has(node.text)) {
       const parent = node.parent;
       if (ts.isPropertyAccessExpression(parent) && parent.name === node) {
-        if (ts.isIdentifier(parent.expression) && GLOBALS.has(parent.expression.text)) at(node);
+        if (isWindow(parent.expression)) at(node);
       } else if (ts.isBindingElement(parent) && (parent.propertyName ?? parent.name) === node) {
         at(node);
       } else if (
@@ -81,6 +95,10 @@ describe('browser storage in the console', () => {
     const files = await read(FIXTURES);
     expect([...files.keys()]).toContain('shared/adapter/theme.ts');
     expect(offenders(files)).toEqual([
+      'shared/repository/reachesAround.ts:5',
+      'shared/repository/reachesAround.ts:6',
+      'shared/repository/reachesAround.ts:7',
+      'shared/repository/reachesAround.ts:8',
       'shared/repository/useThings.ts:5',
       'shared/repository/useThings.ts:9',
       'shared/repository/useThings.ts:12',
