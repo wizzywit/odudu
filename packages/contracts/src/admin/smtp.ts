@@ -22,7 +22,8 @@ export type SmtpConfig = z.infer<typeof smtpConfigSchema>;
 export const smtpPortSchema = z.number().int().min(1).max(65535);
 
 // A full replace, except for `password`, which GET never hands back to
-// resend: omitted, the stored one is kept; `null` clears it.
+// resend: omitted, the stored one is kept, provided host, port and username
+// are unchanged; `null` clears it.
 export const putSmtpRequestSchema = z.object({
   host: z.string().min(1),
   port: smtpPortSchema,

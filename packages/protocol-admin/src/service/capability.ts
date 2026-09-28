@@ -894,7 +894,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: putSmtpRequestSchema,
     description:
       'Replaces the whole configuration except the password, which GET never hands back to ' +
-      'resend: omitting `password` keeps the stored one, and `null` clears it. Answers an ' +
+      'resend: omitting `password` keeps the stored one, and `null` clears it. A kept ' +
+      'password stays with the relay it was entered for: omitting it while `host`, `port` or ' +
+      '`username` changes is refused with `400` naming `password`. Answers an ' +
       '`ETag`, as GET does; `If-Match` is optional, and a stale one is refused with `412`.',
   },
   {

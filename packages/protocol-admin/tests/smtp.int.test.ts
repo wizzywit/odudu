@@ -112,16 +112,53 @@ describe('PUT /admin/tenants/{t}/smtp', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it.each([
+    ['host', { host: 'relay.elsewhere.example' }],
+    ['port', { port: 2525 }],
+    ['username', { username: 'someone-else' }],
+  ])(
+    'refuses to keep the stored password for a changed %s, naming password',
+    async (_field, change) => {
+      const t = await fixture.createTenant(`acme-${newId()}`);
+      const token = await fixture.adminToken(t.name, ['manage-tenant']);
+      const config = {
+        host: 'smtp.example.test',
+        port: 587,
+        from_address: 'noreply@example.test',
+        username: 'mailer',
+        starttls: true,
+      };
+      await putSmtp(token, t.name, { ...config, password: 'hunter2' });
+
+      const res = await putSmtp(token, t.name, { ...config, ...change });
+
+      expect(res.statusCode, res.body).toBe(400);
+      expect(res.json<{ errors: { path: string }[] }>().errors.map((e) => e.path)).toEqual([
+        'password',
+      ]);
+      expect((await getSmtp(token, t.name)).json()).toMatchObject({
+        host: 'smtp.example.test',
+        port: 587,
+        username: 'mailer',
+        password_set: true,
+      });
+    },
+  );
+
   it('keeps the stored password when a later PUT omits it', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-tenant']);
     const config = { host: 'smtp.example.test', port: 587, from_address: 'noreply@example.test' };
     await putSmtp(token, t.name, { ...config, password: 'hunter2', starttls: true });
 
-    const res = await putSmtp(token, t.name, { ...config, port: 2525, starttls: true });
+    const res = await putSmtp(token, t.name, {
+      ...config,
+      from_address: 'mail@example.test',
+      starttls: true,
+    });
 
     expect(res.statusCode, res.body).toBe(200);
-    expect(res.json()).toMatchObject({ port: 2525, password_set: true });
+    expect(res.json()).toMatchObject({ from_address: 'mail@example.test', password_set: true });
     const row = await withTenant(fixture.app.db, t.id, (tx) =>
       tenantSmtpRepository(tx).byTenantId(t.id),
     );

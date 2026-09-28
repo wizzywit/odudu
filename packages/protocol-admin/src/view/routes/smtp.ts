@@ -91,6 +91,21 @@ export function putSmtpHandler(deps: SmtpRouteDeps): AdminRouteHandler {
     if (outcome.kind === 'precondition_failed') {
       return sendProblem(reply, request, ifMatchStale());
     }
+    if (outcome.kind === 'password_required') {
+      return sendProblem(
+        reply,
+        request,
+        fieldProblem(
+          [
+            {
+              path: 'password',
+              message: 'must be sent again when host, port or username changes',
+            },
+          ],
+          'password must be sent again when host, port or username changes',
+        ),
+      );
+    }
     if (outcome.kind === 'starttls_required') {
       return sendProblem(
         reply,

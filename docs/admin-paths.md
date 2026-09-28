@@ -5878,7 +5878,10 @@ only replace. `204` on success, `404` when there was nothing to remove. `GET` re
 endpoint always exists, it is the configuration that may not. `PUT`
 replaces the whole configuration except the password, which `GET` never
 hands back for a caller to resend: omitting `password` keeps the stored
-one, and `"password": null` clears it. `GET` and `PUT` also report
+one, and `"password": null` clears it. A kept password stays with the relay
+and account it was entered for — omitting it while `host`, `port` or
+`username` changes is refused with `400` naming `password`, since the next
+test send would otherwise authenticate to whoever runs the new host. `GET` and `PUT` also report
 `effective` — whose relay the tenant's mail actually goes through: `tenant`
 for its own row, `deployment` for the deployment's `ODUDU_SMTP_*` sender,
 `none` when there is neither and mail is only logged. The stored

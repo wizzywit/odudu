@@ -120,6 +120,7 @@ export interface PutSmtpDeps {
 export type PutSmtpOutcome =
   | { kind: 'precondition_failed' }
   | { kind: 'starttls_required' }
+  | { kind: 'password_required' }
   | { kind: 'ok'; config: SmtpConfig; etag: string };
 
 export async function putSmtp(
@@ -130,6 +131,18 @@ export async function putSmtp(
   const current = await tenantSmtpRepository(tx).lockByTenantId(input.tenantId);
   if (matches(input.ifMatch, etagOf(toWireShape(current, deps.deploymentSmtp))) === 'mismatch') {
     return { kind: 'precondition_failed' };
+  }
+
+  // A kept password goes only where it was entered for: moved to another
+  // relay or account, it would authenticate to whoever runs that one.
+  if (
+    input.password.kind === 'keep' &&
+    current?.passwordEncrypted != null &&
+    (current.host !== input.host ||
+      current.port !== input.port ||
+      current.username !== input.username)
+  ) {
+    return { kind: 'password_required' };
   }
 
   const passwordEncrypted =
