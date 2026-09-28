@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { loadDrafts, storeDrafts } from '#/shared/adapter/draftStorage.ts';
 
-// A field flagged secret — a client secret, a password — is never written.
+// Every field says whether it is secret, with no default, so a new password
+// or client-secret field cannot reach sessionStorage by omission.
 export interface DraftField {
+  readonly kind: 'plain' | 'secret';
   readonly value: unknown;
-  readonly secret?: boolean;
 }
 export type DraftFields = Readonly<Record<string, DraftField>>;
 export type DraftValues = Readonly<Record<string, unknown>>;
@@ -39,7 +40,7 @@ interface Drafts {
 function keepable(fields: DraftFields): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(fields)
-      .filter(([, field]) => field.secret !== true)
+      .filter(([, field]) => field.kind === 'plain')
       .map(([name, field]) => [name, field.value]),
   );
 }

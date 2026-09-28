@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { useDrafts } from '#/shared/repository/useDrafts.ts';
+import { useDrafts, type DraftFields } from '#/shared/repository/useDrafts.ts';
 import { useSectionDraft } from '#/shared/repository/useSectionDraft.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 import { TextField } from '#/shared/view/Field.tsx';
@@ -24,8 +24,11 @@ function General({
 }) {
   const [edits, setEdits] = useState<Partial<typeof BASE>>({});
   const dirty = Object.keys(edits).length > 0;
-  const fields = Object.fromEntries(
-    Object.entries(edits).map(([name, value]) => [name, { value, secret: name === 'secret' }]),
+  const fields: DraftFields = Object.fromEntries(
+    Object.entries(edits).map(([name, value]) => [
+      name,
+      { kind: name === 'secret' ? 'secret' : 'plain', value } as const,
+    ]),
   );
   const { restored, settle } = useSectionDraft({
     tenant,

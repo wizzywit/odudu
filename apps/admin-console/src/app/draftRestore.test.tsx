@@ -17,7 +17,7 @@ import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer.tsx';
 import { SessionGate } from '#/features/session/index.ts';
 import { TenantShell } from '#/features/shell/index.ts';
 import { createQueryClient } from '#/shared/repository/queryClient.ts';
-import { useDrafts } from '#/shared/repository/useDrafts.ts';
+import { useDrafts, type DraftFields } from '#/shared/repository/useDrafts.ts';
 import { useSectionDraft } from '#/shared/repository/useSectionDraft.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 import { parseSearch, stringifySearch } from '#/shared/service/search.ts';
@@ -30,8 +30,11 @@ const BASE = { name: 'Billing portal', secret: '' };
 // A client section as a feature will build one, on a route of its own.
 function General() {
   const [edits, setEdits] = useState<Partial<typeof BASE>>({});
-  const fields = Object.fromEntries(
-    Object.entries(edits).map(([name, value]) => [name, { value, secret: name === 'secret' }]),
+  const fields: DraftFields = Object.fromEntries(
+    Object.entries(edits).map(([name, value]) => [
+      name,
+      { kind: name === 'secret' ? 'secret' : 'plain', value } as const,
+    ]),
   );
   const dirty = Object.keys(edits).length > 0;
   const { restored, settle } = useSectionDraft({
