@@ -1,9 +1,11 @@
 import { type FastifyError, type FastifyInstance } from 'fastify';
+import { STATUS_CODES } from 'node:http';
 import { registerCsrfGuard } from '#/view/csrf-guard';
 import { sendProblem } from '#/view/problem';
-import { registerSessionRoutes, type SessionRouteDeps } from '#/view/routes/session';
+import { registerProxyRoutes, type ProxyRouteDeps } from '#/view/routes/proxy';
+import { registerSessionRoutes } from '#/view/routes/session';
 
-export interface ApiDeps extends SessionRouteDeps {
+export interface ApiDeps extends ProxyRouteDeps {
   /** The origin of `ODUDU_PUBLIC_BASE_URL`, the only one a write may come from. */
   readonly origin: string;
 }
@@ -16,6 +18,14 @@ export function registerConsoleApi(api: FastifyInstance, deps: ApiDeps): void {
   // A failed query's message carries its parameters, among them a
   // session's secret hash, so only the error's kind is logged.
   api.setErrorHandler(async (error: FastifyError, request, reply) => {
+    const status = error.statusCode ?? 500;
+    if (status >= 400 && status < 500) {
+      return sendProblem(reply, request, {
+        status,
+        type: 'about:blank',
+        title: STATUS_CODES[status] ?? 'Bad Request',
+      });
+    }
     request.log.error({ err: { type: error.name, code: error.code } }, 'console API failed');
     return sendProblem(reply, request, {
       status: 500,
@@ -33,4 +43,5 @@ export function registerConsoleApi(api: FastifyInstance, deps: ApiDeps): void {
   );
 
   registerSessionRoutes(api, deps);
+  registerProxyRoutes(api, deps);
 }

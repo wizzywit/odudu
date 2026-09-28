@@ -23,3 +23,13 @@ export function sessionHasEnded(session: SessionTimes, now: Date): boolean {
 export function sessionNeedsTouch(session: SessionTimes, now: Date): boolean {
   return now.getTime() - session.lastSeenAt.getTime() >= CONSOLE_SESSION_TOUCH_SECONDS * 1000;
 }
+
+/** An access token this close to its expiry is refreshed before it is used. */
+export const ACCESS_REFRESH_WINDOW_SECONDS = 30;
+
+export function accessNeedsRefresh(
+  session: { readonly accessExpiresAt: Date },
+  now: Date,
+): boolean {
+  return session.accessExpiresAt.getTime() - now.getTime() <= ACCESS_REFRESH_WINDOW_SECONDS * 1000;
+}

@@ -1,6 +1,8 @@
 import { type DatabaseHandle } from '@odudu/db';
 import { type FastifyPluginAsync } from 'fastify';
 import { oduduClient } from '#/adapter/odudu-client';
+import { singleFlight } from '#/service/single-flight';
+import { type FreshToken } from '#/usecase/fresh-access-token';
 import { registerConsoleApi } from '#/view/api';
 import { registerAuthRoutes } from '#/view/routes/auth';
 
@@ -57,7 +59,15 @@ export function consoleGateway(deps: ConsoleGatewayDeps): FastifyPluginAsync {
     );
     fastify.register(
       (api) => {
-        registerConsoleApi(api, { database: deps.database, tls, now, origin: base.origin });
+        registerConsoleApi(api, {
+          database: deps.database,
+          kek: deps.kek,
+          odudu,
+          refreshes: singleFlight<string, FreshToken>(),
+          tls,
+          now,
+          origin: base.origin,
+        });
         return Promise.resolve();
       },
       { prefix: '/console/api' },

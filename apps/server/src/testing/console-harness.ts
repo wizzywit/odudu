@@ -3,6 +3,7 @@ import { SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { FakeClock, loadConfig, newId } from '@odudu/kernel';
 import { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { createHash } from 'node:crypto';
+import { type IncomingHttpHeaders } from 'node:http';
 import { Writable } from 'node:stream';
 import { expect } from 'vitest';
 import { buildApp } from '#/app';
@@ -28,12 +29,27 @@ export interface ConsoleStack {
   readonly logs: string[];
   // Every /token response body the server sent, the gateway's included.
   readonly tokenResponses: string[];
+  // Every /admin/ request the server received, the gateway's forwards included.
+  readonly adminRequests: AdminRequestSeen[];
   readonly base: URL;
+}
+
+export interface AdminRequestSeen {
+  readonly method: string;
+  readonly url: string;
+  readonly headers: IncomingHttpHeaders;
+  readonly ip: string;
+}
+
+export interface ConsoleAppOptions {
+  /** Routes or hooks a test adds before the app is sealed. */
+  readonly beforeReady?: (app: FastifyInstance) => void;
 }
 
 export async function startConsoleApp(
   databases: ConsoleDatabases,
   base: string,
+  options: ConsoleAppOptions = {},
 ): Promise<ConsoleStack> {
   const logs: string[] = [];
   const destination = new Writable({
@@ -62,8 +78,17 @@ export async function startConsoleApp(
     }
     return payload;
   });
+  const adminRequests: AdminRequestSeen[] = [];
+  app.addHook('onRequest', (request, _reply, done) => {
+    if (request.url.startsWith('/admin/')) {
+      const { method, url, headers, ip } = request;
+      adminRequests.push({ method, url, headers, ip });
+    }
+    done();
+  });
+  options.beforeReady?.(app);
   await app.ready();
-  return { app, clock, logs, tokenResponses, base: baseUrl };
+  return { app, clock, logs, tokenResponses, adminRequests, base: baseUrl };
 }
 
 export class Jar {

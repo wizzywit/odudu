@@ -1,7 +1,14 @@
 import { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { ADMIN_API_AUDIENCE, ADMIN_CLIENT_ID } from '@odudu/domain-tenant';
 import { z } from 'zod';
-import { type CodeExchange, type OduduPort, type TokenSet } from '#/service/odudu-port';
+import {
+  type AdminCall,
+  type AdminResponse,
+  type CodeExchange,
+  type OduduPort,
+  type RefreshOutcome,
+  type TokenSet,
+} from '#/service/odudu-port';
 
 const DISCOVERY = z.object({ issuer: z.string().min(1) });
 
@@ -11,6 +18,10 @@ const TOKEN_RESPONSE = z.object({
   id_token: z.string().min(1),
   expires_in: z.number().int().positive(),
 });
+
+const REFRESH_RESPONSE = TOKEN_RESPONSE.omit({ id_token: true });
+
+const TOKEN_ERROR = z.object({ error: z.string() });
 
 function json(res: LightMyRequestResponse): unknown {
   try {
@@ -95,6 +106,49 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
           client_id: ADMIN_CLIENT_ID,
         }).toString(),
       });
+    },
+
+    async refresh(tenant: string, refreshToken: string, ip: string): Promise<RefreshOutcome> {
+      const res = await fastify.inject({
+        method: 'POST',
+        url: `${tenantPath(tenant)}/protocol/openid-connect/token`,
+        headers: { ...authority, 'content-type': 'application/x-www-form-urlencoded' },
+        remoteAddress: ip,
+        payload: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          client_id: ADMIN_CLIENT_ID,
+          resource: ADMIN_API_AUDIENCE,
+        }).toString(),
+      });
+      if (
+        res.statusCode === 400 &&
+        TOKEN_ERROR.safeParse(json(res)).data?.error === 'invalid_grant'
+      ) {
+        return { kind: 'refused' };
+      }
+      if (res.statusCode !== 200) return { kind: 'failed' };
+      const parsed = REFRESH_RESPONSE.safeParse(json(res));
+      if (!parsed.success) return { kind: 'failed' };
+      return {
+        kind: 'refreshed',
+        tokens: {
+          accessToken: parsed.data.access_token,
+          refreshToken: parsed.data.refresh_token,
+          expiresInSeconds: parsed.data.expires_in,
+        },
+      };
+    },
+
+    async forward(call: AdminCall): Promise<AdminResponse> {
+      const res = await fastify.inject({
+        method: call.method,
+        url: call.path,
+        headers: { ...call.headers, ...authority },
+        remoteAddress: call.ip,
+        ...(call.body === undefined ? {} : { payload: call.body }),
+      });
+      return { status: res.statusCode, headers: res.headers, body: res.rawPayload };
     },
   };
 }

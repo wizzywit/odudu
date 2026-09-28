@@ -1036,6 +1036,17 @@ tokens server-side and gives the browser nothing but a session cookie:
 - `GET /console/api/session` answers `{ tenant, subject_id, username }`. An
   ended session answers `401` with the problem type
   `about:blank#console-session-ended` and clears the cookie.
+- `* /console/api/admin/*` forwards to `/admin/*` with the session's access
+  token, the query string and the body's bytes unchanged, and only the
+  request headers `Content-Type`, `If-Match`, `If-None-Match` and `Accept`.
+  The browser's own `Cookie` and `Authorization` are never forwarded. The
+  status and body come back as the admin API sent them, with only
+  `Content-Type`, `ETag`, `Location`, `Link` and `Cache-Control`, and an
+  `/admin/` URI in `Location` or `Link` rewritten to `/console/api/admin/`.
+  The body limit is the tenant import's, 16 MiB. An access token within 30 s
+  of expiry is refreshed first, once per session however many requests
+  arrive together. A refused refresh ends the session with the
+  session-ended `401`; the admin API's own `401` is passed back as it is.
 
 The session cookie is `__Host-odudu-console` (`HttpOnly; Secure;
 SameSite=Strict; Path=/`), or `odudu-console` without `Secure` over plain

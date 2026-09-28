@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sessionHasEnded, sessionNeedsTouch } from '#/service/session-lifetime';
+import { accessNeedsRefresh, sessionHasEnded, sessionNeedsTouch } from '#/service/session-lifetime';
 
 const SIGNED_IN = new Date('2026-06-01T12:00:00.000Z');
 const SECOND = 1000;
@@ -34,5 +34,19 @@ describe('sessionNeedsTouch', () => {
   it('writes last_seen_at at most once a minute', () => {
     expect(sessionNeedsTouch(session, at(59 * SECOND))).toBe(false);
     expect(sessionNeedsTouch(session, at(MINUTE))).toBe(true);
+  });
+});
+
+describe('accessNeedsRefresh', () => {
+  const expiry = { accessExpiresAt: at(5 * MINUTE) };
+
+  it('keeps an access token with more than thirty seconds left', () => {
+    expect(accessNeedsRefresh(expiry, at(5 * MINUTE - 31 * SECOND))).toBe(false);
+  });
+
+  it('refreshes one within thirty seconds of expiry, and one already expired', () => {
+    expect(accessNeedsRefresh(expiry, at(5 * MINUTE - 30 * SECOND))).toBe(true);
+    expect(accessNeedsRefresh(expiry, at(5 * MINUTE - 10 * SECOND))).toBe(true);
+    expect(accessNeedsRefresh(expiry, at(6 * MINUTE))).toBe(true);
   });
 });
