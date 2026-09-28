@@ -25,23 +25,67 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
 ];
 
 // A command-line entry no test imports: it reads relative to where it is run,
-// and a test task never runs it.
+// and a test task never runs it. Named as an entry by its own package's `bin`
+// or `scripts`, or by a script in the root `package.json` that invokes it.
 const ENTRY_POINTS: readonly string[] = ['tools/trace/src/index.ts'];
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const BUILDERS = new Set(['join', 'resolve', 'dirname', 'URL']);
 const PASS_THROUGH = new Set(['fileURLToPath', 'pathToFileURL']);
 const READERS = new Set(['readdir', 'readdirSync', 'readFile', 'readFileSync', 'existsSync']);
+const FS_PATH_CALLS = new Set([...READERS, 'join', 'resolve', 'dirname']);
 
 function calleeName(node: ts.CallExpression | ts.NewExpression): string {
   const callee = node.expression;
   return ts.isPropertyAccessExpression(callee) ? callee.name.text : callee.getText();
 }
 
+function hasImportMetaOrCwd(node: ts.Node): boolean {
+  let found = false;
+  const visit = (n: ts.Node): void => {
+    if (found) return;
+    if (
+      ts.isMetaProperty(n) ||
+      (ts.isCallExpression(n) && n.expression.getText() === 'process.cwd')
+    ) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return found;
+}
+
+// An exported binding built from `import.meta` or `process.cwd()` is a root
+// for whatever file imports it. This file's own follow-through cannot see
+// that importer, so the export is treated as escaping outright rather than
+// resolved against this file's own, usually shallower, uses.
+function hasExportedEscapingRoot(source: string): boolean {
+  const file = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true);
+  let found = false;
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableStatement(node) &&
+      node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
+    ) {
+      for (const decl of node.declarationList.declarations) {
+        if (decl.initializer && hasImportMetaOrCwd(decl.initializer)) found = true;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return found;
+}
+
 // Every path the file builds from `import.meta` or `process.cwd()`, relative
-// to the file's directory, followed up the tree from each root. Anything the
-// walk does not model — a concatenation, a template, an options object, any
-// other call — is `unknown`. A `for…of` variable names one directory entry.
+// to the file's directory, followed up the tree from each root, plus every
+// relative string literal passed as the first argument of an `fs` or `path`
+// call with no such root — it resolves against the process's cwd instead.
+// Anything the walk does not model — a concatenation, a template, an options
+// object, any other call — is `unknown`. A `for…of` variable names one
+// directory entry.
 export function reachesOf(source: string): string[] {
   const file = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true);
   const nodes: ts.Node[] = [];
@@ -94,7 +138,7 @@ export function reachesOf(source: string): string[] {
     const next = path.posix.normalize(path.posix.join(from, ...(segments as string[])));
     return follow(parent, next, seen);
   };
-  return nodes.flatMap((node) => {
+  const metaReaches = nodes.flatMap((node) => {
     if (ts.isCallExpression(node) && node.expression.getText() === 'process.cwd')
       return ['unknown'];
     if (!ts.isMetaProperty(node)) return [];
@@ -104,9 +148,16 @@ export function reachesOf(source: string): string[] {
     }
     return follow(parent, parent.name.text === 'url' ? '__self__' : '.', []);
   });
+  const literalReaches = nodes.flatMap((node) => {
+    if (!ts.isCallExpression(node) || !FS_PATH_CALLS.has(calleeName(node))) return [];
+    const [arg] = node.arguments;
+    return arg && ts.isStringLiteralLike(arg) && arg.text.startsWith('..') ? [arg.text] : [];
+  });
+  return [...metaReaches, ...literalReaches];
 }
 
 export function escapesPackage(source: string, fileWithinPackage: string): boolean {
+  if (hasExportedEscapingRoot(source)) return true;
   const depth = path.posix
     .dirname(fileWithinPackage)
     .split('/')
@@ -131,6 +182,60 @@ export function isCovered(target: string, packageDir: string, inputs: readonly s
         ? target === input || (input.endsWith('/**') && target.startsWith(input.slice(0, -2)))
         : path.matchesGlob(target, input),
     );
+}
+
+// Whether one of `candidates` (a path relative to the entry's own package,
+// and the path relative to the repo root) names the entry in a `bin` value,
+// one of the package's own `scripts`, or one of the root `package.json`'s.
+export function isNamedEntry(
+  candidates: readonly string[],
+  pkg: { bin?: string | Record<string, string>; scripts?: Record<string, string> },
+  rootScripts: Record<string, string> = {},
+): boolean {
+  const bin = pkg.bin;
+  const values = [
+    ...(typeof bin === 'string' ? [bin] : Object.values(bin ?? {})),
+    ...Object.values(pkg.scripts ?? {}),
+    ...Object.values(rootScripts),
+  ].map((v) => v.replace(/^\.\//, ''));
+  return candidates.some((candidate) => values.some((v) => v.includes(candidate)));
+}
+
+// Every static and dynamic import specifier in the file, exactly as written
+// — quote style and extension included, and dynamic `import()` alongside
+// `import`/`export … from`.
+export function importSpecifiers(source: string): string[] {
+  const file = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true);
+  const specifiers: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      specifiers.push(node.moduleSpecifier.text);
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      const [arg] = node.arguments;
+      if (arg && ts.isStringLiteralLike(arg)) specifiers.push(arg.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return specifiers;
+}
+
+// Whether `source`, read from `importingFile` (a path relative to the repo
+// root), resolves a relative import specifier to `entry` (also repo-root
+// relative), ignoring a `.js`/`.ts` extension on either side.
+export function importsEntry(source: string, importingFile: string, entry: string): boolean {
+  const noExt = (p: string): string => p.replace(/\.(js|ts)$/, '');
+  const target = noExt(entry);
+  const dir = path.posix.dirname(importingFile);
+  return importSpecifiers(source).some((spec) => {
+    if (!spec.startsWith('.')) return false;
+    const resolved = path.posix.normalize(path.posix.join(dir, spec));
+    return noExt(resolved) === target;
+  });
 }
 
 function readJson(file: string): unknown {
@@ -162,6 +267,12 @@ describe('escapesPackage', () => {
     ['const { dirname: d } = import.meta; readdir(d);', 'src/x.ts', true],
     ['readdir(String(import.meta.dirname));', 'src/x.ts', true],
     ["glob('../../../docs/**', { cwd: import.meta.dirname });", 'src/x.ts', true],
+    ['export const ROOT = import.meta.dirname;', 'src/x.ts', true],
+    ['const ROOT = import.meta.dirname;', 'src/x.ts', false],
+    ['export const ROOT = process.cwd();', 'src/x.ts', true],
+    ["readFileSync('../../../docs/x');", 'src/x.ts', true],
+    ["resolve('../../docs');", 'src/x.ts', true],
+    ["readFileSync('../fixtures/data.json');", 'src/view/x.test.ts', false],
   ])('%s from %s: %s', (source, file, expected) => {
     expect(escapesPackage(source, file)).toBe(expected);
   });
@@ -179,6 +290,37 @@ describe('isCovered', () => {
   });
 });
 
+describe('isNamedEntry', () => {
+  it.each([
+    [['src/index.ts'], { bin: { 'odudu-trace': './src/index.ts' } }, {}, true],
+    [['src/index.ts'], { scripts: { start: 'node src/index.ts' } }, {}, true],
+    [
+      ['tools/trace/src/index.ts'],
+      {},
+      { trace: 'ODUDU_TRACE_STRICT=1 node tools/trace/src/index.ts' },
+      true,
+    ],
+    [['src/index.ts'], {}, {}, false],
+  ] as const)('%j named by %j / root %j: %s', (candidates, pkg, root, expected) => {
+    expect(isNamedEntry(candidates, pkg, root)).toBe(expected);
+  });
+});
+
+describe('importsEntry', () => {
+  const entry = 'tools/trace/src/index.ts';
+  it.each([
+    ["import { run } from '../src/index';", 'tools/trace/tests/x.test.ts', true],
+    ['import "../src/index.js";', 'tools/trace/tests/x.test.ts', true],
+    ["import('../src/index');", 'tools/trace/tests/x.test.ts', true],
+    ["import x from './index';", 'tools/trace/src/other.ts', true],
+    ["import x from '../../../tools/trace/src/index';", 'apps/server/src/x.ts', true],
+    ["import { other } from './other';", 'tools/trace/tests/x.test.ts', false],
+    ["import x from '@odudu/db';", 'tools/trace/tests/x.test.ts', false],
+  ])('%s from %s: %s', (source, importingFile, expected) => {
+    expect(importsEntry(source, importingFile, entry)).toBe(expected);
+  });
+});
+
 describe('a file whose reads this check cannot bound', () => {
   it.each(READS)('$file is still one, and its inputs cover each target', (entry) => {
     const [top = '', dir = '', ...rest] = entry.file.split('/');
@@ -188,15 +330,39 @@ describe('a file whose reads this check cannot bound', () => {
     expect(entry.targets.filter((t) => !isCovered(t, `${top}/${dir}`, inputs))).toEqual([]);
   });
 
-  it.each(ENTRY_POINTS)('%s exists and no file under test imports it', async (entry) => {
-    expect(existsSync(path.join(REPO_ROOT, entry))).toBe(true);
-    const packageDir = entry.split('/').slice(0, 2).join('/');
-    const module = path.posix.basename(entry, '.ts');
-    for await (const file of glob(`${packageDir}/{src,tests}/**/*.ts`, { cwd: REPO_ROOT })) {
-      const source = readFileSync(path.join(REPO_ROOT, file), 'utf8');
-      expect(source, file).not.toMatch(new RegExp(`from '[#.]/[^']*${module}(\\.ts)?'`, 'u'));
-    }
-  });
+  it.each(ENTRY_POINTS)(
+    '%s is a named entry, still escapes, and nothing imports it',
+    { timeout: 60_000 },
+    async (entry) => {
+      expect(existsSync(path.join(REPO_ROOT, entry))).toBe(true);
+      const packageDir = entry.split('/').slice(0, 2).join('/');
+      const pkg = readJson(`${packageDir}/package.json`) as {
+        bin?: string | Record<string, string>;
+        scripts?: Record<string, string>;
+      };
+      const root = readJson('package.json') as { scripts?: Record<string, string> };
+      const relative = path.posix.relative(packageDir, entry);
+      expect(isNamedEntry([relative, entry], pkg, root.scripts)).toBe(true);
+
+      const entrySource = readFileSync(path.join(REPO_ROOT, entry), 'utf8');
+      expect(escapesPackage(entrySource, relative)).toBe(true);
+
+      const candidates: string[] = [];
+      for await (const file of glob('{packages,apps,tools}/*/{src,tests}/**/*.ts', {
+        cwd: REPO_ROOT,
+      })) {
+        candidates.push(file);
+      }
+      for await (const file of glob('tests/**/*.ts', { cwd: REPO_ROOT })) {
+        candidates.push(file);
+      }
+      for (const file of candidates) {
+        const posix = file.split(path.sep).join('/');
+        const source = readFileSync(path.join(REPO_ROOT, posix), 'utf8');
+        expect(importsEntry(source, posix, entry), posix).toBe(false);
+      }
+    },
+  );
 
   it('is listed, in every package, app and tool', { timeout: 60_000 }, async () => {
     const listed = new Set([...READS.map((entry) => entry.file), ...ENTRY_POINTS]);
