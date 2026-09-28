@@ -82,5 +82,19 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
         expiresInSeconds: parsed.data.expires_in,
       };
     },
+
+    async revoke(tenant: string, refreshToken: string, ip: string): Promise<void> {
+      await fastify.inject({
+        method: 'POST',
+        url: `${tenantPath(tenant)}/protocol/openid-connect/revoke`,
+        headers: { ...authority, 'content-type': 'application/x-www-form-urlencoded' },
+        remoteAddress: ip,
+        payload: new URLSearchParams({
+          token: refreshToken,
+          token_type_hint: 'refresh_token',
+          client_id: ADMIN_CLIENT_ID,
+        }).toString(),
+      });
+    },
   };
 }

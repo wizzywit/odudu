@@ -1,10 +1,10 @@
 import { unwrapSecret, verifyJwtClaims, wrapSecret } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
 import { ADMIN_CLIENT_ID } from '@odudu/domain-tenant';
-import { isUuid } from '@odudu/kernel';
 import { consoleLoginRepository, type ConsoleLoginRecord } from '#/repository/console-logins';
 import { consoleSessionRepository } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
+import { subjectOfIdToken } from '#/service/id-token';
 import { type OduduPort } from '#/service/odudu-port';
 import { safeReturnTo } from '#/service/return-to';
 import {
@@ -38,9 +38,26 @@ export type CallbackResult =
 
 const REFUSED: CallbackResult = { kind: 'refused' };
 
-// RFC 6749 §4.1.2.1's registered codes are all of this shape. Anything else
-// is dropped rather than carried into the console's address bar.
-const ERROR_CODE = /^[a-z_]{1,64}$/u;
+// RFC 6749 §4.1.2.1's codes and OIDC Core §3.1.2.6's. Anything else is
+// reported as server_error rather than carried into the address bar.
+const OP_ERROR_CODES: ReadonlySet<string> = new Set([
+  'invalid_request',
+  'unauthorized_client',
+  'access_denied',
+  'unsupported_response_type',
+  'invalid_scope',
+  'server_error',
+  'temporarily_unavailable',
+  'interaction_required',
+  'login_required',
+  'account_selection_required',
+  'consent_required',
+  'invalid_request_uri',
+  'invalid_request_object',
+  'request_not_supported',
+  'request_uri_not_supported',
+  'registration_not_supported',
+]);
 
 const ID_TOKEN_ALGORITHMS = ['RS256', 'ES256'] as const;
 
@@ -74,9 +91,9 @@ export async function completeLogin(
   input: Callback,
 ): Promise<CallbackResult> {
   if (input.error !== undefined) {
-    if (!ERROR_CODE.test(input.error)) return REFUSED;
+    const code = OP_ERROR_CODES.has(input.error) ? input.error : 'server_error';
     await takeLogin(deps, input.state, input.loginCookie, input.now);
-    return { kind: 'op-error', location: `/console/?login_error=${input.error}` };
+    return { kind: 'op-error', location: `/console/?login_error=${code}` };
   }
 
   const taken = await takeLogin(deps, input.state, input.loginCookie, input.now);
@@ -97,15 +114,29 @@ export async function completeLogin(
   });
   if (tokens === null) return REFUSED;
 
+  // From here a live grant exists, and a sign-in that stops short of a
+  // session must not leave it behind.
+  const endGrant = async (): Promise<void> => {
+    try {
+      await deps.odudu.revoke(tenantName, tokens.refreshToken, input.ip);
+    } catch {
+      // Best effort: the sign-in is refused either way.
+    }
+  };
+
   const claims = await verifyJwtClaims(
     tokens.idToken,
     await deps.odudu.keysOf(tenantName, input.ip),
     { issuer, audience: ADMIN_CLIENT_ID, now: input.now, algorithms: ID_TOKEN_ALGORITHMS },
   );
-  if (claims === null) return REFUSED;
-  const { nonce, sub } = claims;
-  if (typeof nonce !== 'string' || !sameSecret(nonce, login.nonce)) return REFUSED;
-  if (typeof sub !== 'string' || !isUuid(sub)) return REFUSED;
+  const sub =
+    claims === null
+      ? null
+      : subjectOfIdToken(claims, { nonce: login.nonce, clientId: ADMIN_CLIENT_ID, now: input.now });
+  if (sub === null) {
+    await endGrant();
+    return REFUSED;
+  }
 
   const secret = randomSecret();
   const now = input.now.getTime();
@@ -125,7 +156,10 @@ export async function completeLogin(
       now: input.now,
       expiresAt: new Date(now + CONSOLE_SESSION_ABSOLUTE_SECONDS * 1000),
     }),
-  );
+  ).catch(async (error: unknown) => {
+    await endGrant();
+    throw error;
+  });
   return {
     kind: 'signed-in',
     sessionCookie: bindToTenant(login.tenantId, secret),

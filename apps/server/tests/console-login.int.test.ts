@@ -66,6 +66,8 @@ interface TestApp {
   readonly app: FastifyInstance;
   readonly clock: FakeClock;
   readonly logs: string[];
+  // Every /token response body the server sent, the gateway's included.
+  readonly tokenResponses: string[];
 }
 
 async function startApp(): Promise<TestApp> {
@@ -87,8 +89,15 @@ async function startApp(): Promise<TestApp> {
     consoleBaseUrl: BASE,
     consoleNow: () => clock.now(),
   });
+  const tokenResponses: string[] = [];
+  app.addHook('onSend', async (request, _reply, payload) => {
+    if (request.url.endsWith('/protocol/openid-connect/token') && typeof payload === 'string') {
+      tokenResponses.push(payload);
+    }
+    return payload;
+  });
   await app.ready();
-  return { app, clock, logs };
+  return { app, clock, logs, tokenResponses };
 }
 
 class Jar {
@@ -417,8 +426,8 @@ describe('GET /console/auth/callback', () => {
     }
   });
 
-  it('refuses an ID token whose nonce is not the login’s', async () => {
-    const { app } = await startApp();
+  it('refuses an ID token whose nonce is not the login’s, and revokes its grant', async () => {
+    const { app, tokenResponses } = await startApp();
     try {
       const jar = new Jar();
       const { authorize, state } = await beginLogin(app, jar);
@@ -429,6 +438,77 @@ describe('GET /console/auth/callback', () => {
 
       expectRefused(await browse(app, jar, pathOf(callback)));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
+
+      expect(tokenResponses).toHaveLength(1);
+      const { refresh_token: refreshToken } = JSON.parse(tokenResponses[0] ?? '{}') as {
+        refresh_token: string;
+      };
+      const refreshed = await post(
+        app,
+        new Jar(),
+        `/tenants/${SYSTEM_TENANT_NAME}/protocol/openid-connect/token`,
+        { grant_type: 'refresh_token', refresh_token: refreshToken, client_id: ADMIN_CLIENT_ID },
+      );
+      expect(refreshed.statusCode).toBe(400);
+      expect(refreshed.json<{ error: string }>().error).toBe('invalid_grant');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('refuses a callback that names no issuer', async () => {
+    const { app } = await startApp();
+    try {
+      const jar = new Jar();
+      const { authorize } = await beginLogin(app, jar);
+      const { callback, subjectId } = await signInAtOp(app, jar, authorize);
+      const stripped = new URL(callback);
+      stripped.searchParams.delete('iss');
+
+      expectRefused(await browse(app, jar, pathOf(stripped.toString())));
+      expect(await sessionsFor(subjectId)).toHaveLength(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('refuses a state and cookie whose tenant prefix was edited, leaving the login', async () => {
+    const { app } = await startApp();
+    try {
+      const other = newId();
+      await owner.db.execute(
+        sql`INSERT INTO tenants (id, name) VALUES (${other}, ${`edited-${other.slice(-12)}`})`,
+      );
+      const jar = new Jar();
+      const { authorize, state } = await beginLogin(app, jar);
+      const { callback, subjectId } = await signInAtOp(app, jar, authorize);
+      const edited = `${other}.${state.split('.')[1] ?? ''}`;
+      const forged = new URL(callback);
+      forged.searchParams.set('state', edited);
+      jar.cookies.set(LOGIN_COOKIE, edited);
+
+      expectRefused(await browse(app, jar, pathOf(forged.toString())));
+      expect(await sessionsFor(subjectId)).toHaveLength(0);
+      const left = await owner.db.execute(
+        sql`SELECT id FROM console_logins WHERE state_hash = ${sha256(state)}`,
+      );
+      expect(left).toHaveLength(1);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('turns an error code outside the registered set into server_error', async () => {
+    const { app } = await startApp();
+    try {
+      const jar = new Jar();
+      const { state } = await beginLogin(app, jar);
+      const query = new URLSearchParams({ error: 'made_up_code', state, iss: ISSUER });
+
+      const res = await browse(app, jar, `/console/auth/callback?${query.toString()}`);
+
+      expect(res.statusCode).toBe(302);
+      expect(res.headers.location).toBe('/console/?login_error=server_error');
     } finally {
       await app.close();
     }

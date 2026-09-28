@@ -21,4 +21,6 @@ export interface OduduPort {
   issuerOf(tenant: string, ip: string): Promise<string | null>;
   keysOf(tenant: string, ip: string): Promise<unknown>;
   exchangeCode(input: CodeExchange): Promise<TokenSet | null>;
+  // RFC 7009: revoking the refresh token ends the whole grant behind it.
+  revoke(tenant: string, refreshToken: string, ip: string): Promise<void>;
 }
