@@ -389,6 +389,36 @@ describe('consoleLoginRepository', () => {
     expect(second).toBeNull();
   });
 
+  it('gives a login to exactly one of two callbacks racing for it', async () => {
+    const tenantId = newId();
+    const created = await withTenant(app.db, tenantId, (tx) => seedLogin(tx, tenantId));
+
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let taken: () => void = () => undefined;
+    const firstTook = new Promise<void>((resolve) => {
+      taken = resolve;
+    });
+
+    const first = withTenant(app.db, tenantId, async (tx) => {
+      const login = await consoleLoginRepository(tx).takeByStateHash(created.stateHash, NOW);
+      taken();
+      await held;
+      return login;
+    });
+    await firstTook;
+    const second = withTenant(app.db, tenantId, (tx) =>
+      consoleLoginRepository(tx).takeByStateHash(created.stateHash, NOW),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    release();
+    const results = await Promise.all([first, second]);
+
+    expect(results.filter((login) => login !== null)).toEqual([created]);
+  });
+
   it('does not return an expired login', async () => {
     const tenantId = newId();
     const created = await withTenant(app.db, tenantId, (tx) => seedLogin(tx, tenantId));
