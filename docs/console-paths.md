@@ -27,8 +27,10 @@ service was built at commit `5fd4b11`; for the third it was rebuilt at
 `ODUDU_CONSOLE` is left at its default, `true`. The base is plain HTTP, so the
 cookies are `odudu-console` and `odudu-console-login`; over `https` they are
 `__Host-odudu-console` and `__Host-odudu-console-login` and carry `Secure`.
-The image ships no console build, so `ODUDU_CONSOLE_DIR` (`/app/console`)
-is absent. The server logged these warnings when it booted for the third run.
+The image built at those commits shipped no console build, so
+`ODUDU_CONSOLE_DIR` (`/app/console`) was absent; the image has carried one
+since `78826ac`, and [`GET /console/`](#get-console) was captured against
+that build. The server logged these warnings when it booted for the third run.
 The second line is the console cookie's plain-HTTP fallback, and the third
 is the missing build:
 
@@ -1232,27 +1234,62 @@ Keep-Alive: timeout=72
 
 ## `GET /console/`
 
-The logout's `302` lands on the console shell. The image has no built
-console, so every path under `/console/` that neither the API nor the
-sign-in routes claim answers `503`. The SPA is not built yet; see
-[docs/request-paths.md](request-paths.md#what-is-not-implemented). The
-shell's headers, its CSP included, are tested against a fixture build in
-`apps/server/tests/console-shell.int.test.ts` rather than shown here.
+The logout's `302` lands on the console shell. Every path under `/console/`
+that neither the API nor the sign-in routes claim answers the shell, with
+the gateway's CSP, and each hashed asset the shell names is served
+`immutable`. The shell has no features yet; see
+[docs/request-paths.md](request-paths.md#what-is-not-implemented).
+
+**The stack for this section only.** Not `docker-odudu-1`: a separate
+compose project, `odudu-smoke`, of the same `infra/docker/compose.yaml`
+built at `78826ac` on a fresh database, with its `odudu` service published
+on `127.0.0.1:3100` so that it ran beside the development stack. The shell
+reads no cookie, so none is sent.
 
 ```bash
-curl -sS -D - -c jar -b jar http://localhost:3000/console/
+curl -sS -D - http://localhost:3100/console/
 ```
 
 ```
-HTTP/1.1 503 Service Unavailable
-x-request-id: 01a0e72f-19f7-70dd-a222-d8228a939d36
-content-type: text/plain; charset=utf-8
-content-length: 25
-Date: Mon, 28 Sep 2026 08:43:38 GMT
+HTTP/1.1 200 OK
+x-request-id: 01a0e7ea-5fc3-751a-ae48-8f0a1237a8db
+content-type: text/html; charset=utf-8
+content-security-policy: default-src 'self'; script-src 'self'; style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o=' 'sha256-gYiS/BvZvRcK27JIXTuwhZ3hs2+VJ1X+2gUlE+farlg='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'
+x-frame-options: DENY
+referrer-policy: no-referrer
+cache-control: no-store
+content-length: 330
+Date: Mon, 28 Sep 2026 12:08:11 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-console build unavailable
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Odudu console</title>
+    <script type="module" crossorigin src="/console/assets/index-I408uhrW.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+```
+
+```bash
+curl -sS -D - -o /dev/null http://localhost:3100/console/assets/index-I408uhrW.js
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e7ea-5fe0-7ea2-a5d3-5102b91ef1e3
+content-type: text/javascript; charset=utf-8
+cache-control: public, max-age=31536000, immutable
+content-length: 294585
+Date: Mon, 28 Sep 2026 12:08:11 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 ```
 
 ## What these runs do not show
