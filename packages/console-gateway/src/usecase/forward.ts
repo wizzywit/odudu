@@ -1,3 +1,5 @@
+import { withTenant } from '@odudu/db';
+import { consoleSessionRepository, type ConsoleSessionRecord } from '#/repository/console-sessions';
 import { type AdminMethod, type AdminResponse } from '#/service/odudu-port';
 import {
   forwardedRequestHeaders,
@@ -5,6 +7,7 @@ import {
   type PassedHeaders,
 } from '#/service/rewrite';
 import { freshAccessToken, type FreshTokenDeps } from '#/usecase/fresh-access-token';
+import { orUnavailable } from '#/usecase/lock-timeout';
 import { resolveSession, type ResolveSessionDeps } from '#/usecase/resolve-session';
 
 export interface ForwardDeps extends ResolveSessionDeps, FreshTokenDeps {}
@@ -29,8 +32,9 @@ export type ForwardResult =
   | { readonly kind: 'ended' }
   | { readonly kind: 'unavailable' };
 
-// The admin API's own 401 is passed back as it is: refreshing and retrying
-// on it would present a refresh token the lock no longer guards.
+// The admin API's own 401 ends the session, and nothing is presented:
+// refreshing and retrying on it would present a refresh token the lock no
+// longer guards, and a grant it refuses is one already ended.
 export async function forwardAdminCall(
   deps: ForwardDeps,
   call: ConsoleAdminCall,
@@ -56,10 +60,23 @@ export async function forwardAdminCall(
     body: call.body,
     ip: call.ip,
   });
+  if (response.status === 401) return dropSession(deps, resolved.session);
   return {
     kind: 'forwarded',
     status: response.status,
     headers: passedResponseHeaders(response.headers),
     body: response.body,
   };
+}
+
+async function dropSession(
+  deps: ForwardDeps,
+  session: ConsoleSessionRecord,
+): Promise<ForwardResult> {
+  return orUnavailable(async () => {
+    await withTenant(deps.database.db, session.tenantId, (tx) =>
+      consoleSessionRepository(tx).take(session.id),
+    );
+    return { kind: 'ended' } as const;
+  });
 }

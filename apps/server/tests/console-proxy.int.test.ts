@@ -10,6 +10,7 @@ import http from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedAdmin } from '#/cli/seed';
 import {
+  browse,
   type ConsoleAppOptions,
   type ConsoleStack,
   Jar,
@@ -748,19 +749,22 @@ describe('an ended session or grant', () => {
     });
   });
 
-  it('passes the admin API’s own 401 through outside the window, without refreshing', async () => {
+  it('ends the session on the admin API’s own 401 outside the window, without refreshing', async () => {
     await withStack(async (stack) => {
       const jar = new Jar();
       const { subjectId } = await signIn(stack, jar);
       await revokeGrant(stack, subjectId);
       const tokens = stack.tokenResponses.length;
+      const forwarded = stack.adminRequests.length;
 
       const res = await call(stack, jar, WHOAMI);
 
-      expect(res.statusCode).toBe(401);
-      expect(res.json<{ type?: string }>().type).not.toBe(ENDED);
+      expectEnded(res);
+      expect(String(res.headers['set-cookie'])).toMatch(/^odudu-console=;.*Max-Age=0/u);
+      expect(stack.adminRequests).toHaveLength(forwarded + 1);
       expect(stack.tokenResponses.length).toBe(tokens);
-      expect(await sessionOf(subjectId)).toBeDefined();
+      expect(await sessionOf(subjectId)).toBeUndefined();
+      expectEnded(await browse(stack, jar, '/console/api/session'));
     });
   });
 
