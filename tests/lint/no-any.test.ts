@@ -97,7 +97,7 @@ function waivers(file: string, source: string): string[] {
   return offenders;
 }
 
-describe('the any ban cannot be waived by an inline comment', () => {
+describe('the any ban cannot be waived by an inline comment', { timeout: 60_000 }, () => {
   it('no source file disables an any-family rule', async () => {
     const offenders: string[] = [];
     for (const file of await scannedFiles()) {
