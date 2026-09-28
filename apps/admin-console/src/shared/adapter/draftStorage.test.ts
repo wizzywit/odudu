@@ -2,7 +2,10 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { loadDrafts, storeDrafts } from '#/shared/adapter/draftStorage.ts';
 
 const KEY = 'odudu.console.drafts';
-const KEPT = { owner: 'acme/s1', drafts: { 'acme/roles/r1': { general: { name: 'x' } } } };
+const KEPT = {
+  owner: 'acme/s1',
+  drafts: { 'acme/roles/r1': { general: { etag: '"e1"', values: { name: 'x' } } } },
+};
 
 afterEach(() => {
   vi.restoreAllMocks();

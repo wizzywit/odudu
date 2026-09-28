@@ -308,7 +308,10 @@ describe('leaving', () => {
     const user = userEvent.setup();
     sessionStorage.setItem(
       'odudu.console.drafts',
-      JSON.stringify({ owner: 'acme/s1', drafts: { 'acme/roles/r1': { general: { name: 'x' } } } }),
+      JSON.stringify({
+        owner: 'acme/s1',
+        drafts: { 'acme/roles/r1': { general: { etag: null, values: { name: 'x' } } } },
+      }),
     );
     const { leavePage } = renderAt('/console/acme', {
       ...signedIn,

@@ -8,27 +8,38 @@ import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 import { TextField } from '#/shared/view/Field.tsx';
 import { Section } from '#/shared/view/Section.tsx';
 
-const RECORD = 'acme/clients/c1';
 const BASE = { name: 'Billing portal', secret: '' };
+const OWNER = 'system/s0';
 
-// A section as a feature builds one: its own edits, the secret flagged.
-function General({ onSave = vi.fn() }: { readonly onSave?: () => void }) {
+// A section as a feature builds one: its own edits, the secret flagged, and
+// a save that sends the ETag a restored draft carries in place of its own.
+function General({
+  tenant = 'acme',
+  etag = '"e1"',
+  onSave = vi.fn(),
+}: {
+  readonly tenant?: string;
+  readonly etag?: string;
+  readonly onSave?: (ifMatch: string | null) => void;
+}) {
   const [edits, setEdits] = useState<Partial<typeof BASE>>({});
   const dirty = Object.keys(edits).length > 0;
   const fields = Object.fromEntries(
     Object.entries(edits).map(([name, value]) => [name, { value, secret: name === 'secret' }]),
   );
   const { restored, settle } = useSectionDraft({
-    record: RECORD,
+    tenant,
+    record: 'clients/c1',
     section: 'general',
     label: 'General',
     dirty,
     fields,
+    etag,
   });
   const [applied, setApplied] = useState(false);
   if (restored !== null && !applied) {
     setApplied(true);
-    setEdits(typeof restored.name === 'string' ? { name: restored.name } : {});
+    setEdits(typeof restored.values.name === 'string' ? { name: restored.values.name } : {});
   }
   const values = { ...BASE, ...edits };
   return (
@@ -37,7 +48,9 @@ function General({ onSave = vi.fn() }: { readonly onSave?: () => void }) {
       dirty={dirty}
       saving={false}
       restored={restored !== null}
-      onSave={onSave}
+      onSave={() => {
+        onSave(restored?.etag ?? etag);
+      }}
       onDiscard={() => {
         setEdits({});
         settle();
@@ -71,15 +84,26 @@ afterEach(() => {
   useUnsavedGuard.getState().reset();
 });
 
-it('offers its edits to be kept, leaving out the field flagged secret', async () => {
+async function keepAnEdit(tenant = 'acme'): Promise<void> {
+  const user = userEvent.setup();
+  const { unmount } = render(<General tenant={tenant} />);
+  await user.type(screen.getByRole('textbox', { name: 'Name' }), ' EU');
+  useDrafts.getState().keepDirty(OWNER);
+  unmount();
+}
+
+it('offers its edits to be kept under its tenant, leaving out the field flagged secret', async () => {
   const user = userEvent.setup();
   render(<General />);
   await user.type(screen.getByRole('textbox', { name: 'Name' }), ' EU');
   await user.type(screen.getByRole('textbox', { name: 'Secret' }), 'hunter2');
 
-  expect(useDrafts.getState().keepDirty('acme/s1')).toBe(1);
+  expect(useDrafts.getState().keepDirty(OWNER)).toBe(1);
 
-  expect(useDrafts.getState().restore(RECORD, 'general')).toEqual({ name: 'Billing portal EU' });
+  expect(useDrafts.getState().restore('acme/clients/c1', 'general')).toEqual({
+    values: { name: 'Billing portal EU' },
+    etag: '"e1"',
+  });
   expect(sessionStorage.getItem('odudu.console.drafts')).not.toContain('hunter2');
   expect(useUnsavedGuard.getState().unsaved()).toEqual(['General']);
 });
@@ -87,14 +111,7 @@ it('offers its edits to be kept, leaving out the field flagged secret', async ()
 it('puts a kept draft back marked for review, and sends nothing', async () => {
   const user = userEvent.setup();
   const onSave = vi.fn();
-  const kept = useDrafts.getState().register({
-    record: RECORD,
-    section: 'general',
-    dirty: () => true,
-    fields: () => ({ name: { value: 'Billing portal EU' } }),
-  });
-  useDrafts.getState().keepDirty('acme/s1');
-  kept();
+  await keepAnEdit();
 
   render(<General onSave={onSave} />);
 
@@ -102,7 +119,7 @@ it('puts a kept draft back marked for review, and sends nothing', async () => {
   expect(within(section).getByText('Restored — review before saving')).toBeVisible();
   expect(within(section).getByRole('textbox', { name: 'Name' })).toHaveValue('Billing portal EU');
   expect(within(section).getByText('Unsaved changes')).toBeVisible();
-  expect(useDrafts.getState().restore(RECORD, 'general')).toBeNull();
+  expect(useDrafts.getState().restore('acme/clients/c1', 'general')).toBeNull();
   expect(onSave).not.toHaveBeenCalled();
   expect(fetchSpy).not.toHaveBeenCalled();
 
@@ -110,20 +127,35 @@ it('puts a kept draft back marked for review, and sends nothing', async () => {
   expect(within(section).queryByText('Restored — review before saving')).toBeNull();
 });
 
+it('saves a restored edit with the ETag it was made against, not a fresh one', async () => {
+  const user = userEvent.setup();
+  const onSave = vi.fn();
+  await keepAnEdit();
+
+  render(<General etag={'"e2"'} onSave={onSave} />);
+  await user.click(screen.getByRole('button', { name: 'Save General' }));
+
+  expect(onSave).toHaveBeenCalledWith('"e1"');
+});
+
+it('never restores a draft kept in one tenant into another', async () => {
+  await keepAnEdit('acme');
+
+  render(<General tenant="globex" />);
+
+  const section = screen.getByRole('region', { name: 'General' });
+  expect(within(section).queryByText('Restored — review before saving')).toBeNull();
+  expect(within(section).getByRole('textbox', { name: 'Name' })).toHaveValue('Billing portal');
+  expect(useDrafts.getState().restore('acme/clients/c1', 'general')).not.toBeNull();
+});
+
 it('keeps a restored draft through a second session end, untouched', async () => {
-  const kept = useDrafts.getState().register({
-    record: RECORD,
-    section: 'general',
-    dirty: () => true,
-    fields: () => ({ name: { value: 'Billing portal EU' } }),
-  });
-  useDrafts.getState().keepDirty('acme/s1');
-  kept();
+  await keepAnEdit();
   const first = render(<General />);
   await screen.findByText('Restored — review before saving');
-  expect(useDrafts.getState().restore(RECORD, 'general')).toBeNull();
+  expect(useDrafts.getState().restore('acme/clients/c1', 'general')).toBeNull();
 
-  expect(useDrafts.getState().keepDirty('acme/s1')).toBe(1);
+  expect(useDrafts.getState().keepDirty(OWNER)).toBe(1);
   first.unmount();
 
   render(<General />);

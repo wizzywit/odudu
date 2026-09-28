@@ -35,16 +35,18 @@ function General() {
   );
   const dirty = Object.keys(edits).length > 0;
   const { restored, settle } = useSectionDraft({
-    record: 'acme/clients/c1',
+    tenant: 'acme',
+    record: 'clients/c1',
     section: 'general',
     label: 'General',
     dirty,
     fields,
+    etag: '"e1"',
   });
   const [applied, setApplied] = useState(false);
   if (restored !== null && !applied) {
     setApplied(true);
-    setEdits(typeof restored.name === 'string' ? { name: restored.name } : {});
+    setEdits(typeof restored.values.name === 'string' ? { name: restored.values.name } : {});
   }
   const values = { ...BASE, ...edits };
   return (

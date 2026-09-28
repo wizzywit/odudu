@@ -5,7 +5,7 @@ const KEY = 'odudu.console.drafts';
 const drafts = () => useDrafts.getState();
 
 function source(record: string, section: string, fields: DraftFields, dirty = true) {
-  return { record, section, dirty: () => dirty, fields: () => fields };
+  return { record, section, dirty: () => dirty, fields: () => fields, etag: () => '"e1"' };
 }
 
 const registered: (() => void)[] = [];
@@ -37,8 +37,8 @@ describe('keeping drafts', () => {
 
     expect(localStorage.length).toBe(0);
     expect(drafts().restore('acme/clients/c1', 'general')).toEqual({
-      name: 'Billing',
-      redirect_uris: ['https://app.example/cb'],
+      values: { name: 'Billing', redirect_uris: ['https://app.example/cb'] },
+      etag: '"e1"',
     });
     expect(drafts().restore('acme/clients/c1', 'tokens')).toBeNull();
   });
@@ -53,7 +53,7 @@ describe('keeping drafts', () => {
 
     expect(sessionStorage.getItem(KEY)).not.toContain('correct-horse-battery-staple');
     expect(sessionStorage.getItem(KEY)).not.toContain('client_secret');
-    expect(drafts().restore('acme/clients/c1', 'credentials')).toEqual({
+    expect(drafts().restore('acme/clients/c1', 'credentials')?.values).toEqual({
       description: 'rotated for the audit',
     });
   });
@@ -77,7 +77,9 @@ describe('restoring drafts', () => {
     register('acme/roles/r1', 'general', { description: { value: 'Support' } });
     drafts().keepDirty('acme/s1');
 
-    expect(drafts().restore('acme/roles/r1', 'general')).toEqual({ description: 'Support' });
+    expect(drafts().restore('acme/roles/r1', 'general')?.values).toEqual({
+      description: 'Support',
+    });
     drafts().forget('acme/roles/r1', 'general');
     expect(drafts().restore('acme/roles/r1', 'general')).toBeNull();
   });
@@ -98,7 +100,9 @@ describe('restoring drafts', () => {
 
     drafts().adopt('acme/s1');
 
-    expect(drafts().restore('acme/roles/r1', 'general')).toEqual({ description: 'Support' });
+    expect(drafts().restore('acme/roles/r1', 'general')?.values).toEqual({
+      description: 'Support',
+    });
   });
 
   it('treats a stored value it cannot read as no drafts at all', () => {

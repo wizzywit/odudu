@@ -9,19 +9,27 @@ export interface DraftField {
 export type DraftFields = Readonly<Record<string, DraftField>>;
 export type DraftValues = Readonly<Record<string, unknown>>;
 
+// A draft is saved with the ETag its section loaded, never a fresh one, so a
+// change somebody made meanwhile answers 412 rather than being overwritten.
+export interface KeptDraft {
+  readonly values: DraftValues;
+  readonly etag: string | null;
+}
+
 export interface DraftSource {
   readonly record: string;
   readonly section: string;
   readonly dirty: () => boolean;
   // The section's edits, not its whole record: a restore lands on a fresh read.
   readonly fields: () => DraftFields;
+  readonly etag: () => string | null;
 }
 
 interface Drafts {
   readonly register: (source: DraftSource) => () => void;
   // Writes every dirty section's non-secret edits; answers how many sections.
   readonly keepDirty: (owner: string) => number;
-  readonly restore: (record: string, section: string) => DraftValues | null;
+  readonly restore: (record: string, section: string) => KeptDraft | null;
   readonly forget: (record: string, section: string) => void;
   // Drops drafts some other administrator left in this tab.
   readonly adopt: (owner: string) => void;
@@ -53,7 +61,10 @@ export const useDrafts = create<Drafts>()(() => ({
       if (!source.dirty()) continue;
       const values = keepable(source.fields());
       if (Object.keys(values).length === 0) continue;
-      drafts[source.record] = { ...drafts[source.record], [source.section]: values };
+      drafts[source.record] = {
+        ...drafts[source.record],
+        [source.section]: { values, etag: source.etag() },
+      };
       kept += 1;
     }
     storeDrafts({ owner, drafts });

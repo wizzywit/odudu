@@ -4,10 +4,17 @@ const KEY = 'odudu.console.drafts';
 
 const storedSchema = z.object({
   owner: z.string(),
-  drafts: z.record(z.string(), z.record(z.string(), z.record(z.string(), z.unknown()))),
+  drafts: z.record(
+    z.string(),
+    z.record(
+      z.string(),
+      z.object({ etag: z.string().nullable(), values: z.record(z.string(), z.unknown()) }),
+    ),
+  ),
 });
 
-// Record, then section, then field, to the value kept for it.
+// Record, then section, to the values kept for it and the ETag they were
+// made against.
 export type StoredDrafts = z.infer<typeof storedSchema>;
 
 // Every access is guarded: a private window or blocked site data refuses
