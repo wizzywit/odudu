@@ -12,6 +12,14 @@ export const SESSION_ENDED: ConsoleProblem = {
   title: 'Unauthorized',
 };
 
+// Another sign-in replaced the session this tab was showing; the session
+// itself is live, so the cookie stays.
+export const PRINCIPAL_CHANGED: ConsoleProblem = {
+  status: 409,
+  type: 'about:blank#console-principal-changed',
+  title: 'Conflict',
+};
+
 export const BAD_GATEWAY: ConsoleProblem = {
   status: 502,
   type: 'about:blank',

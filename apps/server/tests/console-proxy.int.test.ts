@@ -31,6 +31,8 @@ let appDb: DatabaseHandle;
 const BASE = 'http://console.example.test';
 const SESSION_COOKIE = 'odudu-console';
 const ENDED = 'about:blank#console-session-ended';
+const CHANGED = 'about:blank#console-principal-changed';
+const SUBJECT = 'x-odudu-console-subject';
 const BROWSER_IP = '203.0.113.9';
 // The admin import's own body limit.
 const IMPORT_LIMIT = 16 * 1024 * 1024;
@@ -98,6 +100,7 @@ async function call(
     headers: {
       host: stack.base.host,
       ...(method === 'GET' || method === 'HEAD' ? {} : WRITE),
+      ...(jar.subject === undefined ? {} : { [SUBJECT]: jar.subject }),
       ...headers,
       ...jar.header(),
     },
@@ -737,6 +740,114 @@ describe('the access token', () => {
 
       expect((await call(stack, jar, WHOAMI)).statusCode).toBe(200);
       expect(stack.tokenResponses.length).toBe(tokens);
+    });
+  });
+});
+
+describe('the principal a tab believes it is', () => {
+  async function auditRows(): Promise<number> {
+    const rows = await owner.db.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM audit_events`,
+    );
+    return rows[0]?.n ?? -1;
+  }
+
+  function expectChanged(res: LightMyRequestResponse): void {
+    expectProblem(res, 409);
+    expect(res.json()).toMatchObject({ type: CHANGED, title: 'Conflict' });
+  }
+
+  it('refuses a write that names another subject with 409, forwarding and writing nothing', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      const { subjectId } = await signIn(stack, jar);
+      const forwarded = stack.adminRequests.length;
+      const audited = await auditRows();
+
+      const res = await call(stack, jar, SCOPES, {
+        method: 'POST',
+        ...json({ name: `stale-${newId().slice(-12)}` }),
+        headers: { 'content-type': 'application/json', [SUBJECT]: newId() },
+      });
+
+      expectChanged(res);
+      expect(res.headers['set-cookie']).toBeUndefined();
+      expect(stack.adminRequests).toHaveLength(forwarded);
+      expect(await auditRows()).toBe(audited);
+      expect(await sessionOf(subjectId)).toBeDefined();
+    });
+  });
+
+  it('refuses a write that names no subject the same way', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      await signIn(stack, jar);
+      jar.subject = undefined;
+      const forwarded = stack.adminRequests.length;
+
+      const res = await call(stack, jar, SCOPES, {
+        method: 'POST',
+        ...json({ name: `unnamed-${newId().slice(-12)}` }),
+      });
+
+      expectChanged(res);
+      expect(stack.adminRequests).toHaveLength(forwarded);
+    });
+  });
+
+  it('refuses a read that names another subject, forwarding nothing', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      await signIn(stack, jar);
+      const forwarded = stack.adminRequests.length;
+
+      expectChanged(await call(stack, jar, WHOAMI, { headers: { [SUBJECT]: newId() } }));
+      expect(stack.adminRequests).toHaveLength(forwarded);
+    });
+  });
+
+  it('still forwards a read that names no subject', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      await signIn(stack, jar);
+      jar.subject = undefined;
+
+      expect((await call(stack, jar, WHOAMI)).statusCode).toBe(200);
+    });
+  });
+
+  it('refuses the old subject once another sign-in in the same browser has replaced it', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      const first = await signIn(stack, jar);
+      // Another tab of the same browser signs somebody else in: the console
+      // cookie is shared, so this tab now carries the new session.
+      const other = new Jar();
+      const second = await signIn(stack, other);
+      expect(second.subjectId).not.toBe(first.subjectId);
+      jar.cookies.set(SESSION_COOKIE, other.cookies.get(SESSION_COOKIE) ?? '');
+      const forwarded = stack.adminRequests.length;
+
+      const stale = await call(stack, jar, SCOPES, {
+        method: 'POST',
+        ...json({ name: `replaced-${newId().slice(-12)}` }),
+        headers: { 'content-type': 'application/json', [SUBJECT]: first.subjectId },
+      });
+
+      expectChanged(stale);
+      expect(stack.adminRequests).toHaveLength(forwarded);
+      const current = await call(stack, jar, WHOAMI, { headers: { [SUBJECT]: second.subjectId } });
+      expect(current.statusCode).toBe(200);
+    });
+  });
+
+  it('answers an ended session as ended, whatever subject the request names', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      await signIn(stack, jar);
+      stack.clock.advance(31 * 60_000);
+
+      expectEnded(await call(stack, jar, WHOAMI, { headers: { [SUBJECT]: newId() } }));
     });
   });
 });

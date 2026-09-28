@@ -105,6 +105,9 @@ export async function startConsoleApp(
 
 export class Jar {
   readonly cookies = new Map<string, string>();
+  // The subject this browser was last signed in as, which the console sends
+  // on every admin request as X-Odudu-Console-Subject.
+  subject: string | undefined;
 
   take(res: LightMyRequestResponse): void {
     for (const c of res.cookies) {
@@ -235,6 +238,7 @@ export async function signIn(
   const signed = await signInAtOp(stack, jar, authorize);
   const response = await browse(stack, jar, pathOf(stack, signed.callback));
   expect(response.statusCode).toBe(302);
+  jar.subject = signed.subjectId;
   return { ...signed, response };
 }
 
@@ -342,4 +346,6 @@ export async function signInToTenant(
   expect(signedIn.statusCode).toBe(302);
   const callback = await browse(stack, jar, pathOf(stack, String(signedIn.headers.location)));
   expect(callback.statusCode).toBe(302);
+  const session = await browse(stack, jar, '/console/api/session');
+  jar.subject = session.json<{ subject_id: string }>().subject_id;
 }

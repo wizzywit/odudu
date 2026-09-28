@@ -1,9 +1,10 @@
 import { TENANT_IMPORT_BODY_LIMIT } from '@odudu/contracts/admin';
 import { type FastifyInstance } from 'fastify';
+import { believedSubject } from '#/service/console-subject';
 import { type AdminMethod } from '#/service/odudu-port';
 import { upstreamPath } from '#/service/rewrite';
 import { forwardAdminCall, type ForwardDeps } from '#/usecase/forward';
-import { BAD_GATEWAY, sendProblem } from '#/view/problem';
+import { BAD_GATEWAY, PRINCIPAL_CHANGED, sendProblem } from '#/view/problem';
 import { sessionEnded } from '#/view/routes/session';
 import { callerOf } from '#/view/scope';
 
@@ -46,10 +47,14 @@ export function registerProxyRoutes(api: FastifyInstance, deps: ProxyRouteDeps):
           path,
           headers: request.headers,
           body: Buffer.isBuffer(request.body) ? request.body : undefined,
+          believedSubject: believedSubject(request.headers),
           from: callerOf(request),
           now: deps.now(),
         });
         if (result.kind === 'ended') return sessionEnded(reply, request, deps.tls);
+        if (result.kind === 'principal-changed') {
+          return sendProblem(reply, request, PRINCIPAL_CHANGED);
+        }
         if (result.kind === 'unavailable') {
           return sendProblem(reply, request, BAD_GATEWAY);
         }

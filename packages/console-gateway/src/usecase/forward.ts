@@ -1,6 +1,7 @@
 import { withTenant } from '@odudu/db';
 import { type ConsoleSessionRecord } from '#/repository/console-sessions';
 import { tenantNameRepository } from '#/repository/tenants';
+import { principalChanged } from '#/service/console-subject';
 import { type AdminMethod, type AdminResponse, type Caller } from '#/service/odudu-port';
 import {
   forwardedRequestHeaders,
@@ -19,6 +20,8 @@ export interface ConsoleAdminCall {
   readonly path: string;
   readonly headers: Readonly<Record<string, string | readonly string[] | undefined>>;
   readonly body: Buffer | undefined;
+  /** The subject the tab believes it is signed in as, from X-Odudu-Console-Subject. */
+  readonly believedSubject: string | undefined;
   readonly from: Caller;
   readonly now: Date;
 }
@@ -31,6 +34,7 @@ export type ForwardResult =
       readonly body: Buffer;
     }
   | { readonly kind: 'ended' }
+  | { readonly kind: 'principal-changed' }
   | { readonly kind: 'unavailable' };
 
 // The admin API also answers 401 for a path naming an unknown tenant or
@@ -49,6 +53,9 @@ export async function forwardAdminCall(
     call.from,
   );
   if (resolved.kind !== 'ok') return resolved;
+  if (principalChanged(call.method, call.believedSubject, resolved.session.subjectId)) {
+    return { kind: 'principal-changed' };
+  }
   const token = await freshAccessToken(deps, resolved.session, call.now, call.from);
   if (token.kind !== 'ok') return token;
 

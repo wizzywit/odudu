@@ -1158,7 +1158,13 @@ tokens server-side and gives the browser nothing but a session cookie:
   status and body come back as the admin API sent them, with only
   `Content-Type`, `ETag`, `Location`, `Link` and `Cache-Control`, and an
   `/admin/` URI in `Location` or `Link` rewritten to `/console/api/admin/`.
-  The body limit is the tenant import's, 16 MiB. An access token within 30 s
+  A request names the subject its tab believes is signed in, in
+  `X-Odudu-Console-Subject`, since every tab shares one cookie and another
+  tab's sign-in can replace the session. One naming another subject, or a
+  write naming none, is refused `409` with the problem type
+  `about:blank#console-principal-changed` and forwarded nowhere; a read
+  naming none is still forwarded. The body limit is the tenant import's,
+  16 MiB. An access token within 30 s
   of expiry is refreshed first, once per session however many requests
   arrive together. A refused refresh ends the session with the
   session-ended `401`, as does a `200` whose body cannot be read, since it
