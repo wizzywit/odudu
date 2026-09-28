@@ -1,8 +1,10 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
+import { Providers } from '#/app/Providers.tsx';
 import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer.tsx';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 
 afterEach(() => {
   useUnsavedGuard.getState().reset();
@@ -43,4 +45,43 @@ it('drops the held departure on stay and keeps the work', async () => {
   expect(proceed).not.toHaveBeenCalled();
   expect(screen.queryByRole('alertdialog')).toBeNull();
   expect(useUnsavedGuard.getState().unsaved()).toEqual(['General']);
+});
+
+function OtherDialog({ open, onClose }: { readonly open: boolean; readonly onClose: () => void }) {
+  return (
+    <ConfirmDialog
+      isOpen={open}
+      title="Delete client?"
+      consequence="Its tokens stop working at once."
+      confirmLabel="Delete client"
+      onConfirm={onClose}
+      onCancel={onClose}
+    />
+  );
+}
+
+it('never stacks over another open dialog, and asks once that one closes', async () => {
+  const user = userEvent.setup();
+  const { rerender } = render(
+    <Providers>
+      <OtherDialog open onClose={vi.fn()} />
+      <UnsavedGuardLayer />
+    </Providers>,
+  );
+  await screen.findByRole('alertdialog', { name: 'Delete client?' });
+  holdDeparture(vi.fn());
+  expect(screen.queryByRole('alertdialog', { name: 'Leave without saving?' })).toBeNull();
+
+  rerender(
+    <Providers>
+      <OtherDialog open={false} onClose={vi.fn()} />
+      <UnsavedGuardLayer />
+    </Providers>,
+  );
+  expect(
+    await screen.findByRole('alertdialog', { name: 'Leave without saving?' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('alertdialog', { name: 'Delete client?' })).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Stay' }));
+  expect(screen.queryByRole('alertdialog')).toBeNull();
 });

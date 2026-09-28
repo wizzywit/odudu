@@ -1,5 +1,6 @@
-import { useId, type ReactNode } from 'react';
+import { useContext, useEffect, useId, type ReactNode } from 'react';
 import { Dialog, Heading, Modal, ModalOverlay } from 'react-aria-components';
+import { DialogPresence } from '#/shared/view/dialogPresence.ts';
 import styles from '#/shared/view/DialogFrame.module.css';
 
 // The one dialog layer: a dialog only stops you, so it never closes on an
@@ -22,6 +23,8 @@ export function DialogFrame({
   readonly actions: ReactNode;
 }) {
   const describedBy = useId();
+  const reportOpen = useContext(DialogPresence);
+  useEffect(() => (isOpen ? reportOpen() : undefined), [isOpen, reportOpen]);
   return (
     <ModalOverlay
       isOpen={isOpen}

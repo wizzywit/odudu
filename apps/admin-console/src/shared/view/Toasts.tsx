@@ -98,7 +98,8 @@ function ToastItem({
 }
 
 // Errors come first and stay until dismissed; each list announces its own way,
-// so an error is never heard twice.
+// so an error is never heard twice. The region is React Aria's top layer, so
+// an open modal's aria-hidden sweep leaves it where a screen reader can hear it.
 export function Toasts({
   toasts,
   onDismiss,
@@ -140,7 +141,12 @@ export function Toasts({
     />
   );
   return (
-    <section ref={region} aria-label="Notifications" className={styles.region}>
+    <section
+      ref={region}
+      aria-label="Notifications"
+      className={styles.region}
+      data-react-aria-top-layer
+    >
       <ol className={styles.list}>{errors.map(item)}</ol>
       <ol aria-live="polite" className={styles.list}>
         {successes.map(item)}
