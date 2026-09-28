@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { Section } from '#/shared/view/Section.tsx';
@@ -45,8 +45,10 @@ it('shows its save bar only while it has changes', () => {
 it('saves from the button and from Enter in a field, and shows the shortcut', async () => {
   const user = userEvent.setup();
   const onSave = vi.fn();
-  render(<General dirty onSave={onSave} />);
+  const { rerender } = render(<General dirty onSave={onSave} />);
   await user.click(screen.getByRole('button', { name: 'Save General' }));
+  rerender(<General dirty saving onSave={onSave} />);
+  rerender(<General dirty onSave={onSave} />);
   await user.type(screen.getByRole('textbox', { name: 'Name' }), '{Enter}');
   expect(onSave).toHaveBeenCalledTimes(2);
   expect(screen.getByRole('button', { name: 'Save General' })).toHaveAccessibleDescription('Enter');
@@ -63,6 +65,32 @@ it('reads "Saving…" while the request is in flight, and nothing resubmits it',
   await user.click(button);
   expect(onSave).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'Discard changes to General' })).toBeDisabled();
+});
+
+it('saves once for two submits that land before "saving" arrives', () => {
+  const onSave = vi.fn();
+  render(<General dirty onSave={onSave} />);
+  const form = screen.getByRole('textbox', { name: 'Name' }).closest('form');
+  act(() => {
+    form?.requestSubmit();
+    form?.requestSubmit();
+  });
+  expect(onSave).toHaveBeenCalledOnce();
+});
+
+it('saves again once the first save has finished', () => {
+  const onSave = vi.fn();
+  const { rerender } = render(<General dirty onSave={onSave} />);
+  const form = () => screen.getByRole('textbox', { name: 'Name' }).closest('form');
+  act(() => {
+    form()?.requestSubmit();
+  });
+  rerender(<General dirty saving onSave={onSave} />);
+  rerender(<General dirty onSave={onSave} />);
+  act(() => {
+    form()?.requestSubmit();
+  });
+  expect(onSave).toHaveBeenCalledTimes(2);
 });
 
 it('never saves when there is nothing to save', async () => {

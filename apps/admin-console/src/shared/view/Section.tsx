@@ -1,4 +1,4 @@
-import { useId, type SubmitEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type SubmitEvent, type ReactNode } from 'react';
 import { SaveBar } from '#/shared/view/SaveBar.tsx';
 import styles from '#/shared/view/Section.module.css';
 
@@ -22,9 +22,17 @@ export function Section({
   readonly children: ReactNode;
 }) {
   const heading = useId();
+  // Holds between a submit and the render that shows it saving, which a
+  // second quick submit would otherwise slip through.
+  const submitted = useRef(false);
+  useEffect(() => {
+    if (!saving) submitted.current = false;
+  }, [saving, dirty]);
   const submit = (event: SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    if (dirty && !saving) onSave();
+    if (!dirty || saving || submitted.current) return;
+    submitted.current = true;
+    onSave();
   };
   return (
     <section aria-labelledby={heading} className={styles.section} data-dirty={dirty || undefined}>
