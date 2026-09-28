@@ -170,7 +170,7 @@ describe('[ODUDU-VIEW-HTML-01] an HTML response cannot leave without its framing
     expect(EXEMPT_FILES.filter((path) => !sources.has(path))).toEqual([]);
   });
 
-  it('is one of only two files across every package that names a page header', async () => {
+  it('allows only the documented files to name a page header', async () => {
     const offenders = (await viewSources())
       .map((f) => ({ ...f, path: f.path.slice(REPO_ROOT.length + 1) }))
       .filter((f) => !EXEMPT_FILES.includes(f.path))

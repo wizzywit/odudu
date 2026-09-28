@@ -59,6 +59,19 @@ cannot appear undetected either.
   (a new directive, a new page-level default) is a change to one function,
   reachable from every package without a new dependency edge.
 
+## Amendment — 2026-09-28 — the console shell
+
+The administration console's shell,
+`packages/console-gateway/src/view/spa.ts`, is the one static-serving
+exception, and the third file `html-response.test.ts` lets name a page
+header. It serves a built single-page app, not a server-rendered page: it
+has no inline script and no per-request nonce, and its policy licenses a
+self-hosted script and one style hash. So it sets that fixed policy itself
+rather than through `pageHeaders`, whose policy describes a markup-only
+page. The two-wrapper rule above covers server-rendered pages; design spec
+§5.4 (`docs/superpowers/specs/2026-09-26-p4d-admin-console-design.md`)
+gives the shell's policy.
+
 ## Alternatives rejected
 
 - **Move `sendHtml` itself into `kernel`.** Would add `fastify` as a
