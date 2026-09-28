@@ -65,15 +65,14 @@ export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps
   const notFound = async (_request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> =>
     refuse(reply, 404, []);
   fastify.setNotFoundHandler(notFound);
-  // An actual route, not only the handler above: a `..` segment that
-  // resolves back inside this prefix is a real match for a shallower
-  // wildcard, such as the console shell's `/console/*` — one that never
-  // runs `setNotFoundHandler`'s own fallback router at all.
-  fastify.route({
-    method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'],
-    url: '/*',
-    handler: notFound,
-  });
+  // An actual route, not only the handler above: `setNotFoundHandler`
+  // only runs once nothing in the whole app matches, so a GET this scope
+  // has no route for — the bare prefix included — would otherwise match
+  // a shallower wildcard, such as the console shell's `/console/*`. This
+  // claims the whole prefix instead, bare and every path under it.
+  const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'] as const;
+  fastify.route({ method: [...methods], url: '', handler: notFound });
+  fastify.route({ method: [...methods], url: '/*', handler: notFound });
 
   fastify.get('/login', async (request, reply) => {
     const result = await beginLogin(deps.login, {

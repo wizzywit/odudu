@@ -47,18 +47,14 @@ export function registerConsoleApi(api: FastifyInstance, deps: ApiDeps): void {
     });
 
   api.setNotFoundHandler(notFound);
-  // An actual route, not only the handler above: a `..` segment that
-  // resolves back inside this prefix (say `/admin/%2e%2e/tenants`, which
-  // find-my-way normalises before matching) is a real match for a
-  // shallower wildcard, such as the console shell's `/console/*` — one
-  // that never runs `setNotFoundHandler`'s own fallback router at all.
-  // Claiming the whole prefix here keeps every such path answered from
-  // this plugin, same as one Fastify would never have routed elsewhere.
-  api.route({
-    method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'],
-    url: '/*',
-    handler: notFound,
-  });
+  // An actual route, not only the handler above: `setNotFoundHandler`
+  // only runs once nothing in the whole app matches, so a GET this scope
+  // has no route for — the bare prefix included — would otherwise match
+  // a shallower wildcard, such as the console shell's `/console/*`. This
+  // claims the whole prefix instead, bare and every path under it.
+  const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'] as const;
+  api.route({ method: [...methods], url: '', handler: notFound });
+  api.route({ method: [...methods], url: '/*', handler: notFound });
 
   registerSessionRoutes(api, deps);
   registerProxyRoutes(api, deps);

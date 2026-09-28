@@ -30,6 +30,14 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
     file: 'apps/server/tests/console-shell.int.test.ts',
     targets: ['packages/console-gateway/tests/fixtures/**'],
   },
+  {
+    file: 'packages/console-gateway/src/view/api.test.ts',
+    targets: ['packages/console-gateway/tests/fixtures/**'],
+  },
+  {
+    file: 'packages/console-gateway/src/view/routes/auth.test.ts',
+    targets: ['packages/console-gateway/tests/fixtures/**'],
+  },
 ];
 
 // A command-line entry no test imports: it reads relative to where it is run,
