@@ -87,6 +87,36 @@ two runs' sections were not re-run at `6401476`. The only
 change in what they show would be the `request_id` in the refresh sections'
 audit rows, which predate the first change.
 
+One section comes from **a fourth run**, on a stack of its own: the
+`infra/docker` compose file as the project `odudu-fix-capture`, on
+`http://localhost:3080`, its `odudu` service built from the tree of commit
+`62e4734`, with a throwaway tenant, `principal-check`, holding `grace` as its
+administrator and `hopper` beside her. `grace` signed in through the same
+four steps the first run shows, with a new, empty `jar`. The seed printed:
+
+```bash
+docker compose -p odudu-fix-capture exec -T odudu node dist/main.js seed tenant --name principal-check
+docker compose -p odudu-fix-capture exec -T odudu node dist/main.js seed user --tenant principal-check \
+  --username grace --password principal-check-throwaway --email grace@example.com
+docker compose -p odudu-fix-capture exec -T odudu node dist/main.js seed grant-role --tenant principal-check \
+  --username grace --role odudu-admin:tenant-admin
+docker compose -p odudu-fix-capture exec -T odudu node dist/main.js seed user --tenant principal-check \
+  --username hopper --password principal-check-throwaway-2 --email hopper@example.com
+```
+
+```
+{"command":"tenant","created":true,"tenant":"principal-check","tenantId":"01a0e95a-054b-71ee-ba7c-25720d128406"}
+{"command":"user","tenant":"principal-check","tenantId":"01a0e95a-054b-71ee-ba7c-25720d128406","username":"grace","userSubjectId":"01a0e95a-081b-76fa-af1b-6da2485d3057"}
+{"command":"grant-role","tenant":"principal-check","tenantId":"01a0e95a-054b-71ee-ba7c-25720d128406","username":"grace","role":"odudu-admin:tenant-admin"}
+{"command":"user","tenant":"principal-check","tenantId":"01a0e95a-054b-71ee-ba7c-25720d128406","username":"hopper","userSubjectId":"01a0e95a-0bcc-748d-a790-cb413990b992"}
+```
+
+Since that commit the gateway refuses a write naming no subject in
+`X-Odudu-Console-Subject`, so the earlier runs' writes, which send none,
+would each be answered `409` today; the fourth run's section shows that
+refusal and the same write forwarded once it names the session's subject.
+The earlier runs were not re-captured.
+
 ## `GET /console/auth/login`
 
 The console's sign-in starts here. `return_to` is where the callback sends
@@ -639,6 +669,131 @@ Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"id":"01a0e77c-1143-7905-8e81-8c9b7d67635a","type":"user","username":"babbage","email":"babbage@example.com","enabled":true,"created_at":"2026-09-28T10:07:42.915Z"}
+```
+
+## `POST /console/api/admin/tenants/{tenant}/subjects`, refused for another principal
+
+From the fourth run, on its own stack and tenant. Every tab of a browser
+shares the console cookie, so another tab's sign-in can replace the session
+under a page that still shows the old administrator. The console therefore
+names, on each admin request, the subject its tab believes is signed in, in
+`X-Odudu-Console-Subject`. The session this run's `jar` carries is
+`grace`'s:
+
+```bash
+curl -sS -D - -c jar -b jar http://localhost:3080/console/api/session
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e95a-6c11-74c9-b130-35dc74a68b8a
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 99
+Date: Mon, 28 Sep 2026 18:50:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"tenant":"principal-check","subject_id":"01a0e95a-081b-76fa-af1b-6da2485d3057","username":"grace"}
+```
+
+The three writes below ran one after another, between
+`2026-09-28T18:50:12.410Z` and `2026-09-28T18:50:12.538Z` as
+`new Date().toISOString()` printed them before and after, with the same
+cookie and body. The first names `hopper`, another subject of the tenant, and is
+refused `409` with the gateway's own problem type. The session is live, so
+the cookie is left alone:
+
+```bash
+curl -sS -D - -c jar -b jar -X POST \
+  -H 'Origin: http://localhost:3080' -H 'X-Odudu-Console: 1' \
+  -H 'X-Odudu-Console-Subject: 01a0e95a-0bcc-748d-a790-cb413990b992' \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"babbage","email":"babbage@example.com"}' \
+  http://localhost:3080/console/api/admin/tenants/principal-check/subjects
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a0e95a-6c4b-7e13-a475-6eba0048593d
+content-type: application/problem+json; charset=utf-8
+cache-control: no-store
+content-length: 130
+Date: Mon, 28 Sep 2026 18:50:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"status":409,"type":"about:blank#console-principal-changed","title":"Conflict","instance":"01a0e95a-6c4b-7e13-a475-6eba0048593d"}
+```
+
+The second names no subject. A write that does not say who it acts for is
+refused the same way; a read that names nobody is still forwarded:
+
+```bash
+curl -sS -D - -c jar -b jar -X POST \
+  -H 'Origin: http://localhost:3080' -H 'X-Odudu-Console: 1' \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"babbage","email":"babbage@example.com"}' \
+  http://localhost:3080/console/api/admin/tenants/principal-check/subjects
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a0e95a-6c5a-78c9-b7db-e72cfd3f2a95
+content-type: application/problem+json; charset=utf-8
+cache-control: no-store
+content-length: 130
+Date: Mon, 28 Sep 2026 18:50:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"status":409,"type":"about:blank#console-principal-changed","title":"Conflict","instance":"01a0e95a-6c5a-78c9-b7db-e72cfd3f2a95"}
+```
+
+The third names `grace`, and is forwarded. The refusals above were the
+gateway's, not the admin API refusing the body:
+
+```bash
+curl -sS -D - -c jar -b jar -X POST \
+  -H 'Origin: http://localhost:3080' -H 'X-Odudu-Console: 1' \
+  -H 'X-Odudu-Console-Subject: 01a0e95a-081b-76fa-af1b-6da2485d3057' \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"babbage","email":"babbage@example.com"}' \
+  http://localhost:3080/console/api/admin/tenants/principal-check/subjects
+```
+
+```
+HTTP/1.1 201 Created
+x-request-id: 01a0e95a-6c79-7552-8df2-d2de317ef73a
+content-type: application/json; charset=utf-8
+cache-control: no-store
+content-length: 165
+Date: Mon, 28 Sep 2026 18:50:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a0e95a-6c92-7aa6-bf80-69f93079a62b","type":"user","username":"babbage","email":"babbage@example.com","enabled":true,"created_at":"2026-09-28T18:50:12.497Z"}
+```
+
+The audit trail for that second, read through the proxy, holds one row,
+the third write's. The two refused writes reached nothing:
+
+```bash
+curl -sS -D - -b jar -H 'X-Odudu-Console-Subject: 01a0e95a-081b-76fa-af1b-6da2485d3057' \
+  'http://localhost:3080/console/api/admin/tenants/principal-check/audit?from=2026-09-28T18:50:12Z&to=2026-09-28T18:50:13Z'
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0e95a-88e9-7d34-94e0-be4b07dbcc20
+content-type: application/json; charset=utf-8
+cache-control: no-store
+content-length: 507
+Date: Mon, 28 Sep 2026 18:50:19 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0e95a-6c98-7609-92cc-53689a8ccae6","occurred_at":"2026-09-28T18:50:12.497Z","event_type":"admin_mutation","action":"subject.create","outcome":"allowed","actor_tenant_id":"01a0e95a-054b-71ee-ba7c-25720d128406","actor_subject_id":"01a0e95a-081b-76fa-af1b-6da2485d3057","actor_client_id":"01a0e95a-05d4-790f-86b0-9cf1e44c3dd1","resource_type":"subject","resource_id":"01a0e95a-6c92-7aa6-bf80-69f93079a62b","request_id":"01a0e95a-6c79-7552-8df2-d2de317ef73a","ip":"172.21.0.1","detail":{}}]}
 ```
 
 ## A path that escapes `/admin/`
@@ -1320,6 +1475,9 @@ COMPOSE_PROJECT_NAME=odudu-try ODUDU_HOST_PORT=3080 POSTGRES_HOST_PORT=5462 \
 
 Each item below is tested, not captured:
 
+- **A read naming another subject**, refused `409` like a write, and the
+  refusal of a session another sign-in in the same browser replaced. These
+  are in `apps/server/tests/console-proxy.int.test.ts`.
 - **The `502` on a token-endpoint failure.** A healthy stack's token
   endpoint answers a live grant's refresh, so this needs a fault injected
   into it. It is in `apps/server/tests/console-proxy.int.test.ts`.
