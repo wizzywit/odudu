@@ -84,7 +84,7 @@ th.cell {
 
 .cellValue {
   min-inline-size: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 @container shell (width < 1024px) {
