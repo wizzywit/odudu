@@ -24,6 +24,8 @@ interface FieldRefusal {
 
 type Method = 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT';
 
+const jsonSchemaShape = z.object({ properties: z.record(z.string(), z.unknown()).optional() });
+
 const ABSENT_ID = '0199aa00-0000-7000-8000-0000000000ff';
 
 function expectFieldRefusal(res: LightMyRequestResponse, path: string, detail?: string): void {
@@ -106,7 +108,7 @@ describe('a refusal of the request shape names the field', () => {
   const cursored = queried.filter((route: AdminRoute) => {
     const schema = route.querystringSchema;
     if (schema === undefined) return false;
-    const json = z.toJSONSchema(schema) as { properties?: Record<string, unknown> };
+    const json = jsonSchemaShape.parse(z.toJSONSchema(schema));
     return json.properties?.cursor !== undefined;
   });
 

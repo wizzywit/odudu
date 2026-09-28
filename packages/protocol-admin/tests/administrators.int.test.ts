@@ -6,6 +6,7 @@ import { ADMIN_CLIENT_ID, clientRepository, TENANT_ADMIN } from '@odudu/domain-t
 import { newId } from '@odudu/kernel';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { hasEnabledHolder } from '#/service/capability-ceiling';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 
@@ -268,7 +269,7 @@ describe('the last enabled holder of manage-tenants cannot be removed', () => {
     const payload: unknown = JSON.parse(
       Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'),
     );
-    const subject = (payload as { sub: string }).sub;
+    const subject = z.object({ sub: z.string() }).parse(payload).sub;
     const api = apiFor(target, '/admin/tenants/system', token);
 
     const tail = `/subjects/${subject}/roles`;
