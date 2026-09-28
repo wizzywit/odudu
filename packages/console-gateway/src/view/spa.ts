@@ -48,6 +48,7 @@ async function readAssets(
   async function walk(dir: string): Promise<void> {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       const full = join(dir, entry.name);
+      if (entry.name.startsWith('.')) continue;
       if (entry.isDirectory()) {
         await walk(full);
         continue;
@@ -55,7 +56,7 @@ async function readAssets(
       // `readdir`'s dirents are lstat-based: a symlink is never `isFile()`,
       // whatever it points at, so this keeps the walk from ever following
       // one out of the built directory.
-      if (!entry.isFile() || entry.name.startsWith('.')) continue;
+      if (!entry.isFile()) continue;
       const contentType = ASSET_CONTENT_TYPES[extname(entry.name)];
       if (contentType === undefined) continue;
       const stats = await lstat(full);

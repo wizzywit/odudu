@@ -179,6 +179,20 @@ describe('the console shell', () => {
     expect(isAssetRouteNotFound(res)).toBe(true);
   });
 
+  it('refuses an asset inside a hidden directory', async () => {
+    const dir = await tempConsoleDir();
+    await writeFile(join(dir, 'index.html'), '<p>shell');
+    await mkdir(join(dir, 'assets'));
+    await mkdir(join(dir, 'assets', '.private'));
+    await writeFile(join(dir, 'assets', '.private', 'secrets.js'), 'console.log(1);\n');
+    const server = await served(dir);
+    const port = await listening(server);
+
+    const res = await rawGet(port, '/console/assets/.private/secrets.js');
+
+    expect(isAssetRouteNotFound(res)).toBe(true);
+  });
+
   it('skips an asset over 10 MB, with a warn line naming it, and still serves the rest', async () => {
     const dir = await tempConsoleDir();
     await writeFile(join(dir, 'index.html'), '<p>shell');
