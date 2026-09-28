@@ -4,6 +4,7 @@ import { consoleSessionRepository, type ConsoleSessionRecord } from '#/repositor
 import { tenantNameRepository } from '#/repository/tenants';
 import { type OduduPort } from '#/service/odudu-port';
 import { accessNeedsRefresh } from '#/service/session-lifetime';
+import { type Semaphore } from '#/service/semaphore';
 import { type SingleFlight } from '#/service/single-flight';
 
 export type FreshToken =
@@ -17,6 +18,8 @@ export interface FreshTokenDeps {
   readonly odudu: OduduPort;
   /** One refresh per session at a time in this process, keyed by session id. */
   readonly refreshes: SingleFlight<string, FreshToken>;
+  /** Bounds the refreshes holding a pooled connection at once, across sessions. */
+  readonly refreshSlots: Semaphore;
 }
 
 // A refresh token is spent by its use, and presenting it twice revokes the
@@ -31,7 +34,9 @@ export async function freshAccessToken(
   if (!accessNeedsRefresh(session, now)) {
     return { kind: 'ok', accessToken: unwrapSecret(session.accessTokenWrapped, deps.kek) };
   }
-  return deps.refreshes(session.id, () => refreshUnderLock(deps, session, now, ip));
+  return deps.refreshes(session.id, () =>
+    deps.refreshSlots(() => refreshUnderLock(deps, session, now, ip)),
+  );
 }
 
 async function refreshUnderLock(

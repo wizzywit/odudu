@@ -478,6 +478,63 @@ describe('the access token', () => {
     }
   });
 
+  it('keeps a five-connection pool live under more refreshing sessions than it has connections', async () => {
+    // Holds the first refresh inside the token endpoint, with the session's
+    // row locked, until the rest of the load has arrived.
+    let entered: () => void = () => undefined;
+    const refreshing = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let armed = false;
+    let gated = false;
+    const holdFirstRefresh = (app: FastifyInstance): void => {
+      app.addHook('onRequest', async (request) => {
+        if (!armed || gated || !request.url.endsWith('/protocol/openid-connect/token')) return;
+        gated = true;
+        entered();
+        await gate;
+      });
+    };
+
+    await withStack(
+      async (stack) => {
+        const sessions: { jar: Jar; subjectId: string }[] = [];
+        for (let i = 0; i < 7; i += 1) {
+          const jar = new Jar();
+          const { subjectId } = await signIn(stack, jar);
+          sessions.push({ jar, subjectId });
+        }
+        const [burst, ...others] = sessions;
+        if (burst === undefined) throw new Error('no session');
+        const expiry = (await mustSession(burst.subjectId)).access_expires_at;
+        stack.clock.set(new Date(expiry.getTime() - 10_000));
+        const tokens = stack.tokenResponses.length;
+        armed = true;
+
+        const first = call(stack, burst.jar, WHOAMI);
+        await refreshing;
+        // Past the touch interval, so each request of the burst touches the
+        // row the held refresh has locked.
+        stack.clock.advance(61_000);
+        const rest = [
+          ...Array.from({ length: 6 }, () => call(stack, burst.jar, WHOAMI)),
+          ...others.map(({ jar }) => call(stack, jar, WHOAMI)),
+        ];
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        release();
+        const responses = await Promise.all([first, ...rest]);
+
+        expect(responses.map((res) => res.statusCode)).toEqual(responses.map(() => 200));
+        expect(stack.tokenResponses.length - tokens).toBe(sessions.length);
+      },
+      { throttle: { limit: 100, windowSeconds: 60 }, beforeReady: holdFirstRefresh },
+    );
+  }, 30_000);
+
   it('is not refreshed outside the window', async () => {
     await withStack(async (stack) => {
       const jar = new Jar();

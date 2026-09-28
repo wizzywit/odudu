@@ -1,6 +1,7 @@
 import { type DatabaseHandle } from '@odudu/db';
 import { type FastifyPluginAsync } from 'fastify';
 import { oduduClient } from '#/adapter/odudu-client';
+import { refreshConcurrency, semaphore } from '#/service/semaphore';
 import { singleFlight } from '#/service/single-flight';
 import { type FreshToken } from '#/usecase/fresh-access-token';
 import { registerConsoleApi } from '#/view/api';
@@ -64,6 +65,7 @@ export function consoleGateway(deps: ConsoleGatewayDeps): FastifyPluginAsync {
           kek: deps.kek,
           odudu,
           refreshes: singleFlight<string, FreshToken>(),
+          refreshSlots: semaphore(refreshConcurrency(deps.database.sql.options.max)),
           tls,
           now,
           origin: base.origin,

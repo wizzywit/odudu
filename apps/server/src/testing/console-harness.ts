@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { type IncomingHttpHeaders } from 'node:http';
 import { Writable } from 'node:stream';
 import { expect } from 'vitest';
-import { buildApp } from '#/app';
+import { buildApp, type ThrottleSettings } from '#/app';
 import { seedAdmin } from '#/cli/seed';
 import { createLogger } from '#/logger';
 
@@ -44,6 +44,8 @@ export interface AdminRequestSeen {
 export interface ConsoleAppOptions {
   /** Routes or hooks a test adds before the app is sealed. */
   readonly beforeReady?: (app: FastifyInstance) => void;
+  /** For a test that signs in more administrators than the default budget admits. */
+  readonly throttle?: ThrottleSettings;
 }
 
 export async function startConsoleApp(
@@ -70,6 +72,7 @@ export async function startConsoleApp(
     consoleNow: () => clock.now(),
     // An https base is served behind a proxy: boot refuses it otherwise.
     trustProxy: baseUrl.protocol === 'https:',
+    ...(options.throttle === undefined ? {} : { throttle: options.throttle }),
   });
   const tokenResponses: string[] = [];
   app.addHook('onSend', async (request, _reply, payload) => {
