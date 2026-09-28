@@ -19,8 +19,11 @@ export const executionStepSchema = z.object({
 });
 export type ExecutionStep = z.infer<typeof executionStepSchema>;
 
+// `available` is every authenticator a step may name, from the same registry
+// a login dispatches through — so adding a step needs no list of its own.
 export const listExecutionsResponseSchema = z.object({
   items: z.array(executionStepSchema),
+  available: z.array(z.string()),
 });
 export type ListExecutionsResponse = z.infer<typeof listExecutionsResponseSchema>;
 

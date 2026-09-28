@@ -914,6 +914,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/flow/executions',
     capability: 'manage-tenant',
     responseSchema: listExecutionsResponseSchema,
+    description:
+      'Answers the steps in order, and `available`: every authenticator name a step may ' +
+      'name, from the registry a login dispatches through. The `ETag` covers the steps alone.',
   },
   {
     method: 'PUT',

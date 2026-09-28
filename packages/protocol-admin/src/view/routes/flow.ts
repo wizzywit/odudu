@@ -28,7 +28,7 @@ export function listFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
       listFlow(tx, targetTenantId),
     );
     reply.header('etag', flow.etag);
-    return reply.code(200).send({ items: flow.items });
+    return reply.code(200).send({ items: flow.items, available: flow.available });
   };
 }
 
@@ -106,6 +106,6 @@ export function replaceFlowHandler(deps: FlowRouteDeps): AdminRouteHandler {
       return sendProblem(reply, request, replaceFlowProblem(outcome, steps));
     }
     reply.header('etag', outcome.etag);
-    return reply.code(200).send({ items: outcome.items });
+    return reply.code(200).send({ items: outcome.items, available: outcome.available });
   };
 }

@@ -143,8 +143,8 @@ what it describes. It was torn down with `docker compose down -v` when the
 capture finished. They are "A refusal names its field", "A create
 answers its `ETag`", and the `ETag` sections under the role composites,
 scope assignment, signing key and SMTP routes, "A kept password",
-`GET /scopes/:id/clients`, "Filtering by capability" and "The last
-administrator". The `400` bodies
+`GET /scopes/:id/clients`, "Filtering by capability", "The last
+administrator" and "The authenticators a step may name". The `400` bodies
 in sections captured before `errors` existed were not re-run, and show
 none; each such refusal now also carries `errors`, naming the field its
 `detail` names, as that section shows.
@@ -5760,6 +5760,30 @@ The write reaches the executor immediately, not only the table: the very
 next login dispatches against the order this `PUT` wrote, since
 `initialChallenge`/`advance` read a tenant's executions fresh on every
 attempt rather than caching them.
+
+### The authenticators a step may name
+
+Both answers carry `available` beside `items`: every authenticator name the
+registry a login dispatches through resolves, in its own order, so a caller
+offering to add a step needs no list of its own. The `ETag` covers `items`
+alone — `available` is the registry's, and no write here changes it — so
+the `ETag` below is the one "A refusal names its field" sent as `If-Match`
+before `available` existed, on the same untouched flow. Captured against
+the fifth stack in `fields-demo`:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3080/admin/tenants/fields-demo/flow/executions
+```
+
+```
+HTTP/1.1 200 OK
+etag: "2e028692eeb04a65ef6a06be482c11d71247d243b5929007716ee0f4eb2324db"
+{"items":[{"index":0,"authenticator":"passkey","requirement":"alternative"},{"index":1,"authenticator":"password","requirement":"alternative"},{"index":2,"authenticator":"otp","requirement":"conditional"},{"index":3,"authenticator":"recovery-code","requirement":"conditional"}],"available":["password","passkey","otp","recovery-code"]}
+```
+
+The flow bodies above this subsection were captured before `available`
+existed, and show none.
 
 ## `GET /smtp`, `PUT /smtp`, `DELETE /smtp` and `POST /smtp/test`
 
