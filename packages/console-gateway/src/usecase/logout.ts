@@ -54,13 +54,17 @@ export async function logout(deps: LogoutDeps, input: Logout): Promise<LoggedOut
   const issuer = await deps.odudu.issuerOf(taken.tenant, input.from).catch(() => null);
   if (issuer === null) return TO_CONSOLE;
 
-  // OIDC RP-Initiated Logout 1.0 §2; the hint lets the server end the
-  // session without asking the End-User to confirm.
-  const target = new URL(`${issuer}/protocol/openid-connect/logout`);
-  target.search = new URLSearchParams({
-    id_token_hint: taken.idToken,
-    post_logout_redirect_uri: new URL(CONSOLE_POST_LOGOUT_PATH, deps.base).toString(),
-    client_id: ADMIN_CLIENT_ID,
-  }).toString();
-  return { kind: 'redirect', redirect: target.toString() };
+  try {
+    // OIDC RP-Initiated Logout 1.0 §2; the hint lets the server end the
+    // session without asking the End-User to confirm.
+    const target = new URL(`${issuer}/protocol/openid-connect/logout`);
+    target.search = new URLSearchParams({
+      id_token_hint: taken.idToken,
+      post_logout_redirect_uri: new URL(CONSOLE_POST_LOGOUT_PATH, deps.base).toString(),
+      client_id: ADMIN_CLIENT_ID,
+    }).toString();
+    return { kind: 'redirect', redirect: target.toString() };
+  } catch {
+    return TO_CONSOLE;
+  }
 }
