@@ -149,6 +149,13 @@ pinch-zoom; } }` as the template renders it, `.trim()`ed), hash it, and
 
 **Interfaces:**
 
+- **zod must run jitless under the shell's CSP** (Part 3 spike S3: zod
+  4.6.1 probes `new Function` when a schema is built, a `script-src`
+  violation). `src/zodConfig.ts` calls `z.config({ jitless: true })` and is
+  the **first import** of `src/main.tsx`; `zod` is a direct dependency pinned
+  to the exact version `@odudu/contracts` uses, so there is one instance. A
+  unit test asserts `main.tsx`'s first import is `./zodConfig` and that the
+  app's `zod` version equals the contracts' one.
 - `vite.config.ts`: `base: '/console/'`; `build.outDir: 'dist'`, hashed
   assets under `assets/` (Vite default names satisfy the gateway's
   `CONTENT_HASHED_NAME`); `server.proxy` for `/console/api` and
@@ -339,7 +346,10 @@ test; `.github/workflows/verify.yml` (`e2e` job beside `verify`: build the
 image, start `infra/docker` with PostgreSQL, seed, run Playwright, upload
 the report on failure).
 
-**Interfaces:** `global-setup.ts` seeds through `docker compose exec odudu
+**Interfaces:** on `infra/docker` (plain HTTP) the cookies are
+`odudu-console` and `<tenant>-session`, without `__Host-` or `Secure`
+(spike S3), so the specs assert behaviour, not prefixed names; the
+conformance check covers the https form. `global-setup.ts` seeds through `docker compose exec odudu
 node dist/main.js seed …` a throwaway tenant, a tenant admin with a known
 password and `--require-password-change`, and a system admin.
 
