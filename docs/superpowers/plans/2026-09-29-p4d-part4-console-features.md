@@ -216,6 +216,8 @@ Each item below is its own commit, test first, each with a real transcript.
 
 ## Group B — shared patterns, built once
 
+> **Push point — increment O (Tasks 1–3).** Push; wait for CI green (verify, container, e2e, conformance, commit-messages); answer every CodeRabbit thread and review-body item; only then start the next task.
+
 ### Task 4: Record, list and save patterns
 
 **Files:** `apps/admin-console/src/shared/{repository,service,view}/…` and tests.
@@ -270,6 +272,8 @@ Routes, schemas, ETag rules, errors and secrets per feature are in the facts
 section named on each task. The task lists the decisions those facts leave
 open.
 
+> **Push point — increment P (Task 4).** Push; wait for CI green (verify, container, e2e, conformance, commit-messages); answer every CodeRabbit thread and review-body item; only then start the next task.
+
 ### Task 5: Overview (facts B-1 Overview; D.3)
 
 - The issuer with CopyValue, and discovery and JWKS **viewed in the console**:
@@ -313,6 +317,8 @@ open.
 - Revoke with a typed confirmation. It is refused as `last_administrator`, and
   says so beforehand when there is only one holder.
 
+> **Push point — increment Q (Tasks 5–7) — then the user tries the console on the 3090 stack.** Push; wait for CI green (verify, container, e2e, conformance, commit-messages); answer every CodeRabbit thread and review-body item; only then start the next task.
+
 ### Task 8: Subjects — list, create, profile and credentials (facts B-1 Subjects)
 
 - **The list:** field-scoped search, filters and the capability filter.
@@ -335,6 +341,8 @@ open.
 - **The owed Part 3 e2e: a session expires mid-edit.** A real Profile section
   edit restores its draft after sign-in. The `beforeunload` prompt is shown on
   reload while the section is dirty.
+
+> **Push point — increment R (Tasks 8–9) — then the user tries the console on the 3090 stack.** Push; wait for CI green (verify, container, e2e, conformance, commit-messages); answer every CodeRabbit thread and review-body item; only then start the next task.
 
 ### Task 10: Groups and Roles (facts B-2 Groups, Roles)
 
@@ -371,6 +379,8 @@ open.
 - General; Roles; Claim mappers (with the `available` list); Clients (Task 2
   item 4); Activity.
 - `openid` shows its delete refusal as fixed text.
+
+> **Push point — increment S (Tasks 10–13) — then the user tries the console on the 3090 stack.** Push; wait for CI green (verify, container, e2e, conformance, commit-messages); answer every CodeRabbit thread and review-body item; only then start the next task.
 
 ### Task 14: Registration tokens, and the Sign-in flow (facts B-2 Registration tokens; B-3 Flow)
 
@@ -411,6 +421,8 @@ open.
 - Mark "a caller from elsewhere" (ADR 0037's third amendment).
 - Row detail.
 
+> **Push point — increment T (Tasks 14–17).** Push; wait for CI green (verify, container, e2e, conformance, commit-messages); answer every CodeRabbit thread and review-body item; only then start the next task.
+
 ### Task 18: Close Part 4
 
 - [ ] The coverage test's `todo` list is empty. Every route is covered or
@@ -427,6 +439,8 @@ open.
 - [ ] `docs/NEXT.md`: record where P4d stands.
 - [ ] The phase-closing pass from `CLAUDE.md`, sections 1–4, for all of P4d.
 - [ ] Commit: `Close the console's features`.
+
+> **Push point — increment U (Task 18).** Push; CI green; CodeRabbit answered; then the final whole-range review of Part 4 and its fix round.
 
 ---
 
