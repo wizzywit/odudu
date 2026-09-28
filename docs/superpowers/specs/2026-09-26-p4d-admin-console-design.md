@@ -521,7 +521,9 @@ Features: `session`, `shell`, `overview`, `tenants`, `system-admins`,
 
 The import rules are ADR 0010's. dependency-cruiser gains:
 
-- `features/A/**` may import `features/B/index.ts` and nothing else of B;
+- `features/A/**` and `app/**` may import `features/B/index.ts` and nothing
+  else of B;
+- nothing but a test and `src/testing/` itself imports `src/testing/`;
 - `shared/**` never imports `features/**`;
 - a console `service` imports only other services, its own or
   `shared/service`, and `@odudu/contracts`, so never a feature's `index.ts`;

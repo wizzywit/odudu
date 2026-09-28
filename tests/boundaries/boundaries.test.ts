@@ -383,6 +383,25 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(from).toEqual(['app/shipsTesting.ts', 'main.tsx']);
   });
 
+  it("rejects app/ importing a feature's internals", async () => {
+    const found = await violations('console-feature-imports-only-index');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('src/app/reachesIn.ts') && v.to.endsWith('features/clients/service.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it("permits app/ importing a feature's index.ts", async () => {
+    const output = await cruiseFixtures();
+    const router = output.modules.find((m) => m.source.endsWith('src/app/router.ts'));
+    expect(router?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(1);
+    expect(
+      output.summary.violations.filter((v) => v.from.endsWith('src/app/router.ts')),
+    ).toHaveLength(0);
+  });
+
   it('rejects console code importing the gallery', async () => {
     const found = await violations('console-nothing-imports-gallery');
     expect(found.some((v) => v.from.endsWith('shared/repository/galleryLeak.ts'))).toBe(true);

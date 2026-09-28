@@ -65,9 +65,11 @@ module.exports = {
       name: 'console-feature-imports-only-index',
       severity: 'error',
       comment:
-        "A console feature's index.ts is its only importable surface; everything else in it " +
-        'can change without another feature noticing.',
-      from: { path: '(^|/)apps/admin-console/src/features/([^/]+)/' },
+        "A console feature's index.ts is its only importable surface, to other features and to " +
+        'app/ alike; everything else in it can change without anything outside noticing.',
+      // From app/ the group is empty, so no feature is exempt; from a feature
+      // it is that feature, which may reach its own internals.
+      from: { path: '(^|/)apps/admin-console/src/(?:app/|features/([^/]+)/)' },
       // $2 is substituted unescaped; tests/lint/console-feature-names.test.ts keeps it regex-safe.
       to: { path: '(^|/)apps/admin-console/src/features/(?!$2/)[^/]+/(?!index\\.ts$)' },
     },
