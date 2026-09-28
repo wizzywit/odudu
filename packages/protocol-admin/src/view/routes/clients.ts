@@ -32,6 +32,7 @@ import {
   queryProblem,
   sendProblem,
   type Problem,
+  lastAdministratorProblem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
@@ -358,6 +359,8 @@ export function deleteClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
     );
 
     switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'builtin_admin_guarded':

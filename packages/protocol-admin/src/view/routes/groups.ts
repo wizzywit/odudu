@@ -30,6 +30,7 @@ import {
   ifMatchStale,
   problem,
   sendProblem,
+  lastAdministratorProblem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
@@ -182,6 +183,8 @@ function amendmentProblem(
   outcome: Exclude<AmendGroupOutcome, { kind: 'ok' }>,
 ): FastifyReply {
   switch (outcome.kind) {
+    case 'last_administrator':
+      return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
     case 'not_found':
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
     case 'unknown_parent':
@@ -284,6 +287,8 @@ export function deleteGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
     );
 
     switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'capability_ceiling':
@@ -343,6 +348,8 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
     );
 
     switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'unknown_role':

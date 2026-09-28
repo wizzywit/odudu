@@ -62,3 +62,21 @@ helper is a defect. Every new admin route is reviewed against this list.
 - The rule is conservative on removal. An edit is refused if it removes an
   edge that reaches a capability the caller lacks, even when every member
   keeps that capability through another path.
+
+## Amendment, 2026-09-29 — the last administrator
+
+The ceiling stops a caller handing out or taking away what it does not hold.
+It does not stop a caller who holds everything from removing the last
+subject that does, which leaves a tenant administrable only through `psql`.
+So the doors that can take an administrator away also refuse, with `409`
+`last_administrator`, a write that would leave no enabled subject holding
+`tenant-admin` — `manage-tenants` in the system tenant, whose holders reach
+every other one. The doors are a subject's roles, groups, disabling and
+deletion; a group's roles, reparenting and deletion; a role's deletion and
+the removal of a composite; and a client's deletion, which takes its roles.
+Holders are counted effectively, through groups, their ancestors and
+composites (`holdersOf`, `service/capability-ceiling.ts`), after the write
+and inside a savepoint, under a per-tenant lock taken before anything else,
+so two concurrent removals cannot each leave the other as the last. A
+tenant with no holder to begin with is not refused: there is nothing to
+lose. Every new door to these rows is reviewed against this list too.

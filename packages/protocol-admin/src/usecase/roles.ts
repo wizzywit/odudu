@@ -10,6 +10,10 @@ import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_ROLE_FIELDS, refusalFor } from '#/service/role-patch';
 import {
+  guardLastAdministrator,
+  type LastAdministratorRefusal,
+} from '#/usecase/last-administrator';
+import {
   prefixRangeConditions,
   requireSearchKey,
   type ListPosition,
@@ -346,7 +350,8 @@ export type DeleteRoleOutcome =
   | { kind: 'not_found' }
   | { kind: 'builtin_admin_guarded'; reason: string }
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
-  | { kind: 'deleted' };
+  | { kind: 'deleted' }
+  | LastAdministratorRefusal;
 
 // The `client_id` of the tenant's built-in admin client when `clientDbId`
 // names it, else null. Reads `builtinAdmin`, never the `client_id` string,
@@ -383,6 +388,24 @@ async function guardsAdministrators(
 }
 
 export async function deleteRole(
+  tx: TenantScopedDatabase,
+  deps: DeleteRoleDeps,
+  input: DeleteRoleInput,
+): Promise<DeleteRoleOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'role.delete',
+      resourceType: 'role',
+      resourceId: input.roleId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => deleteRoleUnguarded(inner, deps, input),
+  );
+}
+
+async function deleteRoleUnguarded(
   tx: TenantScopedDatabase,
   deps: DeleteRoleDeps,
   input: DeleteRoleInput,
@@ -649,12 +672,31 @@ export type RemoveRoleCompositeOutcome =
   | { kind: 'builtin_admin_guarded'; reason: string }
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'precondition_failed' }
-  | { kind: 'removed'; etag: string };
+  | { kind: 'removed'; etag: string }
+  | LastAdministratorRefusal;
 
 // The edge-level twin of `guardsAdministrators`: taking `manage-users` out of
 // `tenant-admin`, or `view-users` out of `manage-users`, strips it from every
 // administrator holding the parent just as surely as deleting it would.
 export async function removeRoleComposite(
+  tx: TenantScopedDatabase,
+  deps: RemoveRoleCompositeDeps,
+  input: RemoveRoleCompositeInput,
+): Promise<RemoveRoleCompositeOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'role.composite_remove',
+      resourceType: 'role',
+      resourceId: input.parentRoleId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => removeRoleCompositeUnguarded(inner, deps, input),
+  );
+}
+
+async function removeRoleCompositeUnguarded(
   tx: TenantScopedDatabase,
   deps: RemoveRoleCompositeDeps,
   input: RemoveRoleCompositeInput,

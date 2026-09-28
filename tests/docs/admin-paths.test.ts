@@ -33,6 +33,7 @@ const EMITTABLE_PROBLEM_TYPES = new Set([
   'about:blank#forbidden',
   'about:blank#not-found',
   'about:blank#export-too-large',
+  'about:blank#last-administrator',
 ]);
 
 const CAPABILITY_SHAPED = /^(?:view|manage)-[a-z]+(?:-[a-z]+)*$/u;

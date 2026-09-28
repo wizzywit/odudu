@@ -7,7 +7,8 @@ import {
   rolesReachableFrom,
 } from '@odudu/domain-authz';
 import { ADMIN_CLIENT_ID, MANAGE_TENANTS, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
-import { inArray } from 'drizzle-orm';
+import { inArray, sql, type SQL } from 'drizzle-orm';
+import { z } from 'zod';
 
 /**
  * The admin-client capability names a set of roles actually grants, each
@@ -122,4 +123,44 @@ export async function targetOverreach(
       .map((role) => role.name),
   );
   return overreach(targetHolds, held);
+}
+
+/**
+ * The ids of every subject holding the built-in admin client's role `name`
+ * effectively: `effectiveRoles`' walk run backwards — each role that nests
+ * it, each group mapping one of those and every group beneath it, and whoever
+ * holds or belongs to one. A subquery, so a listing can filter on it.
+ */
+export function holdersOf(name: string): SQL {
+  return sql`(
+    WITH RECURSIVE granting(role_id) AS (
+      SELECT r.id FROM roles r JOIN clients c ON c.id = r.client_id
+      WHERE c.client_id = ${ADMIN_CLIENT_ID} AND r.name = ${name}
+      UNION
+      SELECT rc.parent_role_id FROM role_composites rc
+      JOIN granting g ON rc.child_role_id = g.role_id
+    ),
+    granting_groups(id) AS (
+      SELECT gr.group_id FROM group_roles gr JOIN granting g ON gr.role_id = g.role_id
+      UNION
+      SELECT ch.id FROM groups ch JOIN granting_groups p ON ch.parent_id = p.id
+    )
+    SELECT sr.subject_id FROM subject_roles sr JOIN granting g ON g.role_id = sr.role_id
+    UNION
+    SELECT sg.subject_id FROM subject_groups sg JOIN granting_groups gg ON gg.id = sg.group_id
+  )`;
+}
+
+const existsRowsSchema = z.array(z.object({ held: z.boolean() }));
+
+/** Whether any subject that is not disabled holds `name` effectively. */
+export async function hasEnabledHolder(tx: TenantScopedDatabase, name: string): Promise<boolean> {
+  const rows = existsRowsSchema.parse(
+    await tx.execute(sql`
+      SELECT EXISTS (
+        SELECT 1 FROM subjects s WHERE s.disabled_at IS NULL AND s.id IN ${holdersOf(name)}
+      ) AS held
+    `),
+  );
+  return rows[0]?.held ?? false;
 }

@@ -144,6 +144,11 @@ const DELTA_CEILING =
   ' Refused with `403` when a role it adds or leaves out reaches an admin capability the ' +
   'caller does not hold; a role it keeps is not counted.';
 
+// For every route that can take the last enabled administrator away.
+const LAST_ADMINISTRATOR =
+  ' Refused with `409` (`about:blank#last-administrator`) when it would leave no enabled ' +
+  'subject holding `tenant-admin` \u2014 `manage-tenants` in the system tenant.';
+
 // The target ceiling, for every route that mutates one client: a confidential
 // client authenticates as its service account.
 const SERVICE_ACCOUNT_CEILING =
@@ -198,7 +203,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: subjectSchema,
     bodySchema: amendSubjectRequestSchema,
-    description: TARGET_CEILING.trimStart(),
+    description: TARGET_CEILING.trimStart() + LAST_ADMINISTRATOR,
   },
   {
     method: 'DELETE',
@@ -206,7 +211,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: z.void(),
     successStatus: 204,
-    description: TARGET_CEILING.trimStart(),
+    description: TARGET_CEILING.trimStart() + LAST_ADMINISTRATOR,
   },
   {
     method: 'GET',
@@ -324,7 +329,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: setRolesRequestSchema,
     description:
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
-      TARGET_CEILING,
+      TARGET_CEILING +
+      LAST_ADMINISTRATOR,
   },
   // Joining a group grants its roles and its ancestors', so this route's
   // capability ceiling (`setSubjectGroups`, #/usecase/subjects.ts) is the
@@ -344,7 +350,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: setSubjectGroupsRequestSchema,
     description:
       'Replaces the subject\u2019s direct memberships. `If-Match` is mandatory (`428` absent, `412` stale). Refused with `403` when the groups, their ancestors or the composites their roles nest reach an admin capability the caller does not hold.' +
-      TARGET_CEILING,
+      TARGET_CEILING +
+      LAST_ADMINISTRATOR,
   },
   // No `view-sessions`: reached only by an operator who can also end one,
   // the same reasoning that leaves clients with no `view-clients`.
@@ -507,7 +514,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       `${SERVICE_ACCOUNT_CEILING} Deletes every role scoped to the client with it, and is ` +
       'refused with `403` too when what those roles reach includes an admin capability the ' +
-      'caller does not hold.',
+      `caller does not hold.${LAST_ADMINISTRATOR}`,
   },
   {
     method: 'POST',
@@ -588,7 +595,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: z.void(),
     successStatus: 204,
-    description: REMOVAL_CEILING,
+    description: REMOVAL_CEILING + LAST_ADMINISTRATOR,
   },
   // The capability ceiling this route enforces is checked in the usecase
   // (`addRoleComposite`, #/usecase/roles.ts), not here — the same split
@@ -619,7 +626,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     successStatus: 204,
     description:
       'Removes one edge; `404` when there is none. Refused with `409` when the parent belongs to the tenant\u2019s built-in admin client, since every administrator holding it would lose the child. Answers the composites\u2019 new `ETag`; `If-Match` is optional, and a stale one is refused with `412`. ' +
-      REMOVAL_CEILING,
+      REMOVAL_CEILING +
+      LAST_ADMINISTRATOR,
   },
   {
     method: 'PUT',
@@ -666,7 +674,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: amendGroupRequestSchema,
     description:
       'Reparents the group. Refused with `403` when the new parent\u2019s chain, or the old ' +
-      'one it leaves, reaches an admin capability the caller does not hold.',
+      'one it leaves, reaches an admin capability the caller does not hold.' +
+      LAST_ADMINISTRATOR,
   },
   {
     method: 'DELETE',
@@ -674,7 +683,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: z.void(),
     successStatus: 204,
-    description: `Deletes the group and its whole subtree. ${REMOVAL_CEILING}`,
+    description: `Deletes the group and its whole subtree. ${REMOVAL_CEILING}${LAST_ADMINISTRATOR}`,
   },
   {
     method: 'GET',
@@ -690,7 +699,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: setGroupRolesRequestSchema,
     description:
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
-      DELTA_CEILING,
+      DELTA_CEILING +
+      LAST_ADMINISTRATOR,
   },
   {
     method: 'GET',

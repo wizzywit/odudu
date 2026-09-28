@@ -46,6 +46,7 @@ import {
   problem,
   queryProblem,
   sendProblem,
+  lastAdministratorProblem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
@@ -247,6 +248,8 @@ function amendmentProblem(
   outcome: Exclude<AmendSubjectOutcome, { kind: 'ok' }>,
 ): FastifyReply {
   switch (outcome.kind) {
+    case 'last_administrator':
+      return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
     case 'precondition_required':
       return sendProblem(reply, request, ifMatchRequired(`a subject's ${outcome.field}`));
     case 'not_found':
@@ -470,6 +473,8 @@ export function deleteSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
     );
 
     switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'target_ceiling':
@@ -672,6 +677,8 @@ export function setRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
     );
 
     switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'unknown_role':
@@ -763,6 +770,8 @@ export function setSubjectGroupsHandler(deps: SubjectsRouteDeps): AdminRouteHand
     );
 
     switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
       case 'not_found':
         return sendProblem(
           reply,

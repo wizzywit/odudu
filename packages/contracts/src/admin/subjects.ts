@@ -6,6 +6,11 @@ import {
   idSchema,
   searchPrefixSchema,
 } from '#/admin/shared';
+import { ADMIN_CAPABILITIES } from '#/admin/whoami';
+
+// A capability, or `tenant-admin`, which nests every one: held effectively —
+// directly, through a group or its ancestors, or nested under another role.
+export const SUBJECT_CAPABILITY_FILTER = [...ADMIN_CAPABILITIES, 'tenant-admin'] as const;
 
 const subjectFilters = {
   username: searchPrefixSchema.optional(),
@@ -13,6 +18,7 @@ const subjectFilters = {
   enabled: enabledFilterSchema.optional(),
   role: z.uuid().optional(),
   group: z.uuid().optional(),
+  capability: z.enum(SUBJECT_CAPABILITY_FILTER).optional(),
 };
 // Addressed to the second field, the one a caller adds to an existing search.
 const oneSubjectSearchRule = {

@@ -107,6 +107,7 @@ export {
   roleAssignmentSchema,
   setRolesResponseSchema,
   type SetRolesResponse,
+  SUBJECT_CAPABILITY_FILTER,
 } from '#/admin/subjects';
 export {
   sessionSchema,

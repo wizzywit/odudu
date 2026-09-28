@@ -14,6 +14,10 @@ import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { groupWireShape } from '#/service/group-wire';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
 import {
+  guardLastAdministrator,
+  type LastAdministratorRefusal,
+} from '#/usecase/last-administrator';
+import {
   prefixRangeConditions,
   requireSearchKey,
   type ListPosition,
@@ -237,7 +241,8 @@ export type AmendGroupOutcome =
   | { kind: 'precondition_failed' }
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'cycle' }
-  | { kind: 'ok'; group: Group; etag: string };
+  | { kind: 'ok'; group: Group; etag: string }
+  | LastAdministratorRefusal;
 
 async function lockGroupForAmend(
   tx: TenantScopedDatabase,
@@ -249,6 +254,24 @@ async function lockGroupForAmend(
 
 /** `parent_id` is the only amendable field: reparenting, via `groupRepository.reparent`. */
 export async function amendGroup(
+  tx: TenantScopedDatabase,
+  deps: AmendGroupDeps,
+  input: AmendGroupInput,
+): Promise<AmendGroupOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'group.amend',
+      resourceType: 'group',
+      resourceId: input.groupId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => amendGroupUnguarded(inner, deps, input),
+  );
+}
+
+async function amendGroupUnguarded(
   tx: TenantScopedDatabase,
   deps: AmendGroupDeps,
   input: AmendGroupInput,
@@ -362,9 +385,28 @@ export interface DeleteGroupDeps {
 export type DeleteGroupOutcome =
   | { kind: 'not_found' }
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
-  | { kind: 'deleted' };
+  | { kind: 'deleted' }
+  | LastAdministratorRefusal;
 
 export async function deleteGroup(
+  tx: TenantScopedDatabase,
+  deps: DeleteGroupDeps,
+  input: DeleteGroupInput,
+): Promise<DeleteGroupOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'group.delete',
+      resourceType: 'group',
+      resourceId: input.groupId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => deleteGroupUnguarded(inner, deps, input),
+  );
+}
+
+async function deleteGroupUnguarded(
   tx: TenantScopedDatabase,
   deps: DeleteGroupDeps,
   input: DeleteGroupInput,
@@ -424,7 +466,8 @@ export type SetGroupRolesOutcome =
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
-  | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
+  | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string }
+  | LastAdministratorRefusal;
 
 export type ReadGroupRolesOutcome =
   { kind: 'not_found' } | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
@@ -467,6 +510,24 @@ async function lockGroupForRoles(
 
 /** Replaces the role set a group maps to wholesale — a role left out is one the caller clears. */
 export async function setGroupRoles(
+  tx: TenantScopedDatabase,
+  deps: SetGroupRolesDeps,
+  input: SetGroupRolesInput,
+): Promise<SetGroupRolesOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'group.roles_set',
+      resourceType: 'group',
+      resourceId: input.groupId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => setGroupRolesUnguarded(inner, deps, input),
+  );
+}
+
+async function setGroupRolesUnguarded(
   tx: TenantScopedDatabase,
   deps: SetGroupRolesDeps,
   input: SetGroupRolesInput,

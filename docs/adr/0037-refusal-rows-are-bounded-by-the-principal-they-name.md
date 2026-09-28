@@ -184,3 +184,12 @@ delete `tenant-admin` — had an answer on one door and none on the others.
 A `409` that reports a conflict with the data rather than a guard, such as
 a cycle, a taken name or a stale `If-Match`, is not a refusal of the caller
 and writes nothing.
+
+## Amendment, 2026-09-29 — a `409` guarding the last administrator
+
+`last_administrator` is the same kind of refusal as `builtin_admin_guarded`:
+a guard on what every administrator of a tenant depends on, refused to an
+authenticated caller. So it writes a `refused` row under the action the
+caller attempted, with the reason under `detail.reason`, on every door
+ADR 0040's amendment lists. The attempted write itself is undone first,
+inside a savepoint, so the row is the only trace it leaves.

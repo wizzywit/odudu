@@ -142,8 +142,9 @@ built from this branch and brought up from an empty volume with
 what it describes. It was torn down with `docker compose down -v` when the
 capture finished. They are "A refusal names its field", "A create
 answers its `ETag`", and the `ETag` sections under the role composites,
-scope assignment, signing key and SMTP routes, "A kept password", and
-`GET /scopes/:id/clients`. The `400` bodies
+scope assignment, signing key and SMTP routes, "A kept password",
+`GET /scopes/:id/clients`, "Filtering by capability" and "The last
+administrator". The `400` bodies
 in sections captured before `errors` existed were not re-run, and show
 none; each such refusal now also carries `errors`, naming the field its
 `detail` names, as that section shows.
@@ -2323,8 +2324,11 @@ search and is only ever reached by an unsearched page.
 
 **Exact filters** are `?enabled=true|false`, `?role=<id>` (subjects the
 role is assigned to directly, not through a group or a composite) and
-`?group=<id>` (the group's direct members). Every parameter given is
-`AND`ed. A cursor is bound to the filters it was minted under, so replaying
+`?group=<id>` (the group's direct members). `?capability=<name>` is the
+one that is not direct: subjects holding that capability — or
+`tenant-admin` — however they hold it, directly, through a group or one of
+its ancestors, or through a role that nests it, which is how the console
+lists a tenant's administrators. Every parameter given is `AND`ed. A cursor is bound to the filters it was minted under, so replaying
 it with any other set is refused, and any parameter not named here is
 refused with `400` naming it — `?search=`, which this listing once took,
 among them.
@@ -2424,6 +2428,31 @@ curl -sS \
 {"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: search","instance":"01a0e110-6fb6-7795-84e2-b1ea313de848"}
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: username or email, not both","instance":"01a0e110-6fc2-7de3-8d00-d3537702334f"}
 ```
+
+### Filtering by capability
+
+Captured against the fifth stack, in a tenant `admins-demo` created for it,
+as `ada-t2` — a system administrator, so no holder of anything in
+`admins-demo` itself. `grace`
+(`01a0ea0f-36a4-7377-b18e-c6e48982a5cf`) was created there and given
+`tenant-admin` alone, which nests `view-users`, so she is listed under
+both:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3080/admin/tenants/admins-demo/subjects?capability=tenant-admin'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3080/admin/tenants/admins-demo/subjects?capability=view-users'
+```
+
+```
+{"items":[{"id":"01a0ea0f-36a4-7377-b18e-c6e48982a5cf","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-09-28T22:07:40.707Z"}]}
+{"items":[{"id":"01a0ea0f-36a4-7377-b18e-c6e48982a5cf","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-09-28T22:07:40.707Z"}]}
+```
+
+Holding through a group or a composite is what
+`packages/protocol-admin/tests/administrators.int.test.ts` shows; it was
+not captured.
 
 ## `POST /subjects`
 
@@ -3824,6 +3853,52 @@ hashes to `"eef46741…"` whichever subject, group or scope it belongs to —
 the three sections that follow show the same value — so a tag is not an
 identifier and carries no authority to write anywhere. It still does its
 one job: a write only lands when the list is what its holder last read.
+
+### The last administrator
+
+A tenant always keeps one enabled subject holding `tenant-admin` — in the
+system tenant, `manage-tenants`, whose holders reach every other tenant —
+once it has one. A write that would leave none is refused with `409`,
+type `about:blank#last-administrator`, nothing of it applied, and a
+`refused` row under the action attempted (ADR 0037, ADR 0040's
+amendment). Holders are counted however they hold it, and a disabled
+subject is not one. The same refusal stands on every door that can take
+an administrator away: this route and `PUT /subjects/:id/groups`,
+disabling or deleting a subject, `PUT /groups/:id/roles`, reparenting or
+deleting a group, deleting a role or removing a composite that nests it,
+and deleting a client whose roles do. A tenant with no holder to begin
+with is refused nothing.
+
+Captured against the fifth stack in `admins-demo`, as `ada-t2`, on
+`grace`, the tenant's only holder — her roles emptied under the `ETag` her
+last write answered, then disabling her, then deleting her, then her
+refused rows, newest first:
+
+```bash
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -H 'If-Match: "f53ec1eb4f91dfbec94e6883e54543d2f4e61da255444c524364fde81c89bf27"' \
+  -d '{"role_ids":[]}' \
+  http://localhost:3080/admin/tenants/admins-demo/subjects/01a0ea0f-36a4-7377-b18e-c6e48982a5cf/roles
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"enabled":false}' \
+  http://localhost:3080/admin/tenants/admins-demo/subjects/01a0ea0f-36a4-7377-b18e-c6e48982a5cf
+curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3080/admin/tenants/admins-demo/subjects/01a0ea0f-36a4-7377-b18e-c6e48982a5cf
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3080/admin/tenants/admins-demo/audit?resource_type=subject&resource_id=01a0ea0f-36a4-7377-b18e-c6e48982a5cf&outcome=refused'
+```
+
+```
+{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a0ea0f-572b-78de-b7c5-d71f91ecbb33"}
+{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a0ea0f-5788-7059-a5e9-3a6e77b88b57"}
+{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a0ea0f-57ba-7b44-9a49-09a99feb1eef"}
+{"items":[{"id":"01a0ea0f-57f0-7f46-b7dc-84790f87bf9d","occurred_at":"2026-09-28T22:07:49.217Z","event_type":"admin_mutation","action":"subject.delete","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e9d2-6208-702f-b5ca-3f7db33b3ca7","actor_client_id":"01a0e9d2-61c4-7d4a-a5e0-0b9ee3a5c898","resource_type":"subject","resource_id":"01a0ea0f-36a4-7377-b18e-c6e48982a5cf","request_id":"01a0ea0f-57ba-7b44-9a49-09a99feb1eef","ip":"172.21.0.1","detail":{"reason":"this would leave no enabled subject holding tenant-admin"}},{"id":"01a0ea0f-57ab-718a-b7be-f6250cbd60f1","occurred_at":"2026-09-28T22:07:49.147Z","event_type":"admin_mutation","action":"subject.amend","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e9d2-6208-702f-b5ca-3f7db33b3ca7","actor_client_id":"01a0e9d2-61c4-7d4a-a5e0-0b9ee3a5c898","resource_type":"subject","resource_id":"01a0ea0f-36a4-7377-b18e-c6e48982a5cf","request_id":"01a0ea0f-5788-7059-a5e9-3a6e77b88b57","ip":"172.21.0.1","detail":{"reason":"this would leave no enabled subject holding tenant-admin"}},{"id":"01a0ea0f-5776-7e40-b03f-01c0175677a3","occurred_at":"2026-09-28T22:07:49.086Z","event_type":"admin_mutation","action":"subject.roles_set","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e9d2-6208-702f-b5ca-3f7db33b3ca7","actor_client_id":"01a0e9d2-61c4-7d4a-a5e0-0b9ee3a5c898","resource_type":"subject","resource_id":"01a0ea0f-36a4-7377-b18e-c6e48982a5cf","request_id":"01a0ea0f-572b-78de-b7c5-d71f91ecbb33","ip":"172.21.0.1","detail":{"reason":"this would leave no enabled subject holding tenant-admin"}}]}
+```
+
+The group, role and client doors, the system tenant's `manage-tenants`,
+and two removals racing each other are what
+`packages/protocol-admin/tests/administrators.int.test.ts` shows; none of
+those was captured here.
 
 ## `GET /subjects/:id/groups` and `PUT /subjects/:id/groups`
 

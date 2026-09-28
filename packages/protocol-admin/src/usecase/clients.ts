@@ -33,6 +33,10 @@ import {
 import { etagOf, matches } from '#/service/etag';
 import { publicJwks } from '#/service/public-jwks';
 import {
+  guardLastAdministrator,
+  type LastAdministratorRefusal,
+} from '#/usecase/last-administrator';
+import {
   prefixRangeConditions,
   requireSearchKey,
   type ListPosition,
@@ -1169,9 +1173,28 @@ export type DeleteClientOutcome =
   | { kind: 'builtin_admin_guarded'; reason: string }
   | TargetCeilingRefusal
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
-  | { kind: 'deleted' };
+  | { kind: 'deleted' }
+  | LastAdministratorRefusal;
 
 export async function deleteClient(
+  tx: TenantScopedDatabase,
+  deps: DeleteClientDeps,
+  input: DeleteClientInput,
+): Promise<DeleteClientOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'client.delete',
+      resourceType: 'client',
+      resourceId: input.clientDbId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => deleteClientUnguarded(inner, deps, input),
+  );
+}
+
+async function deleteClientUnguarded(
   tx: TenantScopedDatabase,
   deps: DeleteClientDeps,
   input: DeleteClientInput,

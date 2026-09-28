@@ -76,6 +76,11 @@ export function ceilingProblem(
   return problem(403, 'about:blank', 'Forbidden', parts.join('; '));
 }
 
+/** A write that would leave the tenant with no enabled administrator; `reason` names who. */
+export function lastAdministratorProblem(reason: string): Problem {
+  return problem(409, 'about:blank#last-administrator', 'Conflict', reason);
+}
+
 export function ifMatchStale(): Problem {
   return problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches');
 }

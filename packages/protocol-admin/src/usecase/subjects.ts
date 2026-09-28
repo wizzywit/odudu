@@ -34,6 +34,7 @@ import { redactedDiff } from '#/service/audit-detail';
 import {
   capabilitiesOfGroupsAndAncestors,
   capabilitiesReachableFrom,
+  holdersOf,
   overreach,
   targetOverreach,
 } from '#/service/capability-ceiling';
@@ -41,6 +42,10 @@ import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, requiredPrecondition } from '#/service/etag';
 import { groupWireShape } from '#/service/group-wire';
 import { amendableSubjectFields, refusalFor } from '#/service/subjects-patch';
+import {
+  guardLastAdministrator,
+  type LastAdministratorRefusal,
+} from '#/usecase/last-administrator';
 import {
   prefixRangeConditions,
   requireSearchKey,
@@ -225,6 +230,9 @@ function exactFilterConditions(filters: SubjectFilters, tx: TenantScopedDatabase
       .from(subjectGroups)
       .where(eq(subjectGroups.groupId, filters.group));
     conditions.push(inArray(subjects.id, members));
+  }
+  if (filters.capability !== undefined) {
+    conditions.push(sql`${subjects.id} IN ${holdersOf(filters.capability)}`);
   }
   return conditions;
 }
@@ -443,7 +451,8 @@ export type AmendSubjectOutcome =
   | { kind: 'precondition_required'; field: string }
   | { kind: 'precondition_failed' }
   | TargetCeilingRefusal
-  | { kind: 'ok'; subject: SubjectView; etag: string };
+  | { kind: 'ok'; subject: SubjectView; etag: string }
+  | LastAdministratorRefusal;
 
 // Wrapped in `{ value }` rather than the bare type, so a present-but-null
 // `email` and an untouched field both type-check as distinct from each
@@ -505,6 +514,25 @@ function viewOfLocked(
  * `createSubject` gives; the route answers `409` outside the transaction.
  */
 export async function amendSubject(
+  tx: TenantScopedDatabase,
+  deps: AmendSubjectDeps,
+  input: AmendSubjectInput,
+): Promise<AmendSubjectOutcome> {
+  if (!('enabled' in input.values)) return amendSubjectUnguarded(tx, deps, input);
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'subject.amend',
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => amendSubjectUnguarded(inner, deps, input),
+  );
+}
+
+async function amendSubjectUnguarded(
   tx: TenantScopedDatabase,
   deps: AmendSubjectDeps,
   input: AmendSubjectInput,
@@ -643,13 +671,31 @@ export interface DeleteSubjectDeps {
 }
 
 export type DeleteSubjectOutcome =
-  { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'deleted' };
+  { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'deleted' } | LastAdministratorRefusal;
 
 // The delete itself is one statement: every table that names a subject
 // (users, user_credentials, sessions, token_grants, subject_roles, …)
 // cascades on it, and clients_service_subject_fk (0063_service_subject_fk.sql)
 // is the one exception, which now detaches rather than blocks it.
 export async function deleteSubject(
+  tx: TenantScopedDatabase,
+  deps: DeleteSubjectDeps,
+  input: DeleteSubjectInput,
+): Promise<DeleteSubjectOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'subject.delete',
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => deleteSubjectUnguarded(inner, deps, input),
+  );
+}
+
+async function deleteSubjectUnguarded(
   tx: TenantScopedDatabase,
   deps: DeleteSubjectDeps,
   input: DeleteSubjectInput,
@@ -955,7 +1001,8 @@ export type SetRolesOutcome =
   | TargetCeilingRefusal
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
-  | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
+  | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string }
+  | LastAdministratorRefusal;
 
 export type ReadSubjectRolesOutcome =
   { kind: 'not_found' } | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
@@ -991,6 +1038,24 @@ export async function readSubjectRoles(
 // the same way, so a composite that nests `tenant-admin` rather than naming
 // it cannot smuggle the assignment past a name check on the request body.
 export async function setRoles(
+  tx: TenantScopedDatabase,
+  deps: SetRolesDeps,
+  input: SetRolesInput,
+): Promise<SetRolesOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'subject.roles_set',
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => setRolesUnguarded(inner, deps, input),
+  );
+}
+
+async function setRolesUnguarded(
   tx: TenantScopedDatabase,
   deps: SetRolesDeps,
   input: SetRolesInput,
@@ -1089,7 +1154,8 @@ export type SetSubjectGroupsOutcome =
   | TargetCeilingRefusal
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
-  | { kind: 'ok'; groups: readonly Group[]; etag: string };
+  | { kind: 'ok'; groups: readonly Group[]; etag: string }
+  | LastAdministratorRefusal;
 
 export type ReadSubjectGroupsOutcome =
   { kind: 'not_found' } | { kind: 'ok'; groups: readonly Group[]; etag: string };
@@ -1119,6 +1185,24 @@ export async function readSubjectGroups(
 // whole resulting set is measured the way `effectiveRoles` would resolve it
 // and compared against the caller's own — the same rule `setRoles` applies.
 export async function setSubjectGroups(
+  tx: TenantScopedDatabase,
+  deps: SetRolesDeps,
+  input: SetSubjectGroupsInput,
+): Promise<SetSubjectGroupsOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'subject.groups_set',
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => setSubjectGroupsUnguarded(inner, deps, input),
+  );
+}
+
+async function setSubjectGroupsUnguarded(
   tx: TenantScopedDatabase,
   deps: SetRolesDeps,
   input: SetSubjectGroupsInput,
