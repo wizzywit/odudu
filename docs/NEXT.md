@@ -20,19 +20,11 @@ in progress** — the admin console and the admin API it needs
 self-service through a "me" API and application-initiated actions, replaced
 the account console; P4b stays theming and stays last.
 
-**P4c shipped the admin API**, at `/admin/tenants/{tenant}/` with
-`/admin/tenants` above it, authenticated by an ordinary access token whose
-`aud` names `urn:odudu:params:admin-api` and authorized per request by a
-capability role on the tenant's built-in `odudu-admin` client. Tenants,
-their settings, clients, subjects, credentials, required actions, roles,
-groups, scopes, scope-mapper bindings, signing keys, the authentication
-flow, per-tenant SMTP and an audit trail are all reachable through it; a
-subject's sessions are listed by subject and ended individually, which is
-the first read of a session that does not start from a cookie.
-`odudu seed admin` bootstraps the `system` tenant and the first
-administrator with a single-use password and a forced change. The narrative
-is [docs/admin-paths.md](admin-paths.md), every transcript in it executed;
-the reference is the OpenAPI document at `/admin/openapi.json`.
+**P4c shipped the admin API** at `/admin/tenants/{tenant}/`, authorized per
+request by a capability role on the tenant's `odudu-admin` client, with
+`odudu seed admin` bootstrapping `system` and its first administrator. The
+narrative is [docs/admin-paths.md](admin-paths.md), every transcript
+executed; the reference is `/admin/openapi.json`.
 
 **P4d's Parts 1–3 have landed.** Part 1 added `whoami` capabilities, prefix
 search with filter-bound keyset cursors, bounded counts, a target ceiling on
@@ -60,14 +52,9 @@ not here. Two themes are worth keeping in view while P4d is built: a mechanism b
 with no caller (P4c), and an audit write that changes what it records — an
 extra statement, an aborted transaction, a lock (P4e).
 
-**What P4c decided that other phases were waiting on.** ADR 0007 is amended
-and executed: the admin API is its first JSON surface, and the form-encoded
-protocol endpoints keep `parseStructure` on a recorded rationale. The
-`client.enabled` question is answered — `/userinfo`, `/introspect` and all
-three exchange branches read it through one shared predicate. ADR 0036
-decides that `/userinfo`'s claims narrowing is the right reading of OIDC
-Core §5.5 and that losing `requested_userinfo_claims` on refresh is the
-defect; migration `0070` closes it (the ADR's amendment).
+**What P4c decided that other phases were waiting on** is in ADR 0007's
+amendment (the admin API is its first JSON surface), ADR 0036 (UserInfo's
+claims narrowing) and [p4c.md](phases/p4c.md) (`client.enabled`).
 
 **A bare `P4` below means P4d** unless it concerns token exchange, the grant
 allowlist, the admin API, audit events, the grant's UserInfo claims,
@@ -76,19 +63,9 @@ same disambiguation the P2 split used, and for the same reason: a citation
 renumbered wrongly is invisible for good. Nothing below is a plan for any of
 them, only what they inherit and what is still open.
 
-**The tenant rename changed the wire.** What was called a `realm` is a
-tenant everywhere: the path is `/tenants/{tenant}/…`, so the issuer — and
-with it `iss` in every ID token, access token and Logout Token, the RFC 9207
-authorization-response parameter, and the value `/userinfo` verifies against
-— moved with it. The table is `tenants`, its foreign keys are `tenant_id`,
-and the row-level-security GUC is `app.tenant_id`. The CLI flag is
-`--tenant` and the subcommand `seed tenant`. Migrations
-`0057_rename_realm_to_tenant.sql` and `0058_rename_realm_constraint_names.sql`
-carry the schema; the first drops and recreates all 31 policies, because a
-column rename does not rewrite the GUC literal inside them. Nothing has been
-deployed, so there is no transition to describe — a hard cutover is the only
-reason this was simple, and a deployed system would need two issuers per
-tenant for a published window instead.
+**The tenant rename changed the wire**: `realm` is `tenant` everywhere, the
+issuer included, as a hard cutover nothing deployed had to survive
+([tenant-rename.md](phases/tenant-rename.md)).
 
 ### What each phase found while building it
 
@@ -145,11 +122,11 @@ navigating to the returned `redirect` itself
 API's own `401` answers that too once the token is refused at the session's
 own tenant; otherwise that `401`, and every `403`, is passed back as it is.
 Every write carries `X-Odudu-Console: 1` and a same-origin `Origin`, or it
-is refused `403`. The shell's CSP allows React Aria's two injected styles,
-`usePress`'s and `usePreventScroll`'s iOS one, by hash, and
-`packages/console-gateway/src/view/react-aria-style.test.ts` recomputes
-both from the React Aria the console is built with ([p4d.md](phases/p4d.md),
-"React Aria under a strict CSP"). `gateway.request` is the one caller of
+is refused `403`; every admin request names its tab's subject in
+`X-Odudu-Console-Subject`, sent by `gateway.request`, and one naming
+somebody else ends that tab's session as a `401` does. The shell's CSP allows React Aria's two injected styles by hash, recomputed
+by a test on every upgrade ([p4d.md](phases/p4d.md), "React Aria under a
+strict CSP"). `gateway.request` is the one caller of
 `fetch`, retries GET and, with `If-Match`, PATCH/PUT, and never retries
 POST or DELETE; `shared/transport` is where a feature reaches it, never
 `fetch` directly (boundary-enforced). The Instrument design system and its
@@ -165,13 +142,8 @@ a dirty section. Route slots exist per area, the cursor-trail search helper
 e2e harness (`apps/admin-console/e2e/`) seeds fresh tenants and
 administrators per run.
 
-**What Part 4 owes.** The mid-edit-draft e2e spec and the `beforeunload`
-prompt are stubbed as skipped in `signin.spec.ts`, waiting on a real
-editable section to drive them. Route-level code splitting is undone; the
-placeholder bundle is already 561 KB (Part 3's bundle note,
-[p4d.md](phases/p4d.md)). Accessibility is continuous, not a closing pass:
-axe on every state a feature's specs reach, one keyboard-only task, a
-390px pass, and a manual VoiceOver pass once Part 4 closes.
+**What Part 4 owes** is named in the P4d spec's §12, item 5, and its
+accessibility duties and per-feature checklist in §9.
 
 **For the repository owner:** add `e2e` as a required check on `main`,
 beside `verify`, `container` and `commit-messages`.

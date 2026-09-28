@@ -792,6 +792,24 @@ before its implementation, in every layer.
 | Playwright, job `e2e`       | sign-in and the forced change; an expired session restoring a draft; create, edit, a `412` conflict and its resolution; typed confirmation; a secret shown once; a system administrator entering a tenant under the context bar; guided tenant creation; export then import; a phone viewport; dark mode; axe on every page in both themes                                                                                                                                                                                                                 |
 | Boundary and lint           | the console's feature rules and fixtures, the `service-is-a-leaf` negative control, React naming, and the existing no-`any` and comment-length tests                                                                                                                                                                                                                                                                                                                                                                                                       |
 
+**Accessibility is continuous, not a closing pass.** Every view test runs
+axe in both themes, and every view has a test (the lint in the Unit row).
+Each Part 4 feature's Playwright specs run axe on every state they reach,
+complete one task by keyboard alone, and repeat at a 390 px viewport; a
+manual VoiceOver pass over the whole console closes Part 4. Each feature's
+review walks this checklist:
+
+- labels visible and no unlabelled icons;
+- errors under their field and announced;
+- focus goes somewhere sensible after save, delete and dialog close;
+- targets of at least 24 px;
+- no status by colour alone;
+- secrets never announced beyond their one node.
+
+A mutation that returns a secret shown once takes it from the mutation's
+result straight into its dialog; the query client drops a mutation's
+result as soon as nothing observes it (`gcTime: 0`).
+
 **CI caching lands first.** `test` becomes a Turbo task per package with
 `globalDependencies` naming the root configuration, the lockfile and
 `tsconfig.base.json`, and the workflow restores Turbo's cache. The phase
@@ -857,6 +875,15 @@ a pushed commit and the review it attracted answered.
    guided creation; System administrators; Subjects (about three); Groups;
    Roles; Clients (about three); Scopes; Registration tokens; Sign-in flow;
    Signing keys; Settings and Email; Import / export; Audit.
+   Part 3 left four things on this part: the e2e test of a session ending
+   mid-edit, which restores the draft and saves nothing, and the
+   `beforeunload` prompt a dirty section registers, both with the first
+   editing feature; route-level code splitting, once the feature routes
+   exist to split along; and §9's accessibility duties for every feature,
+   ending in the VoiceOver pass. Overview also renders `whoami`'s `404` for
+   a tenant that does not exist as a not-found page, since a system
+   administrator reaches any well-formed tenant name today and gets the
+   shell.
 6. **Close** — the whole-branch review and the phase-closing pass
    `CLAUDE.md` describes.
 

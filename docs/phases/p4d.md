@@ -1198,6 +1198,38 @@ up`/`down -v` in the default project `docker` — the user's dev stack's
   the foundation added — the transport's own path check included — used
   a real socket.
 
+## Part 3 — what the final review found
+
+The whole-range review found these defects in the foundation, each fixed on
+the branch, three of them in the session lifecycle this part owns.
+
+- **A system administrator whose session ended inside another tenant was
+  sent to that tenant's sign-in**, which cannot admit them. The sign-in is
+  now at the tenant that issued the ended session, returning to the page.
+- **Another tab's sign-in replaced the session under a live tab unseen.**
+  Every tab shares the cookie, so the tab kept showing one administrator
+  while acting as another, and dropped its drafts when it next read the
+  session. Each admin request now names its tab's subject in
+  `X-Odudu-Console-Subject`; the gateway refuses a mismatch `409`, and the
+  console treats that, or a session read naming somebody else, as the end
+  of the tab's session and asks before becoming the new principal's.
+- **`?login_error=` was never read**, so a cancelled sign-in or a refused
+  tenant switch came back without a word. The console now says why.
+- **A feature's `index.ts` let a service reach views and stores**, since
+  the layer rules are per edge and the barrel matched none. Services now
+  import only services and `@odudu/contracts`, and an `index.ts` publishes
+  only its feature's views, usecases and services.
+- **A draft field was kept unless flagged secret**, so a new password
+  field would have reached `sessionStorage` by omission. Every field now
+  says `kind: 'plain' | 'secret'`, with no default.
+- **The axe lint missed a single-file view layer and any view with no
+  test**; twelve views had none.
+
+A system administrator opening a well-formed tenant that does not exist
+still gets the shell with placeholder areas. It is harmless while every
+area is a placeholder, and it is Part 4's, on the Overview feature, whose
+first read is the `whoami` that answers `404` there (spec §12, item 5).
+
 ## Part 3 — the console's bundle
 
 The built console is one JavaScript chunk of 561 KB (Vite warns above
@@ -1219,8 +1251,9 @@ administrator, under names fresh on every run.
 
 - **Every page** fails its test on a `securitypolicyviolation` or a console
   error, through an automatic fixture. The one tolerated message is the
-  browser's own report of a `401` from `/console/api/`, which is how the
-  console learns it has no session. A test that fails a request on purpose
+  browser's own report of a `401` from `/console/api/session`, which is how
+  the console learns it has no session; any other `401` fails the test
+  unless the test forgives it. A test that fails a request on purpose
   takes back only what the browser logged about that request.
 - **axe** runs with the WCAG 2.2 AA tags on each console page a spec
   reaches, under both `prefers-color-scheme` values and both `data-theme`
