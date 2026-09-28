@@ -83,7 +83,7 @@ function servingRoute(routes: readonly Route[], request: Route): string | undefi
 }
 
 const ENDPOINT_IN_HEADING = /^(?<method>GET|POST|PUT|PATCH|DELETE) (?<path>\/console\S*)$/u;
-const CONSOLE_URL = new RegExp(`${BASE}(?<path>/console(?:/[^\\s'"?]*)?)(?=[\\s'"?]|$)`, 'u');
+const CONSOLE_URL = /http:\/\/localhost:\d+(?<path>\/console(?:\/[^\s'"?]*)?)(?=[\s'"?]|$)/u;
 
 // `{tenant}` reads as a placeholder to a person; any one segment serves it.
 function concrete(path: string): string {
@@ -116,6 +116,11 @@ describe('docs/console-paths.md names only console routes the server serves', ()
   it('finds the request lines, so a broken extractor fails rather than checking nothing', () => {
     // 20 when this was written: 8 headings and 12 curl commands.
     expect(requestLines().length).toBeGreaterThanOrEqual(16);
+  });
+
+  it('reads a request to any local port, not only the default one', () => {
+    const assets = requestLines().filter((request) => request.url.startsWith('/console/assets/'));
+    expect(assets.length).toBeGreaterThan(0);
   });
 
   it('can tell a served route from one that is not', async () => {
