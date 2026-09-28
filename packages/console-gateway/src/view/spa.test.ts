@@ -111,6 +111,15 @@ describe('the console shell', () => {
     expect(res.body).toContain("console.log('odudu console shell')");
   });
 
+  it('serves the stylesheet index.html links, with its own content type', async () => {
+    const server = await served(FIXTURE_DIR);
+
+    const res = await server.inject({ url: '/console/assets/app-3f2a.css' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toBe('text/css; charset=utf-8');
+  });
+
   it('answers 404 for an asset path with no manifest entry', async () => {
     const server = await served(FIXTURE_DIR);
 
