@@ -68,6 +68,19 @@ const SOURCE_TREES = [
   'tests/**/*.ts',
 ];
 
+async function scannedFiles(): Promise<string[]> {
+  const files: string[] = [];
+  for (const pattern of SOURCE_TREES) {
+    for await (const file of glob(pattern, {
+      cwd: REPO_ROOT,
+      exclude: (entry) => path.basename(entry) === 'node_modules',
+    })) {
+      files.push(file.split(path.sep).join('/'));
+    }
+  }
+  return files;
+}
+
 function waivers(file: string, source: string): string[] {
   const offenders: string[] = [];
   for (const line of source.split('\n')) {
@@ -87,20 +100,23 @@ function waivers(file: string, source: string): string[] {
 describe('the any ban cannot be waived by an inline comment', () => {
   it('no source file disables an any-family rule', async () => {
     const offenders: string[] = [];
-    for (const pattern of SOURCE_TREES) {
-      for await (const file of glob(pattern)) {
-        offenders.push(...waivers(file, await readFile(file, 'utf8')));
-      }
+    for (const file of await scannedFiles()) {
+      offenders.push(...waivers(file, await readFile(path.join(REPO_ROOT, file), 'utf8')));
     }
     expect(offenders).toEqual([]);
   });
 
-  it('reaches a component file and catches a waiver in one', () => {
-    const file = 'apps/admin-console/src/app/App.tsx';
-    expect(SOURCE_TREES.some((pattern) => path.matchesGlob(file, pattern))).toBe(true);
+  it('reaches every source tree, component files included', async () => {
+    const files = await scannedFiles();
+    expect(files).toContain('apps/admin-console/src/app/App.tsx');
+    expect(files).toContain('packages/kernel/src/config.ts');
+  });
+
+  it('catches a waiver in a component file', () => {
     const source =
-      '// eslint-disable-next-line @typescript-eslint/no-explicit-any\n' +
+      '// eslint-' +
+      'disable-next-line @typescript-eslint/no-explicit-any\n' +
       'export const App = (props: any) => <p>{props}</p>;\n';
-    expect(waivers(file, source)).toHaveLength(1);
+    expect(waivers('apps/admin-console/src/app/App.tsx', source)).toHaveLength(1);
   });
 });

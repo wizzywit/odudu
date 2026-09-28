@@ -12,6 +12,8 @@ import { describe, expect, it } from 'vitest';
 // an ordering constraint, a rejected alternative or a failure mode fits inside
 // it; what does not fit is an essay, and an essay's durable content belongs in
 // an ADR or a docs/protocols/ reading note with a pointer from the code.
+const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
+
 const MAX_BLOCK_WEIGHT = 8;
 
 // Prettier's printWidth. A line wider than this is one line on disk and more
@@ -28,6 +30,19 @@ const SOURCE_TREES = [
   'tests/**/*.ts',
   '*.ts',
 ];
+
+async function scannedFiles(): Promise<string[]> {
+  const files: string[] = [];
+  for (const pattern of SOURCE_TREES) {
+    for await (const file of glob(pattern, {
+      cwd: REPO_ROOT,
+      exclude: (entry) => path.basename(entry) === 'node_modules',
+    })) {
+      files.push(file.split(path.sep).join('/'));
+    }
+  }
+  return files;
+}
 
 export interface CommentBlock {
   readonly line: number;
@@ -86,26 +101,25 @@ describe('a comment block stays within the ceiling', { timeout: 60_000 }, () => 
   it('holds across every source tree', async () => {
     const offenders: string[] = [];
 
-    for (const pattern of SOURCE_TREES) {
-      for await (const file of glob(pattern)) {
-        const source = await readFile(file, 'utf8');
-        for (const block of commentBlocks(source)) {
-          if (block.weight <= MAX_BLOCK_WEIGHT) continue;
-          offenders.push(
-            `${file}:${String(block.line)} — comment block of ${String(block.weight)} lines, ` +
-              `limit is ${String(MAX_BLOCK_WEIGHT)}. Compress it, or move what is durable to an ` +
-              `ADR or a docs/protocols/ reading note and leave a one-line pointer.`,
-          );
-        }
+    for (const file of await scannedFiles()) {
+      const source = await readFile(path.join(REPO_ROOT, file), 'utf8');
+      for (const block of commentBlocks(source)) {
+        if (block.weight <= MAX_BLOCK_WEIGHT) continue;
+        offenders.push(
+          `${file}:${String(block.line)} — comment block of ${String(block.weight)} lines, ` +
+            `limit is ${String(MAX_BLOCK_WEIGHT)}. Compress it, or move what is durable to an ` +
+            `ADR or a docs/protocols/ reading note and leave a one-line pointer.`,
+        );
       }
     }
 
     expect(offenders, offenders.join('\n')).toEqual([]);
   });
 
-  it('reaches a component file', () => {
-    const file = 'apps/admin-console/src/app/App.tsx';
-    expect(SOURCE_TREES.some((pattern) => path.matchesGlob(file, pattern))).toBe(true);
+  it('reaches every source tree, component files included', async () => {
+    const files = await scannedFiles();
+    expect(files).toContain('apps/admin-console/src/app/App.tsx');
+    expect(files).toContain('packages/kernel/src/config.ts');
   });
 });
 
