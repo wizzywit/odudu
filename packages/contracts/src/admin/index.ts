@@ -188,6 +188,12 @@ export {
   type AssignScopeToClientRequest,
   assignScopeToClientResponseSchema,
   type AssignScopeToClientResponse,
+  listScopeClientsQuerySchema,
+  type ListScopeClientsQuery,
+  scopeClientSchema,
+  type ScopeClient,
+  listScopeClientsResponseSchema,
+  type ListScopeClientsResponse,
 } from '#/admin/scopes';
 export {
   scopeMappersSchema,

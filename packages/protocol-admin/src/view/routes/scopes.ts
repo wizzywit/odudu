@@ -2,6 +2,7 @@ import {
   amendScopeRequestSchema,
   assignScopeToClientRequestSchema,
   createScopeRequestSchema,
+  listScopeClientsQuerySchema,
   listScopesQuerySchema,
   setScopeRolesRequestSchema,
   type ClientScope,
@@ -16,6 +17,7 @@ import {
   assignScopeToClient,
   createScope,
   deleteScope,
+  listScopeClients,
   listScopes,
   readScope,
   readScopeRoles,
@@ -441,5 +443,46 @@ export function unassignScopeFromClientHandler(deps: ScopesRouteDeps): AdminRout
         reply.header('etag', outcome.clientEtag);
         return reply.code(204).send();
     }
+  };
+}
+
+export function listScopeClientsHandler(deps: ScopesRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const { tenant: tenantName, id } = request.params;
+    if (tenantName === undefined || id === undefined) {
+      throw new Error('protocol-admin: GET scope clients route received no :tenant/:id');
+    }
+    const query = listScopeClientsQuerySchema.parse(request.query);
+    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      listScopeClients(tx, {
+        tenantId: targetTenantId,
+        scopeId: id,
+        limit,
+        cursor: query.cursor,
+        cursorKey: deps.cursorKey,
+      }),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(
+        reply,
+        request,
+        problem(404, 'about:blank', 'Not Found', `no scope ${id}`),
+      );
+    }
+    if (outcome.kind === 'invalid_cursor') {
+      return sendProblem(reply, request, cursorProblem());
+    }
+    if (outcome.next === null) {
+      return reply.code(200).send({ items: outcome.items });
+    }
+    const nextUrl = nextPageUrl(`/admin/tenants/${tenantName}/scopes/${id}/clients`, {
+      ...query,
+      limit,
+      cursor: outcome.next,
+    });
+    reply.header('link', `<${nextUrl}>; rel="next"`);
+    return reply.code(200).send({ items: outcome.items, next: outcome.next });
   };
 }

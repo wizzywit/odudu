@@ -53,16 +53,25 @@ function endpointsNamedBy(section: Section): { method: string; path: string }[] 
   });
 }
 
-/** The section whose heading names this route, matching on the pattern's tail. */
+/**
+ * The section whose heading names this route, matching on the pattern's
+ * tail — the longest tail that matches, so `GET /scopes/:id/clients` is not
+ * read as the `GET /clients` a shorter heading names.
+ */
 function sectionFor(
   all: Section[],
   route: { method: string; pattern: string },
 ): Section | undefined {
-  return all.find((section) =>
-    endpointsNamedBy(section).some(
-      (named) => named.method === route.method && route.pattern.endsWith(named.path),
-    ),
-  );
+  let best: { section: Section; length: number } | undefined;
+  for (const section of all) {
+    for (const named of endpointsNamedBy(section)) {
+      if (named.method !== route.method || !route.pattern.endsWith(named.path)) continue;
+      if (best === undefined || named.path.length > best.length) {
+        best = { section, length: named.path.length };
+      }
+    }
+  }
+  return best?.section;
 }
 
 describe('docs/admin-paths.md says what the admin API actually requires', () => {

@@ -46,6 +46,8 @@ import {
   listKeysResponseSchema,
   listRolesResponseSchema,
   listScopesResponseSchema,
+  listScopeClientsQuerySchema,
+  listScopeClientsResponseSchema,
   listSessionsResponseSchema,
   endSessionsResponseSchema,
   issuePasswordResponseSchema,
@@ -772,6 +774,17 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Replaces the whole binding set for the scope. Binding an unregistered mapper name is ' +
       'refused with 400, listing the registry’s own known names. ' +
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/scopes/:id/clients',
+    capability: 'manage-tenant',
+    responseSchema: listScopeClientsResponseSchema,
+    querystringSchema: listScopeClientsQuerySchema,
+    description:
+      'The clients the scope is assigned to, each by its row id, `client_id`, name and ' +
+      'assignment, in row-id order — and nothing else of the client, which reading takes ' +
+      '`manage-clients`.',
   },
   {
     method: 'PUT',

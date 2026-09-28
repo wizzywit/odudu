@@ -2,6 +2,7 @@ import {
   type AssignScopeToClientResponse,
   type ClientScope,
   type ListScopesQuery,
+  type ScopeClient,
 } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clientScopeRoles, roleRepository, roles } from '@odudu/domain-authz';
@@ -10,6 +11,7 @@ import {
   clientScopeAssignments,
   clientScopeRepository,
   clientScopes,
+  clients,
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
@@ -799,4 +801,82 @@ export async function unassignScopeFromClient(
   });
 
   return { kind: 'removed', clientEtag: await clientEtagOf(tx, input.clientId) };
+}
+
+export interface ListScopeClientsInput {
+  readonly tenantId: string;
+  readonly scopeId: string;
+  readonly limit: number;
+  readonly cursor: string | undefined;
+  readonly cursorKey: Uint8Array;
+}
+
+export type ListScopeClientsOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'invalid_cursor' }
+  | { kind: 'ok'; items: readonly ScopeClient[]; next: string | null };
+
+const SCOPE_CLIENTS_COLLECTION = 'scope_clients';
+
+// Keyed on the client's row id, and the cursor bound to the scope, so a page
+// of one scope's clients never resumes another's.
+export async function listScopeClients(
+  tx: TenantScopedDatabase,
+  input: ListScopeClientsInput,
+): Promise<ListScopeClientsOutcome> {
+  if ((await clientScopeRepository(tx).byId(input.scopeId)) === null) return { kind: 'not_found' };
+  const filters = filterDigest({ scope: input.scopeId });
+  let after: string | undefined;
+  if (input.cursor !== undefined) {
+    const decoded = decodeCursor(
+      input.cursorKey,
+      SCOPE_CLIENTS_COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
+    if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
+    after = decoded.after;
+  }
+
+  const rows = await tx
+    .select({
+      id: clients.id,
+      clientId: clients.clientId,
+      name: clients.name,
+      assignment: clientScopeAssignments.assignment,
+    })
+    .from(clientScopeAssignments)
+    .innerJoin(clients, eq(clients.id, clientScopeAssignments.clientId))
+    .where(
+      and(
+        eq(clientScopeAssignments.clientScopeId, input.scopeId),
+        ...(after === undefined ? [] : [gt(clients.id, after)]),
+      ),
+    )
+    .orderBy(asc(clients.id))
+    .limit(input.limit + 1);
+
+  const hasMore = rows.length > input.limit;
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
+  const next =
+    hasMore && last !== undefined
+      ? encodeCursor(input.cursorKey, {
+          after: last.id,
+          collection: SCOPE_CLIENTS_COLLECTION,
+          tenantId: input.tenantId,
+          filters,
+        })
+      : null;
+  return {
+    kind: 'ok',
+    items: page.map((row) => ({
+      id: row.id,
+      client_id: row.clientId,
+      name: row.name,
+      assignment: row.assignment,
+    })),
+    next,
+  };
 }

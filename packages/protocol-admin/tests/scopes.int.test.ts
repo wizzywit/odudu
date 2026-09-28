@@ -1,4 +1,5 @@
-import { withTenant, type TenantScopedDatabase } from '@odudu/db';
+import { tenants, withTenant, type TenantScopedDatabase } from '@odudu/db';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { roleRepository } from '@odudu/domain-authz';
 import {
   ADMIN_CLIENT_ID,
@@ -17,6 +18,7 @@ import {
   amendScope,
   createScope,
   deleteScope,
+  listScopeClients,
   setScopeRoles,
   unassignScopeFromClient,
   type ScopeAuditEvent,
@@ -414,6 +416,123 @@ async function scopeIdByName(tenantId: string, name: string): Promise<string> {
   if (scope === null) throw new Error(`fixture: no scope named ${JSON.stringify(name)}`);
   return scope.id;
 }
+
+describe('GET /admin/tenants/{t}/scopes/{id}/clients', () => {
+  async function scopeWithClients(count: number) {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+    const scope = (await createScopeHttp(token, t.name, { name: `s-${newId()}` })).json<{
+      id: string;
+    }>().id;
+    const ids: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const client = await fixture.http.inject({
+        method: 'POST',
+        url: `/admin/tenants/${t.name}/clients`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: {
+          client_id: `app-${String(index)}-${newId()}`,
+          redirect_uris: ['https://a.example/cb'],
+        },
+      });
+      const id = client.json<{ id: string }>().id;
+      ids.push(id);
+      await fixture.http.inject({
+        method: 'PUT',
+        url: `/admin/tenants/${t.name}/scopes/${scope}/clients/${id}`,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        payload: { assignment: index === 0 ? 'default' : 'optional' },
+      });
+    }
+    const reader = await fixture.adminToken(t.name, ['manage-tenant']);
+    return { t, scope, ids, reader };
+  }
+
+  function listClients(token: string, tenant: string, scope: string, query = '') {
+    return fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${tenant}/scopes/${scope}/clients${query}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  it('names each assigned client by client_id and name, to manage-tenant alone', async () => {
+    const { t, scope, ids, reader } = await scopeWithClients(2);
+    const res = await listClients(reader, t.name, scope);
+    expect(res.statusCode, res.body).toBe(200);
+    const items = res.json<{
+      items: { id: string; client_id: string; name: string; assignment: string }[];
+    }>().items;
+    expect(items.map((item) => item.id)).toEqual([...ids].sort());
+    expect(Object.keys(items[0] ?? {}).sort()).toEqual(['assignment', 'client_id', 'id', 'name']);
+    expect(items.find((item) => item.id === ids[0])?.assignment).toBe('default');
+  });
+
+  it('pages with a cursor, and refuses one minted for another scope', async () => {
+    const { t, scope, ids, reader } = await scopeWithClients(3);
+    const first = await listClients(reader, t.name, scope, '?limit=2');
+    const body = first.json<{ items: { id: string }[]; next?: string }>();
+    expect(body.items).toHaveLength(2);
+    expect(first.headers.link).toContain('rel="next"');
+    const next = body.next ?? '';
+    const second = await listClients(reader, t.name, scope, `?limit=2&cursor=${next}`);
+    expect(second.json<{ items: { id: string }[] }>().items.map((item) => item.id)).toEqual(
+      [...ids].sort().slice(2),
+    );
+
+    const other = (await createScopeHttp(reader, t.name, { name: `o-${newId()}` })).json<{
+      id: string;
+    }>().id;
+    const replayed = await listClients(reader, t.name, other, `?cursor=${next}`);
+    expect(replayed.statusCode).toBe(400);
+  });
+
+  it('404s for a scope that does not exist, and for another tenant\u2019s', async () => {
+    const { scope } = await scopeWithClients(1);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(other.name, ['manage-tenant']);
+    expect((await listClients(token, other.name, scope)).statusCode).toBe(404);
+  });
+
+  it('reads no assignment across tenants, probed with a foreign tenant_id', async () => {
+    await expectCrossTenantMethodProbe(fixture.app.db, {
+      seed: async (tx, tenantId) => {
+        await tx.insert(tenants).values({ id: tenantId, name: `probe-${newId()}` });
+        const client = await clientRepository(tx).create({
+          tenantId,
+          clientId: `probe-${newId()}`,
+          name: 'probe',
+          type: 'public',
+          secretHash: null,
+        });
+        const scope = await clientScopeRepository(tx).create({ tenantId, name: 'probe' });
+        await clientScopeRepository(tx).assignOrUpdate(client.id, scope.id, 'default');
+        return { tenantId, scopeId: scope.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const outcome = await listScopeClients(tx, {
+          tenantId: seeded.tenantId,
+          scopeId: seeded.scopeId,
+          limit: 50,
+          cursor: undefined,
+          cursorKey: Buffer.alloc(32, 1),
+        });
+        expect(outcome.kind === 'ok' ? outcome.items : []).toHaveLength(1);
+      },
+      attempt: (tx, seeded) =>
+        listScopeClients(tx, {
+          tenantId: seeded.tenantId,
+          scopeId: seeded.scopeId,
+          limit: 50,
+          cursor: undefined,
+          cursorKey: Buffer.alloc(32, 1),
+        }),
+      expectBlocked: (result) => {
+        expect(result).toEqual({ kind: 'not_found' });
+      },
+    });
+  });
+});
 
 describe('DELETE /admin/tenants/{t}/scopes/{id}/clients/{clientId}', () => {
   it('removes the assignment: GET /clients/:id no longer lists it, and /authorize refuses it', async () => {

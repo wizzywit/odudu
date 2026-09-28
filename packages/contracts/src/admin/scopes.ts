@@ -74,3 +74,22 @@ export const assignScopeToClientResponseSchema = z.object({
   scopes: z.array(clientScopeAssignmentViewSchema),
 });
 export type AssignScopeToClientResponse = z.infer<typeof assignScopeToClientResponseSchema>;
+
+// Which clients carry a scope, readable with `manage-tenant` alone: a client
+// named by its row id, `client_id` and name, and nothing of its configuration.
+export const listScopeClientsQuerySchema = cursorQuerySchema.extend({}).strict();
+export type ListScopeClientsQuery = z.infer<typeof listScopeClientsQuerySchema>;
+
+export const scopeClientSchema = z.object({
+  id: idSchema,
+  client_id: z.string(),
+  name: z.string(),
+  assignment: clientScopeAssignmentSchema,
+});
+export type ScopeClient = z.infer<typeof scopeClientSchema>;
+
+export const listScopeClientsResponseSchema = z.object({
+  items: z.array(scopeClientSchema),
+  next: z.string().optional(),
+});
+export type ListScopeClientsResponse = z.infer<typeof listScopeClientsResponseSchema>;
