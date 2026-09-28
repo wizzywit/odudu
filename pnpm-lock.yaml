@@ -515,6 +515,9 @@ importers:
 
   packages/domain-tenant:
     dependencies:
+      '@odudu/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@odudu/db':
         specifier: workspace:*
         version: link:../db

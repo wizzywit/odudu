@@ -15,6 +15,7 @@
     "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
   },
   "dependencies": {
+    "@odudu/contracts": "workspace:*",
     "@odudu/db": "workspace:*",
     "@odudu/domain-authz": "workspace:*",
     "@odudu/kernel": "workspace:*",

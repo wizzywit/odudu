@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 import { rememberedTenant } from '#/features/session/repository/useSessionQuery.ts';
-import { isTenantName, SYSTEM_TENANT } from '#/features/session/service.ts';
+import { isTenantName, SYSTEM_TENANT, TENANT_NAME_PROBLEM } from '#/features/session/service.ts';
 import { useSignedIn } from '#/features/session/usecase/useSignedIn.ts';
 import { useSignIn } from '#/features/session/usecase/useSignIn.ts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch.ts';
@@ -60,9 +60,6 @@ export function useConsoleHome(): Home {
     kind: 'choose',
     remembered: rememberedTenant({ named, signedIn: principal !== null }),
     choose: leave,
-    check: (tenant) =>
-      isTenantName(tenant)
-        ? undefined
-        : 'A tenant name is lowercase letters, digits and hyphens, and neither starts nor ends with a hyphen.',
+    check: (tenant) => (isTenantName(tenant) ? undefined : TENANT_NAME_PROBLEM),
   };
 }

@@ -120,7 +120,7 @@ describe('booting from the session', () => {
 
     await user.type(field, 'Acme');
     await user.click(screen.getByRole('button', { name: 'Continue to sign-in' }));
-    expect(field).toHaveAccessibleDescription(/lowercase letters, digits and hyphens/u);
+    expect(field).toHaveAccessibleDescription(/A tenant name must be 1-63 lowercase letters/u);
     expect(leavePage).not.toHaveBeenCalled();
 
     await user.clear(field);

@@ -1,3 +1,4 @@
+import { TENANT_NAME_RULE } from '@odudu/contracts';
 import type { ADMIN_CAPABILITIES } from '@odudu/contracts/admin';
 
 export type AdminCapability = (typeof ADMIN_CAPABILITIES)[number];
@@ -45,14 +46,10 @@ export function loginUrl(tenant: string, returnTo: string): string {
   return `/console/auth/login?${query.toString()}`;
 }
 
-// The DNS-label rule @odudu/domain-tenant's isValidTenantName holds a
-// tenant name to, so a mistyped one is refused here rather than by the
-// tenant's sign-in page.
-const TENANT_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
+export { isTenantName } from '@odudu/contracts';
 
-export function isTenantName(name: string): boolean {
-  return TENANT_NAME.test(name);
-}
+// The words a refused tenant name is answered with, as a sentence.
+export const TENANT_NAME_PROBLEM = `${TENANT_NAME_RULE.charAt(0).toUpperCase()}${TENANT_NAME_RULE.slice(1)}.`;
 
 export function draftOwner(principal: Principal): string {
   return `${principal.tenant}/${principal.subjectId}`;

@@ -1,3 +1,4 @@
+import { isTenantName, TENANT_NAME_RULE as CONTRACT_RULE } from '@odudu/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   isReservedTenantName,
@@ -20,6 +21,13 @@ describe('isValidTenantName', () => {
 
   it.each(CORPUS.refused)('refuses %j', (name) => {
     expect(isValidTenantName(name)).toBe(false);
+  });
+
+  // The console validates with the contract's copy before any request, so
+  // the predicate the CHECK is held to must be that same one.
+  it('is the rule @odudu/contracts states, not a copy of it', () => {
+    expect(isValidTenantName).toBe(isTenantName);
+    expect(TENANT_NAME_RULE).toBe(CONTRACT_RULE);
   });
 
   it('states the rule every refusal answers with', () => {
