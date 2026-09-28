@@ -1137,3 +1137,62 @@ area still a placeholder. Route-level code splitting and a vendor chunk are
 placed in P4d's fourth part, where the feature routes arrive and there is
 something to split along; splitting placeholders now would only measure
 the router.
+
+## Part 3 — the browser tests
+
+`apps/admin-console/e2e/run.sh` builds the image, starts `infra/docker` as
+the compose project `odudu-e2e` (ports 3080 and 5462 unless
+`ODUDU_HOST_PORT` and `POSTGRES_HOST_PORT` say otherwise), and runs the
+Playwright specs in Chromium. The `e2e` job in `verify.yml` calls the same
+script. `global-setup.ts` seeds two throwaway tenants, their administrators
+(one through `seed user --require-password-change`), and a system
+administrator, under names fresh on every run.
+
+- **Every page** fails its test on a `securitypolicyviolation` or a console
+  error, through an automatic fixture. The one tolerated message is the
+  browser's own report of a `401` from `/console/api/`, which is how the
+  console learns it has no session. A test that fails a request on purpose
+  takes back only what the browser logged about that request.
+- **axe** runs with the WCAG 2.2 AA tags on each console page a spec
+  reaches, under both `prefers-color-scheme` values and both `data-theme`
+  overrides, and fails if `color-contrast` did not run. A control with
+  low-contrast text injected into the page was reported in all four modes.
+- **Cookies** are not asserted by name. On this plain-HTTP stack they carry
+  no `__Host-` prefix, and `run-console-check.sh` covers the https form.
+
+**What the specs found.** In the phone menu sheet, **Sign out did nothing
+and a rail link reloaded the page**. The sheet closed on the click's
+capture phase, and that discrete update unmounted the pressed control
+before React Aria's click handler reached it. Sign-out's press never fired,
+and the link fell back to a full navigation outside the router, and so
+outside the unsaved-changes guard. jsdom and user-event did not reproduce
+it, and a component test written for it passed on the broken code. The
+sheet now closes as a transition. The phone specs failed with the old
+`AppShell.tsx` rebuilt into the image, and pass with the fix.
+
+**The tenant's sign-in pages fail WCAG 2.2 AA.** axe reports `target-size`
+on `#passkey-submit`: the pages are unstyled, so their buttons are smaller
+than 24px. They belong to `protocol-oidc`'s view layer, not to the console.
+Their styling is P4b's, whose criterion themes every page the server
+renders. `signin.spec.ts` holds the check as a `test.fixme`, to be switched
+on when it passes.
+
+**Owed by P4d's fourth part, with its first editing feature:** the e2e test
+of a session expiring mid-edit, which restores the draft after sign-in and
+saves nothing, and the `beforeunload` prompt a dirty section registers.
+Every area is still a placeholder, so no real section can be edited, and a
+fake one will not be built into the production app for the test.
+`signin.spec.ts` names the test as skipped, with that reason. What can be
+covered now is covered. The spec deletes the administrator's
+`console_sessions` row through psql, and the next navigation goes through
+`/console/auth/login` and comes back to the same page. The draft
+round-trip is covered by the component tests in `app/draftRestore.test.tsx`.
+
+Two seeded accounts are single-use per run, so `--repeat-each` fails on
+them by construction: the forced password change is spent once, and the
+expiring session's test deletes that user's sessions, which would end a
+parallel repeat's too.
+
+**For the repository owner:** making `e2e` a required check on `main`
+beside `verify`, `container` and `commit-messages` is a branch-protection
+setting, which only the owner can change.
