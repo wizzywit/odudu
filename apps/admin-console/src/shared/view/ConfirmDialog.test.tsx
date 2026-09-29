@@ -173,3 +173,39 @@ it('passes axe in both themes, plain and typed', async () => {
     ).toEqual({ light: [], dark: [] });
   }
 });
+
+describe('a refusal', () => {
+  const refusal = 'acme was not disabled: this would leave no enabled administrator.';
+
+  function Refused() {
+    return (
+      <ConfirmDialog
+        isOpen
+        title="Disable acme?"
+        consequence="Nobody in acme can sign in until it is enabled again."
+        confirmLabel="Disable acme"
+        tone="danger"
+        typed="acme"
+        problem={refusal}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+  }
+
+  it('is said inside the dialog, beside the action it refused, as an alert', async () => {
+    render(<Refused />);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(refusal);
+    expect(screen.getByRole('alertdialog')).toContainElement(alert);
+  });
+
+  it('passes axe in both themes', async () => {
+    expect(
+      await axeInBothThemes(
+        () => <Refused />,
+        () => screen.findByRole('alert'),
+      ),
+    ).toEqual({ light: [], dark: [] });
+  });
+});

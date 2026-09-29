@@ -27,6 +27,7 @@ export function ResourceListPage<T>({
   capability,
   nothingYet,
   nothingYetAction,
+  notice,
 }: {
   list: ResourceListState<T>;
   title: string;
@@ -44,6 +45,8 @@ export function ResourceListPage<T>({
   capability: string;
   nothingYet?: ReactNode;
   nothingYetAction?: ReactNode;
+  // What the last action on a row came to, drawn between the filters and the rows.
+  notice?: ReactNode;
 }) {
   const count =
     list.count === null ? null : (
@@ -64,6 +67,7 @@ export function ResourceListPage<T>({
             {count}
           </Narrowing>
         )}
+        {notice}
         <Body
           list={list}
           title={title}

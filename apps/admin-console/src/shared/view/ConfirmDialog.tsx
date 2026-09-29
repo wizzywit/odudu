@@ -12,6 +12,8 @@ interface ConfirmProps {
   // When set, confirm stays disabled until exactly this text is typed.
   typed?: string;
   busy?: boolean;
+  // The server's refusal of the action, said where the action is.
+  problem?: ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -27,6 +29,7 @@ function OpenConfirm({
   tone = 'primary',
   typed,
   busy = false,
+  problem,
   onConfirm,
   onCancel,
 }: ConfirmProps) {
@@ -73,16 +76,25 @@ function OpenConfirm({
         </>
       }
     >
-      {typed === undefined ? undefined : (
-        <form noValidate onSubmit={submit}>
-          <TextField
-            label={`Type ${typed} to confirm`}
-            value={entered}
-            onChange={setEntered}
-            mono
-            autoFocus
-          />
-        </form>
+      {typed === undefined && problem === undefined ? undefined : (
+        <>
+          {typed === undefined ? null : (
+            <form noValidate onSubmit={submit}>
+              <TextField
+                label={`Type ${typed} to confirm`}
+                value={entered}
+                onChange={setEntered}
+                mono
+                autoFocus
+              />
+            </form>
+          )}
+          {problem === undefined || problem === null ? null : (
+            <p role="alert" className={styles.problem}>
+              {problem}
+            </p>
+          )}
+        </>
       )}
     </DialogFrame>
   );

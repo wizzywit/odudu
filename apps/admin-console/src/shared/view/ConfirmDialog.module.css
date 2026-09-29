@@ -8,3 +8,8 @@
   color: var(--ink-muted);
   background: var(--surface-panel);
 }
+
+.problem {
+  margin: var(--space-3) 0 0;
+  color: var(--signal-danger-ink);
+}

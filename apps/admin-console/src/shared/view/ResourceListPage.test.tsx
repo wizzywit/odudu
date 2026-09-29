@@ -148,3 +148,21 @@ it('passes axe in both themes, with rows and with none', async () => {
     dark: [],
   });
 });
+
+it('says what happened to a row just above the rows, from a notice the page gives it', () => {
+  render(
+    <ResourceListPage
+      list={state()}
+      title="Clients"
+      noun={{ one: 'client', other: 'clients' }}
+      columns={COLUMNS}
+      rowKey={(row) => row.id}
+      capability="manage-clients"
+      notice={<p role="status">Billing portal still holds a secret.</p>}
+    />,
+  );
+  const notice = screen.getByRole('status');
+  const grid = screen.getByRole('grid', { name: 'Clients' });
+  expect(notice).toHaveTextContent('Billing portal still holds a secret.');
+  expect(notice.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
