@@ -122,6 +122,7 @@ test('an operator without view-audit sees neither the audit rows nor the areas i
     'Settings',
     'Email',
     'Export',
+    'Switch tenant',
   ]);
   await expect(page.getByRole('region', { name: 'Counts' }).getByRole('link')).toHaveText([
     'Groups',

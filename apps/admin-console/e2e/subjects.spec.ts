@@ -173,7 +173,7 @@ test('an operator holding view-users alone sees a subject as text, and nothing t
 }) => {
   await signIn(page, viewer);
   const rail = page.getByRole('navigation', { name: `Areas of ${TENANT}` });
-  await expect(rail.getByRole('link')).toHaveText(['Overview', 'Subjects']);
+  await expect(rail.getByRole('link')).toHaveText(['Overview', 'Subjects', 'Switch tenant']);
   await openSubject(page, subjects.edited);
   await expect(page.getByRole('note')).toHaveText(
     'You can view subjects but not change them (needs manage-users).',
@@ -216,7 +216,7 @@ test('a subject’s details are entered through typed fields and stored as the c
   await phone.getByRole('textbox', { name: 'Number' }).fill('0803 123 4567');
   await expect(phone).toContainText('Stored as +2348031234567.');
   const birthdate = details.getByRole('group', { name: 'Birthdate' });
-  await birthdate.getByRole('radio', { name: 'Year only' }).check();
+  await birthdate.getByText('Year only', { exact: true }).click();
   await birthdate.getByRole('textbox', { name: 'Year' }).fill('1990');
   await details.getByRole('combobox', { name: 'Time zone' }).fill('Lagos');
   await expect(page.getByRole('option', { name: 'Africa/Lagos' })).toBeVisible();

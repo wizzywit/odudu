@@ -248,7 +248,7 @@ test('an operator holding manage-tenants and view-users alone is offered none of
   await signIn(page, systemAdmins.limited);
   await expect(
     page.getByRole('navigation', { name: 'Areas of system' }).getByRole('link'),
-  ).toHaveText(['Tenants', 'System administrators', 'Overview', 'Subjects']);
+  ).toHaveText(['Tenants', 'System administrators', 'Overview', 'Subjects', 'Switch tenant']);
   await openSystemAdministrators(page);
   await expect(page.getByRole('note')).toContainText(
     'You can view system administrators but not create them or grant or revoke tenant-admin (needs manage-users',

@@ -307,6 +307,7 @@ test('a system administrator holding manage-tenants alone sees a tenant, and not
     'System administrators',
     'Overview',
     'Subjects',
+    'Switch tenant',
   ]);
   await page.goto(`/console/system/tenants/${tenants.general}`);
   await expect(page.getByRole('heading', { level: 1, name: tenants.general })).toBeVisible();
