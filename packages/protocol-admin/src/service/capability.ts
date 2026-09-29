@@ -52,6 +52,7 @@ import {
   listSessionsResponseSchema,
   endSessionsResponseSchema,
   issuePasswordResponseSchema,
+  lockoutSchema,
   listSubjectsQuerySchema,
   countSubjectsQuerySchema,
   listSubjectsResponseSchema,
@@ -288,6 +289,16 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       TARGET_CEILING,
   },
   {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/lockout',
+    capability: 'view-users',
+    responseSchema: lockoutSchema,
+    description:
+      'The subject\u2019s run of failed sign-ins: how many, the last one, and whether the ' +
+      'account is locked now, judged by the server\u2019s clock. A subject that has never ' +
+      'failed answers a zero count. `404` for a subject with no `users` row.',
+  },
+  {
     method: 'DELETE',
     pattern: '/admin/tenants/:tenant/subjects/:id/lockout',
     capability: 'manage-users',
@@ -297,6 +308,20 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Clears the subject\u2019s brute-force failure count, and with it any lockout, so ' +
       'the next correct password signs in. `204` whether or not anything was recorded; `404` ' +
       'for a subject with no `users` row, which has no sign-in to be locked out of.' +
+      TARGET_CEILING,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/subjects/:id/recovery-codes',
+    capability: 'manage-users',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Revokes every recovery code the subject holds, spent or not, so none signs in again. ' +
+      'Recovery codes carry no id of their own, so this is the only way to remove them. ' +
+      '`204` whether or not any were held; `404` for a subject with no `users` row. ' +
+      'Owes nothing: `PUT .../required-actions` with `generate-recovery-codes` asks for a ' +
+      'fresh set at the next sign-in.' +
       TARGET_CEILING,
   },
   {

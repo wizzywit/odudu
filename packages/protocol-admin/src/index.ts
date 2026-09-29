@@ -42,6 +42,8 @@ import {
 import {
   clearLockoutHandler,
   issuePasswordHandler,
+  readLockoutHandler,
+  revokeRecoveryCodesHandler,
   type AccountRecoveryRouteDeps,
 } from '#/view/routes/account-recovery';
 import {
@@ -425,6 +427,7 @@ function buildAdminRoutes(
       audit: accountRecoveryAudit,
       callerCapabilities,
       retireResetLinks: deps.retireResetLinks,
+      now: () => clock.now(),
     };
     const auditDeps: AuditRouteDeps = {
       database: deps.database.db,
@@ -452,8 +455,11 @@ function buildAdminRoutes(
         deleteConsentHandler(consentsDeps),
       'POST /admin/tenants/:tenant/subjects/:id/password':
         issuePasswordHandler(accountRecoveryDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/lockout': readLockoutHandler(accountRecoveryDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/lockout':
         clearLockoutHandler(accountRecoveryDeps),
+      'DELETE /admin/tenants/:tenant/subjects/:id/recovery-codes':
+        revokeRecoveryCodesHandler(accountRecoveryDeps),
       'GET /admin/tenants/:tenant/subjects/:id/required-actions':
         readRequiredActionsHandler(subjectsDeps),
       'PUT /admin/tenants/:tenant/subjects/:id/required-actions':

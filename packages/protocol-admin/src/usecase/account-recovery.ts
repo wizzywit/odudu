@@ -4,8 +4,10 @@ import {
   credentialRepository,
   generateOneTimePassword,
   hashPassword,
+  isLockedOut,
   loginFailureRepository,
   users,
+  type LoginFailureRecord,
 } from '@odudu/domain-identity';
 import { eq } from 'drizzle-orm';
 import {
@@ -15,7 +17,8 @@ import {
 } from '#/usecase/subjects';
 
 export interface AccountRecoveryAuditEvent {
-  readonly action: 'subject.password_issue' | 'subject.lockout_clear';
+  readonly action:
+    'subject.password_issue' | 'subject.lockout_clear' | 'subject.recovery_codes_revoke';
   readonly resourceType: 'subject';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -143,4 +146,57 @@ export async function clearLockout(
   });
 
   return { kind: 'cleared' };
+}
+
+export type ReadLockoutOutcome =
+  { kind: 'not_found' } | { kind: 'ok'; record: LoginFailureRecord; locked: boolean };
+
+// A read, so the subject row is not locked: it only has to be a user.
+export async function readLockout(
+  tx: TenantScopedDatabase,
+  input: { readonly subjectId: string; readonly now: Date },
+): Promise<ReadLockoutOutcome> {
+  const user = await tx
+    .select({ subjectId: users.subjectId })
+    .from(users)
+    .where(eq(users.subjectId, input.subjectId));
+  if (user.length === 0) return { kind: 'not_found' };
+  const record = await loginFailureRepository(tx).forSubject(input.subjectId);
+  return { kind: 'ok', record, locked: isLockedOut(record, input.now) };
+}
+
+export type RevokeRecoveryCodesOutcome =
+  { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'revoked' };
+
+// Spent codes go too: ADR 0021 keeps a spent code's row, and a set that is
+// revoked is revoked whole. Idempotent, with `detail.revoked` saying how
+// many rows went.
+export async function revokeRecoveryCodes(
+  tx: TenantScopedDatabase,
+  deps: AccountRecoveryDeps,
+  input: AccountRecoveryInput,
+): Promise<RevokeRecoveryCodesOutcome> {
+  if (!(await isUserSubject(tx, input.subjectId))) return { kind: 'not_found' };
+  const refused = await refuseOverTargetCeiling(
+    tx,
+    deps.audit,
+    'subject.recovery_codes_revoke',
+    input,
+  );
+  if (refused !== null) return refused;
+
+  const revoked = await credentialRepository(tx).deleteRecoveryCodes(input.subjectId);
+
+  await deps.audit(tx, {
+    action: 'subject.recovery_codes_revoke',
+    resourceType: 'subject',
+    resourceId: input.subjectId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: { revoked },
+  });
+
+  return { kind: 'revoked' };
 }

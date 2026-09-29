@@ -159,6 +159,15 @@ stacks' `demo`s. It was torn down with `docker compose down -v` when the
 capture finished. A section that says it was captured against it refers
 to nothing on the stacks above.
 
+**The seventh stack.** `GET /subjects/:id/lockout` and
+`DELETE /subjects/:id/recovery-codes` were captured against a stack of
+their own: compose project `odudu-t8` on port 3080, built from this branch
+with both routes in it and brought up from an empty volume with
+`ODUDU_THROTTLE_LIMIT=1000`, so a scripted run of sign-ins is not refused
+by the per-origin throttle, and `seed admin --username ada-t8` run against
+it. Each of the two sections says what else it seeded. It was torn down
+with `docker compose down -v` when the capture finished.
+
 ## The shape of it
 
 Most of the admin endpoint lives under `/admin/tenants/{tenant}/`, mirroring
@@ -238,7 +247,9 @@ not re-run — each says so, and why, where it appears.
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/consents`                  | List a subject's consents                 |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/consents/:clientId`        | Revoke a consent                          |
 | `POST`   | `/admin/tenants/{tenant}/subjects/:id/password`                  | Issue a one-time password                 |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/lockout`                   | Read a subject's brute-force lockout      |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/lockout`                   | Clear a brute-force lockout               |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/recovery-codes`            | Revoke a subject's recovery codes         |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Read a subject's required actions         |
 | `PUT`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Set a subject's required actions          |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Read a subject's roles                    |
@@ -3166,7 +3177,8 @@ later is absent by default rather than exposed by default.
 `recovery_code_count` — ADR 0021 keeps a spent code's row, so a per-row
 listing would answer "how many were ever issued" rather than "how many
 still work"; that entry carries no `id`, since it names no single row a
-caller could delete. `password-history` never appears: it is not a
+caller could delete — [`DELETE /subjects/:id/recovery-codes`](#delete-subjectsidrecovery-codes)
+revokes the set whole. `password-history` never appears: it is not a
 credential a caller reads or deletes.
 
 ```bash
@@ -3194,6 +3206,78 @@ delete, and history is not a credential this door exposes at all. An
 unknown id, or one belonging to a different subject, answers `404`, and a
 subject holding an admin capability the caller does not is refused with
 `403` ([the target ceiling](#the-target-ceiling)).
+
+## `DELETE /subjects/:id/recovery-codes`
+
+Requires `manage-users`. Revokes every recovery code the subject holds,
+spent ones with them, so none signs in again — the answer to a printed list
+somebody else may have read. A code carries no `id` of its own
+([`GET /subjects/:id/credentials`](#get-subjectsidcredentials) says why), so
+the set is the only thing there is to remove. It answers `204` whether or
+not any were held, and its `subject.recovery_codes_revoke` audit row says
+how many went in `detail.revoked`. It owes nothing: requiring
+`generate-recovery-codes` through
+[`PUT /subjects/:id/required-actions`](#get-subjectsidrequired-actions-and-put-subjectsidrequired-actions)
+is what asks the subject for a fresh set. An unknown subject, one in
+another tenant, or one with no `users` row answers `404`, and a subject
+holding an admin capability the caller does not is refused with `403`
+([the target ceiling](#the-target-ceiling)).
+
+Captured against [the seventh stack](#admin-paths), on `ines` in
+`lockout-demo` — the subject [`GET /subjects/:id/lockout`](#get-subjectsidlockout)
+below also uses. Its required actions first, for the `ETag` the `PUT`
+sends:
+
+```bash
+INES=http://localhost:3080/admin/tenants/lockout-demo/subjects/01a0ec85-0c4c-7ab4-821c-a4fad1d15482
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$INES/required-actions" | grep -iE '^etag|^\{'
+```
+
+```
+etag: "7d357b0ef1f85ba71c5ccebb6671b0c34f4b3950f5b21d2af7b4a3d4e9dcd570"
+{"actions":[]}
+```
+
+The `PUT` owes a set, the sign-in that follows ends on the page that
+issues it (its title printed, by `signin` from that section, and none of
+the codes), and the credentials list then counts ten:
+
+```bash
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -H 'if-match: "7d357b0ef1f85ba71c5ccebb6671b0c34f4b3950f5b21d2af7b4a3d4e9dcd570"' \
+  -d '{"actions":["generate-recovery-codes"]}' "$INES/required-actions"
+signin 'correct horse battery staple'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$INES/credentials"
+```
+
+```
+{"actions":["generate-recovery-codes"]}
+HTTP/1.1 200 OK
+<title>Save your recovery codes</title>
+{"items":[{"id":"01a0ec85-0c6d-75c9-a720-81d3b70c0811","type":"password","created_at":"2026-09-29T09:35:37.542Z","expired":false},{"type":"recovery-code","created_at":"2026-09-29T09:36:10.866Z","recovery_code_count":10}]}
+```
+
+Revoking them, then the list again, then the audit row, scoped to `ines`
+and this action:
+
+```bash
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$INES/recovery-codes"
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$INES/credentials"
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3080/admin/tenants/lockout-demo/audit?resource_type=subject&resource_id=01a0ec85-0c4c-7ab4-821c-a4fad1d15482&action=subject.recovery_codes_revoke"
+```
+
+```
+HTTP/1.1 204 No Content
+x-request-id: 01a0ec85-8f5d-77c6-9e72-1b616bbf212f
+cache-control: no-store
+Date: Tue, 29 Sep 2026 09:36:11 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0ec85-0c6d-75c9-a720-81d3b70c0811","type":"password","created_at":"2026-09-29T09:35:37.542Z","expired":false}]}
+{"items":[{"id":"01a0ec85-8f6b-7d63-8543-cdd0afffd1ba","occurred_at":"2026-09-29T09:36:11.112Z","event_type":"admin_mutation","action":"subject.recovery_codes_revoke","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ec84-4f03-7de9-9587-5090fad14c29","actor_client_id":"01a0ec84-4ed1-713e-988d-b1fa4430d476","resource_type":"subject","resource_id":"01a0ec85-0c4c-7ab4-821c-a4fad1d15482","request_id":"01a0ec85-8f5d-77c6-9e72-1b616bbf212f","ip":"172.22.0.1","detail":{"revoked":10}}]}
+```
 
 ## `GET /subjects/:id/consents` and `DELETE /subjects/:id/consents/:clientId`
 
@@ -3434,6 +3518,75 @@ Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"type":"about:blank","title":"Not Found","status":404,"detail":"no subject 0199aa00-0000-7000-8000-0000000000ff","instance":"01a0e559-3dd9-7b6f-8091-e483704fa066"}
+```
+
+## `GET /subjects/:id/lockout`
+
+Requires `view-users`. The subject's run of failed sign-ins as the
+lockout reads it: `failure_count`, `last_failure_at`, `locked_until`, and
+`locked` — whether an attempt made now would be refused, judged by the
+server's clock so a caller never compares `locked_until` against its own.
+A lock that has run out answers `locked: false` with its count kept, since
+the run is only forgotten after `brute_force_failure_reset_seconds` of
+quiet ([README.md](../README.md)'s brute-force section has the arithmetic).
+A subject that has never failed answers a zero count and nulls. An unknown
+subject, one in another tenant, or one with no `users` row answers `404`.
+
+Captured against [the seventh stack](#admin-paths), in a tenant
+`lockout-demo` made by `odudu seed --tenant lockout-demo --client
+lockout-demo-app --redirect-uri https://app.example/callback --user hana`,
+on `ines`, a second subject seeded there with `odudu seed user` and
+signed in by nothing before this. `signin` is the helper the section below
+defines, pointed at `lockout-demo-app` and `ines`, on port 3080. Read first,
+then five wrong passwords and the right one — all six refused, the sixth
+for the lock — then read again:
+
+```bash
+INES=http://localhost:3080/admin/tenants/lockout-demo/subjects/01a0ec85-0c4c-7ab4-821c-a4fad1d15482
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$INES/lockout"
+for attempt in 1 2 3 4 5; do signin 'not the password'; done
+signin 'correct horse battery staple'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$INES/lockout"
+```
+
+```
+{"locked":false,"locked_until":null,"failure_count":0,"last_failure_at":null}
+HTTP/1.1 200 OK
+<title>Sign in</title>
+HTTP/1.1 200 OK
+<title>Sign in</title>
+HTTP/1.1 200 OK
+<title>Sign in</title>
+HTTP/1.1 200 OK
+<title>Sign in</title>
+HTTP/1.1 200 OK
+<title>Sign in</title>
+HTTP/1.1 200 OK
+<title>Sign in</title>
+{"locked":true,"locked_until":"2026-09-29T09:37:48.522Z","failure_count":6,"last_failure_at":"2026-09-29T09:35:48.522Z"}
+```
+
+The sixth attempt counted too, so the lock is the doubled one, two minutes.
+Clearing it, reading again, then an id no user subject in `lockout-demo`
+holds — the tenant's own id:
+
+```bash
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$INES/lockout"
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$INES/lockout"
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3080/admin/tenants/lockout-demo/subjects/01a0ec84-9897-7740-a17f-83b4de29cdda/lockout
+```
+
+```
+HTTP/1.1 204 No Content
+x-request-id: 01a0ec85-3777-7b4c-bbd6-5aed404a90af
+cache-control: no-store
+Date: Tue, 29 Sep 2026 09:35:48 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"locked":false,"locked_until":null,"failure_count":0,"last_failure_at":null}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no user subject 01a0ec84-9897-7740-a17f-83b4de29cdda","instance":"01a0ec85-37a5-7747-b4ff-2114cc1f7d80"}
 ```
 
 ## `DELETE /subjects/:id/lockout`

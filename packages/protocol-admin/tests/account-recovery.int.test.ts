@@ -2,7 +2,12 @@ import { actionTokenRepository } from '@odudu/account';
 import { requiredActionRepository } from '@odudu/authn-flows';
 import { withTenant } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
-import { loginFailureRepository, subjectRepository } from '@odudu/domain-identity';
+import {
+  credentialRepository,
+  hashPassword,
+  loginFailureRepository,
+  subjectRepository,
+} from '@odudu/domain-identity';
 import { TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
@@ -320,6 +325,191 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/lockout', () => {
       const t = await fixture.createTenant(`unlock-403-${newId()}`);
       const { id: subjectId } = await fixture.createSubject(t.name, `lee-${newId()}`);
       expect(await clearLockout(t.name, subjectId, [capability])).toBe(403);
+    },
+  );
+});
+
+async function readLockout(
+  tenantName: string,
+  subjectId: string,
+  capabilities: readonly string[] = ['view-users'],
+): Promise<{ statusCode: number; body: Record<string, unknown> }> {
+  const token = await fixture.adminToken(tenantName, capabilities);
+  const res = await fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants/${tenantName}/subjects/${subjectId}/lockout`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+  return { statusCode: res.statusCode, body: res.json<Record<string, unknown>>() };
+}
+
+describe('GET /admin/tenants/{t}/subjects/{id}/lockout', () => {
+  it('answers a zero count for a subject that has never failed', async () => {
+    const t = await fixture.createTenant(`lockout-none-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `mia-${newId()}`);
+
+    const read = await readLockout(t.name, subjectId);
+    expect(read.statusCode).toBe(200);
+    expect(read.body).toEqual({
+      locked: false,
+      locked_until: null,
+      failure_count: 0,
+      last_failure_at: null,
+    });
+  });
+
+  it('says a subject is locked, until when, and after how many failures', async () => {
+    const t = await fixture.createTenant(`lockout-read-${newId()}`);
+    const client = await createSignInClient(fixture, t.id);
+    const username = `nia-${newId()}`;
+    const subjectId = await createPasswordSubject(fixture, t.id, username, PASSWORD);
+    await lockOut(t.name, client.clientId, username);
+
+    const read = await readLockout(t.name, subjectId);
+    expect(read.statusCode).toBe(200);
+    expect(read.body).toMatchObject({ locked: true, failure_count: 6 });
+    expect(Date.parse(String(read.body.locked_until))).toBeGreaterThan(Date.now());
+    expect(typeof read.body.last_failure_at).toBe('string');
+
+    expect(await clearLockout(t.name, subjectId)).toBe(204);
+    expect((await readLockout(t.name, subjectId)).body).toMatchObject({
+      locked: false,
+      failure_count: 0,
+    });
+  });
+
+  it('answers not locked once the lock has run out, keeping the count', async () => {
+    const t = await fixture.createTenant(`lockout-lapsed-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `ola-${newId()}`);
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      tx.execute(sql`
+        INSERT INTO login_failures
+               (tenant_id, subject_id, failure_count, first_failure_at, last_failure_at, locked_until)
+        VALUES (${t.id}, ${subjectId}, 5, now() - interval '2 hours', now() - interval '1 hour',
+                now() - interval '59 minutes')
+      `),
+    );
+
+    expect((await readLockout(t.name, subjectId)).body).toMatchObject({
+      locked: false,
+      failure_count: 5,
+    });
+  });
+
+  it('answers 404 for a service subject, an unknown one and another tenant’s', async () => {
+    const t = await fixture.createTenant(`lockout-404-${newId()}`);
+    const u = await fixture.createTenant(`lockout-foreign-${newId()}`);
+    const { id: foreignId } = await fixture.createSubject(u.name, `pia-${newId()}`);
+    const serviceId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const subject = await subjectRepository(tx).create({ tenantId: t.id, type: 'service' });
+      return subject.id;
+    });
+
+    expect((await readLockout(t.name, serviceId)).statusCode).toBe(404);
+    expect((await readLockout(t.name, newId())).statusCode).toBe(404);
+    expect((await readLockout(t.name, foreignId)).statusCode).toBe(404);
+  });
+
+  it('refuses a caller holding neither view-users nor manage-users', async () => {
+    const t = await fixture.createTenant(`lockout-403-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `quin-${newId()}`);
+    expect((await readLockout(t.name, subjectId, ['manage-clients'])).statusCode).toBe(403);
+    expect((await readLockout(t.name, subjectId, ['manage-users'])).statusCode).toBe(200);
+  });
+});
+
+async function giveRecoveryCodes(tenantId: string, subjectId: string, count: number) {
+  await withTenant(fixture.app.db, tenantId, async (tx) => {
+    for (let n = 0; n < count; n += 1) {
+      await credentialRepository(tx).insert({
+        tenantId,
+        subjectId,
+        type: 'recovery-code',
+        secret: { kind: 'recovery-code', hash: await hashPassword(`code-${String(n)}`) },
+      });
+    }
+  });
+}
+
+async function recoveryCodesOf(tenantId: string, subjectId: string): Promise<number> {
+  return withTenant(fixture.app.db, tenantId, (tx) =>
+    credentialRepository(tx).countUnspentRecoveryCodes(subjectId),
+  );
+}
+
+async function revokeRecoveryCodes(
+  tenantName: string,
+  subjectId: string,
+  capabilities: readonly string[] = ['manage-users'],
+): Promise<number> {
+  const token = await fixture.adminToken(tenantName, capabilities);
+  const res = await fixture.http.inject({
+    method: 'DELETE',
+    url: `/admin/tenants/${tenantName}/subjects/${subjectId}/recovery-codes`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+  return res.statusCode;
+}
+
+describe('DELETE /admin/tenants/{t}/subjects/{id}/recovery-codes', () => {
+  it('revokes every code the subject holds, and records how many went', async () => {
+    const t = await fixture.createTenant(`codes-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `rae-${newId()}`);
+    await giveRecoveryCodes(t.id, subjectId, 3);
+    expect(await recoveryCodesOf(t.id, subjectId)).toBe(3);
+
+    expect(await revokeRecoveryCodes(t.name, subjectId)).toBe(204);
+    expect(await recoveryCodesOf(t.id, subjectId)).toBe(0);
+    expect(await revokeRecoveryCodes(t.name, subjectId)).toBe(204);
+
+    const rows = await withTenant(fixture.app.db, t.id, (tx) =>
+      auditRepository(tx).list({ limit: 50 }),
+    );
+    const revokes = rows
+      .filter((row) => row.action === 'subject.recovery_codes_revoke')
+      .map((row) => ({ resourceId: row.resourceId, detail: row.detail }));
+    expect(revokes).toEqual(
+      expect.arrayContaining([
+        { resourceId: subjectId, detail: { revoked: 3 } },
+        { resourceId: subjectId, detail: { revoked: 0 } },
+      ]),
+    );
+  });
+
+  it('leaves the subject’s other credentials alone', async () => {
+    const t = await fixture.createTenant(`codes-others-${newId()}`);
+    const client = await createSignInClient(fixture, t.id);
+    const username = `sam-${newId()}`;
+    const subjectId = await createPasswordSubject(fixture, t.id, username, PASSWORD);
+    await giveRecoveryCodes(t.id, subjectId, 2);
+
+    expect(await revokeRecoveryCodes(t.name, subjectId)).toBe(204);
+    const login = await submitPassword(fixture, t.name, client.clientId, username, PASSWORD);
+    expect(login.statusCode).toBe(302);
+  });
+
+  it('answers 404 for a service subject, an unknown one, and leaves another tenant’s codes', async () => {
+    const t = await fixture.createTenant(`codes-404-${newId()}`);
+    const u = await fixture.createTenant(`codes-foreign-${newId()}`);
+    const { id: foreignId } = await fixture.createSubject(u.name, `tia-${newId()}`);
+    await giveRecoveryCodes(u.id, foreignId, 2);
+    const serviceId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const subject = await subjectRepository(tx).create({ tenantId: t.id, type: 'service' });
+      return subject.id;
+    });
+
+    expect(await revokeRecoveryCodes(t.name, serviceId)).toBe(404);
+    expect(await revokeRecoveryCodes(t.name, newId())).toBe(404);
+    expect(await revokeRecoveryCodes(t.name, foreignId)).toBe(404);
+    expect(await recoveryCodesOf(u.id, foreignId)).toBe(2);
+  });
+
+  it.each(TENANT_CAPABILITIES.filter((c) => c !== 'manage-users'))(
+    'refuses a caller holding only %s',
+    async (capability) => {
+      const t = await fixture.createTenant(`codes-403-${newId()}`);
+      const { id: subjectId } = await fixture.createSubject(t.name, `uma-${newId()}`);
+      expect(await revokeRecoveryCodes(t.name, subjectId, [capability])).toBe(403);
     },
   );
 });

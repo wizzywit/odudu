@@ -281,6 +281,7 @@ const REFUSED_ACTION: Readonly<Record<string, string>> = {
   'DELETE /admin/tenants/:tenant/subjects/:id/consents/:clientId': 'consent.revoke',
   'POST /admin/tenants/:tenant/subjects/:id/password': 'subject.password_issue',
   'DELETE /admin/tenants/:tenant/subjects/:id/lockout': 'subject.lockout_clear',
+  'DELETE /admin/tenants/:tenant/subjects/:id/recovery-codes': 'subject.recovery_codes_revoke',
   'PUT /admin/tenants/:tenant/subjects/:id/required-actions': 'subject.required_actions_set',
   'PUT /admin/tenants/:tenant/subjects/:id/roles': 'subject.roles_set',
   'PUT /admin/tenants/:tenant/subjects/:id/groups': 'subject.groups_set',

@@ -118,7 +118,12 @@ export {
   endSessionsResponseSchema,
   type EndSessionsResponse,
 } from '#/admin/sessions';
-export { issuePasswordResponseSchema, type IssuePasswordResponse } from '#/admin/account-recovery';
+export {
+  issuePasswordResponseSchema,
+  lockoutSchema,
+  type IssuePasswordResponse,
+  type Lockout,
+} from '#/admin/account-recovery';
 export {
   consentSchema,
   type Consent,

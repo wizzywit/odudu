@@ -225,6 +225,14 @@ told about their own credential. Consumption is a single conditional
 `UPDATE`, so two submissions racing the same code produce one login and one
 refusal.
 
+**An operator can revoke a subject's whole set** with
+`DELETE /admin/tenants/{tenant}/subjects/{id}/recovery-codes`, spent codes
+with it — the codes carry no id of their own, so there is no deleting one —
+for a list somebody else may have read. It owes nothing: requiring
+`generate-recovery-codes` through `PUT …/required-actions` is what asks for a
+fresh set at the next sign-in
+([docs/admin-paths.md](docs/admin-paths.md#delete-subjectsidrecovery-codes)).
+
 **A subject can also enrol a passkey.** A pending `configure-passkey`
 required action renders a page that calls `navigator.credentials.create()`
 and posts the result back to `POST
@@ -296,8 +304,10 @@ timing distinguishes a locked account from a wrong password or from a
 username nobody holds. An attempt made during a lockout still counts, which
 is what keeps those costs equal — and means retrying extends the wait. A
 correct password accepted by an unlocked account deletes the row, and so
-does an operator: `DELETE /admin/tenants/{tenant}/subjects/{id}/lockout`
-clears it at once, and `POST …/subjects/{id}/password` issues a one-time
+does an operator: `GET /admin/tenants/{tenant}/subjects/{id}/lockout`
+answers whether the account is locked now, until when and after how many
+failures, `DELETE` on the same path clears it at once, and
+`POST …/subjects/{id}/password` issues a one-time
 password, shown once, for a subject who has lost theirs
 ([docs/admin-paths.md](docs/admin-paths.md#delete-subjectsidlockout)).
 See [the brute-force section of docs/request-paths.md](docs/request-paths.md#brute-force-lockout)
