@@ -190,38 +190,26 @@ export function useSectionSave<T extends Values, R>({
     useToasts.getState().push({ tone, message });
   };
 
-  const run = async (from: State<T>): Promise<void> => {
-    if (inFlight.current || from.etag === null || Object.keys(from.edits).length === 0) return;
-    inFlight.current = true;
-    update(() => ({ phase: 'saving', message: null }));
-    const sent = from.edits;
-    const result = await save(gateway, {
-      changes: sent,
-      values: { ...from.base, ...sent },
-      ifMatch: from.etag,
-    });
+  const answer = async (from: State<T>, result: GatewayResult<R>): Promise<void> => {
     if (result.ok) {
       const entry: RecordEntry<R> = { result, by: 'save' };
       client.setQueryData(recordKey(tenant, record), entry);
       update((was) => ({
         edits: Object.fromEntries(
-          Object.entries(was.edits).filter(([name, value]) => !sameValue(value, sent[name])),
+          Object.entries(was.edits).filter(([name, value]) => !sameValue(value, from.edits[name])),
         ) as Partial<T>,
         phase: 'saved',
         fieldErrors: {},
       }));
       settle();
       toast('success', `${label} saved`);
-      inFlight.current = false;
       return;
     }
     if (result.kind === 'problem' && result.problem.status === 412) {
       await client.refetchQueries({ queryKey: recordKey(tenant, record), exact: true });
       update(() => ({ phase: 'stale' }));
-      inFlight.current = false;
       return;
     }
-    inFlight.current = false;
     if (result.kind === 'problem' && result.problem.status === 401) {
       update(() => ({ phase: 'idle' }));
       return;
@@ -229,20 +217,34 @@ export function useSectionSave<T extends Values, R>({
     if (result.kind === 'problem' && result.problem.status === 400) {
       const placed = fieldErrorsOf(result.problem, keysOf(from.base));
       update(() => ({ phase: 'invalid', fieldErrors: placed.fields }));
-      if (placed.other.length > 0)
+      if (placed.other.length > 0) {
         toast('error', `${label} was not saved: ${placed.other.join('; ')}`);
+      }
       return;
     }
     if (result.kind === 'problem' && result.problem.status === 409) {
-      update(() => ({
-        phase: 'refused',
-        message: result.problem.detail ?? result.problem.title,
-      }));
+      const message = result.problem.detail ?? result.problem.title;
+      update(() => ({ phase: 'refused', message }));
       return;
     }
     const refused = result.kind === 'problem' && result.problem.status === 403;
     update(() => ({ phase: refused ? 'refused' : 'failed' }));
     toast('error', problemMessage(label, result));
+  };
+
+  const run = async (from: State<T>): Promise<void> => {
+    if (inFlight.current || from.etag === null || Object.keys(from.edits).length === 0) return;
+    inFlight.current = true;
+    update(() => ({ phase: 'saving', message: null }));
+    try {
+      const values = { ...from.base, ...from.edits };
+      await answer(from, await save(gateway, { changes: from.edits, values, ifMatch: from.etag }));
+    } catch {
+      update(() => ({ phase: 'failed' }));
+      toast('error', problemMessage(label, { ok: false, kind: 'defect' }));
+    } finally {
+      inFlight.current = false;
+    }
   };
 
   const values = { ...current.base, ...current.edits };
@@ -276,7 +278,7 @@ export function useSectionSave<T extends Values, R>({
     changed,
     dirty: changed.length > 0,
     saving: current.phase === 'saving',
-    restored: restored !== null,
+    restored: restored !== null && changed.length > 0,
     message: current.message,
     edit: (field, value) => {
       update((was) => ({

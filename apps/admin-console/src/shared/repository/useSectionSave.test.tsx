@@ -450,3 +450,67 @@ it('puts back a kept draft made against the record as it stands, with no conflic
     expect(patches()).toEqual([expect.objectContaining({ ifMatch: '"e1"' })]);
   });
 });
+
+function Fragile({ data, etag, fail }: { data: Client; etag: string | null; fail: () => boolean }) {
+  const save = useSectionSave({
+    tenant: 'acme',
+    record: 'clients/c1',
+    section: 'general',
+    label: 'General',
+    etag,
+    fields: { name: { value: data.name, label: 'Name', kind: 'plain' } },
+    // Breaks after a round trip, as an adapter defect found in its answer would.
+    save: async (gateway, { changes, ifMatch }) => {
+      const answer = await amend(gateway, changes, ifMatch);
+      if (fail()) throw new Error('the adapter broke');
+      return answer;
+    },
+  });
+  return (
+    <Section
+      title="General"
+      dirty={save.dirty}
+      saving={save.saving}
+      onSave={save.submit}
+      onDiscard={save.discard}
+    >
+      <TextField
+        label="Name"
+        value={save.values.name}
+        onChange={(name) => {
+          save.edit('name', name);
+        }}
+      />
+    </Section>
+  );
+}
+
+it('stays able to save after a save that threw', async () => {
+  const user = userEvent.setup();
+  const fake = fakeTransport({
+    [GET]: client(LOADED, '"e1"'),
+    [PATCH]: client({ ...LOADED, name: 'Billing' }, '"e2"'),
+  });
+  let failures = 1;
+  function Page() {
+    const record = useRecord({ tenant: 'acme', record: 'clients/c1', read });
+    if (record.data === undefined) return null;
+    return <Fragile data={record.data} etag={record.etag} fail={() => failures-- > 0} />;
+  }
+  render(
+    <TransportContext value={fake.transport}>
+      <QueryClientProvider client={createQueryClient()}>
+        <Page />
+      </QueryClientProvider>
+    </TransportContext>,
+  );
+  await rename(user, 'Billing');
+  await user.click(within(general()).getByRole('button', { name: 'Save General' }));
+  await waitFor(() => {
+    expect(useToasts.getState().toasts).toEqual([expect.objectContaining({ tone: 'error' })]);
+  });
+  await user.click(within(general()).getByRole('button', { name: 'Save General' }));
+  await waitFor(() => {
+    expect(fake.sent.filter((request) => request.method === 'PATCH')).toHaveLength(2);
+  });
+});
