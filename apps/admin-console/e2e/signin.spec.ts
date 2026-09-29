@@ -76,7 +76,9 @@ test('a system administrator enters a tenant with the context bar and no second 
 
   await expect(page).toHaveURL(`/console/${admin.tenant}`);
   const bar = page.getByRole('region', { name: 'System authority' });
-  await expect(bar).toHaveText(`SystemActing in ${admin.tenant} with system authority`);
+  await expect(bar).toHaveText(
+    `SystemActing in ${admin.tenant} with system authorityBack to system`,
+  );
   await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
   await expectAccessible(page);
   expect(left).toEqual([]);
