@@ -13,6 +13,7 @@ export function Section({
   onSave,
   onDiscard,
   restored = false,
+  notice,
   children,
 }: {
   title: string;
@@ -23,6 +24,9 @@ export function Section({
   onDiscard: () => void;
   // Edits kept across a sign-in and put back, which nobody has looked at yet.
   restored?: boolean;
+  // What the last save said that belongs to no single field: a conflict, a
+  // guard's refusal. Announced as it changes.
+  notice?: ReactNode;
   children: ReactNode;
 }) {
   const heading = useId();
@@ -53,6 +57,9 @@ export function Section({
       </header>
       <form noValidate onSubmit={submit} className={styles.form} aria-busy={saving || undefined}>
         <div className={styles.fields}>{children}</div>
+        <div aria-live="polite" className={styles.notice}>
+          {notice}
+        </div>
         {dirty ? (
           <div className={styles.saveBar}>
             <SaveBar section={title} saving={saving} onDiscard={onDiscard} />

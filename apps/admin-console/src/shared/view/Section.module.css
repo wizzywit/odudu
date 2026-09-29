@@ -36,6 +36,10 @@
   padding: var(--space-4) var(--space-6) var(--space-6);
 }
 
+.notice > * {
+  margin: 0 var(--space-6) var(--space-4);
+}
+
 .saveBar {
   border-end-start-radius: var(--radius-m);
   border-end-end-radius: var(--radius-m);
@@ -51,6 +55,10 @@
 
   .fields {
     padding-inline: var(--space-4);
+  }
+
+  .notice > * {
+    margin-inline: var(--space-4);
   }
 
   .saveBar {

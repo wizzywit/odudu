@@ -1,3 +1,4 @@
+import type { Conflict } from '#/shared/service/conflict.ts';
 import type { KeyValuePair } from '#/shared/view/Field.tsx';
 
 export const TENANT = 'acme';
@@ -107,4 +108,14 @@ export const RAIL_GROUPS = [
     ],
   },
   { heading: 'Observe', items: [{ href: '#audit', label: 'Audit trail' }] },
+];
+
+export const CONFLICTS: readonly Conflict[] = [
+  {
+    field: 'access_token_ttl',
+    label: 'Access token lifetime',
+    theirs: 900,
+    yours: 600,
+    secret: false,
+  },
 ];

@@ -123,3 +123,25 @@ it('marks work restored after a sign-in, for review before it is saved', () => {
   rerender(<General dirty restored />);
   expect(within(region).getByText('Restored — review before saving')).toBeVisible();
 });
+
+it('announces what the last save said beside its save bar, from a region there from the start', () => {
+  const notice = (text: string | null) => (
+    <Section
+      title="General"
+      dirty
+      saving={false}
+      onSave={vi.fn()}
+      onDiscard={vi.fn()}
+      notice={text}
+    >
+      <p>fields</p>
+    </Section>
+  );
+  const { rerender } = render(notice(null));
+  const region = screen.getByRole('region', { name: 'General' });
+  const live = region.querySelector('[aria-live="polite"]');
+  expect(live).not.toBeNull();
+  expect(live).toBeEmptyDOMElement();
+  rerender(notice('grace is the last enabled administrator'));
+  expect(live).toHaveTextContent('grace is the last enabled administrator');
+});

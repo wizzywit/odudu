@@ -6,6 +6,7 @@ import { AppShell } from '#/shared/view/AppShell.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
+import { ConflictPanel } from '#/shared/view/ConflictPanel.tsx';
 import { ContextBar } from '#/shared/view/ContextBar.tsx';
 import { CopyValue } from '#/shared/view/CopyValue.tsx';
 import { Count } from '#/shared/view/Count.tsx';
@@ -38,6 +39,7 @@ import {
   CLAIM_VALUES,
   CLIENT_SECRET,
   CLIENTS,
+  CONFLICTS,
   NOW,
   RAIL_GROUPS,
   REDIRECT_URIS,
@@ -430,6 +432,31 @@ export function Gallery({
           />
           <Specimen label="Redirects & origins, while saving">
             <Redirects />
+          </Specimen>
+          <Specimen label="A save refused with 412: theirs beside yours">
+            <Section
+              title="Tokens"
+              dirty
+              saving={false}
+              onSave={() => undefined}
+              onDiscard={() => undefined}
+              notice={
+                <ConflictPanel
+                  section="Tokens"
+                  conflicts={CONFLICTS}
+                  onKeepMine={() => undefined}
+                  onTakeTheirs={() => undefined}
+                />
+              }
+            >
+              <NumberWithUnitField
+                label="Access token lifetime"
+                unit="seconds"
+                value={600}
+                changed
+                onChange={() => undefined}
+              />
+            </Section>
           </Specimen>
           <Specimen label="A field the server refused">
             <SelectField
