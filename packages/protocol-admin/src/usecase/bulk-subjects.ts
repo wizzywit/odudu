@@ -40,7 +40,19 @@ async function applyOne(
   input: BulkSubjectsInput,
   id: string,
 ): Promise<BulkSubjectOutcome> {
-  const actor = { ...input, subjectId: id };
+  // Named field by field: the bulk request's own `action` must not reach a
+  // door whose audit row spreads what it is given.
+  const actor = {
+    tenantId: input.tenantId,
+    subjectId: id,
+    callerCapabilities: input.callerCapabilities,
+    lifespans: input.lifespans,
+    issuer: input.issuer,
+    now: input.now,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+  };
   if (input.action === 'end-sessions') {
     const outcome = await endAllSessions(tx, { audit: deps.sessionAudit, kek: deps.kek }, actor);
     return outcome.kind === 'ended'

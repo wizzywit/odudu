@@ -112,7 +112,11 @@ describe('DELETE /lockouts', () => {
       auditRepository(tx).list({ action: 'subject.lockouts_clear', limit: 5 }),
     );
     expect(rows[0]).toMatchObject({ resourceType: 'tenant', resourceId: t.id });
-    expect(rows[0]?.detail).toEqual({ cleared: 2, beyond_ceiling: 1 });
+    expect(rows[0]?.detail).toEqual({
+      cleared: 2,
+      beyond_ceiling: 1,
+      subject_ids: [ada, bob].sort(),
+    });
   });
 
   it('is refused without manage-users', async () => {
@@ -227,6 +231,11 @@ describe('POST /subjects/bulk', () => {
     expect(
       await withTenant(fixture.app.db, t.id, async (tx) => subjectRepository(tx).byId(caller)),
     ).not.toBeNull();
+    const refused = await withTenant(fixture.app.db, t.id, (tx) =>
+      auditRepository(tx).list({ action: 'subject.delete', outcome: 'refused', limit: 5 }),
+    );
+    expect(refused.map((row) => row.resourceId)).toEqual([caller]);
+    expect(JSON.stringify(refused[0]?.detail)).toContain('tenant-admin');
   });
 
   it('ends each subject’s sessions, and needs manage-sessions to', async () => {
@@ -247,6 +256,10 @@ describe('POST /subjects/bulk', () => {
     const usersOnly = await fixture.adminToken(t.name, ['manage-users']);
     const refused = await bulk(t.name, usersOnly, { action: 'end-sessions', ids: [ada] });
     expect(refused.statusCode).toBe(403);
+    const rows = await withTenant(fixture.app.db, t.id, (tx) =>
+      auditRepository(tx).list({ action: 'capability.refused', limit: 5 }),
+    );
+    expect(rows[0]?.detail).toMatchObject({ capability: 'manage-sessions' });
 
     const both = await fixture.adminToken(t.name, ['manage-users', 'manage-sessions']);
     const res = await bulk(t.name, both, { action: 'end-sessions', ids: [ada] });

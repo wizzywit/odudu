@@ -80,7 +80,9 @@ export async function guardLastAdministrator<T, A extends string, R extends stri
     action: door.action,
     resourceType: door.resourceType,
     resourceId: door.resourceId,
-    ...door.actor,
+    actorSubjectId: door.actor.actorSubjectId,
+    actorTenantId: door.actor.actorTenantId,
+    actorClientId: door.actor.actorClientId,
     outcome: 'refused',
     detail: { reason },
   });

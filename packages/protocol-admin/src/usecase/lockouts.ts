@@ -14,6 +14,9 @@ export interface LockoutsAuditEvent {
   readonly detail: Record<string, unknown>;
 }
 
+/** The most subject ids a tenant-wide clear's audit row names. */
+export const AUDITED_SUBJECT_IDS = 100;
+
 export interface ClearLockoutsInput {
   readonly tenantId: string;
   readonly callerCapabilities: ReadonlySet<string>;
@@ -25,7 +28,10 @@ export interface ClearLockoutsInput {
 // What `DELETE …/subjects/{id}/lockout` does to one subject, done to every
 // subject with a run of failures against it, locked or still counting.
 // A subject holding an admin capability the caller does not keeps its row
-// and is counted instead (ADR 0040), as the single door refuses it.
+// and is counted instead (ADR 0040), as the single door refuses it. The row
+// names whose counts went, as far as `AUDITED_SUBJECT_IDS` of them, so the
+// single door's per-subject trail is not lost to the tenant-wide one.
+
 export async function clearLockouts(
   tx: TenantScopedDatabase,
   deps: { readonly audit: (tx: TenantScopedDatabase, event: LockoutsAuditEvent) => Promise<void> },
@@ -54,7 +60,14 @@ export async function clearLockouts(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
-    detail: { cleared: cleared.length, beyond_ceiling: beyondCeiling },
+    detail: {
+      cleared: cleared.length,
+      beyond_ceiling: beyondCeiling,
+      subject_ids: cleared
+        .map((row) => row.subjectId)
+        .sort()
+        .slice(0, AUDITED_SUBJECT_IDS),
+    },
   });
   return { cleared: cleared.length, beyondCeiling };
 }
