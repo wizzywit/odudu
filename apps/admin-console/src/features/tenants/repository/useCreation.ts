@@ -54,6 +54,10 @@ export function useCreationProgress(owner: string): CreationProgress {
   };
 }
 
+export function storedCreation(owner: string): Creation | null {
+  return loadCreation(owner);
+}
+
 export function beginAdministrator(
   owner: string,
   tenant: string,

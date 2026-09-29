@@ -1,16 +1,17 @@
 import type { Subject } from '@odudu/contracts/admin';
-import { useAuthority, usePrincipal } from '#/features/session/index.ts';
+import { useAuthority } from '#/features/session/index.ts';
 import { holds } from '#/features/shell/index.ts';
 import { useAdministrators } from '#/features/tenants/repository/useAdministrators.ts';
-import { beginAdministrator } from '#/features/tenants/repository/useCreation.ts';
-import { useGo } from '#/features/tenants/repository/useGo.ts';
 import {
   ADMINISTRATOR_NEEDS,
   administratorCapability,
-  NEW_TENANT_HREF,
   SYSTEM_ADMINS_HREF,
 } from '#/features/tenants/service.ts';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
+import {
+  useBeginAdministrator,
+  type BeginAdministrator,
+} from '#/features/tenants/usecase/useBeginAdministrator.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
 export interface TenantAdministrators {
@@ -21,13 +22,12 @@ export interface TenantAdministrators {
   readonly systemAdminsHref: string | null;
   // What adding one needs that whoami says is missing, named instead of refused.
   readonly addNeeds: readonly AdminCapability[];
-  readonly add: () => void;
+  readonly begin: BeginAdministrator;
 }
 
 export function useTenantAdministrators(tenant: string): TenantAdministrators {
-  const principal = usePrincipal();
   const list = useAdministrators(tenant);
-  const go = useGo();
+  const begin = useBeginAdministrator(tenant, 'existing');
   const authority = useAuthority(SYSTEM_TENANT);
   const addNeeds =
     authority === undefined ? [] : ADMINISTRATOR_NEEDS.filter((c) => !holds(authority, c));
@@ -36,10 +36,11 @@ export function useTenantAdministrators(tenant: string): TenantAdministrators {
     counted: administratorCapability(tenant),
     systemAdminsHref: tenant === SYSTEM_TENANT ? SYSTEM_ADMINS_HREF : null,
     addNeeds,
-    add: () => {
-      if (addNeeds.length > 0) return;
-      beginAdministrator(`${principal.tenant}/${principal.subjectId}`, tenant, 'existing');
-      go(NEW_TENANT_HREF);
+    begin: {
+      ...begin,
+      start: () => {
+        if (addNeeds.length === 0) begin.start();
+      },
     },
   };
 }

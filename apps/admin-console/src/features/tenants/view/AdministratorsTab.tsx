@@ -1,6 +1,7 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { Link } from 'react-aria-components';
 import { useTenantAdministrators } from '#/features/tenants/usecase/useTenantAdministrators.ts';
+import { ReplaceUnfinished } from '#/features/tenants/view/ReplaceUnfinished.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { Count } from '#/shared/view/Count.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
@@ -34,7 +35,7 @@ const COLUMNS: readonly Column<Subject>[] = [
 ];
 
 export function AdministratorsTab({ tenant }: { tenant: string }) {
-  const { list, add, addNeeds, counted, systemAdminsHref } = useTenantAdministrators(tenant);
+  const { list, begin, addNeeds, counted, systemAdminsHref } = useTenantAdministrators(tenant);
   const label = `Administrators of ${tenant}`;
   return (
     <div className={styles.tab}>
@@ -48,7 +49,7 @@ export function AdministratorsTab({ tenant }: { tenant: string }) {
         )}
       </p>
       <div className={styles.actions}>
-        <Button onPress={add} isDisabled={addNeeds.length > 0}>
+        <Button onPress={begin.start} isDisabled={addNeeds.length > 0}>
           Add an administrator
         </Button>
         {list.count === null ? null : (
@@ -95,6 +96,7 @@ export function AdministratorsTab({ tenant }: { tenant: string }) {
           />
         </>
       ) : null}
+      <ReplaceUnfinished begin={begin} />
     </div>
   );
 }

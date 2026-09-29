@@ -1,17 +1,18 @@
 import type { ImportError } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { usePrincipal, useRefusal } from '#/features/session/index.ts';
-import { beginAdministrator } from '#/features/tenants/repository/useCreation.ts';
-import { useGo } from '#/features/tenants/repository/useGo.ts';
+import { useRefusal } from '#/features/session/index.ts';
 import { useImport, type ImportedSecret } from '#/features/tenants/repository/useImport.ts';
 import {
   fileSize,
   importFileProblem,
   NAME_RULE,
-  NEW_TENANT_HREF,
   nameProblem,
   tenantHref,
 } from '#/features/tenants/service.ts';
+import {
+  useBeginAdministrator,
+  type BeginAdministrator,
+} from '#/features/tenants/usecase/useBeginAdministrator.ts';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 
 export interface ChosenFile {
@@ -40,7 +41,8 @@ export interface ImportTenantPage {
   readonly submit: () => void;
   readonly check: () => void;
   readonly closeSecret: () => void;
-  readonly createAdministrator: () => void;
+  // The first administrator's step, for the tenant just imported.
+  readonly begin: BeginAdministrator;
 }
 
 // Most often a reverse proxy's own limit, lower than the import route's.
@@ -51,12 +53,10 @@ const NETWORK =
   'Could not confirm the import. It was not sent again, since its client secrets are shown only once; check whether the tenant exists.';
 
 export function useImportTenantPage(): ImportTenantPage {
-  const principal = usePrincipal();
   const refusal = useRefusal(SYSTEM_TENANT);
   const importer = useImport((failure) => {
     refusal.report(failure, 'manage-tenants');
   });
-  const go = useGo();
   const [name, setName] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -98,6 +98,7 @@ export function useImportTenantPage(): ImportTenantPage {
         ? found.tenant
         : null;
   const secretsLeft = importer.secret !== null;
+  const begin = useBeginAdministrator(importedTenant ?? '', 'imported');
   return {
     name,
     displayName,
@@ -145,10 +146,6 @@ export function useImportTenantPage(): ImportTenantPage {
         .catch(() => undefined);
     },
     closeSecret: importer.close,
-    createAdministrator: () => {
-      if (importedTenant === null) return;
-      beginAdministrator(`${principal.tenant}/${principal.subjectId}`, importedTenant, 'imported');
-      go(NEW_TENANT_HREF);
-    },
+    begin,
   };
 }

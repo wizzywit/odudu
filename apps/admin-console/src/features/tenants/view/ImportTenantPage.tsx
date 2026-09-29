@@ -5,6 +5,7 @@ import {
   useImportTenantPage,
   type ImportTenantPage as ImportState,
 } from '#/features/tenants/usecase/useImportTenantPage.ts';
+import { ReplaceUnfinished } from '#/features/tenants/view/ReplaceUnfinished.tsx';
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
@@ -84,7 +85,7 @@ function Imported({ state }: { state: ImportState }) {
         import creates no administrator, so nobody can sign in to its console until one is added.
       </p>
       <div className={styles.actions}>
-        <Button variant="primary" onPress={state.createAdministrator}>
+        <Button variant="primary" onPress={state.begin.start}>
           Create the first administrator
         </Button>
         <ButtonLink href={recordHref}>{`Open ${tenant}`}</ButtonLink>
@@ -142,6 +143,7 @@ function Import() {
       ) : null}
       <Problems state={state} />
       <Imported state={state} />
+      <ReplaceUnfinished begin={state.begin} />
       <SecretDialog
         secret={state.secret?.secret ?? null}
         title={`Client secret for ${state.secret?.clientId ?? ''}, ${state.secretPlace}`}

@@ -95,6 +95,54 @@ it('names manage-tenants for system, which its last-administrator guard counts',
   });
 });
 
+const KEY = 'odudu.console.tenant-creation';
+
+function halfway(tenantName: string) {
+  return JSON.stringify({
+    owner: 'system/s0',
+    creation: {
+      step: 'administrator',
+      tenant: tenantName,
+      origin: 'created',
+      username: 'ada',
+      email: '',
+      subjectId: '01a0e72d-7fc7-7950-a1e7-1d079588f8b9',
+      granted: false,
+    },
+  });
+}
+
+it('asks before replacing an administrator left half made in another tenant', async () => {
+  sessionStorage.setItem(KEY, halfway('globex'));
+  const user = userEvent.setup();
+  const { router } = renderConsoleAt(AT, routes());
+  await user.click(await screen.findByRole('button', { name: 'Add an administrator' }));
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Replace the unfinished administrator?',
+  });
+  expect(dialog).toHaveTextContent('ada was created in globex');
+  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  expect(sessionStorage.getItem(KEY)).toBe(halfway('globex'));
+  expect(router.state.location.pathname).toBe('/system/tenants/acme');
+
+  await user.click(screen.getByRole('button', { name: 'Add an administrator' }));
+  await user.click(
+    within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Replace it' }),
+  );
+  expect(
+    await screen.findByRole('heading', { level: 1, name: 'First administrator of acme' }),
+  ).toBeVisible();
+});
+
+it('resumes, rather than replaces, one left half made in this tenant', async () => {
+  sessionStorage.setItem(KEY, halfway('acme'));
+  const user = userEvent.setup();
+  renderConsoleAt(AT, routes());
+  await user.click(await screen.findByRole('button', { name: 'Add an administrator' }));
+  expect(await screen.findByText(/, created\. What is left/u)).toBeVisible();
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+});
+
 it('passes axe in both themes', async () => {
   expect(
     await axeInBothThemes(
