@@ -1,10 +1,8 @@
 import { Link } from 'react-aria-components';
+import type { Crumb } from '#/shared/service/breadcrumb.ts';
 import styles from '#/shared/view/Breadcrumb.module.css';
 
-export interface Crumb {
-  readonly label: string;
-  readonly href?: string;
-}
+export type { Crumb };
 
 // The last step is the page itself. A narrow shell shows only the way up,
 // to the nearest step before it that has an address.

@@ -5,6 +5,7 @@ import {
   type Profile,
   type Subject,
 } from '@odudu/contracts/admin';
+import type { Crumb } from '#/shared/service/breadcrumb.ts';
 import { formatAbsolute } from '#/shared/service/format.ts';
 
 export type { Credential, Lockout, Profile, Subject };
@@ -22,10 +23,7 @@ export function subjectHref(tenant: string, id: string): string {
 }
 
 // The rail group is a heading, not a page, so it has no address.
-export function subjectsTrail(
-  tenant: string,
-  current: string,
-): readonly { readonly label: string; readonly href?: string }[] {
+export function subjectsTrail(tenant: string, current: string): readonly Crumb[] {
   return [
     { label: 'Identity' },
     { label: 'Subjects', href: subjectsHref(tenant) },

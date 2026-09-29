@@ -1,5 +1,6 @@
 import { isTenantName, TENANT_NAME_RULE } from '@odudu/contracts';
 import { TENANT_IMPORT_BODY_LIMIT, type Tenant } from '@odudu/contracts/admin';
+import type { Crumb } from '#/shared/service/breadcrumb.ts';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 
 export type { Tenant };
@@ -124,18 +125,13 @@ export function administratorStepHref(tenant: string): string {
   return tenant === SYSTEM_TENANT ? NEW_SYSTEM_ADMIN_HREF : NEW_TENANT_HREF;
 }
 
-export interface Step {
-  readonly label: string;
-  readonly href?: string;
-}
-
 // The rail group, then the list, then the page: the group is a heading, not
 // a page, so it has no address.
-export function tenantsTrail(current: string): readonly Step[] {
+export function tenantsTrail(current: string): readonly Crumb[] {
   return [{ label: 'System' }, { label: 'Tenants', href: TENANTS_HREF }, { label: current }];
 }
 
-export function systemAdminsTrail(current: string): readonly Step[] {
+export function systemAdminsTrail(current: string): readonly Crumb[] {
   return [
     { label: 'System' },
     { label: 'System administrators', href: SYSTEM_ADMINS_HREF },
