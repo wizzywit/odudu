@@ -56,7 +56,7 @@ export function KeyHint({
       {keys.map((key, index) => {
         const label = keyLabel(key, platform);
         return (
-          <Fragment key={key}>
+          <Fragment key={`${String(index)}:${key}`}>
             {index > 0 ? '+' : null}
             <kbd className={styles.key}>
               <Spoken label={label} />

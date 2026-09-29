@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Platform } from '#/shared/service/platform.ts';
 import css from '#/shared/view/KeyHint.module.css?raw';
 import { KeyHint, PlatformContext } from '#/shared/view/KeyHint.tsx';
@@ -57,4 +57,12 @@ it('reads as information, not as a control', () => {
   expect(source).not.toMatch(/border(?:-block-end)?(?:-width)?:\s*(?!0|none)/u);
   expect(source).not.toMatch(/background:/u);
   expect(source).toMatch(/color:\s*var\(--key-hint-ink,\s*var\(--ink-muted\)\)/u);
+});
+
+it('draws a chord that names one key twice, each in its place', () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  const { container } = render(on('other', <KeyHint lead="Press" keys={['g', 'g']} />));
+  expect(container.firstElementChild?.textContent).toBe('Press g+g');
+  expect(error).not.toHaveBeenCalled();
+  error.mockRestore();
 });
