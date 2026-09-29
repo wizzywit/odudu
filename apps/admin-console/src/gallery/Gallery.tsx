@@ -36,6 +36,7 @@ import { RolePicker } from '#/shared/view/RolePicker.tsx';
 import { SaveBar } from '#/shared/view/SaveBar.tsx';
 import { SecretDialog } from '#/shared/view/SecretDialog.tsx';
 import { Section } from '#/shared/view/Section.tsx';
+import { SectionNotice } from '#/shared/view/SectionNotice.tsx';
 import { Skeleton } from '#/shared/view/Skeleton.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { Tabs } from '#/shared/view/Tabs.tsx';
@@ -583,10 +584,15 @@ export function Gallery({
               saving={false}
               onSave={() => undefined}
               onDiscard={() => undefined}
+              blocked="Keep yours or take theirs before saving."
               notice={
-                <ConflictPanel
+                <SectionNotice
                   section="Tokens"
+                  status="conflict"
                   conflicts={CONFLICTS}
+                  conflictSource="changed"
+                  message={null}
+                  busy={false}
                   onKeepMine={() => undefined}
                   onTakeTheirs={() => undefined}
                 />
@@ -603,6 +609,15 @@ export function Gallery({
           </Specimen>
           <Specimen label="ActivityTab: the audit trail for one record">
             <ActivityTab list={listOf(EVENTS, 'c2')} noun="client" now={NOW} />
+          </Specimen>
+          <Specimen label="ConflictPanel: kept edits meeting a newer record">
+            <ConflictPanel
+              section="General"
+              conflicts={CONFLICTS}
+              source="kept"
+              onKeepMine={NOTHING}
+              onTakeTheirs={NOTHING}
+            />
           </Specimen>
           <Specimen label="RecordPage: updated since you opened it">
             <SubjectRecord />

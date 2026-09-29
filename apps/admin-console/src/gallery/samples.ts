@@ -1,5 +1,6 @@
 import type { AuditEvent, Group, Role } from '@odudu/contracts/admin';
 import type { Conflict } from '#/shared/service/conflict.ts';
+import { formatDuration } from '#/shared/service/format.ts';
 import type { KeyValuePair } from '#/shared/view/Field.tsx';
 
 export const TENANT = 'acme';
@@ -123,6 +124,7 @@ export const CONFLICTS: readonly Conflict[] = [
     theirs: 900,
     yours: 600,
     secret: false,
+    describe: (value) => formatDuration(Number(value)),
   },
 ];
 
