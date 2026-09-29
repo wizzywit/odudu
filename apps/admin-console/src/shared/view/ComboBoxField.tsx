@@ -45,7 +45,9 @@ function CloseList({ times }: { times: number }) {
   });
   useEffect(() => {
     if (times === 0) return undefined;
-    // After React Aria's own effects, which open the list on the same change.
+    // useComboBoxState (react-stately) opens the list in its own effect when
+    // the input value changes while focused; this runs a tick after it, and
+    // the paste and axe-open tests fail if an upgrade reorders the two.
     const timer = setTimeout(() => {
       state.current?.close();
     }, 0);

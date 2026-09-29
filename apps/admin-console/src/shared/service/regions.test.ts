@@ -68,5 +68,4 @@ describe('regions', () => {
     expect(regionOfCountryName('nigeria')).toBe('NG');
     expect(regionOfCountryName('Atlantis')).toBeNull();
   });
-
 });

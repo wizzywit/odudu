@@ -126,31 +126,32 @@ it('asks whoami nothing once the session has ended, until the principal is back'
 });
 
 it('reads whoami again for a part that mounts once what it said has gone stale', async () => {
-  const fake = fakeTransport({ [WHOAMI]: json({}) });
-  const client = createQueryClient();
-  const tree = (parts: number) => (
-    <TransportContext value={fake.transport}>
-      <QueryClientProvider client={client}>
-        <SignedInContext value={{ principal: GRACE, ended: null }}>
-          {Array.from({ length: parts }, (_, i) => (
-            <RotateSecret key={i} />
-          ))}
-        </SignedInContext>
-      </QueryClientProvider>
-    </TransportContext>
-  );
-  const view = render(tree(1));
-  await waitFor(() => {
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+  try {
+    const fake = fakeTransport({ [WHOAMI]: json({}) });
+    const client = createQueryClient();
+    const tree = (parts: number) => (
+      <TransportContext value={fake.transport}>
+        <QueryClientProvider client={client}>
+          <SignedInContext value={{ principal: GRACE, ended: null }}>
+            {Array.from({ length: parts }, (_, i) => (
+              <RotateSecret key={i} />
+            ))}
+          </SignedInContext>
+        </QueryClientProvider>
+      </TransportContext>
+    );
+    const view = render(tree(1));
+    await vi.advanceTimersByTimeAsync(10);
     expect(whoamiReads(fake.calls)).toBe(1);
-  });
-  view.rerender(tree(2));
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  expect(whoamiReads(fake.calls)).toBe(1);
-  const later = Date.now() + 31_000;
-  vi.spyOn(Date, 'now').mockReturnValue(later);
-  view.rerender(tree(3));
-  await waitFor(() => {
+    view.rerender(tree(2));
+    await vi.advanceTimersByTimeAsync(10);
+    expect(whoamiReads(fake.calls)).toBe(1);
+    await vi.advanceTimersByTimeAsync(31_000);
+    view.rerender(tree(3));
+    await vi.advanceTimersByTimeAsync(10);
     expect(whoamiReads(fake.calls)).toBe(2);
-  });
-  vi.restoreAllMocks();
+  } finally {
+    vi.useRealTimers();
+  }
 });
