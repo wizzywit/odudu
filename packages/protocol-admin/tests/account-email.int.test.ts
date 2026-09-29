@@ -1,5 +1,6 @@
 import { actionTokens } from '@odudu/account';
 import { tenants, withTenant } from '@odudu/db';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { auditRepository } from '@odudu/domain-audit';
 import { roleRepository } from '@odudu/domain-authz';
 import { subjectRepository, userRepository } from '@odudu/domain-identity';
@@ -10,6 +11,7 @@ import { eq } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import { sendAccountEmail } from '#/usecase/account-email';
 
 let relayed: AdminFixture | undefined;
 let unrelayed: AdminFixture | undefined;
@@ -167,5 +169,48 @@ describe('POST /subjects/:id/verification', () => {
 
     const reader = await fixture.adminToken(t.name, ['view-users']);
     expect((await post(fixture, t.name, reader, `${nomail}/verification`)).statusCode).toBe(403);
+  });
+});
+
+describe('sendAccountEmail, probed with a foreign tenant_id', () => {
+  it('finds no subject, and queues nothing, from another tenant’s context', async () => {
+    await expectCrossTenantMethodProbe(fixture.app.db, {
+      seed: async (tx, tenantId) => {
+        await tx.insert(tenants).values({ id: tenantId, name: `probe-${newId()}` });
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        await userRepository(tx).create({
+          subjectId: subject.id,
+          tenantId,
+          username: 'ada',
+          email: 'ada@example.com',
+        });
+        return subject.id;
+      },
+      verifySeeded: async (tx, subjectId) => {
+        expect(await subjectRepository(tx).byId(subjectId)).not.toBeNull();
+      },
+      attempt: (tx, subjectId) =>
+        sendAccountEmail(
+          tx,
+          {
+            audit: () => Promise.resolve(),
+            sendLink: () => Promise.reject(new Error('no link may be sent across tenants')),
+            deploymentSmtp: true,
+          },
+          {
+            kind: 'verify_email',
+            tenantId: newId(),
+            tenantName: 'probe',
+            subjectId,
+            callerCapabilities: new Set(['tenant-admin']),
+            actorSubjectId: newId(),
+            actorTenantId: newId(),
+            actorClientId: newId(),
+          },
+        ),
+      expectBlocked: (result) => {
+        expect(result).toEqual({ kind: 'not_found' });
+      },
+    });
   });
 });

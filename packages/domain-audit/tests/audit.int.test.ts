@@ -174,6 +174,52 @@ describe('record and list', () => {
     });
   });
 
+  it('counts what the listing lists under the same criteria, capped, and nothing across tenants', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      for (const scope of ['openid', 'openid profile', 'openid email']) {
+        await auditRepository(tx).record({
+          eventType: 'token',
+          action: 'token.issue',
+          outcome: 'allowed',
+          detail: { grant_type: 'authorization_code', scope },
+        });
+      }
+      expect(await auditRepository(tx).count({ action: 'token.issue' }, 10)).toEqual({
+        count: 3,
+        capped: false,
+      });
+      expect(await auditRepository(tx).count({ action: 'token.issue' }, 2)).toEqual({
+        count: 2,
+        capped: true,
+      });
+      expect(await auditRepository(tx).count({ action: 'token.refresh' }, 10)).toEqual({
+        count: 0,
+        capped: false,
+      });
+    });
+
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, seededTenant) => {
+        await seedTenant(tx, seededTenant);
+        await auditRepository(tx).record({
+          eventType: 'token',
+          action: 'token.issue',
+          outcome: 'allowed',
+          detail: { grant_type: 'authorization_code', scope: 'openid' },
+        });
+      },
+      verifySeeded: async (tx) => {
+        expect((await auditRepository(tx).count({}, 10)).count).toBe(1);
+      },
+      attempt: (tx) => auditRepository(tx).count({}, 10),
+      expectBlocked: (result) => {
+        expect(result).toEqual({ count: 0, capped: false });
+      },
+    });
+  });
+
   it('accepts a plain reason on a no-key action, with no cast needed', async () => {
     // A real literal, not a cast: this is what pnpm typecheck compiles,
     // proving `reason` is not typed as `never` on a no-extra-key action.

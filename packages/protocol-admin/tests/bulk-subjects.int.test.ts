@@ -15,6 +15,7 @@ import { newId } from '@odudu/kernel';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import { bulkSubjects } from '#/usecase/bulk-subjects';
 import { clearLockouts } from '#/usecase/lockouts';
 
 let fixtureHandle: AdminFixture | undefined;
@@ -260,5 +261,54 @@ describe('POST /subjects/bulk', () => {
     expect((await bulk(t.name, token, { action: 'purge', ids: [newId()] })).statusCode).toBe(400);
     expect((await bulk(t.name, token, { action: 'disable', ids: ['nope'] })).statusCode).toBe(400);
     expect((await bulk(t.name, token, { action: 'disable', ids: [] })).statusCode).toBe(400);
+  });
+});
+
+describe('bulkSubjects, probed with a foreign tenant_id', () => {
+  it('finds and changes no subject from another tenant’s context', async () => {
+    const foreign = newId();
+    await expectCrossTenantMethodProbe(fixture.app.db, {
+      seed: async (tx, tenantId) => {
+        await tx.insert(tenants).values({ id: tenantId, name: `probe-${newId()}` });
+        return (await subjectRepository(tx).create({ tenantId, type: 'user' })).id;
+      },
+      verifySeeded: async (tx, subjectId) => {
+        expect((await subjectRepository(tx).byId(subjectId))?.disabledAt).toBeNull();
+      },
+      attempt: async (_tx, subjectId) =>
+        (
+          await bulkSubjects(
+            {
+              inTransaction: (fn) => withTenant(fixture.app.db, foreign, fn),
+              subjectAudit: () => Promise.resolve(),
+              sessionAudit: () => Promise.resolve(),
+              kek: Buffer.alloc(32, 7),
+            },
+            {
+              tenantId: foreign,
+              action: 'disable',
+              ids: [subjectId],
+              callerCapabilities: EVERY_CAPABILITY,
+              lifespans: {
+                ssoSessionIdleSeconds: 1800,
+                ssoSessionMaxSeconds: 36_000,
+                rememberMeIdleSeconds: 604_800,
+                rememberMeMaxSeconds: 2_592_000,
+              },
+              issuer: 'https://idp.example/tenants/probe',
+              now: fixture.clock.now(),
+              actorSubjectId: newId(),
+              actorTenantId: newId(),
+              actorClientId: newId(),
+            },
+          )
+        ).map((outcome) => outcome.kind),
+      expectBlocked: (result) => {
+        expect(result).toEqual(['not_found']);
+      },
+      verifyTenantAUnaffected: async (tx, subjectId) => {
+        expect((await subjectRepository(tx).byId(subjectId))?.disabledAt).toBeNull();
+      },
+    });
   });
 });

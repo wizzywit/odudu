@@ -9,7 +9,7 @@ import { eq } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
-import { exportAudit, resolveActors } from '#/usecase/audit';
+import { countAudit, exportAudit, resolveActors } from '#/usecase/audit';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -212,5 +212,44 @@ describe('GET /audit/export', () => {
     const token = await fixture.adminToken(t.name, ['manage-tenant']);
     expect((await get(t.name, token, 'audit/export')).statusCode).toBe(403);
     expect((await get(t.name, token, 'audit/count')).statusCode).toBe(403);
+  });
+});
+
+describe('countAudit and exportAudit, probed with a foreign tenant_id', () => {
+  it('count and export nothing from another tenant’s context', async () => {
+    await expectCrossTenantMethodProbe(fixture.app.db, {
+      seed: async (tx, tenantId) => {
+        await tx.insert(tenants).values({ id: tenantId, name: `probe-${newId()}` });
+        await auditRepository(tx).record({
+          eventType: 'admin_mutation',
+          action: 'probe.exported',
+          outcome: 'allowed',
+        });
+      },
+      verifySeeded: async (tx) => {
+        expect((await countAudit(tx, {}, 10)).count).toBe(1);
+      },
+      attempt: async (tx) => ({
+        count: await countAudit(tx, {}, 10),
+        exported: await exportAudit(
+          tx,
+          { audit: () => Promise.resolve() },
+          {
+            tenantId: newId(),
+            filters: {},
+            cap: 10,
+            actorSubjectId: newId(),
+            actorTenantId: newId(),
+            actorClientId: newId(),
+          },
+        ),
+      }),
+      expectBlocked: (result) => {
+        expect(result).toEqual({
+          count: { count: 0, capped: false },
+          exported: { kind: 'ok', items: [] },
+        });
+      },
+    });
   });
 });

@@ -1,4 +1,5 @@
-import { withTenant } from '@odudu/db';
+import { tenants, withTenant } from '@odudu/db';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { auditRepository } from '@odudu/domain-audit';
 import { loginFailures } from '@odudu/domain-identity';
 import { SYSTEM_TENANT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
@@ -9,6 +10,7 @@ import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import { deleteTenantRows } from '#/usecase/tenants';
 import { createPasswordSubject, createSignInClient, signInForTokens } from '#/testing/sign-in';
 
 const PASSWORD = 'correct horse battery staple';
@@ -202,5 +204,36 @@ describe('DELETE /admin/tenants/:tenant', () => {
     const token = await fixture.adminToken(t.name, ['tenant-admin']);
     const res = await call(token, 'DELETE', `/admin/tenants/${t.name}?confirm=${t.name}`);
     expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('deleteTenantRows, probed with a foreign tenant_id', () => {
+  it('finds and deletes no tenant from another tenant’s context', async () => {
+    await expectCrossTenantMethodProbe(fixture.app.db, {
+      seed: async (tx, tenantId) => {
+        const name = `probe-${newId()}`;
+        await tx.insert(tenants).values({ id: tenantId, name });
+        return { tenantId, name };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await tx.select().from(tenants)).toHaveLength(1);
+        expect(seeded.name).toMatch(/^probe-/u);
+      },
+      attempt: (tx, seeded) =>
+        deleteTenantRows(tx, {
+          tenantId: seeded.tenantId,
+          confirm: seeded.name,
+          callerCapabilities: new Set(['tenant-admin']),
+          actorSubjectId: newId(),
+          actorTenantId: newId(),
+          actorClientId: newId(),
+        }),
+      expectBlocked: (result) => {
+        expect(result).toEqual({ kind: 'not_found' });
+      },
+      verifyTenantAUnaffected: async (tx) => {
+        expect(await tx.select().from(tenants)).toHaveLength(1);
+      },
+    });
   });
 });
