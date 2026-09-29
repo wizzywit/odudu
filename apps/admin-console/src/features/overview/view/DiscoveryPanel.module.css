@@ -23,7 +23,7 @@
 }
 
 .pair dt code {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .fact dd,

@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { Fragment, useId, type ReactNode } from 'react';
 import type {
   DiscoveryView,
   KeyLane,
@@ -85,6 +85,22 @@ function Failed({ what, onRetry }: { what: string; onRetry: () => void }) {
   );
 }
 
+// A discovery name is words joined by underscores; it may break after one,
+// never inside a word.
+function Name({ name }: { name: string }) {
+  const words = name.split('_');
+  return (
+    <code>
+      {words.map((word, index) => (
+        <Fragment key={index}>
+          {index < words.length - 1 ? `${word}_` : word}
+          {index < words.length - 1 ? <wbr /> : null}
+        </Fragment>
+      ))}
+    </code>
+  );
+}
+
 function Keys({ keys }: { keys: Read<KeysView> }) {
   switch (keys.status) {
     case 'off':
@@ -137,7 +153,7 @@ function Document({ view, keys }: { view: DiscoveryView; keys: Read<KeysView> })
           {view.endpoints.map((endpoint) => (
             <div key={endpoint.name} className={styles.pair}>
               <dt>
-                <code>{endpoint.name}</code>
+                <Name name={endpoint.name} />
               </dt>
               <dd>
                 <code className={styles.url}>{endpoint.url}</code>
@@ -151,7 +167,7 @@ function Document({ view, keys }: { view: DiscoveryView; keys: Read<KeysView> })
           {view.lists.map((list) => (
             <div key={list.name} className={styles.pair}>
               <dt>
-                <code>{list.name}</code>
+                <Name name={list.name} />
               </dt>
               <dd>
                 <ul aria-label={list.name} className={styles.values}>
@@ -167,7 +183,7 @@ function Document({ view, keys }: { view: DiscoveryView; keys: Read<KeysView> })
           {view.flags.map((flag) => (
             <div key={flag.name} className={styles.pair}>
               <dt>
-                <code>{flag.name}</code>
+                <Name name={flag.name} />
               </dt>
               <dd>{flag.value ? 'yes' : 'no'}</dd>
             </div>

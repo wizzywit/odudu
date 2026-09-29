@@ -184,6 +184,6 @@ it('sizes each panel to its content, so a short one never stretches to its neigh
 
 it('shows a long discovery name in full, wrapping it rather than cutting it off', () => {
   const source = discoveryCss.replace(/\/\*[\s\S]*?\*\//gu, '');
-  expect(source).toMatch(/\.pair dt code\s*\{[^}]*overflow-wrap:\s*anywhere/u);
+  expect(source).toMatch(/\.pair dt code\s*\{[^}]*overflow-wrap:\s*break-word/u);
   expect(source).not.toMatch(/text-overflow|white-space:\s*nowrap/u);
 });

@@ -108,6 +108,12 @@ it('draws term-and-value rows while the document loads, and the keys table while
   expect(keys[0]?.querySelector('[data-shape="table"] th')).not.toBeNull();
 });
 
+it('lets a long name break only after an underscore, never inside a word', () => {
+  render(<DiscoveryPanel discovery={DISCOVERY} keys={KEYS} />);
+  const name = screen.getByText('grant_types_supported', { selector: 'code' });
+  expect(name.innerHTML).toBe('grant_<wbr>types_<wbr>supported');
+});
+
 it('says when the document could not be read, and reads it again', async () => {
   const user = userEvent.setup();
   const retry = vi.fn();
