@@ -341,6 +341,11 @@
   display: grid;
   gap: var(--space-1);
   min-inline-size: 0;
+  margin: 0;
+}
+
+.readOnly dd {
+  margin: 0;
 }
 
 .readOnlyValue {

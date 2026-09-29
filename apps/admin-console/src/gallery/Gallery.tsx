@@ -6,12 +6,20 @@ import { current, dirtyFields, discard, edit, startDraft } from '#/shared/servic
 import type { Toast } from '#/shared/service/toast.ts';
 import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
 import { AppShell } from '#/shared/view/AppShell.tsx';
+import { BirthdateField } from '#/shared/view/BirthdateField.tsx';
 import { Breadcrumb } from '#/shared/view/Breadcrumb.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { KeyHint, PlatformContext } from '#/shared/view/KeyHint.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ChunkFailed } from '#/shared/view/ChunkBoundary.tsx';
+import {
+  CountryField,
+  GenderField,
+  LocaleField,
+  TimeZoneField,
+} from '#/shared/view/ClaimFields.tsx';
+import { ComboBoxField } from '#/shared/view/ComboBoxField.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { ConflictPanel } from '#/shared/view/ConflictPanel.tsx';
 import { ContextBar } from '#/shared/view/ContextBar.tsx';
@@ -23,6 +31,7 @@ import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import {
   KeyValueField,
   NumberWithUnitField,
+  ReadOnlyFields,
   SelectField,
   TextField,
   ToggleField,
@@ -31,6 +40,7 @@ import {
 import { FilterBar } from '#/shared/view/FilterBar.tsx';
 import { GroupPicker } from '#/shared/view/GroupPicker.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
+import { PhoneField } from '#/shared/view/PhoneField.tsx';
 import { Pager } from '#/shared/view/Pager.tsx';
 import { Rail } from '#/shared/view/Rail.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
@@ -53,6 +63,8 @@ import { Tabs } from '#/shared/view/Tabs.tsx';
 import { Timestamp } from '#/shared/view/Timestamp.tsx';
 import { Toasts } from '#/shared/view/Toasts.tsx';
 import { UnsavedChangesDialog } from '#/shared/view/UnsavedChangesDialog.tsx';
+import { PictureField, UrlField } from '#/shared/view/UrlField.tsx';
+import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
 import styles from '#/gallery/Gallery.module.css';
 import {
   CLAIM_VALUES,
@@ -426,6 +438,76 @@ function Pickers() {
   );
 }
 
+const GRANT_TYPES = [
+  { id: 'authorization_code', label: 'authorization_code' },
+  { id: 'client_credentials', label: 'client_credentials' },
+  { id: 'refresh_token', label: 'refresh_token' },
+  { id: 'urn:ietf:params:oauth:grant-type:device_code', label: 'device_code' },
+];
+
+const CLAIMS = {
+  phone: '+2348031234567',
+  birthdate: '1815-12-10',
+  gender: 'non-binary',
+  country: 'Nigeria',
+  zone: 'Africa/Lagos',
+  locale: 'en-NG',
+  website: 'https://ada.example',
+  picture: 'https://cdn.example/ada.png',
+};
+
+type ClaimName = keyof typeof CLAIMS;
+
+function TypedFields() {
+  const [claims, setClaims] = useState(CLAIMS);
+  const [grant, setGrant] = useState('authorization_code');
+  const [birthYear, setBirthYear] = useState('1815');
+  const [withheld, setWithheld] = useState('0000-12-10');
+  const set = (name: ClaimName) => (value: string) => {
+    setClaims((was) => ({ ...was, [name]: value }));
+  };
+  return (
+    <div className={styles.typed}>
+      <PhoneField label="Phone number" value={claims.phone} onChange={set('phone')} />
+      <BirthdateField label="Birthdate" value={claims.birthdate} onChange={set('birthdate')} />
+      <BirthdateField label="Birthdate, year only" value={birthYear} onChange={setBirthYear} />
+      <BirthdateField label="Birthdate, year withheld" value={withheld} onChange={setWithheld} />
+      <CountryField label="Country" value={claims.country} onChange={set('country')} changed />
+      <TimeZoneField label="Time zone" value={claims.zone} onChange={set('zone')} />
+      <LocaleField label="Locale" value={claims.locale} onChange={set('locale')} />
+      <GenderField label="Gender" value={claims.gender} onChange={set('gender')} />
+      <UrlField label="Website" value={claims.website} onChange={set('website')} />
+      <PictureField label="Picture" value={claims.picture} onChange={set('picture')} />
+      <UrlField label="Profile page, mistyped" value="ada.example" onChange={NOTHING} />
+      <ComboBoxField
+        label="Grant type"
+        description="Type to narrow the list."
+        options={GRANT_TYPES}
+        value={grant}
+        onChange={setGrant}
+      />
+    </div>
+  );
+}
+
+function ViewOnly() {
+  return (
+    <div className={styles.typed}>
+      <div className={styles.span}>
+        <ViewOnlyNote noun="subjects" needs={['manage-users']} />
+      </div>
+      <ReadOnlyFields when>
+        <TextField label="Full name" value="Ada Lovelace" onChange={NOTHING} />
+        <TextField label="Nickname" value="" onChange={NOTHING} />
+        <PhoneField label="Phone number" value={CLAIMS.phone} onChange={NOTHING} />
+        <BirthdateField label="Birthdate" value={CLAIMS.birthdate} onChange={NOTHING} />
+        <LocaleField label="Locale" value={CLAIMS.locale} onChange={NOTHING} />
+        <ToggleField label="Email verified" value onChange={NOTHING} />
+      </ReadOnlyFields>
+    </div>
+  );
+}
+
 function Dialogs({ initial }: { initial: GalleryDialog | null }) {
   const [open, setOpen] = useState<GalleryDialog | null>(initial);
   const close = (): void => {
@@ -703,6 +785,15 @@ export function Gallery({
           </Specimen>
           <Specimen label="SaveBar on its own">
             <SaveBar section="Tokens" saving={false} onDiscard={() => undefined} />
+          </Specimen>
+        </Group>
+
+        <Group id="typed" title="Typed fields">
+          <Specimen label="Typed fields: a claim in its own shape, with its autocomplete token">
+            <TypedFields />
+          </Specimen>
+          <Specimen label="View only: one line, and every field as text">
+            <ViewOnly />
           </Specimen>
         </Group>
 

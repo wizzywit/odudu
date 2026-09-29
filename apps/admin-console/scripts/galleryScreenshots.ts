@@ -20,6 +20,8 @@ const PATTERNS = {
   'key-hint': 'KeyHint: a shortcut told, not offered, on each platform',
   'skeleton-table': 'Skeleton: a table, its own header over placeholder rows',
   'skeleton-record': 'Skeleton: a record, its tabs and sections',
+  'typed-fields': 'Typed fields: a claim in its own shape, with its autocomplete token',
+  'view-only': 'View only: one line, and every field as text',
 } as const;
 
 type Theme = (typeof THEMES)[number];

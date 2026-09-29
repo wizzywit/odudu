@@ -85,3 +85,14 @@
   font-size: var(--type-15);
   font-weight: 600;
 }
+
+.typed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.span {
+  grid-column: 1 / -1;
+}
