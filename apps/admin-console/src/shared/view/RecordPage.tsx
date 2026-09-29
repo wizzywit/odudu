@@ -77,6 +77,20 @@ export function RecordPage({
         <>
           {head(true)}
           <div role="status" aria-label="Record changes" className={styles.updated}>
+            {record.refreshFailed ? (
+              <p className={styles.notice}>
+                <span>
+                  {record.gone
+                    ? `This ${noun} was deleted since you opened it. Your edits are still shown, but cannot be saved.`
+                    : `Could not check this ${noun} for changes. What you see may be out of date; your edits are kept.`}
+                </span>
+                {record.gone ? null : (
+                  <Button size="small" variant="quiet" onPress={record.retry}>
+                    Check again
+                  </Button>
+                )}
+              </p>
+            ) : null}
             {record.updated ? (
               <p className={styles.notice}>
                 <span>

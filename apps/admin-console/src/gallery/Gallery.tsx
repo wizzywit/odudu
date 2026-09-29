@@ -312,6 +312,8 @@ function SubjectRecord() {
       record={{
         status: 'ready',
         updated,
+        refreshFailed: false,
+        gone: false,
         acknowledge: () => {
           setUpdated(false);
         },

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { storeDrafts } from '#/shared/adapter/draftStorage.ts';
 import { createQueryClient } from '#/shared/repository/queryClient.ts';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
-import { useRecord } from '#/shared/repository/useRecord.ts';
+import { recordKey, useRecord } from '#/shared/repository/useRecord.ts';
 import { useSectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
@@ -710,4 +710,27 @@ it('saves the edits left after taking theirs, and keeps focus in the section', a
   expect(fake.sent.filter((request) => request.method === 'PATCH')[1]).toEqual(
     expect.objectContaining({ ifMatch: '"e2"', body: { access_token_ttl: 900 } }),
   );
+});
+
+it('keeps the edits and their guard when a refetch on focus fails', async () => {
+  const user = userEvent.setup();
+  const { queryClient, reads } = mount({
+    [GET]: inTurn(client(LOADED, '"e1"'), () => {
+      throw new TypeError('Failed to fetch');
+    }),
+    [PATCH]: pending(),
+  });
+  await rename(user, 'Billing');
+  await act(async () => {
+    await queryClient.refetchQueries({ queryKey: recordKey('acme', 'clients/c1') });
+  });
+  expect(reads()).toBe(4);
+  // The query client tells its observers on a later task.
+  await act(async () => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  });
+  expect(within(general()).getByRole('textbox', { name: 'Name' })).toHaveValue('Billing');
+  expect(useUnsavedGuard.getState().unsaved()).toEqual(['General']);
 });

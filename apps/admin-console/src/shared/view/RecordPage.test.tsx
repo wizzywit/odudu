@@ -7,7 +7,15 @@ import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 function view(overrides: Partial<RecordView> = {}): RecordView {
-  return { status: 'ready', updated: false, acknowledge: vi.fn(), retry: vi.fn(), ...overrides };
+  return {
+    status: 'ready',
+    updated: false,
+    refreshFailed: false,
+    gone: false,
+    acknowledge: vi.fn(),
+    retry: vi.fn(),
+    ...overrides,
+  };
 }
 
 function page(record: RecordView, onTabChange = vi.fn(), tab = 'general') {
@@ -57,6 +65,27 @@ it('announces a record somebody else changed, until it is acknowledged', async (
   expect(live).toHaveTextContent('Updated since you opened it');
   await user.click(within(live).getByRole('button', { name: 'Dismiss' }));
   expect(updated.acknowledge).toHaveBeenCalledOnce();
+});
+
+it('keeps its tabs when a later read fails, and offers to check again', async () => {
+  const user = userEvent.setup();
+  const record = view({ refreshFailed: true });
+  render(page(record));
+  const live = screen.getByRole('status', { name: 'Record changes' });
+  expect(live).toHaveTextContent(
+    'Could not check this client for changes. What you see may be out of date; your edits are kept.',
+  );
+  expect(screen.getByRole('tablist', { name: 'Client sections' })).toBeVisible();
+  await user.click(within(live).getByRole('button', { name: 'Check again' }));
+  expect(record.retry).toHaveBeenCalledOnce();
+});
+
+it('keeps its tabs when a later read finds the record deleted', () => {
+  render(page(view({ refreshFailed: true, gone: true })));
+  expect(screen.getByRole('status', { name: 'Record changes' })).toHaveTextContent(
+    'This client was deleted since you opened it. Your edits are still shown, but cannot be saved.',
+  );
+  expect(screen.getByText('General panel')).toBeVisible();
 });
 
 it('says it is loading, that the record is gone, or that it could not be read', async () => {

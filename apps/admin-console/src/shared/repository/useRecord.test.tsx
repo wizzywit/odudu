@@ -7,7 +7,14 @@ import { createQueryClient } from '#/shared/repository/queryClient.ts';
 import { recordKey, useRecord, type RecordEntry } from '#/shared/repository/useRecord.ts';
 import type { Gateway } from '#/shared/transport/gateway.ts';
 import { TransportContext } from '#/shared/transport/useTransport.ts';
-import { fakeTransport, inTurn, json, problem, type Answer } from '#/testing/fakeTransport.ts';
+import {
+  fakeTransport,
+  inTurn,
+  json,
+  offline,
+  problem,
+  type Answer,
+} from '#/testing/fakeTransport.ts';
 
 const GET = 'GET /console/api/admin/tenants/acme/clients/c1';
 const schema = z.object({ name: z.string() });
@@ -88,4 +95,43 @@ it('does not count a save made here as somebody else changing the record', async
     expect(result.current.etag).toBe('"e2"');
   });
   expect(result.current.updated).toBe(false);
+});
+
+it('keeps the record it has when a later read fails, and says the check failed', async () => {
+  const { result } = harness(
+    inTurn(json({ name: 'Billing portal' }, 200, { etag: '"e1"' }), offline()),
+  );
+  await waitFor(() => {
+    expect(result.current.status).toBe('ready');
+  });
+  act(() => {
+    result.current.retry();
+  });
+  await waitFor(() => {
+    expect(result.current.refreshFailed).toBe(true);
+  });
+  expect(result.current.status).toBe('ready');
+  expect(result.current.data).toEqual({ name: 'Billing portal' });
+  expect(result.current.etag).toBe('"e1"');
+  expect(result.current.gone).toBe(false);
+});
+
+it('keeps the record it has when a later read finds it deleted, and says so', async () => {
+  const { result } = harness(
+    inTurn(
+      json({ name: 'Billing portal' }, 200, { etag: '"e1"' }),
+      problem(404, 'about:blank#not-found', 'Not Found'),
+    ),
+  );
+  await waitFor(() => {
+    expect(result.current.status).toBe('ready');
+  });
+  act(() => {
+    result.current.retry();
+  });
+  await waitFor(() => {
+    expect(result.current.gone).toBe(true);
+  });
+  expect(result.current.status).toBe('ready');
+  expect(result.current.data).toEqual({ name: 'Billing portal' });
 });
