@@ -1,4 +1,13 @@
-import { useEffect, useId, useRef, type FocusEvent, type SubmitEvent, type ReactNode } from 'react';
+import {
+  use,
+  useEffect,
+  useId,
+  useRef,
+  type FocusEvent,
+  type SubmitEvent,
+  type ReactNode,
+} from 'react';
+import { FieldsReadOnly } from '#/shared/view/Field.tsx';
 import { SaveBar } from '#/shared/view/SaveBar.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import styles from '#/shared/view/Section.module.css';
@@ -34,6 +43,9 @@ export function Section({
   children: ReactNode;
 }) {
   const heading = useId();
+  // On a page the caller cannot change there is no save; an edit held from
+  // before whoami said so stays, marked, until the page is left.
+  const readOnly = use(FieldsReadOnly);
   // Holds between a submit and the render that shows it saving, which a
   // second quick submit would otherwise slip through.
   const submitted = useRef(false);
@@ -42,7 +54,7 @@ export function Section({
   }, [saving, dirty]);
   const submit = (event: SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    if (!dirty || saving || blocked !== undefined || submitted.current) return;
+    if (readOnly || !dirty || saving || blocked !== undefined || submitted.current) return;
     submitted.current = true;
     if (onSave() === false) submitted.current = false;
   };
@@ -85,8 +97,14 @@ export function Section({
       </header>
       <form noValidate onSubmit={submit} className={styles.form} aria-busy={saving || undefined}>
         <div className={styles.fields}>{children}</div>
-        {notice === undefined ? null : <div className={styles.notice}>{notice}</div>}
-        {dirty ? (
+        {notice === undefined || readOnly ? null : <div className={styles.notice}>{notice}</div>}
+        {readOnly && dirty ? (
+          <p role="status" className={styles.held}>
+            Your change here was not saved and cannot be saved now. It stays until you leave the
+            page.
+          </p>
+        ) : null}
+        {dirty && !readOnly ? (
           <div className={styles.saveBar}>
             <SaveBar section={title} saving={saving} onDiscard={onDiscard} blocked={blocked} />
           </div>

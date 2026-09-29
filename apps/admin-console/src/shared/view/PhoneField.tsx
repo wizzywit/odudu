@@ -52,7 +52,7 @@ export function PhoneField({
     current = { value, ...splitPhone(value, typed.region) };
     setTyped(current);
   }
-  if (readOnly) return <ReadOnlyValue label={label} value={value} mono />;
+  if (readOnly) return <ReadOnlyValue label={label} value={value} mono changed={changed} />;
   const change = (region: string | null, national: string, extension = current.extension): void => {
     const pasted = readTypedNumber(national);
     const parts = pasted ?? { region, national };

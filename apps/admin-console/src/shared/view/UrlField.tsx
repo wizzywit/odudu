@@ -55,7 +55,8 @@ function Preview({ value, noteId }: { value: string; noteId: string }) {
 export function PictureField(props: UrlFieldProps) {
   const readOnly = use(FieldsReadOnly);
   const noteId = useId();
-  if (readOnly) return <ReadOnlyValue label={props.label} value={props.value} mono />;
+  if (readOnly)
+    return <ReadOnlyValue label={props.label} value={props.value} mono changed={props.changed} />;
   return (
     <div className={styles.pictureField}>
       <FieldGroupIds

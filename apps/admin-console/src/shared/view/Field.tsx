@@ -123,23 +123,32 @@ export function ReadOnlyFields({ children, when }: { children: ReactNode; when: 
   return <FieldsReadOnly value={when}>{children}</FieldsReadOnly>;
 }
 
+// `changed` marks an edit held from before the page became read-only: it
+// was never stored, so it is not shown as if it were.
 export function ReadOnlyValue({
   label,
   value,
   description,
   mono = false,
+  changed = false,
 }: {
   label: string;
   value: ReactNode;
   description?: ReactNode;
   mono?: boolean;
+  changed?: boolean | undefined;
 }) {
   const empty = value === '' || value === null || value === undefined;
   return (
     <dl className={styles.readOnly}>
       <dt className={styles.label}>{label}</dt>
-      <dd className={styles.readOnlyValue} data-mono={(mono && !empty) || undefined}>
+      <dd
+        className={styles.readOnlyValue}
+        data-mono={(mono && !empty) || undefined}
+        data-unsaved={changed || undefined}
+      >
         {empty ? <span className={styles.unset}>Not set</span> : value}
+        {changed ? <span className={styles.unsaved}> · not saved</span> : null}
       </dd>
       {description === undefined || description === null ? null : (
         <dd className={styles.description}>{description}</dd>
@@ -186,7 +195,8 @@ export function TextField({
   }) {
   const group = use(FieldGroupIds);
   const own = use(OwnData);
-  if (use(FieldsReadOnly)) return <ReadOnlyValue label={label} value={value} mono={mono} />;
+  if (use(FieldsReadOnly))
+    return <ReadOnlyValue label={label} value={value} mono={mono} changed={changed} />;
   return (
     <AriaTextField
       {...VALIDATION}
@@ -237,7 +247,7 @@ export function NumberWithUnitField({
 }) {
   const reading = unit === 'seconds' ? formatDuration(value) : `${String(value)} ${unit}`;
   if (use(FieldsReadOnly)) {
-    return <ReadOnlyValue label={label} value={reading} mono />;
+    return <ReadOnlyValue label={label} value={reading} mono changed={changed} />;
   }
   return (
     <AriaNumberField
@@ -305,7 +315,11 @@ export function SelectField({
   const own = use(OwnData);
   if (readOnly && !inline) {
     return (
-      <ReadOnlyValue label={label} value={options.find((o) => o.id === value)?.label ?? value} />
+      <ReadOnlyValue
+        label={label}
+        value={options.find((o) => o.id === value)?.label ?? value}
+        changed={changed}
+      />
     );
   }
   return (
@@ -355,7 +369,14 @@ export function ToggleField({
   onChange,
 }: Chrome & { value: boolean; onChange: (value: boolean) => void }) {
   if (use(FieldsReadOnly)) {
-    return <ReadOnlyValue label={label} value={value ? 'On' : 'Off'} description={description} />;
+    return (
+      <ReadOnlyValue
+        label={label}
+        value={value ? 'On' : 'Off'}
+        description={description}
+        changed={changed}
+      />
+    );
   }
   return (
     <SwitchField
@@ -623,6 +644,7 @@ export function UrlListField({
       <ReadOnlyValue
         label={label}
         value={value.length === 0 ? '' : <ReadOnlyList items={value} />}
+        changed={changed}
         mono
       />
     );

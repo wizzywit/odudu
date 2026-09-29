@@ -120,7 +120,14 @@ export function ComboBoxField({
     setShown(current);
   }
   if (readOnly) {
-    return <ReadOnlyValue label={label} value={readOnlyText ?? labelOf(value)} mono={mono} />;
+    return (
+      <ReadOnlyValue
+        label={label}
+        value={readOnlyText ?? labelOf(value)}
+        mono={mono}
+        changed={changed}
+      />
+    );
   }
   const emit = (next: Shown): void => {
     setShown(next);

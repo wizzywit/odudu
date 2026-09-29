@@ -563,3 +563,14 @@
   font-size: var(--type-13);
   color: var(--ink-muted);
 }
+
+.readOnlyValue[data-unsaved] {
+  padding-inline-start: var(--space-2);
+  border-inline-start: 3px solid var(--signal-warning-ink);
+}
+
+.unsaved {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--signal-warning-ink);
+}

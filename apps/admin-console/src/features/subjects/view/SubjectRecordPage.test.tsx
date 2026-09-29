@@ -103,6 +103,14 @@ it('follows a whoami re-read after a 403, in the rail and on the page, without a
   expect(within(rail).getByRole('link', { name: 'Subjects' })).toBeVisible();
   expect(screen.queryByRole('textbox', { name: 'Nickname' })).toBeNull();
   expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
+  // The refused edit is kept, marked as never saved, with nothing offered to save it.
+  expect(screen.queryByRole('button', { name: /^(Save|Discard)/u })).toBeNull();
+  expect(screen.getByText('Countess').closest('dd')).toHaveTextContent('Countess · not saved');
+  const name = screen.getByRole('region', { name: 'Name' });
+  expect(within(name).getByRole('status')).toHaveTextContent(
+    'Your change here was not saved and cannot be saved now. It stays until you leave the page.',
+  );
+  expect(screen.getByRole('tab', { name: 'Profile, unsaved changes' })).toBeVisible();
 });
 
 it('reads whoami once, however many parts of the page ask what it says', async () => {

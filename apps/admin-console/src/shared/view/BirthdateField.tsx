@@ -229,7 +229,8 @@ export function BirthdateField({
   const birthdate = readBirthdate(value);
   const [chosen, setChosen] = useState<BirthdateForm>(formOf(birthdate) ?? 'date');
   const form = formOf(birthdate) ?? chosen;
-  if (readOnly) return <ReadOnlyValue label={label} value={spoken(birthdate, locale)} />;
+  if (readOnly)
+    return <ReadOnlyValue label={label} value={spoken(birthdate, locale)} changed={changed} />;
   const set = (next: Birthdate): void => {
     onChange(composeBirthdate(next));
   };

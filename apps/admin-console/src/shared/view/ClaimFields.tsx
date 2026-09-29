@@ -137,6 +137,7 @@ export function GenderField({
               ? ''
               : GENDERS.find((g) => g.id === choice)?.label
         }
+        changed={changed}
       />
     );
   }

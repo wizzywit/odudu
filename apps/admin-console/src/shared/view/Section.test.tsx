@@ -2,6 +2,7 @@ import { act, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
+import { ReadOnlyFields } from '#/shared/view/Field.tsx';
 import { Section } from '#/shared/view/Section.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
@@ -220,4 +221,25 @@ it('leaves focus alone when it was never in the section', () => {
     </>,
   );
   expect(screen.getByRole('button', { name: 'elsewhere' })).toHaveFocus();
+});
+
+it('offers no save on a page that cannot change it, and says an edit it holds was not saved', () => {
+  render(
+    <ReadOnlyFields when>
+      <General dirty />
+    </ReadOnlyFields>,
+  );
+  expect(screen.queryByRole('button', { name: /Save|Discard/u })).toBeNull();
+  expect(screen.getByRole('status')).toHaveTextContent(
+    'Your change here was not saved and cannot be saved now. It stays until you leave the page.',
+  );
+});
+
+it('says nothing of the sort while it holds no edit', () => {
+  render(
+    <ReadOnlyFields when>
+      <General dirty={false} />
+    </ReadOnlyFields>,
+  );
+  expect(screen.queryByRole('status')).toBeNull();
 });

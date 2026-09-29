@@ -440,3 +440,14 @@ describe('OwnDataFields', () => {
     );
   });
 });
+
+describe('ReadOnlyValue', () => {
+  it('marks an edit that was never saved, rather than showing it as stored', () => {
+    render(
+      <ReadOnlyFields when>
+        <TextField label="Nickname" value="Countess" changed onChange={vi.fn()} />
+      </ReadOnlyFields>,
+    );
+    expect(screen.getByRole('definition')).toHaveTextContent('Countess · not saved');
+  });
+});
