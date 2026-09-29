@@ -19,6 +19,7 @@ import { newId } from '@odudu/kernel';
 import { provisionAdminClient } from '@odudu/protocol-oidc';
 import { and, asc, eq, gt, sql, type SQL } from 'drizzle-orm';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
+import { capabilitiesHeldInTenant, overreach } from '#/service/capability-ceiling';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_TENANT_FIELDS, refusalFor } from '#/service/tenant-patch';
 import {
@@ -47,7 +48,7 @@ export interface TenantRecord {
 }
 
 export interface TenantAuditEvent {
-  readonly action: 'tenant.create' | 'tenant.amend' | 'tenant.smtp_delete';
+  readonly action: 'tenant.create' | 'tenant.amend' | 'tenant.smtp_delete' | 'tenant.delete';
   readonly resourceType: 'tenant';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -469,4 +470,79 @@ export async function amendTenant(
 
   const tenant = tenantWireShape(after);
   return { kind: 'ok', tenant, etag: etagOf(tenant) };
+}
+
+export const SYSTEM_TENANT_DELETE_REFUSED =
+  'the system tenant is where every cross-tenant administrator authenticates, and is never deleted';
+
+export interface DeleteTenantInput {
+  readonly tenantId: string;
+  /** The tenant's own name, typed by the caller: a slip of the path deletes nothing. */
+  readonly confirm: string;
+  readonly callerCapabilities: ReadonlySet<string>;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export type DeleteTenantOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'confirm_mismatch'; name: string }
+  | { kind: 'system_tenant_guarded'; name: string; reason: string }
+  | { kind: 'ceiling'; name: string; requested: readonly string[] }
+  | { kind: 'deleted'; name: string };
+
+// Bound to the tenant being deleted. The row goes in one statement and every
+// table holding the tenant's rows goes with it: each `tenant_id` references
+// `tenants` ON DELETE CASCADE, and the tables keyed only through a subject
+// or a client cascade from those. What the tenant's subjects hold goes with
+// them, so the caller must hold all of it (ADR 0040).
+export async function deleteTenantRows(
+  tx: TenantScopedDatabase,
+  input: DeleteTenantInput,
+): Promise<DeleteTenantOutcome> {
+  const rows = await tx
+    .select({ name: tenants.name })
+    .from(tenants)
+    .where(eq(tenants.id, input.tenantId))
+    .for('update');
+  const name = rows[0]?.name;
+  if (name === undefined) return { kind: 'not_found' };
+  if (input.confirm !== name) return { kind: 'confirm_mismatch', name };
+  if (name === SYSTEM_TENANT_NAME) {
+    return { kind: 'system_tenant_guarded', name, reason: SYSTEM_TENANT_DELETE_REFUSED };
+  }
+  const requested = overreach(await capabilitiesHeldInTenant(tx), input.callerCapabilities);
+  if (requested.length > 0) return { kind: 'ceiling', name, requested };
+  await tx.delete(tenants).where(eq(tenants.id, input.tenantId));
+  return { kind: 'deleted', name };
+}
+
+// Bound to the system tenant, in the same transaction: the tenant's own
+// trail went with it, so its deletion is recorded where the administrators
+// who can delete one are.
+export async function recordTenantDeletion(
+  tx: TenantScopedDatabase,
+  deps: { readonly audit: Audit },
+  input: DeleteTenantInput,
+  outcome: DeleteTenantOutcome,
+): Promise<DeleteTenantOutcome> {
+  if (outcome.kind === 'not_found' || outcome.kind === 'confirm_mismatch') return outcome;
+  const refusal =
+    outcome.kind === 'system_tenant_guarded'
+      ? { reason: 'system_tenant_guarded' }
+      : outcome.kind === 'ceiling'
+        ? { denied: outcome.requested }
+        : null;
+  await deps.audit(tx, {
+    action: 'tenant.delete',
+    resourceType: 'tenant',
+    resourceId: input.tenantId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: refusal === null ? 'allowed' : 'refused',
+    detail: { name: outcome.name, ...refusal },
+  });
+  return outcome;
 }

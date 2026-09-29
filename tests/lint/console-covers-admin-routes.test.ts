@@ -95,6 +95,7 @@ const TODO: readonly string[] = [
   'GET /admin/tenants/:tenant/mail',
   'GET /admin/tenants/:tenant/audit/count',
   'GET /admin/tenants/:tenant/audit/export',
+  'DELETE /admin/tenants/:tenant',
 ];
 
 // Routes the console deliberately never calls, each with the reason.

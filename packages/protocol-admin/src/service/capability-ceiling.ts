@@ -165,6 +165,24 @@ export function subjectsBeyond(held: ReadonlySet<string>): SQL | null {
 
 const existsRowsSchema = z.array(z.object({ held: z.boolean() }));
 
+/**
+ * Every admin capability some subject of the tenant holds, enabled or not:
+ * what deleting the tenant takes from all of them at once, and so what a
+ * caller has to hold to delete it.
+ */
+export async function capabilitiesHeldInTenant(
+  tx: TenantScopedDatabase,
+): Promise<ReadonlySet<string>> {
+  const held = new Set<string>();
+  for (const name of CAPABILITY_NAMES) {
+    const rows = existsRowsSchema.parse(
+      await tx.execute(sql`SELECT EXISTS (SELECT 1 FROM ${holdersOf(name)} AS h) AS held`),
+    );
+    if (rows[0]?.held === true) held.add(name);
+  }
+  return held;
+}
+
 /** Whether any subject that is not disabled holds `name` effectively. */
 export async function hasEnabledHolder(tx: TenantScopedDatabase, name: string): Promise<boolean> {
   const rows = existsRowsSchema.parse(

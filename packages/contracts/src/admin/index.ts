@@ -38,6 +38,8 @@ export {
   type CountTenantsQuery,
   listTenantsResponseSchema,
   type ListTenantsResponse,
+  deleteTenantQuerySchema,
+  type DeleteTenantQuery,
 } from '#/admin/tenants';
 export {
   amendSettingsRequestSchema,

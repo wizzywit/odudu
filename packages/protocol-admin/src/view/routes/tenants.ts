@@ -1,23 +1,26 @@
 import {
   amendTenantRequestSchema,
   createTenantRequestSchema,
+  deleteTenantQuerySchema,
   listTenantsQuerySchema,
 } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
-import { TENANT_NAME_RULE } from '@odudu/domain-tenant';
+import { SYSTEM_TENANT_ID, TENANT_NAME_RULE } from '@odudu/domain-tenant';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
 import {
   amendTenant,
   createTenant,
+  deleteTenantRows,
+  recordTenantDeletion,
   listTenants,
   readTenant,
   tenantWireShape,
   type Audit,
 } from '#/usecase/tenants';
 import { cursorProblem, fieldProblem, problem, queryProblem, sendProblem } from '#/view/problem';
-import { adminTx } from '#/view/routes/admin-tx';
+import { adminTx, adminTxThen } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface TenantsRouteDeps {
@@ -27,6 +30,10 @@ export interface TenantsRouteDeps {
   readonly kek: Uint8Array;
   readonly audit: Audit;
   readonly consoleBaseUrl?: string | undefined;
+  readonly callerCapabilities: (
+    issuerTenantId: string,
+    subjectId: string,
+  ) => Promise<ReadonlySet<string>>;
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -201,5 +208,57 @@ export function listTenantsHandler(deps: TenantsRouteDeps): AdminRouteHandler {
     const nextUrl = nextPageUrl('/admin/tenants', { ...query, limit, cursor: outcome.next });
     reply.header('link', `<${nextUrl}>; rel="next"`);
     return reply.code(200).send({ items, next: outcome.next });
+  };
+}
+
+export function deleteTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const query = deleteTenantQuerySchema.parse(request.query);
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+    const input = {
+      tenantId: targetTenantId,
+      confirm: query.confirm,
+      callerCapabilities,
+      actorSubjectId: principal.subjectId,
+      actorTenantId: principal.issuerTenantId,
+      actorClientId: principal.clientDbId,
+    };
+    const outcome = await adminTxThen(
+      deps.database,
+      request,
+      [targetTenantId, SYSTEM_TENANT_ID],
+      (tx) => deleteTenantRows(tx, input),
+      (tx, deleted) => recordTenantDeletion(tx, { audit: deps.audit }, input, deleted),
+    );
+    switch (outcome.kind) {
+      case 'deleted':
+        return reply.code(204).send();
+      case 'not_found':
+        return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'confirm_mismatch':
+        return sendProblem(
+          reply,
+          request,
+          fieldProblem([
+            { path: 'confirm', message: `must be the tenant\u2019s own name, ${outcome.name}` },
+          ]),
+        );
+      case 'system_tenant_guarded':
+        return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'ceiling':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            403,
+            'about:blank',
+            'Forbidden',
+            `the tenant\u2019s subjects hold what the caller does not: ${outcome.requested.join(', ')}`,
+          ),
+        );
+    }
   };
 }

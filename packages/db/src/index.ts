@@ -10,4 +10,5 @@ export {
   withEachTenantExclusive,
   withSavepoint,
   withTenant,
+  withTenantThen,
 } from '#/tx';

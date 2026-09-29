@@ -81,6 +81,7 @@ import {
   listTenantsQuerySchema,
   countTenantsQuerySchema,
   listTenantsResponseSchema,
+  deleteTenantQuerySchema,
   roleSchema,
   rotateClientSecretResponseSchema,
   scopeMappersSchema,
@@ -190,7 +191,7 @@ const SERVICE_ACCOUNT_CEILING =
 // alone — `whoami` is the only one. `/admin/tenants` and its `/count`
 // carry no `:tenant` segment — they administer the tenant collection
 // itself, which only a system-tenant admin reaches (router.ts resolves
-// its target explicitly).
+// its target explicitly); deleting one tenant needs the same capability.
 export const ADMIN_ROUTES: readonly AdminRoute[] = [
   {
     method: 'GET',
@@ -606,6 +607,20 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Amends display_name and enabled. `name` is refused with 400: it is already in the ' +
       'issuer URL of every token this tenant has minted. Disabling the system tenant is ' +
       'refused with 409, since every cross-tenant administrator authenticates against it.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant',
+    capability: MANAGE_TENANTS,
+    responseSchema: z.void(),
+    successStatus: 204,
+    querystringSchema: deleteTenantQuerySchema,
+    description:
+      'Deletes the tenant and every row it holds, in one transaction, recorded in the ' +
+      '`system` tenant\u2019s trail as `tenant.delete`. `confirm` must be the tenant\u2019s ' +
+      'own name, refused with `400` naming it otherwise. Refused with `409` for `system`, ' +
+      'and with `403` when the tenant\u2019s subjects hold an admin capability the caller ' +
+      'does not (the target ceiling, over every subject at once).',
   },
   {
     method: 'GET',

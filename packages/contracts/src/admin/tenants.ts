@@ -61,3 +61,7 @@ export const countTenantsQuerySchema = z
   .strict()
   .refine(...oneTenantSearch);
 export type CountTenantsQuery = z.infer<typeof countTenantsQuerySchema>;
+
+// The tenant's own name, typed again: a deletion names what it deletes.
+export const deleteTenantQuerySchema = z.object({ confirm: z.string().min(1) }).strict();
+export type DeleteTenantQuery = z.infer<typeof deleteTenantQuerySchema>;

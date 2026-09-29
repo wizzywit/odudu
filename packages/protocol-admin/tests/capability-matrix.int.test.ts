@@ -79,6 +79,7 @@ const SAMPLE_BODIES: Readonly<Partial<Record<string, unknown>>> = {
 // before authorization, as a missing body is; each entry only satisfies it.
 const SAMPLE_QUERIES: Readonly<Partial<Record<string, string>>> = {
   'GET /admin/tenants/:tenant/clients/:id/evaluate': 'subject=0199aa00-0000-7000-8000-0000000000fd',
+  'DELETE /admin/tenants/:tenant': 'confirm=not-its-name',
 };
 
 function routeKey(route: AdminRoute): string {
@@ -217,8 +218,13 @@ describe('the capability matrix', () => {
     }
   });
 
+  // A route requiring manage-tenants administers the tenant collection,
+  // whether or not its path names one tenant of it.
   const tenantScopedRoutes = ADMIN_ROUTES.filter(
-    (route) => route.capability !== null && route.pattern.includes(':tenant'),
+    (route) =>
+      route.capability !== null &&
+      route.capability !== MANAGE_TENANTS &&
+      route.pattern.includes(':tenant'),
   );
 
   it.each(tenantScopedRoutes)('$method $pattern admits only its own capability', async (route) => {
@@ -248,12 +254,16 @@ describe('the capability matrix', () => {
     },
   );
 
-  // The routes with no `:tenant` segment: the tenant collection and its
-  // count, reached only by a system-tenant admin holding manage-tenants.
-  const systemRoutes = ADMIN_ROUTES.filter((route) => !route.pattern.includes(':tenant'));
+  // The routes over the tenant collection — those with no `:tenant` segment,
+  // and deleting one tenant — reached only by a system-tenant admin holding
+  // manage-tenants.
+  const systemRoutes = ADMIN_ROUTES.filter(
+    (route) => !route.pattern.includes(':tenant') || route.capability === MANAGE_TENANTS,
+  );
 
   it.each(systemRoutes)('$method $pattern admits only manage-tenants', async (route) => {
-    const url = urlFor(route, 'unused');
+    const t = await fixture.createTenant(`m-system-${newId()}`);
+    const url = urlFor(route, t.name);
     for (const capability of ALL_CAPABILITIES) {
       const token = await fixture.systemAdminToken([capability]);
       const res = await callWith(route, url, token);

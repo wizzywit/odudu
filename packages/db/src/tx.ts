@@ -58,6 +58,39 @@ export async function withTenant<T>(
   });
 }
 
+/**
+ * One transaction bound to `first` and then to `second`, rebound at its top
+ * level as `withEachTenantExclusive` rebinds, never nested: for a change in
+ * one tenant whose record belongs to another, so neither commits without
+ * the other. `then` receives what `fn` answered.
+ */
+export async function withTenantThen<A, B>(
+  db: Database,
+  tenants: readonly [first: string, second: string],
+  fn: (tx: TenantScopedDatabase) => Promise<A>,
+  then: (tx: TenantScopedDatabase, first: A) => Promise<B>,
+  context?: RequestContext,
+): Promise<B> {
+  for (const tenantId of tenants) {
+    if (!UUID_PATTERN.test(tenantId)) {
+      throw new OduduError(
+        'tenant_context_missing',
+        `withTenantThen requires UUID tenant ids, got ${JSON.stringify(tenantId)}`,
+      );
+    }
+  }
+  return withTenant(
+    db,
+    tenants[0],
+    async (tx) => {
+      const first = await fn(tx);
+      await tx.execute(sql`select set_config('app.tenant_id', ${tenants[1]}, true)`);
+      return then(tx, first);
+    },
+    context,
+  );
+}
+
 interface SavepointCapable {
   transaction<T>(fn: (inner: unknown) => Promise<T>): Promise<T>;
 }

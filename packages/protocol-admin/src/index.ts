@@ -172,6 +172,7 @@ import {
 import {
   amendTenantHandler,
   createTenantHandler,
+  deleteTenantHandler,
   listTenantsHandler,
   readTenantHandler,
   type TenantsRouteDeps,
@@ -425,6 +426,7 @@ function buildAdminRoutes(
       kek: deps.kek,
       audit: tenantAudit,
       consoleBaseUrl: deps.consoleBaseUrl,
+      callerCapabilities,
     };
     const tenantExportDeps: TenantExportRouteDeps = {
       database: deps.database.db,
@@ -593,6 +595,7 @@ function buildAdminRoutes(
       'POST /admin/tenant-imports': importTenantHandler(tenantImportDeps),
       'GET /admin/tenants/:tenant': readTenantHandler(tenantsDeps),
       'PATCH /admin/tenants/:tenant': amendTenantHandler(tenantsDeps),
+      'DELETE /admin/tenants/:tenant': deleteTenantHandler(tenantsDeps),
       'GET /admin/tenants/:tenant/export': exportTenantHandler(tenantExportDeps),
       'GET /admin/tenants/:tenant/settings': getSettingsHandler(settingsDeps),
       'PATCH /admin/tenants/:tenant/settings': amendSettingsHandler(settingsDeps),
