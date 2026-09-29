@@ -178,7 +178,14 @@ export function enterHref(name: string): string {
 // needs (ADMIN_ROUTES in @odudu/protocol-admin). A cross-tenant caller's
 // capabilities are its own tenant's, so `system`'s whoami answers for them.
 export type AdministratorRequest =
-  'create' | 'clients' | 'roles' | 'subject-roles' | 'set-roles' | 'password';
+  | 'create'
+  | 'clients'
+  | 'roles'
+  | 'subject-roles'
+  | 'set-roles'
+  | 'password'
+  // Looking for a subject whose creation's answer was lost.
+  | 'find';
 
 // The roles list admits manage-tenant too; view-users is the lesser.
 export const ADMINISTRATOR_REQUEST_NEEDS: Readonly<Record<AdministratorRequest, AdminCapability>> =
@@ -189,8 +196,25 @@ export const ADMINISTRATOR_REQUEST_NEEDS: Readonly<Record<AdministratorRequest, 
     'subject-roles': 'view-users',
     'set-roles': 'manage-users',
     password: 'manage-users',
+    find: 'view-users',
   };
 
-export const ADMINISTRATOR_NEEDS: readonly AdminCapability[] = [
-  ...new Set(Object.values(ADMINISTRATOR_REQUEST_NEEDS)),
-];
+const CALL_REQUESTS: Readonly<Record<AdministratorCall, readonly AdministratorRequest[]>> = {
+  create: ['create'],
+  grant: ['clients', 'roles', 'subject-roles', 'set-roles'],
+  password: ['password'],
+};
+
+// What the calls still to make need, so a resumed step asks for no more.
+export function administratorNeeds(done: {
+  readonly subjectId: string | null;
+  readonly granted: boolean;
+}): readonly AdminCapability[] {
+  const requests = administratorCalls(done).flatMap((call) => CALL_REQUESTS[call]);
+  return [...new Set(requests.map((request) => ADMINISTRATOR_REQUEST_NEEDS[request]))];
+}
+
+export const ADMINISTRATOR_NEEDS: readonly AdminCapability[] = administratorNeeds({
+  subjectId: null,
+  granted: false,
+});

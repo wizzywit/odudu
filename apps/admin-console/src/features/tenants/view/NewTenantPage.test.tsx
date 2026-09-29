@@ -243,3 +243,43 @@ it('names the capability of the one call the server refused, and reads whoami ag
     expect(whoamis()).toBe(before + 1);
   });
 });
+
+it('names view-users when the lookup for an unconfirmed administrator is refused', async () => {
+  sessionStorage.setItem(KEY, JSON.stringify({ owner: 'system/s0', creation: HALFWAY }));
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    routes({
+      [`POST ${ADMIN}/acme/subjects`]: offline(),
+      [`GET ${ADMIN}/acme/subjects`]: problem(403, 'about:blank', 'Forbidden'),
+    }),
+  );
+  const button = await screen.findByRole('button', { name: 'Create administrator' });
+  await waitFor(() => {
+    expect(button).toBeEnabled();
+  });
+  await user.click(button);
+  await user.click(await screen.findByRole('button', { name: 'Check whether grace was created' }));
+  expect(
+    await screen.findByText('Refused: looking for grace needs the view-users capability.'),
+  ).toBeVisible();
+});
+
+it('asks only for what the steps still to run need, when a creation is resumed', async () => {
+  sessionStorage.setItem(
+    KEY,
+    JSON.stringify({
+      owner: 'system/s0',
+      creation: { ...HALFWAY, subjectId: SUBJECT_ID, granted: true },
+    }),
+  );
+  renderConsoleAt(
+    AT,
+    routes({ [`GET ${ADMIN}/system/whoami`]: whoami(['manage-tenants', 'manage-users']) }),
+  );
+  const button = await screen.findByRole('button', { name: 'Continue' });
+  await waitFor(() => {
+    expect(button).toBeEnabled();
+  });
+  expect(screen.queryAllByRole('note')).toEqual([]);
+});

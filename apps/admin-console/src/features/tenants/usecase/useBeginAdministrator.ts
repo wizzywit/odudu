@@ -7,6 +7,8 @@ import { NEW_TENANT_HREF } from '#/features/tenants/service.ts';
 export interface Unfinished {
   readonly tenant: string;
   readonly username: string;
+  // Whether tenant-admin landed, leaving only the one-time password.
+  readonly granted: boolean;
 }
 
 export interface BeginAdministrator {
@@ -41,7 +43,11 @@ export function useBeginAdministrator(
       } else if (stored.tenant === tenant) {
         go(NEW_TENANT_HREF);
       } else {
-        setReplacing({ tenant: stored.tenant, username: stored.username });
+        setReplacing({
+          tenant: stored.tenant,
+          username: stored.username,
+          granted: stored.granted,
+        });
       }
     },
     replacing,

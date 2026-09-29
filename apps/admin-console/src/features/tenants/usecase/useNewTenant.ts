@@ -9,8 +9,8 @@ import {
 } from '#/features/tenants/repository/useCreation.ts';
 import { useSystemIssuer } from '#/features/tenants/repository/useSystemIssuer.ts';
 import {
-  ADMINISTRATOR_NEEDS,
   ADMINISTRATOR_REQUEST_NEEDS,
+  administratorNeeds,
   administratorOf,
   enterHref,
   FRESH_CREATION,
@@ -105,8 +105,6 @@ export function useNewTenant(): NewTenant {
   const findSubject = useFindSubject();
   const refusal = useRefusal(SYSTEM_TENANT);
   const authority = useAuthority(SYSTEM_TENANT);
-  const needs =
-    authority === undefined ? [] : ADMINISTRATOR_NEEDS.filter((c) => !holds(authority, c));
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [unconfirmed, setUnconfirmed] = useState(false);
@@ -214,6 +212,8 @@ export function useNewTenant(): NewTenant {
 
   if (creation.step === 'administrator') {
     const step = creation;
+    const needs =
+      authority === undefined ? [] : administratorNeeds(step).filter((c) => !holds(authority, c));
     const record = (done: { readonly subjectId: string; readonly granted: boolean }): void => {
       update({ ...step, ...done });
     };
@@ -278,7 +278,12 @@ export function useNewTenant(): NewTenant {
           findSubject(step.tenant, step.username)
             .then((result) => {
               if (!result.ok) {
-                refused(`${step.username} exists`, result, [], ADMINISTRATOR_REQUEST_NEEDS.create);
+                refused(
+                  `looking for ${step.username}`,
+                  result,
+                  [],
+                  ADMINISTRATOR_REQUEST_NEEDS.find,
+                );
               } else if (result.data === null) {
                 setUnconfirmed(false);
                 setMessage(`${step.username} was not created. Create the administrator again.`);

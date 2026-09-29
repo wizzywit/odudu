@@ -3,6 +3,7 @@ import { TENANT_IMPORT_BODY_LIMIT } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import {
   administratorCalls,
+  administratorNeeds,
   builtinAdminClient,
   enterHref,
   IMPORT_TENANT_HREF,
@@ -131,5 +132,16 @@ describe('the addresses', () => {
     expect(NEW_TENANT_HREF).toBe('/console/system/new-tenant');
     expect(IMPORT_TENANT_HREF).toBe('/console/system/import-tenant');
     expect(enterHref('acme')).toBe('/console/acme');
+  });
+});
+
+describe('what the first administrator needs', () => {
+  it('is what the calls still to make need, and no more', () => {
+    expect(administratorNeeds({ subjectId: null, granted: false })).toEqual([
+      'manage-users',
+      'manage-clients',
+      'view-users',
+    ]);
+    expect(administratorNeeds({ subjectId: 's1', granted: true })).toEqual(['manage-users']);
   });
 });
