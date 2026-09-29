@@ -78,6 +78,7 @@ import {
 } from '#/view/routes/smtp';
 import {
   createKeyHandler,
+  deleteKeyHandler,
   listKeysHandler,
   promoteKeyHandler,
   retireKeyHandler,
@@ -168,6 +169,12 @@ import {
 } from '#/view/routes/tenants';
 import { whoamiHandler } from '#/view/routes/whoami';
 import {
+  listLogoutDeliveriesHandler,
+  listMailHandler,
+  readInstallationHandler,
+  type OperationsRouteDeps,
+} from '#/view/routes/operations';
+import {
   sendPasswordResetHandler,
   sendVerificationHandler,
   type AccountEmailRouteDeps,
@@ -249,6 +256,9 @@ export interface AdminRoutesDeps {
   // write @odudu/account's self-service doors make; wired at the composition
   // root with the public base URL a link is addressed under.
   sendAccountLink: SendAccountLink;
+  // `ODUDU_OUTBOX_MAX_ATTEMPTS`, the attempts the mail sender makes before it
+  // stops offering a message: what `GET …/mail` reports as `failed`.
+  outboxMaxAttempts?: number;
 }
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
@@ -467,6 +477,12 @@ function buildAdminRoutes(
       deploymentSmtp: deps.deploymentSmtp ?? false,
       callerCapabilities,
     };
+    const operationsDeps: OperationsRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      outboxMaxAttempts: deps.outboxMaxAttempts ?? 5,
+      callerCapabilities,
+    };
     const tenantSessionsDeps: TenantSessionsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
@@ -623,6 +639,12 @@ function buildAdminRoutes(
       'POST /admin/tenants/:tenant/keys': createKeyHandler(keysDeps),
       'POST /admin/tenants/:tenant/keys/:id/promote': promoteKeyHandler(keysDeps),
       'POST /admin/tenants/:tenant/keys/:id/retire': retireKeyHandler(keysDeps),
+      'DELETE /admin/tenants/:tenant/keys/:id': deleteKeyHandler(keysDeps),
+      'GET /admin/tenants/:tenant/mail': listMailHandler(operationsDeps),
+      'GET /admin/tenants/:tenant/clients/:id/logout-deliveries':
+        listLogoutDeliveriesHandler(operationsDeps),
+      'GET /admin/tenants/:tenant/clients/:id/installation':
+        readInstallationHandler(operationsDeps),
       'GET /admin/tenants/:tenant/flow/executions': listFlowHandler(flowDeps),
       'PUT /admin/tenants/:tenant/flow/executions': replaceFlowHandler(flowDeps),
       'GET /admin/tenants/:tenant/audit': listAuditHandler(auditDeps),

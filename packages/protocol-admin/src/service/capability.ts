@@ -37,6 +37,11 @@ import {
   listScopesQuerySchema,
   countScopesQuerySchema,
   listClientsResponseSchema,
+  listLogoutDeliveriesResponseSchema,
+  listLogoutDeliveriesQuerySchema,
+  clientInstallationSchema,
+  listMailResponseSchema,
+  listMailQuerySchema,
   listConsentsResponseSchema,
   listCredentialsResponseSchema,
   listGroupsResponseSchema,
@@ -681,6 +686,27 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
   },
   {
     method: 'GET',
+    pattern: '/admin/tenants/:tenant/clients/:id/logout-deliveries',
+    capability: 'manage-clients',
+    responseSchema: listLogoutDeliveriesResponseSchema,
+    querystringSchema: listLogoutDeliveriesQuerySchema,
+    description:
+      'The Back-Channel Logout Tokens queued for the client, most recent first: `pending`, ' +
+      '`delivered`, or `failed` once every attempt is spent, with the last error. Never the ' +
+      'token itself.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/clients/:id/installation',
+    capability: 'manage-clients',
+    responseSchema: clientInstallationSchema,
+    description:
+      'What a relying party is configured with: the issuer and its discovery URL, as this ' +
+      'request\u2019s host names them, and the client\u2019s own identifier, type, ' +
+      'authentication method, URIs, grant types and default scopes. Never the secret.',
+  },
+  {
+    method: 'GET',
     pattern: '/admin/tenants/:tenant/clients/:id/sessions',
     capability: 'manage-sessions',
     responseSchema: listTenantSessionsResponseSchema,
@@ -1056,6 +1082,17 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       '`DELETE …/subjects/{id}/lockout` clears one. A subject holding an admin capability the ' +
       'caller does not keeps its count and is counted under `beyond_ceiling`.',
   },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/keys/:id',
+    capability: 'manage-keys',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Deletes a retired key, which is published nowhere and signs nothing. Refused with `409` ' +
+      'for an active or rotating one, which `POST …/retire` retires first. `If-Match` is ' +
+      'optional: a stale one is refused with `412`.',
+  },
   // A tenant's own SMTP credential: manage-tenant, the same capability
   // `/settings` and `/flow` use. GET never carries a password; `configured`
   // is false and every other field null for a tenant with no row.
@@ -1101,6 +1138,18 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Sends one message synchronously and reports the transport’s own failure as a ' +
       '502, rather than the tenant discovering a bad configuration only when a user’s ' +
       'verification mail silently fails. 400 when the tenant has no SMTP configuration.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/mail',
+    capability: 'manage-tenant',
+    responseSchema: listMailResponseSchema,
+    querystringSchema: listMailQuerySchema,
+    description:
+      'The tenant\u2019s outgoing mail, most recent first: `queued`, `retrying`, `sent`, or ' +
+      '`failed` once every attempt is spent, with its attempts and the relay\u2019s last ' +
+      'error. Never the body, which carries a sign-in link. The recipient is masked, wherever ' +
+      'it appears, unless the caller also holds `view-users`.',
   },
   // A tenant's authentication flow: manage-tenant, the same capability as
   // roles, groups and scopes above. No partial edit — PUT replaces the

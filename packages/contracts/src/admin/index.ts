@@ -64,7 +64,27 @@ export {
   type AmendClientRequest,
   rotateClientSecretResponseSchema,
   type RotateClientSecretResponse,
+  LOGOUT_DELIVERY_STATUSES,
+  logoutDeliveryStatusSchema,
+  listLogoutDeliveriesQuerySchema,
+  type ListLogoutDeliveriesQuery,
+  logoutDeliverySchema,
+  type LogoutDelivery,
+  listLogoutDeliveriesResponseSchema,
+  type ListLogoutDeliveriesResponse,
+  clientInstallationSchema,
+  type ClientInstallation,
 } from '#/admin/clients';
+export {
+  OUTBOX_STATUSES,
+  outboxStatusSchema,
+  listMailQuerySchema,
+  type ListMailQuery,
+  mailMessageSchema,
+  type MailMessage,
+  listMailResponseSchema,
+  type ListMailResponse,
+} from '#/admin/mail';
 export {
   registrationTokenSchema,
   type RegistrationToken,

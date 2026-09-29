@@ -131,6 +131,7 @@ const app = buildApp({
   allowPrivateClientUrls: config.ODUDU_ALLOW_PRIVATE_CLIENT_URLS,
   allowPrivateSmtpHosts: config.ODUDU_ALLOW_PRIVATE_SMTP_HOSTS,
   deploymentSmtp: emailFallback.kind === 'smtp',
+  outboxMaxAttempts: config.ODUDU_OUTBOX_MAX_ATTEMPTS,
 });
 
 const smtpDestination = smtpDestinationPolicyFor(config);

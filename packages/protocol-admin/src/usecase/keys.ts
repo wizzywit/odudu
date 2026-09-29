@@ -16,7 +16,7 @@ import { etagOf, matches } from '#/service/etag';
 const COLLECTION = 'keys';
 
 export interface KeyAuditEvent {
-  readonly action: 'key.create' | 'key.promote' | 'key.retire';
+  readonly action: 'key.create' | 'key.promote' | 'key.retire' | 'key.delete';
   readonly resourceType: 'signing_key';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -341,4 +341,44 @@ export async function retireKey(
   });
 
   return { kind: 'ok', key: keyWireShape(retired) };
+}
+
+export type DeleteKeyOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'precondition_failed' }
+  | { kind: 'not_retired'; status: string }
+  | { kind: 'deleted' };
+
+// Only a retired key: it is published nowhere and signs nothing, so nothing
+// a relying party holds can still need it. An active or rotating key is
+// retired first, through the door that checks what still depends on it.
+export async function deleteKey(
+  tx: TenantScopedDatabase,
+  deps: RetireKeyDeps,
+  input: RetireKeyInput,
+): Promise<DeleteKeyOutcome> {
+  const rows = await tx
+    .select()
+    .from(signingKeys)
+    .where(eq(signingKeys.id, input.keyId))
+    .for('update');
+  const row = rows[0];
+  if (row === undefined) return { kind: 'not_found' };
+  if (matches(input.ifMatch, etagOf(keyWireShape(toSigningKeyRecord(row)))) === 'mismatch') {
+    return { kind: 'precondition_failed' };
+  }
+  if (row.status !== 'retired') return { kind: 'not_retired', status: row.status };
+
+  await tx.delete(signingKeys).where(eq(signingKeys.id, row.id));
+  await deps.audit(tx, {
+    action: 'key.delete',
+    resourceType: 'signing_key',
+    resourceId: row.id,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: { kid: row.kid },
+  });
+  return { kind: 'deleted' };
 }

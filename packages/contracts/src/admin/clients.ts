@@ -114,3 +114,47 @@ export const rotateClientSecretResponseSchema = clientSchema.extend({
   client_secret: z.string(),
 });
 export type RotateClientSecretResponse = z.infer<typeof rotateClientSecretResponseSchema>;
+
+export const LOGOUT_DELIVERY_STATUSES = ['pending', 'delivered', 'failed'] as const;
+export const logoutDeliveryStatusSchema = z.enum(LOGOUT_DELIVERY_STATUSES);
+
+export const listLogoutDeliveriesQuerySchema = cursorQuerySchema
+  .extend({ status: logoutDeliveryStatusSchema.optional() })
+  .strict();
+export type ListLogoutDeliveriesQuery = z.infer<typeof listLogoutDeliveriesQuerySchema>;
+
+// One Back-Channel Logout Token queued for the client: never the token.
+export const logoutDeliverySchema = z.object({
+  id: idSchema,
+  session_id: idSchema,
+  endpoint: z.string(),
+  status: logoutDeliveryStatusSchema,
+  attempts: z.number().int().nonnegative(),
+  last_error: z.string().nullable(),
+  created_at: createdAtSchema,
+  next_attempt_at: z.string(),
+  delivered_at: z.string().nullable(),
+});
+export type LogoutDelivery = z.infer<typeof logoutDeliverySchema>;
+
+export const listLogoutDeliveriesResponseSchema = z.object({
+  items: z.array(logoutDeliverySchema),
+  next: z.string().optional(),
+});
+export type ListLogoutDeliveriesResponse = z.infer<typeof listLogoutDeliveriesResponseSchema>;
+
+// What a relying party is configured with, from the client and the issuer
+// it is registered under. Never the secret, which is shown once, at creation
+// or rotation.
+export const clientInstallationSchema = z.object({
+  issuer: z.string(),
+  discovery_url: z.string(),
+  client_id: z.string(),
+  client_type: clientTypeSchema,
+  token_endpoint_auth_method: z.string(),
+  redirect_uris: z.array(z.string()),
+  post_logout_redirect_uris: z.array(z.string()),
+  grant_types: z.array(z.string()),
+  default_scope: z.string(),
+});
+export type ClientInstallation = z.infer<typeof clientInstallationSchema>;

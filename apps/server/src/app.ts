@@ -131,6 +131,8 @@ export interface AppDeps {
    * with no relay of its own falls back to. Defaults `false`.
    */
   readonly deploymentSmtp?: boolean;
+  /** `ODUDU_OUTBOX_MAX_ATTEMPTS`, what the admin API's mail listing calls `failed`. */
+  readonly outboxMaxAttempts?: number;
 }
 
 export interface ThrottleSettings {
@@ -299,6 +301,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       claimMappers,
       allowPrivateSmtpHosts: deps.allowPrivateSmtpHosts ?? false,
       deploymentSmtp: deps.deploymentSmtp ?? false,
+      ...(deps.outboxMaxAttempts === undefined
+        ? {}
+        : { outboxMaxAttempts: deps.outboxMaxAttempts }),
       retireResetLinks: (tx, subjectId) =>
         actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
       sendAccountLink: async (tx, request) => {

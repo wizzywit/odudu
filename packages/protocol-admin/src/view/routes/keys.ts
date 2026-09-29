@@ -9,6 +9,7 @@ import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
 import {
   createKey,
+  deleteKey,
   listKeys,
   promoteKey,
   retireKey,
@@ -194,5 +195,50 @@ export function retireKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
     }
     reply.header('etag', etagOf(outcome.key));
     return reply.code(200).send(outcome.key);
+  };
+}
+
+export function deleteKeyHandler(deps: KeysRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: DELETE key route received no :id');
+    }
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      deleteKey(
+        tx,
+        { audit: deps.audit },
+        {
+          keyId: id,
+          ifMatch: ifMatchHeader(request),
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+    switch (outcome.kind) {
+      case 'deleted':
+        return reply.code(204).send();
+      case 'not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no key ${id}`),
+        );
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
+      case 'not_retired':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            409,
+            'about:blank',
+            'Conflict',
+            `the key is ${outcome.status}: only a retired key can be deleted; retire it first`,
+          ),
+        );
+    }
   };
 }
