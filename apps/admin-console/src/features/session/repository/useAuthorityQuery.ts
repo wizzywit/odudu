@@ -21,6 +21,9 @@ function refusedUnknown(result: GatewayResult<Authority> | undefined): boolean {
 export function useAuthorityQuery(
   tenant: string,
   subjectId: string | null,
+  // False once the session has ended: what whoami said is kept, and it is
+  // not asked again until the principal signs back in.
+  live = true,
 ): {
   readonly authority: Authority | undefined;
   // undefined until whoami has answered.
@@ -32,12 +35,11 @@ export function useAuthorityQuery(
   const key = ['whoami', tenant, subjectId] as const;
   // Every page and the rail ask for it, so a page mounting must not read it
   // again each time: a 403 re-reads it, and so does coming back to the window.
-  // With no principal, as once a session has ended, there is nobody to ask about.
   const query = useQuery({
     queryKey: key,
     queryFn: () => readAuthority(gateway, tenant),
     refetchOnMount: false,
-    enabled: subjectId !== null,
+    enabled: subjectId !== null && live,
   });
   return {
     authority: query.data?.ok === true ? query.data.data : undefined,

@@ -5,8 +5,8 @@ import { useSignedIn } from '#/features/session/usecase/useSignedIn.ts';
 import type { GatewayResult } from '#/shared/transport/gateway.ts';
 
 function useWhoami(tenant: string) {
-  const { principal } = useSignedIn();
-  return useAuthorityQuery(tenant, principal?.subjectId ?? null);
+  const { principal, ended } = useSignedIn();
+  return useAuthorityQuery(tenant, principal?.subjectId ?? null, ended === null);
 }
 
 export function useAuthority(tenant: string): Authority | undefined {

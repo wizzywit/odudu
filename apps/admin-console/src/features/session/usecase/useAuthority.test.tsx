@@ -108,3 +108,19 @@ it('asks whoami nothing while nobody is signed in', async () => {
   await new Promise((resolve) => setTimeout(resolve, 50));
   expect(whoamiReads(fake.calls)).toBe(0);
 });
+
+it('asks whoami nothing once the session has ended, until the principal is back', async () => {
+  const fake = fakeTransport({ [WHOAMI]: json({}) });
+  render(
+    <TransportContext value={fake.transport}>
+      <QueryClientProvider client={createQueryClient()}>
+        <SignedInContext value={{ principal: GRACE, ended: GRACE }}>
+          <RotateSecret />
+        </SignedInContext>
+      </QueryClientProvider>
+    </TransportContext>,
+  );
+  await screen.findByRole('button', { name: 'Rotate secret' });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(whoamiReads(fake.calls)).toBe(0);
+});
