@@ -125,6 +125,23 @@ it('names the capability a refused read needed', () => {
   expect(screen.queryByRole('search')).toBeNull();
 });
 
+it('draws no empty count slot in a toolbar while nothing is counted', () => {
+  render(
+    <ResourceListPage
+      list={state({ count: null })}
+      title="Clients"
+      noun={{ one: 'client', other: 'clients' }}
+      filters={<span>Only enabled</span>}
+      columns={COLUMNS}
+      rowKey={(row) => row.id}
+      capability="manage-clients"
+    />,
+  );
+  const toolbar = screen.getByRole('group', { name: 'Filter clients' });
+  expect(toolbar).toHaveTextContent('Only enabled');
+  expect([...toolbar.querySelectorAll('span')].filter((s) => s.textContent === '')).toEqual([]);
+});
+
 it('says it is loading while the first page is on its way', () => {
   render(page(state({ status: 'loading', rows: [], count: null })));
   const status = screen.getByRole('status');

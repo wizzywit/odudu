@@ -99,7 +99,10 @@ function Narrowing<T>({
 }) {
   const [first] = searchFields;
   if (first === undefined) {
-    const count = children === null ? null : <span className={styles.count}>{children}</span>;
+    const count =
+      children === undefined || children === null ? null : (
+        <span className={styles.count}>{children}</span>
+      );
     if (filters === undefined) return <div className={styles.toolbar}>{count}</div>;
     return (
       <div role="group" aria-label={`Filter ${noun.other}`} className={styles.toolbar}>
