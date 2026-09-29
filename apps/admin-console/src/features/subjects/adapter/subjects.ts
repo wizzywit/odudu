@@ -4,8 +4,8 @@ import {
   listSubjectsResponseSchema,
   lockoutSchema,
   profileSchema,
-  settingsSchema,
   subjectSchema,
+  usernamePolicySchema,
   type AmendProfileRequest,
   type AmendSubjectRequest,
   type CountResponse,
@@ -188,14 +188,13 @@ export function clearLockout(
   });
 }
 
-// The setting alone: the rest of the settings are the Settings page's.
 export async function readUsernameEditable(
   gateway: Gateway,
   tenant: string,
 ): Promise<GatewayResult<boolean>> {
   const t = path(tenant);
-  const result = await gateway.request('GET', `admin/tenants/${t}/settings`, {
-    schema: settingsSchema,
+  const result = await gateway.request('GET', `admin/tenants/${t}/subjects/username-policy`, {
+    schema: usernamePolicySchema,
   });
-  return result.ok ? { ...result, data: result.data.username_editable === true } : result;
+  return result.ok ? { ...result, data: result.data.username_editable } : result;
 }

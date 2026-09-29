@@ -1,7 +1,6 @@
 import type { Profile } from '@odudu/contracts/admin';
 import { useRefusal } from '#/features/session/index.ts';
 import {
-  profileRecord,
   saveClaims,
   saveVerification,
   useProfileRecord,
@@ -12,6 +11,7 @@ import {
   ADDRESS_CLAIMS,
   DETAIL_CLAIMS,
   NAME_CLAIMS,
+  profileRecord,
   type ClaimField,
 } from '#/features/subjects/service.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';

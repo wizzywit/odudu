@@ -11,7 +11,7 @@ import {
 } from '#/features/subjects/repository/useCredentials.ts';
 import { factorLabel, signsInAsItself, subjectName } from '#/features/subjects/service.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
+import type { GatewayResult } from '#/shared/transport/gateway.ts';
 
 export type Asking =
   | { readonly kind: 'password' }
@@ -84,24 +84,19 @@ export function useSubjectCredentials(tenant: string, subject: Subject): Subject
   const credentials = useCredentials(tenant, subject.id, !itself);
   const lockout = useLockout(tenant, subject.id, !itself);
   const changes = useCredentialChanges(tenant, subject.id);
-  const issue = useIssuePassword(tenant, subject.id);
   const [asking, setAsking] = useState<Asking | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  // The failure already on record when the issue began, so only a new one counts.
-  const [issuing, setIssuing] = useState<{ readonly before: GatewayFailure | null } | null>(null);
-
   // The issue's failure is said in the dialog that asked for it; its
   // success closes that dialog, and the secret has its own.
-  const failed = issue.failure !== null && issue.failure !== issuing?.before;
-  if (issuing !== null && !issue.busy && (issue.secret !== null || failed)) {
-    setIssuing(null);
-    if (!failed) {
+  const issue = useIssuePassword(tenant, subject.id, {
+    issued: () => {
       setAsking(null);
-    } else {
-      refusal.report(issue.failure, 'manage-users');
-      setProblem(refusalText('The password', issue.failure));
-    }
-  }
+    },
+    refused: (failure) => {
+      refusal.report(failure, 'manage-users');
+      setProblem(refusalText('The password', failure));
+    },
+  });
 
   return {
     name,
@@ -123,7 +118,6 @@ export function useSubjectCredentials(tenant: string, subject: Subject): Subject
       if (asking === null || changes.busy || issue.busy) return;
       setProblem(null);
       if (asking.kind === 'password') {
-        setIssuing({ before: issue.failure });
         issue.start();
         return;
       }

@@ -2,7 +2,7 @@ import { json, type Answer } from '#/testing/fakeTransport.ts';
 import { GRACE, whoami } from '#/testing/renderConsole.tsx';
 
 export const S = '/console/api/admin/tenants/acme/subjects';
-export const SETTINGS = '/console/api/admin/tenants/acme/settings';
+export const POLICY = '/console/api/admin/tenants/acme/subjects/username-policy';
 export const ADA_ID = '01a0e72d-7fc7-7950-a1e7-1d079588f8b4';
 export const ADA_AT = `/console/acme/subjects/${ADA_ID}`;
 export const EVERY_TENANT_CAPABILITY = [
@@ -83,7 +83,7 @@ export function subjectRoutes(
     [`GET ${S}/${ADA_ID}/profile`]: json(profile(), 200, { etag: '"p1"' }),
     [`GET ${S}/${ADA_ID}/credentials`]: json({ items: [] }),
     [`GET ${S}/${ADA_ID}/lockout`]: json(NOT_LOCKED),
-    [`GET ${SETTINGS}`]: json({ username_editable: false }),
+    [`GET ${POLICY}`]: json({ username_editable: false }),
     ...extra,
   };
 }

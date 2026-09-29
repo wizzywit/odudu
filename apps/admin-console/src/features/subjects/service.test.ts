@@ -7,7 +7,11 @@ import {
   lockoutSummary,
   NAME_CLAIMS,
   newSubjectHref,
+  profileRecord,
+  SUBJECT_TABS,
   subjectHref,
+  subjectRecord,
+  TAB_RECORDS,
   subjectName,
   subjectsHref,
   subjectsTrail,
@@ -108,5 +112,13 @@ describe('the lockout', () => {
         last_failure_at: '2026-09-29T09:59:00.000Z',
       }),
     ).toMatchObject({ tone: 'danger', state: 'locked', text: /after 6 failed sign-ins/u });
+  });
+});
+
+describe('the record tabs', () => {
+  it('names, for every tab, the records whose sections it edits', () => {
+    expect(Object.keys(TAB_RECORDS).sort()).toEqual([...SUBJECT_TABS].sort());
+    expect(TAB_RECORDS.profile('s1')).toEqual([subjectRecord('s1'), profileRecord('s1')]);
+    expect(TAB_RECORDS.credentials('s1')).toEqual([]);
   });
 });

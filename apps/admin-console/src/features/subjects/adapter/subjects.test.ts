@@ -103,16 +103,22 @@ it('reaches the credential, lockout and deletion routes by the subject id', asyn
   expect(await deleteSubject(gateway, 'acme', ID)).toMatchObject({ ok: true });
 });
 
-it('reads whether usernames can be renamed from the tenant’s settings', async () => {
+it('reads whether usernames can be renamed from the subjects’ username policy', async () => {
   const on = fakeTransport({
-    'GET /console/api/admin/tenants/acme/settings': json({ username_editable: true }),
+    'GET /console/api/admin/tenants/acme/subjects/username-policy': json({
+      username_editable: true,
+    }),
   });
   expect(await readUsernameEditable(on.transport.gateway, 'acme')).toMatchObject({
     ok: true,
     data: true,
   });
   const refused = fakeTransport({
-    'GET /console/api/admin/tenants/acme/settings': problem(403, 'about:blank', 'Forbidden'),
+    'GET /console/api/admin/tenants/acme/subjects/username-policy': problem(
+      403,
+      'about:blank',
+      'Forbidden',
+    ),
   });
   expect(await readUsernameEditable(refused.transport.gateway, 'acme')).toMatchObject({
     ok: false,

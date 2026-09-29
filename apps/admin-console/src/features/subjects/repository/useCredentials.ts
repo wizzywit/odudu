@@ -1,4 +1,8 @@
-import type { ListCredentialsResponse, Lockout } from '@odudu/contracts/admin';
+import type {
+  IssuePasswordResponse,
+  ListCredentialsResponse,
+  Lockout,
+} from '@odudu/contracts/admin';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   clearLockout,
@@ -9,7 +13,7 @@ import {
 } from '#/features/subjects/adapter/subjects.ts';
 import { issuePassword } from '#/shared/adapter/administrators.ts';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce.ts';
-import type { GatewayResult } from '#/shared/transport/gateway.ts';
+import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export type Read<T> =
@@ -92,17 +96,34 @@ export function useCredentialChanges(tenant: string, id: string): CredentialChan
   return { busy: mutation.isPending, run: (change) => mutation.mutateAsync(change) };
 }
 
-// Issuing replaces the password and clears any lockout, so both are read again.
-export function useIssuePassword(tenant: string, id: string): SecretOnce<void, null> {
+// Issuing replaces the password and clears any lockout, so both are read
+// again. The caller is told how it ended from the write itself, not a render.
+export function useIssuePassword(
+  tenant: string,
+  id: string,
+  told: {
+    readonly issued: () => void;
+    readonly refused: (failure: GatewayFailure) => void;
+  },
+): SecretOnce<void, null> {
   const client = useQueryClient();
   return useSecretOnce({
     run: async (gateway) => {
-      const result = await issuePassword(gateway, tenant, id);
-      if (result.ok) {
-        for (const key of [credentialsKey(tenant, id), lockoutKey(tenant, id)]) {
-          client.invalidateQueries({ queryKey: key, exact: true }).catch(() => undefined);
-        }
+      let result: GatewayResult<IssuePasswordResponse>;
+      try {
+        result = await issuePassword(gateway, tenant, id);
+      } catch (error) {
+        told.refused({ ok: false, kind: 'defect' });
+        throw error;
       }
+      if (!result.ok) {
+        told.refused(result);
+        return result;
+      }
+      for (const key of [credentialsKey(tenant, id), lockoutKey(tenant, id)]) {
+        client.invalidateQueries({ queryKey: key, exact: true }).catch(() => undefined);
+      }
+      told.issued();
       return result;
     },
     split: (data) => ({ secret: data.password, rest: null }),

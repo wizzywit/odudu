@@ -1,13 +1,9 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority, usePrincipal } from '#/features/session/index.ts';
 import { holds } from '#/features/shell/index.ts';
-import {
-  profileRecord,
-  subjectRecord,
-  useSubjectRecord,
-} from '#/features/subjects/repository/useSubjectRecord.ts';
-import { SUBJECT_TABS, type SubjectTab } from '#/features/subjects/service.ts';
-import { useDirtySections } from '#/shared/repository/useDirtySections.ts';
+import { useDirtyRecords } from '#/features/subjects/repository/useDirtyRecords.ts';
+import { useSubjectRecord } from '#/features/subjects/repository/useSubjectRecord.ts';
+import { SUBJECT_TABS, TAB_RECORDS, type SubjectTab } from '#/features/subjects/service.ts';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
 import type { RecordView } from '#/shared/service/record.ts';
 
@@ -30,9 +26,13 @@ export function useSubjectRecordPage(tenant: string, id: string): SubjectRecordP
   const principal = usePrincipal();
   const authority = useAuthority(tenant);
   const { tab, selectTab } = useRecordTab(SUBJECT_TABS);
-  const account = useDirtySections(tenant, subjectRecord(id));
-  const profile = useDirtySections(tenant, profileRecord(id));
-  const dirty = new Set<SubjectTab>(account.size + profile.size > 0 ? ['profile'] : []);
+  const edited = useDirtyRecords(
+    tenant,
+    SUBJECT_TABS.flatMap((each) => TAB_RECORDS[each](id)),
+  );
+  const dirty = new Set<SubjectTab>(
+    SUBJECT_TABS.filter((each) => TAB_RECORDS[each](id).some((record) => edited.has(record))),
+  );
   return {
     record,
     subject: record.data,

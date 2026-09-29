@@ -1,28 +1,31 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useAuthority, useRefusal } from '#/features/session/index.ts';
-import { areaAt, areaHref, holds } from '#/features/shell/index.ts';
+import { useRefusal } from '#/features/session/index.ts';
+import { areaAt, areaHref } from '#/features/shell/index.ts';
 import { useGo } from '#/features/subjects/repository/useGo.ts';
 import {
   saveAccount,
-  subjectRecord,
   useSubjectDeletion,
   useSubjectEnabled,
-  useUsernameEditable,
+  useUsernamePolicy,
   type AccountValues,
 } from '#/features/subjects/repository/useSubjectRecord.ts';
-import { subjectName, subjectsHref, USERNAME_RULE_TEXT } from '#/features/subjects/service.ts';
+import {
+  subjectName,
+  subjectRecord,
+  subjectsHref,
+  USERNAME_RULE_TEXT,
+} from '#/features/subjects/service.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import type { GatewayResult } from '#/shared/transport/gateway.ts';
 
 export type UsernameMode =
-  // Offered: the setting is on.
+  // Offered: the tenant's policy accepts a rename.
   | { readonly kind: 'editable'; readonly description: string }
-  // Offered although the setting could not be read, so the save is the server's to refuse.
-  | { readonly kind: 'unread'; readonly description: string }
-  // Not offered: the setting is off, and this is why.
+  // Not offered: the policy is off, and this is why.
   | { readonly kind: 'fixed'; readonly reason: string; readonly settingsHref: string }
+  | { readonly kind: 'failed'; readonly retry: () => void }
   | { readonly kind: 'checking' };
 
 export interface Confirmable {
@@ -48,8 +51,6 @@ export interface SubjectAccount {
   readonly remove: Confirmable;
 }
 
-const RENAME_UNREAD = `${USERNAME_RULE_TEXT} A rename is accepted only while the tenant's username_editable setting is on, and reading it needs the manage-tenant capability, so saving is what finds out.`;
-
 function refusalText(
   name: string,
   verb: string,
@@ -74,20 +75,22 @@ function refusalText(
 }
 
 function useUsernameMode(tenant: string): UsernameMode {
-  const authority = useAuthority(tenant);
-  const readable = holds(authority, 'manage-tenant');
-  const editable = useUsernameEditable(tenant, readable);
-  if (authority === undefined) return { kind: 'checking' };
-  if (!readable) return { kind: 'unread', description: RENAME_UNREAD };
-  if (editable === null) return { kind: 'checking' };
-  return editable
-    ? { kind: 'editable', description: USERNAME_RULE_TEXT }
-    : {
-        kind: 'fixed',
-        reason:
-          "Usernames in this tenant are fixed: its username_editable setting is off, so a rename would be refused. Turn it on under the tenant's",
-        settingsHref: areaHref(tenant, areaAt('settings')),
-      };
+  const policy = useUsernamePolicy(tenant);
+  switch (policy.status) {
+    case 'loading':
+      return { kind: 'checking' };
+    case 'failed':
+      return { kind: 'failed', retry: policy.retry };
+    case 'ready':
+      return policy.editable
+        ? { kind: 'editable', description: USERNAME_RULE_TEXT }
+        : {
+            kind: 'fixed',
+            reason:
+              "Usernames in this tenant are fixed: its username_editable setting is off, so a rename would be refused. Turn it on under the tenant's",
+            settingsHref: areaHref(tenant, areaAt('settings')),
+          };
+  }
 }
 
 export function useSubjectAccount(

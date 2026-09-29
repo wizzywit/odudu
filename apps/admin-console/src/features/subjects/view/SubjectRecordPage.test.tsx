@@ -66,3 +66,11 @@ it('passes axe in both themes', async () => {
     ),
   ).toEqual({ light: [], dark: [] });
 });
+
+it('marks the Profile tab while one of its sections holds an edit', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(ADA_AT, subjectRoutes());
+  await user.type(await screen.findByRole('textbox', { name: 'Full name' }), 'Ada');
+  expect(screen.getByRole('tab', { name: 'Profile, unsaved changes' })).toBeVisible();
+  expect(screen.getByRole('tab', { name: 'Credentials' })).toBeVisible();
+});

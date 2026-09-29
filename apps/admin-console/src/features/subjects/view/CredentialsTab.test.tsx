@@ -74,7 +74,11 @@ it('lists the second factors, and removes one after a confirmation', async () =>
   const table = await screen.findByRole('grid', { name: 'Second factors of ada' });
   expect(within(table).getByRole('row', { name: /Authenticator app/u })).toBeVisible();
   expect(within(table).getByRole('row', { name: /Passkey/u })).toBeVisible();
-  await user.click(within(table).getByRole('button', { name: 'Remove Authenticator app (TOTP)' }));
+  await user.click(
+    within(table).getByRole('button', {
+      name: 'Remove Authenticator app (TOTP) enrolled 2026-09-02 08:00:00 UTC',
+    }),
+  );
   const dialog = await screen.findByRole('alertdialog', {
     name: 'Remove ada’s authenticator app (TOTP)?',
   });
@@ -126,6 +130,46 @@ it('shows a lockout, and clears it after a confirmation', async () => {
   expect(await screen.findByText('No failed sign-ins on record.')).toBeVisible();
 });
 
+it('says in its dialog why an issue was refused, and shows no secret', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`POST ${C}/password`]: problem(403, 'about:blank', 'Forbidden'),
+    }),
+  );
+  await user.click(await screen.findByRole('button', { name: 'Issue a one-time password' }));
+  const dialog = await screen.findByRole('alertdialog');
+  await user.click(within(dialog).getByRole('button', { name: 'Issue password' }));
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(/manage-users/u);
+  expect(screen.queryByRole('dialog', { name: "ada's one-time password" })).toBeNull();
+  await waitFor(() => {
+    expect(sent.filter((s) => s.path.endsWith('/whoami')).length).toBeGreaterThan(1);
+  });
+});
+
+it('names each Remove by its factor and when it was enrolled', async () => {
+  renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`GET ${C}/credentials`]: json({
+        items: [
+          { id: 'k1', type: 'webauthn', created_at: '2026-09-03T08:00:00.000Z' },
+          { id: 'k2', type: 'webauthn', created_at: '2026-09-05T09:30:00.000Z' },
+        ],
+      }),
+    }),
+  );
+  const table = await screen.findByRole('grid', { name: 'Second factors of ada' });
+  const names = within(table)
+    .getAllByRole('button')
+    .map((button) => button.getAttribute('aria-label'));
+  expect(names).toEqual([
+    'Remove Passkey enrolled 2026-09-03 08:00:00 UTC',
+    'Remove Passkey enrolled 2026-09-05 09:30:00 UTC',
+  ]);
+});
+
 it('says in the dialog why a removal was refused', async () => {
   const user = userEvent.setup();
   renderConsoleAt(
@@ -135,7 +179,9 @@ it('says in the dialog why a removal was refused', async () => {
       [`DELETE ${C}/credentials/c-key`]: problem(403, 'about:blank', 'Forbidden'),
     }),
   );
-  await user.click(await screen.findByRole('button', { name: 'Remove Passkey' }));
+  await user.click(
+    await screen.findByRole('button', { name: 'Remove Passkey enrolled 2026-09-03 08:00:00 UTC' }),
+  );
   const dialog = await screen.findByRole('alertdialog');
   await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
   expect(await within(dialog).findByRole('alert')).toHaveTextContent(/manage-users/u);

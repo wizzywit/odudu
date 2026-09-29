@@ -15,16 +15,9 @@ import {
   type RecordState,
 } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
+import { profileRecord, subjectRecord } from '#/features/subjects/service.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
-
-export function subjectRecord(id: string): string {
-  return `subjects/${id}`;
-}
-
-export function profileRecord(id: string): string {
-  return `subjects/${id}/profile`;
-}
 
 export function useSubjectRecord(tenant: string, id: string): RecordState<Subject> {
   return useRecord({
@@ -136,15 +129,24 @@ export function useSubjectDeletion(tenant: string, id: string): SubjectChange<vo
   return { busy: mutation.isPending, run: () => mutation.mutateAsync() };
 }
 
-// Whether a rename would be accepted: true or false once read, null while
-// it is not asked (the read needs manage-tenant), loading or refused.
-export function useUsernameEditable(tenant: string, asked: boolean): boolean | null {
+export type UsernamePolicyRead =
+  | { readonly status: 'loading' }
+  | { readonly status: 'ready'; readonly editable: boolean }
+  | { readonly status: 'failed'; readonly retry: () => void };
+
+// Whether a rename would be accepted, as the tenant's policy says.
+export function useUsernamePolicy(tenant: string): UsernamePolicyRead {
   const { gateway } = useTransport();
-  const query = useQuery({
-    queryKey: ['username-editable', tenant],
-    queryFn: () => readUsernameEditable(gateway, tenant),
-    enabled: asked,
-  });
+  const client = useQueryClient();
+  const key = ['username-policy', tenant] as const;
+  const query = useQuery({ queryKey: key, queryFn: () => readUsernameEditable(gateway, tenant) });
   const result = query.data;
-  return asked && result?.ok === true ? result.data : null;
+  if (result === undefined) return { status: 'loading' };
+  if (result.ok) return { status: 'ready', editable: result.data };
+  return {
+    status: 'failed',
+    retry: () => {
+      client.invalidateQueries({ queryKey: key, exact: true }).catch(() => undefined);
+    },
+  };
 }

@@ -3,6 +3,7 @@ import {
   credentialsOf,
   factorLabel,
   lockoutSummary,
+  removeFactorLabel,
   type Credential,
   type Lockout,
   type Subject,
@@ -133,7 +134,7 @@ function Factors({
         <Button
           size="small"
           variant="quiet"
-          aria-label={`Remove ${factorLabel(credential.type)}`}
+          aria-label={removeFactorLabel(credential)}
           onPress={() => {
             page.ask({ kind: 'factor', credential });
           }}

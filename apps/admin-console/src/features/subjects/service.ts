@@ -5,6 +5,7 @@ import {
   type Profile,
   type Subject,
 } from '@odudu/contracts/admin';
+import { formatAbsolute } from '#/shared/service/format.ts';
 
 export type { Credential, Lockout, Profile, Subject };
 
@@ -100,6 +101,11 @@ export function factorLabel(type: Credential['type']): string {
   return type === 'totp' ? 'Authenticator app (TOTP)' : 'Passkey';
 }
 
+// Two passkeys share a label, so each Remove names when its own was enrolled.
+export function removeFactorLabel(credential: Credential): string {
+  return `Remove ${factorLabel(credential.type)} enrolled ${formatAbsolute(new Date(credential.created_at))}`;
+}
+
 export interface LockoutSummary {
   readonly tone: 'neutral' | 'danger';
   readonly state: 'locked' | 'not locked';
@@ -137,6 +143,20 @@ export type SubjectTab = (typeof SUBJECT_TABS)[number];
 export const SUBJECT_TAB_LABELS: Readonly<Record<SubjectTab, string>> = {
   profile: 'Profile',
   credentials: 'Credentials',
+};
+
+export function subjectRecord(id: string): string {
+  return `subjects/${id}`;
+}
+
+export function profileRecord(id: string): string {
+  return `subjects/${id}/profile`;
+}
+
+// The records whose sections each tab edits, so its dot follows them.
+export const TAB_RECORDS: Readonly<Record<SubjectTab, (id: string) => readonly string[]>> = {
+  profile: (id) => [subjectRecord(id), profileRecord(id)],
+  credentials: () => [],
 };
 
 // A service or agent subject has no `users` row: no username, email,

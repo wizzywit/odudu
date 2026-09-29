@@ -51,7 +51,7 @@ function notice<T extends Readonly<Record<string, unknown>>>(title: string, s: S
 function Username({ account, canManage }: { account: SubjectAccount; canManage: boolean }) {
   const s = account.section;
   const mode = account.username;
-  if (mode.kind === 'editable' || mode.kind === 'unread') {
+  if (mode.kind === 'editable') {
     return (
       <TextField
         label="Username"
@@ -76,6 +76,14 @@ function Username({ account, canManage }: { account: SubjectAccount; canManage: 
       {mode.kind === 'fixed' ? (
         <dd className={styles.rule}>
           {mode.reason} <Link href={mode.settingsHref}>Settings</Link>.
+        </dd>
+      ) : null}
+      {mode.kind === 'failed' ? (
+        <dd className={styles.rule}>
+          Whether this username can be renamed could not be read, so it is not offered.{' '}
+          <Button size="small" variant="quiet" onPress={mode.retry}>
+            Check again
+          </Button>
         </dd>
       ) : null}
     </dl>
@@ -151,7 +159,7 @@ function Status({ account, self }: { account: SubjectAccount; self: boolean }) {
         title={self ? 'Disable your own subject?' : `Disable ${name}?`}
         consequence={
           self
-            ? `You are disabling ${name}, the subject you are signed in as. Once it lands you cannot sign in again, and this console session ends at its next request. Somebody else has to enable you.`
+            ? `You are disabling ${name}, the subject you are signed in as. Once it lands you cannot sign in again, and this console session ends at its next request, since the admin API refuses a disabled subject’s token. Somebody else has to enable you.`
             : `${name} can no longer sign in. Enabling them again undoes this.`
         }
         confirmLabel={`Disable ${name}`}

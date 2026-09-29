@@ -11,7 +11,7 @@ import {
   noContent,
   profile,
   S,
-  SETTINGS,
+  POLICY,
   subject,
   subjectRoutes,
 } from '#/testing/subjectsFixtures.ts';
@@ -37,7 +37,7 @@ it('renames on the ETag the subject was read with while renaming is on', async (
   const { sent } = renderConsoleAt(
     ADA_AT,
     subjectRoutes(undefined, {
-      [`GET ${SETTINGS}`]: json({ username_editable: true }),
+      [`GET ${POLICY}`]: json({ username_editable: true }),
       [`PATCH ${S}/${ADA_ID}`]: json({ ...ADA, username: 'ada2' }, 200, { etag: '"s2"' }),
     }),
   );
@@ -54,30 +54,38 @@ it('renames on the ETag the subject was read with while renaming is on', async (
   expect(await screen.findByRole('heading', { level: 1, name: 'ada2' })).toBeVisible();
 });
 
-it('offers the rename when the setting cannot be read, and puts a refusal under the field', async () => {
+it('reads the policy with view-users alone, and shows the username fixed to such an operator', async () => {
+  const { sent } = renderConsoleAt(ADA_AT, subjectRoutes(['view-users']));
+  expect(await screen.findByText(/username_editable setting is off/u)).toBeVisible();
+  expect(sent.some((s) => s.path === POLICY)).toBe(true);
+  expect(sent.some((s) => s.path.endsWith('/settings'))).toBe(false);
+});
+
+it('shows the rename read-only to an operator without manage-users while renaming is on', async () => {
+  renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(['view-users'], { [`GET ${POLICY}`]: json({ username_editable: true }) }),
+  );
+  expect(await screen.findByRole('textbox', { name: 'Username' })).toBeDisabled();
+});
+
+it('says when the policy could not be read, and reads it again on request', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(
     ADA_AT,
-    subjectRoutes(['view-users', 'manage-users'], {
-      [`PATCH ${S}/${ADA_ID}`]: problem(400, 'about:blank', 'Bad Request', {
-        detail: 'username: this tenant has not enabled username editing (username_editable)',
-        errors: [
-          {
-            path: 'username',
-            message: 'this tenant has not enabled username editing (username_editable)',
-          },
-        ],
-      }),
+    subjectRoutes(undefined, {
+      [`GET ${POLICY}`]: inTurn(
+        problem(500, 'about:blank', 'Internal Server Error'),
+        json({ username_editable: true }),
+      ),
     }),
   );
-  const field = await screen.findByRole('textbox', { name: 'Username' });
-  expect(field).toHaveAccessibleDescription(/reading it needs the manage-tenant capability/u);
-  await user.type(field, 'x');
-  await user.click(screen.getByRole('button', { name: 'Save Account' }));
-  await waitFor(() => {
-    expect(field).toHaveAccessibleDescription(/has not enabled username editing/u);
-  });
-  expect(sent.some((s) => s.path === SETTINGS)).toBe(false);
+  expect(
+    await screen.findByText(/Whether this username can be renamed could not be read/u),
+  ).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Check again' }));
+  expect(await screen.findByRole('textbox', { name: 'Username' })).toBeVisible();
+  expect(sent.filter((s) => s.path === POLICY).length).toBeGreaterThan(1);
 });
 
 it('clears an emptied email rather than sending an empty one', async () => {
@@ -203,6 +211,9 @@ it('says so when you are disabling yourself, and shows the guard’s refusal', a
   );
   await user.click(await screen.findByRole('button', { name: 'Disable grace' }));
   const dialog = await screen.findByRole('alertdialog', { name: 'Disable your own subject?' });
+  expect(dialog).toHaveTextContent(
+    'You are disabling grace, the subject you are signed in as. Once it lands you cannot sign in again, and this console session ends at its next request, since the admin API refuses a disabled subject’s token. Somebody else has to enable you.',
+  );
   await user.click(within(dialog).getByRole('button', { name: 'Disable grace' }));
   expect(await within(dialog).findByRole('alert')).toHaveTextContent(
     /left with no enabled administrator/u,
