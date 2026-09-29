@@ -1,6 +1,7 @@
 import { VisuallyHidden } from 'react-aria-components';
 import type { Conflict } from '#/shared/service/conflict.ts';
 import type { ConflictSource, SaveStatus } from '#/shared/service/sectionSave.ts';
+import { Button } from '#/shared/view/Button.tsx';
 import { ConflictPanel } from '#/shared/view/ConflictPanel.tsx';
 import styles from '#/shared/view/SectionNotice.module.css';
 
@@ -17,6 +18,8 @@ function summary(
       return source === 'kept'
         ? `${section} changed since these edits were kept: ${labels}. Compare them, then keep yours or take theirs.`
         : `${labels} in ${section} changed elsewhere since you opened it. Keep yours or take theirs.`;
+    case 'unread':
+      return `${section} changed elsewhere, and its newer version could not be loaded. Nothing was saved; load it before saving again.`;
     case 'stale':
       return `${section} changed elsewhere since you opened it. None of your edits was touched, and they are kept on the new version: save again to apply them.`;
     case 'refused':
@@ -38,6 +41,7 @@ export function SectionNotice({
   busy,
   onKeepMine,
   onTakeTheirs,
+  onReread,
 }: {
   section: string;
   status: SaveStatus;
@@ -47,6 +51,7 @@ export function SectionNotice({
   busy: boolean;
   onKeepMine: () => void;
   onTakeTheirs: () => void;
+  onReread?: () => void;
 }) {
   const said = summary(section, status, conflicts, conflictSource, message);
   return (
@@ -58,6 +63,17 @@ export function SectionNotice({
       >
         {status === 'conflict' ? <VisuallyHidden elementType="span">{said}</VisuallyHidden> : said}
       </p>
+      {status === 'unread' && onReread !== undefined ? (
+        <div className={styles.actions}>
+          <Button
+            size="small"
+            onPress={onReread}
+            aria-label={`Load the newer version of ${section}`}
+          >
+            Load the newer version
+          </Button>
+        </div>
+      ) : null}
       <ConflictPanel
         section={section}
         conflicts={conflicts}

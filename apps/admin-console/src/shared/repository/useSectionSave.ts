@@ -6,6 +6,8 @@ import { useToasts } from '#/shared/repository/useToasts.ts';
 import type { Conflict } from '#/shared/service/conflict.ts';
 import {
   BLOCKED_BY_CONFLICT,
+  BLOCKED_GONE,
+  BLOCKED_UNREAD,
   type ConflictSource,
   type SaveStatus,
 } from '#/shared/service/sectionSave.ts';
@@ -41,6 +43,8 @@ export interface SectionSave<T extends Values> {
   readonly conflictSource: ConflictSource;
   // Why Save is held, for Section's `blocked`.
   readonly blocked: string | undefined;
+  // Reads the record again, after a 412 whose fresh read failed.
+  readonly reread: () => void;
   // Re-saves every edit on the fresh ETag.
   readonly keepMine: () => void;
   // Drops the conflicting edits and keeps the rest.
@@ -119,6 +123,7 @@ export function useSectionSave<T extends Values, R>({
   label = section,
   etag,
   capability,
+  gone = false,
   onRefused,
   fields,
   save,
@@ -131,6 +136,8 @@ export function useSectionSave<T extends Values, R>({
   readonly etag: string;
   // What the save needs, named when a 403 refuses it.
   readonly capability: string;
+  // The record was found deleted since it was read (`useRecord`'s `gone`).
+  readonly gone?: boolean;
   // Told of a 403, so the caller can re-read whoami (`useRefusal.report`).
   readonly onRefused?: (failure: GatewayFailure) => void;
   readonly fields: SectionFields<T>;
@@ -184,6 +191,7 @@ export function useSectionSave<T extends Values, R>({
       edits: rebased.draft.edits,
       conflicts: [...new Set([...still, ...rebased.conflicts])],
       source: rebased.conflicts.length > 0 ? 'changed' : state.source,
+      phase: state.phase === 'unread' && etag !== state.etag ? 'stale' : state.phase,
     };
     setState(current);
   } else {
@@ -221,7 +229,8 @@ export function useSectionSave<T extends Values, R>({
     }
     if (result.kind === 'problem' && result.problem.status === 412) {
       await client.refetchQueries({ queryKey: recordKey(tenant, record), exact: true });
-      update(() => ({ phase: 'stale' }));
+      const unread = client.getQueryState(recordKey(tenant, record))?.status === 'error';
+      update(() => ({ phase: unread ? 'unread' : 'stale' }));
       return;
     }
     if (result.kind === 'problem' && result.problem.status === 401) {
@@ -254,7 +263,7 @@ export function useSectionSave<T extends Values, R>({
   };
 
   const startable = (from: State<T>): boolean =>
-    !inFlight.current && Object.keys(from.edits).length > 0;
+    !inFlight.current && !gone && from.phase !== 'unread' && Object.keys(from.edits).length > 0;
 
   const run = async (from: State<T>): Promise<void> => {
     inFlight.current = true;
@@ -286,7 +295,18 @@ export function useSectionSave<T extends Values, R>({
     fieldErrors: current.fieldErrors as SectionSave<T>['fieldErrors'],
     conflicts,
     conflictSource: current.source,
-    blocked: conflicts.length > 0 ? BLOCKED_BY_CONFLICT : undefined,
+    blocked: gone
+      ? BLOCKED_GONE
+      : conflicts.length > 0
+        ? BLOCKED_BY_CONFLICT
+        : current.phase === 'unread'
+          ? BLOCKED_UNREAD
+          : undefined,
+    reread: () => {
+      client
+        .refetchQueries({ queryKey: recordKey(tenant, record), exact: true })
+        .catch(() => undefined);
+    },
     keepMine: () => {
       const from = latest.current;
       if (!startable(from) || from.conflicts.length === 0) return;

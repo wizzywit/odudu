@@ -55,8 +55,21 @@ it('says what refused the save', () => {
   expect(screen.getByRole('status')).toHaveTextContent('grace is the last enabled administrator');
 });
 
+it('offers to load the newer version beside, not inside, the announcement', () => {
+  const onReread = vi.fn();
+  render(notice('unread', { onReread }));
+  expect(screen.getByRole('status')).toHaveTextContent('its newer version could not be loaded');
+  expect(within(screen.getByRole('status')).queryByRole('button')).toBeNull();
+  screen.getByRole('button', { name: 'Load the newer version of General' }).click();
+  expect(onReread).toHaveBeenCalledOnce();
+});
+
 it('passes axe in both themes', async () => {
   expect(await axeInBothThemes(() => notice('conflict'))).toEqual({ light: [], dark: [] });
+  expect(await axeInBothThemes(() => notice('unread', { onReread: vi.fn() }))).toEqual({
+    light: [],
+    dark: [],
+  });
   expect(await axeInBothThemes(() => notice('stale'))).toEqual({ light: [], dark: [] });
 });
 

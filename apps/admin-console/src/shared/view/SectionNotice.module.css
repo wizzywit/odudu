@@ -12,3 +12,7 @@
   font-size: var(--type-13);
   background: var(--surface-sunken);
 }
+
+.actions {
+  margin-block-start: var(--space-2);
+}

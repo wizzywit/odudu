@@ -51,10 +51,12 @@ function amend(gateway: Gateway, body: unknown, ifMatch: string) {
 function General({
   data,
   etag,
+  gone = false,
   onRefused,
 }: {
   data: Client;
   etag: string;
+  gone?: boolean;
   onRefused?: (failure: GatewayFailure) => void;
 }) {
   const save = useSectionSave({
@@ -64,6 +66,7 @@ function General({
     label: 'General',
     etag,
     capability: 'manage-clients',
+    gone,
     ...(onRefused === undefined ? {} : { onRefused }),
     fields: { name: { value: data.name, label: 'Name', kind: 'plain' } },
     save: (gateway, { changes, ifMatch }) => amend(gateway, changes, ifMatch),
@@ -87,6 +90,7 @@ function General({
             busy={save.saving}
             onKeepMine={save.keepMine}
             onTakeTheirs={save.takeTheirs}
+            onReread={save.reread}
           />
           <p>{`status ${save.status}`}</p>
         </>
@@ -156,6 +160,7 @@ function ClientRecord({ onRefused }: { onRefused?: (failure: GatewayFailure) => 
       <General
         data={record.data}
         etag={record.etag}
+        gone={record.gone}
         {...(onRefused === undefined ? {} : { onRefused })}
       />
       <Tokens data={record.data} etag={record.etag} />
@@ -733,4 +738,62 @@ it('keeps the edits and their guard when a refetch on focus fails', async () => 
   });
   expect(within(general()).getByRole('textbox', { name: 'Name' })).toHaveValue('Billing');
   expect(useUnsavedGuard.getState().unsaved()).toEqual(['General']);
+});
+
+it('holds Save when the newer version a 412 points at could not be loaded, until it is', async () => {
+  const user = userEvent.setup();
+  const { patches } = mount({
+    [GET]: inTurn(
+      client(LOADED, '"e1"'),
+      problem(500, 'about:blank', 'Internal Server Error'),
+      client({ ...LOADED, access_token_ttl: 600 }, '"e2"'),
+    ),
+    [PATCH]: inTurn(problem(412, 'about:blank', 'Precondition Failed'), pending()),
+  });
+  await rename(user, 'Billing');
+  await user.click(within(general()).getByRole('button', { name: 'Save General' }));
+  await waitFor(() => {
+    expect(announced()).toHaveTextContent(
+      'General changed elsewhere, and its newer version could not be loaded. Nothing was saved; load it before saving again.',
+    );
+  });
+  expect(announced()).not.toHaveTextContent('save again to apply them');
+  expect(within(announced()).queryByRole('button')).toBeNull();
+  const save = within(general()).getByRole('button', { name: 'Save General' });
+  expect(save).toBeDisabled();
+  expect(save).toHaveAccessibleDescription('Load the newer version before saving. Enter');
+
+  await user.click(
+    within(general()).getByRole('button', { name: 'Load the newer version of General' }),
+  );
+  await waitFor(() => {
+    expect(announced()).toHaveTextContent('save again to apply them');
+  });
+  await user.click(within(general()).getByRole('button', { name: 'Save General' }));
+  await waitFor(() => {
+    expect(patches()).toHaveLength(2);
+  });
+  expect(patches()[1]).toEqual(expect.objectContaining({ ifMatch: '"e2"' }));
+});
+
+it('holds Save, saying why, once the record is found deleted', async () => {
+  const user = userEvent.setup();
+  const { queryClient, patches } = mount({
+    [GET]: inTurn(client(LOADED, '"e1"'), problem(404, 'about:blank#not-found', 'Not Found')),
+    [PATCH]: pending(),
+  });
+  await rename(user, 'Billing');
+  await act(async () => {
+    await queryClient.refetchQueries({ queryKey: recordKey('acme', 'clients/c1') });
+  });
+  const save = await within(general()).findByRole('button', { name: 'Save General' });
+  await waitFor(() => {
+    expect(save).toBeDisabled();
+  });
+  expect(save).toHaveAccessibleDescription(
+    'This record was deleted since you opened it, so there is nothing to save to. Enter',
+  );
+  await user.type(within(general()).getByRole('textbox', { name: 'Name' }), '{Enter}');
+  expect(patches()).toEqual([]);
+  expect(within(general()).getByRole('textbox', { name: 'Name' })).toHaveValue('Billing');
 });
