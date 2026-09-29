@@ -8,7 +8,9 @@ it('names the section on both actions and says the changes are unsaved', async (
   const onDiscard = vi.fn();
   render(<SaveBar section="General" saving={false} onDiscard={onDiscard} />);
   expect(screen.getByText('Unsaved changes')).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Save General' })).toHaveAccessibleDescription('Enter');
+  expect(screen.getByRole('button', { name: 'Save General' })).toHaveAccessibleDescription(
+    'or press Enter',
+  );
   await userEvent.click(screen.getByRole('button', { name: 'Discard changes to General' }));
   expect(onDiscard).toHaveBeenCalledOnce();
 });

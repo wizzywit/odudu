@@ -123,7 +123,8 @@ describe('collapsing the rail for full width', () => {
     render(<Collapsible />);
     const collapse = screen.getByRole('button', { name: 'Collapse menu' });
     expect(collapse).toHaveAttribute('aria-keyshortcuts', '[');
-    expect(collapse.parentElement).toHaveTextContent('[');
+    const hint = collapse.parentElement?.querySelector('[aria-hidden="true"]');
+    expect(hint).toHaveTextContent('or press [');
     expect(screen.getByRole('region', { name: 'Menu' })).toContainElement(collapse);
     expect(screen.queryByRole('button', { name: 'Expand menu' })).toBeNull();
   });

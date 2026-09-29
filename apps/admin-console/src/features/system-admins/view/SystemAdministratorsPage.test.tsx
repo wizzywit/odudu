@@ -14,7 +14,7 @@ import { ADMIN, administratorRoutes, systemRoutes } from '#/testing/tenantsFixtu
 
 const AT = '/console/system/system-admins';
 const S = `${ADMIN}/system`;
-const KEY = 'odudu.console.tenant-creation';
+const KEY = 'odudu.console.system-administrator';
 
 function subject(id: string, username: string, extra: Record<string, unknown> = {}) {
   return {
@@ -132,9 +132,7 @@ it("creates one through system's guided administrator step", async () => {
       .getByRole('navigation', { name: 'Areas of system' })
       .querySelector('[aria-current="page"]'),
   ).toHaveTextContent('System administrators');
-  expect(sessionStorage.getItem('odudu.console.system-administrator')).toContain(
-    '"tenant":"system"',
-  );
+  expect(sessionStorage.getItem(KEY)).toContain('"tenant":"system"');
 });
 
 it('grants tenant-admin to a subject chosen from system', async () => {

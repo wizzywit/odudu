@@ -1,0 +1,13 @@
+.hint {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0 var(--space-1);
+  font-size: var(--type-12);
+  white-space: nowrap;
+  color: var(--key-hint-ink, var(--ink-muted));
+}
+
+.key {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}

@@ -1,12 +1,5 @@
 .shortcut {
   align-self: center;
-  padding: 1px var(--space-1);
-  border: 1px solid var(--border-strong);
-  border-block-end-width: 2px;
-  border-radius: var(--radius-s);
-  font-size: var(--type-12);
-  color: var(--ink-muted);
-  background: var(--surface-panel);
 }
 
 .problem {

@@ -111,19 +111,6 @@
   display: none;
 }
 
-.shortcut {
-  display: inline-flex;
-  align-items: center;
-  block-size: var(--control-height);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--border-strong);
-  border-block-end-width: 2px;
-  border-radius: var(--radius-s);
-  font-size: var(--type-12);
-  color: var(--ink-muted);
-  background: var(--surface-panel);
-}
-
 .filters {
   display: flex;
   flex-wrap: wrap;

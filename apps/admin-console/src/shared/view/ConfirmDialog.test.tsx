@@ -107,9 +107,9 @@ describe('a typed confirmation', () => {
     render(<Harness typed="acme" />);
     await user.click(screen.getByRole('button', { name: 'Disable tenant' }));
     expect(screen.getByRole('button', { name: 'Disable acme' })).toHaveAccessibleDescription(
-      'Enter',
+      'or press Enter',
     );
-    expect(screen.getByText('Enter', { selector: 'kbd' })).toBeVisible();
+    expect(screen.getByText('or press', { exact: false })).toBeVisible();
   });
 
   it('starts empty each time it opens', async () => {

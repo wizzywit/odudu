@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { Dialog, DialogTrigger, Modal, ModalOverlay } from 'react-aria-components';
 import { Button } from '#/shared/view/Button.tsx';
+import { KeyHint } from '#/shared/view/KeyHint.tsx';
 import styles from '#/shared/view/AppShell.module.css';
 
 const SHORTCUT = '[';
@@ -70,7 +71,9 @@ function Toggle({
       >
         {label}
       </button>
-      <kbd className={styles.shortcut}>{SHORTCUT}</kbd>
+      <span className={styles.shortcut}>
+        <KeyHint lead="or press" keys={[SHORTCUT]} announced />
+      </span>
     </span>
   );
 }

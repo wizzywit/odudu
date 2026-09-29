@@ -8,6 +8,7 @@ import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
 import { AppShell } from '#/shared/view/AppShell.tsx';
 import { Breadcrumb } from '#/shared/view/Breadcrumb.tsx';
 import { Button } from '#/shared/view/Button.tsx';
+import { KeyHint, PlatformContext } from '#/shared/view/KeyHint.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ChunkFailed } from '#/shared/view/ChunkBoundary.tsx';
@@ -569,6 +570,19 @@ export function Gallery({
               <Button variant="danger">Delete client</Button>
               <Button isDisabled>Saving…</Button>
               <Button size="small">Small</Button>
+            </div>
+          </Specimen>
+          <Specimen label="KeyHint: a shortcut told, not offered, on each platform">
+            <div className={styles.row}>
+              <PlatformContext value="other">
+                <Button variant="primary">Save</Button>
+                <KeyHint lead="or press" keys={['Enter']} />
+              </PlatformContext>
+              <PlatformContext value="mac">
+                <Button variant="primary">Save</Button>
+                <KeyHint lead="or press" keys={['Enter']} />
+                <KeyHint lead="Press" keys={['Mod', 'k']} />
+              </PlatformContext>
             </div>
           </Specimen>
           <Specimen label="ButtonLink">

@@ -29,7 +29,9 @@ it('is a named search form that submits on Enter and shows it', async () => {
   expect(screen.getByRole('search', { name: 'Filter subjects' })).toBeInTheDocument();
   await user.type(screen.getByRole('searchbox', { name: 'Search by username' }), 'ada{Enter}');
   expect(onSearch).toHaveBeenLastCalledWith({ field: 'username', query: 'ada' });
-  expect(screen.getByText('Enter', { selector: 'kbd' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Search' })).toHaveAccessibleDescription(
+    'or press Enter',
+  );
 });
 
 it('names the field it searches with a visible chip that can be changed', async () => {
@@ -144,7 +146,7 @@ function rule(css: string, selector: string): string {
 it('gives every control in the bar one height, from one token', () => {
   expect(tokens).toMatch(/--control-height:\s*32px;/u);
   const HEIGHT = /block-size:\s*var\(--control-height\)/u;
-  for (const selector of ['.chip', '.input', '.shortcut', '.count']) {
+  for (const selector of ['.chip', '.input', '.count']) {
     expect(rule(filterCss, selector), selector).toMatch(HEIGHT);
   }
   expect(rule(buttonCss, '.button')).toMatch(HEIGHT);

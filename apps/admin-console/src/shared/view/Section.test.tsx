@@ -54,8 +54,9 @@ it('saves from the button and from Enter in a field, and shows the shortcut', as
   rerender(<General dirty onSave={onSave} />);
   await user.type(screen.getByRole('textbox', { name: 'Name' }), '{Enter}');
   expect(onSave).toHaveBeenCalledTimes(2);
-  expect(screen.getByRole('button', { name: 'Save General' })).toHaveAccessibleDescription('Enter');
-  expect(screen.getByText('Enter', { selector: 'kbd' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Save General' })).toHaveAccessibleDescription(
+    'or press Enter',
+  );
 });
 
 it('reads "Saving…" while the request is in flight, and nothing resubmits it', async () => {
@@ -177,7 +178,9 @@ it('holds Save, saying why, while something has to be decided first', () => {
   );
   const save = screen.getByRole('button', { name: 'Save General' });
   expect(save).toBeDisabled();
-  expect(save).toHaveAccessibleDescription('Keep yours or take theirs before saving. Enter');
+  expect(save).toHaveAccessibleDescription(
+    'Keep yours or take theirs before saving. or press Enter',
+  );
 });
 
 it('puts focus on its heading when the control holding it goes with the save bar', async () => {

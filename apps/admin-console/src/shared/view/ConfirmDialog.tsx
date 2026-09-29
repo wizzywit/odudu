@@ -1,5 +1,6 @@
 import { useId, useState, type SubmitEvent, type ReactNode } from 'react';
 import { Button } from '#/shared/view/Button.tsx';
+import { KeyHint } from '#/shared/view/KeyHint.tsx';
 import { DialogFrame } from '#/shared/view/DialogFrame.tsx';
 import { TextField } from '#/shared/view/Field.tsx';
 import styles from '#/shared/view/ConfirmDialog.module.css';
@@ -72,9 +73,9 @@ function OpenConfirm({
             {busy ? 'Working…' : confirmLabel}
           </Button>
           {typed === undefined ? null : (
-            <kbd id={shortcut} className={styles.shortcut}>
-              Enter
-            </kbd>
+            <span className={styles.shortcut}>
+              <KeyHint id={shortcut} lead="or press" keys={['Enter']} />
+            </span>
           )}
         </>
       }

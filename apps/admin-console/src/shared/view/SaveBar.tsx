@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { Button } from '#/shared/view/Button.tsx';
+import { KeyHint } from '#/shared/view/KeyHint.tsx';
 import styles from '#/shared/view/SaveBar.module.css';
 
 export function SaveBar({
@@ -46,9 +47,7 @@ export function SaveBar({
         >
           {verb}
         </Button>
-        <kbd id={shortcut} className={styles.shortcut}>
-          Enter
-        </kbd>
+        <KeyHint id={shortcut} lead="or press" keys={['Enter']} />
       </div>
     </div>
   );

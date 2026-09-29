@@ -12,6 +12,7 @@ import {
 } from 'react-aria-components';
 import { Button } from '#/shared/view/Button.tsx';
 import { InlineFields, type SelectOption } from '#/shared/view/Field.tsx';
+import { KeyHint } from '#/shared/view/KeyHint.tsx';
 import styles from '#/shared/view/FilterBar.module.css';
 
 export interface Search {
@@ -100,9 +101,7 @@ export function FilterBar({
         <Button type="submit" aria-describedby={shortcut}>
           Search
         </Button>
-        <kbd id={shortcut} className={styles.shortcut}>
-          Enter
-        </kbd>
+        <KeyHint id={shortcut} lead="or press" keys={['Enter']} />
       </div>
       {children === undefined ? null : (
         <div className={styles.filters}>
