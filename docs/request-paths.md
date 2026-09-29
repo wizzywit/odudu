@@ -9852,3 +9852,28 @@ session lifecycle. A citation of either half here means that half.
   row-level security learns about it from an hourly log line — a decision
   rather than an oversight, and ADR 0024 records it as the one precondition
   bought at that price to keep the loop free of logic.
+
+**Administrative capabilities placed by the P4d gap audit**
+
+An audit of Odudu's admin API against Keycloak's, Auth0's and Okta's
+operator surfaces found capabilities the server does not have yet, and no
+phase owned them. Each is now named in its phase's exit criterion in design
+spec §11. `tests/docs/gap-audit-placement.test.ts` fails the build when an
+item here names a phase whose §11 criterion does not name it too. The audit
+also found admin routes and configuration for features the server already
+has; those are P4d's own work (its plan, Tasks 8a–8c) and are not listed
+here.
+
+- **more required actions (verify email, update profile, accept terms)**:
+  P4f.
+- **several sign-in flows with a per-client override**: P4f.
+- **per-step authenticator configuration**: P4f.
+- **a password blocklist and breach check**: P4f.
+- **translated pages and mail**: P4b.
+- **custom subject attributes and a declarative user profile**: P7.
+- **fine-grained admin permissions**: P9.
+- **per-client dedicated mappers**: P10.
+- **a metrics endpoint**: P11.
+- **key import, encryption keys and scheduled key rotation**: P12.
+- **client registration policies and client policies**: P13.
+- **admin impersonation**: P13, with its own threat model.

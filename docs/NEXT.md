@@ -318,6 +318,16 @@ a phase note.
 
 ### Work owed, and the phase each belongs to
 
+- **Twelve administrative capabilities a gap audit against mature identity
+  providers found the server lacking** (2026-09-29): more required actions,
+  several sign-in flows, per-step authenticator settings and a password
+  blocklist (**P4f**); translated pages and mail (**P4b**); custom subject
+  attributes (**P7**); fine-grained admin permissions (**P9**); per-client
+  mappers (**P10**); a metrics endpoint (**P11**); key import and scheduled
+  rotation (**P12**); client policies and admin impersonation (**P13**).
+  Each phase's §11 criterion names its items, and
+  [docs/request-paths.md](request-paths.md#what-is-not-implemented) lists
+  them under a test that holds the two together.
 - `/logout` delivers no front-channel frames on either branch that redirects:
   `packages/protocol-oidc/src/usecase/logout.ts` computes the list only where
   `decision.redirectTo === null`, so a session ended with a matched
