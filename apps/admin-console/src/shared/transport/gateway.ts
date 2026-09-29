@@ -32,8 +32,16 @@ export type GatewayFailure =
 
 export type GatewayResult<T> = GatewaySuccess<T> | GatewayFailure;
 
+// A body answered as the server sent it, for a file the console saves
+// rather than a document it reads: a schema would drop what it does not know.
+export interface RawBody {
+  readonly text: string;
+  readonly contentType: string | null;
+}
+
 export interface Gateway {
   request<T>(method: Method, path: string, options: RequestOptions<T>): Promise<GatewayResult<T>>;
+  download(method: 'GET', path: string): Promise<GatewayResult<RawBody>>;
   // The subject this tab shows as signed in, named on every admin request so
   // the gateway refuses one a sign-in in another tab has made somebody else's.
   believe(subjectId: string | null): void;
@@ -163,39 +171,55 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
     }
   }
 
+  // Everything but reading a successful body: the headers every request
+  // carries, the retries, and what a refusal tells the rest of the console.
+  async function exchange(
+    method: Method,
+    path: string,
+    options: { readonly body?: unknown; readonly ifMatch?: string },
+  ): Promise<
+    { readonly ok: true; readonly answer: Answer; readonly where: string } | GatewayFailure
+  > {
+    const url = resolve(path);
+    const where = `${method} ${url.pathname.slice(BASE.length)}`;
+    const headers = new Headers({ accept: 'application/json' });
+    if (method !== 'GET') headers.set('x-odudu-console', '1');
+    if (options.ifMatch !== undefined) headers.set('if-match', options.ifMatch);
+    if (believed !== null && path.startsWith(ADMIN)) headers.set(SUBJECT_HEADER, believed);
+    const init: RequestInit = { method, headers, credentials: 'same-origin' };
+    if (options.body !== undefined) {
+      headers.set('content-type', 'application/json');
+      init.body = JSON.stringify(options.body);
+    }
+
+    const answer = await send(
+      method,
+      options.ifMatch !== undefined,
+      `${url.pathname}${url.search}`,
+      init,
+    );
+    if (answer === null) return { ok: false, kind: 'network' };
+    const { response, text } = answer;
+
+    if (!response.ok) {
+      if (response.status === 428) {
+        log(`console defect: ${where} answered 428: the server required If-Match`);
+        return { ok: false, kind: 'defect' };
+      }
+      const problem = readProblem(response.status, response.headers.get('content-type'), text);
+      if (isSessionEnded(problem)) emit('sessionEnded');
+      if (isPrincipalChanged(problem)) emit('principalChanged');
+      return { ok: false, kind: 'problem', problem };
+    }
+    return { ok: true, answer, where };
+  }
+
   return {
     async request<T>(method: Method, path: string, options: RequestOptions<T>) {
-      const url = resolve(path);
-      const where = `${method} ${url.pathname.slice(BASE.length)}`;
-      const headers = new Headers({ accept: 'application/json' });
-      if (method !== 'GET') headers.set('x-odudu-console', '1');
-      if (options.ifMatch !== undefined) headers.set('if-match', options.ifMatch);
-      if (believed !== null && path.startsWith(ADMIN)) headers.set(SUBJECT_HEADER, believed);
-      const init: RequestInit = { method, headers, credentials: 'same-origin' };
-      if (options.body !== undefined) {
-        headers.set('content-type', 'application/json');
-        init.body = JSON.stringify(options.body);
-      }
-
-      const answer = await send(
-        method,
-        options.ifMatch !== undefined,
-        `${url.pathname}${url.search}`,
-        init,
-      );
-      if (answer === null) return { ok: false, kind: 'network' };
+      const exchanged = await exchange(method, path, options);
+      if (!exchanged.ok) return exchanged;
+      const { answer, where } = exchanged;
       const { response, text } = answer;
-
-      if (!response.ok) {
-        if (response.status === 428) {
-          log(`console defect: ${where} answered 428: the server required If-Match`);
-          return { ok: false, kind: 'defect' };
-        }
-        const problem = readProblem(response.status, response.headers.get('content-type'), text);
-        if (isSessionEnded(problem)) emit('sessionEnded');
-        if (isPrincipalChanged(problem)) emit('principalChanged');
-        return { ok: false, kind: 'problem', problem };
-      }
 
       const json = parseJson(text);
       if (!json.ok) {
@@ -216,6 +240,18 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
         data: parsed.data,
         etag: readEtag(response.headers),
         next: nextCursor(response.headers.get('link')),
+      };
+    },
+    async download(method, path) {
+      const exchanged = await exchange(method, path, {});
+      if (!exchanged.ok) return exchanged;
+      const { response, text } = exchanged.answer;
+      return {
+        ok: true,
+        status: response.status,
+        data: { text, contentType: response.headers.get('content-type') },
+        etag: readEtag(response.headers),
+        next: null,
       };
     },
     believe(subjectId) {

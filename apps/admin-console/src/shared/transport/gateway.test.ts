@@ -515,3 +515,75 @@ describe('gateway.request, a request that never answers', () => {
     await expect(pending).resolves.toEqual({ ok: false, kind: 'network' });
   });
 });
+
+describe('gateway.download, a body kept as the bytes the server sent', () => {
+  const EXPORT_PATH = 'admin/tenants/acme/export';
+  const DOCUMENT = '{"version":1,"from_a_newer_server":{"kept":"ü — 𝄞"},"omitted":[]}';
+
+  function document(body: string, status = 200): Response {
+    return new Response(body, {
+      status,
+      headers: { 'content-type': 'application/vnd.odudu.tenant+json' },
+    });
+  }
+
+  it('answers the text and its content type, members the console does not know included', async () => {
+    const { gateway, calls } = harness(document(DOCUMENT));
+    gateway.believe('s1');
+
+    const result = await gateway.download('GET', `${EXPORT_PATH}?include=subjects`);
+
+    expect(result).toEqual({
+      ok: true,
+      status: 200,
+      data: { text: DOCUMENT, contentType: 'application/vnd.odudu.tenant+json' },
+      etag: null,
+      next: null,
+    });
+    expect(calls[0]?.url).toBe(`/console/api/${EXPORT_PATH}?include=subjects`);
+    expect(calls[0]?.init.credentials).toBe('same-origin');
+    expect(headersOf(calls[0]).get('x-odudu-console-subject')).toBe('s1');
+  });
+
+  it('emits sessionEnded on a 401 console-session-ended, and answers the problem', async () => {
+    const { gateway, events } = harness(
+      problem(401, 'about:blank#console-session-ended', 'Unauthorized'),
+    );
+    const ended = vi.fn();
+    events.on('sessionEnded', ended);
+
+    const result = await gateway.download('GET', EXPORT_PATH);
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.kind === 'problem' && result.problem.status).toBe(401);
+    expect(ended).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits principalChanged on a 409 console-principal-changed', async () => {
+    const { gateway, events } = harness(
+      problem(409, 'about:blank#console-principal-changed', 'Conflict'),
+    );
+    const changed = vi.fn();
+    events.on('principalChanged', changed);
+
+    await gateway.download('GET', EXPORT_PATH);
+
+    expect(changed).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a network failure as any GET does, and reports one that persists', async () => {
+    const { gateway, calls } = harness(
+      new TypeError('Failed to fetch'),
+      new TypeError('Failed to fetch'),
+      new TypeError('Failed to fetch'),
+    );
+
+    expect(await gateway.download('GET', EXPORT_PATH)).toEqual({ ok: false, kind: 'network' });
+    expect(calls).toHaveLength(3);
+  });
+
+  it('refuses a path that would leave /console/api/', async () => {
+    const { gateway } = harness();
+    await expect(gateway.download('GET', '../session')).rejects.toThrow(TypeError);
+  });
+});
