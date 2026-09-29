@@ -12,11 +12,16 @@ export interface Area {
   readonly capability: AdminCapability | null;
   // Whether it lists records and so pages through a cursor trail.
   readonly list: boolean;
+  // Pages beside its own path that belong to it, such as creation beside a
+  // list, so the rail lights it there too.
+  readonly pages: readonly string[];
 }
 
 export interface RailLink {
   readonly href: string;
   readonly label: string;
+  // The addresses of the pages beside it that it stands for.
+  readonly pages: readonly string[];
 }
 
 export interface RailSection {
@@ -34,7 +39,8 @@ const area = (
   label: string,
   capability: AdminCapability | null,
   list = false,
-): Area => ({ path, label, capability, list });
+  pages: readonly string[] = [],
+): Area => ({ path, label, capability, list, pages });
 
 export const OVERVIEW = area('', 'Overview', null);
 
@@ -80,7 +86,7 @@ export const TENANT_AREAS: readonly AreaGroup[] = [
 export const SYSTEM_AREAS: AreaGroup = {
   heading: 'System',
   areas: [
-    area('tenants', 'Tenants', 'manage-tenants', true),
+    area('tenants', 'Tenants', 'manage-tenants', true, ['new-tenant', 'import-tenant']),
     area('system-admins', 'System administrators', 'manage-tenants', true),
   ],
 };
@@ -138,7 +144,11 @@ export function railGroups(tenant: string, withSystem: boolean): readonly RailSe
   const groups = withSystem ? [SYSTEM_AREAS, ...TENANT_AREAS] : TENANT_AREAS;
   return groups.map((group) => ({
     ...(group.heading === undefined ? {} : { heading: group.heading }),
-    items: group.areas.map((a) => ({ href: areaHref(tenant, a), label: a.label })),
+    items: group.areas.map((a) => ({
+      href: areaHref(tenant, a),
+      label: a.label,
+      pages: a.pages.map((page) => `${areaHref(tenant, OVERVIEW)}/${page}`),
+    })),
   }));
 }
 
@@ -151,8 +161,10 @@ export function currentHref(
 ): string | undefined {
   const overview = areaHref(tenant, OVERVIEW);
   const page = pathname.replace(/\/$/u, '');
+  const under = (href: string): boolean =>
+    page === href || (href !== overview && page.startsWith(`${href}/`));
   return groups
-    .flatMap((group) => group.items.map((item) => item.href))
-    .filter((href) => page === href || (href !== overview && page.startsWith(`${href}/`)))
-    .sort((a, b) => b.length - a.length)[0];
+    .flatMap((group) => group.items)
+    .flatMap((item) => [item.href, ...item.pages].filter(under).map((at) => ({ item, at })))
+    .sort((a, b) => b.at.length - a.at.length)[0]?.item.href;
 }

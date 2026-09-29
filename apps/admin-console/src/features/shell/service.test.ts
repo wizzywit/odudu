@@ -62,6 +62,19 @@ describe('the rail', () => {
     expect(currentHref('system', groups, '/console/system/clientsx')).toBeUndefined();
   });
 
+  it('lights Tenants on the pages that belong to it beside the list', () => {
+    const groups = railGroups('system', true);
+    for (const page of ['new-tenant', 'import-tenant', 'tenants/acme']) {
+      expect(currentHref('system', groups, `/console/system/${page}`), page).toBe(
+        '/console/system/tenants',
+      );
+    }
+    expect(currentHref('system', groups, '/console/system/system-admins/new')).toBe(
+      '/console/system/system-admins',
+    );
+    expect(currentHref('system', groups, '/console/system/new-tenantx')).toBeUndefined();
+  });
+
   it('links the overview at the tenant itself', () => {
     expect(areaHref('acme', OVERVIEW)).toBe('/console/acme');
   });

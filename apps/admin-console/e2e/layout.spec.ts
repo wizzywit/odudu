@@ -87,6 +87,19 @@ test.describe('the breadcrumb', () => {
   });
 });
 
+test('the rail lights Tenants on its creation and import pages', async ({ page }) => {
+  await signIn(page, system);
+  const rail = page.getByRole('navigation', { name: 'Areas of system' });
+  for (const [at, title] of [
+    ['/console/system/new-tenant', 'Create a tenant'],
+    ['/console/system/import-tenant', 'Import a tenant'],
+  ] as const) {
+    await page.goto(at);
+    await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
+    await expect(rail.locator('[aria-current="page"]')).toHaveText('Tenants');
+  }
+});
+
 test.describe('the way back to system', () => {
   async function enterAndReturn(page: Page): Promise<void> {
     await signIn(page, system);
