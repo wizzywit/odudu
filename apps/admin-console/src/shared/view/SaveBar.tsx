@@ -6,12 +6,16 @@ export function SaveBar({
   section,
   saving,
   onDiscard,
+  blocked,
 }: {
   section: string;
   saving: boolean;
   onDiscard: () => void;
+  // Why Save is held: a choice to make before anything can be sent.
+  blocked?: string | undefined;
 }) {
   const shortcut = useId();
+  const reason = useId();
   const verb = saving ? 'Saving…' : 'Save';
   return (
     <div className={styles.bar}>
@@ -19,6 +23,11 @@ export function SaveBar({
         <span className={styles.mark} aria-hidden="true" />
         Unsaved changes
       </p>
+      {blocked === undefined ? null : (
+        <p id={reason} className={styles.blocked}>
+          {blocked}
+        </p>
+      )}
       <div className={styles.actions}>
         <Button
           variant="quiet"
@@ -31,8 +40,8 @@ export function SaveBar({
         <Button
           type="submit"
           variant="primary"
-          isDisabled={saving}
-          aria-describedby={shortcut}
+          isDisabled={saving || blocked !== undefined}
+          aria-describedby={blocked === undefined ? shortcut : `${reason} ${shortcut}`}
           aria-label={`${verb} ${section}`}
         >
           {verb}

@@ -25,6 +25,11 @@
   background: currentcolor;
 }
 
+.blocked {
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+}
+
 .actions {
   display: flex;
   align-items: center;

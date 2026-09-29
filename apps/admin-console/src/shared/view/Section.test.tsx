@@ -1,4 +1,5 @@
 import { act, render, screen, within } from '@testing-library/react';
+import { useState } from 'react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { Section } from '#/shared/view/Section.tsx';
@@ -124,24 +125,97 @@ it('marks work restored after a sign-in, for review before it is saved', () => {
   expect(within(region).getByText('Restored — review before saving')).toBeVisible();
 });
 
-it('announces what the last save said beside its save bar, from a region there from the start', () => {
-  const notice = (text: string | null) => (
+it('draws what the last save said beside its save bar', () => {
+  render(
     <Section
       title="General"
       dirty
       saving={false}
       onSave={vi.fn()}
       onDiscard={vi.fn()}
-      notice={text}
+      notice={<p>grace is the last enabled administrator</p>}
     >
       <p>fields</p>
-    </Section>
+    </Section>,
   );
-  const { rerender } = render(notice(null));
-  const region = screen.getByRole('region', { name: 'General' });
-  const live = region.querySelector('[aria-live="polite"]');
-  expect(live).not.toBeNull();
-  expect(live).toBeEmptyDOMElement();
-  rerender(notice('grace is the last enabled administrator'));
-  expect(live).toHaveTextContent('grace is the last enabled administrator');
+  expect(
+    within(screen.getByRole('region', { name: 'General' })).getByText(
+      'grace is the last enabled administrator',
+    ),
+  ).toBeVisible();
+});
+
+it('lets a submit through again once a save declined to start', () => {
+  const onSave = vi.fn(() => false);
+  render(
+    <Section title="General" dirty saving={false} onSave={onSave} onDiscard={vi.fn()}>
+      <input aria-label="Name" />
+    </Section>,
+  );
+  const form = () => screen.getByRole('textbox', { name: 'Name' }).closest('form');
+  act(() => {
+    form()?.requestSubmit();
+  });
+  act(() => {
+    form()?.requestSubmit();
+  });
+  expect(onSave).toHaveBeenCalledTimes(2);
+});
+
+it('holds Save, saying why, while something has to be decided first', () => {
+  render(
+    <Section
+      title="General"
+      dirty
+      saving={false}
+      onSave={vi.fn()}
+      onDiscard={vi.fn()}
+      blocked="Keep yours or take theirs before saving."
+    >
+      <input aria-label="Name" />
+    </Section>,
+  );
+  const save = screen.getByRole('button', { name: 'Save General' });
+  expect(save).toBeDisabled();
+  expect(save).toHaveAccessibleDescription('Keep yours or take theirs before saving. Enter');
+});
+
+it('puts focus on its heading when the control holding it goes with the save bar', async () => {
+  const user = userEvent.setup();
+  function Saving() {
+    const [dirty, setDirty] = useState(true);
+    return (
+      <Section
+        title="General"
+        dirty={dirty}
+        saving={false}
+        onSave={() => {
+          setDirty(false);
+        }}
+        onDiscard={vi.fn()}
+      >
+        <p>fields</p>
+      </Section>
+    );
+  }
+  render(<Saving />);
+  await user.click(screen.getByRole('button', { name: 'Save General' }));
+  expect(screen.getByRole('heading', { name: 'General' })).toHaveFocus();
+});
+
+it('leaves focus alone when it was never in the section', () => {
+  const { rerender } = render(
+    <>
+      <button type="button">elsewhere</button>
+      <General dirty />
+    </>,
+  );
+  screen.getByRole('button', { name: 'elsewhere' }).focus();
+  rerender(
+    <>
+      <button type="button">elsewhere</button>
+      <General dirty={false} />
+    </>,
+  );
+  expect(screen.getByRole('button', { name: 'elsewhere' })).toHaveFocus();
 });
