@@ -88,6 +88,12 @@ const seededSchema = z.object({
     locked: account,
     // Issued a one-time password, which then signs in.
     issued: account,
+    // Deleted by a test.
+    doomed: z.string(),
+    // An administrator of a second tenant, where a test turns renaming on.
+    renamer: account,
+    // The subject of that tenant the test renames.
+    renamed: z.string(),
     // The prefix every subject a test creates starts with.
     prefix: z.string(),
   }),

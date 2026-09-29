@@ -228,3 +228,42 @@ test('a subject is created by keyboard alone', async ({ page }) => {
   expect(subjectId(username)).not.toBe('');
   expect(userColumn(username, 'email')).toBe('<null>');
 });
+
+test('a subject is deleted only once its username is typed, and is gone from the list', async ({
+  page,
+}) => {
+  const username = subjects.doomed;
+  await signIn(page, admin);
+  await openSubject(page, username);
+  await page.getByRole('button', { name: `Delete ${username}` }).click();
+  const dialog = page.getByRole('alertdialog', { name: `Delete ${username}?` });
+  await expect(dialog.getByRole('button', { name: `Delete ${username}` })).toBeDisabled();
+  await expectAccessible(page);
+  await dialog.getByRole('textbox', { name: `Type ${username} to confirm` }).fill(username);
+  await dialog.getByRole('button', { name: `Delete ${username}` }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Subjects' })).toBeVisible();
+  expect(subjectId(username)).toBe('');
+  await expect(page.getByRole('grid', { name: 'Subjects' })).not.toContainText(username);
+});
+
+test('a username is renamed on its record while the tenant allows it', async ({ page }) => {
+  const { renamer } = subjects;
+  const tenant = renamer.tenant;
+  psql(`update tenants set username_editable = true where name = ${sqlText(tenant)}`);
+  await signIn(page, renamer);
+  const id = psql(
+    `select u.subject_id from users u join tenants t on t.id = u.tenant_id where t.name = ${sqlText(tenant)} and u.username = ${sqlText(subjects.renamed)}`,
+  );
+  await page.goto(`/console/${tenant}/subjects/${id}`);
+  const field = page.getByRole('textbox', { name: 'Username', exact: true });
+  await expect(field).toHaveValue(subjects.renamed);
+  await expectAccessible(page);
+  await field.fill(`${subjects.renamed}-2`);
+  await page.getByRole('button', { name: 'Save Account' }).click();
+  await expect(
+    page.getByRole('heading', { level: 1, name: `${subjects.renamed}-2` }),
+  ).toBeVisible();
+  expect(psql(`select username from users where subject_id = '${id}'`)).toBe(
+    `${subjects.renamed}-2`,
+  );
+});

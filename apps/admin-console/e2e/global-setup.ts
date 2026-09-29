@@ -55,6 +55,9 @@ export default function globalSetup(): void {
     conflict: 'augusta',
     locked: { tenant: `${run}-s`, username: 'lamarr', password: password() },
     issued: { tenant: `${run}-s`, username: 'franklin', password: password() },
+    doomed: 'turing',
+    renamer: { tenant: `${run}-t`, username: 'hamilton', password: password() },
+    renamed: 'rena',
     prefix: `made-${run}`,
   };
   const tenants = {
@@ -97,6 +100,10 @@ export default function globalSetup(): void {
   }
   subject(subjects.locked);
   subject(subjects.issued);
+  subject({ tenant: subjects.admin.tenant, username: subjects.doomed, password: password() });
+  seed(['tenant', '--name', subjects.renamer.tenant]);
+  administrator(subjects.renamer);
+  subject({ tenant: subjects.renamer.tenant, username: subjects.renamed, password: password() });
   // Creates the system tenant; its own generated password is not used.
   seed(['admin', '--username', `boot-${run}`]);
   administrator(system);
