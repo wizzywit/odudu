@@ -12,7 +12,10 @@ const rail = <Rail label="acme" groups={[{ items: [{ href: '#overview', label: '
 
 function shell() {
   return (
-    <AppShell rail={rail} contextBar={<ContextBar tenant="acme" />}>
+    <AppShell
+      rail={rail}
+      contextBar={<ContextBar tenant="acme" backHref="/console/system/tenants/acme" />}
+    >
       <h1>Overview</h1>
     </AppShell>
   );
@@ -102,7 +105,7 @@ function Collapsible({
     <AppShell
       rail={rail}
       shortcutsPaused={paused}
-      contextBar={<ContextBar tenant="acme" />}
+      contextBar={<ContextBar tenant="acme" backHref="/console/system/tenants/acme" />}
       collapsed={collapsed}
       onCollapsedChange={setCollapsed}
     >

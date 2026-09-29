@@ -5,6 +5,7 @@ import {
   currentHref,
   railGroups,
   showsSystemArea,
+  systemRecordHref,
   type RailSection,
 } from '#/features/shell/service.ts';
 import { useDialogHost } from '#/shared/repository/useDialogHost.ts';
@@ -18,6 +19,7 @@ export interface Shell {
   readonly groups: readonly RailSection[];
   readonly currentHref: string | undefined;
   readonly systemAuthority: boolean;
+  readonly systemRecordHref: string;
   readonly username: string;
   readonly signedInTo: string;
   readonly switchHref: string;
@@ -45,6 +47,7 @@ export function useShell(tenant: string, principal: Principal): Shell {
     groups,
     currentHref: currentHref(tenant, groups, pathname),
     systemAuthority: actsWithSystemAuthority(principal, tenant, authority),
+    systemRecordHref: systemRecordHref(tenant),
     username: principal.username,
     signedInTo: principal.tenant,
     switchHref: `/console/?${CHOOSE_TENANT}`,

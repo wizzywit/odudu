@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { json, problem } from '#/testing/fakeTransport.ts';
@@ -27,6 +27,18 @@ it('frames the tenant with its rail and the principal in the footer', async () =
 it('shows the not-found page for a name no tenant can have', async () => {
   renderConsoleAt('/console/Not_A_Tenant', { 'GET /console/api/session': json(GRACE) });
   expect(await screen.findByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+});
+
+it('offers a system administrator inside a tenant the way back to its record', async () => {
+  renderConsoleAt('/console/acme', {
+    'GET /console/api/session': json(ROOT),
+    'GET /console/api/admin/tenants/acme/whoami': whoami(['manage-tenants'], true),
+  });
+  const bar = await screen.findByRole('region', { name: 'System authority' });
+  expect(within(bar).getByRole('link', { name: 'Back to system' })).toHaveAttribute(
+    'href',
+    '/console/system/tenants/acme',
+  );
 });
 
 it('passes axe in both themes, under system authority as well', async () => {

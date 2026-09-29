@@ -39,7 +39,11 @@ function SignedInShell({
       collapsed={shell.collapsed}
       onCollapsedChange={shell.setCollapsed}
       shortcutsPaused={shell.dialogOpen}
-      contextBar={shell.systemAuthority ? <ContextBar tenant={tenant} /> : undefined}
+      contextBar={
+        shell.systemAuthority ? (
+          <ContextBar tenant={tenant} backHref={shell.systemRecordHref} />
+        ) : undefined
+      }
       rail={
         <Rail
           label={`Areas of ${tenant}`}

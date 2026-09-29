@@ -658,7 +658,10 @@ its administrators, export, and "enter tenant"); System administrators;
 System settings (the `system` tenant's own areas); System audit. Inside a tenant, a
 system administrator sees the tenant console under an amber context bar,
 "acting in acme with system authority", that does not go away, and every
-confirmation names the tenant.
+confirmation names the tenant. The bar carries "Back to system", a link to that
+tenant's record under System › Tenants, where "enter tenant" is; since the
+bar never collapses, the way back is there at every width, with the rail
+hidden, and on a phone.
 
 **Creating a tenant** is a guided page whose steps are each one API call and
 which can be resumed: the tenant, with the name rule and a live issuer

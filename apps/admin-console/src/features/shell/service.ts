@@ -129,6 +129,11 @@ export function areaHref(tenant: string, area: Area): string {
   return area.path === '' ? base : `${base}/${area.path}`;
 }
 
+// Where a system administrator entered this tenant from.
+export function systemRecordHref(tenant: string): string {
+  return `${areaHref(SYSTEM_TENANT, areaAt('tenants'))}/${encodeURIComponent(tenant)}`;
+}
+
 export function railGroups(tenant: string, withSystem: boolean): readonly RailSection[] {
   const groups = withSystem ? [SYSTEM_AREAS, ...TENANT_AREAS] : TENANT_AREAS;
   return groups.map((group) => ({

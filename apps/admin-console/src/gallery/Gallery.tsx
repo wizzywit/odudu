@@ -536,7 +536,7 @@ export function Gallery({
           footer={<span className={styles.railFooter}>ada@acme.example</span>}
         />
       }
-      contextBar={<ContextBar tenant={TENANT} />}
+      contextBar={<ContextBar tenant={TENANT} backHref="#basics" />}
     >
       <PageHeader
         kicker="Design system"

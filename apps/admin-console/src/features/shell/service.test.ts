@@ -7,6 +7,7 @@ import {
   OVERVIEW,
   railGroups,
   showsSystemArea,
+  systemRecordHref,
 } from '#/features/shell/service.ts';
 
 const SYSTEM_ADMIN = { tenant: 'system', subjectId: 's0', username: 'root' };
@@ -102,4 +103,11 @@ it('finds an area by its path, and refuses one no area has', () => {
   expect(areaAt('audit')).toMatchObject({ label: 'Audit trail', capability: 'view-audit' });
   expect(areaAt('')).toBe(OVERVIEW);
   expect(() => areaAt('nowhere')).toThrow('no area is at "nowhere"');
+});
+
+describe('the way back to system', () => {
+  it('is the tenant’s record under System › Tenants, where it was entered', () => {
+    expect(systemRecordHref('acme')).toBe('/console/system/tenants/acme');
+    expect(systemRecordHref('a b')).toBe('/console/system/tenants/a%20b');
+  });
 });
