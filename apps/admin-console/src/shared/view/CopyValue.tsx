@@ -61,7 +61,14 @@ export function CopyValue({
       )}
     </code>
   );
-  if (block) shown = <pre className={styles.block}>{value}</pre>;
+  // Focusable, so a keyboard can scroll a document wider or taller than its frame.
+  if (block) {
+    shown = (
+      <pre className={styles.block} tabIndex={0}>
+        {value}
+      </pre>
+    );
+  }
   const Frame = block ? 'div' : 'span';
   return (
     <Frame className={styles.copy} data-block={block || undefined}>
