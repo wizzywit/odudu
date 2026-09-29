@@ -67,6 +67,11 @@ it('names what adding an administrator needs, rather than offering it, to manage
   expect(screen.getAllByRole('note').map((note) => note.textContent)).toEqual([
     'Adding an administrator needs the manage-users capability.',
     'Adding an administrator needs the manage-clients capability.',
+    // Granting tenant-admin is held to every capability the role carries.
+    'Adding an administrator needs the manage-tenant capability.',
+    'Adding an administrator needs the manage-keys capability.',
+    'Adding an administrator needs the manage-sessions capability.',
+    'Adding an administrator needs the view-audit capability.',
   ]);
 });
 

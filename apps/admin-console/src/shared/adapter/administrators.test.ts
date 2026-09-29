@@ -9,7 +9,7 @@ import {
   readClientRoles,
   readSubjectRoles,
   setSubjectRoles,
-} from '#/features/tenants/adapter/administrators.ts';
+} from '#/shared/adapter/administrators.ts';
 import { fakeTransport, json } from '#/testing/fakeTransport.ts';
 
 const T = '/console/api/admin/tenants/acme';

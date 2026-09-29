@@ -1,29 +1,21 @@
 import type { Subject, Tenant } from '@odudu/contracts/admin';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import {
-  createSubject,
-  findSubject,
-  issuePassword,
-  readAdminClients,
-  readClientRoles,
-  readSubjectRoles,
-  setSubjectRoles,
-} from '#/features/tenants/adapter/administrators.ts';
 import { loadCreation, storeCreation } from '#/features/tenants/adapter/creationStorage.ts';
 import { createTenant, findTenant } from '#/features/tenants/adapter/tenants.ts';
+import { administratorOf, FRESH_CREATION, type Creation } from '#/features/tenants/service.ts';
+import { createSubject, findSubject, issuePassword } from '#/shared/adapter/administrators.ts';
+import {
+  defect,
+  grantTenantAdmin,
+  refusedAt,
+  type Refused,
+} from '#/shared/repository/administratorRoles.ts';
 import {
   administratorCalls,
-  administratorOf,
   type AdministratorCall,
   type AdministratorRequest,
-  builtinAdminClient,
-  FRESH_CREATION,
-  TENANT_ADMIN,
-  tenantAdminRole,
-  withRole,
-  type Creation,
-} from '#/features/tenants/service.ts';
+} from '#/shared/service/administrators.ts';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce.ts';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
@@ -105,56 +97,6 @@ export interface AdministratorRun {
     call: AdministratorCall,
     request: AdministratorRequest,
   ) => void;
-}
-
-function defect(message: string): GatewayFailure {
-  console.error(message);
-  return { ok: false, kind: 'defect' };
-}
-
-interface Refused {
-  readonly failure: GatewayFailure;
-  readonly request: AdministratorRequest;
-}
-
-function refusedAt(failure: GatewayFailure, request: AdministratorRequest): Refused {
-  return { failure, request };
-}
-
-async function grantTenantAdmin(
-  gateway: Gateway,
-  tenant: string,
-  subjectId: string,
-): Promise<Refused | null> {
-  const clients = await readAdminClients(gateway, tenant);
-  if (!clients.ok) return refusedAt(clients, 'clients');
-  const client = builtinAdminClient(clients.data.items);
-  if (client === null) {
-    return refusedAt(
-      defect(`console defect: ${tenant} lists no built-in odudu-admin client`),
-      'clients',
-    );
-  }
-  const roles = await readClientRoles(gateway, tenant, client, TENANT_ADMIN);
-  if (!roles.ok) return refusedAt(roles, 'roles');
-  const role = tenantAdminRole(roles.data.items, client);
-  if (role === null) {
-    return refusedAt(
-      defect(`console defect: ${tenant}'s odudu-admin has no ${TENANT_ADMIN}`),
-      'roles',
-    );
-  }
-  const held = await readSubjectRoles(gateway, tenant, subjectId);
-  if (!held.ok) return refusedAt(held, 'subject-roles');
-  if (held.etag === null) {
-    return refusedAt(
-      defect(`console defect: ${tenant} answered a subject's roles without an ETag`),
-      'subject-roles',
-    );
-  }
-  const ids = held.data.items.map((assigned) => assigned.id);
-  const set = await setSubjectRoles(gateway, tenant, subjectId, withRole(ids, role), held.etag);
-  return set.ok ? null : refusedAt(set, 'set-roles');
 }
 
 type CallResult =

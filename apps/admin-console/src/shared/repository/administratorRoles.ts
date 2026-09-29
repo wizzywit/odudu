@@ -1,0 +1,141 @@
+import {
+  readAdminClients,
+  readAdministratorPage,
+  readClientRoles,
+  readSubjectRoles,
+  setSubjectRoles,
+} from '#/shared/adapter/administrators.ts';
+import {
+  administratorCapability,
+  administratorRoleIds,
+  builtinAdminClient,
+  TENANT_ADMIN,
+  tenantAdminRole,
+  withoutRoles,
+  withRole,
+  type AdministratorRequest,
+} from '#/shared/service/administrators.ts';
+import type { Gateway, GatewayFailure } from '#/shared/transport/gateway.ts';
+
+export function defect(message: string): GatewayFailure {
+  console.error(message);
+  return { ok: false, kind: 'defect' };
+}
+
+export interface Refused {
+  readonly failure: GatewayFailure;
+  readonly request: AdministratorRequest;
+}
+
+export function refusedAt(failure: GatewayFailure, request: AdministratorRequest): Refused {
+  return { failure, request };
+}
+
+async function adminClientOf(
+  gateway: Gateway,
+  tenant: string,
+): Promise<{ readonly client: string } | Refused> {
+  const clients = await readAdminClients(gateway, tenant);
+  if (!clients.ok) return refusedAt(clients, 'clients');
+  const client = builtinAdminClient(clients.data.items);
+  if (client === null) {
+    return refusedAt(
+      defect(`console defect: ${tenant} lists no built-in odudu-admin client`),
+      'clients',
+    );
+  }
+  return { client };
+}
+
+async function heldRoles(
+  gateway: Gateway,
+  tenant: string,
+  subjectId: string,
+): Promise<{ readonly ids: readonly string[]; readonly etag: string } | Refused> {
+  const held = await readSubjectRoles(gateway, tenant, subjectId);
+  if (!held.ok) return refusedAt(held, 'subject-roles');
+  if (held.etag === null) {
+    return refusedAt(
+      defect(`console defect: ${tenant} answered a subject's roles without an ETag`),
+      'subject-roles',
+    );
+  }
+  return { ids: held.data.items.map((assigned) => assigned.id), etag: held.etag };
+}
+
+function isRefused(value: object): value is Refused {
+  return 'failure' in value;
+}
+
+export async function grantTenantAdmin(
+  gateway: Gateway,
+  tenant: string,
+  subjectId: string,
+): Promise<Refused | null> {
+  const client = await adminClientOf(gateway, tenant);
+  if (isRefused(client)) return client;
+  const roles = await readClientRoles(gateway, tenant, client.client, TENANT_ADMIN);
+  if (!roles.ok) return refusedAt(roles, 'roles');
+  const role = tenantAdminRole(roles.data.items, client.client);
+  if (role === null) {
+    return refusedAt(
+      defect(`console defect: ${tenant}'s odudu-admin has no ${TENANT_ADMIN}`),
+      'roles',
+    );
+  }
+  const held = await heldRoles(gateway, tenant, subjectId);
+  if (isRefused(held)) return held;
+  const set = await setSubjectRoles(
+    gateway,
+    tenant,
+    subjectId,
+    withRole(held.ids, role),
+    held.etag,
+  );
+  return set.ok ? null : refusedAt(set, 'set-roles');
+}
+
+export type Revoked =
+  // stillHolds is null for a subject with no username to look it up by.
+  | { readonly kind: 'revoked'; readonly stillHolds: boolean | null }
+  // Held only through a group or a role that nests it, which no edit here reaches.
+  | { readonly kind: 'not-direct' }
+  | ({ readonly kind: 'refused' } & Refused);
+
+// Only a subject's own role assignments are changed. Whether the capability
+// survived through another path is asked of the server rather than worked out.
+export async function revokeAdministrator(
+  gateway: Gateway,
+  tenant: string,
+  subject: { readonly id: string; readonly username: string | null },
+): Promise<Revoked> {
+  const client = await adminClientOf(gateway, tenant);
+  if (isRefused(client)) return { kind: 'refused', ...client };
+  const roles = await readClientRoles(gateway, tenant, client.client);
+  if (!roles.ok) return { kind: 'refused', ...refusedAt(roles, 'roles') };
+  const granting = administratorRoleIds(tenant, roles.data.items, client.client);
+  const held = await heldRoles(gateway, tenant, subject.id);
+  if (isRefused(held)) return { kind: 'refused', ...held };
+  if (!held.ids.some((id) => granting.includes(id))) return { kind: 'not-direct' };
+  const set = await setSubjectRoles(
+    gateway,
+    tenant,
+    subject.id,
+    withoutRoles(held.ids, granting),
+    held.etag,
+  );
+  if (!set.ok) return { kind: 'refused', ...refusedAt(set, 'set-roles') };
+  if (subject.username === null) return { kind: 'revoked', stillHolds: null };
+  const holders = await readAdministratorPage(
+    gateway,
+    tenant,
+    new URLSearchParams({
+      capability: administratorCapability(tenant),
+      username: subject.username,
+    }),
+  );
+  return {
+    kind: 'revoked',
+    stillHolds: holders.ok && holders.data.items.some((holder) => holder.id === subject.id),
+  };
+}

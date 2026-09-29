@@ -1,9 +1,6 @@
 import type { Subject } from '@odudu/contracts/admin';
-import {
-  readAdministratorCount,
-  readAdministratorPage,
-} from '#/features/tenants/adapter/administrators.ts';
-import { administratorCapability } from '#/features/tenants/service.ts';
+import { readAdministratorCount, readAdministratorPage } from '#/shared/adapter/administrators.ts';
+import { administratorCapability } from '#/shared/service/administrators.ts';
 import { useResourceList } from '#/shared/repository/useResourceList.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 

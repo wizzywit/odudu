@@ -2,11 +2,8 @@ import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session/index.ts';
 import { holds } from '#/features/shell/index.ts';
 import { useAdministrators } from '#/features/tenants/repository/useAdministrators.ts';
-import {
-  ADMINISTRATOR_NEEDS,
-  administratorCapability,
-  SYSTEM_ADMINS_HREF,
-} from '#/features/tenants/service.ts';
+import { SYSTEM_ADMINS_HREF } from '#/features/tenants/service.ts';
+import { administratorCapability, administratorNeeds } from '#/shared/service/administrators.ts';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
 import {
   useBeginAdministrator,
@@ -30,7 +27,11 @@ export function useTenantAdministrators(tenant: string): TenantAdministrators {
   const begin = useBeginAdministrator(tenant, 'existing');
   const authority = useAuthority(SYSTEM_TENANT);
   const addNeeds =
-    authority === undefined ? [] : ADMINISTRATOR_NEEDS.filter((c) => !holds(authority, c));
+    authority === undefined
+      ? []
+      : administratorNeeds(tenant, { subjectId: null, granted: false }).filter(
+          (c) => !holds(authority, c),
+        );
   return {
     list,
     counted: administratorCapability(tenant),

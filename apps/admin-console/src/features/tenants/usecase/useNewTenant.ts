@@ -9,8 +9,6 @@ import {
 } from '#/features/tenants/repository/useCreation.ts';
 import { useSystemIssuer } from '#/features/tenants/repository/useSystemIssuer.ts';
 import {
-  ADMINISTRATOR_REQUEST_NEEDS,
-  administratorNeeds,
   administratorOf,
   enterHref,
   FRESH_CREATION,
@@ -20,6 +18,10 @@ import {
   tenantHref,
   type Creation,
 } from '#/features/tenants/service.ts';
+import {
+  ADMINISTRATOR_REQUEST_NEEDS,
+  administratorNeeds,
+} from '#/shared/service/administrators.ts';
 import { fieldErrorsOf } from '#/shared/service/fieldErrors.ts';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
 import type { GatewayFailure } from '#/shared/transport/gateway.ts';
@@ -213,7 +215,9 @@ export function useNewTenant(): NewTenant {
   if (creation.step === 'administrator') {
     const step = creation;
     const needs =
-      authority === undefined ? [] : administratorNeeds(step).filter((c) => !holds(authority, c));
+      authority === undefined
+        ? []
+        : administratorNeeds(step.tenant, step).filter((c) => !holds(authority, c));
     const record = (done: { readonly subjectId: string; readonly granted: boolean }): void => {
       update({ ...step, ...done });
     };

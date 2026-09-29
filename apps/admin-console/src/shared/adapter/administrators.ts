@@ -102,9 +102,11 @@ export function readClientRoles(
   gateway: Gateway,
   tenant: string,
   clientId: string,
-  name: string,
+  name?: string,
 ): Promise<GatewayResult<ListRolesResponse>> {
-  return readRolePage(gateway, tenant, new URLSearchParams({ client: clientId, name }));
+  const query = new URLSearchParams({ client: clientId });
+  if (name !== undefined) query.set('name', name);
+  return readRolePage(gateway, tenant, query);
 }
 
 export function readSubjectRoles(

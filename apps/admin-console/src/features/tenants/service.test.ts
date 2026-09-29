@@ -2,15 +2,10 @@ import { TENANT_NAME_RULE } from '@odudu/contracts';
 import { TENANT_IMPORT_BODY_LIMIT } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import {
-  administratorCalls,
-  administratorNeeds,
-  builtinAdminClient,
   enterHref,
   IMPORT_TENANT_HREF,
   NEW_TENANT_HREF,
   tenantHref,
-  tenantAdminRole,
-  withRole,
   exportFileName,
   fileSize,
   importFileProblem,
@@ -91,57 +86,11 @@ describe('the import file', () => {
   });
 });
 
-describe('the first administrator', () => {
-  it('makes only the calls not yet made, the password last', () => {
-    expect(administratorCalls({ subjectId: null, granted: false })).toEqual([
-      'create',
-      'grant',
-      'password',
-    ]);
-    expect(administratorCalls({ subjectId: 's1', granted: false })).toEqual(['grant', 'password']);
-    expect(administratorCalls({ subjectId: 's1', granted: true })).toEqual(['password']);
-  });
-});
-
-describe('the tenant-admin role', () => {
-  it('is the role named tenant-admin on the built-in odudu-admin client, and no other', () => {
-    const clients = [
-      { id: 'c-own', client_id: 'odudu-admin-copy', builtin_admin: false },
-      { id: 'c-builtin', client_id: 'odudu-admin', builtin_admin: true },
-    ];
-    expect(builtinAdminClient(clients)).toBe('c-builtin');
-    expect(builtinAdminClient(clients.slice(0, 1))).toBeNull();
-    const roles = [
-      { id: 'r-other', name: 'tenant-admin-x', client_id: 'c-builtin' },
-      { id: 'r-own', name: 'tenant-admin', client_id: 'c-own' },
-      { id: 'r-admin', name: 'tenant-admin', client_id: 'c-builtin' },
-    ];
-    expect(tenantAdminRole(roles, 'c-builtin')).toBe('r-admin');
-    expect(tenantAdminRole(roles.slice(0, 2), 'c-builtin')).toBeNull();
-  });
-
-  it('is added to the roles a subject already holds, once', () => {
-    expect(withRole(['r1'], 'r-admin')).toEqual(['r1', 'r-admin']);
-    expect(withRole(['r-admin', 'r1'], 'r-admin')).toEqual(['r-admin', 'r1']);
-  });
-});
-
 describe('the addresses', () => {
   it('puts creation and import beside the list, so no tenant name shadows them', () => {
     expect(tenantHref('new')).toBe('/console/system/tenants/new');
     expect(NEW_TENANT_HREF).toBe('/console/system/new-tenant');
     expect(IMPORT_TENANT_HREF).toBe('/console/system/import-tenant');
     expect(enterHref('acme')).toBe('/console/acme');
-  });
-});
-
-describe('what the first administrator needs', () => {
-  it('is what the calls still to make need, and no more', () => {
-    expect(administratorNeeds({ subjectId: null, granted: false })).toEqual([
-      'manage-users',
-      'manage-clients',
-      'view-users',
-    ]);
-    expect(administratorNeeds({ subjectId: 's1', granted: true })).toEqual(['manage-users']);
   });
 });
