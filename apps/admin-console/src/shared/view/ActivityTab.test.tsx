@@ -31,7 +31,14 @@ function state(overrides: Partial<ResourceListState<AuditEvent>> = {}) {
     status: 'ready',
     rows: [
       EVENT,
-      { ...EVENT, id: 'a2', outcome: 'refused', request_id: null, actor_subject_id: null },
+      {
+        ...EVENT,
+        id: 'a2',
+        outcome: 'refused',
+        request_id: null,
+        actor_subject_id: null,
+        actor_origin: null,
+      },
     ],
     count: null,
     search: null,
