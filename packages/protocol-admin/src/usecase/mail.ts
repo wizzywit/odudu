@@ -48,6 +48,24 @@ export function maskAddress(address: string): string {
   return `${address.slice(0, 1)}***${address.slice(at)}`;
 }
 
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+// A relay may quote the address back in any case, or name its local part
+// against another domain, so both are masked wherever they appear.
+export function maskIn(text: string, address: string): string {
+  const masked = maskAddress(address);
+  const at = address.lastIndexOf('@');
+  const whole = text.replace(new RegExp(escapeRegExp(address), 'giu'), masked);
+  if (at <= 0) return whole;
+  const local = address.slice(0, at);
+  return whole.replace(
+    new RegExp(`(?<![\\w.+-])${escapeRegExp(local)}@`, 'giu'),
+    `${masked.slice(0, masked.indexOf('@'))}@`,
+  );
+}
+
 export interface MailView extends MailMessage {
   readonly createdAt: Date;
 }
@@ -106,7 +124,10 @@ export async function listMail(
         subject: row.subject,
         status: statusOf(row, input.maxAttempts),
         attempts: row.attempts,
-        last_error: row.lastError === null ? null : row.lastError.replaceAll(row.to, to),
+        last_error:
+          row.lastError === null || input.revealRecipients
+            ? row.lastError
+            : maskIn(row.lastError, row.to),
         created_at: row.createdAt.toISOString(),
         next_attempt_at: row.nextAttemptAt.toISOString(),
         sent_at: row.sentAt?.toISOString() ?? null,

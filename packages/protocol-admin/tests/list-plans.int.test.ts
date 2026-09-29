@@ -524,6 +524,7 @@ describe('the plan an audit trail narrowed by resource_type and resource_id is g
     const list = (cursor: string | undefined) =>
       withTenant(app.db, targetTenantId, async (tx) => {
         const outcome = await listAudit(tx, {
+          revealNames: true,
           tenantId: targetTenantId,
           limit: 50,
           cursor,
@@ -552,6 +553,7 @@ describe('the plan an audit trail narrowed by resource_type and resource_id is g
     const list = (cursor: string | undefined) =>
       withTenant(app.db, targetTenantId, async (tx) => {
         const outcome = await listAudit(tx, {
+          revealNames: true,
           tenantId: targetTenantId,
           limit: 50,
           cursor,

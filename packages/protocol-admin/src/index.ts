@@ -529,6 +529,7 @@ function buildAdminRoutes(
       database: deps.database.db,
       cursorKey: deps.cursorKey,
       audit: recordAudit,
+      callerCapabilities,
     };
     const countsDeps: CountsRouteDeps = {
       database: deps.database.db,

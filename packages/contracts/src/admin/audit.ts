@@ -79,9 +79,10 @@ export const auditEventSchema = z.object({
   actor_client_id: z.string().nullable(),
   // Resolved when the row is read, never stored with it: the username of a
   // user, or the `client_id` whose service account it is, for an actor of
-  // this tenant still there to name. Null for an actor since deleted, and
-  // for one from elsewhere, whom `actor_origin` names instead: `system` for
-  // a system administrator, `other-tenant` for a foreign token refused.
+  // this tenant still there to name, to a caller who also holds `view-users`.
+  // Null otherwise, and for an actor from elsewhere, whom `actor_origin`
+  // names instead: `system` for a system administrator, `other-tenant` for
+  // a foreign token refused.
   actor_name: z.string().nullable(),
   actor_origin: z.enum(['tenant', 'system', 'other-tenant']).nullable(),
   resource_type: z.string().nullable(),

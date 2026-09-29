@@ -15,6 +15,8 @@ const COLLECTION = 'audit';
 
 export interface ListAuditInput {
   readonly tenantId: string;
+  /** Whether the caller may read subjects, and so the names of actors. */
+  readonly revealNames: boolean;
   readonly limit: number;
   readonly cursor: string | undefined;
   readonly cursorKey: Uint8Array;
@@ -96,13 +98,18 @@ function toWireShape(tenantId: string, names: ActorNames, row: AuditEventRecord)
   };
 }
 
-/** Rows as the wire carries them, their actors named by `resolveActors`. */
+/**
+ * Rows as the wire carries them, their actors named by `resolveActors` for a
+ * caller who may read subjects (`revealNames`), since a username is subject
+ * data; `actor_origin` is answered either way.
+ */
 export async function auditWireShapes(
   tx: TenantScopedDatabase,
   tenantId: string,
   rows: readonly AuditEventRecord[],
+  revealNames: boolean,
 ): Promise<AuditEvent[]> {
-  const names = await resolveActors(tx, tenantId, rows);
+  const names = revealNames ? await resolveActors(tx, tenantId, rows) : new Map<string, string>();
   return rows.map((row) => toWireShape(tenantId, names, row));
 }
 
@@ -174,7 +181,11 @@ export async function listAudit(
         })
       : null;
 
-  return { kind: 'ok', items: await auditWireShapes(tx, input.tenantId, page), next };
+  return {
+    kind: 'ok',
+    items: await auditWireShapes(tx, input.tenantId, page, input.revealNames),
+    next,
+  };
 }
 
 export async function countAudit(
@@ -198,6 +209,7 @@ export interface AuditExportAuditEvent {
 
 export interface ExportAuditInput {
   readonly tenantId: string;
+  readonly revealNames: boolean;
   readonly filters: AuditEventCriteria;
   readonly cap: number;
   readonly actorSubjectId: string;
@@ -220,7 +232,7 @@ export async function exportAudit(
 ): Promise<ExportAuditOutcome> {
   const rows = await auditRepository(tx).list({ ...input.filters, limit: input.cap + 1 });
   if (rows.length > input.cap) return { kind: 'too_many', cap: input.cap };
-  const items = await auditWireShapes(tx, input.tenantId, rows);
+  const items = await auditWireShapes(tx, input.tenantId, rows, input.revealNames);
   await deps.audit(tx, {
     action: 'audit.export',
     resourceType: 'tenant',

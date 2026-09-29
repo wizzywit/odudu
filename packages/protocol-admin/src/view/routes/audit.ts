@@ -14,12 +14,22 @@ import { countAudit, exportAudit, listAudit, type AuditExportAuditEvent } from '
 import { COUNT_CAP } from '#/usecase/counts';
 import { cursorProblem, problem, queryProblem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
+import { type AdminPrincipal } from '#/usecase/authenticate-admin';
 import { type AdminRouteHandler } from '#/view/routes/router';
 
 export interface AuditRouteDeps {
   readonly database: Database;
   readonly cursorKey: Uint8Array;
   readonly audit: (tx: TenantScopedDatabase, event: AuditExportAuditEvent) => Promise<void>;
+  readonly callerCapabilities: (
+    issuerTenantId: string,
+    subjectId: string,
+  ) => Promise<ReadonlySet<string>>;
+}
+
+async function mayReadNames(deps: AuditRouteDeps, principal: AdminPrincipal): Promise<boolean> {
+  const held = await deps.callerCapabilities(principal.issuerTenantId, principal.subjectId);
+  return held.has('view-users');
 }
 
 function criteriaOf(query: CountAuditQuery): AuditEventCriteria {
@@ -50,12 +60,14 @@ export function exportAuditHandler(deps: AuditRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const parsed = exportAuditQuerySchema.safeParse(request.query);
     if (!parsed.success) return sendProblem(reply, request, queryProblem(parsed.error));
+    const revealNames = await mayReadNames(deps, principal);
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       exportAudit(
         tx,
         { audit: deps.audit },
         {
           tenantId: targetTenantId,
+          revealNames,
           filters: criteriaOf(parsed.data),
           cap: AUDIT_EXPORT_CAP,
           actorSubjectId: principal.subjectId,
@@ -87,7 +99,7 @@ function parseDate(raw: string | undefined): Date | undefined {
 }
 
 export function listAuditHandler(deps: AuditRouteDeps): AdminRouteHandler {
-  return async (request, reply, _principal, targetTenantId) => {
+  return async (request, reply, principal, targetTenantId) => {
     const tenantName = request.params.tenant;
     if (tenantName === undefined) {
       throw new Error('protocol-admin: GET audit route received no :tenant');
@@ -103,8 +115,10 @@ export function listAuditHandler(deps: AuditRouteDeps): AdminRouteHandler {
     const query = parsed.data;
     const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
 
+    const revealNames = await mayReadNames(deps, principal);
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listAudit(tx, {
+        revealNames,
         tenantId: targetTenantId,
         limit,
         cursor: query.cursor,

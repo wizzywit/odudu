@@ -56,7 +56,7 @@ interface AuditItem {
 }
 
 describe('the actor an audit row names, resolved when it is read', () => {
-  it('names a user by username and a service account by its client, in this tenant only', async () => {
+  it('names a user or a service account, in this tenant only, to a caller who can read subjects', async () => {
     const t = await fixture.createTenant(`aud-${newId()}`);
     const { ada, service, client, gone } = await withTenant(fixture.app.db, t.id, async (tx) => {
       const user = await subjectRepository(tx).create({ tenantId: t.id, type: 'user' });
@@ -94,8 +94,19 @@ describe('the actor an audit row names, resolved when it is read', () => {
     await withTenant(fixture.app.db, t.id, (tx) =>
       tx.delete(subjects).where(eq(subjects.id, gone)),
     );
-    const token = await fixture.adminToken(t.name, ['view-audit']);
+    const auditorOnly = await fixture.adminToken(t.name, ['view-audit']);
+    const unnamed = await get(t.name, auditorOnly, 'audit?limit=50');
+    const hidden = unnamed.json<{ items: AuditItem[] }>().items;
+    expect(hidden.find((item) => item.action === 'probe.user')).toMatchObject({
+      actor_subject_id: ada,
+      actor_name: null,
+      actor_origin: 'tenant',
+    });
+    expect(hidden.every((item) => item.actor_name === null)).toBe(true);
+    const unnamedExport = await get(t.name, auditorOnly, 'audit/export?action=probe.user');
+    expect(unnamedExport.body).not.toContain('"actor_name":"ada"');
 
+    const token = await fixture.adminToken(t.name, ['view-audit', 'view-users']);
     const res = await get(t.name, token, 'audit?limit=50');
     expect(res.statusCode).toBe(200);
     const byAction = new Map(
@@ -196,6 +207,7 @@ describe('GET /audit/export', () => {
         { audit: () => Promise.resolve() },
         {
           tenantId: t.id,
+          revealNames: true,
           filters: { action: 'probe.big' },
           cap: 2,
           actorSubjectId: newId(),
@@ -236,6 +248,7 @@ describe('countAudit and exportAudit, probed with a foreign tenant_id', () => {
           { audit: () => Promise.resolve() },
           {
             tenantId: newId(),
+            revealNames: true,
             filters: {},
             cap: 10,
             actorSubjectId: newId(),

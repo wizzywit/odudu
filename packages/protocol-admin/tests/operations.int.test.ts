@@ -130,6 +130,23 @@ describe('GET /mail', () => {
     });
   });
 
+  it('masks an address the relay echoes in another case, and its local part alone', async () => {
+    const t = await fixture.createTenant(`mail-${newId()}`);
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      queueMail(tx, t.id, 'bob@example.com', {
+        createdAt: fixture.clock.now(),
+        attempts: 1,
+        lastError: '550 <Bob@Example.COM> unknown; also tried BOB@relay.example',
+      }),
+    );
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+    const res = await get(t.name, token, 'mail');
+    expect(res.body.toLowerCase()).not.toContain('bob@');
+    expect(res.json<{ items: MailItem[] }>().items[0]?.last_error).toBe(
+      '550 <b***@example.com> unknown; also tried b***@relay.example',
+    );
+  });
+
   it('is refused without manage-tenant', async () => {
     const t = await fixture.createTenant(`mail-${newId()}`);
     const token = await fixture.adminToken(t.name, ['view-users']);
