@@ -732,6 +732,9 @@ async function removeRoleCompositeUnguarded(
   deps: RemoveRoleCompositeDeps,
   input: RemoveRoleCompositeInput,
 ): Promise<RemoveRoleCompositeOutcome> {
+  if (!isUuid(input.childRoleId)) return { kind: 'not_found' };
+  await lockRolesForComposite(tx, input.parentRoleId, input.childRoleId);
+
   const parent = await roleRepository(tx).byId(input.parentRoleId);
   if (parent === null) return { kind: 'not_found' };
   const owner = await builtinAdminClientOf(tx, parent.clientId);
@@ -752,8 +755,6 @@ async function removeRoleCompositeUnguarded(
     return { kind: 'builtin_admin_guarded', reason };
   }
 
-  if (!isUuid(input.childRoleId)) return { kind: 'not_found' };
-  await lockRolesForComposite(tx, input.parentRoleId, input.childRoleId);
   const children = await compositesOf(tx, input.parentRoleId);
   if (matches(input.ifMatch, compositesEtag(children)) === 'mismatch') {
     return { kind: 'precondition_failed' };
