@@ -297,7 +297,7 @@ test('an operator without the capabilities an export needs is told which, and se
   await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
 });
 
-test('a system administrator holding manage-tenants alone sees a tenant, and nothing to change it with', async ({
+test('a system administrator holding manage-tenants alone is told what a tenant record needs', async ({
   page,
 }) => {
   await signIn(page, systemAdmins.limited);
@@ -311,17 +311,12 @@ test('a system administrator holding manage-tenants alone sees a tenant, and not
   ]);
   await page.goto(`/console/system/tenants/${tenants.general}`);
   await expect(page.getByRole('heading', { level: 1, name: tenants.general })).toBeVisible();
-  await expect(page.getByRole('note')).toContainText(
-    'You can view tenants but not change them or add their administrators (needs manage-tenant',
+  await expect(page.getByRole('note')).toHaveText(
+    "A tenant's record needs the manage-tenant capability.",
   );
   await expect(page.getByRole('textbox')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /^(Disable|Enable) /u })).toHaveCount(0);
-  await expectAccessible(page);
-  await page.getByRole('tab', { name: 'Administrators' }).click();
-  await expect(
-    page.getByRole('grid', { name: `Administrators of ${tenants.general}` }),
-  ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Add an administrator' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^(Disable|Enable|Add) /u })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: `Enter ${tenants.general}` })).toBeVisible();
   await expectAccessible(page);
 });
 

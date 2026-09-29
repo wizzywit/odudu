@@ -219,9 +219,8 @@ test('a subject’s details are entered through typed fields and stored as the c
   await birthdate.getByText('Year only', { exact: true }).click();
   await birthdate.getByRole('textbox', { name: 'Year' }).fill('1990');
   await details.getByRole('combobox', { name: 'Time zone' }).fill('Lagos');
-  await expect(page.getByRole('option', { name: 'Africa/Lagos' })).toBeVisible();
-  await expectAccessible(page);
   await page.getByRole('option', { name: 'Africa/Lagos' }).click();
+  await expectAccessible(page);
   await details.getByRole('combobox', { name: 'Locale' }).fill('English (Nig');
   await page.getByRole('option', { name: 'English (Nigeria)' }).click();
   await page.getByRole('button', { name: 'Save Details' }).click();

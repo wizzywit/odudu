@@ -29,18 +29,28 @@ it('shows a tenant by name, with its status, its tabs and a way into it', async 
   expect(await screen.findByRole('heading', { level: 2, name: 'General' })).toBeVisible();
 });
 
-it('shows an operator who cannot change the tenant its values as text, with no action', async () => {
-  renderConsoleAt('/console/system/tenants/acme', {
+it('explains, and reads nothing, to an operator whose capabilities do not reach the record', async () => {
+  const { sent } = renderConsoleAt('/console/system/tenants/acme', {
     ...routes(),
     [`GET ${ADMIN}/system/whoami`]: whoami(['manage-tenants', 'view-users']),
   });
-  expect(await screen.findByText('Acme Corp', { selector: 'dd' })).toBeVisible();
-  expect(screen.getByRole('note')).toHaveTextContent(
-    /^You can view tenants but not change them or add their administrators \(needs manage-tenant, /u,
+  expect(await screen.findByRole('note')).toHaveTextContent(
+    "A tenant's record needs the manage-tenant capability.",
   );
-  expect(screen.queryByRole('textbox', { name: 'Display name' })).toBeNull();
-  expect(screen.queryByRole('button', { name: /^(Disable|Enable) acme$/u })).toBeNull();
-  expect(screen.getByRole('link', { name: 'Enter acme' })).toBeVisible();
+  expect(screen.getByRole('heading', { level: 1, name: 'acme' })).toBeVisible();
+  expect(sent.some((s) => s.path === `${ADMIN}/acme`)).toBe(false);
+});
+
+it('offers what the operator can change, and says once what it cannot', async () => {
+  renderConsoleAt('/console/system/tenants/acme', {
+    ...routes(),
+    [`GET ${ADMIN}/system/whoami`]: whoami(['manage-tenants', 'manage-tenant', 'view-users']),
+  });
+  expect(await screen.findByRole('note')).toHaveTextContent(
+    'You can view tenants but not add their administrators (needs manage-users, manage-clients, manage-keys, manage-sessions and view-audit).',
+  );
+  expect(await screen.findByRole('textbox', { name: 'Display name' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Disable acme' })).toBeVisible();
 });
 
 it('climbs back to Tenants through a breadcrumb, with the status beside the name', async () => {

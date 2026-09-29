@@ -51,3 +51,9 @@ export function useTenantRecordPage(name: string): TenantRecordPage {
     dirty,
   };
 }
+
+// A tenant's record is read with manage-tenant, which the System area's own
+// manage-tenants does not carry; its address still opens, and says so.
+export function useTenantRecordNeeds(): readonly AdminCapability[] {
+  return lacking(useAuthority(SYSTEM_TENANT), ['manage-tenant']);
+}

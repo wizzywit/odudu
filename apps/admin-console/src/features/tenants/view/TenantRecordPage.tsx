@@ -1,10 +1,15 @@
 import { enterHref, tenantsTrail } from '#/features/tenants/service.ts';
-import { useTenantRecordPage } from '#/features/tenants/usecase/useTenantRecordPage.ts';
+import {
+  useTenantRecordNeeds,
+  useTenantRecordPage,
+} from '#/features/tenants/usecase/useTenantRecordPage.ts';
 import { AdministratorsTab } from '#/features/tenants/view/AdministratorsTab.tsx';
 import { ExportPanel } from '#/features/tenants/view/ExportPanel.tsx';
 import { GeneralTab } from '#/features/tenants/view/GeneralTab.tsx';
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
+import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
+import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
@@ -75,10 +80,29 @@ function Record({ name }: { name: string }) {
   );
 }
 
+function Readable({ name }: { name: string }) {
+  const needs = useTenantRecordNeeds();
+  if (needs.length === 0) return <Record name={name} />;
+  return (
+    <>
+      <PageHeader
+        breadcrumb={tenantsTrail(name)}
+        title={name}
+        actions={<ButtonLink href={enterHref(name)}>{`Enter ${name}`}</ButtonLink>}
+      />
+      {needs.map((capability) => (
+        <CapabilityNote key={capability} capability={capability}>
+          A tenant&apos;s record
+        </CapabilityNote>
+      ))}
+    </>
+  );
+}
+
 export function TenantRecordPage({ tenant, name }: { tenant: string; name: string }) {
   return (
     <SystemGate tenant={tenant} title={name} breadcrumb={tenantsTrail(name)}>
-      <Record name={name} />
+      <Readable name={name} />
     </SystemGate>
   );
 }

@@ -55,14 +55,14 @@ it('adds an administrator through the guided step, resumed for this tenant', asy
   ).toBeVisible();
 });
 
-it('offers no add to manage-tenants alone, and says once on the page what it needs', async () => {
+it('offers no add without the capabilities it needs, and says once on the page what they are', async () => {
   renderConsoleAt(AT, {
     ...routes(),
-    [`GET ${ADMIN}/system/whoami`]: whoami(['manage-tenants', 'view-users']),
+    [`GET ${ADMIN}/system/whoami`]: whoami(['manage-tenants', 'manage-tenant', 'view-users']),
   });
   // Granting tenant-admin is held to every capability the role carries.
   expect(await screen.findByRole('note')).toHaveTextContent(
-    'You can view tenants but not change them or add their administrators (needs manage-tenant, manage-users, manage-clients, manage-keys, manage-sessions and view-audit).',
+    'You can view tenants but not add their administrators (needs manage-users, manage-clients, manage-keys, manage-sessions and view-audit).',
   );
   await screen.findByRole('grid', { name: 'Administrators of acme' });
   expect(screen.queryByRole('button', { name: 'Add an administrator' })).toBeNull();
