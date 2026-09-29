@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { advance, type CursorTrail } from '#/shared/service/cursorTrail.ts';
+import type { ListSearch, ResourceListState } from '#/shared/service/resourceList.ts';
 import { current, dirtyFields, discard, edit, startDraft } from '#/shared/service/dirty.ts';
 import type { Toast } from '#/shared/service/toast.ts';
 import { AppShell } from '#/shared/view/AppShell.tsx';
@@ -25,6 +26,7 @@ import { FilterBar } from '#/shared/view/FilterBar.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import { Pager } from '#/shared/view/Pager.tsx';
 import { Rail } from '#/shared/view/Rail.tsx';
+import { ResourceListPage } from '#/shared/view/ResourceListPage.tsx';
 import { SaveBar } from '#/shared/view/SaveBar.tsx';
 import { SecretDialog } from '#/shared/view/SecretDialog.tsx';
 import { Section } from '#/shared/view/Section.tsx';
@@ -38,6 +40,7 @@ import styles from '#/gallery/Gallery.module.css';
 import {
   CLAIM_VALUES,
   CLIENT_SECRET,
+  CLIENT_FIELDS,
   CLIENTS,
   CONFLICTS,
   NOW,
@@ -225,14 +228,14 @@ function Lists() {
         <Count count={10000} capped noun={{ one: 'subject', other: 'subjects' }} />
       </FilterBar>
       <DataTable
-        label="Clients"
+        label="All clients"
         columns={COLUMNS}
         rows={CLIENTS}
         rowKey={(c) => c.id}
         onRowAction={() => undefined}
       />
       <Pager
-        label="Clients"
+        label="All clients"
         trail={trail}
         next="c4"
         onTrailChange={setTrail}
@@ -244,6 +247,49 @@ function Lists() {
         <Count count={1000} capped noun={{ one: 'role', other: 'roles' }} />
       </div>
     </>
+  );
+}
+
+const NOTHING = (): void => undefined;
+
+function ClientList() {
+  const [trail, setTrail] = useState<CursorTrail>([]);
+  const [search, setSearch] = useState<ListSearch | null>(null);
+  const rows = search === null ? CLIENTS : CLIENTS.filter((c) => c.name.startsWith(search.query));
+  const list: ResourceListState<ClientRow> = {
+    status: 'ready',
+    rows,
+    count: { count: rows.length, capped: false },
+    search,
+    filters: {},
+    narrowed: search !== null,
+    trail,
+    next: search === null ? 'c4' : null,
+    loadingMore: false,
+    setSearch: (next) => {
+      setSearch(next.query === '' ? null : next);
+    },
+    setFilter: NOTHING,
+    clear: () => {
+      setSearch(null);
+    },
+    setTrail,
+    loadMore: NOTHING,
+    retry: NOTHING,
+  };
+  return (
+    <ResourceListPage
+      list={list}
+      kicker={TENANT}
+      title="Clients"
+      description="Applications that sign people in through this tenant."
+      noun={{ one: 'client', other: 'clients' }}
+      searchFields={CLIENT_FIELDS}
+      columns={COLUMNS}
+      rowKey={(c) => c.id}
+      onRowAction={NOTHING}
+      actions={<Button variant="primary">Create client</Button>}
+    />
   );
 }
 
@@ -474,6 +520,9 @@ export function Gallery({
 
         <Group id="lists" title="Lists">
           <Lists />
+          <Specimen label="ResourceListPage: a whole list, searched, counted and paged">
+            <ClientList />
+          </Specimen>
         </Group>
 
         <Group id="feedback" title="Empty, loading and notices">

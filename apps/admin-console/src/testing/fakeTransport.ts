@@ -4,7 +4,8 @@ import { createAuth } from '#/shared/transport/auth.ts';
 import { createGateway, type Fetch } from '#/shared/transport/gateway.ts';
 import type { Transport } from '#/shared/transport/transport.ts';
 
-export type Answer = () => Response | Promise<Response>;
+// Given what was sent, for an answer that depends on the query or the body.
+export type Answer = (request: Sent) => Response | Promise<Response>;
 
 export function json(body: unknown, status = 200, headers: Record<string, string> = {}): Answer {
   return () =>
@@ -30,10 +31,10 @@ export function problem(
 // Answers each request with the next of `answers`, then keeps giving the last.
 export function inTurn(...answers: [Answer, ...Answer[]]): Answer {
   let given = 0;
-  return () => {
+  return (request) => {
     const answer = answers[Math.min(given, answers.length - 1)] ?? answers[0];
     given += 1;
-    return answer();
+    return answer(request);
   };
 }
 
@@ -83,16 +84,17 @@ export function fakeTransport(routes: Record<string, Answer>) {
     const path = address.pathname;
     const headers = new Headers(init.headers);
     calls.push({ method, path, subject: headers.get('x-odudu-console-subject') });
-    sent.push({
+    const request: Sent = {
       method,
       path,
       search: address.searchParams,
       ifMatch: headers.get('if-match'),
       body: bodyOf(init),
-    });
+    };
+    sent.push(request);
     const answer = routes[`${method} ${path}`] ?? problem(404, 'about:blank', 'Not Found');
     try {
-      return Promise.resolve(answer());
+      return Promise.resolve(answer(request));
     } catch (error) {
       return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }

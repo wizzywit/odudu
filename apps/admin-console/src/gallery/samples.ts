@@ -72,6 +72,11 @@ export const SUBJECT_FIELDS = [
   { id: 'email', label: 'email' },
 ];
 
+export const CLIENT_FIELDS = [
+  { id: 'name', label: 'name' },
+  { id: 'client_id', label: 'client id' },
+];
+
 export const CLIENT_SECRET = 'q7Hn2vX0pR-4tKe9WmZ3cY8bLs1uD6fA';
 
 export const RAIL_GROUPS = [
