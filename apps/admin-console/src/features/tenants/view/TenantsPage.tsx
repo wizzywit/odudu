@@ -1,5 +1,6 @@
 import type { Tenant } from '@odudu/contracts/admin';
-import { IMPORT_TENANT_HREF, NEW_TENANT_HREF } from '#/features/tenants/service.ts';
+import { Link } from 'react-aria-components';
+import { enterHref, IMPORT_TENANT_HREF, NEW_TENANT_HREF } from '#/features/tenants/service.ts';
 import { useTenantsList } from '#/features/tenants/usecase/useTenantsList.ts';
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
@@ -33,6 +34,15 @@ const COLUMNS: readonly Column<Tenant>[] = [
     header: 'Created',
     secondary: true,
     cell: (tenant) => <Timestamp value={tenant.created_at} />,
+  },
+  {
+    id: 'enter',
+    header: 'Console',
+    cell: (tenant) => (
+      <Link href={enterHref(tenant.name)} className={styles.enter ?? ''}>
+        {`Enter ${tenant.name}`}
+      </Link>
+    ),
   },
 ];
 

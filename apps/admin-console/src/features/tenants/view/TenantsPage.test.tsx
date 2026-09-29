@@ -35,6 +35,10 @@ it('lists the tenants with their count, and offers creation and import', async (
   expect(within(table).getByText('Acme')).toBeVisible();
   expect(within(table).getByText('disabled')).toBeVisible();
   expect(await screen.findByText('2 tenants')).toBeVisible();
+  expect(within(table).getByRole('link', { name: 'Enter acme' })).toHaveAttribute(
+    'href',
+    '/console/acme',
+  );
   expect(screen.getByRole('link', { name: 'Create a tenant' })).toHaveAttribute(
     'href',
     '/console/system/new-tenant',
@@ -56,6 +60,18 @@ it('searches by name and opens a tenant from its row', async () => {
   await user.click(await screen.findByRole('row', { name: /globex/u }));
   await waitFor(() => {
     expect(router.state.location.pathname).toBe('/system/tenants/globex');
+  });
+});
+
+it("enters a tenant from its row's link, not its record", async () => {
+  const user = userEvent.setup();
+  const { router } = renderConsoleAt('/console/system/tenants', {
+    ...routes(),
+    [`GET ${ADMIN}/acme/whoami`]: whoami(['manage-tenant'], true),
+  });
+  await user.click(await screen.findByRole('link', { name: 'Enter acme' }));
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/acme');
   });
 });
 

@@ -2,3 +2,15 @@
   font-family: var(--font-mono);
   font-size: var(--type-13);
 }
+
+.enter {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+  color: var(--signal-active-ink);
+}
+
+.enter[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
