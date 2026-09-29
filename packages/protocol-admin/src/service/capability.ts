@@ -56,6 +56,7 @@ import {
   listSubjectsQuerySchema,
   countSubjectsQuerySchema,
   listSubjectsResponseSchema,
+  listEffectiveRolesResponseSchema,
   listTenantsQuerySchema,
   countTenantsQuerySchema,
   listTenantsResponseSchema,
@@ -372,6 +373,17 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
       TARGET_CEILING +
       LAST_ADMINISTRATOR,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/effective-roles',
+    capability: 'view-users',
+    responseSchema: listEffectiveRolesResponseSchema,
+    description:
+      'Every role the subject holds, the set token issuance and authorization read, each ' +
+      'with every path it is held by: assigned directly, mapped to a group the subject ' +
+      'belongs to or to one of its ancestors, or nested under another role it holds. ' +
+      'Unpaged and carrying no `ETag`: `GET …/roles` is the list `PUT …/roles` replaces.',
   },
   // Joining a group grants its roles and its ancestors', so this route's
   // capability ceiling (`setSubjectGroups`, #/usecase/subjects.ts) is the

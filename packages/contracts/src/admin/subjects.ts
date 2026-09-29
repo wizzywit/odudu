@@ -185,3 +185,22 @@ export const setRolesResponseSchema = z.object({
   items: z.array(roleAssignmentSchema),
 });
 export type SetRolesResponse = z.infer<typeof setRolesResponseSchema>;
+
+// How a subject came to hold a role: assigned it, through a group it belongs
+// to or one of that group's ancestors, or nested under another role it holds.
+export const roleProvenanceSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('direct') }),
+  z.object({ kind: z.literal('group'), group_id: idSchema, group_path: z.string() }),
+  z.object({ kind: z.literal('composite'), parent_role_id: idSchema, parent_name: z.string() }),
+]);
+export type RoleProvenance = z.infer<typeof roleProvenanceSchema>;
+
+export const effectiveRoleSchema = roleAssignmentSchema.extend({
+  via: z.array(roleProvenanceSchema),
+});
+export type EffectiveRoleAssignment = z.infer<typeof effectiveRoleSchema>;
+
+export const listEffectiveRolesResponseSchema = z.object({
+  items: z.array(effectiveRoleSchema),
+});
+export type ListEffectiveRolesResponse = z.infer<typeof listEffectiveRolesResponseSchema>;

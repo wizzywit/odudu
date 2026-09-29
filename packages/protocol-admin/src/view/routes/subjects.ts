@@ -17,6 +17,7 @@ import { OduduError } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
+import { listEffectiveRoles } from '#/usecase/effective-roles';
 import { amendProfile, PHONE_E164_MESSAGE, readProfile } from '#/usecase/profile';
 import {
   amendSubject,
@@ -604,6 +605,26 @@ export function readSubjectRolesHandler(deps: SubjectsRouteDeps): AdminRouteHand
     reply.header('etag', outcome.etag);
     const wire: SetRolesResponse = { items: [...outcome.roles] };
     return reply.code(200).send(wire);
+  };
+}
+
+export function listEffectiveRolesHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET effective-roles route received no :id');
+    }
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      listEffectiveRoles(tx, id),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(
+        reply,
+        request,
+        problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
+      );
+    }
+    return reply.code(200).send({ items: outcome.items });
   };
 }
 
