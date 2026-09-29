@@ -1420,7 +1420,15 @@ A real deployment today looks like:
    With the flag off, `tls_client_auth` is unavailable end to end:
    discovery does not advertise it and dynamic client registration refuses
    to register a client for it, not only `/token`'s own refusal to
-   authenticate one.
+   authenticate one. **Raise the proxy's request body limit for tenant
+   import.** `POST /admin/tenant-imports` accepts a body of up to 16 MiB
+   (`TENANT_IMPORT_BODY_LIMIT` in `@odudu/contracts`, applied to that route
+   alone and to the console gateway's proxy), since an export with its
+   subjects runs to several megabytes; every other route keeps Fastify's
+   1 MiB default. nginx refuses anything over 1 MiB by default, so a proxy
+   left at its default answers a larger import `413` before Odudu sees it:
+   set `client_max_body_size 16m;` on the location that forwards
+   `/admin/` and `/console/api/`.
 5. Set `ODUDU_PUBLIC_BASE_URL` to the origin users reach the server on.
    **With `NODE_ENV=production` the server refuses to boot without it** — it
    is the base of every mailed link and the WebAuthn relying party id every
@@ -1472,7 +1480,7 @@ Every row says where it stands, and every row has a phase:
 |                                                                                                      | Where it stands |
 | ---------------------------------------------------------------------------------------------------- | --------------- |
 | Self-service for an End-User: a "me" API and application-initiated actions for credential ceremonies | P4f             |
-| An admin **console** — a shell that signs in, but no feature reads or changes a tenant yet           | P4d             |
+| An admin **console** — Overview and System › Tenants are built; every other area is a placeholder    | P4d             |
 | Published images and a release process                                                               | P12             |
 | Secret management beyond environment variables                                                       | P12             |
 | Backup and restore guidance                                                                          | P12             |

@@ -9154,8 +9154,10 @@ shows for a `client_id` it does not know — so a probe cannot tell a missing
 tenant from a missing client.
 
 A disabled tenant takes the same branch in the same lookup, so it is never
-distinguishable from one that never existed; that half was not exercised
-here, because nothing can disable a tenant yet.
+distinguishable from one that never existed. That half was not exercised
+here: the run above predates `PATCH /admin/tenants/{tenant}` with
+`enabled: false`, now also the console's Disable on a tenant record, and
+has not been repeated against a disabled tenant.
 
 Tenant isolation goes further than the URL, and the credentials prove it:
 an authorization code, a refresh token, an access token and an
@@ -9503,13 +9505,15 @@ session lifecycle. A citation of either half here means that half.
   `/introspect` and the admin API's own checks do record their refusals.
   The request log shows each such request's path and status, not its
   reason.
-- **The console's single-page app is a shell with no features.** The
+- **The console's single-page app has only some of its features.** The
   image builds `apps/admin-console` into `/app/console`, and the gateway
-  under `/console` serves it ([docs/console-paths.md](console-paths.md)),
-  but beyond signing in, the rail, the tenant switch and sign-out, every
-  area is a placeholder: nothing in it reads or changes a tenant yet.
-  Planned: **P4d**, whose fourth part adds the console's features one at a
-  time.
+  under `/console` serves it ([docs/console-paths.md](console-paths.md)).
+  Beyond signing in, the rail, the tenant switch and sign-out, the
+  Overview and System › Tenants work — the tenant list, guided creation
+  with a first administrator, the tenant record, import, and export,
+  which is also a tenant's own Export area — and every other area is a
+  placeholder that reads and changes nothing. Planned: **P4d**, whose
+  fourth part adds the rest one at a time.
 - **The tenant's sign-in pages do not pass WCAG 2.2 AA.** They are
   unstyled, and axe reports `target-size` on `#passkey-submit`; the
   console's browser tests hold that check as a `fixme`. Planned: **P4b**,

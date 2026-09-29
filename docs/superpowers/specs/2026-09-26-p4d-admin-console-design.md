@@ -517,7 +517,8 @@ repository decides what to remember and when.
 
 Features: `session`, `shell`, `overview`, `tenants`, `system-admins`,
 `subjects`, `groups`, `roles`, `clients`, `scopes`, `registration-tokens`,
-`flow`, `keys`, `settings`, `smtp`, `import-export`, `audit`.
+`flow`, `keys`, `settings`, `smtp`, `audit`. Export and import live in
+`tenants`, beside the tenant record they read and create (§7.2).
 
 The import rules are ADR 0010's. dependency-cruiser gains:
 
@@ -608,7 +609,7 @@ parameter leaves the address once it has been read.
 The tenant rail groups areas by task: **Overview**; **Identity** — Subjects,
 Groups, Roles; **Applications** — Clients, Scopes, Registration tokens;
 **Security** — Sign-in flow, Signing keys; **Tenant** — Settings, Email,
-Import / export; **Observe** — Audit trail.
+Export; **Observe** — Audit trail.
 
 Overview shows the issuer with a copy control and a discovery link, bounded
 counts, a "needs attention" list (no SMTP while verification or reset is
@@ -637,9 +638,9 @@ Activity on every record is the audit trail filtered by `resource_id`, the
 same view rather than a second one.
 
 **The System area**, for a system administrator signed in to `system`:
-Tenants (list, search, count, guided creation, a tenant record with its
-administrators, export, and "enter tenant"); System administrators; System
-settings (the `system` tenant's own areas); System audit. Inside a tenant, a
+Tenants (list, search, count, guided creation, import, a tenant record with
+its administrators, export, and "enter tenant"); System administrators;
+System settings (the `system` tenant's own areas); System audit. Inside a tenant, a
 system administrator sees the tenant console under an amber context bar,
 "acting in acme with system authority", that does not go away, and every
 confirmation names the tenant.
@@ -648,6 +649,13 @@ confirmation names the tenant.
 which can be resumed: the tenant, with the name rule and a live issuer
 preview; its first administrator, created with a one-time password (§4.5,
 row 8) and granted `tenant-admin`; done.
+
+**Importing a tenant** lives here too, not on the tenant rail: it creates a
+new tenant, so it needs `manage-tenants`, which a tenant administrator does
+not hold. The tenant rail keeps Export alone. The page uploads a document,
+lists every problem the import found at once, each at its JSON path, and on
+success shows each client's fresh secret once. It then offers the guided
+step's first administrator, because an import creates none.
 
 A tenant cannot be deleted: the API has no such route. It can be disabled.
 
@@ -877,7 +885,8 @@ a pushed commit and the review it attracted answered.
 5. **Features**, each ending with its Playwright flow — Overview; Tenants and
    guided creation; System administrators; Subjects (about three); Groups;
    Roles; Clients (about three); Scopes; Registration tokens; Sign-in flow;
-   Signing keys; Settings and Email; Import / export; Audit.
+   Signing keys; Settings and Email; Audit. Import and export came with
+   Tenants, where import's `manage-tenants` puts it.
    Part 3 left four things on this part: the e2e test of a session ending
    mid-edit, which restores the draft and saves nothing, and the
    `beforeunload` prompt a dirty section registers, both with the first
