@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   FieldGroup,
   KeyValueField,
+  OwnDataFields,
   NumberWithUnitField,
   ReadOnlyFields,
   SelectField,
@@ -403,5 +404,39 @@ describe('FieldGroup', () => {
     );
     const group = screen.getByRole('group', { name: 'Phone number' });
     expect(describedBy(group)).toBe('With its country. | Too long.');
+  });
+});
+
+describe('OwnDataFields', () => {
+  it('turns autofill off on fields about somebody other than the operator', () => {
+    render(
+      <OwnDataFields when={false}>
+        <TextField label="Given name" value="" autoComplete="given-name" onChange={vi.fn()} />
+        <SelectField
+          label="Gender"
+          options={[{ id: 'female', label: 'Female' }]}
+          value="female"
+          autoComplete="sex"
+          onChange={vi.fn()}
+        />
+      </OwnDataFields>,
+    );
+    expect(screen.getByRole('textbox', { name: 'Given name' })).toHaveAttribute(
+      'autocomplete',
+      'off',
+    );
+    expect(document.querySelector('select')).toHaveAttribute('autocomplete', 'off');
+  });
+
+  it('keeps each token on the operator’s own data', () => {
+    render(
+      <OwnDataFields when>
+        <TextField label="Given name" value="" autoComplete="given-name" onChange={vi.fn()} />
+      </OwnDataFields>,
+    );
+    expect(screen.getByRole('textbox', { name: 'Given name' })).toHaveAttribute(
+      'autocomplete',
+      'given-name',
+    );
   });
 });

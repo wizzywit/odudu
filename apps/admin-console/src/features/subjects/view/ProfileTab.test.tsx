@@ -154,7 +154,7 @@ it('gives each detail the input its shape needs, and saves what the server store
   expect(within(details).getByRole('combobox', { name: 'Locale' })).toBeVisible();
   expect(within(details).getByRole('textbox', { name: 'Website' })).toHaveAttribute(
     'autocomplete',
-    'url',
+    'off',
   );
   await user.click(screen.getByRole('button', { name: 'Save Details' }));
   await waitFor(() => {
@@ -165,8 +165,31 @@ it('gives each detail the input its shape needs, and saves what the server store
   });
 });
 
-it('gives the name and address claims their autocomplete tokens, and the country its list', async () => {
+it('offers no autofill on another person’s claims, so the operator’s own never lands there', async () => {
   renderConsoleAt(ADA_AT, subjectRoutes());
+  const name = await screen.findByRole('region', { name: 'Name' });
+  expect(within(name).getByRole('textbox', { name: 'Given name' })).toHaveAttribute(
+    'autocomplete',
+    'off',
+  );
+  const address = screen.getByRole('region', { name: 'Address' });
+  expect(within(address).getByRole('combobox', { name: 'Country' })).toBeVisible();
+  const tokens = [...document.querySelectorAll('input, select')].map((e) =>
+    e.getAttribute('autocomplete'),
+  );
+  expect(tokens.filter((t) => t !== null && t !== 'off')).toEqual([]);
+});
+
+it('gives the operator’s own claims their autocomplete tokens', async () => {
+  renderConsoleAt(
+    `/console/acme/subjects/${GRACE.subject_id}`,
+    subjectRoutes(undefined, {
+      [`GET ${S}/${GRACE.subject_id}`]: json(subject(GRACE.subject_id, 'grace'), 200, {
+        etag: '"g1"',
+      }),
+      [`GET ${S}/${GRACE.subject_id}/profile`]: json(profile(), 200, { etag: '"gp"' }),
+    }),
+  );
   const name = await screen.findByRole('region', { name: 'Name' });
   expect(within(name).getByRole('textbox', { name: 'Given name' })).toHaveAttribute(
     'autocomplete',

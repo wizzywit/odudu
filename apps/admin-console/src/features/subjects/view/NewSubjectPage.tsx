@@ -5,7 +5,7 @@ import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { TextField } from '#/shared/view/Field.tsx';
+import { OwnDataFields, TextField } from '#/shared/view/Field.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import styles from '#/features/subjects/view/NewSubjectPage.module.css';
 
@@ -19,42 +19,45 @@ function Form({ tenant }: { tenant: string }) {
     page.submit();
   };
   return (
-    <form noValidate onSubmit={submit} className={styles.form}>
-      <TextField
-        label="Username"
-        description={page.rule}
-        value={page.username}
-        error={page.usernameError}
-        onChange={page.editUsername}
-        autoComplete="username"
-        mono
-        autoFocus
-      />
-      <TextField
-        label="Email"
-        description="Optional. Unverified until the subject proves it or you mark it verified on the Profile tab."
-        type="email"
-        value={page.email}
-        error={page.emailError}
-        autoComplete="email"
-        onChange={page.editEmail}
-      />
-      <div className={styles.actions}>
-        {page.unconfirmed ? (
-          <Button variant="primary" isDisabled={page.busy} onPress={page.check}>
-            {`Look for ${page.username}`}
-          </Button>
-        ) : (
-          <Button type="submit" variant="primary" isDisabled={page.busy}>
-            {page.busy ? 'Creating…' : 'Create subject'}
-          </Button>
-        )}
-        <ButtonLink href={page.listHref}>Cancel</ButtonLink>
-      </div>
-      <p role="status" className={styles.message}>
-        {page.message}
-      </p>
-    </form>
+    // A new subject is never the operator: their own details must not be offered.
+    <OwnDataFields when={false}>
+      <form noValidate onSubmit={submit} className={styles.form}>
+        <TextField
+          label="Username"
+          description={page.rule}
+          value={page.username}
+          error={page.usernameError}
+          onChange={page.editUsername}
+          autoComplete="username"
+          mono
+          autoFocus
+        />
+        <TextField
+          label="Email"
+          description="Optional. Unverified until the subject proves it or you mark it verified on the Profile tab."
+          type="email"
+          value={page.email}
+          error={page.emailError}
+          autoComplete="email"
+          onChange={page.editEmail}
+        />
+        <div className={styles.actions}>
+          {page.unconfirmed ? (
+            <Button variant="primary" isDisabled={page.busy} onPress={page.check}>
+              {`Look for ${page.username}`}
+            </Button>
+          ) : (
+            <Button type="submit" variant="primary" isDisabled={page.busy}>
+              {page.busy ? 'Creating…' : 'Create subject'}
+            </Button>
+          )}
+          <ButtonLink href={page.listHref}>Cancel</ButtonLink>
+        </div>
+        <p role="status" className={styles.message}>
+          {page.message}
+        </p>
+      </form>
+    </OwnDataFields>
   );
 }
 

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { I18nProvider } from 'react-aria-components';
 import { describe, expect, it, vi } from 'vitest';
-import { ReadOnlyFields } from '#/shared/view/Field.tsx';
+import { OwnDataFields, ReadOnlyFields } from '#/shared/view/Field.tsx';
 import { PhoneField } from '#/shared/view/PhoneField.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
@@ -123,4 +123,16 @@ describe('PhoneField', () => {
       )),
     ).toEqual({ light: [], dark: [] });
   });
+});
+
+it('offers no autofill on another person’s record', () => {
+  const { container } = render(
+    <OwnDataFields when={false}>
+      <PhoneField label="Phone number" value="" onChange={vi.fn()} />
+    </OwnDataFields>,
+  );
+  const tokens = [...container.querySelectorAll('input, select')].map((e) =>
+    e.getAttribute('autocomplete'),
+  );
+  expect(tokens.filter((t) => t !== null && t !== 'off')).toEqual([]);
 });

@@ -22,7 +22,7 @@ import {
   LocaleField,
   TimeZoneField,
 } from '#/shared/view/ClaimFields.tsx';
-import { TextField, ToggleField, type Chrome } from '#/shared/view/Field.tsx';
+import { OwnDataFields, TextField, ToggleField, type Chrome } from '#/shared/view/Field.tsx';
 import { PhoneField } from '#/shared/view/PhoneField.tsx';
 import { PictureField, UrlField } from '#/shared/view/UrlField.tsx';
 import { Section } from '#/shared/view/Section.tsx';
@@ -371,24 +371,27 @@ function ProfilePanel({ tenant, id }: { tenant: string; id: string }) {
 export function ProfileTab({ tenant, subject, etag, gone, canManage, self }: TabProps) {
   const account = useSubjectAccount(tenant, subject, etag, gone, self);
   const itself = signsInAsItself(subject);
+  // The tokens describe the operator, so only their own record carries them.
   return (
-    <div className={styles.tab}>
-      {itself ? (
-        <p className={styles.text}>
-          {`A ${subject.type} subject has no username, email or profile: it signs in as itself, with its client's credentials.`}
-        </p>
-      ) : (
-        <>
-          <Account account={account} />
-          <ProfilePanel tenant={tenant} id={subject.id} />
-        </>
-      )}
-      {canManage ? (
-        <>
-          <Status account={account} self={self} />
-          <Deletion account={account} self={self} />
-        </>
-      ) : null}
-    </div>
+    <OwnDataFields when={self}>
+      <div className={styles.tab}>
+        {itself ? (
+          <p className={styles.text}>
+            {`A ${subject.type} subject has no username, email or profile: it signs in as itself, with its client's credentials.`}
+          </p>
+        ) : (
+          <>
+            <Account account={account} />
+            <ProfilePanel tenant={tenant} id={subject.id} />
+          </>
+        )}
+        {canManage ? (
+          <>
+            <Status account={account} self={self} />
+            <Deletion account={account} self={self} />
+          </>
+        ) : null}
+      </div>
+    </OwnDataFields>
   );
 }

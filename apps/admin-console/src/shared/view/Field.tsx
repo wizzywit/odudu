@@ -102,6 +102,19 @@ export function Description({ children }: { children: ReactNode }) {
   );
 }
 
+// A token names the operator's own data (WCAG 1.3.5): on a record about
+// somebody else it would offer the operator's own name, phone or address
+// for theirs, so there every field turns autofill off.
+export const OwnData = createContext(true);
+
+export function OwnDataFields({ children, when }: { children: ReactNode; when: boolean }) {
+  return <OwnData value={when}>{children}</OwnData>;
+}
+
+export function ownToken(own: boolean, token: string): string {
+  return own ? token : 'off';
+}
+
 // A page the caller may read but not change shows every field as text: no
 // control is offered that the server would refuse.
 export const FieldsReadOnly = createContext(false);
@@ -172,6 +185,7 @@ export function TextField({
     autoFocus?: boolean;
   }) {
   const group = use(FieldGroupIds);
+  const own = use(OwnData);
   if (use(FieldsReadOnly)) return <ReadOnlyValue label={label} value={value} mono={mono} />;
   return (
     <AriaTextField
@@ -182,7 +196,7 @@ export function TextField({
       value={value}
       onChange={onChange}
       type={type}
-      autoComplete={autoComplete}
+      autoComplete={ownToken(own, autoComplete)}
       autoFocus={autoFocus}
       {...(onBlur === undefined ? {} : { onBlur })}
       className={styles.field ?? ''}
@@ -288,6 +302,7 @@ export function SelectField({
   const inline = use(Inline);
   const readOnly = use(FieldsReadOnly);
   const group = use(FieldGroupIds);
+  const own = use(OwnData);
   if (readOnly && !inline) {
     return (
       <ReadOnlyValue label={label} value={options.find((o) => o.id === value)?.label ?? value} />
@@ -296,7 +311,7 @@ export function SelectField({
   return (
     <Select
       {...VALIDATION}
-      {...(autoComplete === undefined ? {} : { autoComplete })}
+      {...(autoComplete === undefined ? {} : { autoComplete: ownToken(own, autoComplete) })}
       {...invalid(error)}
       {...partProps(group, part)}
       isDisabled={isDisabled ?? false}

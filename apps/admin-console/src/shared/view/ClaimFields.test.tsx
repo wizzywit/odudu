@@ -9,7 +9,7 @@ import {
   LocaleField,
   TimeZoneField,
 } from '#/shared/view/ClaimFields.tsx';
-import { ReadOnlyFields } from '#/shared/view/Field.tsx';
+import { OwnDataFields, ReadOnlyFields } from '#/shared/view/Field.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 interface FieldProps {
@@ -208,4 +208,18 @@ it('passes axe in both themes', async () => {
       </>
     )),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('offers no autofill on another person’s claims', () => {
+  const { container } = render(
+    <OwnDataFields when={false}>
+      <CountryField label="Country" value="" onChange={vi.fn()} />
+      <LocaleField label="Locale" value="" onChange={vi.fn()} />
+      <GenderField label="Gender" value="x" onChange={vi.fn()} />
+    </OwnDataFields>,
+  );
+  const tokens = [...container.querySelectorAll('input, select')].map((e) =>
+    e.getAttribute('autocomplete'),
+  );
+  expect(tokens.filter((t) => t !== null && t !== 'off')).toEqual([]);
 });

@@ -18,6 +18,8 @@ import {
   Header,
   invalid,
   Message,
+  OwnData,
+  ownToken,
   partProps,
   ReadOnlyValue,
   VALIDATION,
@@ -110,6 +112,7 @@ export function ComboBoxField({
   const [shown, setShown] = useState<Shown>(() => ({ value, text: labelOf(value) }));
   const readOnly = use(FieldsReadOnly);
   const group = use(FieldGroupIds);
+  const own = use(OwnData);
   const [closes, setCloses] = useState(0);
   let current = shown;
   if (shown.value !== value) {
@@ -170,7 +173,7 @@ export function ComboBoxField({
           className={styles.input ?? ''}
           data-mono={mono || undefined}
           spellCheck={false}
-          autoComplete={autoComplete}
+          autoComplete={ownToken(own, autoComplete)}
         />
         <AriaButton className={styles.comboButton ?? ''} aria-label={`Show ${label} options`}>
           <span aria-hidden="true">▾</span>

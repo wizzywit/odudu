@@ -25,6 +25,8 @@ import {
   FieldGroup,
   FieldGroupIds,
   FieldsReadOnly,
+  OwnData,
+  ownToken,
   partProps,
   ReadOnlyValue,
   SelectField,
@@ -87,6 +89,7 @@ function FullDate({
   invalid: boolean;
 }) {
   const group = use(FieldGroupIds);
+  const own = use(OwnData);
   const value =
     birthdate.kind === 'date'
       ? new CalendarDate(birthdate.year, birthdate.month, birthdate.day)
@@ -101,7 +104,7 @@ function FullDate({
             : { kind: 'date', year: date.year, month: date.month, day: date.day },
         );
       }}
-      autoComplete="bday"
+      autoComplete={ownToken(own, 'bday')}
       validationBehavior="aria"
       {...partProps(group, invalid)}
       isDisabled={isDisabled}

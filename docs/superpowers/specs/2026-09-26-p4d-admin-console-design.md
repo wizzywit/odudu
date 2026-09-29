@@ -716,8 +716,11 @@ A tenant cannot be deleted: the API has no such route. It can be disabled.
   named in the reader's language and stored in English (OIDC Core §5.1.1);
   a zone with its current offset; a locale by name, stored as BCP 47. What
   a field produces passes the predicates the server refuses with, which
-  `@odudu/contracts` states once. Every field carries its `autocomplete`
-  token (WCAG 1.3.5).
+  `@odudu/contracts` states once. A field carries its `autocomplete` token
+  (WCAG 1.3.5) only where it describes the operator: on the operator's own
+  subject record. On anybody else's record, and on the create page, every
+  field says `autocomplete="off"`, since 1.3.5 covers data about the user
+  and a token there would offer the operator's own details for theirs.
 - **Nothing hidden**: no hover-only or swipe-only action, no unlabelled icon
   button, and a keyboard shortcut is shown beside the control it triggers.
 

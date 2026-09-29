@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { ReadOnlyFields } from '#/shared/view/Field.tsx';
+import { OwnDataFields, ReadOnlyFields } from '#/shared/view/Field.tsx';
 import { PictureField, UrlField } from '#/shared/view/UrlField.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
@@ -84,4 +84,16 @@ describe('PictureField', () => {
       )),
     ).toEqual({ light: [], dark: [] });
   });
+});
+
+it('offers no autofill on another person’s record', () => {
+  const { container } = render(
+    <OwnDataFields when={false}>
+      <PictureField label="Picture" value="" onChange={vi.fn()} />
+    </OwnDataFields>,
+  );
+  const tokens = [...container.querySelectorAll('input, select')].map((e) =>
+    e.getAttribute('autocomplete'),
+  );
+  expect(tokens.filter((t) => t !== null && t !== 'off')).toEqual([]);
 });
