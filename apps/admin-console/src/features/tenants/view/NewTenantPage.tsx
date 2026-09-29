@@ -295,11 +295,7 @@ export function NewSystemAdministratorPage({ tenant }: { tenant: string }) {
 export function NewAdministratorPage({ tenant, name }: { tenant: string; name: string }) {
   const title = useAdministratorTitle(name);
   return (
-    <SystemGate
-      tenant={tenant}
-      title={title}
-      breadcrumb={tenantAdministratorTrail(name)}
-    >
+    <SystemGate tenant={tenant} title={title} breadcrumb={tenantAdministratorTrail(name)}>
       <Creation flow={flowOf(name)} />
     </SystemGate>
   );
