@@ -499,6 +499,12 @@ function ViewOnly() {
       <ReadOnlyFields when>
         <TextField label="Full name" value="Ada Lovelace" onChange={NOTHING} />
         <TextField label="Nickname" value="" onChange={NOTHING} />
+        <TextField
+          label="Middle name, an edit refused"
+          value="Augusta"
+          changed
+          onChange={NOTHING}
+        />
         <PhoneField label="Phone number" value={CLAIMS.phone} onChange={NOTHING} />
         <BirthdateField label="Birthdate" value={CLAIMS.birthdate} onChange={NOTHING} />
         <LocaleField label="Locale" value={CLAIMS.locale} onChange={NOTHING} />
