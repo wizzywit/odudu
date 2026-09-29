@@ -164,7 +164,50 @@ const newSystemAdmin = createRoute({
   },
 });
 
-const TAKEN = new Set(['tenants', 'export', 'system-admins']);
+function subjectsPage(name: 'SubjectsPage' | 'NewSubjectPage') {
+  return lazyFeatureRoute(
+    () => import('#/features/subjects/index.ts').then((feature) => feature[name]),
+    'Loading subjects',
+  );
+}
+
+const Subjects = subjectsPage('SubjectsPage');
+const NewSubject = subjectsPage('NewSubjectPage');
+const SubjectRecord = lazyFeatureRoute(
+  () => import('#/features/subjects/index.ts').then((feature) => feature.SubjectRecordPage),
+  'Loading the subject',
+);
+
+const subjectPages = [
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'subjects',
+    component: function SubjectList() {
+      const { tenant: name } = tenant.useParams();
+      return <Subjects key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'subjects/new',
+    component: function SubjectCreation() {
+      const { tenant: name } = tenant.useParams();
+      return <NewSubject key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'subjects/$id',
+    component: function SubjectAtId() {
+      const { tenant: name } = tenant.useParams();
+      const { id } = subjectRecord.useParams();
+      return <SubjectRecord key={`${name}/${id}`} tenant={name} id={id} />;
+    },
+  }),
+] as const;
+const subjectRecord = subjectPages[2];
+
+const TAKEN = new Set(['tenants', 'export', 'system-admins', 'subjects']);
 
 const areas = EVERY_AREA.filter((area) => area !== OVERVIEW && !TAKEN.has(area.path)).map((area) =>
   createRoute({
@@ -179,7 +222,14 @@ const areas = EVERY_AREA.filter((area) => area !== OVERVIEW && !TAKEN.has(area.p
 
 const routeTree = root.addChildren([
   home,
-  tenant.addChildren([overview, ...tenantPages, systemAdmins, newSystemAdmin, ...areas]),
+  tenant.addChildren([
+    overview,
+    ...tenantPages,
+    systemAdmins,
+    newSystemAdmin,
+    ...subjectPages,
+    ...areas,
+  ]),
 ]);
 
 export function createConsoleRouter(history: RouterHistory = createBrowserHistory()) {
