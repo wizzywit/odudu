@@ -43,16 +43,31 @@ export interface OverviewReads {
   readonly audit: Read<readonly AuditEvent[]>;
 }
 
+export type ReadName = keyof OverviewAsks | 'jwks';
+
+// Told of every answer as it arrives, so a refusal can be reported once per
+// answer rather than once per render.
+export type OnAnswer = (name: ReadName, result: GatewayResult<unknown>) => void;
+
 function useTenantRead<T>(
   tenant: string,
-  name: string,
+  name: ReadName,
   asked: boolean,
   read: (gateway: Gateway) => Promise<GatewayResult<T>>,
+  onAnswer: OnAnswer,
 ): Read<T> {
   const { gateway } = useTransport();
   const client = useQueryClient();
   const key = ['overview', tenant, name] as const;
-  const query = useQuery({ queryKey: key, queryFn: () => read(gateway), enabled: asked });
+  const query = useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const result = await read(gateway);
+      onAnswer(name, result);
+      return result;
+    },
+    enabled: asked,
+  });
   if (!asked) return { status: 'off' };
   const result = query.data;
   if (result === undefined) return { status: 'loading' };
@@ -66,22 +81,31 @@ function useTenantRead<T>(
   };
 }
 
-export function useOverviewReads(tenant: string, asks: OverviewAsks): OverviewReads {
+export function useOverviewReads(
+  tenant: string,
+  asks: OverviewAsks,
+  onAnswer: OnAnswer = () => undefined,
+): OverviewReads {
   const count = (collection: Collection) => (gateway: Gateway) =>
     readCount(gateway, tenant, collection);
+  const useRead = <T>(
+    name: ReadName,
+    asked: boolean,
+    read: (gateway: Gateway) => Promise<GatewayResult<T>>,
+  ) => useTenantRead(tenant, name, asked, read, onAnswer);
   return {
-    discovery: useTenantRead(tenant, 'discovery', asks.discovery, (g) => readDiscovery(g, tenant)),
-    jwks: useTenantRead(tenant, 'jwks', asks.discovery, (g) => readJwks(g, tenant)),
+    discovery: useRead('discovery', asks.discovery, (g) => readDiscovery(g, tenant)),
+    jwks: useRead('jwks', asks.discovery, (g) => readJwks(g, tenant)),
     counts: {
-      subjects: useTenantRead(tenant, 'subjects/count', asks.subjects, count('subjects')),
-      clients: useTenantRead(tenant, 'clients/count', asks.clients, count('clients')),
-      groups: useTenantRead(tenant, 'groups/count', asks.groups, count('groups')),
-      roles: useTenantRead(tenant, 'roles/count', asks.roles, count('roles')),
-      scopes: useTenantRead(tenant, 'scopes/count', asks.scopes, count('scopes')),
+      subjects: useRead('subjects', asks.subjects, count('subjects')),
+      clients: useRead('clients', asks.clients, count('clients')),
+      groups: useRead('groups', asks.groups, count('groups')),
+      roles: useRead('roles', asks.roles, count('roles')),
+      scopes: useRead('scopes', asks.scopes, count('scopes')),
     },
-    settings: useTenantRead(tenant, 'settings', asks.settings, (g) => readSettings(g, tenant)),
-    smtp: useTenantRead(tenant, 'smtp', asks.smtp, (g) => readSmtp(g, tenant)),
-    keys: useTenantRead(tenant, 'keys', asks.keys, (g) => readKeys(g, tenant)),
-    audit: useTenantRead(tenant, 'audit/latest', asks.audit, (g) => readLatestAudit(g, tenant)),
+    settings: useRead('settings', asks.settings, (g) => readSettings(g, tenant)),
+    smtp: useRead('smtp', asks.smtp, (g) => readSmtp(g, tenant)),
+    keys: useRead('keys', asks.keys, (g) => readKeys(g, tenant)),
+    audit: useRead('audit', asks.audit, (g) => readLatestAudit(g, tenant)),
   };
 }

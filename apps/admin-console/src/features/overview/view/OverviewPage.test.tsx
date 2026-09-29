@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
-import { json, type Answer } from '#/testing/fakeTransport.ts';
+import { json, problem, type Answer } from '#/testing/fakeTransport.ts';
 import {
   consoleAt,
   GRACE,
@@ -149,6 +149,18 @@ it('asks nothing of a read whoami says the operator may not make, and says what 
   expect(asked).not.toContain(`${ADMIN}/subjects/count`);
   expect(asked).not.toContain(`${ADMIN}/clients/count`);
   expect(asked).toContain(`${ADMIN}/roles/count`);
+});
+
+it('reads whoami again when the server refuses a read whoami said was allowed', async () => {
+  const { calls } = renderConsoleAt('/console/acme', {
+    ...routes(EVERYTHING),
+    [`GET ${ADMIN}/settings`]: problem(403, 'about:blank', 'Forbidden'),
+  });
+  const whoamis = () => calls.filter((call) => call.path === `${ADMIN}/whoami`).length;
+  await screen.findByText(ISSUER);
+  await waitFor(() => {
+    expect(whoamis()).toBe(2);
+  });
 });
 
 it('passes axe in both themes, with everything and with little', async () => {

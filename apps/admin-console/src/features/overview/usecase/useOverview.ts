@@ -1,9 +1,10 @@
 import type { AuditEvent, SigningKey } from '@odudu/contracts/admin';
-import { useAuthority, useTenantMissing } from '#/features/session/index.ts';
+import { useAuthority, useRefusal, useTenantMissing } from '#/features/session/index.ts';
 import { areaAt, areaHref, holds, useArea } from '#/features/shell/index.ts';
 import {
   useOverviewReads,
   type OverviewReads,
+  type ReadName,
 } from '#/features/overview/repository/useOverviewReads.ts';
 import {
   discoveryView,
@@ -105,25 +106,50 @@ function attentionState(
   };
 }
 
+// What each read needs; the tenant's public documents need no capability.
+const NEEDS: Readonly<Record<ReadName, AdminCapability | null>> = {
+  discovery: null,
+  jwks: null,
+  subjects: 'view-users',
+  clients: 'manage-clients',
+  groups: 'manage-tenant',
+  roles: 'manage-tenant',
+  scopes: 'manage-tenant',
+  settings: 'manage-tenant',
+  smtp: 'manage-tenant',
+  keys: 'manage-keys',
+  audit: 'view-audit',
+};
+
 export function useOverview(tenant: string): Overview {
   const authority = useAuthority(tenant);
   const missing = useTenantMissing(tenant);
   const auditArea = areaAt('audit');
   const auditAccess = useArea(tenant, auditArea);
-  const has = (capability: AdminCapability) =>
-    authority !== undefined && holds(authority, capability);
-  const reads = useOverviewReads(tenant, {
-    discovery: missing === false,
-    subjects: has('view-users'),
-    clients: has('manage-clients'),
-    groups: has('manage-tenant'),
-    roles: has('manage-tenant'),
-    scopes: has('manage-tenant'),
-    settings: has('manage-tenant'),
-    smtp: has('manage-tenant'),
-    keys: has('manage-keys'),
-    audit: has('view-audit'),
-  });
+  const refusal = useRefusal(tenant);
+  const has = (name: ReadName) => {
+    const capability = NEEDS[name];
+    return authority !== undefined && capability !== null && holds(authority, capability);
+  };
+  const reads = useOverviewReads(
+    tenant,
+    {
+      discovery: missing === false,
+      subjects: has('subjects'),
+      clients: has('clients'),
+      groups: has('groups'),
+      roles: has('roles'),
+      scopes: has('scopes'),
+      settings: has('settings'),
+      smtp: has('smtp'),
+      keys: has('keys'),
+      audit: has('audit'),
+    },
+    (name, result) => {
+      const capability = NEEDS[name];
+      if (capability !== null) refusal.report(result, capability);
+    },
+  );
   const settings = readyData(reads.settings);
   const cap = settings?.max_clients;
   const tiles = COUNTED.map(({ id, noun }): CountTile => {
