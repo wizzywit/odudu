@@ -611,6 +611,20 @@ Groups, Roles; **Applications** — Clients, Scopes, Registration tokens;
 **Security** — Sign-in flow, Signing keys; **Tenant** — Settings, Email,
 Export; **Observe** — Audit trail.
 
+**What the rail and a page offer follows `whoami`**, which is advice: the
+server still decides every request. The rail lists only the areas whose
+first read the caller's capabilities admit, and lists every one until
+`whoami` answers. An address to any other area still opens and says which
+capability it needs, because people share links. A page the caller can read
+but not change carries none of the writes it cannot make — no Create,
+Delete, Save or edit control — shows its fields as text, and says so in one
+line under its header: "You can view subjects but not change them (needs
+`manage-users`)"; where only some of its changes are out of reach, the line
+names those. Overview leaves out the counts and the latest audit rows of the
+areas the rail omits. A `whoami` re-read after a `403` moves all of this at
+once, without a reload. The rule lives in `shared/` (`service/access.ts`,
+`view/ViewOnlyNote.tsx`, and the read-only mode of every field).
+
 Overview shows the issuer with a copy control and a discovery link, bounded
 counts, a "needs attention" list (no SMTP while verification or reset is
 on; a `rotating` key — published, not signing — old enough to promote; dynamic registration
@@ -696,6 +710,14 @@ A tenant cannot be deleted: the API has no such route. It can be disabled.
   record's page.
 - **Undo only where the API has an inverse** — disable and enable. Nothing
   that deletes offers undo.
+- **A claim is edited in its own shape**: a birthdate as a date in the
+  browser's locale, a year alone or a withheld year; a phone number as a
+  country and a national number, stored as E.164; a country from a list
+  named in the reader's language and stored in English (OIDC Core §5.1.1);
+  a zone with its current offset; a locale by name, stored as BCP 47. What
+  a field produces passes the predicates the server refuses with, which
+  `@odudu/contracts` states once. Every field carries its `autocomplete`
+  token (WCAG 1.3.5).
 - **Nothing hidden**: no hover-only or swipe-only action, no unlabelled icon
   button, and a keyboard shortcut is shown beside the control it triggers.
 
