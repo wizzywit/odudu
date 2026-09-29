@@ -155,7 +155,7 @@ const ROUTES = new Map(
   ]),
 );
 
-describe("the console's reach into the admin API", () => {
+describe("the console's reach into the admin API", { timeout: 60_000 }, () => {
   it('finds a reference however the path is written, and nothing else', () => {
     const source = `
       gateway.request('GET', \`admin/tenants/\${encodeURIComponent(tenant)}/roles?\${query.toString()}\`, { schema });

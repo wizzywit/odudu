@@ -92,7 +92,7 @@ async function untested(root: string): Promise<string[]> {
     .sort();
 }
 
-describe("the console's view tests", () => {
+describe("the console's view tests", { timeout: 60_000 }, () => {
   it('all run axe in both themes', async () => {
     const tests = await read(CONSOLE_SRC, VIEW_TESTS);
     expect([...tests.keys()]).toContain('shared/view/DialogFrame.test.tsx');

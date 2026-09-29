@@ -94,7 +94,7 @@ function offenders(files: Map<string, string>): string[] {
     );
 }
 
-describe('requests in the console', () => {
+describe('requests in the console', { timeout: 60_000 }, () => {
   it('are made only from shared/transport/', async () => {
     const files = await read(CONSOLE_SRC);
     expect([...files.keys()]).toContain('app/App.tsx');

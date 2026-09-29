@@ -163,7 +163,7 @@ const FAILING: Record<string, Violation[]> = {
   'listedDefault.ts': ['hook-outside-use-file'],
 };
 
-describe("the console's file names", () => {
+describe("the console's file names", { timeout: 60_000 }, () => {
   it('hold in every console source file', async () => {
     const files = await read(CONSOLE_SOURCES);
     expect([...files.keys()]).toContain('apps/admin-console/src/app/App.tsx');

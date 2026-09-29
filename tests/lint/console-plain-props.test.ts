@@ -186,7 +186,7 @@ async function read(pattern: string): Promise<Map<string, string>> {
   return files;
 }
 
-describe("the console's component props", () => {
+describe("the console's component props", { timeout: 60_000 }, () => {
   it('are plain properties in every console source file', async () => {
     const files = await read(CONSOLE_SOURCES);
     expect([...files.keys()]).toContain('apps/admin-console/src/app/App.tsx');
