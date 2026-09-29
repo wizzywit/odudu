@@ -69,9 +69,10 @@ export function registerClientRegistrationRoute(
     );
 
     switch (outcome.kind) {
-      // A disabled tenant answers exactly like an unknown one: distinguishing
-      // "exists but closed" from "does not exist" is an enumeration oracle
-      // for nothing gained (ADR 0026).
+      // A tenant closed to registration answers exactly like an unknown one:
+      // telling "exists but closed" from "does not exist" is an enumeration
+      // oracle for nothing gained (ADR 0026). A disabled tenant is refused the
+      // same way, though its discovery document already shows it exists.
       case 'not_found':
         return reply.code(404).send();
       case 'unauthorized':
