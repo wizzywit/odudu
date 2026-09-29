@@ -213,8 +213,8 @@ export async function authenticateAdmin(
   if (grant?.revokedAt !== null) return unauthenticated('invalid_grant');
 
   // A client_credentials grant has no session at all, which is not a dead
-  // one: a service account is refused here only if its grant is revoked or
-  // its client disabled.
+  // one: a service account is refused here only if its grant is revoked,
+  // its client disabled or its subject disabled.
   if (grant.sessionId !== null) {
     const sid = payload.sid;
     if (typeof sid !== 'string' || sid.length === 0) return unauthenticated('invalid_token');

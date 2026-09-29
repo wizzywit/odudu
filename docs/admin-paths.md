@@ -221,7 +221,9 @@ here used.
 **Disabling a subject ends nothing it holds**, so without that last check
 an access token issued before would reach this API for the rest of its
 lifetime; with it, the next request is refused exactly as a token that was
-never valid is. Against the eighth stack: `vera`'s token read, then `vera`
+never valid is. Against the eighth stack, after
+[`GET /subjects/username-policy`](#get-subjectsusername-policy) below had
+been captured with `vera` still enabled: `vera`'s token read, then `vera`
 disabled with `$ADMIN_TOKEN`, then the same token again, then a string that
 is no token at all:
 
@@ -2613,7 +2615,8 @@ and a form that could not read it would have to offer the username and let
 [`PATCH /subjects/:id`](#patch-subjectsid) refuse it. It answers no `ETag`:
 nothing is written against it.
 
-Against the eighth stack, as `vera`, who holds `view-users` alone: the
+Against the eighth stack, as `vera`, who holds `view-users` alone, captured
+before the disable run under "The shape of it" above: the
 policy, then the settings it comes from, refused to her, then the policy
 again once `$ADMIN_TOKEN` turned renaming on (`PATCH /settings` with
 `{"username_editable":true}`, printing only its status):
@@ -6956,9 +6959,8 @@ The reference this document points at: an OpenAPI 3.1 description of every
 route above, generated from the same route table the router registers from,
 so the two cannot drift. It takes no `{tenant}` — it describes the API
 rather than reaching into one — and is served without authentication, since
-a client that cannot read it cannot generate against it:
-
-Captured against the eighth stack:
+a client that cannot read it cannot generate against it. Captured against the
+eighth stack:
 
 ```bash
 curl -sS -D - -o openapi.json http://localhost:3080/admin/openapi.json
