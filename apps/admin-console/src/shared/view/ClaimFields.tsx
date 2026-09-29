@@ -119,13 +119,7 @@ export function GenderField({
 }: ClaimFieldProps) {
   const readOnly = use(FieldsReadOnly);
   const [describing, setDescribing] = useState(false);
-  const [words, setWords] = useState<{ value: string; text: string }>({ value, text: value });
   const choice = choiceOf(value, describing);
-  let typed = words;
-  if (words.value !== value) {
-    typed = { value, text: value };
-    setWords(typed);
-  }
   if (readOnly) {
     return (
       <ReadOnlyValue
@@ -161,17 +155,15 @@ export function GenderField({
       {choice === 'own' ? (
         <TextField
           label="Their words"
-          value={typed.text}
+          value={value}
           error={error}
           isDisabled={isDisabled}
           autoComplete="sex"
           onChange={(text) => {
-            setWords({ value, text });
-          }}
-          onBlur={() => {
-            if (typed.text === value) return;
-            setWords({ value: typed.text, text: typed.text });
-            onChange(typed.text);
+            // Typing in the box settles the choice, so "male" typed on the way
+            // to more never switches the select.
+            setDescribing(true);
+            onChange(text);
           }}
         />
       ) : null}

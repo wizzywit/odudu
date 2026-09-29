@@ -171,6 +171,17 @@ describe('GenderField', () => {
     expect(stored()).toBe('male-identified');
   });
 
+  it('keeps a stored free text in its own words while it is retyped as "male"', async () => {
+    const user = userEvent.setup();
+    render(<Controlled Field={GenderField} label="Gender" start="non-binary" />);
+    const words = screen.getByRole('textbox', { name: 'Their words' });
+    await user.clear(words);
+    await user.type(words, 'male');
+    expect(stored()).toBe('male');
+    expect(words).toHaveFocus();
+    expect(screen.getByRole('textbox', { name: 'Their words' })).toHaveValue('male');
+  });
+
   it('opens a stored free-text gender in its own words', () => {
     render(<Controlled Field={GenderField} label="Gender" start="non-binary" />);
     expect(screen.getByRole('textbox', { name: 'Their words' })).toHaveValue('non-binary');

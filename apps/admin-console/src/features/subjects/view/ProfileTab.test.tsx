@@ -222,6 +222,28 @@ it('saves a typed locale tag on Enter, with nothing chosen from the list', async
   });
 });
 
+it('saves a gender in the subject’s own words on Enter, with Save offered from the first key', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, {
+      [`PATCH ${S}/${ADA_ID}/profile`]: json(profile({ gender: 'non-binary' }), 200, {
+        etag: '"p2"',
+      }),
+    }),
+  );
+  const details = await screen.findByRole('region', { name: 'Details' });
+  await user.click(within(details).getByRole('button', { name: /Gender/u }));
+  await user.click(await screen.findByRole('option', { name: 'In their own words' }));
+  const words = within(details).getByRole('textbox', { name: 'Their words' });
+  await user.type(words, 'n');
+  expect(within(details).getByRole('button', { name: 'Save Details' })).toBeVisible();
+  await user.type(words, 'on-binary{Enter}');
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ gender: 'non-binary' });
+  });
+});
+
 it('marks the email and the phone number verified in one save', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(
