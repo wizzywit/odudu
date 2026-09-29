@@ -6,6 +6,8 @@ import {
   IMPORT_TENANT_HREF,
   NEW_TENANT_HREF,
   tenantHref,
+  systemAdminsTrail,
+  tenantsTrail,
   exportFileName,
   fileSize,
   importFileProblem,
@@ -92,5 +94,23 @@ describe('the addresses', () => {
     expect(NEW_TENANT_HREF).toBe('/console/system/new-tenant');
     expect(IMPORT_TENANT_HREF).toBe('/console/system/import-tenant');
     expect(enterHref('acme')).toBe('/console/acme');
+  });
+});
+
+describe('the way back to a list', () => {
+  it('climbs from a page under Tenants through the System group', () => {
+    expect(tenantsTrail('acme')).toEqual([
+      { label: 'System' },
+      { label: 'Tenants', href: '/console/system/tenants' },
+      { label: 'acme' },
+    ]);
+  });
+
+  it('climbs from a page under System administrators', () => {
+    expect(systemAdminsTrail('Add a system administrator')).toEqual([
+      { label: 'System' },
+      { label: 'System administrators', href: '/console/system/system-admins' },
+      { label: 'Add a system administrator' },
+    ]);
   });
 });

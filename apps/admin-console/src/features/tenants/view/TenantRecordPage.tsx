@@ -1,4 +1,4 @@
-import { enterHref } from '#/features/tenants/service.ts';
+import { enterHref, tenantsTrail } from '#/features/tenants/service.ts';
 import { useTenantRecordPage } from '#/features/tenants/usecase/useTenantRecordPage.ts';
 import { AdministratorsTab } from '#/features/tenants/view/AdministratorsTab.tsx';
 import { ExportPanel } from '#/features/tenants/view/ExportPanel.tsx';
@@ -14,21 +14,17 @@ function Record({ name }: { name: string }) {
   return (
     <RecordPage
       record={page.record}
-      kicker="Tenant"
+      breadcrumb={tenantsTrail(name)}
       title={name}
       {...(tenant === undefined
         ? {}
         : {
-            description: (
-              <>
-                {tenant.display_name ?? 'No display name'}{' '}
-                {tenant.enabled ? (
-                  <StatusTag tone="active">enabled</StatusTag>
-                ) : (
-                  <StatusTag tone="danger">disabled</StatusTag>
-                )}
-              </>
+            status: tenant.enabled ? (
+              <StatusTag tone="active">enabled</StatusTag>
+            ) : (
+              <StatusTag tone="danger">disabled</StatusTag>
             ),
+            description: tenant.display_name ?? 'No display name',
           })}
       actions={<ButtonLink href={enterHref(name)}>{`Enter ${name}`}</ButtonLink>}
       noun="tenant"
@@ -62,7 +58,7 @@ function Record({ name }: { name: string }) {
 
 export function TenantRecordPage({ tenant, name }: { tenant: string; name: string }) {
   return (
-    <SystemGate tenant={tenant} title={name}>
+    <SystemGate tenant={tenant} title={name} breadcrumb={tenantsTrail(name)}>
       <Record name={name} />
     </SystemGate>
   );

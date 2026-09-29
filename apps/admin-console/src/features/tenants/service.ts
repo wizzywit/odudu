@@ -124,6 +124,25 @@ export function administratorStepHref(tenant: string): string {
   return tenant === SYSTEM_TENANT ? NEW_SYSTEM_ADMIN_HREF : NEW_TENANT_HREF;
 }
 
+export interface Step {
+  readonly label: string;
+  readonly href?: string;
+}
+
+// The rail group, then the list, then the page: the group is a heading, not
+// a page, so it has no address.
+export function tenantsTrail(current: string): readonly Step[] {
+  return [{ label: 'System' }, { label: 'Tenants', href: TENANTS_HREF }, { label: current }];
+}
+
+export function systemAdminsTrail(current: string): readonly Step[] {
+  return [
+    { label: 'System' },
+    { label: 'System administrators', href: SYSTEM_ADMINS_HREF },
+    { label: current },
+  ];
+}
+
 export function tenantHref(name: string): string {
   return `${TENANTS_HREF}/${encodeURIComponent(name)}`;
 }

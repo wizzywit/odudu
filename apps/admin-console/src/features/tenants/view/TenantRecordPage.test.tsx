@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
@@ -27,6 +27,19 @@ it('shows a tenant by name, with its status, its tabs and a way into it', async 
   expect(tabs).toHaveTextContent('Administrators');
   expect(tabs).toHaveTextContent('Export');
   expect(await screen.findByRole('heading', { level: 2, name: 'General' })).toBeVisible();
+});
+
+it('climbs back to Tenants through a breadcrumb, with the status beside the name', async () => {
+  renderConsoleAt('/console/system/tenants/acme', routes());
+  await screen.findByText('Acme Corp');
+  const heading = screen.getByRole('heading', { level: 1, name: 'acme' });
+  const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+  expect(within(trail).getByRole('link', { name: 'Tenants' })).toHaveAttribute(
+    'href',
+    '/console/system/tenants',
+  );
+  expect(within(trail).getByText('acme')).toHaveAttribute('aria-current', 'page');
+  expect(within(heading.parentElement ?? heading).getByText('enabled')).toBeVisible();
 });
 
 it('keeps its tab in the address', async () => {

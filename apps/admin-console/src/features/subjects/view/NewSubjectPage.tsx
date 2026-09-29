@@ -1,4 +1,5 @@
 import type { SubmitEvent } from 'react';
+import { subjectsTrail } from '#/features/subjects/service.ts';
 import { useNewSubject } from '#/features/subjects/usecase/useNewSubject.ts';
 import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
 import { Button } from '#/shared/view/Button.tsx';
@@ -57,9 +58,13 @@ function Form({ tenant }: { tenant: string }) {
 
 export function NewSubjectPage({ tenant }: { tenant: string }) {
   return (
-    <SubjectsGate tenant={tenant} title="Create a subject">
+    <SubjectsGate
+      tenant={tenant}
+      title="Create a subject"
+      breadcrumb={subjectsTrail(tenant, 'Create a subject')}
+    >
       <PageHeader
-        kicker={tenant}
+        breadcrumb={subjectsTrail(tenant, 'Create a subject')}
         title="Create a subject"
         description="A subject created here has no password: it owes a password change, and you issue it a one-time password from its Credentials tab."
       />

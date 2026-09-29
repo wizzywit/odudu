@@ -6,6 +6,7 @@ import { current, dirtyFields, discard, edit, startDraft } from '#/shared/servic
 import type { Toast } from '#/shared/service/toast.ts';
 import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
 import { AppShell } from '#/shared/view/AppShell.tsx';
+import { Breadcrumb } from '#/shared/view/Breadcrumb.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
@@ -322,8 +323,13 @@ function SubjectRecord() {
         },
         retry: NOTHING,
       }}
-      kicker={`${TENANT} · subject`}
+      breadcrumb={[
+        { label: 'Identity' },
+        { label: 'Subjects', href: '#editing' },
+        { label: 'ada' },
+      ]}
       title="ada"
+      status={<StatusTag tone="active">enabled</StatusTag>}
       noun="subject"
       label="Subject sections"
       tab={tab}
@@ -550,6 +556,16 @@ export function Gallery({
               </ButtonLink>
               <ButtonLink href="#basics">Import a tenant</ButtonLink>
             </div>
+          </Specimen>
+          <Specimen label="Breadcrumb: the way up from a page below a list">
+            <Breadcrumb
+              label="Breadcrumb specimen"
+              items={[
+                { label: 'System' },
+                { label: 'Tenants', href: '#basics' },
+                { label: TENANT },
+              ]}
+            />
           </Specimen>
           <Specimen label="StatusTag">
             <div className={styles.row}>

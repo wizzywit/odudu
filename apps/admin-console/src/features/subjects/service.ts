@@ -20,6 +20,18 @@ export function subjectHref(tenant: string, id: string): string {
   return `${subjectsHref(tenant)}/${encodeURIComponent(id)}`;
 }
 
+// The rail group is a heading, not a page, so it has no address.
+export function subjectsTrail(
+  tenant: string,
+  current: string,
+): readonly { readonly label: string; readonly href?: string }[] {
+  return [
+    { label: 'Identity' },
+    { label: 'Subjects', href: subjectsHref(tenant) },
+    { label: current },
+  ];
+}
+
 export function subjectName(subject: Pick<Subject, 'id' | 'type' | 'username'>): string {
   return subject.username ?? `${subject.type} ${subject.id}`;
 }

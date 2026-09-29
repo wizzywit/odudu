@@ -616,6 +616,21 @@ counts, a "needs attention" list (no SMTP while verification or reset is
 on; a `rotating` key — published, not signing — old enough to promote; dynamic registration
 open with no client cap headroom), and the latest audit rows.
 
+Every record page has one anatomy, top to bottom:
+
+1. a breadcrumb up to the list it sits in, the rail group first and the
+   record last, marked as the current page and not a link; in a shell
+   narrower than 640 px it collapses to a single "‹ Parent" link;
+2. the title, with its status tag beside it;
+3. page-level actions, safe ones only;
+4. tabs, a dot on any tab with unsaved changes;
+5. sections, each saving on its own;
+6. a danger zone at the foot of General.
+
+Every other page below a list — guided creation, import, adding a system
+administrator, creating a subject — carries the same breadcrumb. A list
+page has none: its kicker names its rail group.
+
 Record pages and their tabs:
 
 | Area    | Tabs                                                                                       |
@@ -776,7 +791,7 @@ remembered in `localStorage`, every access guarded, and the amber context
 bar never collapses.
 
 **Components** in `shared/view`: AppShell, Rail, ContextBar, PageHeader,
-Tabs, Section with SaveBar, Field (text, number with unit, select, toggle,
+Breadcrumb, Tabs, Section with SaveBar, Field (text, number with unit, select, toggle,
 URL list, key-value), DataTable with stacked mode, FilterBar, Pager, Count,
 EmptyState, Skeleton, Toasts, ConfirmDialog (plain and typed), SecretDialog,
 UnsavedChangesDialog, CopyValue, Timestamp, Duration, StatusTag,

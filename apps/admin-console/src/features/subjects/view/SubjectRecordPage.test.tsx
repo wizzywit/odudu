@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
@@ -19,6 +19,17 @@ it('heads the record with the username, its status, and a tab per concern', asyn
   expect(tabs).toHaveTextContent('Profile');
   expect(tabs).toHaveTextContent('Credentials');
   expect(screen.getByRole('tab', { name: 'Profile' })).toHaveAttribute('aria-selected', 'true');
+});
+
+it('climbs back to the subjects through a breadcrumb', async () => {
+  renderConsoleAt(ADA_AT, subjectRoutes());
+  await screen.findByRole('heading', { level: 1, name: 'ada' });
+  const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+  expect(within(trail).getByRole('link', { name: 'Subjects' })).toHaveAttribute(
+    'href',
+    '/console/acme/subjects',
+  );
+  expect(within(trail).getByText('ada')).toHaveAttribute('aria-current', 'page');
 });
 
 it('keeps the tab in the address', async () => {

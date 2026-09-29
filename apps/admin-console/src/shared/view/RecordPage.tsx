@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { RecordView } from '#/shared/service/record.ts';
+import type { Crumb } from '#/shared/view/Breadcrumb.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
@@ -11,8 +12,9 @@ import styles from '#/shared/view/RecordPage.module.css';
 // change is asked for, and the unsaved-changes guard answers first.
 export function RecordPage({
   record,
-  kicker,
+  breadcrumb,
   title,
+  status,
   description,
   actions,
   noun,
@@ -22,8 +24,10 @@ export function RecordPage({
   onTabChange,
 }: {
   record: RecordView;
-  kicker?: ReactNode;
+  // Up to the list the record sits in, ending with the record itself.
+  readonly breadcrumb: readonly Crumb[];
   title: ReactNode;
+  status?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   // What the record is, in running text: "client", "subject".
@@ -34,12 +38,13 @@ export function RecordPage({
   tab: string;
   onTabChange: (id: string) => void;
 }) {
-  const head = (withActions: boolean) => (
+  const head = (ready: boolean) => (
     <PageHeader
+      breadcrumb={breadcrumb}
       title={title}
-      {...(kicker === undefined ? {} : { kicker })}
+      {...(ready && status !== undefined ? { status } : {})}
       {...(description === undefined ? {} : { description })}
-      {...(withActions && actions !== undefined ? { actions } : {})}
+      {...(ready && actions !== undefined ? { actions } : {})}
     />
   );
   switch (record.status) {

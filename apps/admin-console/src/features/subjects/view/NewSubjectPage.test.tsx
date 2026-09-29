@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { USERNAME_RULE_TEXT } from '#/features/subjects/service.ts';
@@ -34,6 +34,17 @@ it('creates a subject and lands on its record, in place of the creation page', a
     email: 'ada@example.test',
   });
   expect(router.history.length).toBe(1);
+});
+
+it('climbs back to the subjects through a breadcrumb', async () => {
+  renderConsoleAt(AT, subjectRoutes());
+  await screen.findByRole('heading', { level: 1, name: 'Create a subject' });
+  const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+  expect(within(trail).getByRole('link', { name: 'Subjects' })).toHaveAttribute(
+    'href',
+    '/console/acme/subjects',
+  );
+  expect(within(trail).getByText('Create a subject')).toHaveAttribute('aria-current', 'page');
 });
 
 it('asks for a username before sending anything', async () => {

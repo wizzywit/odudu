@@ -107,6 +107,17 @@ it('shows each client secret once, one at a time, then offers the first administ
   expect(screen.getByText(/An import creates no administrator/u)).toBeVisible();
 });
 
+it('climbs back to Tenants through a breadcrumb', async () => {
+  renderConsoleAt(AT, routes(REFUSED));
+  await screen.findByRole('heading', { level: 1, name: 'Import a tenant' });
+  const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+  expect(within(trail).getByRole('link', { name: 'Tenants' })).toHaveAttribute(
+    'href',
+    '/console/system/tenants',
+  );
+  expect(within(trail).getByText('Import a tenant')).toHaveAttribute('aria-current', 'page');
+});
+
 it('shows the detail of a 400 that lists no errors', async () => {
   const user = userEvent.setup();
   renderConsoleAt(

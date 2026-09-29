@@ -68,6 +68,17 @@ it('creates a tenant, then its first administrator with a password shown once, t
   expect(sessionStorage.getItem(KEY)).not.toContain(PASSWORD);
 });
 
+it('climbs back to Tenants through a breadcrumb', async () => {
+  renderConsoleAt(AT, routes());
+  await screen.findByRole('heading', { level: 1, name: 'Create a tenant' });
+  const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+  expect(within(trail).getByRole('link', { name: 'Tenants' })).toHaveAttribute(
+    'href',
+    '/console/system/tenants',
+  );
+  expect(within(trail).getByText('Create a tenant')).toHaveAttribute('aria-current', 'page');
+});
+
 it('resumes after a reload where the last call left it', async () => {
   sessionStorage.setItem(
     KEY,
@@ -333,9 +344,15 @@ it("adds a system administrator as system's own administrator, and leads back to
   expect(
     await screen.findByRole('heading', { level: 1, name: 'Add a system administrator' }),
   ).toBeVisible();
-  expect(
-    within(screen.getByRole('main')).getByRole('link', { name: 'System administrators' }),
-  ).toHaveAttribute('href', '/console/system/system-admins');
+  const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+  expect(within(trail).getByRole('link', { name: 'System administrators' })).toHaveAttribute(
+    'href',
+    '/console/system/system-admins',
+  );
+  expect(within(trail).getByText('Add a system administrator')).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
   expect(screen.queryByRole('list', { name: 'Steps' })).toBeNull();
   expect(screen.getByText(/reaches every tenant/u)).toBeVisible();
   const button = screen.getByRole('button', { name: 'Create administrator' });
@@ -347,7 +364,8 @@ it("adds a system administrator as system's own administrator, and leads back to
   await user.click(within(dialog).getByRole('checkbox'));
   await user.click(within(dialog).getByRole('button', { name: 'Close' }));
   expect(await screen.findByText(/is a system administrator/u)).toBeVisible();
-  expect(screen.getByRole('link', { name: 'Back to System administrators' })).toHaveAttribute(
+  const done = screen.getByText(/is a system administrator/u).parentElement ?? document.body;
+  expect(within(done).getByRole('link', { name: 'Back to System administrators' })).toHaveAttribute(
     'href',
     '/console/system/system-admins',
   );
@@ -362,7 +380,7 @@ it('passes axe in both themes adding a system administrator', async () => {
   ).toEqual({ light: [], dark: [] });
   expect(
     await axeInBothThemes(at({ step: 'done', tenant: 'system', username: 'grace' }), () =>
-      screen.findByRole('link', { name: 'Back to System administrators' }),
+      screen.findAllByRole('link', { name: 'Back to System administrators' }),
     ),
   ).toEqual({ light: [], dark: [] });
 });

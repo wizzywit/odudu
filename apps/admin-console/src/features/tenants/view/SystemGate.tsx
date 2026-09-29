@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { PageNotFound } from '#/features/shell/index.ts';
 import { useTenantsArea } from '#/features/tenants/usecase/useTenantsArea.ts';
+import type { Crumb } from '#/shared/view/Breadcrumb.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import { Skeleton } from '#/shared/view/Skeleton.tsx';
@@ -10,27 +11,36 @@ import { Skeleton } from '#/shared/view/Skeleton.tsx';
 export function SystemGate({
   tenant,
   title,
+  breadcrumb,
   children,
 }: {
   tenant: string;
   title: string;
+  // A page below a list keeps its way back while access is checked or refused.
+  readonly breadcrumb?: readonly Crumb[];
   children: ReactNode;
 }) {
   const access = useTenantsArea(tenant);
+  const head = (
+    <PageHeader
+      {...(breadcrumb === undefined ? { kicker: 'System' } : { breadcrumb })}
+      title={title}
+    />
+  );
   switch (access.kind) {
     case 'hidden':
       return <PageNotFound />;
     case 'checking':
       return (
         <>
-          <PageHeader kicker="System" title={title} />
+          {head}
           <Skeleton label={`Checking access to ${title}`} />
         </>
       );
     case 'refused':
       return (
         <>
-          <PageHeader kicker="System" title={title} />
+          {head}
           <CapabilityNote capability={access.capability}>{title}</CapabilityNote>
         </>
       );

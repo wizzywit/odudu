@@ -3,6 +3,7 @@ import {
   SUBJECT_TAB_LABELS,
   SUBJECT_TABS,
   subjectName,
+  subjectsTrail,
   type Subject,
   type SubjectTab,
 } from '#/features/subjects/service.ts';
@@ -31,6 +32,7 @@ const PANELS: Readonly<Record<SubjectTab, (props: PanelProps) => ReactNode>> = {
 function Record({ tenant, id }: { tenant: string; id: string }) {
   const page = useSubjectRecordPage(tenant, id);
   const { subject, etag } = page;
+  const name = subject === undefined ? 'Subject' : subjectName(subject);
   const props: PanelProps | null =
     subject === undefined || etag === null
       ? null
@@ -45,21 +47,17 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
   return (
     <RecordPage
       record={page.record}
-      kicker="Subject"
-      title={subject === undefined ? 'Subject' : subjectName(subject)}
+      breadcrumb={subjectsTrail(tenant, name)}
+      title={name}
       {...(subject === undefined
         ? {}
         : {
-            description: (
-              <>
-                {subject.email ?? (subject.type === 'user' ? 'No email' : subject.type)}{' '}
-                {subject.enabled ? (
-                  <StatusTag tone="active">enabled</StatusTag>
-                ) : (
-                  <StatusTag tone="danger">disabled</StatusTag>
-                )}
-              </>
+            status: subject.enabled ? (
+              <StatusTag tone="active">enabled</StatusTag>
+            ) : (
+              <StatusTag tone="danger">disabled</StatusTag>
             ),
+            description: subject.email ?? (subject.type === 'user' ? 'No email' : subject.type),
           })}
       noun="subject"
       label="Subject sections"
@@ -77,7 +75,7 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
 
 export function SubjectRecordPage({ tenant, id }: { tenant: string; id: string }) {
   return (
-    <SubjectsGate tenant={tenant} title="Subject">
+    <SubjectsGate tenant={tenant} title="Subject" breadcrumb={subjectsTrail(tenant, 'Subject')}>
       <Record tenant={tenant} id={id} />
     </SubjectsGate>
   );

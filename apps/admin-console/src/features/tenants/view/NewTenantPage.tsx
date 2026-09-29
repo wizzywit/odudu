@@ -1,12 +1,12 @@
 import type { SubmitEvent } from 'react';
-import { Link, VisuallyHidden } from 'react-aria-components';
+import { VisuallyHidden } from 'react-aria-components';
 import {
   useNewTenant,
   type AdministratorStep,
   type DoneStep,
   type TenantStep,
 } from '#/features/tenants/usecase/useNewTenant.ts';
-import { TENANTS_HREF } from '#/features/tenants/service.ts';
+import { systemAdminsTrail, tenantsTrail } from '#/features/tenants/service.ts';
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
@@ -217,23 +217,17 @@ function Creation() {
   const { current, startOver } = useNewTenant();
   const at = current.step === 'tenant' ? 0 : current.step === 'administrator' ? 1 : 2;
   const systemAdmins = current.step === 'tenant' ? null : current.systemAdminsHref;
+  const title =
+    current.step === 'tenant'
+      ? 'Create a tenant'
+      : systemAdmins === null
+        ? `First administrator of ${current.tenant}`
+        : 'Add a system administrator';
   return (
     <>
       <PageHeader
-        kicker={
-          systemAdmins === null ? (
-            <Link href={TENANTS_HREF}>Tenants</Link>
-          ) : (
-            <Link href={systemAdmins}>System administrators</Link>
-          )
-        }
-        title={
-          current.step === 'tenant'
-            ? 'Create a tenant'
-            : systemAdmins === null
-              ? `First administrator of ${current.tenant}`
-              : 'Add a system administrator'
-        }
+        breadcrumb={systemAdmins === null ? tenantsTrail(title) : systemAdminsTrail(title)}
+        title={title}
         description="Where it has got to is kept in this tab, so a reload carries on from the last request that landed."
         {...(current.step === 'administrator'
           ? {
@@ -255,7 +249,11 @@ function Creation() {
 
 export function NewTenantPage({ tenant }: { tenant: string }) {
   return (
-    <SystemGate tenant={tenant} title="Create a tenant">
+    <SystemGate
+      tenant={tenant}
+      title="Create a tenant"
+      breadcrumb={tenantsTrail('Create a tenant')}
+    >
       <Creation />
     </SystemGate>
   );

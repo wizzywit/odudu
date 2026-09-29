@@ -10,6 +10,7 @@ import {
   subjectHref,
   subjectName,
   subjectsHref,
+  subjectsTrail,
   USERNAME_RULE_TEXT,
   usernameProblem,
 } from '#/features/subjects/service.ts';
@@ -19,6 +20,16 @@ describe('addresses', () => {
     expect(subjectsHref('acme')).toBe('/console/acme/subjects');
     expect(newSubjectHref('acme')).toBe('/console/acme/subjects/new');
     expect(subjectHref('acme', 'a b')).toBe('/console/acme/subjects/a%20b');
+  });
+});
+
+describe('the way back to the list', () => {
+  it('climbs through the Identity group to the tenant’s subjects', () => {
+    expect(subjectsTrail('a b', 'grace')).toEqual([
+      { label: 'Identity' },
+      { label: 'Subjects', href: '/console/a%20b/subjects' },
+      { label: 'grace' },
+    ]);
   });
 });
 

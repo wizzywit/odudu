@@ -22,8 +22,13 @@ function page(record: RecordView, onTabChange = vi.fn(), tab = 'general') {
   return (
     <RecordPage
       record={record}
-      kicker="acme · client"
+      breadcrumb={[
+        { label: 'Applications' },
+        { label: 'Clients', href: '/console/acme/clients' },
+        { label: 'Billing portal' },
+      ]}
       title="Billing portal"
+      status={<span>enabled</span>}
       noun="client"
       actions={<Button variant="danger">Delete client</Button>}
       label="Client sections"
@@ -43,6 +48,18 @@ it('heads the record with its name and shows the tab the address names', () => {
   expect(screen.getByRole('tab', { name: 'Activity' })).toHaveAttribute('aria-selected', 'true');
   expect(screen.getByText('Activity panel')).toBeVisible();
   expect(screen.getByRole('tab', { name: 'General, unsaved changes' })).toBeVisible();
+});
+
+it('leads with its breadcrumb in every state, and its status once it has one', () => {
+  const { rerender } = render(page(view({ status: 'loading' })));
+  const trail = () => screen.getByRole('navigation', { name: 'Breadcrumb' });
+  expect(within(trail()).getByRole('link', { name: 'Clients' })).toBeVisible();
+  expect(screen.queryByText('enabled')).toBeNull();
+  rerender(page(view({ status: 'missing' })));
+  expect(trail()).toBeVisible();
+  rerender(page(view()));
+  expect(within(trail()).getByText('Billing portal')).toHaveAttribute('aria-current', 'page');
+  expect(screen.getByRole('heading', { level: 1 }).parentElement).toHaveTextContent('enabled');
 });
 
 it('asks for a tab change rather than making it', async () => {

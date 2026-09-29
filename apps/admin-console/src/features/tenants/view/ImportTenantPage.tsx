@@ -1,6 +1,6 @@
 import { useId, type SubmitEvent } from 'react';
-import { FileTrigger, Link } from 'react-aria-components';
-import { TENANTS_HREF } from '#/features/tenants/service.ts';
+import { FileTrigger } from 'react-aria-components';
+import { tenantsTrail } from '#/features/tenants/service.ts';
 import {
   useImportTenantPage,
   type ImportTenantPage as ImportState,
@@ -103,7 +103,7 @@ function Import() {
   return (
     <>
       <PageHeader
-        kicker={<Link href={TENANTS_HREF}>Tenants</Link>}
+        breadcrumb={tenantsTrail('Import a tenant')}
         title="Import a tenant"
         description="An import always creates a new tenant from an exported document. The whole document is checked before anything is written."
       />
@@ -158,7 +158,11 @@ function Import() {
 
 export function ImportTenantPage({ tenant }: { tenant: string }) {
   return (
-    <SystemGate tenant={tenant} title="Import a tenant">
+    <SystemGate
+      tenant={tenant}
+      title="Import a tenant"
+      breadcrumb={tenantsTrail('Import a tenant')}
+    >
       <Import />
     </SystemGate>
   );
