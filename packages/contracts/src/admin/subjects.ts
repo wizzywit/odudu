@@ -65,7 +65,12 @@ export const listSubjectsResponseSchema = z.object({
 export type ListSubjectsResponse = z.infer<typeof listSubjectsResponseSchema>;
 
 // The one rule a username is held to, on creation and on a rename alike.
+// Uniqueness is the `users_username_unique` constraint, which compares
+// exactly; the console shows the rule in these words before it asks.
 export const usernameSchema = z.string().min(1);
+export const USERNAME_RULE =
+  'a username must be at least one character, and no other subject in the tenant may hold it: ' +
+  'case counts, so Ada and ada are different usernames';
 
 // No `password` field, deliberately: creating a subject through this door
 // writes an `update-password` required action instead, so no operator ever

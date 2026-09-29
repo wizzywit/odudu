@@ -88,6 +88,7 @@ export {
   listSubjectsResponseSchema,
   type ListSubjectsResponse,
   usernameSchema,
+  USERNAME_RULE,
   createSubjectRequestSchema,
   type CreateSubjectRequest,
   amendSubjectRequestSchema,
