@@ -84,9 +84,15 @@ export function readSmtp(gateway: Gateway, tenant: string): Promise<GatewayResul
   });
 }
 
+// A defect is logged where it is found, as the gateway logs its own.
+function logDefect(message: string): void {
+  console.error(message);
+}
+
 export async function readKeys(
   gateway: Gateway,
   tenant: string,
+  log: (message: string) => void = logDefect,
 ): Promise<GatewayResult<readonly SigningKey[]>> {
   const keys: SigningKey[] = [];
   let cursor: string | undefined;
@@ -103,6 +109,9 @@ export async function readKeys(
     cursor = result.data.next;
     if (cursor === undefined) return { ...result, data: keys };
   }
+  log(
+    `console defect: GET keys of ${tenant} still had a next page after ${String(MAX_KEY_PAGES)} pages`,
+  );
   return { ok: false, kind: 'defect' };
 }
 

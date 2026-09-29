@@ -123,3 +123,16 @@ it('reads the five latest audit rows', async () => {
   });
   expect(fake.sent[0]?.search.toString()).toBe('limit=5');
 });
+
+it('gives up, and says so, on a key list whose cursor never ends', async () => {
+  const fake = fakeTransport({
+    'GET /console/api/admin/tenants/acme/keys': json({ items: [KEY], next: 'again' }),
+  });
+  const logged: string[] = [];
+  const result = await readKeys(fake.transport.gateway, 'acme', (message) => {
+    logged.push(message);
+  });
+  expect(result).toEqual({ ok: false, kind: 'defect' });
+  expect(fake.calls).toHaveLength(10);
+  expect(logged).toEqual(['console defect: GET keys of acme still had a next page after 10 pages']);
+});
