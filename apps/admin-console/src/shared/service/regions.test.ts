@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { COUNTRY_NAMES_SOURCE } from '#/shared/service/countryNames.ts';
 import {
-  callingCodeOf,
   countryOptions,
   englishCountryName,
   REGIONS,
@@ -24,18 +24,33 @@ describe('regions', () => {
     expect(englishCountryName('DE')).toBe('Germany');
   });
 
-  it('stores the ISO 3166-1 short name pinned here, whatever the browser’s CLDR says', () => {
+  it('stores the common English name from the pinned CLDR snapshot, whatever the browser says', () => {
+    expect(englishCountryName('KR')).toBe('South Korea');
+    expect(englishCountryName('TW')).toBe('Taiwan');
     expect(englishCountryName('TR')).toBe('Türkiye');
-    expect(englishCountryName('CI')).toBe("Côte d'Ivoire");
-    expect(englishCountryName('GB')).toBe('United Kingdom of Great Britain and Northern Ireland');
-    expect(englishCountryName('HK')).toBe('Hong Kong');
+    expect(englishCountryName('GB')).toBe('United Kingdom');
+    expect(englishCountryName('US')).toBe('United States');
+    expect(englishCountryName('CD')).toBe('Congo - Kinshasa');
+    expect(englishCountryName('CI')).toBe('Côte d’Ivoire');
     const names = REGIONS.map(({ code }) => englishCountryName(code));
     expect(new Set(names).size).toBe(names.length);
     expect(names.every((name) => name.length > 2)).toBe(true);
   });
 
+  it('records the CLDR version the names were taken from', () => {
+    expect(COUNTRY_NAMES_SOURCE).toEqual({ cldr: '48', locale: 'en' });
+  });
+
   it('reads an older or the browser’s own spelling as the same country', () => {
-    for (const name of ['Turkey', 'Czech Republic', 'Swaziland', 'Macedonia', "Cote d'Ivoire"]) {
+    for (const name of [
+      'Turkey',
+      'Czech Republic',
+      'Swaziland',
+      'Macedonia',
+      "Cote d'Ivoire",
+      'Korea, Republic of',
+      'Taiwan, Province of China',
+    ]) {
       expect(regionOfCountryName(name), name).not.toBeNull();
     }
     const cldr = new Intl.DisplayNames(['en'], { type: 'region' });
@@ -54,9 +69,4 @@ describe('regions', () => {
     expect(regionOfCountryName('Atlantis')).toBeNull();
   });
 
-  it('knows the calling code of a region', () => {
-    expect(callingCodeOf('NG')).toBe('234');
-    expect(callingCodeOf('US')).toBe('1');
-    expect(callingCodeOf('AQ')).toBeNull();
-  });
 });
