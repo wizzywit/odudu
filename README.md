@@ -1121,7 +1121,10 @@ scopes, the admin API's resource identifier `urn:odudu:params:admin-api` as
 its registered audience, and the loopback redirect URI
 `http://127.0.0.1:8080/callback` (RFC 8252 §7.3): an administrator with no
 console obtains a token by running a listener on that exact port and
-completing the flow with PKCE. While the console is on (`ODUDU_CONSOLE`,
+completing the flow with PKCE. The admin API refuses such a token once its
+grant is revoked, its session has ended, or its client or its subject has
+been disabled
+([docs/admin-paths.md](docs/admin-paths.md#the-shape-of-it)). While the console is on (`ODUDU_CONSOLE`,
 default `true`), the same client is also registered
 `${ODUDU_PUBLIC_BASE_URL}/console/auth/callback` as a redirect URI and
 `${ODUDU_PUBLIC_BASE_URL}/console/` as a post-logout redirect URI — by

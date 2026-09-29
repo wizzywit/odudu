@@ -140,4 +140,16 @@ describe('docs/admin-paths.md says what the admin API actually requires', () => 
       `${GUIDE} shows problem types this server cannot produce`,
     ).toEqual([]);
   });
+
+  // The OpenAPI section states its path count as the whole route table; a
+  // route added after its capture makes that false without this.
+  it('says as many OpenAPI paths as the route table has patterns', () => {
+    const stated = /(?<count>\d+) paths, which is the whole route table/u.exec(
+      document.lines.join('\n'),
+    );
+    const patterns = new Set(ADMIN_ROUTES.map((route) => route.pattern));
+    expect(stated?.groups?.count, `${GUIDE} no longer states the path count`).toBe(
+      String(patterns.size),
+    );
+  });
 });

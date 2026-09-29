@@ -82,6 +82,7 @@ import {
   signingKeySchema,
   profileSchema,
   subjectSchema,
+  usernamePolicySchema,
   tenantSchema,
   whoamiResponseSchema,
   countResponseSchema,
@@ -188,6 +189,16 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'view-users',
     responseSchema: countResponseSchema,
     querystringSchema: countSubjectsQuerySchema,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/username-policy',
+    capability: 'view-users',
+    responseSchema: usernamePolicySchema,
+    description:
+      'Whether this tenant accepts a rename: its `username_editable` setting, readable by ' +
+      'whoever can read subjects, where `GET /admin/tenants/{tenant}/settings` needs ' +
+      '`manage-tenant`. No `ETag`: nothing is written against it.',
   },
   {
     method: 'POST',

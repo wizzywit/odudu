@@ -148,6 +148,7 @@ import {
   readProfileHandler,
   readRequiredActionsHandler,
   readSubjectHandler,
+  readUsernamePolicyHandler,
   readSubjectGroupsHandler,
   readSubjectRolesHandler,
   setRequiredActionsHandler,
@@ -441,6 +442,8 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/whoami': whoamiHandler({ callerCapabilities }),
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/count': countSubjectsHandler(countsDeps),
+      'GET /admin/tenants/:tenant/subjects/username-policy':
+        readUsernamePolicyHandler(subjectsDeps),
       'POST /admin/tenants/:tenant/subjects': createSubjectHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id': readSubjectHandler(subjectsDeps),
       'PATCH /admin/tenants/:tenant/subjects/:id': amendSubjectHandler(subjectsDeps),

@@ -532,13 +532,21 @@ export async function amendSubject(
   );
 }
 
+// The one setting a rename turns on, read on its own for whoever reads subjects.
+export async function readUsernamePolicy(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+): Promise<{ usernameEditable: boolean }> {
+  const settings = await tenantSettingsRepository(tx).byId(tenantId);
+  return { usernameEditable: settings?.username_editable === true };
+}
+
 async function amendSubjectUnguarded(
   tx: TenantScopedDatabase,
   deps: AmendSubjectDeps,
   input: AmendSubjectInput,
 ): Promise<AmendSubjectOutcome> {
-  const settings = await tenantSettingsRepository(tx).byId(input.tenantId);
-  const policy = { usernameEditable: settings?.username_editable === true };
+  const policy = await readUsernamePolicy(tx, input.tenantId);
   const amendable = amendableSubjectFields(policy);
   for (const field of Object.keys(input.values)) {
     if (!amendable.includes(field)) {

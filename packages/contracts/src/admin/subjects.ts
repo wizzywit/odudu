@@ -64,6 +64,14 @@ export const listSubjectsResponseSchema = z.object({
 });
 export type ListSubjectsResponse = z.infer<typeof listSubjectsResponseSchema>;
 
+// Whether a rename is accepted in this tenant: the `username_editable`
+// setting, readable by whoever can read subjects, so a form can show the
+// username fixed rather than offer it and be refused.
+export const usernamePolicySchema = z.object({
+  username_editable: z.boolean(),
+});
+export type UsernamePolicy = z.infer<typeof usernamePolicySchema>;
+
 // The one rule a username is held to, on creation and on a rename alike.
 // Uniqueness is the `users_username_unique` constraint, which compares
 // exactly; the console shows the rule in these words before it asks.

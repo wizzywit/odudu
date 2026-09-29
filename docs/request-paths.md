@@ -4649,8 +4649,11 @@ count reached seven: a minute at five, two at six, four at seven.
 The tenant in that `where` clause is not decoration either. `login_failures`
 holds a row per subject across every tenant, and the sections above this one
 leave their own behind — the password expiry walkthrough ends on a
-deliberately wrong password, and nothing clears a row but a successful login
-or the [retention pass](#retention-what-odudu-reap-removes). An unscoped
+deliberately wrong password, and nothing clears a row but a successful login,
+the [retention pass](#retention-what-odudu-reap-removes), or an operator —
+[`DELETE …/subjects/{id}/lockout`](admin-paths.md#delete-subjectsidlockout)
+and `POST …/subjects/{id}/password`, beside the
+[`GET …/lockout`](admin-paths.md#get-subjectsidlockout) that reads it. An unscoped
 `select` here would print whatever the rest of this document happened to
 do first, which is not a claim about the lockout.
 

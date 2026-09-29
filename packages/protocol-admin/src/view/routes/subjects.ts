@@ -37,6 +37,7 @@ import {
   type AmendSubjectOutcome,
   type Audit,
   type SubjectView,
+  readUsernamePolicy,
 } from '#/usecase/subjects';
 import {
   cursorProblem,
@@ -165,6 +166,15 @@ export function readSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
     const wire = subjectWireShape(outcome.subject);
     reply.header('etag', etagOf(wire));
     return reply.code(200).send(wire);
+  };
+}
+
+export function readUsernamePolicyHandler(deps: SubjectsRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const policy = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      readUsernamePolicy(tx, targetTenantId),
+    );
+    return reply.code(200).send({ username_editable: policy.usernameEditable });
   };
 }
 

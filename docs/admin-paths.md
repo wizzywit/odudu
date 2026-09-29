@@ -168,6 +168,17 @@ by the per-origin throttle, and `seed admin --username ada-t8` run against
 it. Each of the two sections says what else it seeded. It was torn down
 with `docker compose down -v` when the capture finished.
 
+**The eighth stack.** `GET /subjects/username-policy`, the refusal of a
+disabled subject's token under "The shape of it", and `GET /admin/openapi.json`
+were captured against one more stack of their own: compose project
+`odudu-t8b` on port 3080, built from this branch and brought up from an
+empty volume, with `seed admin --username ada-t8b` run against it, then a
+tenant `policy-demo` made with `odudu seed tenant` and a subject `vera`
+seeded there with `odudu seed user` and granted `odudu-admin:view-users`
+alone. `$VERA_TOKEN` is `vera`'s own admin access token, got the way
+"Getting the token" shows but at `policy-demo`. It was torn down with
+`docker compose down -v` when the capture finished.
+
 ## The shape of it
 
 Most of the admin endpoint lives under `/admin/tenants/{tenant}/`, mirroring
@@ -199,13 +210,50 @@ surface — sent as `Authorization: Bearer …`. Two authorities can hold one:
 Either way, the token must carry an `aud` naming this admin API,
 `urn:odudu:params:admin-api` — an ordinary access token minted for the
 protocol surface does not authorize anything here — and the request is refused if the grant behind the token
-has been revoked, its session has ended, or its client has since been
-disabled. A `client_credentials` token has no session behind it, and is
-refused only on the other two counts. `docs/superpowers/specs/2026-09-24-p4c-admin-api-design.md`
+has been revoked, its session has ended, its client has since been
+disabled, or its subject has. A `client_credentials` token has no session
+behind it, and is refused only on the other three counts. `docs/superpowers/specs/2026-09-24-p4c-admin-api-design.md`
 section 7 has the full authentication and authorization sequence;
 [README.md](../README.md) explains why the built-in admin client is shaped
 the way it is, and "Getting the token" below is the run every transcript
 here used.
+
+**Disabling a subject ends nothing it holds**, so without that last check
+an access token issued before would reach this API for the rest of its
+lifetime; with it, the next request is refused exactly as a token that was
+never valid is. Against the eighth stack: `vera`'s token read, then `vera`
+disabled with `$ADMIN_TOKEN`, then the same token again, then a string that
+is no token at all:
+
+```bash
+P=http://localhost:3080/admin/tenants/policy-demo
+curl -sS -H "Authorization: Bearer $VERA_TOKEN" "$P/whoami"
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"enabled":false}' "$P/subjects/01a0ed2f-31a5-7d73-87ba-7eab105cb48e"
+curl -sS -D - -H "Authorization: Bearer $VERA_TOKEN" "$P/whoami"
+curl -sS -H "Authorization: Bearer not-a-token" "$P/whoami"
+```
+
+```
+{"subjectId":"01a0ed2f-31a5-7d73-87ba-7eab105cb48e","issuerTenantId":"01a0ed2f-2f91-7465-9b04-3440992c210e","capabilities":["view-users"],"crossTenant":false}
+{"id":"01a0ed2f-31a5-7d73-87ba-7eab105cb48e","type":"user","username":"vera","email":null,"enabled":false,"created_at":"2026-09-29T12:41:28.224Z"}
+HTTP/1.1 401 Unauthorized
+x-request-id: 01a0ed2f-67f7-714b-9a20-82edd90aebaa
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 108
+Date: Tue, 29 Sep 2026 12:41:42 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0ed2f-67f7-714b-9a20-82edd90aebaa"}
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0ed2f-845b-7cda-bc47-6b5157abf3a0"}
+```
+
+The console gateway reads such a `401` as the end of its session once the
+same token is refused at its own tenant's `whoami` too, so a console session
+whose subject is disabled ends at its next request
+([docs/console-paths.md](console-paths.md)).
 
 **Every path parameter but `{tenant}` is a row id**, narrowed before the
 route runs: an id that is not a canonical hyphenated UUID is refused with
@@ -236,6 +284,7 @@ not re-run — each says so, and why, where it appears.
 | `GET`    | `/admin/tenants/{tenant}/whoami`                                 | Identity probe                            |
 | `GET`    | `/admin/tenants/{tenant}/subjects`                               | List subjects                             |
 | `GET`    | `/admin/tenants/{tenant}/subjects/count`                         | Count subjects                            |
+| `GET`    | `/admin/tenants/{tenant}/subjects/username-policy`               | Whether a username can be renamed         |
 | `POST`   | `/admin/tenants/{tenant}/subjects`                               | Create a subject                          |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id`                           | Read a subject                            |
 | `PATCH`  | `/admin/tenants/{tenant}/subjects/:id`                           | Amend a subject                           |
@@ -2554,6 +2603,46 @@ curl -sS -X POST \
 {"type":"about:blank","title":"Conflict","status":409,"detail":"the username \"ada\" is already in use","instance":"01a0ea54-2532-7ded-a4a1-78972123db93"}
 ```
 
+## `GET /subjects/username-policy`
+
+Requires `view-users`. Whether this tenant accepts a rename — its
+`username_editable` setting, alone, for whoever can read subjects:
+[`GET /settings`](#get-settings-and-patch-settings) holds the same value but
+needs `manage-tenant`, which an operator who manages subjects may not hold,
+and a form that could not read it would have to offer the username and let
+[`PATCH /subjects/:id`](#patch-subjectsid) refuse it. It answers no `ETag`:
+nothing is written against it.
+
+Against the eighth stack, as `vera`, who holds `view-users` alone: the
+policy, then the settings it comes from, refused to her, then the policy
+again once `$ADMIN_TOKEN` turned renaming on (`PATCH /settings` with
+`{"username_editable":true}`, printing only its status):
+
+```bash
+P=http://localhost:3080/admin/tenants/policy-demo
+curl -sS -H "Authorization: Bearer $VERA_TOKEN" "$P/subjects/username-policy"
+curl -sS -H "Authorization: Bearer $VERA_TOKEN" "$P/settings"
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"username_editable":true}' "$P/settings" -o /dev/null -w '%{http_code}\n'
+curl -sS -D - -H "Authorization: Bearer $VERA_TOKEN" "$P/subjects/username-policy"
+```
+
+```
+{"username_editable":false}
+{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0ed2f-677d-795d-a102-4b8fd7b8f163"}
+200
+HTTP/1.1 200 OK
+x-request-id: 01a0ed2f-67af-7ea4-928b-e8468e49d211
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 26
+Date: Tue, 29 Sep 2026 12:41:42 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"username_editable":true}
+```
+
 ## `GET /subjects/:id`
 
 Requires `view-users`, the same capability the listing does. Carries an
@@ -3223,7 +3312,7 @@ another tenant, or one with no `users` row answers `404`, and a subject
 holding an admin capability the caller does not is refused with `403`
 ([the target ceiling](#the-target-ceiling)).
 
-Captured against [the seventh stack](#admin-paths), on `ines` in
+Captured against the seventh stack, described at the top of this page, on `ines` in
 `lockout-demo` — the subject [`GET /subjects/:id/lockout`](#get-subjectsidlockout)
 below also uses. Its required actions first, for the `ETag` the `PUT`
 sends:
@@ -3532,14 +3621,28 @@ quiet ([README.md](../README.md)'s brute-force section has the arithmetic).
 A subject that has never failed answers a zero count and nulls. An unknown
 subject, one in another tenant, or one with no `users` row answers `404`.
 
-Captured against [the seventh stack](#admin-paths), in a tenant
+Captured against the seventh stack, described at the top of this page, in a tenant
 `lockout-demo` made by `odudu seed --tenant lockout-demo --client
 lockout-demo-app --redirect-uri https://app.example/callback --user hana`,
 on `ines`, a second subject seeded there with `odudu seed user` and
 signed in by nothing before this. `signin` is the helper the section below
-defines, pointed at `lockout-demo-app` and `ines`, on port 3080. Read first,
-then five wrong passwords and the right one — all six refused, the sixth
-for the lock — then read again:
+defines, pointed at this tenant, this client, `ines` and port 3080 — as run:
+
+```bash
+AUTHORIZE='http://localhost:3080/tenants/lockout-demo/protocol/openid-connect/auth?response_type=code&client_id=lockout-demo-app&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+signin() {
+  sid=$(curl -sS "$AUTHORIZE" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p' | head -1)
+  curl -sS -D - -o body.html \
+    --data-urlencode "auth_session_id=$sid" \
+    --data-urlencode "username=ines" \
+    --data-urlencode "password=$1" \
+    http://localhost:3080/tenants/lockout-demo/login-actions/authenticate | grep -iE '^(HTTP|location)'
+  grep -o '<title>[^<]*</title>' body.html || true
+}
+```
+
+Read first, then five wrong passwords and the right one — all six refused,
+the sixth for the lock — then read again:
 
 ```bash
 INES=http://localhost:3080/admin/tenants/lockout-demo/subjects/01a0ec85-0c4c-7ab4-821c-a4fad1d15482
@@ -6855,18 +6958,27 @@ so the two cannot drift. It takes no `{tenant}` — it describes the API
 rather than reaching into one — and is served without authentication, since
 a client that cannot read it cannot generate against it:
 
+Captured against the eighth stack:
+
 ```bash
-curl -sS -D - -o openapi.json http://localhost:3000/admin/openapi.json
+curl -sS -D - -o openapi.json http://localhost:3080/admin/openapi.json
+jq '.paths | length' openapi.json
 ```
 
 ```
 HTTP/1.1 200 OK
+x-request-id: 01a0ed2f-6809-7e3d-8822-8de6576c9d75
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 122868
+content-length: 239225
+Date: Tue, 29 Sep 2026 12:41:42 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+54
 ```
 
-120 KB and 33 paths, which is the whole route table. It is the one admin
+234 KB and 54 paths, which is the whole route table. It is the one admin
 response readable from any origin, so a viewer served from another port can
 load it — the local stack's optional Swagger UI does exactly that (see
 `README.md`, "Browsing the admin API"). No admin route carries that header,

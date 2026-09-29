@@ -1472,3 +1472,26 @@ grant `odudu seed admin` makes. Revoke removes only the subject's own
 administrator roles; one held through a group or a nested role is pointed
 at, and the holders are asked again afterwards rather than the answer being
 worked out.
+
+## Part 4 — Subjects: list, create, Profile and Credentials
+
+**Three admin routes the console needed and the API lacked.**
+`GET /subjects/:id/lockout` reads the run of failures, judged by the
+server's clock; `DELETE /subjects/:id/recovery-codes` revokes a set that
+carries no ids; `GET /subjects/username-policy` answers `username_editable`
+to `view-users`, so a Profile tab can show the username fixed with its
+reason rather than offer it and be refused. The setting stays off the
+subject representation on purpose: it would repeat on every list row and
+enter the subject's `ETag`, so turning renaming on would answer every open
+Account section with a `412` for a field nobody edited.
+
+**A disabled subject's admin token is refused.** Disabling ends nothing a
+subject holds, and `authenticateAdmin` checked the grant, the session and
+the client but not the subject, so an access token issued before lived out
+its lifetime at the admin API. It now reads the subject beside the client,
+answering the plain `401` an invalid token gets; the gateway ends a console
+session on it as on any `401` its own tenant's whoami confirms.
+
+**One view test was not seen red.** `SubjectsPage.test.tsx` was written
+before the page but first run after it; every other test in the feature was
+seen failing first.
