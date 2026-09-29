@@ -57,30 +57,25 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
   });
   const tenantPath = (tenant: string): string => `/tenants/${encodeURIComponent(tenant)}`;
 
+  async function discoveryOf(tenant: string, from: Caller): Promise<DiscoveryDocument | null> {
+    const res = await fastify.inject({
+      method: 'GET',
+      url: `${tenantPath(tenant)}/.well-known/openid-configuration`,
+      headers: headersFor(from),
+      remoteAddress: from.ip,
+    });
+    if (res.statusCode !== 200) return null;
+    const parsed = DISCOVERY.safeParse(json(res));
+    return parsed.success ? parsed.data : null;
+  }
+
   return {
     async issuerOf(tenant: string, from: Caller): Promise<string | null> {
-      const res = await fastify.inject({
-        method: 'GET',
-        url: `${tenantPath(tenant)}/.well-known/openid-configuration`,
-        headers: headersFor(from),
-        remoteAddress: from.ip,
-      });
-      if (res.statusCode !== 200) return null;
-      const parsed = DISCOVERY.safeParse(json(res));
-      return parsed.success ? parsed.data.issuer : null;
+      const doc = await discoveryOf(tenant, from);
+      return doc?.issuer ?? null;
     },
 
-    async discoveryOf(tenant: string, from: Caller): Promise<DiscoveryDocument | null> {
-      const res = await fastify.inject({
-        method: 'GET',
-        url: `${tenantPath(tenant)}/.well-known/openid-configuration`,
-        headers: headersFor(from),
-        remoteAddress: from.ip,
-      });
-      if (res.statusCode !== 200) return null;
-      const parsed = DISCOVERY.safeParse(json(res));
-      return parsed.success ? parsed.data : null;
-    },
+    discoveryOf,
 
     async keysOf(tenant: string, from: Caller): Promise<JsonWebKeySet | null> {
       const res = await fastify.inject({
