@@ -121,10 +121,12 @@
   display: flex;
 }
 
+/* Fluid beside the rail; only a very wide screen caps and centres it. */
 .main {
   flex: 1;
   inline-size: 100%;
-  max-inline-size: 1200px;
+  max-inline-size: 1600px;
+  margin-inline: auto;
   padding: 0 var(--space-8) var(--space-8);
   outline: none;
 }

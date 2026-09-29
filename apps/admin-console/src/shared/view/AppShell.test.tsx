@@ -6,6 +6,7 @@ import { AppShell } from '#/shared/view/AppShell.tsx';
 import { ContextBar } from '#/shared/view/ContextBar.tsx';
 import { Rail } from '#/shared/view/Rail.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
+import shellCss from '#/shared/view/AppShell.module.css?raw';
 
 const rail = <Rail label="acme" groups={[{ items: [{ href: '#overview', label: 'Overview' }] }]} />;
 
@@ -213,4 +214,13 @@ describe('collapsing the rail for full width', () => {
   it('passes axe in both themes, collapsed', async () => {
     expect(await axeInBothThemes(() => <Collapsible initially />)).toEqual({ light: [], dark: [] });
   });
+});
+
+it('fills the width beside the rail, and centres the page only past its cap', () => {
+  const source = shellCss.replace(/\/\*[\s\S]*?\*\//gu, '');
+  const main = /(?:^|\n)\.main\s*\{([^}]*)\}/u.exec(source)?.[1] ?? '';
+  expect(main).toMatch(/inline-size:\s*100%/u);
+  expect(main).toMatch(/max-inline-size:\s*1600px/u);
+  expect(main).toMatch(/margin-inline:\s*auto/u);
+  expect(source).not.toMatch(/max-inline-size:\s*1200px/u);
 });
