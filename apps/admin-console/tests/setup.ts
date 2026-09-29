@@ -8,8 +8,9 @@ window.scrollTo = () => undefined;
 HTMLCanvasElement.prototype.getContext = () => null;
 
 // The default 1 s for a find* query is too tight for a runner that is
-// testing several packages at once.
-configure({ asyncUtilTimeout: 5000 });
+// testing several packages at once: a file's first find waits on a lazy
+// feature route, whose whole module graph is transformed then.
+configure({ asyncUtilTimeout: 15_000 });
 
 // Testing Library registers its own cleanup only when `afterEach` is a
 // global, and this repository's Vitest config does not enable globals.
