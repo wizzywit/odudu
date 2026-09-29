@@ -122,11 +122,25 @@ test('an existing subject of system is chosen and granted tenant-admin', async (
   await expectAccessible(page);
 });
 
+test('the grant picker marks a current holder and will not choose them', async ({ page }) => {
+  const { username } = systemAdmins.limited;
+  await signIn(page, system);
+  await openSystemAdministrators(page);
+  const choose = page.getByRole('group', { name: 'Subject in system' });
+  await choose.getByRole('searchbox', { name: 'Search subjects by username' }).fill(username);
+  await choose.getByRole('button', { name: 'Search' }).click();
+  const holder = choose.getByRole('option', { name: new RegExp(username, 'u') });
+  await expect(holder).toHaveAttribute('aria-disabled', 'true');
+  await expect(holder).toContainText('already a system administrator');
+  await expect(page.getByRole('button', { name: 'Grant tenant-admin' })).toBeDisabled();
+  await expectAccessible(page);
+});
+
 test('a grant that meets roles changed under it says so beside Grant, and changes nothing', async ({
   page,
   problems,
 }) => {
-  const { username } = systemAdmins.limited;
+  const { username } = systemAdmins.bystander;
   const before = adminRoles(username);
   await signIn(page, system);
   await openSystemAdministrators(page);

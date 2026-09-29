@@ -70,6 +70,8 @@ const seededSchema = z.object({
     revokee: account,
     // Holds manage-tenants and view-users alone.
     limited: account,
+    // Holds no role, and is offered a grant that meets a 412.
+    bystander: account,
     // The username the guided step creates.
     created: z.string(),
   }),

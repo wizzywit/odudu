@@ -45,6 +45,7 @@ export default function globalSetup(): void {
     candidate: { tenant: 'system', username: `candidate-${run}`, password: password() },
     revokee: { tenant: 'system', username: `revokee-${run}`, password: password() },
     limited: { tenant: 'system', username: `watcher-${run}`, password: password() },
+    bystander: { tenant: 'system', username: `bystander-${run}`, password: password() },
     created: `created-${run}`,
   };
   const subjects = {
@@ -103,6 +104,7 @@ export default function globalSetup(): void {
   subject(systemAdmins.candidate);
   administrator(systemAdmins.revokee);
   subject(systemAdmins.limited);
+  subject(systemAdmins.bystander);
   grant(systemAdmins.limited, 'odudu-admin:manage-tenants');
   grant(systemAdmins.limited, 'odudu-admin:view-users');
 
