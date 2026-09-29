@@ -206,6 +206,22 @@ it('gives the operator’s own claims their autocomplete tokens', async () => {
   );
 });
 
+it('saves a typed locale tag on Enter, with nothing chosen from the list', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, {
+      [`PATCH ${S}/${ADA_ID}/profile`]: json(profile({ locale: 'ff-SN' }), 200, { etag: '"p2"' }),
+    }),
+  );
+  const details = await screen.findByRole('region', { name: 'Details' });
+  await user.type(within(details).getByRole('combobox', { name: 'Locale' }), 'ff-SN{Enter}');
+  await user.keyboard('{Enter}');
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({ locale: 'ff-SN' });
+  });
+});
+
 it('marks the email and the phone number verified in one save', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(
