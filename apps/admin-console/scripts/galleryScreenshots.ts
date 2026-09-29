@@ -16,6 +16,9 @@ const PATTERNS = {
   pickers: "RolePicker and GroupPicker: searched, paged, each role's owner named",
   list: 'ResourceListPage: a whole list, searched, counted and paged',
   copy: 'CopyValue',
+  breadcrumb: 'Breadcrumb: the way up from a page below a list',
+  'skeleton-table': 'Skeleton: a table, its own header over placeholder rows',
+  'skeleton-record': 'Skeleton: a record, its tabs and sections',
 } as const;
 
 type Theme = (typeof THEMES)[number];
