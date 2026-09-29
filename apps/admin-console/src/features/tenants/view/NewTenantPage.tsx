@@ -198,7 +198,7 @@ function Creation() {
         title={
           current.step === 'tenant' ? 'Create a tenant' : `First administrator of ${current.tenant}`
         }
-        description="Each step is one request, and where it has got to is kept in this tab, so a reload carries on."
+        description="Where it has got to is kept in this tab, so a reload carries on from the last request that landed."
         {...(current.step === 'administrator'
           ? {
               actions: (
