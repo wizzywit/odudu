@@ -271,7 +271,7 @@ export function deleteTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
             409,
             'about:blank#logout-deliveries-pending',
             'Conflict',
-            `${String(outcome.pending)} Back-Channel Logout Tokens are still to be sent; deleting the tenant would discard them`,
+            `Back-Channel Logout Tokens still to be sent: ${String(outcome.pending)}; deleting the tenant would discard them`,
           ),
         );
       case 'ceiling':

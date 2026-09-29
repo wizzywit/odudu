@@ -209,7 +209,11 @@ describe('DELETE /admin/tenants/:tenant', () => {
     ).toBe(200);
     const pending = await call(token, 'DELETE', url);
     expect(pending.statusCode).toBe(409);
-    expect(pending.json<{ type: string }>().type).toBe('about:blank#logout-deliveries-pending');
+    expect(pending.json<{ type: string; detail: string }>()).toMatchObject({
+      type: 'about:blank#logout-deliveries-pending',
+      detail:
+        'Back-Channel Logout Tokens still to be sent: 1; deleting the tenant would discard them',
+    });
 
     await deliverEverything(doomed.id);
     const res = await call(token, 'DELETE', url);
