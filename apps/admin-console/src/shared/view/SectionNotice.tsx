@@ -56,7 +56,7 @@ export function SectionNotice({
         className={styles.summary}
         data-shown={(status !== 'conflict' && said !== '') || undefined}
       >
-        {status === 'conflict' ? <VisuallyHidden>{said}</VisuallyHidden> : said}
+        {status === 'conflict' ? <VisuallyHidden elementType="span">{said}</VisuallyHidden> : said}
       </p>
       <ConflictPanel
         section={section}

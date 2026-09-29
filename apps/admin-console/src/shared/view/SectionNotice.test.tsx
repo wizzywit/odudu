@@ -59,3 +59,8 @@ it('passes axe in both themes', async () => {
   expect(await axeInBothThemes(() => notice('conflict'))).toEqual({ light: [], dark: [] });
   expect(await axeInBothThemes(() => notice('stale'))).toEqual({ light: [], dark: [] });
 });
+
+it('keeps its announcement valid markup: a paragraph holding only phrasing', () => {
+  render(notice('conflict'));
+  expect(screen.getByRole('status').querySelector('div')).toBeNull();
+});
