@@ -609,7 +609,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Amends display_name and enabled. `name` is refused with 400: it is already in the ' +
       'issuer URL of every token this tenant has minted. Disabling the system tenant is ' +
-      'refused with 409, since every cross-tenant administrator authenticates against it.',
+      'refused with 409, since every cross-tenant administrator authenticates against it. ' +
+      'Disabling any other ends every live session in it, queuing a Back-Channel Logout ' +
+      'Token for each relying party that used one, in the same transaction.',
   },
   {
     method: 'DELETE',
@@ -621,9 +623,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Deletes the tenant and every row it holds, in one transaction, recorded in the ' +
       '`system` tenant\u2019s trail as `tenant.delete`. `confirm` must be the tenant\u2019s ' +
-      'own name, refused with `400` naming it otherwise. Refused with `409` for `system`, ' +
-      'and with `403` when the tenant\u2019s subjects hold an admin capability the caller ' +
-      'does not (the target ceiling, over every subject at once).',
+      'own name, refused with `400` naming it otherwise. Refused with `409` for `system`; ' +
+      'with `409` `tenant-enabled` until the tenant is disabled, which ends its sessions and ' +
+      'queues their Logout Tokens; and with `409` `logout-deliveries-pending` until each of ' +
+      'those has been sent. Refused with `403` when the tenant\u2019s subjects hold an admin ' +
+      'capability the caller does not (the target ceiling, over every subject at once).',
   },
   {
     method: 'GET',
@@ -651,6 +655,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: settingsSchema,
     bodySchema: amendSettingsRequestSchema,
+    description:
+      '`enabled: false` ends every live session in the tenant, as disabling it through ' +
+      '`PATCH /admin/tenants/{tenant}` does.',
   },
   // No `view-clients`: client metadata is configuration rather than a
   // population to browse, so every route below requires `manage-clients`.

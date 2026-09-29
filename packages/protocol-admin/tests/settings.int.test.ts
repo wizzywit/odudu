@@ -218,9 +218,12 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
             events.push(event);
             return Promise.resolve();
           },
+          kek: Buffer.alloc(32, 7),
         },
         {
           tenantId: t.id,
+          issuer: 'https://idp.example/tenants/unused',
+          now: new Date(),
           values: { verify_email: true },
           ifMatch: undefined,
           actorSubjectId: 'test-subject',
@@ -244,9 +247,12 @@ describe('PATCH /admin/tenants/{t}/settings', () => {
             events.push(event);
             return Promise.resolve();
           },
+          kek: Buffer.alloc(32, 7),
         },
         {
           tenantId: t.id,
+          issuer: 'https://idp.example/tenants/unused',
+          now: new Date(),
           values: { not_a_setting: true },
           ifMatch: undefined,
           actorSubjectId: 'test-subject',

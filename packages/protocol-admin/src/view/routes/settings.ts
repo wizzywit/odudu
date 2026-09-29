@@ -1,5 +1,6 @@
 import { amendSettingsRequestSchema } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
+import { tenantIssuerFor } from '@odudu/protocol-oidc';
 import {
   amendSettings,
   AmendSettingsRefusedError,
@@ -14,6 +15,14 @@ import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router'
 export interface SettingsRouteDeps {
   readonly database: Database;
   readonly audit: Audit;
+  readonly kek: Uint8Array;
+  readonly now: () => Date;
+}
+
+function tenantNameOf(request: AdminRequest): string {
+  const name = request.params.tenant;
+  if (name === undefined) throw new Error('protocol-admin: settings route received no :tenant');
+  return name;
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -56,9 +65,11 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
       outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
         amendSettings(
           tx,
-          { audit: deps.audit },
+          { audit: deps.audit, kek: deps.kek },
           {
             tenantId: targetTenantId,
+            issuer: tenantIssuerFor(request, tenantNameOf(request)),
+            now: deps.now(),
             values: body,
             ifMatch: ifMatchHeader(request),
             actorSubjectId: principal.subjectId,

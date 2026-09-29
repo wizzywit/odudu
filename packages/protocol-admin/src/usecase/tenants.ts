@@ -16,10 +16,15 @@ import {
   SYSTEM_TENANT_NAME,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { provisionAdminClient } from '@odudu/protocol-oidc';
-import { and, asc, eq, gt, sql, type SQL } from 'drizzle-orm';
+import {
+  backchannelLogoutDeliveries,
+  BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
+  provisionAdminClient,
+} from '@odudu/protocol-oidc';
+import { and, asc, count, eq, gt, isNull, lt, sql, type SQL } from 'drizzle-orm';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { capabilitiesHeldInTenant, overreach } from '#/service/capability-ceiling';
+import { endSessionsOfDisabledTenant } from '#/usecase/end-sessions';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_TENANT_FIELDS, refusalFor } from '#/service/tenant-patch';
 import {
@@ -351,6 +356,9 @@ export async function readTenant(
 
 export interface AmendTenantInput {
   readonly tenantId: string;
+  /** Where the Logout Tokens a disable queues say they come from. */
+  readonly issuer: string;
+  readonly now: Date;
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
@@ -360,6 +368,7 @@ export interface AmendTenantInput {
 
 export interface AmendTenantDeps {
   readonly audit: Audit;
+  readonly kek: Uint8Array;
 }
 
 export type AmendTenantOutcome =
@@ -458,6 +467,11 @@ export async function amendTenant(
             .returning(TENANT_COLUMNS)
         )[0] ?? current);
 
+  const sessionsEnded =
+    current.enabled && !after.enabled
+      ? await endSessionsOfDisabledTenant(tx, deps, input)
+      : undefined;
+
   await deps.audit(tx, {
     action: 'tenant.amend',
     resourceType: 'tenant',
@@ -466,6 +480,7 @@ export async function amendTenant(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    ...(sessionsEnded === undefined ? {} : { detail: { sessions_ended: sessionsEnded } }),
   });
 
   const tenant = tenantWireShape(after);
@@ -490,6 +505,8 @@ export type DeleteTenantOutcome =
   | { kind: 'confirm_mismatch'; name: string }
   | { kind: 'system_tenant_guarded'; name: string; reason: string }
   | { kind: 'ceiling'; name: string; requested: readonly string[] }
+  | { kind: 'enabled'; name: string }
+  | { kind: 'logout_pending'; name: string; pending: number }
   | { kind: 'deleted'; name: string };
 
 // Bound to the tenant being deleted. The row goes in one statement and every
@@ -502,7 +519,7 @@ export async function deleteTenantRows(
   input: DeleteTenantInput,
 ): Promise<DeleteTenantOutcome> {
   const rows = await tx
-    .select({ name: tenants.name })
+    .select({ name: tenants.name, enabled: tenants.enabled })
     .from(tenants)
     .where(eq(tenants.id, input.tenantId))
     .for('update');
@@ -514,6 +531,23 @@ export async function deleteTenantRows(
   }
   const requested = overreach(await capabilitiesHeldInTenant(tx), input.callerCapabilities);
   if (requested.length > 0) return { kind: 'ceiling', name, requested };
+  // Disabling first is what ends every session with its Logout Tokens
+  // queued; deleting waits until each has been sent, since the queue goes
+  // with the tenant.
+  if (rows[0]?.enabled === true) return { kind: 'enabled', name };
+  const pending =
+    (
+      await tx
+        .select({ n: count() })
+        .from(backchannelLogoutDeliveries)
+        .where(
+          and(
+            isNull(backchannelLogoutDeliveries.deliveredAt),
+            lt(backchannelLogoutDeliveries.attempts, BACKCHANNEL_LOGOUT_MAX_ATTEMPTS),
+          ),
+        )
+    )[0]?.n ?? 0;
+  if (pending > 0) return { kind: 'logout_pending', name, pending };
   await tx.delete(tenants).where(eq(tenants.id, input.tenantId));
   return { kind: 'deleted', name };
 }
@@ -527,7 +561,14 @@ export async function recordTenantDeletion(
   input: DeleteTenantInput,
   outcome: DeleteTenantOutcome,
 ): Promise<DeleteTenantOutcome> {
-  if (outcome.kind === 'not_found' || outcome.kind === 'confirm_mismatch') return outcome;
+  if (
+    outcome.kind === 'not_found' ||
+    outcome.kind === 'confirm_mismatch' ||
+    outcome.kind === 'enabled' ||
+    outcome.kind === 'logout_pending'
+  ) {
+    return outcome;
+  }
   const refusal =
     outcome.kind === 'system_tenant_guarded'
       ? { reason: 'system_tenant_guarded' }

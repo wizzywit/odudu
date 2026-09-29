@@ -3,14 +3,11 @@ import { type CountResponse } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { users } from '@odudu/domain-identity';
 import { clients } from '@odudu/domain-tenant';
-import {
-  endSession as endOidcSession,
-  tokenGrants,
-  tokenGrantRepository,
-} from '@odudu/protocol-oidc';
+import { tokenGrants, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { and, asc, count, eq, gt, inArray, not, sql, type SQL } from 'drizzle-orm';
 import { subjectsBeyond } from '#/service/capability-ceiling';
 import { COUNT_CAP } from '#/usecase/counts';
+import { endSessionsWhere } from '#/usecase/end-sessions';
 import { idPage, resumeAfter, type IdPageOutcome } from '#/usecase/id-page';
 
 export interface TenantSessionView {
@@ -176,27 +173,7 @@ export async function endTenantSessions(
   const live = liveSessionCondition(input.lifespans, input.now);
   const beyond = subjectsBeyond(input.callerCapabilities);
   const reachable = beyond === null ? live : and(live, not(inArray(sessions.subjectId, beyond)));
-  const targets = await tx
-    .select({ id: sessions.id, subjectId: sessions.subjectId })
-    .from(sessions)
-    .where(reachable)
-    .orderBy(asc(sessions.id))
-    .limit(TENANT_SESSIONS_END_LIMIT)
-    .for('update');
-  for (const target of targets) {
-    await endOidcSession(
-      tx,
-      { kek: deps.kek },
-      {
-        tenantId: input.tenantId,
-        sessionId: target.id,
-        subjectId: target.subjectId,
-        now: input.now,
-        issuer: input.issuer,
-        via: 'admin',
-      },
-    );
-  }
+  const ended = await endSessionsWhere(tx, deps.kek, input, reachable, TENANT_SESSIONS_END_LIMIT);
   const remaining = (await tx.select({ n: count() }).from(sessions).where(reachable))[0]?.n ?? 0;
   const skipped =
     beyond === null
@@ -216,9 +193,9 @@ export async function endTenantSessions(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
-    detail: { ended: targets.length, remaining, beyond_ceiling: skipped },
+    detail: { ended, remaining, beyond_ceiling: skipped },
   });
-  return { ended: targets.length, remaining, beyondCeiling: skipped };
+  return { ended, remaining, beyondCeiling: skipped };
 }
 
 /** The client a `…/clients/:id/…` route names, or null: its row id and `client_id`. */

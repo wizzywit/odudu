@@ -4,8 +4,9 @@ import { auditRepository } from '@odudu/domain-audit';
 import { loginFailures } from '@odudu/domain-identity';
 import { SYSTEM_TENANT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { emailOutbox } from '@odudu/email';
+import { backchannelLogoutDeliveries } from '@odudu/protocol-oidc';
 import { newId } from '@odudu/kernel';
-import { sql } from 'drizzle-orm';
+import { isNull, sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -127,6 +128,69 @@ async function populatedTenant(): Promise<{ id: string; name: string }> {
   return { id, name };
 }
 
+// What the sender does to a queued Logout Token, done directly: whether it
+// arrived is the relying party's business, and only that it was sent is
+// what a deletion waits for.
+async function deliverEverything(tenantId: string): Promise<void> {
+  await withTenant(fixture.app.db, tenantId, (tx) =>
+    tx
+      .update(backchannelLogoutDeliveries)
+      .set({ deliveredAt: fixture.clock.now() })
+      .where(isNull(backchannelLogoutDeliveries.deliveredAt)),
+  );
+}
+
+async function liveSessionsOf(tenantId: string): Promise<number> {
+  const rows = countRowsSchema.parse(
+    await fixture.owner.db.execute(sql`
+      SELECT count(*)::int AS n FROM sessions
+       WHERE tenant_id = ${tenantId} AND expires_at > ${fixture.clock.now().toISOString()}::timestamptz`),
+  );
+  return rows[0]?.n ?? 0;
+}
+
+async function queuedDeliveriesOf(tenantId: string): Promise<number> {
+  const rows = countRowsSchema.parse(
+    await fixture.owner.db.execute(sql`
+      SELECT count(*)::int AS n FROM backchannel_logout_deliveries
+       WHERE tenant_id = ${tenantId} AND delivered_at IS NULL`),
+  );
+  return rows[0]?.n ?? 0;
+}
+
+// A tenant with a relying party that holds a live session's grant, the
+// thing a disable must tell before anything else goes.
+async function signedInTenant(): Promise<{ id: string; name: string }> {
+  const t = await fixture.createTenant(`bcl-${newId()}`);
+  const client = await createSignInClient(fixture, t.id, 'https://rp.example/backchannel');
+  await createPasswordSubject(fixture, t.id, 'ada', PASSWORD);
+  await signInForTokens(fixture, t.name, client, 'ada', PASSWORD, 'openid');
+  return t;
+}
+
+describe('disabling a tenant', () => {
+  it.each([
+    ['PATCH /admin/tenants/{tenant}', (name: string) => `/admin/tenants/${name}`],
+    ['PATCH /settings', (name: string) => `/admin/tenants/${name}/settings`],
+  ])('through %s ends every live session and queues its Logout Tokens', async (_door, url) => {
+    const t = await signedInTenant();
+    expect(await liveSessionsOf(t.id)).toBe(1);
+    const token = await fixture.systemAdminToken(['tenant-admin']);
+
+    const res = await call(token, 'PATCH', url(t.name), { enabled: false });
+    expect(res.statusCode).toBe(200);
+    expect(await liveSessionsOf(t.id)).toBe(0);
+    expect(await queuedDeliveriesOf(t.id)).toBe(1);
+  });
+
+  it('ends nothing when it leaves the tenant as it was', async () => {
+    const t = await signedInTenant();
+    const token = await fixture.systemAdminToken(['tenant-admin']);
+    await call(token, 'PATCH', `/admin/tenants/${t.name}`, { display_name: 'Still on' });
+    expect(await liveSessionsOf(t.id)).toBe(1);
+  });
+});
+
 describe('DELETE /admin/tenants/:tenant', () => {
   it('removes every row the tenant holds, in every table, and audits it in system', async () => {
     const doomed = await populatedTenant();
@@ -135,11 +199,20 @@ describe('DELETE /admin/tenants/:tenant', () => {
     expect(held.length, `tables holding rows: ${held.join(', ')}`).toBeGreaterThanOrEqual(20);
 
     const token = await fixture.systemAdminToken(['tenant-admin']);
-    const res = await call(
-      token,
-      'DELETE',
-      `/admin/tenants/${doomed.name}?confirm=${encodeURIComponent(doomed.name)}`,
-    );
+    const url = `/admin/tenants/${doomed.name}?confirm=${encodeURIComponent(doomed.name)}`;
+    const enabled = await call(token, 'DELETE', url);
+    expect(enabled.statusCode).toBe(409);
+    expect(enabled.json<{ type: string }>().type).toBe('about:blank#tenant-enabled');
+
+    expect(
+      (await call(token, 'PATCH', `/admin/tenants/${doomed.name}`, { enabled: false })).statusCode,
+    ).toBe(200);
+    const pending = await call(token, 'DELETE', url);
+    expect(pending.statusCode).toBe(409);
+    expect(pending.json<{ type: string }>().type).toBe('about:blank#logout-deliveries-pending');
+
+    await deliverEverything(doomed.id);
+    const res = await call(token, 'DELETE', url);
     expect(res.statusCode).toBe(204);
 
     const after = await rowsPerTenantTable(doomed.id);

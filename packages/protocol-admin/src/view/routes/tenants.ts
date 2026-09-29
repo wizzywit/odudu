@@ -5,6 +5,7 @@ import {
   listTenantsQuerySchema,
 } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
+import { tenantIssuerFor } from '@odudu/protocol-oidc';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { SYSTEM_TENANT_ID, TENANT_NAME_RULE } from '@odudu/domain-tenant';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
@@ -34,6 +35,7 @@ export interface TenantsRouteDeps {
     issuerTenantId: string,
     subjectId: string,
   ) => Promise<ReadonlySet<string>>;
+  readonly now: () => Date;
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -61,9 +63,11 @@ export function amendTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       amendTenant(
         tx,
-        { audit: deps.audit },
+        { audit: deps.audit, kek: deps.kek },
         {
           tenantId: targetTenantId,
+          issuer: tenantIssuerFor(request, request.params.tenant ?? ''),
+          now: deps.now(),
           values,
           ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
@@ -248,6 +252,28 @@ export function deleteTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
         );
       case 'system_tenant_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'enabled':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            409,
+            'about:blank#tenant-enabled',
+            'Conflict',
+            `${outcome.name} is enabled: disable it first, which ends its sessions and tells their relying parties`,
+          ),
+        );
+      case 'logout_pending':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            409,
+            'about:blank#logout-deliveries-pending',
+            'Conflict',
+            `${String(outcome.pending)} Back-Channel Logout Tokens are still to be sent; deleting the tenant would discard them`,
+          ),
+        );
       case 'ceiling':
         return sendProblem(
           reply,
