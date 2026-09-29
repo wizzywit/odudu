@@ -85,6 +85,15 @@ test('a system administrator creates a tenant whose first administrator signs in
   await expect(page.getByRole('link', { name: `Open ${name}` })).toBeVisible();
   await expectNowhere(page, password);
 
+  // The grant landed: the tenant lists them among its administrators.
+  await page.getByRole('link', { name: `Open ${name}` }).click();
+  await page.getByRole('tab', { name: 'Administrators' }).click();
+  await expect(page.getByRole('grid', { name: `Administrators of ${name}` })).toContainText(
+    'first',
+  );
+  await expect(page.getByText('1 administrator')).toBeVisible();
+  await expectAccessible(page);
+
   const theirs = await browser.newContext();
   const theirPage = await theirs.newPage();
   await theirPage.goto(`/console/${name}`);

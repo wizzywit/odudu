@@ -9154,10 +9154,49 @@ shows for a `client_id` it does not know — so a probe cannot tell a missing
 tenant from a missing client.
 
 A disabled tenant takes the same branch in the same lookup, so it is never
-distinguishable from one that never existed. That half was not exercised
-here: the run above predates `PATCH /admin/tenants/{tenant}` with
-`enabled: false`, now also the console's Disable on a tenant record, and
-has not been repeated against a disabled tenant.
+distinguishable from one that never existed. Captured on 2026-09-29
+against the console's browser-test stack (compose project `odudu-e2e`, on
+port 3080, which is why the port differs): a tenant `lapsed` was seeded
+and answered, then disabled through `psql` — the column
+`PATCH /admin/tenants/{tenant}` with `enabled: false` and the console's
+Disable both write — and asked again beside `nope`:
+
+```bash
+node dist/main.js seed tenant --name lapsed
+ask() {
+  for p in "$@"; do
+    printf '%-50s %s\n' "/tenants/$t/$p" \
+      "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:3080/tenants/$t/$p")"
+  done
+}
+t=lapsed ask .well-known/openid-configuration protocol/openid-connect/certs
+psql -tA -c "update tenants set enabled = false where name = 'lapsed' returning name, enabled"
+for t in lapsed nope; do
+  ask .well-known/openid-configuration protocol/openid-connect/{certs,token,userinfo,auth}
+done
+```
+
+```
+{"command":"tenant","created":true,"tenant":"lapsed","tenantId":"01a0eba0-1ade-78f4-93ec-250f727f0004"}
+/tenants/lapsed/.well-known/openid-configuration   200
+/tenants/lapsed/protocol/openid-connect/certs      200
+lapsed|f
+UPDATE 1
+/tenants/lapsed/.well-known/openid-configuration   404
+/tenants/lapsed/protocol/openid-connect/certs      404
+/tenants/lapsed/protocol/openid-connect/token      404
+/tenants/lapsed/protocol/openid-connect/userinfo   404
+/tenants/lapsed/protocol/openid-connect/auth       400
+/tenants/nope/.well-known/openid-configuration     404
+/tenants/nope/protocol/openid-connect/certs        404
+/tenants/nope/protocol/openid-connect/token        404
+/tenants/nope/protocol/openid-connect/userinfo     404
+/tenants/nope/protocol/openid-connect/auth         400
+```
+
+The discovery responses of `lapsed` and `nope`, headers included but for
+`date` and `x-request-id`, and the two rendered `/auth` pages each
+compared byte for byte with `diff`, which printed nothing.
 
 Tenant isolation goes further than the URL, and the credentials prove it:
 an authorization code, a refresh token, an access token and an
