@@ -162,20 +162,39 @@ describe('the backchannel logout delivery queue', () => {
     expect(afterBackoff).toHaveLength(1);
   });
 
-  it('stops retrying after the attempt limit', async () => {
+  it('spends one attempt on one failed pass', async () => {
     const dueRow = delivery();
-    const farFuture = new Date(NOW.getTime() + 365 * 24 * 60 * MINUTE);
-
-    const claimed = await withTenant(app.db, tenantId, async (tx) => {
+    const attempts = await withTenant(app.db, tenantId, async (tx) => {
       const repo = logoutDeliveryRepository(tx);
       await repo.enqueue([dueRow]);
-      for (let attempt = 0; attempt < BACKCHANNEL_LOGOUT_MAX_ATTEMPTS; attempt += 1) {
-        await repo.markFailed(dueRow.id, NOW, 'connect ECONNREFUSED');
-      }
-      return repo.claimDue(claimAt(farFuture));
+      await repo.claimDue(claimAt(NOW));
+      await repo.markFailed(dueRow.id, NOW, 'connect ECONNREFUSED');
+      const rows = await tx
+        .select({ attempts: backchannelLogoutDeliveries.attempts })
+        .from(backchannelLogoutDeliveries)
+        .where(eq(backchannelLogoutDeliveries.id, dueRow.id));
+      return rows[0]?.attempts;
     });
 
-    expect(claimed).toEqual([]);
+    expect(attempts).toBe(1);
+  });
+
+  it('offers a failing delivery exactly the attempt limit of times, then stops', async () => {
+    const dueRow = delivery();
+    const offered = await withTenant(app.db, tenantId, async (tx) => {
+      const repo = logoutDeliveryRepository(tx);
+      await repo.enqueue([dueRow]);
+      let count = 0;
+      for (let pass = 0; pass < BACKCHANNEL_LOGOUT_MAX_ATTEMPTS + 2; pass += 1) {
+        const at = new Date(NOW.getTime() + pass * 60 * MINUTE);
+        const claimed = await repo.claimDue(claimAt(at));
+        count += claimed.length;
+        for (const row of claimed) await repo.markFailed(row.id, at, 'connect ECONNREFUSED');
+      }
+      return count;
+    });
+
+    expect(offered).toBe(BACKCHANNEL_LOGOUT_MAX_ATTEMPTS);
   });
 
   // §2.5's second SHOULD: a delivery the relying party rejected

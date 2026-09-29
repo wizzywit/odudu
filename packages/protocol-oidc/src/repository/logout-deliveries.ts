@@ -123,12 +123,13 @@ export function logoutDeliveryRepository(tx: TenantScopedDatabase) {
 
     // The row is kept, not deleted: a queue that discarded a failure would
     // leave an operator with a relying party that never learned a session
-    // ended and nothing to read about why. Retention is the reaper's.
+    // ended and nothing to read about why. Retention is the reaper's. The
+    // attempt itself was spent by `claimDue`, so this records only why it
+    // failed and when to try again.
     async markFailed(id: string, now: Date, error: string): Promise<void> {
       await tx
         .update(backchannelLogoutDeliveries)
         .set({
-          attempts: sql`${backchannelLogoutDeliveries.attempts} + 1`,
           lastError: error,
           nextAttemptAt: new Date(now.getTime() + BACKCHANNEL_LOGOUT_RETRY_BACKOFF_SECONDS * 1000),
         })

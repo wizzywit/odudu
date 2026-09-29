@@ -61,7 +61,6 @@ function fakeQueue(rows: readonly FakeRow[]) {
     markFailed(id: string, now: Date, error: string): Promise<void> {
       const r = byId.get(id);
       if (r === undefined) return Promise.resolve();
-      r.attempts += 1;
       r.lastError = error;
       r.nextAttemptAt = new Date(now.getTime() + 60_000);
       return Promise.resolve();
