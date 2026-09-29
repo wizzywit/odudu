@@ -32,6 +32,7 @@ const revoked: { tenant: string; refreshToken: string; from: Caller }[] = [];
 const unused = (): Promise<never> => Promise.reject(new Error('not called by resolveSession'));
 const port: OduduPort = {
   issuerOf: unused,
+  discoveryOf: unused,
   keysOf: unused,
   exchangeCode: unused,
   refresh: unused,

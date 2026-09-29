@@ -46,6 +46,7 @@ afterAll(async () => {
 
 const throwingPort: OduduPort = {
   issuerOf: () => Promise.reject(new Error(`discovery failed: ${SENTINEL}`)),
+  discoveryOf: () => Promise.reject(new Error(`discovery failed: ${SENTINEL}`)),
   keysOf: () => Promise.resolve(null),
   exchangeCode: () => Promise.resolve(null),
   revoke: () => Promise.resolve(),
@@ -197,6 +198,7 @@ describe('a sign-in that fails inside the gateway', () => {
     const revoked: string[] = [];
     const port: OduduPort = {
       issuerOf: () => Promise.resolve(ISSUER),
+      discoveryOf: () => Promise.resolve(null),
       exchangeCode: () =>
         Promise.resolve({
           accessToken: 'access',

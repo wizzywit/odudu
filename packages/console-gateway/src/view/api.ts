@@ -2,6 +2,7 @@ import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fa
 import { STATUS_CODES } from 'node:http';
 import { registerCsrfGuard } from '#/view/csrf-guard';
 import { sendProblem } from '#/view/problem';
+import { registerDiscoveryRoutes } from '#/view/routes/discovery';
 import { registerProxyRoutes, type ProxyRouteDeps } from '#/view/routes/proxy';
 import { registerSessionRoutes } from '#/view/routes/session';
 import { answerErrors, claimPrefix } from '#/view/scope';
@@ -33,5 +34,6 @@ export function registerConsoleApi(api: FastifyInstance, deps: ApiDeps): void {
   );
 
   registerSessionRoutes(api, deps);
+  registerDiscoveryRoutes(api, deps);
   registerProxyRoutes(api, deps);
 }

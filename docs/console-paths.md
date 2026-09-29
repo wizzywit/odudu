@@ -448,6 +448,135 @@ Keep-Alive: timeout=72
 {"tenant":"console-paths","subject_id":"01a0e72d-5ba9-78cd-b877-7ea6d4076028","username":"grace"}
 ```
 
+## `GET /console/api/tenants/{tenant}/discovery`, `GET /console/api/tenants/{tenant}/jwks`
+
+Read-only mirrors of the tenant's own public discovery document and JWKS
+(`docs/request-paths.md`'s `GET /tenants/{tenant}/.well-known/openid-configuration`
+and `GET /tenants/{tenant}/protocol/openid-connect/certs`), reached through
+the gateway so the console never needs a transport exception to read them
+and the issuer shown is always the one the gateway's own `OduduPort` reads
+by inject with the public base's authority pinned — never whatever `Host`
+the browser sent. Both require the session `GET /console/api/session`
+above shows; a session whose own tenant is neither `system` nor the one
+named answers `403`, and a tenant unknown to the server answers `404`.
+
+**The stack for this section only.** Not `docker-odudu-1`: a throwaway
+compose project, `odudu-task3`, built from this branch (`40e9e43f`) and
+removed afterwards, on `http://localhost:3080`. Two administrators: `ada`,
+`seed admin`'s system-tenant administrator, signed in through the forced
+password change `docs/request-paths.md` documents; and `grace`,
+`odudu-admin:tenant-admin` on a second throwaway tenant, `console-paths-disc`,
+signed in the same way `console-paths`' `grace` is above. Neither sign-in is
+re-shown here.
+
+A request to `ada`'s own session, with a forged `Host` the gateway never
+consults for this call, still answers with the public base's issuer:
+
+```bash
+curl -sS -D - -H 'Host: evil.example' -H "Cookie: $ADA_SESSION" \
+  http://localhost:3080/console/api/tenants/system/discovery
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0ea80-a05f-738a-be55-c0947417639a
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 2276
+Date: Tue, 29 Sep 2026 00:11:33 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"issuer":"http://localhost:3080/tenants/system","authorization_endpoint":"http://localhost:3080/tenants/system/protocol/openid-connect/auth","token_endpoint":"http://localhost:3080/tenants/system/protocol/openid-connect/token","introspection_endpoint":"http://localhost:3080/tenants/system/protocol/openid-connect/token/introspect","revocation_endpoint":"http://localhost:3080/tenants/system/protocol/openid-connect/revoke","userinfo_endpoint":"http://localhost:3080/tenants/system/protocol/openid-connect/userinfo","jwks_uri":"http://localhost:3080/tenants/system/protocol/openid-connect/certs","end_session_endpoint":"http://localhost:3080/tenants/system/protocol/openid-connect/logout","response_types_supported":["code"],"response_modes_supported":["query"],"subject_types_supported":["public"],"id_token_signing_alg_values_supported":["RS256","ES256"],"userinfo_signing_alg_values_supported":["ES256","none"],"userinfo_encryption_alg_values_supported":["RSA-OAEP-256","ECDH-ES","ECDH-ES+A128KW","ECDH-ES+A192KW","ECDH-ES+A256KW"],"userinfo_encryption_enc_values_supported":["A128CBC-HS256","A192CBC-HS384","A256CBC-HS512","A128GCM","A192GCM","A256GCM"],"code_challenge_methods_supported":["S256"],"grant_types_supported":["authorization_code","refresh_token","client_credentials","urn:ietf:params:oauth:grant-type:token-exchange"],"token_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","none","private_key_jwt"],"introspection_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","none"],"revocation_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","none"],"authorization_response_iss_parameter_supported":true,"claims_parameter_supported":true,"backchannel_logout_supported":true,"backchannel_logout_session_supported":true,"frontchannel_logout_supported":true,"frontchannel_logout_session_supported":true,"scopes_supported":["address","email","groups","offline_access","openid","phone","profile","roles"],"claims_supported":["sub","name","given_name","family_name","middle_name","nickname","preferred_username","profile","picture","website","gender","birthdate","zoneinfo","locale","updated_at","email","email_verified","roles","groups","address","phone_number","phone_number_verified"]}
+```
+
+`ada`'s own tenant is `system`, so the same session also reads a tenant
+that does not exist, answering `404` rather than `403`:
+
+```bash
+curl -sS -D - -b jar http://localhost:3080/console/api/tenants/no-such-tenant/discovery
+```
+
+```
+HTTP/1.1 404 Not Found
+x-request-id: 01a0ea81-1f40-7eee-afb6-44749ad9d15c
+content-type: application/problem+json; charset=utf-8
+cache-control: no-store
+content-length: 115
+Date: Tue, 29 Sep 2026 00:12:05 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"status":404,"type":"about:blank#not-found","title":"Not Found","instance":"01a0ea81-1f40-7eee-afb6-44749ad9d15c"}
+```
+
+`grace`'s own tenant is `console-paths-disc`, so her session reads its own
+discovery document:
+
+```bash
+curl -sS -D - -b jar http://localhost:3080/console/api/tenants/console-paths-disc/discovery
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0ea81-11a0-7825-9253-a2e8ba6b0124
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 2372
+Date: Tue, 29 Sep 2026 00:12:02 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"issuer":"http://localhost:3080/tenants/console-paths-disc", …}
+```
+
+The same session reading `system`'s discovery instead is refused, never
+saying whether `system` exists — the same shape a tenant admin's cross-tenant
+`/admin/` read is refused with:
+
+```bash
+curl -sS -D - -b jar http://localhost:3080/console/api/tenants/system/discovery
+```
+
+```
+HTTP/1.1 403 Forbidden
+x-request-id: 01a0ea81-11be-7cc1-8400-879d64e2dd0f
+content-type: application/problem+json; charset=utf-8
+cache-control: no-store
+content-length: 105
+Date: Tue, 29 Sep 2026 00:12:02 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"status":403,"type":"about:blank","title":"Forbidden","instance":"01a0ea81-11be-7cc1-8400-879d64e2dd0f"}
+```
+
+`/jwks` answers the same way, unabbreviated because it is short — here
+`grace`'s own tenant's one signing key:
+
+```bash
+curl -sS -D - -b jar http://localhost:3080/console/api/tenants/console-paths-disc/jwks
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0ea81-2f1d-7b5a-ab99-9fddd047757c
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 455
+Date: Tue, 29 Sep 2026 00:12:09 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"keys":[{"kty":"RSA","n":"lraNFVOr79JY8qqcZdDshqkjsQSPpd8XmqNT-Zpq65MSgLTfkDmhtrdY6y-xDLyH4SNHCzGIEX5Y_WnNc9egH5as8Q2C7ucd0f2dU6ZoNupSJtcoUmYSkzOwHqLD2NhFEGWbLan0rIrTMZwxuUBAPrnMr6zwiZW9kaISCpP6KuKyulFJnVo7cdRcSWkkfZTvFODJpJeWzZ59YEnVr6yMes-1nQbJWvOVpH4T2dc3CX70PWOoadRFgm2FcwwlyidwdhC7GuNvVbjHajmNU96PgtliVOCDzIH9DLg8koXWCG_ruEQ_ZRgRTm6ndKBalMFUzsSnZ22n8APa1nW9DNYLlw","e":"AQAB","kid":"01a0ea7f-01af-7637-a8b5-093872f1685f","alg":"RS256","use":"sig"}]}
+```
+
+```bash
+cd infra/docker
+COMPOSE_PROJECT_NAME=odudu-task3 ODUDU_HOST_PORT=3080 POSTGRES_HOST_PORT=5462 \
+  docker compose down -v
+```
+
 ## `GET /console/api/admin/tenants/{tenant}/subjects`
 
 Anything under `/console/api/admin/` is forwarded to `/admin/` with the

@@ -26,6 +26,18 @@ export const BAD_GATEWAY: ConsoleProblem = {
   title: 'Bad Gateway',
 };
 
+export const FORBIDDEN: ConsoleProblem = {
+  status: 403,
+  type: 'about:blank',
+  title: 'Forbidden',
+};
+
+export const NOT_FOUND: ConsoleProblem = {
+  status: 404,
+  type: 'about:blank#not-found',
+  title: 'Not Found',
+};
+
 export function sendProblem(
   reply: FastifyReply,
   request: FastifyRequest,

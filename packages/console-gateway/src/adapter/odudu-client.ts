@@ -6,12 +6,17 @@ import {
   type AdminResponse,
   type Caller,
   type CodeExchange,
+  type DiscoveryDocument,
+  type JsonWebKeySet,
   type OduduPort,
   type RefreshOutcome,
   type TokenSet,
 } from '#/service/odudu-port';
 
-const DISCOVERY = z.object({ issuer: z.string().min(1) });
+// Loose: the console shows every field the public document carries, not
+// only the ones the gateway itself reads.
+const DISCOVERY = z.looseObject({ issuer: z.string().min(1) });
+const JWKS = z.looseObject({ keys: z.array(z.record(z.string(), z.unknown())) });
 
 const TOKEN_RESPONSE = z.object({
   access_token: z.string().min(1),
@@ -65,14 +70,28 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
       return parsed.success ? parsed.data.issuer : null;
     },
 
-    async keysOf(tenant: string, from: Caller): Promise<unknown> {
+    async discoveryOf(tenant: string, from: Caller): Promise<DiscoveryDocument | null> {
+      const res = await fastify.inject({
+        method: 'GET',
+        url: `${tenantPath(tenant)}/.well-known/openid-configuration`,
+        headers: headersFor(from),
+        remoteAddress: from.ip,
+      });
+      if (res.statusCode !== 200) return null;
+      const parsed = DISCOVERY.safeParse(json(res));
+      return parsed.success ? parsed.data : null;
+    },
+
+    async keysOf(tenant: string, from: Caller): Promise<JsonWebKeySet | null> {
       const res = await fastify.inject({
         method: 'GET',
         url: `${tenantPath(tenant)}/protocol/openid-connect/certs`,
         headers: headersFor(from),
         remoteAddress: from.ip,
       });
-      return res.statusCode === 200 ? json(res) : null;
+      if (res.statusCode !== 200) return null;
+      const parsed = JWKS.safeParse(json(res));
+      return parsed.success ? parsed.data : null;
     },
 
     async exchangeCode(input: CodeExchange): Promise<TokenSet | null> {

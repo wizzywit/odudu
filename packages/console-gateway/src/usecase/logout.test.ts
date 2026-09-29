@@ -47,6 +47,7 @@ const DATABASE = { db: {} } as unknown as DatabaseHandle;
 function fakePort(overrides: Partial<OduduPort> = {}): OduduPort {
   return {
     issuerOf: () => Promise.resolve(null),
+    discoveryOf: () => Promise.resolve(null),
     keysOf: () => Promise.resolve(null),
     exchangeCode: () => Promise.resolve(null),
     revoke: () => Promise.resolve(undefined),

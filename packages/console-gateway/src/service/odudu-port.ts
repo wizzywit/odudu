@@ -52,12 +52,25 @@ export interface AdminResponse {
   readonly body: Buffer;
 }
 
+/** A tenant's discovery document, parsed but not narrowed past `issuer`. */
+export interface DiscoveryDocument {
+  readonly issuer: string;
+  readonly [field: string]: unknown;
+}
+
+/** A tenant's JWK Set, parsed but not narrowed past `keys` being an array. */
+export interface JsonWebKeySet {
+  readonly keys: readonly Record<string, unknown>[];
+  readonly [field: string]: unknown;
+}
+
 // The server this gateway is a client of, reached in-process. `null` is
 // any answer other than the one asked for; the caller refuses the sign-in
 // without saying which.
 export interface OduduPort {
   issuerOf(tenant: string, from: Caller): Promise<string | null>;
-  keysOf(tenant: string, from: Caller): Promise<unknown>;
+  discoveryOf(tenant: string, from: Caller): Promise<DiscoveryDocument | null>;
+  keysOf(tenant: string, from: Caller): Promise<JsonWebKeySet | null>;
   exchangeCode(input: CodeExchange): Promise<TokenSet | null>;
   // RFC 7009: revoking the refresh token ends the whole grant behind it.
   revoke(tenant: string, refreshToken: string, from: Caller): Promise<void>;
