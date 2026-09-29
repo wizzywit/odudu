@@ -14,7 +14,11 @@ import {
   type LoadedClaimContext,
   narrowToRequestedClaims,
 } from '#/service/claims';
-import { clientIsLive, type LiveClientLookup } from '#/service/client-enabled';
+import {
+  clientIsLive,
+  type LiveClientLookup,
+  type LiveSubjectLookup,
+} from '#/service/client-enabled';
 import { narrowByScopeMappings } from '#/service/scope-mapping';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { type TenantLookup } from '#/repository/tenant-lookup';
@@ -44,6 +48,7 @@ export interface UserinfoDeps {
   // client's tokens read no differently than a dead grant or a dead
   // session, past this check.
   liveClientLookup: LiveClientLookup;
+  liveSubjectLookup: LiveSubjectLookup;
   // The role set a granted scope reaches, and whether the token's client
   // bypasses that intersection — the same gate token issuance applies, so
   // a role withheld from a token cannot resurface here.
@@ -213,6 +218,9 @@ export async function resolveUserinfo(
     clientId === undefined ||
     !clientIsLive(await deps.liveClientLookup.findLiveClient(tenant.id, clientId))
   ) {
+    return { kind: 'invalid_token', clientId };
+  }
+  if (!(await deps.liveSubjectLookup.isSubjectEnabled(tenant.id, payload.sub))) {
     return { kind: 'invalid_token', clientId };
   }
 

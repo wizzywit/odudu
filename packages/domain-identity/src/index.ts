@@ -25,6 +25,7 @@ export {
   type RecordFailureOutcome,
 } from '#/repository/login-failures';
 export { subjectRepository, type NewSubject } from '#/repository/subjects';
+export { subjectIsEnabled } from '#/service/subject-enabled';
 export {
   userRepository,
   type NewUser,

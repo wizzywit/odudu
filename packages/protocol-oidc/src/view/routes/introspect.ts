@@ -4,7 +4,7 @@ import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { type Clock, systemClock } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
-import { type LiveClientLookup } from '#/service/client-enabled';
+import { type LiveClientLookup, type LiveSubjectLookup } from '#/service/client-enabled';
 import { type IntrospectionGrant } from '#/usecase/introspection';
 import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
@@ -44,6 +44,7 @@ export interface IntrospectRouteDeps {
     now: Date,
   ): Promise<boolean>;
   liveClientLookup: LiveClientLookup;
+  liveSubjectLookup: LiveSubjectLookup;
   clock?: Clock;
 }
 
@@ -78,6 +79,7 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
       isSessionLive: (sessionId, lifespans, sessionNow) =>
         deps.isSessionLive(tenant.id, sessionId, lifespans, sessionNow),
       liveClientLookup: deps.liveClientLookup,
+      liveSubjectLookup: deps.liveSubjectLookup,
     };
 
     const context = requestContextFrom(request);

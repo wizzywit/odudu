@@ -18,3 +18,9 @@ export function clientIsLive(client: LiveClient | null): boolean {
 export interface LiveClientLookup {
   findLiveClient(tenantId: string, oauthClientId: string): Promise<LiveClient | null>;
 }
+
+// The same fact about the token's subject: disabling one ends nothing it
+// holds, so each door asks. Tenant-scoped, keyed by the token's `sub`.
+export interface LiveSubjectLookup {
+  isSubjectEnabled(tenantId: string, subjectId: string): Promise<boolean>;
+}

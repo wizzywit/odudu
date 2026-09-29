@@ -1,6 +1,10 @@
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
-import { clientIsLive, type LiveClientLookup } from '#/service/client-enabled';
+import {
+  clientIsLive,
+  type LiveClientLookup,
+  type LiveSubjectLookup,
+} from '#/service/client-enabled';
 import {
   audienceOf,
   callerIsAddressed,
@@ -39,6 +43,7 @@ export interface IntrospectionDeps {
   loadGrant(grantId: string): Promise<IntrospectionGrant | null>;
   isSessionLive(sessionId: string, lifespans: SessionLifespans, now: Date): Promise<boolean>;
   readonly liveClientLookup: LiveClientLookup;
+  readonly liveSubjectLookup: LiveSubjectLookup;
 }
 
 const INACTIVE: IntrospectionResponse = { active: false };
@@ -92,6 +97,7 @@ export async function introspect(
   if (!clientIsLive(await deps.liveClientLookup.findLiveClient(deps.tenantId, clientId))) {
     return INACTIVE;
   }
+  if (!(await deps.liveSubjectLookup.isSubjectEnabled(deps.tenantId, sub))) return INACTIVE;
 
   // Session liveness is what makes revocation real inside an access
   // token's hour (design spec §8.2): a self-contained `at+jwt` is accepted

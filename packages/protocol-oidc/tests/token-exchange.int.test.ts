@@ -354,6 +354,28 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
+// A tenant of its own, whose one user is signed in and then disabled, so
+// no other test here loses the subject it signs in as.
+async function disabledSubjectTokens(): Promise<{
+  tenantId: string;
+  tokens: LoggedInToken;
+  deps: ResolveDeps;
+}> {
+  const tenantName = `token-exchange-disabled-${newId()}`;
+  const tenantId = newId();
+  await setupTenant(tenantName, tenantId);
+  const tokens = await loginAndGetToken({ tenantName });
+  const deps = { ...resolveDeps, issuer: issuerOf(decode(tokens.accessToken)) };
+  const live = await withTenant(app.db, tenantId, (tx) =>
+    resolveExchangeToken(tx, deps, 'access_token', tokens.accessToken),
+  );
+  expect(live.kind).toBe('ok');
+  await withTenant(app.db, tenantId, (tx) =>
+    subjectRepository(tx).setEnabled(tokens.subjectId, false),
+  );
+  return { tenantId, tokens, deps };
+}
+
 describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-01] an access token as subject_token', () => {
   it('resolves to its grant subject, scope and session', async () => {
     const { accessToken, grantId, sessionId, subjectId } = await loginAndGetToken();
@@ -389,6 +411,14 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-01] an access token as subject_token', (
 
     const outcome = await withTenant(app.db, TENANT_ID, (tx) =>
       resolveExchangeToken(tx, resolveDeps, 'access_token', foreignAccessToken),
+    );
+    expect(outcome).toEqual({ kind: 'refused' });
+  });
+
+  it('refuses an access token whose subject has been disabled', async () => {
+    const { tenantId, tokens, deps } = await disabledSubjectTokens();
+    const outcome = await withTenant(app.db, tenantId, (tx) =>
+      resolveExchangeToken(tx, deps, 'access_token', tokens.accessToken),
     );
     expect(outcome).toEqual({ kind: 'refused' });
   });
@@ -442,6 +472,14 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-02] a refresh token as subject_token', (
 
     const outcome = await withTenant(app.db, TENANT_ID, (tx) =>
       resolveExchangeToken(tx, resolveDeps, 'refresh_token', refreshToken),
+    );
+    expect(outcome).toEqual({ kind: 'refused' });
+  });
+
+  it('refuses a refresh token whose subject has been disabled', async () => {
+    const { tenantId, tokens, deps } = await disabledSubjectTokens();
+    const outcome = await withTenant(app.db, tenantId, (tx) =>
+      resolveExchangeToken(tx, deps, 'refresh_token', tokens.refreshToken),
     );
     expect(outcome).toEqual({ kind: 'refused' });
   });
@@ -566,6 +604,19 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-03] an id_token as subject_token', () =>
         { ...resolveDeps, requestingClientId: CLIENT_ID },
         'id_token',
         foreignIdToken,
+      ),
+    );
+    expect(outcome).toEqual({ kind: 'refused' });
+  });
+
+  it('refuses an id_token whose subject has been disabled', async () => {
+    const { tenantId, tokens, deps } = await disabledSubjectTokens();
+    const outcome = await withTenant(app.db, tenantId, (tx) =>
+      resolveExchangeToken(
+        tx,
+        { ...deps, requestingClientId: CLIENT_ID },
+        'id_token',
+        tokens.idToken,
       ),
     );
     expect(outcome).toEqual({ kind: 'refused' });

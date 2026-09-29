@@ -30,7 +30,13 @@ import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
 import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
-import { hashPassword, userRepository, verifyPassword } from '@odudu/domain-identity';
+import {
+  hashPassword,
+  subjectIsEnabled,
+  subjectRepository,
+  userRepository,
+  verifyPassword,
+} from '@odudu/domain-identity';
 import {
   clientRepository,
   clientScopeMapperRepository,
@@ -45,7 +51,7 @@ import { tokenGrantRepository } from '#/repository/grants';
 import { tenantLookupRepository } from '#/repository/tenant-lookup';
 import { reachableRoleIds } from '#/repository/scope-role-reach';
 import { standardClaimMappers, type ClaimContext, type LoadedClaimContext } from '#/service/claims';
-import { type LiveClientLookup } from '#/service/client-enabled';
+import { type LiveClientLookup, type LiveSubjectLookup } from '#/service/client-enabled';
 import { type AuditRefusalBudget } from '#/service/audit-refusal-budget';
 import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import {
@@ -469,6 +475,12 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           return client === null ? null : { enabled: client.enabled };
         }),
     };
+    const liveSubjectLookup: LiveSubjectLookup = {
+      isSubjectEnabled: (tenantId, subjectId) =>
+        withTenant(deps.database.db, tenantId, async (tx) =>
+          subjectIsEnabled(await subjectRepository(tx).byId(subjectId)),
+        ),
+    };
     // No CORS scope: unlike /userinfo, a resource server calls this with
     // its own client credentials, never a browser holding a bearer token,
     // so there is no Origin this endpoint owes a header to.
@@ -482,6 +494,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       loadGrant: loadIntrospectionGrant,
       isSessionLive: isIntrospectionSessionLive,
       liveClientLookup,
+      liveSubjectLookup,
       clock,
     });
     // Same no-CORS reasoning as /introspect above: a client revokes its own
@@ -851,6 +864,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         loadGrant: loadIntrospectionGrant,
         isSessionLive: isIntrospectionSessionLive,
         liveClientLookup,
+        liveSubjectLookup,
         clock,
       });
     });

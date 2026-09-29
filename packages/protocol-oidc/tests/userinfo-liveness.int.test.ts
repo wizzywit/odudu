@@ -330,6 +330,21 @@ describe('[ODUDU-USERINFO-LIVENESS-01] /userinfo consults the grant and the sess
   });
 });
 
+describe("[RFC6750-3.1-01] /userinfo refuses a disabled subject's live token", () => {
+  it('answers 401 invalid_token once the subject is disabled, as for a revoked grant', async () => {
+    const tenant = await setupTenant(`userinfo-disabled-${newId()}`);
+    const { token } = await signInAndRedeem(tenant.tenantName);
+    expect((await userinfo(tenant.tenantName, token)).statusCode).toBe(200);
+    await withTenant(app.db, tenant.tenantId, (tx) =>
+      subjectRepository(tx).setEnabled(tenant.subjectId, false),
+    );
+
+    const res = await userinfo(tenant.tenantName, token);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
+  });
+});
+
 // The blind spot between "no session because it is offline" and "no
 // session because there is no End-User at all": issueClientCredentialsTokens
 // (token-issuance.ts) still writes a real token_grants row, with
@@ -340,7 +355,9 @@ describe('[ODUDU-USERINFO-LIVENESS-02] client_credentials at /userinfo', () => {
   const CC_CLIENT_ID = 'userinfo-liveness-cc-client';
   const CC_CLIENT_SECRET = 'userinfo-liveness-cc-secret';
 
-  async function setupClientCredentialsTenant(name: string): Promise<{ tenantName: string }> {
+  async function setupClientCredentialsTenant(
+    name: string,
+  ): Promise<{ tenantName: string; tenantId: string }> {
     const tenantId = newId();
     await withTenant(app.db, tenantId, async (tx: TenantScopedDatabase) => {
       await tx.insert(tenants).values({ id: tenantId, name });
@@ -384,7 +401,7 @@ describe('[ODUDU-USERINFO-LIVENESS-02] client_credentials at /userinfo', () => {
         privateJwkEncrypted: generated.privateJwkEncrypted,
       });
     });
-    return { tenantName: name };
+    return { tenantName: name, tenantId };
   }
 
   async function requestClientCredentialsToken(tenantName: string): Promise<string> {
@@ -416,5 +433,17 @@ describe('[ODUDU-USERINFO-LIVENESS-02] client_credentials at /userinfo', () => {
     const res = await userinfo(tenant.tenantName, token);
     expect(res.statusCode).toBe(200);
     expect(res.json<{ sub: string }>().sub).toBe(payload.sub);
+  });
+
+  it("answers 401 invalid_token once the service account's subject is disabled", async () => {
+    const tenant = await setupClientCredentialsTenant(`userinfo-cc-disabled-${newId()}`);
+    const token = await requestClientCredentialsToken(tenant.tenantName);
+    const sub = decodePayload(token).sub;
+    if (typeof sub !== 'string') throw new Error('expected a sub claim');
+    await withTenant(app.db, tenant.tenantId, (tx) => subjectRepository(tx).setEnabled(sub, false));
+
+    const res = await userinfo(tenant.tenantName, token);
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toMatch(/error="invalid_token"/);
   });
 });

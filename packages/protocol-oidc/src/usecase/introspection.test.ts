@@ -87,6 +87,7 @@ function makeDeps(overrides: Partial<IntrospectionDeps> = {}): IntrospectionDeps
     loadGrant: () => Promise.resolve({ revokedAt: null }),
     isSessionLive: () => Promise.resolve(true),
     liveClientLookup: { findLiveClient: () => Promise.resolve({ enabled: true }) },
+    liveSubjectLookup: { isSubjectEnabled: () => Promise.resolve(true) },
     ...overrides,
   };
 }

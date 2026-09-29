@@ -1,6 +1,7 @@
 import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import { AUDIENCE_UNCHECKED, signingKeyRepository, verifyJwt } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
 import { clientRepository } from '@odudu/domain-tenant';
 import { type JWTPayload } from 'jose';
 import { tokenGrantRepository } from '#/repository/grants';
@@ -177,6 +178,20 @@ async function resolveIdToken(
 }
 
 export async function resolveExchangeToken(
+  tx: TenantScopedDatabase,
+  deps: ResolveDeps,
+  type: ExchangeTokenType,
+  token: string,
+): Promise<ResolveOutcome> {
+  const outcome = await resolveByType(tx, deps, type, token);
+  if (outcome.kind !== 'ok') return outcome;
+  // A disabled subject's token is as unacceptable as a revoked one, and
+  // refused the same way whichever type carried it.
+  const subject = await subjectRepository(tx).byId(outcome.token.subjectId);
+  return subjectIsEnabled(subject) ? outcome : { kind: 'refused' };
+}
+
+function resolveByType(
   tx: TenantScopedDatabase,
   deps: ResolveDeps,
   type: ExchangeTokenType,

@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { type SubjectRecord } from '@odudu/domain-identity';
+import { subjectIsEnabled, type SubjectRecord } from '@odudu/domain-identity';
 import { type ClientRecord } from '@odudu/domain-tenant';
 import { type TokenGrantRecord } from '#/schema/token-grants';
 
@@ -47,7 +47,7 @@ export function evaluateRefreshGrant(
 ): RefreshGrantDecision {
   if (grant.clientId !== client.id) return { ok: false, reason: 'client_mismatch' };
   if (grant.revokedAt !== null) return { ok: false, reason: 'grant_revoked' };
-  if (subject.disabledAt !== null) return { ok: false, reason: 'subject_disabled' };
+  if (!subjectIsEnabled(subject)) return { ok: false, reason: 'subject_disabled' };
 
   const grantedTokens = grant.scope.split(' ').filter((token) => token.length > 0);
   const requestedTokens =
