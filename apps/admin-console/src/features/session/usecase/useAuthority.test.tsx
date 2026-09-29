@@ -4,12 +4,14 @@ import userEvent from '@testing-library/user-event';
 import { expect, it } from 'vitest';
 import { z } from 'zod';
 import { useRefusal } from '#/features/session/usecase/useAuthority.ts';
+import { SignedInContext } from '#/features/session/usecase/useSignedIn.ts';
 import { createQueryClient } from '#/shared/repository/queryClient.ts';
 import { useTransport, TransportContext } from '#/shared/transport/useTransport.ts';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { fakeTransport, json, problem } from '#/testing/fakeTransport.ts';
 
 const WHOAMI = 'GET /console/api/admin/tenants/acme/whoami';
+const GRACE = { tenant: 'acme', subjectId: 's1', username: 'grace' };
 
 // A section as a feature will write one: it sends, and hands the answer over.
 function RotateSecret() {
@@ -50,7 +52,9 @@ function mount(answer: ReturnType<typeof json>) {
   render(
     <TransportContext value={fake.transport}>
       <QueryClientProvider client={createQueryClient()}>
-        <RotateSecret />
+        <SignedInContext value={{ principal: GRACE, ended: null }}>
+          <RotateSecret />
+        </SignedInContext>
       </QueryClientProvider>
     </TransportContext>,
   );
@@ -89,4 +93,18 @@ it('leaves any other answer to the caller', async () => {
   });
   expect(screen.queryByRole('note')).toBeNull();
   expect(whoamiReads(calls)).toBe(1);
+});
+
+it('asks whoami nothing while nobody is signed in', async () => {
+  const fake = fakeTransport({ [WHOAMI]: json({}) });
+  render(
+    <TransportContext value={fake.transport}>
+      <QueryClientProvider client={createQueryClient()}>
+        <RotateSecret />
+      </QueryClientProvider>
+    </TransportContext>,
+  );
+  await screen.findByRole('button', { name: 'Rotate secret' });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(whoamiReads(fake.calls)).toBe(0);
 });
