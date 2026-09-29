@@ -58,6 +58,28 @@ describe('logout', () => {
     expect(log).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    '',
+    '?x',
+    '#x',
+    'foo',
+    '/',
+    '/tenants/acme/logout',
+    '/console',
+    '/\\elsewhere.example/',
+    '\\\\elsewhere.example/',
+    'javascript:alert(1)',
+  ])('refuses %j, which is neither a console path nor this origin', async (redirect) => {
+    const { auth, log } = harness(json({ redirect }));
+    expect(await auth.logout()).toEqual({ ok: false, kind: 'schema' });
+    expect(log).toHaveBeenCalledOnce();
+  });
+
+  it('takes a console path below the root, as the gateway may name', async () => {
+    const { auth } = harness(json({ redirect: '/console/acme' }));
+    expect(await auth.logout()).toEqual({ ok: true, redirect: '/console/acme' });
+  });
+
   it('refuses a redirect to another origin, as the console defect it would be', async () => {
     const { auth, log } = harness(json({ redirect: 'https://elsewhere.example/logout' }));
 

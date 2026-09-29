@@ -32,13 +32,23 @@ function parseJson(text: string): unknown {
   }
 }
 
+const CONSOLE_PATH = '/console/';
+
 // The redirect ends the tenant's SSO session, so it names this origin's own
 // end-session endpoint; anything else would send the window somewhere the
-// console has no business sending it.
-// An ended session is sent to the console by path, so a path counts too.
+// console has no business sending it. An ended session is sent back to the
+// console by path, and no other relative form is taken.
 function sameOrigin(redirect: string): boolean {
   try {
-    return new URL(redirect, globalThis.location.href).origin === globalThis.location.origin;
+    if (!URL.canParse(redirect)) {
+      const at = new URL(redirect, globalThis.location.origin);
+      return (
+        redirect.startsWith(CONSOLE_PATH) &&
+        at.origin === globalThis.location.origin &&
+        at.pathname.startsWith(CONSOLE_PATH)
+      );
+    }
+    return new URL(redirect).origin === globalThis.location.origin;
   } catch {
     return false;
   }
