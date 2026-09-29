@@ -40,14 +40,19 @@ function systemRoles(
   });
   return {
     [`GET ${S}/clients`]: base[`GET ${S}/clients`] ?? json({ items: [] }),
-    [`GET ${S}/roles`]: json({
-      items: [
+    // The built-in client's roles, as a tenant that added its own to it sees
+    // them: an unnamed read's first page holds neither administrator role.
+    [`GET ${S}/roles`]: (request) => {
+      const name = request.search.get('name');
+      const every = [
         role('r-admin', 'tenant-admin', 'c-admin'),
         role('r-tenants', 'manage-tenants', 'c-admin'),
         role('r-users', 'manage-users', 'c-admin'),
-        role('r-own', 'tenant-admin', null),
-      ],
-    }),
+      ];
+      return name === null
+        ? json({ items: [role('r-users', 'manage-users', 'c-admin')], next: 'page-2' })(request)
+        : json({ items: every.filter((r) => r.name.startsWith(name)) })(request);
+    },
     [`GET ${S}/subjects/${ID}/roles`]: json(assigned(held), 200, { etag: '"roles-1"' }),
     [`PUT ${S}/subjects/${ID}/roles`]: json(assigned([]), 200, { etag: '"roles-2"' }),
     [`GET ${S}/subjects`]: json({ items: after.map(holder) }),
@@ -108,5 +113,15 @@ it("hands back the guard's refusal, and the request it answered", async () => {
     kind: 'refused',
     request: 'set-roles',
     failure: { kind: 'problem', problem: { status: 409, type: 'about:blank#last-administrator' } },
+  });
+});
+
+it('cannot say whether the subject still holds manage-tenants when the check is refused', async () => {
+  const routes = systemRoles(['r-admin']);
+  routes[`GET ${S}/subjects`] = problem(503, 'about:blank', 'Service Unavailable');
+  const fake = fakeTransport(routes);
+  expect(await revokeAdministrator(fake.transport.gateway, 'system', SUBJECT)).toEqual({
+    kind: 'revoked',
+    stillHolds: null,
   });
 });

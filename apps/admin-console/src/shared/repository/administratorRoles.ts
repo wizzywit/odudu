@@ -8,6 +8,7 @@ import {
 import {
   administratorCapability,
   administratorRoleIds,
+  administratorRoleNames,
   builtinAdminClient,
   TENANT_ADMIN,
   tenantAdminRole,
@@ -96,7 +97,8 @@ export async function grantTenantAdmin(
 }
 
 export type Revoked =
-  // stillHolds is null for a subject with no username to look it up by.
+  // stillHolds is null when it could not be checked: the subject has no
+  // username to look it up by, or the look-up failed.
   | { readonly kind: 'revoked'; readonly stillHolds: boolean | null }
   // Held only through a group or a role that nests it, which no edit here reaches.
   | { readonly kind: 'not-direct' }
@@ -111,9 +113,15 @@ export async function revokeAdministrator(
 ): Promise<Revoked> {
   const client = await adminClientOf(gateway, tenant);
   if (isRefused(client)) return { kind: 'refused', ...client };
-  const roles = await readClientRoles(gateway, tenant, client.client);
-  if (!roles.ok) return { kind: 'refused', ...refusedAt(roles, 'roles') };
-  const granting = administratorRoleIds(tenant, roles.data.items, client.client);
+  // By name, as the grant does: a client's roles can run past one page.
+  const found: { readonly id: string; readonly name: string; readonly client_id: string | null }[] =
+    [];
+  for (const name of administratorRoleNames(tenant)) {
+    const roles = await readClientRoles(gateway, tenant, client.client, name);
+    if (!roles.ok) return { kind: 'refused', ...refusedAt(roles, 'roles') };
+    found.push(...roles.data.items);
+  }
+  const granting = administratorRoleIds(tenant, found, client.client);
   const held = await heldRoles(gateway, tenant, subject.id);
   if (isRefused(held)) return { kind: 'refused', ...held };
   if (!held.ids.some((id) => granting.includes(id))) return { kind: 'not-direct' };
@@ -136,6 +144,6 @@ export async function revokeAdministrator(
   );
   return {
     kind: 'revoked',
-    stillHolds: holders.ok && holders.data.items.some((holder) => holder.id === subject.id),
+    stillHolds: holders.ok ? holders.data.items.some((holder) => holder.id === subject.id) : null,
   };
 }

@@ -53,13 +53,17 @@ export function tenantAdminRole(roles: readonly ClientRole[], adminClient: strin
   );
 }
 
+export function administratorRoleNames(tenant: string): readonly string[] {
+  return [...new Set([TENANT_ADMIN, administratorCapability(tenant)])];
+}
+
 // Every role of the built-in client whose holder the guard counts.
 export function administratorRoleIds(
   tenant: string,
   roles: readonly ClientRole[],
   adminClient: string,
 ): readonly string[] {
-  const names = new Set([TENANT_ADMIN, administratorCapability(tenant)]);
+  const names = new Set(administratorRoleNames(tenant));
   return roles
     .filter((role) => role.client_id === adminClient && names.has(role.name))
     .map((role) => role.id);
