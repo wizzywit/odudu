@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isValidZoneinfo } from '@odudu/contracts';
-import { offsetOf, timeZoneOptions } from '#/shared/service/zones.ts';
+import { offsetOf, timeZoneOptions, zoneProblem } from '#/shared/service/zones.ts';
 
 const JANUARY = new Date('2026-01-15T12:00:00Z');
 const JULY = new Date('2026-07-15T12:00:00Z');
@@ -21,5 +21,13 @@ describe('time zones', () => {
     const lagos = timeZoneOptions(JANUARY).find((o) => o.id === 'Africa/Lagos');
     expect(lagos?.label).toBe('Africa/Lagos');
     expect(lagos?.detail).toBe('UTC+01:00');
+  });
+});
+
+describe('zoneProblem', () => {
+  it('refuses only a name in no shape the server takes', () => {
+    expect(zoneProblem('')).toBeNull();
+    expect(zoneProblem('Asia/Calcutta')).toBeNull();
+    expect(zoneProblem('+1')).toBe('Choose a zone from the list, such as Africa/Lagos.');
   });
 });

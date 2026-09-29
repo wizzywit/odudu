@@ -1,7 +1,8 @@
-import { use, useState, type ReactNode } from 'react';
+import { use, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Button as AriaButton,
   ComboBox,
+  ComboBoxStateContext,
   Group,
   Input,
   ListBox,
@@ -29,14 +30,46 @@ export interface ComboOption {
   readonly detail?: string;
 }
 
+// Closes the list each time `times` grows: React Aria leaves it open on a
+// value that arrived whole, which would keep the page hidden around it.
+function CloseList({ times }: { times: number }) {
+  const current = use(ComboBoxStateContext);
+  const state = useRef(current);
+  useEffect(() => {
+    state.current = current;
+  });
+  useEffect(() => {
+    if (times === 0) return undefined;
+    // After React Aria's own effects, which open the list on the same change.
+    const timer = setTimeout(() => {
+      state.current?.close();
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [times]);
+  return null;
+}
+
 interface Shown {
   readonly value: string;
   readonly text: string;
 }
 
-function matching(options: readonly ComboOption[], text: string): ComboOption | undefined {
+function matching(
+  options: readonly ComboOption[],
+  text: string,
+  matchIds: boolean,
+): ComboOption | undefined {
   const typed = text.trim().toLowerCase();
-  return options.find((o) => o.id.toLowerCase() === typed || o.label.toLowerCase() === typed);
+  return options.find(
+    (o) => (matchIds && o.id.toLowerCase() === typed) || o.label.toLowerCase() === typed,
+  );
+}
+
+// More than one character at once is a paste or an autofill, not typing.
+function wholeValue(before: string, after: string): boolean {
+  return Math.abs(after.length - before.length) > 1;
 }
 
 // Type to narrow the list, or open it with the button. With a custom value
@@ -54,6 +87,7 @@ export function ComboBoxField({
   autoComplete = 'off',
   readOnlyText,
   mono = false,
+  matchIds = true,
 }: Chrome & {
   readonly options: readonly ComboOption[];
   value: string;
@@ -63,10 +97,14 @@ export function ComboBoxField({
   // What a read-only page shows in place of the option's label.
   readOnlyText?: ReactNode;
   mono?: boolean;
+  // Whether typing an option's id chooses it: yes for a zone or a locale tag,
+  // no for a country, whose two-letter code is also the start of names.
+  matchIds?: boolean;
 }) {
   const labelOf = (id: string): string => options.find((o) => o.id === id)?.label ?? id;
   const [shown, setShown] = useState<Shown>(() => ({ value, text: labelOf(value) }));
   const readOnly = use(FieldsReadOnly);
+  const [closes, setCloses] = useState(0);
   let current = shown;
   if (shown.value !== value) {
     current = { value, text: labelOf(value) };
@@ -89,11 +127,23 @@ export function ComboBoxField({
       value={options.some((o) => o.id === value) ? value : null}
       inputValue={current.text}
       onInputChange={(text) => {
+        const found = matching(options, text, matchIds);
+        if (found !== undefined && wholeValue(current.text, text)) {
+          emit({ value: found.id, text: found.label });
+          setCloses((n) => n + 1);
+          return;
+        }
         if (!allowsCustomValue) {
           setShown({ value, text });
           return;
         }
-        emit({ value: matching(options, text)?.id ?? text.trim(), text });
+        emit({ value: found?.id ?? text.trim(), text });
+      }}
+      onBlur={() => {
+        const found = matching(options, current.text, matchIds);
+        if (found !== undefined) emit({ value: found.id, text: found.label });
+        else if (allowsCustomValue) emit({ value: current.text.trim(), text: current.text });
+        else setShown({ value, text: labelOf(value) });
       }}
       onChange={(key: Key | null) => {
         if (key === null) {
@@ -106,6 +156,7 @@ export function ComboBoxField({
       className={styles.field ?? ''}
       data-changed={changed === true || undefined}
     >
+      <CloseList times={closes} />
       <Header label={label} {...(changed === undefined ? {} : { changed })} />
       <Group className={styles.comboGroup ?? ''}>
         <Input

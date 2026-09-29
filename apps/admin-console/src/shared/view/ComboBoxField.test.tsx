@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -12,7 +12,15 @@ const ZONES: readonly ComboOption[] = [
   { id: 'Asia/Tokyo', label: 'Asia/Tokyo', detail: 'UTC+09:00' },
 ];
 
-function Controlled({ custom = false, start = '' }: { custom?: boolean; start?: string }) {
+function Controlled({
+  custom = false,
+  start = '',
+  matchIds = true,
+}: {
+  custom?: boolean;
+  start?: string;
+  matchIds?: boolean;
+}) {
   const [value, setValue] = useState(start);
   return (
     <>
@@ -22,6 +30,7 @@ function Controlled({ custom = false, start = '' }: { custom?: boolean; start?: 
         value={value}
         onChange={setValue}
         allowsCustomValue={custom}
+        matchIds={matchIds}
         autoComplete="off"
       />
       <output aria-label="Stored">{value}</output>
@@ -109,6 +118,69 @@ describe('ComboBoxField', () => {
     );
     expect(screen.queryByRole('combobox')).toBeNull();
     expect(screen.getByText('Asia/Tokyo')).toBeInTheDocument();
+  });
+
+  it('closes its list on a whole value that names an option, as a paste or autofill gives', async () => {
+    const user = userEvent.setup();
+    render(<Controlled custom />);
+    const box = screen.getByRole('combobox', { name: 'Time zone' });
+    await user.click(box);
+    await user.paste('Asia/Tokyo');
+    expect(screen.getByLabelText('Stored')).toHaveTextContent('Asia/Tokyo');
+    await waitFor(() => {
+      expect(screen.queryByRole('listbox')).toBeNull();
+    });
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeVisible();
+  });
+
+  it('commits what was typed when it loses focus', async () => {
+    const user = userEvent.setup();
+    render(<Controlled />);
+    const box = screen.getByRole('combobox', { name: 'Time zone' });
+    await user.type(box, 'asia/tokyo');
+    await user.tab();
+    expect(screen.getByLabelText('Stored')).toHaveTextContent('Asia/Tokyo');
+    expect(box).toHaveValue('Asia/Tokyo');
+  });
+
+  it('does not take text for an option’s id when told the ids are not what people type', async () => {
+    const user = userEvent.setup();
+    function Country() {
+      const [value, setValue] = useState('');
+      return (
+        <>
+          <ComboBoxField
+            label="Country"
+            options={[{ id: 'DE', label: 'Germany' }]}
+            value={value}
+            onChange={setValue}
+            allowsCustomValue
+            matchIds={false}
+          />
+          <output aria-label="Stored">{value}</output>
+        </>
+      );
+    }
+    render(<Country />);
+    await user.type(screen.getByRole('combobox', { name: 'Country' }), 'de');
+    await user.tab();
+    expect(screen.getByLabelText('Stored')).toHaveTextContent(/^de$/u);
+  });
+
+  it('passes axe in both themes with its list open', async () => {
+    const user = userEvent.setup();
+    expect(
+      await axeInBothThemes(
+        () => <ComboBoxField label="Time zone" options={ZONES} value="" onChange={vi.fn()} />,
+        async () => {
+          await user.click(screen.getByRole('button', { name: /^Show Time zone options/u }));
+          await screen.findByRole('listbox');
+        },
+        // React Aria's ariaHideOutside hides the page while the list is open;
+        // focus cannot reach it then, since leaving the input closes the list.
+        { disable: ['aria-hidden-focus'] },
+      ),
+    ).toEqual({ light: [], dark: [] });
   });
 
   it('passes axe in both themes', async () => {

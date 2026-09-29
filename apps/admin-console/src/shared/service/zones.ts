@@ -20,3 +20,9 @@ export function timeZoneOptions(now: Date): readonly ZoneOption[] {
   const every = zones.includes('UTC') ? zones : ['UTC', ...zones];
   return every.map((zone) => ({ id: zone, label: zone, detail: offsetOf(zone, now) }));
 }
+
+export function zoneProblem(value: string): string | null {
+  return value === '' || isValidZoneinfo(value)
+    ? null
+    : 'Choose a zone from the list, such as Africa/Lagos.';
+}

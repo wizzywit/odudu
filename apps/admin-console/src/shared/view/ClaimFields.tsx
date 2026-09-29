@@ -1,13 +1,17 @@
-import { isValidZoneinfo } from '@odudu/contracts';
 import { use, useMemo, useState } from 'react';
 import { useLocale } from 'react-aria-components';
-import { localeName, localeOptions, localeProblem } from '#/shared/service/locales.ts';
+import {
+  localeName,
+  localeOptions,
+  localeProblem,
+  typingLocale,
+} from '#/shared/service/locales.ts';
 import {
   countryOptions,
   englishCountryName,
   regionOfCountryName,
 } from '#/shared/service/regions.ts';
-import { offsetOf, timeZoneOptions } from '#/shared/service/zones.ts';
+import { offsetOf, timeZoneOptions, zoneProblem } from '#/shared/service/zones.ts';
 import { ComboBoxField } from '#/shared/view/ComboBoxField.tsx';
 import {
   FieldsReadOnly,
@@ -32,6 +36,7 @@ export function CountryField({ value, onChange, ...chrome }: ClaimFieldProps) {
       options={options}
       value={region ?? value}
       allowsCustomValue
+      matchIds={false}
       autoComplete="country-name"
       onChange={(chosen) => {
         onChange(options.some((o) => o.id === chosen) ? englishCountryName(chosen) : chosen);
@@ -42,11 +47,8 @@ export function CountryField({ value, onChange, ...chrome }: ClaimFieldProps) {
 
 export function TimeZoneField({ value, onChange, error, ...chrome }: ClaimFieldProps) {
   const options = useMemo(() => timeZoneOptions(new Date()), []);
-  const problem =
-    value === '' || isValidZoneinfo(value)
-      ? undefined
-      : 'Choose a zone from the list, such as Africa/Lagos.';
-  const offset = value === '' || !isValidZoneinfo(value) ? null : safeOffset(value);
+  const problem = zoneProblem(value) ?? undefined;
+  const offset = value === '' || problem !== undefined ? null : safeOffset(value);
   return (
     <ComboBoxField
       {...chrome}
@@ -72,7 +74,7 @@ function safeOffset(zone: string): string | null {
 export function LocaleField({ value, onChange, error, ...chrome }: ClaimFieldProps) {
   const { locale } = useLocale();
   const options = useMemo(() => localeOptions(locale, locale), [locale]);
-  const problem = localeProblem(value) ?? undefined;
+  const problem = typingLocale(value, options) ? undefined : (localeProblem(value) ?? undefined);
   return (
     <ComboBoxField
       {...chrome}
@@ -99,8 +101,9 @@ const GENDERS = [
 type GenderChoice = (typeof GENDERS)[number]['id'];
 
 function choiceOf(value: string, describing: boolean): GenderChoice {
+  if (describing) return 'own';
   if (value === 'female' || value === 'male') return value;
-  return value !== '' || describing ? 'own' : 'unset';
+  return value !== '' ? 'own' : 'unset';
 }
 
 // OIDC names female and male, and lets any other value stand when neither
@@ -116,7 +119,13 @@ export function GenderField({
 }: ClaimFieldProps) {
   const readOnly = use(FieldsReadOnly);
   const [describing, setDescribing] = useState(false);
+  const [words, setWords] = useState<{ value: string; text: string }>({ value, text: value });
   const choice = choiceOf(value, describing);
+  let typed = words;
+  if (words.value !== value) {
+    typed = { value, text: value };
+    setWords(typed);
+  }
   if (readOnly) {
     return (
       <ReadOnlyValue
@@ -151,11 +160,18 @@ export function GenderField({
       {choice === 'own' ? (
         <TextField
           label="Their words"
-          value={value}
+          value={typed.text}
           error={error}
           isDisabled={isDisabled}
           autoComplete="sex"
-          onChange={onChange}
+          onChange={(text) => {
+            setWords({ value, text });
+          }}
+          onBlur={() => {
+            if (typed.text === value) return;
+            setWords({ value: typed.text, text: typed.text });
+            onChange(typed.text);
+          }}
         />
       ) : null}
     </div>

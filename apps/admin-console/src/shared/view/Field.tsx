@@ -128,9 +128,11 @@ export function TextField({
   mono = false,
   autoComplete = 'off',
   autoFocus = false,
+  onBlur,
 }: Chrome & {
   value: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
   type?: 'text' | 'url' | 'email' | 'tel';
   mono?: boolean;
   autoComplete?: string;
@@ -147,6 +149,7 @@ export function TextField({
       type={type}
       autoComplete={autoComplete}
       autoFocus={autoFocus}
+      {...(onBlur === undefined ? {} : { onBlur })}
       className={styles.field ?? ''}
       data-changed={changed === true || undefined}
     >

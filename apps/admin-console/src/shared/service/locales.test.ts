@@ -1,6 +1,11 @@
 import { isValidLocale } from '@odudu/contracts';
 import { describe, expect, it } from 'vitest';
-import { localeName, localeOptions, localeProblem } from '#/shared/service/locales.ts';
+import {
+  localeName,
+  localeOptions,
+  localeProblem,
+  typingLocale,
+} from '#/shared/service/locales.ts';
 
 describe('locales', () => {
   it('names a tag in the reader’s language', () => {
@@ -20,5 +25,14 @@ describe('locales', () => {
     expect(localeProblem('en-NG')).toBeNull();
     expect(localeProblem('English')).toBe('Choose a language, or type a tag such as en-NG.');
     expect(localeProblem('en_US')).toBe('Choose a language, or type a tag such as en-NG.');
+  });
+});
+
+describe('typingLocale', () => {
+  it('holds back while the text starts an option’s tag or name', () => {
+    const options = localeOptions('en', 'en-US');
+    expect(typingLocale('Engl', options)).toBe(true);
+    expect(typingLocale('en-N', options)).toBe(true);
+    expect(typingLocale('Klingon', options)).toBe(false);
   });
 });

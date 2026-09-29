@@ -46,3 +46,11 @@ export function localeProblem(value: string): string | null {
     ? null
     : 'Choose a language, or type a tag such as en-NG.';
 }
+
+// "Engl" or "en-N" is a locale still being typed, not a wrong one.
+export function typingLocale(text: string, options: readonly LocaleOption[]): boolean {
+  const typed = text.trim().toLowerCase();
+  return options.some(
+    (o) => o.id.toLowerCase().startsWith(typed) || o.label.toLowerCase().startsWith(typed),
+  );
+}

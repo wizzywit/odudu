@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type ComponentType } from 'react';
 import { I18nProvider } from 'react-aria-components';
@@ -65,6 +65,27 @@ describe('CountryField', () => {
   });
 });
 
+describe('CountryField, typed', () => {
+  it('does not take a two-letter start of a name for a country code', async () => {
+    const user = userEvent.setup();
+    render(<Controlled Field={CountryField} label="Country" />);
+    await user.type(screen.getByRole('combobox', { name: 'Country' }), 'de');
+    await user.tab();
+    expect(stored()).toBe('de');
+  });
+
+  it('stores a pasted name and closes its list', async () => {
+    const user = userEvent.setup();
+    render(<Controlled Field={CountryField} label="Country" />);
+    await user.click(screen.getByRole('combobox', { name: 'Country' }));
+    await user.paste('Germany');
+    expect(stored()).toBe('Germany');
+    await waitFor(() => {
+      expect(screen.queryByRole('listbox')).toBeNull();
+    });
+  });
+});
+
 describe('TimeZoneField', () => {
   it('offers each zone with its offset, and stores its name', async () => {
     const user = userEvent.setup();
@@ -104,6 +125,13 @@ describe('LocaleField', () => {
     expect(stored()).toBe('ff-SN');
   });
 
+  it('holds its error back while the text could still become a tag or a name', async () => {
+    const user = userEvent.setup();
+    render(<Controlled Field={LocaleField} label="Locale" locale="en" />);
+    await user.type(screen.getByRole('combobox', { name: 'Locale' }), 'Engl');
+    expect(screen.getByRole('combobox', { name: 'Locale' })).not.toHaveAttribute('aria-invalid');
+  });
+
   it('says what it takes when the text is no tag', async () => {
     const user = userEvent.setup();
     render(<Controlled Field={LocaleField} label="Locale" locale="en" />);
@@ -126,7 +154,21 @@ describe('GenderField', () => {
     const words = screen.getByRole('textbox', { name: 'Their words' });
     expect(words).toHaveAttribute('autocomplete', 'sex');
     await user.type(words, 'non-binary');
+    await user.tab();
     expect(stored()).toBe('non-binary');
+  });
+
+  it('keeps the words and the focus while "male" is typed on the way to more', async () => {
+    const user = userEvent.setup();
+    render(<Controlled Field={GenderField} label="Gender" />);
+    await user.click(screen.getByRole('button', { name: /Gender/u }));
+    await user.click(await screen.findByRole('option', { name: 'In their own words' }));
+    const words = screen.getByRole('textbox', { name: 'Their words' });
+    await user.type(words, 'male-identified');
+    expect(words).toHaveFocus();
+    expect(words).toHaveValue('male-identified');
+    await user.tab();
+    expect(stored()).toBe('male-identified');
   });
 
   it('opens a stored free-text gender in its own words', () => {
