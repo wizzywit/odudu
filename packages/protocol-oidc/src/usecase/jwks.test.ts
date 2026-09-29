@@ -12,7 +12,7 @@ describe('resolveJwks', () => {
     expect(jwks).toBeNull();
   });
 
-  it('still publishes a disabled tenant\'s keys', async () => {
+  it("still publishes a disabled tenant's keys", async () => {
     let calledListKeys = false;
     const jwks = await resolveJwks(
       {
