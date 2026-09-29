@@ -1,7 +1,8 @@
 import { enterHref, tenantsTrail } from '#/features/tenants/service.ts';
 import {
-  useTenantRecordNeeds,
+  useTenantRecordAccess,
   useTenantRecordPage,
+  type TenantRecordAccess,
 } from '#/features/tenants/usecase/useTenantRecordPage.ts';
 import { AdministratorsTab } from '#/features/tenants/view/AdministratorsTab.tsx';
 import { ExportPanel } from '#/features/tenants/view/ExportPanel.tsx';
@@ -14,7 +15,7 @@ import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
 
-function Record({ name }: { name: string }) {
+function Record({ name, access }: { name: string; access: TenantRecordAccess }) {
   const page = useTenantRecordPage(name);
   const tenant = page.tenant;
   return (
@@ -34,18 +35,18 @@ function Record({ name }: { name: string }) {
           })}
       actions={<ButtonLink href={enterHref(name)}>{`Enter ${name}`}</ButtonLink>}
       noun="tenant"
-      {...(page.blocked === null
+      {...(access.blocked === null
         ? {}
         : {
             viewOnly: (
               <ViewOnlyNote
                 noun="tenants"
-                change={page.blocked.change}
-                needs={page.blocked.needs}
+                change={access.blocked.change}
+                needs={access.blocked.needs}
               />
             ),
           })}
-      readOnly={!page.canChange}
+      readOnly={!access.canChange}
       label="Tenant sections"
       tab={page.tab}
       onTabChange={page.selectTab}
@@ -61,14 +62,14 @@ function Record({ name }: { name: string }) {
                 tenant={tenant}
                 etag={page.etag}
                 gone={page.record.gone}
-                canChange={page.canChange}
+                canChange={access.canChange}
               />
             ),
         },
         {
           id: 'administrators',
           label: 'Administrators',
-          panel: <AdministratorsTab tenant={name} canAdd={page.addNeeds.length === 0} />,
+          panel: <AdministratorsTab tenant={name} canAdd={access.addNeeds.length === 0} />,
         },
         {
           id: 'export',
@@ -81,8 +82,8 @@ function Record({ name }: { name: string }) {
 }
 
 function Readable({ name }: { name: string }) {
-  const needs = useTenantRecordNeeds();
-  if (needs.length === 0) return <Record name={name} />;
+  const access = useTenantRecordAccess(name);
+  if (access.readNeeds.length === 0) return <Record name={name} access={access} />;
   return (
     <>
       <PageHeader
@@ -90,7 +91,7 @@ function Readable({ name }: { name: string }) {
         title={name}
         actions={<ButtonLink href={enterHref(name)}>{`Enter ${name}`}</ButtonLink>}
       />
-      {needs.map((capability) => (
+      {access.readNeeds.map((capability) => (
         <CapabilityNote key={capability} capability={capability}>
           A tenant&apos;s record
         </CapabilityNote>

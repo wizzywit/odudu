@@ -19,6 +19,11 @@ export interface TenantRecordPage {
   readonly tab: TenantTab;
   readonly selectTab: (tab: string) => void;
   readonly dirty: ReadonlySet<string>;
+}
+
+export interface TenantRecordAccess {
+  // What reading the record needs that whoami says is missing.
+  readonly readNeeds: readonly AdminCapability[];
   // Whether whoami lets the caller change the tenant's own fields and status.
   readonly canChange: boolean;
   // What adding an administrator needs that whoami says is missing.
@@ -31,15 +36,7 @@ export function useTenantRecordPage(name: string): TenantRecordPage {
   const record = useTenantRecord(name);
   const { tab, selectTab } = useRecordTab(TENANT_TABS);
   const dirty = useDirtySections(SYSTEM_TENANT, tenantRecord(name));
-  const authority = useAuthority(SYSTEM_TENANT);
-  const adding = administratorNeeds(name, { subjectId: null, granted: false });
   return {
-    canChange: lacking(authority, ['manage-tenant']).length === 0,
-    addNeeds: lacking(authority, adding),
-    blocked: blockedChanges(authority, [
-      { change: 'change them', needs: ['manage-tenant'] },
-      { change: 'add their administrators', needs: adding },
-    ]),
     record,
     tenant: record.data,
     etag: record.etag,
@@ -53,7 +50,19 @@ export function useTenantRecordPage(name: string): TenantRecordPage {
 }
 
 // A tenant's record is read with manage-tenant, which the System area's own
-// manage-tenants does not carry; its address still opens, and says so.
-export function useTenantRecordNeeds(): readonly AdminCapability[] {
-  return lacking(useAuthority(SYSTEM_TENANT), ['manage-tenant']);
+// manage-tenants does not carry; its address still opens, and says so. Asked
+// above the record's own reads, so a re-render of those never asks whoami.
+export function useTenantRecordAccess(name: string): TenantRecordAccess {
+  const authority = useAuthority(SYSTEM_TENANT);
+  const adding = administratorNeeds(name, { subjectId: null, granted: false });
+  const readNeeds = lacking(authority, ['manage-tenant']);
+  return {
+    readNeeds,
+    canChange: readNeeds.length === 0,
+    addNeeds: lacking(authority, adding),
+    blocked: blockedChanges(authority, [
+      { change: 'change them', needs: ['manage-tenant'] },
+      { change: 'add their administrators', needs: adding },
+    ]),
+  };
 }
