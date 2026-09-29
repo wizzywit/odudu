@@ -121,6 +121,21 @@ it('refuses a file too large, or not JSON, before sending anything', async () =>
   expect(sent.filter((s) => s.method === 'POST')).toHaveLength(0);
 });
 
+it("says a body too large was refused before the server, as a proxy's limit is", async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    routes(() => new Response('<html>413 Request Entity Too Large</html>', { status: 413 })),
+  );
+  await fill(user);
+  await user.click(screen.getByRole('button', { name: 'Import' }));
+  expect(
+    await screen.findByText(
+      'The server, or a proxy in front of it, refused a body this large; see the deployment note on body limits.',
+    ),
+  ).toBeVisible();
+});
+
 it('never sends an import twice whose answer was lost', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(AT, {

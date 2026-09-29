@@ -43,6 +43,10 @@ export interface ImportTenantPage {
   readonly createAdministrator: () => void;
 }
 
+// Most often a reverse proxy's own limit, lower than the import route's.
+const TOO_LARGE =
+  'The server, or a proxy in front of it, refused a body this large; see the deployment note on body limits.';
+
 const NETWORK =
   'Could not confirm the import. It was not sent again, since its client secrets are shown only once; check whether the tenant exists.';
 
@@ -78,6 +82,7 @@ export function useImportTenantPage(): ImportTenantPage {
       'The import could not be read back. This is a fault in the console; check whether the tenant exists.';
   else if (problem?.status === 403)
     message = 'Importing a tenant needs the manage-tenants capability.';
+  else if (problem?.status === 413) message = TOO_LARGE;
   else if (problem !== null && problem.status !== 400 && problem.status !== 409)
     message = problem.detail ?? problem.title;
   else if (errors.length > 0 && problem !== null) message = problem.detail ?? problem.title;
