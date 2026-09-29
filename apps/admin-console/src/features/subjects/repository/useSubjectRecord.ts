@@ -120,9 +120,9 @@ export function useSubjectDeletion(tenant: string, id: string): SubjectChange<vo
   const mutation = useMutation({
     mutationFn: () => deleteSubject(gateway, tenant, id),
     onSuccess: (result) => {
+      // The record's own entries are left to lapse: removing them while its
+      // page is still mounted would read them again, and find nothing.
       if (!result.ok) return;
-      client.removeQueries({ queryKey: recordKey(tenant, subjectRecord(id)) });
-      client.removeQueries({ queryKey: recordKey(tenant, profileRecord(id)) });
       client.invalidateQueries({ queryKey: ['list', tenant, 'subjects'] }).catch(() => undefined);
     },
   });

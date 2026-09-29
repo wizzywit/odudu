@@ -235,7 +235,12 @@ it('deletes only once the username is typed, then goes back to the list', async 
   await waitFor(() => {
     expect(router.state.location.pathname).toBe('/acme/subjects');
   });
-  expect(sent.some((s) => s.method === 'DELETE')).toBe(true);
+  const deleted = sent.findIndex((s) => s.method === 'DELETE');
+  expect(deleted).toBeGreaterThan(-1);
+  // The record it left is not read again: it would only answer 404.
+  expect(
+    sent.slice(deleted).some((s) => s.method === 'GET' && s.path.startsWith(`${S}/${ADA_ID}`)),
+  ).toBe(false);
 });
 
 it('shows an operator who can only look the values, and nothing to change them with', async () => {
