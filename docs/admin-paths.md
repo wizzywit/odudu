@@ -170,7 +170,7 @@ with `docker compose down -v` when the capture finished.
 
 **The eighth stack.** `GET /subjects/username-policy`, the refusal of a
 disabled subject's token under "The shape of it", and `GET /admin/openapi.json`
-were captured against one more stack of their own: compose project
+(recaptured since against the ninth stack, below) were captured against one more stack of their own: compose project
 `odudu-t8b` on port 3080, built from this branch and brought up from an
 empty volume, with `seed admin --username ada-t8b` run against it, then a
 tenant `policy-demo` made with `odudu seed tenant` and a subject `vera`
@@ -178,6 +178,34 @@ seeded there with `odudu seed user` and granted `odudu-admin:view-users`
 alone. `$VERA_TOKEN` is `vera`'s own admin access token, got the way
 "Getting the token" shows but at `policy-demo`. It was torn down with
 `docker compose down -v` when the capture finished.
+
+**The ninth stack.** The sections on routes added for the operator's side of
+a tenant — its sessions and grants, its mail and logout deliveries, bulk and
+tenant-wide writes, claim evaluation, audit reporting and tenant deletion —
+and the recaptures their notes name, ran against one more stack: compose
+project `odudu-t8b2` on port 3082, its Postgres on 5464, built from this
+branch at `1b528d35` and brought up from an empty volume with
+`ODUDU_OUTBOX_ENABLED=false` and `ODUDU_LOGOUT_SENDER_ENABLED=false`, so that
+mail and Logout Tokens leave only when `odudu send-mail` and
+`odudu send-logouts` are run by hand, `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS=true`
+and `ODUDU_ALLOW_PRIVATE_CLIENT_URLS=true`, so that a relay and a logout
+endpoint can name the stack's own `postgres` container, where nothing
+listens and so every delivery fails, and `ODUDU_THROTTLE_LIMIT=1000`. Against
+it: `seed admin --username ada-t8b2` in `system`, a tenant `ops-demo` made
+through `POST /admin/tenants`, subjects `grace` (with an address), `linus`
+(without) and `mona` seeded there with `odudu seed user`, `mona` granted
+`odudu-admin:manage-tenant`, and a confidential client `ops-app` made through
+`POST /clients` with a back-channel logout URI of
+`https://postgres:9/backchannel`, row id `01a0ee37-01c9-760e-b4cd-b94b21b9fe36`.
+`grace` then signed in through `ops-app` twice — once asking for
+`offline_access` — and `linus` once. `$ADMIN_TOKEN` is `ada-t8b2`'s token, got
+fresh for each section the way "Getting the token" shows, and
+`P=http://localhost:3082/admin/tenants/ops-demo` throughout. Each section
+says what else it seeded. The one change made after the image was built —
+`DELETE /clients/:id/grants` also held to the client's service account's
+ceiling — is exercised by no transcript here: `ops-app`'s service account
+holds nothing. The stack was torn down with `docker compose down -v` when the
+capture finished.
 
 ## The shape of it
 
@@ -274,97 +302,117 @@ carry a secret shown once — a registration token, a client secret, a
 one-time password. A handful of header blocks below predate this and were
 not re-run — each says so, and why, where it appears.
 
-| Method   | Path                                                             | What it is                                |
-| -------- | ---------------------------------------------------------------- | ----------------------------------------- |
-| `GET`    | `/admin/tenants`                                                 | List tenants                              |
-| `GET`    | `/admin/tenants/count`                                           | Count tenants                             |
-| `POST`   | `/admin/tenants`                                                 | Create a tenant                           |
-| `POST`   | `/admin/tenant-imports`                                          | Import a tenant from a document           |
-| `GET`    | `/admin/tenants/{tenant}`                                        | Read one tenant                           |
-| `PATCH`  | `/admin/tenants/{tenant}`                                        | Amend one tenant                          |
-| `GET`    | `/admin/tenants/{tenant}/export`                                 | Export a tenant's configuration           |
-| `GET`    | `/admin/tenants/{tenant}/whoami`                                 | Identity probe                            |
-| `GET`    | `/admin/tenants/{tenant}/subjects`                               | List subjects                             |
-| `GET`    | `/admin/tenants/{tenant}/subjects/count`                         | Count subjects                            |
-| `GET`    | `/admin/tenants/{tenant}/subjects/username-policy`               | Whether a username can be renamed         |
-| `POST`   | `/admin/tenants/{tenant}/subjects`                               | Create a subject                          |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id`                           | Read a subject                            |
-| `PATCH`  | `/admin/tenants/{tenant}/subjects/:id`                           | Amend a subject                           |
-| `DELETE` | `/admin/tenants/{tenant}/subjects/:id`                           | Delete a subject                          |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id/profile`                   | Read a subject's profile                  |
-| `PATCH`  | `/admin/tenants/{tenant}/subjects/:id/profile`                   | Amend a subject's profile                 |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id/credentials`               | List a subject's credentials              |
-| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/credentials/:credentialId` | Remove a credential                       |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id/consents`                  | List a subject's consents                 |
-| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/consents/:clientId`        | Revoke a consent                          |
-| `POST`   | `/admin/tenants/{tenant}/subjects/:id/password`                  | Issue a one-time password                 |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id/lockout`                   | Read a subject's brute-force lockout      |
-| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/lockout`                   | Clear a brute-force lockout               |
-| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/recovery-codes`            | Revoke a subject's recovery codes         |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Read a subject's required actions         |
-| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Set a subject's required actions          |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Read a subject's roles                    |
-| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Replace a subject's roles                 |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id/groups`                    | Read a subject's groups                   |
-| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/groups`                    | Replace a subject's groups                |
-| `GET`    | `/admin/tenants/{tenant}/subjects/:id/sessions`                  | List a subject's live sessions            |
-| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/sessions`                  | End every session                         |
-| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/sessions/:sid`             | End one session                           |
-| `GET`    | `/admin/tenants/{tenant}/settings`                               | Read a tenant's settings                  |
-| `PATCH`  | `/admin/tenants/{tenant}/settings`                               | Amend a tenant's settings                 |
-| `GET`    | `/admin/tenants/{tenant}/clients`                                | List clients                              |
-| `GET`    | `/admin/tenants/{tenant}/clients/count`                          | Count clients                             |
-| `POST`   | `/admin/tenants/{tenant}/clients`                                | Create a client                           |
-| `GET`    | `/admin/tenants/{tenant}/clients/:id`                            | Read a client                             |
-| `PATCH`  | `/admin/tenants/{tenant}/clients/:id`                            | Amend a client                            |
-| `DELETE` | `/admin/tenants/{tenant}/clients/:id`                            | Delete a client                           |
-| `POST`   | `/admin/tenants/{tenant}/clients/:id/secret`                     | Rotate a client's secret                  |
-| `GET`    | `/admin/tenants/{tenant}/registration-tokens`                    | List initial access tokens                |
-| `POST`   | `/admin/tenants/{tenant}/registration-tokens`                    | Mint an initial access token              |
-| `DELETE` | `/admin/tenants/{tenant}/registration-tokens/:id`                | Revoke an initial access token            |
-| `GET`    | `/admin/tenants/{tenant}/roles`                                  | List roles                                |
-| `GET`    | `/admin/tenants/{tenant}/roles/count`                            | Count roles                               |
-| `POST`   | `/admin/tenants/{tenant}/roles`                                  | Create a role                             |
-| `GET`    | `/admin/tenants/{tenant}/roles/:id`                              | Read a role                               |
-| `PATCH`  | `/admin/tenants/{tenant}/roles/:id`                              | Amend a role                              |
-| `DELETE` | `/admin/tenants/{tenant}/roles/:id`                              | Delete a role                             |
-| `POST`   | `/admin/tenants/{tenant}/roles/:id/composites`                   | Add a role composite                      |
-| `GET`    | `/admin/tenants/{tenant}/roles/:id/composites`                   | List a role's direct composites           |
-| `DELETE` | `/admin/tenants/{tenant}/roles/:id/composites/:childId`          | Remove a role composite                   |
-| `PUT`    | `/admin/tenants/{tenant}/roles/:id/default`                      | Set whether new subjects get a role       |
-| `GET`    | `/admin/tenants/{tenant}/groups`                                 | List groups                               |
-| `GET`    | `/admin/tenants/{tenant}/groups/count`                           | Count groups                              |
-| `POST`   | `/admin/tenants/{tenant}/groups`                                 | Create a group                            |
-| `GET`    | `/admin/tenants/{tenant}/groups/:id`                             | Read a group                              |
-| `PATCH`  | `/admin/tenants/{tenant}/groups/:id`                             | Amend a group (reparent)                  |
-| `DELETE` | `/admin/tenants/{tenant}/groups/:id`                             | Delete a group                            |
-| `GET`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Read a group's roles                      |
-| `PUT`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Replace a group's roles                   |
-| `GET`    | `/admin/tenants/{tenant}/scopes`                                 | List client scopes                        |
-| `GET`    | `/admin/tenants/{tenant}/scopes/count`                           | Count client scopes                       |
-| `POST`   | `/admin/tenants/{tenant}/scopes`                                 | Create a client scope                     |
-| `GET`    | `/admin/tenants/{tenant}/scopes/:id`                             | Read a client scope                       |
-| `PATCH`  | `/admin/tenants/{tenant}/scopes/:id`                             | Amend a client scope                      |
-| `DELETE` | `/admin/tenants/{tenant}/scopes/:id`                             | Delete a client scope                     |
-| `GET`    | `/admin/tenants/{tenant}/scopes/:id/roles`                       | Read a scope's roles                      |
-| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/roles`                       | Replace a scope's roles                   |
-| `GET`    | `/admin/tenants/{tenant}/scopes/:id/clients`                     | List the clients a scope is assigned to   |
-| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/clients/:clientId`           | Assign a scope to a client                |
-| `DELETE` | `/admin/tenants/{tenant}/scopes/:id/clients/:clientId`           | Unassign a scope from a client            |
-| `GET`    | `/admin/tenants/{tenant}/scopes/:id/mappers`                     | Read a scope's claim mapper bindings      |
-| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/mappers`                     | Replace a scope's claim mapper bindings   |
-| `GET`    | `/admin/tenants/{tenant}/keys`                                   | List signing keys                         |
-| `POST`   | `/admin/tenants/{tenant}/keys`                                   | Stage a signing key                       |
-| `POST`   | `/admin/tenants/{tenant}/keys/:id/promote`                       | Promote a signing key                     |
-| `POST`   | `/admin/tenants/{tenant}/keys/:id/retire`                        | Retire a signing key                      |
-| `GET`    | `/admin/tenants/{tenant}/flow/executions`                        | Read a tenant's authentication flow       |
-| `PUT`    | `/admin/tenants/{tenant}/flow/executions`                        | Replace a tenant's authentication flow    |
-| `GET`    | `/admin/tenants/{tenant}/smtp`                                   | Read a tenant's own SMTP configuration    |
-| `PUT`    | `/admin/tenants/{tenant}/smtp`                                   | Replace a tenant's own SMTP configuration |
-| `DELETE` | `/admin/tenants/{tenant}/smtp`                                   | Remove a tenant's own SMTP configuration  |
-| `POST`   | `/admin/tenants/{tenant}/smtp/test`                              | Send one test message                     |
-| `GET`    | `/admin/tenants/{tenant}/audit`                                  | List the tenant's audit trail             |
-| `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference                     |
+| Method   | Path                                                             | What it is                                 |
+| -------- | ---------------------------------------------------------------- | ------------------------------------------ |
+| `GET`    | `/admin/tenants`                                                 | List tenants                               |
+| `GET`    | `/admin/tenants/count`                                           | Count tenants                              |
+| `POST`   | `/admin/tenants`                                                 | Create a tenant                            |
+| `POST`   | `/admin/tenant-imports`                                          | Import a tenant from a document            |
+| `GET`    | `/admin/tenants/{tenant}`                                        | Read one tenant                            |
+| `PATCH`  | `/admin/tenants/{tenant}`                                        | Amend one tenant                           |
+| `DELETE` | `/admin/tenants/{tenant}`                                        | Delete a tenant and all it holds           |
+| `GET`    | `/admin/tenants/{tenant}/export`                                 | Export a tenant's configuration            |
+| `GET`    | `/admin/tenants/{tenant}/whoami`                                 | Identity probe                             |
+| `GET`    | `/admin/tenants/{tenant}/subjects`                               | List subjects                              |
+| `GET`    | `/admin/tenants/{tenant}/subjects/count`                         | Count subjects                             |
+| `POST`   | `/admin/tenants/{tenant}/subjects/bulk`                          | Act on many subjects at once               |
+| `GET`    | `/admin/tenants/{tenant}/subjects/username-policy`               | Whether a username can be renamed          |
+| `POST`   | `/admin/tenants/{tenant}/subjects`                               | Create a subject                           |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id`                           | Read a subject                             |
+| `PATCH`  | `/admin/tenants/{tenant}/subjects/:id`                           | Amend a subject                            |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id`                           | Delete a subject                           |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/profile`                   | Read a subject's profile                   |
+| `PATCH`  | `/admin/tenants/{tenant}/subjects/:id/profile`                   | Amend a subject's profile                  |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/credentials`               | List a subject's credentials               |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/credentials/:credentialId` | Remove a credential                        |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/consents`                  | List a subject's consents                  |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/consents/:clientId`        | Revoke a consent                           |
+| `POST`   | `/admin/tenants/{tenant}/subjects/:id/password`                  | Issue a one-time password                  |
+| `POST`   | `/admin/tenants/{tenant}/subjects/:id/password-reset`            | Send a reset-password link                 |
+| `POST`   | `/admin/tenants/{tenant}/subjects/:id/verification`              | Resend a verification link                 |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/lockout`                   | Read a subject's brute-force lockout       |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/lockout`                   | Clear a brute-force lockout                |
+| `DELETE` | `/admin/tenants/{tenant}/lockouts`                               | Clear every lockout in the tenant          |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/recovery-codes`            | Revoke a subject's recovery codes          |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Read a subject's required actions          |
+| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/required-actions`          | Set a subject's required actions           |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Read a subject's roles                     |
+| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Replace a subject's roles                  |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/effective-roles`           | Read a subject's effective roles           |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/groups`                    | Read a subject's groups                    |
+| `PUT`    | `/admin/tenants/{tenant}/subjects/:id/groups`                    | Replace a subject's groups                 |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/sessions`                  | List a subject's live sessions             |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/sessions`                  | End every session                          |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/sessions/:sid`             | End one session                            |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/grants`                    | List a subject's token grants              |
+| `DELETE` | `/admin/tenants/{tenant}/subjects/:id/grants/:clientId`          | Revoke a subject's grants through a client |
+| `GET`    | `/admin/tenants/{tenant}/sessions`                               | List every live session                    |
+| `GET`    | `/admin/tenants/{tenant}/sessions/count`                         | Count live sessions                        |
+| `DELETE` | `/admin/tenants/{tenant}/sessions`                               | End every session in the tenant            |
+| `GET`    | `/admin/tenants/{tenant}/settings`                               | Read a tenant's settings                   |
+| `PATCH`  | `/admin/tenants/{tenant}/settings`                               | Amend a tenant's settings                  |
+| `GET`    | `/admin/tenants/{tenant}/clients`                                | List clients                               |
+| `GET`    | `/admin/tenants/{tenant}/clients/count`                          | Count clients                              |
+| `POST`   | `/admin/tenants/{tenant}/clients`                                | Create a client                            |
+| `GET`    | `/admin/tenants/{tenant}/clients/:id`                            | Read a client                              |
+| `PATCH`  | `/admin/tenants/{tenant}/clients/:id`                            | Amend a client                             |
+| `DELETE` | `/admin/tenants/{tenant}/clients/:id`                            | Delete a client                            |
+| `POST`   | `/admin/tenants/{tenant}/clients/:id/secret`                     | Rotate a client's secret                   |
+| `GET`    | `/admin/tenants/{tenant}/clients/:id/sessions`                   | List a client's live sessions              |
+| `DELETE` | `/admin/tenants/{tenant}/clients/:id/grants`                     | Revoke every grant a client holds          |
+| `GET`    | `/admin/tenants/{tenant}/clients/:id/logout-deliveries`          | List a client's logout deliveries          |
+| `GET`    | `/admin/tenants/{tenant}/clients/:id/evaluate`                   | Evaluate the claims a client would issue   |
+| `GET`    | `/admin/tenants/{tenant}/clients/:id/installation`               | Read a client's installation               |
+| `GET`    | `/admin/tenants/{tenant}/registration-tokens`                    | List initial access tokens                 |
+| `POST`   | `/admin/tenants/{tenant}/registration-tokens`                    | Mint an initial access token               |
+| `DELETE` | `/admin/tenants/{tenant}/registration-tokens/:id`                | Revoke an initial access token             |
+| `GET`    | `/admin/tenants/{tenant}/roles`                                  | List roles                                 |
+| `GET`    | `/admin/tenants/{tenant}/roles/count`                            | Count roles                                |
+| `POST`   | `/admin/tenants/{tenant}/roles`                                  | Create a role                              |
+| `GET`    | `/admin/tenants/{tenant}/roles/:id`                              | Read a role                                |
+| `PATCH`  | `/admin/tenants/{tenant}/roles/:id`                              | Amend a role                               |
+| `DELETE` | `/admin/tenants/{tenant}/roles/:id`                              | Delete a role                              |
+| `POST`   | `/admin/tenants/{tenant}/roles/:id/composites`                   | Add a role composite                       |
+| `GET`    | `/admin/tenants/{tenant}/roles/:id/composites`                   | List a role's direct composites            |
+| `DELETE` | `/admin/tenants/{tenant}/roles/:id/composites/:childId`          | Remove a role composite                    |
+| `PUT`    | `/admin/tenants/{tenant}/roles/:id/default`                      | Set whether new subjects get a role        |
+| `GET`    | `/admin/tenants/{tenant}/groups`                                 | List groups                                |
+| `GET`    | `/admin/tenants/{tenant}/groups/count`                           | Count groups                               |
+| `POST`   | `/admin/tenants/{tenant}/groups`                                 | Create a group                             |
+| `GET`    | `/admin/tenants/{tenant}/groups/:id`                             | Read a group                               |
+| `PATCH`  | `/admin/tenants/{tenant}/groups/:id`                             | Amend a group (reparent)                   |
+| `DELETE` | `/admin/tenants/{tenant}/groups/:id`                             | Delete a group                             |
+| `GET`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Read a group's roles                       |
+| `PUT`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Replace a group's roles                    |
+| `GET`    | `/admin/tenants/{tenant}/scopes`                                 | List client scopes                         |
+| `GET`    | `/admin/tenants/{tenant}/scopes/count`                           | Count client scopes                        |
+| `POST`   | `/admin/tenants/{tenant}/scopes`                                 | Create a client scope                      |
+| `GET`    | `/admin/tenants/{tenant}/scopes/:id`                             | Read a client scope                        |
+| `PATCH`  | `/admin/tenants/{tenant}/scopes/:id`                             | Amend a client scope                       |
+| `DELETE` | `/admin/tenants/{tenant}/scopes/:id`                             | Delete a client scope                      |
+| `GET`    | `/admin/tenants/{tenant}/scopes/:id/roles`                       | Read a scope's roles                       |
+| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/roles`                       | Replace a scope's roles                    |
+| `GET`    | `/admin/tenants/{tenant}/scopes/:id/clients`                     | List the clients a scope is assigned to    |
+| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/clients/:clientId`           | Assign a scope to a client                 |
+| `DELETE` | `/admin/tenants/{tenant}/scopes/:id/clients/:clientId`           | Unassign a scope from a client             |
+| `GET`    | `/admin/tenants/{tenant}/scopes/:id/mappers`                     | Read a scope's claim mapper bindings       |
+| `PUT`    | `/admin/tenants/{tenant}/scopes/:id/mappers`                     | Replace a scope's claim mapper bindings    |
+| `GET`    | `/admin/tenants/{tenant}/keys`                                   | List signing keys                          |
+| `POST`   | `/admin/tenants/{tenant}/keys`                                   | Stage a signing key                        |
+| `POST`   | `/admin/tenants/{tenant}/keys/:id/promote`                       | Promote a signing key                      |
+| `POST`   | `/admin/tenants/{tenant}/keys/:id/retire`                        | Retire a signing key                       |
+| `DELETE` | `/admin/tenants/{tenant}/keys/:id`                               | Delete a retired signing key               |
+| `GET`    | `/admin/tenants/{tenant}/flow/executions`                        | Read a tenant's authentication flow        |
+| `PUT`    | `/admin/tenants/{tenant}/flow/executions`                        | Replace a tenant's authentication flow     |
+| `GET`    | `/admin/tenants/{tenant}/smtp`                                   | Read a tenant's own SMTP configuration     |
+| `PUT`    | `/admin/tenants/{tenant}/smtp`                                   | Replace a tenant's own SMTP configuration  |
+| `DELETE` | `/admin/tenants/{tenant}/smtp`                                   | Remove a tenant's own SMTP configuration   |
+| `POST`   | `/admin/tenants/{tenant}/smtp/test`                              | Send one test message                      |
+| `GET`    | `/admin/tenants/{tenant}/mail`                                   | List the tenant's outgoing mail            |
+| `GET`    | `/admin/tenants/{tenant}/audit`                                  | List the tenant's audit trail              |
+| `GET`    | `/admin/tenants/{tenant}/audit/count`                            | Count audit events                         |
+| `GET`    | `/admin/tenants/{tenant}/audit/export`                           | Export audit events as NDJSON              |
+| `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference                      |
 
 ### A refusal names its field
 
@@ -951,6 +999,174 @@ amendment — is refused and changes nothing:
 ```
 {"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0ea4e-ac11-7806-9118-fbea0bdb05e3"}
 ```
+
+The name refusal's text was changed after the capture above: a rename is not
+offered, permanently, by ADR 0039, and the refusal now says so rather than
+pointing at an operation that will never exist. Against the ninth stack, the
+tenant's and, for the same reason, a group's:
+
+```bash
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"name": "ops-demo-2"}' \
+  http://localhost:3082/admin/tenants/ops-demo; echo
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"name": "finance-2"}' \
+  http://localhost:3082/admin/tenants/ops-demo/groups/01a0ee37-a071-73ab-bb1a-7bdc0a63fa9f; echo
+```
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: name is already in the issuer URL of every token this tenant has minted, and in the path of every admin and protocol request addressed to it; a rename is not offered, by ADR 0039","errors":[{"path":"name","message":"name is already in the issuer URL of every token this tenant has minted, and in the path of every admin and protocol request addressed to it; a rename is not offered, by ADR 0039"}],"instance":"01a0ee3b-7a5c-7e45-83f3-ef32e5e68a26"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: name is embedded in every descendant path and in the groups claim a relying party matches on; a rename is not offered, by ADR 0039: create a new group and move its members","errors":[{"path":"name","message":"name is embedded in every descendant path and in the groups claim a relying party matches on; a rename is not offered, by ADR 0039: create a new group and move its members"}],"instance":"01a0ee3b-7a74-7036-b8aa-d29a9c8bfe92"}
+```
+
+## `DELETE /admin/tenants/{tenant}`
+
+Requires `manage-tenants`, the capability every other route over the tenant
+collection takes, so only a system administrator reaches it. Deletes the
+tenant and every row it holds, in one statement: every table holding a
+tenant's rows is reached by a cascade from `tenants`, directly or through a
+subject or a client, and `packages/protocol-admin/tests/tenant-delete.int.test.ts`
+counts every table carrying a `tenant_id`, read from the catalogue, before
+and after.
+`confirm` must be the tenant's own name — a slip of the path deletes nothing —
+refused with `400` naming it otherwise. The `system` tenant is refused with
+`409`: every cross-tenant administrator authenticates against it. So is a
+caller who does not hold every admin capability some subject of the tenant
+holds, with `403`: deleting the tenant takes all of it at once (ADR 0040's
+target ceiling, over every subject). The tenant's own trail goes with it, so
+`tenant.delete` is recorded in the `system` tenant's, in the same transaction
+(`withTenantThen`, `@odudu/db`), and so are its refusals. No
+last-administrator guard is needed beside the refusal of `system`: a
+system administrator's authority lives in `system`, which no deletion reaches.
+
+Against the ninth stack, a tenant `doomed` created through `POST /admin/tenants`,
+given a subject and a client through `POST /subjects` and `POST /clients`, its id
+`01a0ee3b-0638-7689-9ab6-d14569e1edf7`. `count-rows.sql` counts that id's rows
+in every table with a `tenant_id` column, as the database's owner:
+
+```
+SELECT table_name,
+       (xpath('/row/n/text()', query_to_xml(format(
+         'select count(*) as n from %I where tenant_id = %L',
+         table_name, '01a0ee3b-0638-7689-9ab6-d14569e1edf7'), false, true, '')))[1]::text::int AS n
+  FROM information_schema.columns
+ WHERE table_schema = 'public' AND column_name = 'tenant_id'
+ ORDER BY n DESC, table_name;
+```
+
+Before, three refusals — no `confirm`, a wrong one, and `system` — the
+deletion, a read of the tenant, after, and `system`'s trail:
+
+```bash
+A="Authorization: Bearer $ADMIN_TOKEN"
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f -' < count-rows.sql
+curl -sS -X DELETE -H "$A" http://localhost:3082/admin/tenants/doomed; echo
+curl -sS -X DELETE -H "$A" 'http://localhost:3082/admin/tenants/doomed?confirm=Doomed'; echo
+curl -sS -X DELETE -H "$A" 'http://localhost:3082/admin/tenants/system?confirm=system'; echo
+curl -sS -D - -X DELETE -H "$A" 'http://localhost:3082/admin/tenants/doomed?confirm=doomed'
+curl -sS -H "$A" http://localhost:3082/admin/tenants/doomed; echo
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f -' < count-rows.sql
+curl -sS -H "$A" 'http://localhost:3082/admin/tenants/system/audit?action=tenant.delete' \
+  | python3 -c 'import json,sys;[print(json.dumps({k:i[k] for k in ("action","outcome","actor_name","resource_id","detail")})) for i in json.load(sys.stdin)["items"]]'
+```
+
+```
+          table_name           | n
+-------------------------------+----
+ client_scope_assignments      | 16
+ client_scopes                 |  8
+ role_composites               |  8
+ roles                         |  8
+ authentication_executions     |  4
+ audit_events                  |  3
+ client_oidc_config            |  2
+ clients                       |  2
+ subjects                      |  2
+ signing_keys                  |  1
+ user_required_actions         |  1
+ users                         |  1
+ action_tokens                 |  0
+ authentication_sessions       |  0
+ authorization_codes           |  0
+ backchannel_logout_deliveries |  0
+ client_assertion_jti          |  0
+ client_registration_tokens    |  0
+ client_scope_mappers          |  0
+ client_scope_roles            |  0
+ consent_scopes                |  0
+ consents                      |  0
+ console_logins                |  0
+ console_sessions              |  0
+ email_outbox                  |  0
+ group_roles                   |  0
+ groups                        |  0
+ login_failures                |  0
+ refresh_tokens                |  0
+ sessions                      |  0
+ subject_groups                |  0
+ subject_roles                 |  0
+ tenant_smtp                   |  0
+ token_grants                  |  0
+ user_credentials              |  0
+(35 rows)
+
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must have required property 'confirm'","errors":[{"path":"confirm","message":"must have required property 'confirm'"}],"instance":"01a0ee3b-32e8-7b63-bc05-b0c252d74b6f"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"confirm: must be the tenant’s own name, doomed","errors":[{"path":"confirm","message":"must be the tenant’s own name, doomed"}],"instance":"01a0ee3b-32f5-7d53-8023-ae07614f2a33"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the system tenant is where every cross-tenant administrator authenticates, and is never deleted","instance":"01a0ee3b-3310-7008-a08c-871e13c6046d"}
+HTTP/1.1 204 No Content
+x-request-id: 01a0ee3b-3328-7a71-bdd9-f1163610ba25
+cache-control: no-store
+Date: Tue, 29 Sep 2026 17:34:12 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0ee3b-334e-70b6-a39f-28b6bf7ab93c"}
+          table_name           | n
+-------------------------------+---
+ action_tokens                 | 0
+ audit_events                  | 0
+ authentication_executions     | 0
+ authentication_sessions       | 0
+ authorization_codes           | 0
+ backchannel_logout_deliveries | 0
+ client_assertion_jti          | 0
+ client_oidc_config            | 0
+ client_registration_tokens    | 0
+ client_scope_assignments      | 0
+ client_scope_mappers          | 0
+ client_scope_roles            | 0
+ client_scopes                 | 0
+ clients                       | 0
+ consent_scopes                | 0
+ consents                      | 0
+ console_logins                | 0
+ console_sessions              | 0
+ email_outbox                  | 0
+ group_roles                   | 0
+ groups                        | 0
+ login_failures                | 0
+ refresh_tokens                | 0
+ role_composites               | 0
+ roles                         | 0
+ sessions                      | 0
+ signing_keys                  | 0
+ subject_groups                | 0
+ subject_roles                 | 0
+ subjects                      | 0
+ tenant_smtp                   | 0
+ token_grants                  | 0
+ user_credentials              | 0
+ user_required_actions         | 0
+ users                         | 0
+(35 rows)
+
+{"action": "tenant.delete", "outcome": "allowed", "actor_name": "ada-t8b2", "resource_id": "01a0ee3b-0638-7689-9ab6-d14569e1edf7", "detail": {"name": "doomed"}}
+{"action": "tenant.delete", "outcome": "refused", "actor_name": "ada-t8b2", "resource_id": "0199aa00-0000-7000-8000-000000000001", "detail": {"name": "system", "reason": "system_tenant_guarded"}}
+```
+
+The read of `doomed` afterwards answers `401` rather than `404`: the router
+resolves the tenant a path names before anything else, and an unknown one is
+unauthenticated there, as it is for every route.
 
 ## `GET /export`
 
@@ -2216,6 +2432,119 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"action":"scope.assign_to_client","outcome":"refused","detail":{"denied":["view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"]}}
 ```
 
+## `GET /clients/:id/logout-deliveries`
+
+Requires `manage-clients`. The Back-Channel Logout Tokens queued for the
+client, most recent first and cursored: `pending`, `delivered`, or `failed`
+once every attempt `send-logouts` makes is spent
+(`BACKCHANNEL_LOGOUT_MAX_ATTEMPTS`), with the attempts, the last error and the
+endpoint. Never the token itself. `?status=` narrows it; an unknown client
+answers `404`.
+
+Against the ninth stack, after `DELETE /sessions` above queued a token for each
+of `ops-app`'s two sessions it ended, and one pass of the sender, run by hand:
+
+```bash
+docker compose exec -T odudu node dist/main.js send-logouts 2>/dev/null
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/logout-deliveries"; echo
+```
+
+```
+{"ran":true,"delivered":0,"failed":2}
+{"items":[{"id":"01a0ee38-e7ca-7b01-a497-95949b63c6a3","session_id":"01a0ee37-27d7-73c8-b8e6-5977965a3a5d","endpoint":"https://postgres:9/backchannel","status":"pending","attempts":2,"last_error":"connect ECONNREFUSED 172.21.0.2:9","created_at":"2026-09-29T17:31:41.871Z","next_attempt_at":"2026-09-29T17:32:51.061Z","delivered_at":null},{"id":"01a0ee38-e7c0-74e8-93d1-120ac12eed77","session_id":"01a0ee37-269b-70ba-b9b2-c421cb773c97","endpoint":"https://postgres:9/backchannel","status":"pending","attempts":2,"last_error":"connect ECONNREFUSED 172.21.0.2:9","created_at":"2026-09-29T17:31:41.871Z","next_attempt_at":"2026-09-29T17:32:51.061Z","delivered_at":null}]}
+```
+
+## `DELETE /clients/:id/grants`
+
+Requires `manage-sessions`, the capability every other grant revocation takes.
+Revokes every grant issued through the client that nothing has revoked,
+whoever holds it, so no refresh token the client holds is honoured again —
+for a leaked secret or a compromised relying party, without disabling the
+client, which a re-enable would undo. It ends no session, so a session still
+signed in can be issued a fresh grant; `DELETE /sessions` is that door. A
+grant whose subject holds an admin capability the caller does not is left
+alone and counted under `beyond_ceiling`, and the route is held to the
+ceiling on the client's service account, as every client mutation is.
+`client.grants_revoke` carries both counts. An unknown client answers `404`.
+
+Against the ninth stack, after `linus` signed in again asking for
+`offline_access`, and `sam` again (`$SAM_TOKEN`): `sam` first, then
+`$ADMIN_TOKEN`, then `mona`'s grants:
+
+```bash
+curl -sS -X DELETE -H "Authorization: Bearer $SAM_TOKEN" \
+  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/grants"; echo
+curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/grants"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/subjects/01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4/grants"; echo
+```
+
+```
+{"revoked":1,"beyond_ceiling":1}
+{"revoked":1,"beyond_ceiling":0}
+{"items":[]}
+```
+
+## `GET /clients/:id/evaluate`
+
+Requires `manage-clients` and `view-users`, since what it answers is the
+subject's data; without the second it is refused with `403` and a
+`capability.refused` row. The claims an authorization-code exchange for the
+client and `subject` would put in the ID token, the access token and the
+UserInfo response: `scope` resolved against the client's assignments as the
+exchange resolves it, the subject's roles narrowed to what that scope reaches,
+each artefact gated by its own scope flags — computed by the same functions
+the exchange and `/userinfo` call (`mappedClaims` and `idTokenScopeOf`,
+`@odudu/protocol-oidc`), never a copy of them. Mapped claims only: none of the
+envelope a signer adds (`iss`, `aud`, `exp`, …), and nothing is signed.
+`id_token` is `null` without `openid`; `scope` absent means the client's
+default scopes. Each evaluation is audited as `client.evaluate`. An unknown
+client or subject answers `404`.
+
+Against the ninth stack, for `grace`, her profile given its name claims
+through `PATCH /subjects/:id/profile` beforehand; once naming a scope, once
+not, and the row it left:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/evaluate?subject=01a0ee36-c9ff-7162-8bb7-0fad74136098&scope=openid%20profile%20email%20roles"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/evaluate?subject=01a0ee36-c9ff-7162-8bb7-0fad74136098"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/audit?action=client.evaluate&limit=1"; echo
+```
+
+```
+{"scope":"openid profile email roles","id_token":{"sub":"01a0ee36-c9ff-7162-8bb7-0fad74136098","name":"Grace Hopper","given_name":"Grace","family_name":"Hopper","preferred_username":"grace","updated_at":1790703006,"email":"grace@navy.example","email_verified":false},"access_token":{},"userinfo":{"sub":"01a0ee36-c9ff-7162-8bb7-0fad74136098","name":"Grace Hopper","given_name":"Grace","family_name":"Hopper","preferred_username":"grace","updated_at":1790703006,"email":"grace@navy.example","email_verified":false}}
+{"scope":"openid profile email address phone roles groups","id_token":{"sub":"01a0ee36-c9ff-7162-8bb7-0fad74136098","name":"Grace Hopper","given_name":"Grace","family_name":"Hopper","preferred_username":"grace","updated_at":1790703006,"email":"grace@navy.example","email_verified":false},"access_token":{"groups":["/finance/payables"]},"userinfo":{"sub":"01a0ee36-c9ff-7162-8bb7-0fad74136098","name":"Grace Hopper","given_name":"Grace","family_name":"Hopper","preferred_username":"grace","updated_at":1790703006,"email":"grace@navy.example","email_verified":false,"groups":["/finance/payables"]}}
+{"items":[{"id":"01a0ee38-9353-74c0-875f-807773ed0eb3","occurred_at":"2026-09-29T17:31:20.261Z","event_type":"admin_mutation","action":"client.evaluate","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee35-85df-757f-aa7f-799b0da59a0b","actor_client_id":"01a0ee35-85aa-755e-96a0-78b5b2a102fc","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee37-01c9-760e-b4cd-b94b21b9fe36","request_id":"01a0ee38-9337-7a65-87d9-920b2b1e1321","ip":"172.21.0.1","detail":{"scope":"openid profile email address phone roles groups","subject_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098"}}],"next":"eyJhZnRlciI6IjIwMjYtMDktMjlUMTc6MzE6MjAuMjYxWnwwMWEwZWUzOC05MzUzLTc0YzAtODc1Zi04MDc3NzNlZDBlYjMiLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6IjAxYTBlZTM2LTgyNTctNzU1NS1hN2QxLWY4Y2Q0YTA1M2EzMyIsImZpbHRlcnMiOiI1V1p5R0tkUVJIX3VEUTNNRkpGclFtYzFDdWt4UllCcV9XSDhFc1dWd1ZBIn0.24Oxeu_goHCF5F47slqTcUj9hy89ZMgnpryZytioHNQ"}
+```
+
+Neither answer carries `roles`, though `grace` holds two and asked for the
+scope: `ops-app` is not full-scope, and the `roles` scope maps neither of hers,
+so a real token would carry none either. `groups` reaches the access token and
+UserInfo but not the ID token, whose `include_in_id_token` it has off.
+
+## `GET /clients/:id/installation`
+
+Requires `manage-clients`. What a relying party is configured with: the issuer
+and its discovery URL, as this request's own host names them — the issuer a
+relying party configured from here will check `iss` against — and the client's
+`client_id`, type, authentication method, redirect and post-logout URIs, grant
+types and default scopes. Never the secret, which is shown once, at creation
+or rotation. An unknown client answers `404`.
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/installation"; echo
+```
+
+```
+{"issuer":"http://localhost:3082/tenants/ops-demo","discovery_url":"http://localhost:3082/tenants/ops-demo/.well-known/openid-configuration","client_id":"ops-app","client_type":"confidential","token_endpoint_auth_method":"client_secret_basic","redirect_uris":["https://app.example/callback"],"post_logout_redirect_uris":[],"grant_types":["authorization_code","refresh_token"],"default_scope":"openid profile email address phone roles groups"}
+```
+
 ## `GET /registration-tokens`, `POST /registration-tokens` and `DELETE /registration-tokens/:id`
 
 All three require `manage-clients`, the same capability the client routes
@@ -2401,10 +2730,13 @@ special-cases it. Pages by an opaque cursor, `?limit=` and `?cursor=`,
 ordered by `id`, the same convention every other listing in this API
 follows.
 
-**Search** is a prefix of one named field, case-insensitive: `?username=`
-or `?email=`, never both at once. The prefix is folded by PostgreSQL's
-`lower()`, the same function that fills the stored `username_search` and
-`email_search` columns (`0073_list_indexes_subjects.sql`), and matched as a
+**Search** is a prefix of one named field, case-insensitive: `?username=`,
+`?email=`, or one of the name claims `?name=`, `?given_name=` and
+`?family_name=` — as stored, never the username a `name` claim falls back
+to — one at a time. The prefix is folded by PostgreSQL's
+`lower()`, the same function that fills the stored `username_search`,
+`email_search` and name-claim search columns (`0073_list_indexes_subjects.sql`,
+`0079_list_indexes_subject_claims.sql`), and matched as a
 range between two bounds rather than with `LIKE`, so `%`, `_` and `\` are
 ordinary characters. A searched listing is ordered by that folded column,
 in code-point order, then by `id`, and its cursor carries the folded value
@@ -2412,9 +2744,11 @@ of the last row. A subject with no `users` row (`type: "service"`,
 provisioned for a confidential client's service account) never matches a
 search and is only ever reached by an unsearched page.
 
-**Exact filters** are `?enabled=true|false`, `?role=<id>` (subjects the
-role is assigned to directly, not through a group or a composite) and
-`?group=<id>` (the group's direct members). `?capability=<name>` is the
+**Exact filters** are `?enabled=true|false`, `?type=user|service|agent_instance`,
+`?locked=true|false` (locked out now, by the clock `GET /subjects/:id/lockout`
+judges with), `?role=<id>` (subjects the role is assigned to directly, not
+through a group or a composite) and `?group=<id>` (the group's direct
+members). `GET /subjects/count` takes every one of them. `?capability=<name>` is the
 one that is not direct: subjects holding that capability — or
 `tenant-admin` — however they hold it, directly, through a group or one of
 its ancestors, or through a role that nests it, which is how the console
@@ -2540,6 +2874,37 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 Holding through a group or a composite is what
 `packages/protocol-admin/tests/administrators.int.test.ts` shows; it was
 not captured.
+
+### Filtering by type, lockout and name
+
+Against the ninth stack, after `grace`'s profile was given `name`,
+`given_name` and `family_name` through `PATCH /subjects/:id/profile` and five
+wrong passwords were submitted for `linus` inside a minute: two name
+searches, the refusal of two at once, `linus`'s lockout as the per-subject
+read answers it, the locked subjects and their count, and the one subject
+of type `service`, `ops-app`'s service account, beside the count of users:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?name=grace%20h"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?family_name=HOP"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?name=grace&username=grace"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/01a0ee36-cbc9-7067-a0d0-0a78f9e9cb3a/lockout"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?locked=true"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/count?locked=true"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?type=service"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/count?type=user"; echo
+```
+
+```
+{"items":[{"id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","type":"user","username":"grace","email":"grace@navy.example","enabled":true,"created_at":"2026-09-29T17:29:23.191Z"}]}
+{"items":[{"id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","type":"user","username":"grace","email":"grace@navy.example","enabled":true,"created_at":"2026-09-29T17:29:23.191Z"}]}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: username or name, not both","errors":[{"path":"name","message":"search one field at a time: username or name, not both"}],"instance":"01a0ee37-72b6-7fc4-862d-914206c22e5d"}
+{"locked":true,"locked_until":"2026-09-29T17:31:05.762Z","failure_count":5,"last_failure_at":"2026-09-29T17:30:05.762Z"}
+{"items":[{"id":"01a0ee36-cbc9-7067-a0d0-0a78f9e9cb3a","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-09-29T17:29:23.650Z"}]}
+{"count":1,"capped":false}
+{"items":[{"id":"01a0ee37-0186-76e6-a744-d157c4b37228","type":"service","username":null,"email":null,"enabled":true,"created_at":"2026-09-29T17:29:37.410Z"}]}
+{"count":3,"capped":false}
+```
 
 ## `POST /subjects`
 
@@ -3258,6 +3623,54 @@ or deleting it. An unknown id answers `404`, and a subject holding an admin
 capability the caller does not is refused with `403`
 ([the target ceiling](#the-target-ceiling)).
 
+## `POST /subjects/bulk`
+
+Requires `manage-users`. Applies one action to at most 100 subjects:
+`disable`, `enable`, `delete`, or `end-sessions`, which additionally requires
+`manage-sessions` and is refused whole with `403` without it. Each id goes
+through the single-subject door exactly — `PATCH /subjects/:id` with
+`{"enabled": …}`, `DELETE /subjects/:id`, `DELETE /subjects/:id/sessions` —
+in a transaction of its own, so its target ceiling, its last-administrator
+guard and its audit row apply to it alone, and one refused id leaves the
+others as they were. The answer is `200` with one item per distinct id, in
+the order given: the status that door would have answered, and a refusal's
+problem `type` and `detail`; `end-sessions` adds how many were `ended`. More
+than 100 ids, none, an id that is not a UUID or an action not in the list is
+refused with `400`.
+
+Against the ninth stack, as `uma`, a subject seeded in `ops-demo` and granted
+`odudu-admin:manage-users` alone (`$UMA_TOKEN`), after `temp-1`
+(`01a0ee3a-2665-7889-8245-6427ca634310`) and `temp-2`
+(`01a0ee3a-2715-788b-a64b-43ac6214f7dc`) were created through
+`POST /subjects`: a disable of `temp-1`, of `mona`, who holds
+`manage-tenant`, and of an id no subject holds; `end-sessions` without
+`manage-sessions`; then a delete by `$ADMIN_TOKEN`, and the rows the first
+request left, each naming its id:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $UMA_TOKEN" -H 'content-type: application/json' \
+  -d '{"action":"disable","ids":["01a0ee3a-2665-7889-8245-6427ca634310","01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","0199aa00-0000-7000-8000-0000000000ff"]}' \
+  "$P/subjects/bulk"; echo
+curl -sS -X POST -H "Authorization: Bearer $UMA_TOKEN" -H 'content-type: application/json' \
+  -d '{"action":"end-sessions","ids":["01a0ee3a-2665-7889-8245-6427ca634310"]}' \
+  "$P/subjects/bulk"; echo
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"action":"delete","ids":["01a0ee3a-2665-7889-8245-6427ca634310","01a0ee3a-2715-788b-a64b-43ac6214f7dc"]}' \
+  "$P/subjects/bulk"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit/count?action=subject.delete"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit?action=subject.amend&limit=2" \
+  | python3 -c 'import json,sys;[print(json.dumps({k:i[k] for k in ("action","outcome","actor_name","resource_id","detail")})) for i in json.load(sys.stdin)["items"]]'
+```
+
+```
+{"items":[{"id":"01a0ee3a-2665-7889-8245-6427ca634310","status":204},{"id":"01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","status":403,"type":"about:blank","detail":"the subject holds what the caller does not: manage-tenant"},{"id":"0199aa00-0000-7000-8000-0000000000ff","status":404,"type":"about:blank","detail":"no subject 0199aa00-0000-7000-8000-0000000000ff"}]}
+{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0ee3a-5242-7244-aff3-97adecd23a13"}
+{"items":[{"id":"01a0ee3a-2665-7889-8245-6427ca634310","status":204},{"id":"01a0ee3a-2715-788b-a64b-43ac6214f7dc","status":204}]}
+{"count":2,"capped":false}
+{"action": "subject.amend", "outcome": "refused", "actor_name": "uma", "resource_id": "01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4", "detail": {"denied": ["manage-tenant"]}}
+{"action": "subject.amend", "outcome": "allowed", "actor_name": "uma", "resource_id": "01a0ee3a-2665-7889-8245-6427ca634310", "detail": {"enabled": {"after": false, "before": true}}}
+```
+
 ## `GET /subjects/:id/credentials`
 
 Requires `view-users`. Metadata only — `type`, `created_at`, and, for a
@@ -3774,6 +4187,99 @@ HTTP/1.1 302 Found
 location: https://app.example/callback?code=dIaPGsUTiYp47Ypkl8FuoxachQAgewGPjxhS7Uy0nT4&state=xyz&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Frecovery-demo
 ```
 
+## `DELETE /lockouts`
+
+Requires `manage-users`. Clears every subject's run of failed sign-ins, locked
+or still counting, as `DELETE /subjects/:id/lockout` clears one, and answers
+how many it cleared. A subject holding an admin capability the caller does not
+keeps its count and is counted under `beyond_ceiling` instead — the target
+ceiling that door applies, run over the tenant as a set. One
+`subject.lockouts_clear` row, filed on the tenant, carries both counts.
+
+Against the ninth stack, after five wrong passwords for `linus`, which lock
+him, and two for `grace`, which do not:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?locked=true"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/lockout"; echo
+curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$P/lockouts"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?locked=true"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/lockout"; echo
+```
+
+```
+{"items":[{"id":"01a0ee36-cbc9-7067-a0d0-0a78f9e9cb3a","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-09-29T17:29:23.650Z"}]}
+{"locked":false,"locked_until":null,"failure_count":2,"last_failure_at":"2026-09-29T17:32:18.697Z"}
+{"cleared":2,"beyond_ceiling":0}
+{"items":[]}
+{"locked":false,"locked_until":null,"failure_count":0,"last_failure_at":null}
+```
+
+## `POST /subjects/:id/password-reset` and `POST /subjects/:id/verification`
+
+Requires `manage-users`. Each queues a link to the subject's own address,
+minted and mailed by the same write the self-service door makes
+(`enqueueResetLink` and `enqueueVerificationLink`, `@odudu/account`), and
+answers `202` with no body: the link is never in the response, nor in the
+audit row, `subject.password_reset_send` or `subject.verification_send`,
+whose `detail` is empty. Each is held to the target ceiling like every other
+write under `/subjects/:id`, and each is throttled per origin with the
+sign-in, registration and reset-request submissions (ADR 0023; not shown
+here, since this stack raised the budget — `apps/server/tests/throttle.int.test.ts`
+holds it). A subject with no `users` row answers `404`. Each refusal a link
+would otherwise meet later, silently, is a `409` of its own type:
+
+- `about:blank#no-email` — the subject has no address;
+- `about:blank#reset-password-off`, a reset only — the tenant's
+  `reset_password_allowed` is off, so its reset page would refuse the link;
+- `about:blank#no-mail-relay` — `GET /smtp` would answer `effective` `none`:
+  the tenant has no relay and the deployment no sender, so the mail would
+  only be logged.
+
+None of the three writes a row: each is a conflict with the data, not a guard
+(ADR 0037's amendment of 2026-09-28). Against the ninth stack, for `grace`
+and then `linus`, who has no address, taking each refusal in turn: the
+setting, then a relay for `ops-demo` at the stack's own `postgres` container,
+port 25, where nothing listens:
+
+```bash
+G=01a0ee36-c9ff-7162-8bb7-0fad74136098
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/$G/password-reset"; echo
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"reset_password_allowed":true}' "$P/settings" | grep -o '"reset_password_allowed":[a-z]*'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/smtp"; echo
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/$G/password-reset"; echo
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"host":"postgres","port":25,"from_address":"noreply@ops.example"}' "$P/smtp"; echo
+curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/$G/password-reset"
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/$G/verification"
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/subjects/01a0ee36-cbc9-7067-a0d0-0a78f9e9cb3a/verification"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/audit?resource_type=subject&resource_id=$G&action=subject.password_reset_send"; echo
+```
+
+```
+{"type":"about:blank#reset-password-off","title":"Conflict","status":409,"detail":"reset_password_allowed is off, so the tenant would refuse the link; turn it on with PATCH /settings first","instance":"01a0ee39-adfd-7a0a-9134-fbc58ed703fe"}
+"reset_password_allowed":true
+{"configured":false,"host":null,"port":null,"from_address":null,"username":null,"password_set":false,"starttls":null,"effective":"none"}
+{"type":"about:blank#no-mail-relay","title":"Conflict","status":409,"detail":"the tenant has no relay and the deployment no sender, so the mail would only be logged","instance":"01a0ee39-afa3-7fe6-a98b-dd5c94c739e6"}
+{"configured":true,"host":"postgres","port":25,"from_address":"noreply@ops.example","username":null,"password_set":false,"starttls":false,"effective":"tenant"}
+HTTP/1.1 202 Accepted
+x-request-id: 01a0ee39-b0c3-7b71-bdca-e470d7f6aaf9
+cache-control: no-store
+content-length: 0
+Date: Tue, 29 Sep 2026 17:32:33 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+202
+{"type":"about:blank#no-email","title":"Conflict","status":409,"detail":"the subject has no email address to send to","instance":"01a0ee39-b2ab-727f-93e3-8c4902726010"}
+{"items":[{"id":"01a0ee39-b16f-7b10-97f4-9d2005324d27","occurred_at":"2026-09-29T17:32:33.485Z","event_type":"admin_mutation","action":"subject.password_reset_send","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee35-85df-757f-aa7f-799b0da59a0b","actor_client_id":"01a0ee35-85aa-755e-96a0-78b5b2a102fc","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","request_id":"01a0ee39-b0c3-7b71-bdca-e470d7f6aaf9","ip":"172.21.0.1","detail":{}}]}
+```
+
 ## `POST /subjects/:id/password`
 
 Requires `manage-users`, and takes no body. An administrator restoring a
@@ -4207,6 +4713,39 @@ and two removals racing each other are what
 `packages/protocol-admin/tests/administrators.int.test.ts` shows; none of
 those was captured here.
 
+## `GET /subjects/:id/effective-roles`
+
+Requires `view-users`. Every role the subject holds — the set token issuance
+and authorization read (`effectiveRoles`, `@odudu/domain-authz`), not only
+what `GET /subjects/:id/roles` assigns — each with `via`, every path it is held
+by: `direct`; `group`, naming the group the role is mapped to, which is the
+subject's own or one of its ancestors; or `composite`, naming the held role
+it is nested under. Unpaged, and with no `ETag`: `GET /subjects/:id/roles` is
+the list `PUT /subjects/:id/roles` replaces, and this is what follows from it.
+An unknown subject answers `404`.
+
+Against the ninth stack, after two tenant roles `billing-reader` and
+`billing-auditor`, a group `/finance` with `/finance/payables` beneath it, and,
+through the endpoints above, `billing-auditor` nesting `billing-reader`,
+`/finance` mapped to `billing-reader`, `grace` assigned `billing-auditor` and
+made a member of `/finance/payables`. Her assignments, then what she holds:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/roles"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/effective-roles"; echo
+```
+
+```
+{"items":[{"id":"01a0ee37-a05a-7421-921c-4acc3765fbc8","name":"billing-auditor","client_id":null,"client_key":null}]}
+{"items":[{"id":"01a0ee37-a044-73b1-bcbc-eb769b290e82","name":"billing-reader","client_id":null,"client_key":null,"via":[{"kind":"group","group_id":"01a0ee37-a071-73ab-bb1a-7bdc0a63fa9f","group_path":"/finance"},{"kind":"composite","parent_role_id":"01a0ee37-a05a-7421-921c-4acc3765fbc8","parent_name":"billing-auditor"}]},{"id":"01a0ee37-a05a-7421-921c-4acc3765fbc8","name":"billing-auditor","client_id":null,"client_key":null,"via":[{"kind":"direct"}]}]}
+```
+
+`billing-reader` is held twice over — through `/finance`, an ancestor of the
+group she is in, and nested under `billing-auditor` — and her assignments
+name neither.
+
 ## `GET /subjects/:id/groups` and `PUT /subjects/:id/groups`
 
 The read requires `view-users`; the write requires `manage-users`. Both
@@ -4497,8 +5036,9 @@ carries the same count in `detail.ended`, filed on the subject. A subject
 with no live session answers `{"ended":0}`; an unknown subject, or one in
 another tenant, answers `404`. As with ending one session, a grant bound to
 no session — an `offline_access` refresh token — is not a session's to
-revoke, and is left alone; `DELETE /subjects/:id/consents/:clientId` is
-what reaches it.
+revoke, and is left alone; `DELETE /subjects/:id/grants/:clientId` is what
+reaches it, and `DELETE /subjects/:id/consents/:clientId` too where a consent
+was recorded.
 
 Captured after `DELETE /subjects/:id/lockout`, against the same `hana` and
 `recovery-demo-app`. The two codes the sign-ins there bought, redeemed,
@@ -4567,6 +5107,124 @@ Keep-Alive: timeout=72
 {"error":"invalid_grant"}
 {"error":"invalid_grant"}
 ```
+
+## `GET /subjects/:id/grants` and `DELETE /subjects/:id/grants/:clientId`
+
+Requires `manage-sessions`: a grant is what a token is presented under, so it
+is a session's concern, and ending one is the same capability's. `GET` lists
+every grant the subject holds that nothing has revoked, cursored by id, each
+with the client it was issued through, its scope, the session bounding it and
+`offline` — true for an `offline_access` grant, which no session bounds and
+ending sessions leaves alone — and `refresh_expires_at`, when its newest
+unspent refresh token lapses. Never a token. `DELETE` revokes every grant the
+subject holds through the client (`:clientId` is the client's row id), offline
+ones included, with the write revoking a consent makes
+(`revokeForSubjectClient`), but without withdrawing the consent, and answers
+how many; it ends no session. It is held to the target ceiling, and writes
+`grant.revoke`. An unknown subject answers `404`.
+
+Against the ninth stack, `grace`'s two grants through `ops-app`, the offline
+one's refresh token (`$GRACE_OFFLINE_REFRESH_TOKEN`) presented after the
+revocation, and what is left:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/grants"; echo
+curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/grants/01a0ee37-01c9-760e-b4cd-b94b21b9fe36"; echo
+curl -sS -u "ops-app:$OPS_APP_SECRET" --data-urlencode grant_type=refresh_token \
+  --data-urlencode "refresh_token=$GRACE_OFFLINE_REFRESH_TOKEN" \
+  http://localhost:3082/tenants/ops-demo/protocol/openid-connect/token; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/grants"; echo
+```
+
+```
+{"items":[{"id":"01a0ee37-254b-7bf1-a5d8-2bf35799ed65","client_id":"01a0ee37-01c9-760e-b4cd-b94b21b9fe36","client_key":"ops-app","scope":"openid profile email offline_access","created_at":"2026-09-29T17:29:46.295Z","session_id":null,"offline":true,"refresh_expires_at":"2026-10-13T17:29:46.530Z"},{"id":"01a0ee37-2735-7869-889a-2bc0616501ef","client_id":"01a0ee37-01c9-760e-b4cd-b94b21b9fe36","client_key":"ops-app","scope":"openid profile email","created_at":"2026-09-29T17:29:46.993Z","session_id":"01a0ee37-269b-70ba-b9b2-c421cb773c97","offline":false,"refresh_expires_at":"2026-10-13T17:29:47.044Z"}]}
+{"revoked":2}
+{"error":"invalid_grant"}
+{"items":[]}
+```
+
+## `GET /sessions`, `GET /sessions/count` and `GET /clients/:id/sessions`
+
+Requires `manage-sessions`. Every live session in the tenant, whoever holds
+it, in id order and cursored, each naming its subject and that subject's
+username. Liveness is the same arithmetic every other session read uses,
+written as a predicate so a page is one query (`liveSessionCondition`,
+`@odudu/authn-flows`). `?client=` narrows the listing, and the count, to the
+sessions holding a grant through that client, by its row id;
+`GET /clients/:id/sessions` is the same narrowing, answering `404` for a client
+that does not exist. The count is capped like every other.
+
+Against the ninth stack, with the three sessions its sign-ins left:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/sessions/count"; echo
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$P/sessions?limit=2"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/sessions"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/sessions/count?client=01a0ee37-01c9-760e-b4cd-b94b21b9fe36"; echo
+```
+
+```
+{"count":3,"capped":false}
+HTTP/1.1 200 OK
+x-request-id: 01a0ee38-2847-7c83-94fc-7a4d309466e8
+cache-control: no-store
+link: </admin/tenants/ops-demo/sessions?limit=2&cursor=eyJhZnRlciI6IjAxYTBlZTM3LTI2OWItNzBiYS1iOWIyLWM0MjFjYjc3M2M5NyIsImNvbGxlY3Rpb24iOiJ0ZW5hbnQtc2Vzc2lvbnMiLCJ0ZW5hbnRJZCI6IjAxYTBlZTM2LTgyNTctNzU1NS1hN2QxLWY4Y2Q0YTA1M2EzMyIsImZpbHRlcnMiOiJUMVBOb1l3cnFnd0RWTHRmbWo3TDVlMFNxMDJPRWJxSFBDOFJGaElDdVVVIn0.0sEMo7pF2il-Qv_JYZCxR1w6Eekio278eN2wqwgt55I>; rel="next"
+content-type: application/json; charset=utf-8
+content-length: 793
+Date: Tue, 29 Sep 2026 17:30:52 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0ee37-239d-772a-8155-04231f2d294f","subject_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","username":"grace","created_at":"2026-09-29T17:29:46.134Z","last_active_at":"2026-09-29T17:29:46.134Z","remembered":false,"client_ids":[]},{"id":"01a0ee37-269b-70ba-b9b2-c421cb773c97","subject_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","username":"grace","created_at":"2026-09-29T17:29:46.899Z","last_active_at":"2026-09-29T17:29:46.899Z","remembered":false,"client_ids":["ops-app"]}],"next":"eyJhZnRlciI6IjAxYTBlZTM3LTI2OWItNzBiYS1iOWIyLWM0MjFjYjc3M2M5NyIsImNvbGxlY3Rpb24iOiJ0ZW5hbnQtc2Vzc2lvbnMiLCJ0ZW5hbnRJZCI6IjAxYTBlZTM2LTgyNTctNzU1NS1hN2QxLWY4Y2Q0YTA1M2EzMyIsImZpbHRlcnMiOiJUMVBOb1l3cnFnd0RWTHRmbWo3TDVlMFNxMDJPRWJxSFBDOFJGaElDdVVVIn0.0sEMo7pF2il-Qv_JYZCxR1w6Eekio278eN2wqwgt55I"}
+{"items":[{"id":"01a0ee37-269b-70ba-b9b2-c421cb773c97","subject_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","username":"grace","created_at":"2026-09-29T17:29:46.899Z","last_active_at":"2026-09-29T17:29:46.899Z","remembered":false,"client_ids":["ops-app"]},{"id":"01a0ee37-27d7-73c8-b8e6-5977965a3a5d","subject_id":"01a0ee36-cbc9-7067-a0d0-0a78f9e9cb3a","username":"linus","created_at":"2026-09-29T17:29:47.220Z","last_active_at":"2026-09-29T17:29:47.220Z","remembered":false,"client_ids":["ops-app"]}]}
+{"count":2,"capped":false}
+```
+
+The first of `grace`'s sessions names no client: that sign-in asked for
+`offline_access`, and its grant is bound to no session, so neither `client_ids`
+nor `?client=` finds it there.
+
+## `DELETE /sessions`
+
+Requires `manage-sessions`. Ends every live session in the tenant, each through
+the same `endSession` that `DELETE /subjects/:id/sessions/:sid` calls — its
+grants revoked, a Back-Channel Logout Token queued for each client that used it,
+and its own `session.ended` row. A session whose subject holds an admin
+capability the caller does not is left alone and counted under
+`beyond_ceiling`: the target ceiling, run over the tenant as a set (ADR 0040,
+whose consequence is that `manage-sessions` alone ends no administrator's
+session). One `session.end_all` row, filed on the tenant, carries both counts.
+The caller's own session ends with the rest when it is one of them.
+
+Against the ninth stack, after `sam` was seeded in `ops-demo` and granted
+`odudu-admin:manage-sessions` alone, and signed in to the tenant's own admin
+client (`$SAM_TOKEN`), and `mona` signed in through `ops-app`:
+
+```bash
+curl -sS -H "Authorization: Bearer $SAM_TOKEN" "$P/whoami"; echo
+curl -sS -H "Authorization: Bearer $SAM_TOKEN" "$P/sessions"; echo
+curl -sS -X DELETE -H "Authorization: Bearer $SAM_TOKEN" "$P/sessions"; echo
+curl -sS -H "Authorization: Bearer $SAM_TOKEN" "$P/sessions"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/sessions"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit?action=session.end_all&limit=1"; echo
+```
+
+```
+{"subjectId":"01a0ee38-c0dd-702e-b847-69ca6fa2d181","issuerTenantId":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","capabilities":["manage-sessions"],"crossTenant":false}
+{"items":[{"id":"01a0ee37-239d-772a-8155-04231f2d294f","subject_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","username":"grace","created_at":"2026-09-29T17:29:46.134Z","last_active_at":"2026-09-29T17:29:46.134Z","remembered":false,"client_ids":[]},{"id":"01a0ee37-269b-70ba-b9b2-c421cb773c97","subject_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","username":"grace","created_at":"2026-09-29T17:29:46.899Z","last_active_at":"2026-09-29T17:29:46.899Z","remembered":false,"client_ids":["ops-app"]},{"id":"01a0ee37-27d7-73c8-b8e6-5977965a3a5d","subject_id":"01a0ee36-cbc9-7067-a0d0-0a78f9e9cb3a","username":"linus","created_at":"2026-09-29T17:29:47.220Z","last_active_at":"2026-09-29T17:29:47.220Z","remembered":false,"client_ids":["ops-app"]},{"id":"01a0ee38-c387-7be7-95db-67f3c1133a43","subject_id":"01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","username":"mona","created_at":"2026-09-29T17:31:32.609Z","last_active_at":"2026-09-29T17:31:32.609Z","remembered":false,"client_ids":["ops-app"]},{"id":"01a0ee38-c551-7c88-bb44-cafa3359b49f","subject_id":"01a0ee38-c0dd-702e-b847-69ca6fa2d181","username":"sam","created_at":"2026-09-29T17:31:33.067Z","last_active_at":"2026-09-29T17:31:33.067Z","remembered":false,"client_ids":["odudu-admin"]}]}
+{"ended":4,"beyond_ceiling":1}
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0ee38-e7e0-70c2-a746-e77af66a892d"}
+{"items":[{"id":"01a0ee38-c387-7be7-95db-67f3c1133a43","subject_id":"01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","username":"mona","created_at":"2026-09-29T17:31:32.609Z","last_active_at":"2026-09-29T17:31:32.609Z","remembered":false,"client_ids":["ops-app"]}]}
+{"items":[{"id":"01a0ee38-e7d2-7520-a9f7-e5bd57f78d82","occurred_at":"2026-09-29T17:31:41.871Z","event_type":"admin_mutation","action":"session.end_all","outcome":"allowed","actor_tenant_id":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","actor_subject_id":"01a0ee38-c0dd-702e-b847-69ca6fa2d181","actor_client_id":"01a0ee36-8264-70d1-b609-23ba4b7469c8","actor_name":"sam","actor_origin":"tenant","resource_type":"tenant","resource_id":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","request_id":"01a0ee38-e79e-7bc0-a2e4-dd81e2cca18a","ip":"172.21.0.1","detail":{"ended":4,"beyond_ceiling":1}}]}
+```
+
+`sam`'s own session was one of the four, so his token is refused at once;
+`mona`'s, beyond what `sam` holds, is the one left.
 
 ## `GET /roles`, `POST /roles`, `GET /roles/:id`, `PATCH /roles/:id` and `DELETE /roles/:id`
 
@@ -5362,6 +6020,29 @@ curl -sS \
 `manage-users`, for the reason and within the limits the same subsection
 under `GET /roles` gives, where it was captured.
 
+### One level of the tree
+
+`?parent=<id>` lists a group's children and `?parent=root` the groups with
+no parent, so a tree is drawn a level at a time rather than from every page
+of groups; `GET /groups/count` takes it too, and it `AND`s with `?name=`. A
+value that is neither a UUID nor `root` is refused with `400`. Against the
+ninth stack, with `/finance` and `/finance/payables` made for
+`GET /subjects/:id/effective-roles` above:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=root"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=01a0ee37-a071-73ab-bb1a-7bdc0a63fa9f"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups/count?parent=01a0ee37-a071-73ab-bb1a-7bdc0a63fa9f"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=top"; echo
+```
+
+```
+{"items":[{"id":"01a0ee37-a071-73ab-bb1a-7bdc0a63fa9f","name":"finance","parent_id":null,"path":"/finance","created_at":"2026-09-29T17:30:18.096Z"}]}
+{"items":[{"id":"01a0ee37-dfad-7281-8472-6b99abca6bc4","name":"payables","parent_id":"01a0ee37-a071-73ab-bb1a-7bdc0a63fa9f","path":"/finance/payables","created_at":"2026-09-29T17:30:34.279Z"}]}
+{"count":1,"capped":false}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/parent must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\", querystring/parent must be equal to constant, querystring/parent must match a schema in anyOf","errors":[{"path":"parent","message":"must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\""},{"path":"parent","message":"must be equal to constant"},{"path":"parent","message":"must match a schema in anyOf"}],"instance":"01a0ee37-e337-7adc-bd97-0daf237fc872"}
+```
+
 ## `GET /groups/:id/roles` and `PUT /groups/:id/roles`
 
 Both require `manage-tenant`. The write replaces the group's role mapping
@@ -6106,6 +6787,45 @@ etag: "590baab1ba6f8492799c2636f440bfbe33c9354dff4143bb4021ed47a015305e"
 {"id":"01a0e9ec-b000-7842-96c3-6475d4f6e651","status":"active","kid":"01a0e9ec-afff-7ce4-8c78-95aff244235b","alg":"RS256","created_at":"2026-09-28T21:29:57.991Z","not_after":null}
 ```
 
+## `DELETE /keys/:id`
+
+Requires `manage-keys`. Deletes a retired key, which is published nowhere and
+signs nothing, so nothing a relying party holds can still need it. An active
+or rotating key is refused with `409`: `POST /keys/:id/retire` is the door
+that checks what still depends on one. `If-Match` is optional; a stale one is
+refused with `412`. Writes `key.delete`, naming the `kid`. An unknown key
+answers `404`.
+
+Against the ninth stack, a key staged with `POST /keys`
+(`01a0ee3a-71c2-79bf-852a-d9f98afb5c92`), deleted before and after it was
+retired, then the keys left and the key's own trail:
+
+```bash
+K=01a0ee3a-71c2-79bf-852a-d9f98afb5c92
+curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$P/keys/$K"; echo
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "$P/keys/$K/retire"; echo
+curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$P/keys/$K"
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/keys"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit?resource_type=signing_key&resource_id=$K" \
+  | python3 -c 'import json,sys;[print(json.dumps({k:i[k] for k in ("action","outcome","resource_id","detail")})) for i in json.load(sys.stdin)["items"]]'
+```
+
+```
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the key is rotating: only a retired key can be deleted; retire it first","instance":"01a0ee3a-9ae5-7c4e-aa2f-df2b4bf8e119"}
+{"id":"01a0ee3a-71c2-79bf-852a-d9f98afb5c92","status":"retired","kid":"01a0ee3a-71c1-7d78-89c6-4485daaf4b62","alg":"RS256","created_at":"2026-09-29T17:33:22.630Z","not_after":null}
+HTTP/1.1 204 No Content
+x-request-id: 01a0ee3a-9c12-77d7-a53e-7f3bbd06a549
+cache-control: no-store
+Date: Tue, 29 Sep 2026 17:33:33 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a0ee36-82a1-706a-90fe-271ad77d3de9","status":"active","kid":"01a0ee36-82a0-759d-a078-f8c02e68c9ab","alg":"ES256","created_at":"2026-09-29T17:29:04.855Z","not_after":null}]}
+{"action": "key.delete", "outcome": "allowed", "resource_id": "01a0ee3a-71c2-79bf-852a-d9f98afb5c92", "detail": {"kid": "01a0ee3a-71c1-7d78-89c6-4485daaf4b62"}}
+{"action": "key.retire", "outcome": "allowed", "resource_id": "01a0ee3a-71c2-79bf-852a-d9f98afb5c92", "detail": {}}
+{"action": "key.create", "outcome": "allowed", "resource_id": "01a0ee3a-71c2-79bf-852a-d9f98afb5c92", "detail": {}}
+```
+
 ## `GET /flow/executions` and `PUT /flow/executions`
 
 Both require `manage-tenant`. `GET` reads the tenant's whole authentication
@@ -6452,6 +7172,43 @@ Keep-Alive: timeout=72
 {"configured":false,"host":null,"port":null,"from_address":null,"username":null,"password_set":false,"starttls":null,"effective":"none"}
 ```
 
+## `GET /mail`
+
+Requires `manage-tenant`, the capability SMTP is configured with. The tenant's
+outgoing mail, most recent first and cursored: `queued`, not yet tried;
+`retrying`, failed and to be offered again; `sent`; or `failed`, every attempt
+the sender makes spent (`ODUDU_OUTBOX_MAX_ATTEMPTS`) — with its subject line,
+attempts, the relay's last error and when it is next due. Never the body: it
+carries the link a recipient signs in with. `?status=` narrows it.
+
+The recipient is a subject's address, which reading takes `view-users`
+everywhere else, so a caller without `view-users` sees it masked — its first
+character and its domain — wherever it appears, a relay's error quoting it
+back included, with `to_masked` true. `manage-tenant` alone says that mail went
+and whether it failed, not to whom.
+
+Against the ninth stack, after the two links above were queued: one pass of the
+sender, run by hand, which the relay at `postgres:25` refuses; the outbox as
+`$ADMIN_TOKEN` reads it; then as `mona`, signed in to the tenant's own admin
+client (`$MONA_TOKEN`):
+
+```bash
+docker compose exec -T odudu node dist/main.js send-mail 2>/dev/null
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/mail"; echo
+curl -sS -H "Authorization: Bearer $MONA_TOKEN" "$P/whoami"; echo
+curl -sS -H "Authorization: Bearer $MONA_TOKEN" "$P/mail?status=retrying"; echo
+```
+
+```
+{"level":30,"time":1790703164050,"pid":565,"hostname":"f2aea15bc9cb","msg":"ODUDU_SMTP_HOST is unset; capturing outgoing mail instead of sending it"}
+{"level":40,"time":1790703164335,"pid":565,"hostname":"f2aea15bc9cb","err":{"type":"Error","message":"connect ECONNREFUSED 172.21.0.2:25","stack":"Error: connect ECONNREFUSED 172.21.0.2:25\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)","errno":-111,"code":"ESOCKET","syscall":"connect","address":"172.21.0.2","port":25,"command":"CONN"},"messageId":"01a0ee39-b168-74e1-a485-d382963e951c","attempts":1,"msg":"outbox message failed and will be retried"}
+{"level":40,"time":1790703164353,"pid":565,"hostname":"f2aea15bc9cb","err":{"type":"Error","message":"connect ECONNREFUSED 172.21.0.2:25","stack":"Error: connect ECONNREFUSED 172.21.0.2:25\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)","errno":-111,"code":"ESOCKET","syscall":"connect","address":"172.21.0.2","port":25,"command":"CONN"},"messageId":"01a0ee39-b27f-73ab-9d07-503978c18cea","attempts":1,"msg":"outbox message failed and will be retried"}
+{"ran":true,"sent":0,"failed":2}
+{"items":[{"id":"01a0ee39-b27f-73ab-9d07-503978c18cea","to":"grace@navy.example","to_masked":false,"subject":"Verify your ops-demo account","status":"retrying","attempts":1,"last_error":"connect ECONNREFUSED 172.21.0.2:25","created_at":"2026-09-29T17:32:33.769Z","next_attempt_at":"2026-09-29T17:33:44.051Z","sent_at":null},{"id":"01a0ee39-b168-74e1-a485-d382963e951c","to":"grace@navy.example","to_masked":false,"subject":"Reset your ops-demo password","status":"retrying","attempts":1,"last_error":"connect ECONNREFUSED 172.21.0.2:25","created_at":"2026-09-29T17:32:33.485Z","next_attempt_at":"2026-09-29T17:33:44.051Z","sent_at":null}]}
+{"subjectId":"01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","issuerTenantId":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","capabilities":["manage-tenant"],"crossTenant":false}
+{"items":[{"id":"01a0ee39-b27f-73ab-9d07-503978c18cea","to":"g***@navy.example","to_masked":true,"subject":"Verify your ops-demo account","status":"retrying","attempts":1,"last_error":"connect ECONNREFUSED 172.21.0.2:25","created_at":"2026-09-29T17:32:33.769Z","next_attempt_at":"2026-09-29T17:33:44.051Z","sent_at":null},{"id":"01a0ee39-b168-74e1-a485-d382963e951c","to":"g***@navy.example","to_masked":true,"subject":"Reset your ops-demo password","status":"retrying","attempts":1,"last_error":"connect ECONNREFUSED 172.21.0.2:25","created_at":"2026-09-29T17:32:33.485Z","next_attempt_at":"2026-09-29T17:33:44.051Z","sent_at":null}]}
+```
+
 ## `GET /audit`
 
 Requires `view-audit`, which carries no `manage-` counterpart: nothing ever
@@ -6465,6 +7222,23 @@ SMTP configuration. `detail` is a redacted before/after diff, allowlisted
 per resource type: a secret, a password hash or a private key never
 appears in it, whichever of the two it would have been, and a field on
 neither list is absent rather than shown.
+
+**Each row names its actor when it is read**, beside the ids it stores:
+`actor_name` is a user's username, or the `client_id` whose service account
+the actor is, resolved within the row's own tenant at read time and never
+written with the row — so the trail stays append-only, and a deleted
+subject's name leaves with it, `null` from then on. `actor_origin` says where
+the actor came from: `tenant`, this tenant; `system`, a system administrator
+acting across tenants; `other-tenant`, the subject of a foreign token
+refused at the door. A name is never resolved outside the row's tenant: an
+auditor of a tenant reads no other tenant's subjects anywhere else, so a
+system administrator appears as `system` with the id alone, and a system
+auditor reads that name in `system`'s own trail. `GET /clients/:id/evaluate`
+and `DELETE /sessions` above show a `system` and a `tenant` actor, and
+`GET /audit/export` below a deleted one. Every other transcript of this
+listing in this document, in [docs/request-paths.md](request-paths.md) and
+in [docs/console-paths.md](console-paths.md), was captured before the two
+fields were added and shows every field but them.
 
 `outcome` is `allowed`, `refused` or `failed`. Three kinds of mutation
 refusal record an `admin_mutation` row. **`POST /clients`** does — a
@@ -6818,6 +7592,51 @@ since accumulated the row a real replay just added, so a fresh capture no
 longer shows the single row this prose describes. Restored to the
 original capture.)_
 
+## `GET /audit/count` and `GET /audit/export`
+
+Requires `view-audit`. Both take `GET /audit`'s filters, and the same refusals
+of them. `/count` answers how many rows the listing would page through, capped
+like every other count. `/export` answers every row the listing would, newest
+first, as NDJSON (`application/x-ndjson`), one `GET /audit` item per line —
+or, past 10,000 rows, refuses the whole export with `413`
+(`about:blank#export-too-large`) rather than cut it short, which would read as
+the whole trail. Each export is itself audited as `audit.export`, since it
+hands the trail over in bulk.
+
+Against the ninth stack, the two rows `POST /subjects/bulk` left under
+`uma`'s name; then `uma` deleted, and the same export again:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit/count?action=subject.amend"; echo
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit/export?action=subject.amend"
+curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/subjects/01a0ee3a-1587-7d73-afca-afda22d02270"
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit/export?action=subject.amend"
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit/count?action=audit.export"; echo
+```
+
+```
+{"count":2,"capped":false}
+HTTP/1.1 200 OK
+x-request-id: 01a0ee3a-cd3b-791e-b9a9-ba4321fb1730
+cache-control: no-store
+content-type: application/x-ndjson; charset=utf-8
+content-length: 1141
+Date: Tue, 29 Sep 2026 17:33:46 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a0ee3a-520e-724b-bc0f-e7e89e161a73","occurred_at":"2026-09-29T17:33:14.618Z","event_type":"admin_mutation","action":"subject.amend","outcome":"refused","actor_tenant_id":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","actor_subject_id":"01a0ee3a-1587-7d73-afca-afda22d02270","actor_client_id":"01a0ee36-8264-70d1-b609-23ba4b7469c8","actor_name":"uma","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","request_id":"01a0ee3a-51b2-7c8a-a726-0341c88625fa","ip":"172.21.0.1","detail":{"denied":["manage-tenant"]}}
+{"id":"01a0ee3a-51f6-75b9-98be-988505578cbd","occurred_at":"2026-09-29T17:33:14.587Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","actor_subject_id":"01a0ee3a-1587-7d73-afca-afda22d02270","actor_client_id":"01a0ee36-8264-70d1-b609-23ba4b7469c8","actor_name":"uma","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee3a-2665-7889-8245-6427ca634310","request_id":"01a0ee3a-51b2-7c8a-a726-0341c88625fa","ip":"172.21.0.1","detail":{"enabled":{"after":false,"before":true}}}
+204
+{"id":"01a0ee3a-520e-724b-bc0f-e7e89e161a73","occurred_at":"2026-09-29T17:33:14.618Z","event_type":"admin_mutation","action":"subject.amend","outcome":"refused","actor_tenant_id":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","actor_subject_id":"01a0ee3a-1587-7d73-afca-afda22d02270","actor_client_id":"01a0ee36-8264-70d1-b609-23ba4b7469c8","actor_name":null,"actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","request_id":"01a0ee3a-51b2-7c8a-a726-0341c88625fa","ip":"172.21.0.1","detail":{"denied":["manage-tenant"]}}
+{"id":"01a0ee3a-51f6-75b9-98be-988505578cbd","occurred_at":"2026-09-29T17:33:14.587Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","actor_subject_id":"01a0ee3a-1587-7d73-afca-afda22d02270","actor_client_id":"01a0ee36-8264-70d1-b609-23ba4b7469c8","actor_name":null,"actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee3a-2665-7889-8245-6427ca634310","request_id":"01a0ee3a-51b2-7c8a-a726-0341c88625fa","ip":"172.21.0.1","detail":{"enabled":{"after":false,"before":true}}}
+{"count":2,"capped":false}
+```
+
+The second export names no actor: `actor_name` is resolved when a row is read
+(see `GET /audit`), and `uma` is gone.
+
 ## `GET /admin/tenants/count`, `GET /subjects/count`, `GET /clients/count`, `GET /roles/count`, `GET /groups/count` and `GET /scopes/count`
 
 How many rows a listing would page through, without paging through them.
@@ -6960,27 +7779,27 @@ route above, generated from the same route table the router registers from,
 so the two cannot drift. It takes no `{tenant}` — it describes the API
 rather than reaching into one — and is served without authentication, since
 a client that cannot read it cannot generate against it. Captured against the
-eighth stack:
+ninth stack:
 
 ```bash
-curl -sS -D - -o openapi.json http://localhost:3080/admin/openapi.json
+curl -sS -D - -o openapi.json http://localhost:3082/admin/openapi.json
 jq '.paths | length' openapi.json
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0ed2f-6809-7e3d-8822-8de6576c9d75
+x-request-id: 01a0ee3b-7b65-7ee9-a611-1db2536a93bf
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 239225
-Date: Tue, 29 Sep 2026 12:41:42 GMT
+content-length: 295278
+Date: Tue, 29 Sep 2026 17:34:30 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-54
+72
 ```
 
-234 KB and 54 paths, which is the whole route table. It is the one admin
+288 KB and 72 paths, which is the whole route table. It is the one admin
 response readable from any origin, so a viewer served from another port can
 load it — the local stack's optional Swagger UI does exactly that (see
 `README.md`, "Browsing the admin API"). No admin route carries that header,
@@ -6998,7 +7817,7 @@ substring at `securitySchemes`:
 ```
 
 `security` is declared once at the top level, so every path inherits it
-rather than repeating it. `/admin/openapi.json` is not among those 33
+rather than repeating it. `/admin/openapi.json` is not among those 72
 paths: the document does not describe itself, which is why serving it
 unauthenticated does not contradict the blanket `security` above.
 

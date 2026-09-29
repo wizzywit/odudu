@@ -6871,7 +6871,10 @@ second case. An offline grant has neither: no session to end, and no idle
 window to outlive, so it is bounded only by its own
 `refresh_token_ttl_seconds` and by retention (see [What is not
 implemented](#what-is-not-implemented)) — nothing about ending a session
-ages it out early. A client is only handed this scope if the tenant's
+ages it out early. An administrator revokes one with
+`DELETE /admin/tenants/{tenant}/subjects/{id}/grants/{clientId}`, or every
+grant a client holds with `DELETE /admin/tenants/{tenant}/clients/{id}/grants`
+([Admin paths](admin-paths.md#get-subjectsidgrants-and-delete-subjectsidgrantsclientid)). A client is only handed this scope if the tenant's
 operator assigned it — `demo-spa` has it because `odudu seed` assigns every
 default scope, `offline_access` included, though `'optional'` rather than
 `'default'`; a request for it from a client whose assignment was withdrawn
@@ -8127,7 +8130,9 @@ done
 ```
 
 The refresh's status, the logout's, then the `token` page and the
-`session` page, newest first:
+`session` page, newest first. They were captured before each row answered
+`actor_name` and `actor_origin` as well, resolved when it is read
+([Admin paths](admin-paths.md#get-audit)); every other field is as shown:
 
 ```
 200
@@ -9734,7 +9739,10 @@ session lifecycle. A citation of either half here means that half.
   outside the database.** Every kind of row the vocabulary names is
   written — [one sign-in's trail](#one-sign-ins-audit-trail-read-through-the-admin-api)
   reads two of them back through `GET /admin/tenants/{tenant}/audit` — but
-  nothing shows it except that endpoint: a console is **P4d**'s, whose
+  nothing shows it except that endpoint, its count and its NDJSON export
+  (`GET …/audit/count` and `GET …/audit/export`,
+  [Admin paths](admin-paths.md#get-auditcount-and-get-auditexport)), which
+  hand it over only when asked: a console is **P4d**'s, whose
   criterion shows the audit trail, and an `EventListener` delivering a
   tenant's events to a SIEM or a webhook is **P10**'s, whose criterion
   names one. A successful `/introspect` or `/userinfo` call writes no row,

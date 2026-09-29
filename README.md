@@ -118,7 +118,9 @@ select id, name from tenants where name !~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])
 ```
 
 and recreate each one under a valid name — renaming changes a tenant's
-issuer, so the admin API refuses it (ADR 0039).
+issuer, so the admin API refuses it (ADR 0039) — then remove the old one
+with `DELETE /admin/tenants/{tenant}?confirm=<name>`, which takes every row
+it holds.
 `GET`/`PATCH /admin/tenants/{tenant}/settings` changes the same set through
 the admin API, by the same column names; the ranges the numeric ones accept
 are CHECK constraints either way, so neither door has a way past a policy
@@ -399,7 +401,9 @@ stored hashes into `@odudu/account`, which depends on neither the
 required-action machinery nor `apps/server`.
 
 **No mail is sent on the request path.** Every flow that mails — address
-verification, self-registration and password reset — writes the message to
+verification, self-registration and password reset, and an administrator's
+`POST /admin/tenants/{tenant}/subjects/{id}/password-reset` and
+`…/verification`, which queue the same links — writes the message to
 `email_outbox` in the same transaction that mints the token it carries, and
 answers. A sender claims batches of due messages with `FOR UPDATE SKIP
 LOCKED`, one tenant at a time, and runs either on the server's own schedule
@@ -409,7 +413,9 @@ what makes the two reset paths indistinguishable in time as well as in
 content: an address with an account costs one `INSERT` more than one
 without, not an SMTP round trip more. A refused message is retried with a
 doubling backoff and, once its attempts are spent, kept with its last error
-for an operator to read. A transport failure therefore cannot reach a
+for an operator to read, which `GET /admin/tenants/{tenant}/mail` lists
+without the body or, to a caller without `view-users`, the full address
+([docs/admin-paths.md](docs/admin-paths.md#get-mail)). A transport failure therefore cannot reach a
 caller or change a status: it happens after the response, and no code
 reachable from a request holds a mail transport at all.
 
@@ -999,7 +1005,9 @@ The admin API reaches the same state without the CLI:
 `PUT /admin/tenants/{tenant}/subjects/:id/roles` and
 `PUT /admin/tenants/{tenant}/subjects/:id/groups` replace a subject's
 direct roles and group memberships, each under a capability ceiling that
-refuses authority the caller does not hold itself
+refuses authority the caller does not hold itself, and
+`GET /admin/tenants/{tenant}/subjects/:id/effective-roles` answers what they
+add up to, each role with the path it is held by
 ([docs/admin-paths.md](docs/admin-paths.md)). Every route that mutates a
 subject, or a client (on the service account it authenticates as), is
 refused with `403` when that subject holds an admin capability the caller

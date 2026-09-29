@@ -18,7 +18,10 @@ Every transcript below is captured output, under the same discipline as
 carries no language tag, a section whose output depends on the state of the
 stack says which state, and a precondition a refusal depends on is shown
 rather than asserted. `tests/docs/console-paths.test.ts` holds every
-`/console/` route this document names to the routes the server serves.
+`/console/` route this document names to the routes the server serves. The
+audit rows below were captured before each row answered `actor_name` and
+`actor_origin` as well, resolved when it is read
+([Admin paths](admin-paths.md#get-audit)); every other field is as shown.
 
 **The stack.** The `docker-odudu-1` container of `infra/docker/compose.yaml`,
 restarted on the existing database volume. For the first two runs its `odudu`

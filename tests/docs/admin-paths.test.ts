@@ -34,6 +34,9 @@ const EMITTABLE_PROBLEM_TYPES = new Set([
   'about:blank#not-found',
   'about:blank#export-too-large',
   'about:blank#last-administrator',
+  'about:blank#no-email',
+  'about:blank#no-mail-relay',
+  'about:blank#reset-password-off',
 ]);
 
 const CAPABILITY_SHAPED = /^(?:view|manage)-[a-z]+(?:-[a-z]+)*$/u;
