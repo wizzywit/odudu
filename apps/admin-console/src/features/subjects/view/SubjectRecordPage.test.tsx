@@ -104,3 +104,9 @@ it('follows a whoami re-read after a 403, in the rail and on the page, without a
   expect(screen.queryByRole('textbox', { name: 'Nickname' })).toBeNull();
   expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
 });
+
+it('reads whoami once, however many parts of the page ask what it says', async () => {
+  const { sent } = renderConsoleAt(ADA_AT, subjectRoutes());
+  await screen.findByRole('textbox', { name: 'Nickname' });
+  expect(sent.filter((s) => s.path.endsWith('/whoami'))).toHaveLength(1);
+});

@@ -30,7 +30,13 @@ export function useAuthorityQuery(
   const { gateway } = useTransport();
   const client = useQueryClient();
   const key = ['whoami', tenant, subjectId] as const;
-  const query = useQuery({ queryKey: key, queryFn: () => readAuthority(gateway, tenant) });
+  // Every page and the rail ask for it, so a page mounting must not read it
+  // again each time: a 403 re-reads it, and so does coming back to the window.
+  const query = useQuery({
+    queryKey: key,
+    queryFn: () => readAuthority(gateway, tenant),
+    refetchOnMount: false,
+  });
   return {
     authority: query.data?.ok === true ? query.data.data : undefined,
     refusedUnknown: query.data === undefined ? undefined : refusedUnknown(query.data),
