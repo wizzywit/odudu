@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { composeBirthdate, daysIn, readBirthdate } from '#/shared/service/birthdate.ts';
+import {
+  birthdateProblem,
+  composeBirthdate,
+  daysIn,
+  readBirthdate,
+} from '#/shared/service/birthdate.ts';
 
 describe('readBirthdate', () => {
   it('reads a full date', () => {
@@ -45,5 +50,24 @@ describe('daysIn', () => {
     expect(daysIn(2, null)).toBe(29);
     expect(daysIn(2, 2001)).toBe(28);
     expect(daysIn(4, null)).toBe(30);
+  });
+});
+
+describe('birthdateProblem', () => {
+  const TODAY = { year: 2026, month: 9, day: 29 };
+
+  it('refuses a day or a year still to come', () => {
+    expect(birthdateProblem({ kind: 'date', year: 2026, month: 9, day: 30 }, TODAY)).toBe(
+      'A birthdate cannot be in the future.',
+    );
+    expect(birthdateProblem({ kind: 'year', year: 2027 }, TODAY)).toBe(
+      'A birthdate cannot be in the future.',
+    );
+  });
+
+  it('accepts today, the past, and a withheld year', () => {
+    expect(birthdateProblem({ kind: 'date', year: 2026, month: 9, day: 29 }, TODAY)).toBeNull();
+    expect(birthdateProblem({ kind: 'no-year', month: 12, day: 31 }, TODAY)).toBeNull();
+    expect(birthdateProblem({ kind: 'empty' }, TODAY)).toBeNull();
   });
 });

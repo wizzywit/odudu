@@ -71,3 +71,18 @@ export function convertBirthdate(birthdate: Birthdate, to: BirthdateForm): Birth
   }
   return birthdate.kind === to ? birthdate : { kind: 'empty' };
 }
+
+export interface Day {
+  readonly year: number;
+  readonly month: number;
+  readonly day: number;
+}
+
+export function birthdateProblem(birthdate: Birthdate, today: Day): string | null {
+  const future =
+    (birthdate.kind === 'year' && birthdate.year > today.year) ||
+    (birthdate.kind === 'date' &&
+      Date.UTC(birthdate.year, birthdate.month - 1, birthdate.day) >
+        Date.UTC(today.year, today.month - 1, today.day));
+  return future ? 'A birthdate cannot be in the future.' : null;
+}

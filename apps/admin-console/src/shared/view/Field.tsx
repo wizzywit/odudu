@@ -47,6 +47,35 @@ export function invalid(error: string | undefined): { isInvalid: boolean } {
   return { isInvalid: error !== undefined };
 }
 
+// Inside a FieldGroup, the group's description and error ids: each control
+// is described by the description, and the one a problem is about by the
+// error as well, so a screen reader hears it on that control.
+interface GroupIds {
+  readonly description: string | undefined;
+  readonly error: string | undefined;
+}
+
+export const FieldGroupIds = createContext<GroupIds | null>(null);
+
+// A control inside a group that the group's error is about.
+export interface GroupPart {
+  invalid?: boolean;
+}
+
+export function partProps(
+  group: GroupIds | null,
+  part: boolean | undefined,
+): { 'aria-describedby'?: string; isInvalid?: boolean } {
+  if (group === null) return {};
+  const ids = [group.description, part === true ? group.error : undefined].filter(
+    (id) => id !== undefined,
+  );
+  return {
+    ...(ids.length === 0 ? {} : { 'aria-describedby': ids.join(' ') }),
+    ...(part === true ? { isInvalid: true } : {}),
+  };
+}
+
 export function Header({ label, changed }: { label: string; changed?: boolean }) {
   return (
     <div className={styles.header}>
@@ -129,20 +158,26 @@ export function TextField({
   autoComplete = 'off',
   autoFocus = false,
   onBlur,
-}: Chrome & {
-  value: string;
-  onChange: (value: string) => void;
-  onBlur?: () => void;
-  type?: 'text' | 'url' | 'email' | 'tel';
-  mono?: boolean;
-  autoComplete?: string;
-  autoFocus?: boolean;
-}) {
+  invalid: part,
+  inputMode,
+}: Chrome &
+  GroupPart & {
+    value: string;
+    onChange: (value: string) => void;
+    onBlur?: () => void;
+    inputMode?: 'numeric' | 'tel';
+    type?: 'text' | 'url' | 'email' | 'tel';
+    mono?: boolean;
+    autoComplete?: string;
+    autoFocus?: boolean;
+  }) {
+  const group = use(FieldGroupIds);
   if (use(FieldsReadOnly)) return <ReadOnlyValue label={label} value={value} mono={mono} />;
   return (
     <AriaTextField
       {...VALIDATION}
       {...invalid(error)}
+      {...partProps(group, part)}
       isDisabled={isDisabled ?? false}
       value={value}
       onChange={onChange}
@@ -154,7 +189,12 @@ export function TextField({
       data-changed={changed === true || undefined}
     >
       <Header label={label} {...(changed === undefined ? {} : { changed })} />
-      <Input className={styles.input ?? ''} data-mono={mono || undefined} spellCheck={false} />
+      <Input
+        className={styles.input ?? ''}
+        data-mono={mono || undefined}
+        spellCheck={false}
+        {...(inputMode === undefined ? {} : { inputMode })}
+      />
       <Description>{description}</Description>
       <Message error={error} />
     </AriaTextField>
@@ -237,14 +277,17 @@ export function SelectField({
   value,
   onChange,
   autoComplete,
-}: Chrome & {
-  readonly options: readonly SelectOption[];
-  value: string;
-  onChange: (value: string) => void;
-  autoComplete?: string;
-}) {
+  invalid: part,
+}: Chrome &
+  GroupPart & {
+    readonly options: readonly SelectOption[];
+    value: string;
+    onChange: (value: string) => void;
+    autoComplete?: string;
+  }) {
   const inline = use(Inline);
   const readOnly = use(FieldsReadOnly);
+  const group = use(FieldGroupIds);
   if (readOnly && !inline) {
     return (
       <ReadOnlyValue label={label} value={options.find((o) => o.id === value)?.label ?? value} />
@@ -255,6 +298,7 @@ export function SelectField({
       {...VALIDATION}
       {...(autoComplete === undefined ? {} : { autoComplete })}
       {...invalid(error)}
+      {...partProps(group, part)}
       isDisabled={isDisabled ?? false}
       value={value}
       onChange={(key: Key | null) => {
@@ -414,7 +458,15 @@ export function FieldGroup({
         </span>
         {changed === true ? <Changed /> : null}
       </div>
-      {children}
+      <FieldGroupIds
+        value={{
+          description:
+            description === undefined || description === null ? undefined : descriptionId,
+          error: error === undefined ? undefined : errorId,
+        }}
+      >
+        {children}
+      </FieldGroupIds>
       {description === undefined || description === null ? null : (
         <p id={descriptionId} className={styles.description}>
           {description}

@@ -51,7 +51,9 @@ describe('PictureField', () => {
   it('names a picture on another site instead of loading what the policy would block', () => {
     render(<PictureField label="Picture" value="https://cdn.example/ada.png" onChange={vi.fn()} />);
     expect(screen.queryByRole('img')).toBeNull();
-    expect(screen.getByText(/loads images from its own address only/u)).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Picture' })).toHaveAccessibleDescription(
+      /loads images from its own address only/u,
+    );
     const link = screen.getByRole('link', { name: 'Open the picture in a new tab' });
     expect(link).toHaveAttribute('href', 'https://cdn.example/ada.png');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');

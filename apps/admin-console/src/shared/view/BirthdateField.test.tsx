@@ -73,6 +73,32 @@ describe('BirthdateField', () => {
     expect(screen.getByRole('radio', { name: 'Day and month' })).toBeChecked();
   });
 
+  it('stores a year as it is typed, so Enter saves it', async () => {
+    const user = userEvent.setup();
+    render(<Controlled start="1990" />);
+    const year = screen.getByRole('textbox', { name: 'Year' });
+    await user.clear(year);
+    await user.type(year, '1987');
+    expect(stored()).toBe('1987');
+  });
+
+  it('refuses a date in the future, and says so on the date', async () => {
+    const user = userEvent.setup();
+    render(<Controlled />);
+    const group = screen.getByRole('group', { name: 'Birthdate' });
+    await user.click(within(group).getByRole('spinbutton', { name: /^month/u }));
+    await user.keyboard('01012999');
+    const date = within(group).getAllByRole('spinbutton')[0];
+    expect(date).toHaveAccessibleDescription(/A birthdate cannot be in the future\./u);
+  });
+
+  it('ties the field’s error to each of its controls', () => {
+    render(<BirthdateField label="Birthdate" value="1990" onChange={vi.fn()} error="Refused." />);
+    const year = screen.getByRole('textbox', { name: 'Year' });
+    expect(year).toHaveAttribute('aria-invalid', 'true');
+    expect(year).toHaveAccessibleDescription(/Refused\./u);
+  });
+
   it('carries the bday token for autofill', () => {
     const { container } = render(<Controlled />);
     expect(container.querySelector('input[autocomplete="bday"]')).not.toBeNull();

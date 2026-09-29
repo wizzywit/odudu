@@ -13,13 +13,16 @@ import {
 } from 'react-aria-components';
 import {
   Description,
+  FieldGroupIds,
   FieldsReadOnly,
   Header,
   invalid,
   Message,
+  partProps,
   ReadOnlyValue,
   VALIDATION,
   type Chrome,
+  type GroupPart,
 } from '#/shared/view/Field.tsx';
 import styles from '#/shared/view/Field.module.css';
 
@@ -88,22 +91,25 @@ export function ComboBoxField({
   readOnlyText,
   mono = false,
   matchIds = true,
-}: Chrome & {
-  readonly options: readonly ComboOption[];
-  value: string;
-  onChange: (value: string) => void;
-  allowsCustomValue?: boolean;
-  autoComplete?: string;
-  // What a read-only page shows in place of the option's label.
-  readOnlyText?: ReactNode;
-  mono?: boolean;
-  // Whether typing an option's id chooses it: yes for a zone or a locale tag,
-  // no for a country, whose two-letter code is also the start of names.
-  matchIds?: boolean;
-}) {
+  invalid: part,
+}: Chrome &
+  GroupPart & {
+    readonly options: readonly ComboOption[];
+    value: string;
+    onChange: (value: string) => void;
+    allowsCustomValue?: boolean;
+    autoComplete?: string;
+    // What a read-only page shows in place of the option's label.
+    readOnlyText?: ReactNode;
+    mono?: boolean;
+    // Whether typing an option's id chooses it: yes for a zone or a locale tag,
+    // no for a country, whose two-letter code is also the start of names.
+    matchIds?: boolean;
+  }) {
   const labelOf = (id: string): string => options.find((o) => o.id === id)?.label ?? id;
   const [shown, setShown] = useState<Shown>(() => ({ value, text: labelOf(value) }));
   const readOnly = use(FieldsReadOnly);
+  const group = use(FieldGroupIds);
   const [closes, setCloses] = useState(0);
   let current = shown;
   if (shown.value !== value) {
@@ -121,6 +127,7 @@ export function ComboBoxField({
     <ComboBox
       {...VALIDATION}
       {...invalid(error)}
+      {...partProps(group, part)}
       isDisabled={isDisabled ?? false}
       allowsCustomValue={allowsCustomValue}
       defaultItems={options}

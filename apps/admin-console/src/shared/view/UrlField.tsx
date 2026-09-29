@@ -1,7 +1,13 @@
-import { use } from 'react';
+import { use, useId } from 'react';
 import { Link } from 'react-aria-components';
 import { previewable, typingScheme, urlProblem } from '#/shared/service/profileUrl.ts';
-import { FieldsReadOnly, ReadOnlyValue, TextField, type Chrome } from '#/shared/view/Field.tsx';
+import {
+  FieldGroupIds,
+  FieldsReadOnly,
+  ReadOnlyValue,
+  TextField,
+  type Chrome,
+} from '#/shared/view/Field.tsx';
 import styles from '#/shared/view/Field.module.css';
 
 type UrlFieldProps = Chrome & {
@@ -24,13 +30,19 @@ export function UrlField({ value, error, autoComplete = 'url', ...rest }: UrlFie
   );
 }
 
-function Preview({ value }: { value: string }) {
+function noted(value: string): boolean {
+  return (
+    value !== '' && urlProblem(value) === null && !previewable(value, globalThis.location.origin)
+  );
+}
+
+function Preview({ value, noteId }: { value: string; noteId: string }) {
   if (value === '' || urlProblem(value) !== null) return null;
   if (previewable(value, globalThis.location.origin)) {
     return <img className={styles.picture} src={value} alt="The picture at this address" />;
   }
   return (
-    <p className={styles.pictureNote}>
+    <p id={noteId} className={styles.pictureNote}>
       The console loads images from its own address only, so a picture on another site is not shown
       here.{' '}
       <Link href={value} target="_blank" rel="noopener noreferrer">
@@ -42,11 +54,16 @@ function Preview({ value }: { value: string }) {
 
 export function PictureField(props: UrlFieldProps) {
   const readOnly = use(FieldsReadOnly);
+  const noteId = useId();
   if (readOnly) return <ReadOnlyValue label={props.label} value={props.value} mono />;
   return (
     <div className={styles.pictureField}>
-      <UrlField autoComplete="photo" {...props} />
-      <Preview value={props.value} />
+      <FieldGroupIds
+        value={{ description: noted(props.value) ? noteId : undefined, error: undefined }}
+      >
+        <UrlField autoComplete="photo" {...props} />
+      </FieldGroupIds>
+      <Preview value={props.value} noteId={noteId} />
     </div>
   );
 }

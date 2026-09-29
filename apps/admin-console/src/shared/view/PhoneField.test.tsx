@@ -39,19 +39,52 @@ describe('PhoneField', () => {
     expect(screen.getByRole('textbox', { name: 'Number' })).toHaveValue('7700900123');
   });
 
-  it('asks for the country of a number stored without one', () => {
+  it('asks for the country of a number stored without one, on the country', () => {
     render(<Controlled start="555-2671" />);
-    expect(screen.getByRole('textbox', { name: 'Number' })).toHaveValue('555-2671');
-    expect(screen.getByRole('group', { name: 'Phone number' })).toHaveAccessibleDescription(
-      /Choose the country the number is in\./u,
-    );
+    const number = screen.getByRole('textbox', { name: 'Number' });
+    expect(number).toHaveValue('555-2671');
+    const country = screen.getByRole('combobox', { name: 'Country' });
+    expect(country).toHaveAttribute('aria-invalid', 'true');
+    expect(country).toHaveAccessibleDescription(/Choose the country the number is in\./u);
+    expect(number).not.toHaveAttribute('aria-invalid');
   });
 
-  it('carries the telephone autofill tokens', () => {
+  it('puts a problem with the number on the number', async () => {
+    const user = userEvent.setup();
+    render(<Controlled start="+2348031234567" />);
+    const number = screen.getByRole('textbox', { name: 'Number' });
+    await user.type(number, 'x');
+    expect(number).toHaveAttribute('aria-invalid', 'true');
+    expect(number).toHaveAccessibleDescription(/Use digits only/u);
+    expect(screen.getByRole('combobox', { name: 'Country' })).not.toHaveAttribute('aria-invalid');
+  });
+
+  it('reads a pasted international number for its country', async () => {
+    const user = userEvent.setup();
+    render(<Controlled />);
+    await user.click(screen.getByRole('textbox', { name: 'Number' }));
+    await user.paste('+234 803 123 4567');
+    expect(screen.getByRole('combobox', { name: 'Country' })).toHaveValue('Nigeria');
+    expect(screen.getByRole('textbox', { name: 'Number' })).toHaveValue('8031234567');
+    expect(stored()).toBe('+2348031234567');
+  });
+
+  it('shows a stored extension, and removes it when it is emptied', async () => {
+    const user = userEvent.setup();
+    render(<Controlled start="+14155550100;ext=12" />);
+    const extension = screen.getByRole('textbox', { name: 'Extension' });
+    expect(extension).toHaveValue('12');
+    await user.clear(extension);
+    expect(stored()).toBe('+14155550100');
+    await user.type(extension, '7');
+    expect(stored()).toBe('+14155550100;ext=7');
+  });
+
+  it('carries the telephone autofill token on the number, which autofill can fill', () => {
     render(<Controlled />);
     expect(screen.getByRole('combobox', { name: 'Country' })).toHaveAttribute(
       'autocomplete',
-      'tel-country-code',
+      'off',
     );
     expect(screen.getByRole('textbox', { name: 'Number' })).toHaveAttribute(
       'autocomplete',

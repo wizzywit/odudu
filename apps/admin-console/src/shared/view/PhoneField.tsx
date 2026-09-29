@@ -1,6 +1,12 @@
 import { use, useMemo, useState } from 'react';
 import { useLocale } from 'react-aria-components';
-import { composePhone, phoneProblem, splitPhone } from '#/shared/service/phone.ts';
+import {
+  composePhone,
+  phoneProblem,
+  phoneProblemPart,
+  readTypedNumber,
+  splitPhone,
+} from '#/shared/service/phone.ts';
 import { callingCodeOf, countryOptions } from '#/shared/service/regions.ts';
 import { ComboBoxField, type ComboOption } from '#/shared/view/ComboBoxField.tsx';
 import {
@@ -47,12 +53,16 @@ export function PhoneField({
     setTyped(current);
   }
   if (readOnly) return <ReadOnlyValue label={label} value={value} mono />;
-  const change = (region: string | null, national: string): void => {
-    const next = composePhone(region, national, current.extension);
-    setTyped({ value: next, region, national, extension: current.extension });
+  const change = (region: string | null, national: string, extension = current.extension): void => {
+    const pasted = readTypedNumber(national);
+    const parts = pasted ?? { region, national };
+    const next = composePhone(parts.region, parts.national, extension);
+    setTyped({ value: next, region: parts.region, national: parts.national, extension });
     if (next !== value) onChange(next);
   };
   const problem = phoneProblem(current.region, current.national);
+  // The server's own error is about the number as a whole, so the number carries it.
+  const part = error === undefined ? phoneProblemPart(current.region, current.national) : 'number';
   const preview = problem === null && value !== '' ? `Stored as ${value}.` : null;
   return (
     <FieldGroup
@@ -75,7 +85,7 @@ export function PhoneField({
           options={options}
           value={current.region ?? ''}
           isDisabled={isDisabled}
-          autoComplete="tel-country-code"
+          invalid={part === 'region'}
           onChange={(region) => {
             change(region === '' ? null : region, current.national);
           }}
@@ -86,9 +96,22 @@ export function PhoneField({
           value={current.national}
           isDisabled={isDisabled}
           autoComplete="tel-national"
+          invalid={part === 'number'}
           mono
           onChange={(national) => {
             change(current.region, national);
+          }}
+        />
+        <TextField
+          label="Extension"
+          autoComplete="tel-extension"
+          value={current.extension ?? ''}
+          inputMode="numeric"
+          isDisabled={isDisabled}
+          mono
+          onChange={(extension) => {
+            const digits = extension.replace(/[^0-9]/gu, '');
+            change(current.region, current.national, digits === '' ? null : digits);
           }}
         />
       </div>

@@ -4,9 +4,7 @@ import {
   DateField,
   DateInput,
   DateSegment,
-  Input,
   Label,
-  NumberField,
   RadioButton,
   RadioField,
   RadioGroup,
@@ -14,6 +12,7 @@ import {
   type DateValue,
 } from 'react-aria-components';
 import {
+  birthdateProblem,
   composeBirthdate,
   convertBirthdate,
   daysIn,
@@ -24,9 +23,12 @@ import {
 } from '#/shared/service/birthdate.ts';
 import {
   FieldGroup,
+  FieldGroupIds,
   FieldsReadOnly,
+  partProps,
   ReadOnlyValue,
   SelectField,
+  TextField,
   type Chrome,
 } from '#/shared/view/Field.tsx';
 import styles from '#/shared/view/Field.module.css';
@@ -84,6 +86,7 @@ function FullDate({
   isDisabled: boolean;
   invalid: boolean;
 }) {
+  const group = use(FieldGroupIds);
   const value =
     birthdate.kind === 'date'
       ? new CalendarDate(birthdate.year, birthdate.month, birthdate.day)
@@ -98,10 +101,9 @@ function FullDate({
             : { kind: 'date', year: date.year, month: date.month, day: date.day },
         );
       }}
-      maxValue={today(getLocalTimeZone())}
       autoComplete="bday"
       validationBehavior="aria"
-      isInvalid={invalid}
+      {...partProps(group, invalid)}
       isDisabled={isDisabled}
       className={styles.part ?? ''}
     >
@@ -113,31 +115,41 @@ function FullDate({
   );
 }
 
+// A text field rather than a NumberField, which commits only on blur or
+// Enter: Enter would then submit the section before the year reached it.
 function YearOnly({
   birthdate,
   onChange,
   isDisabled,
+  invalid,
 }: {
   birthdate: Birthdate;
   onChange: (next: Birthdate) => void;
   isDisabled: boolean;
+  invalid: boolean;
 }) {
+  const year = birthdate.kind === 'year' ? birthdate.year : 0;
+  const [typed, setText] = useState(year === 0 ? '' : String(year));
+  // What was typed, while it still reads as the stored year; else the year.
+  const text = Number(typed) === year ? typed : year === 0 ? '' : String(year);
   return (
-    <NumberField
-      value={birthdate.kind === 'year' ? birthdate.year : Number.NaN}
-      onChange={(year) => {
-        onChange(Number.isNaN(year) ? { kind: 'empty' } : { kind: 'year', year });
-      }}
-      minValue={1}
-      maxValue={new Date().getFullYear()}
-      formatOptions={{ useGrouping: false, maximumFractionDigits: 0 }}
-      validationBehavior="aria"
-      isDisabled={isDisabled}
-      className={styles.part ?? ''}
-    >
-      <Label className={styles.partLabel ?? ''}>Year</Label>
-      <Input className={styles.input ?? ''} data-year autoComplete="bday-year" />
-    </NumberField>
+    <div className={styles.part}>
+      <TextField
+        label="Year"
+        value={text}
+        inputMode="numeric"
+        isDisabled={isDisabled}
+        invalid={invalid}
+        autoComplete="bday-year"
+        mono
+        onChange={(typed) => {
+          const digits = typed.replace(/[^0-9]/gu, '').slice(0, 4);
+          setText(digits);
+          const next = Number(digits);
+          onChange(next === 0 ? { kind: 'empty' } : { kind: 'year', year: next });
+        }}
+      />
+    </div>
   );
 }
 
@@ -146,11 +158,13 @@ function DayAndMonth({
   onChange,
   isDisabled,
   locale,
+  invalid,
 }: {
   birthdate: Birthdate;
   onChange: (next: Birthdate) => void;
   isDisabled: boolean;
   locale: string;
+  invalid: boolean;
 }) {
   const [partial, setPartial] = useState<{ month: number | null; day: number | null }>({
     month: null,
@@ -175,6 +189,7 @@ function DayAndMonth({
         options={monthOptions(locale)}
         value={month === null ? '' : String(month)}
         isDisabled={isDisabled}
+        invalid={invalid}
         autoComplete="bday-month"
         onChange={(chosen) => {
           choose({ month: Number(chosen), day });
@@ -185,6 +200,7 @@ function DayAndMonth({
         options={dayOptions(month)}
         value={day === null ? '' : String(day)}
         isDisabled={isDisabled}
+        invalid={invalid}
         autoComplete="bday-day"
         onChange={(chosen) => {
           choose({ month, day: Number(chosen) });
@@ -214,6 +230,8 @@ export function BirthdateField({
   const set = (next: Birthdate): void => {
     onChange(composeBirthdate(next));
   };
+  const now = today(getLocalTimeZone());
+  const problem = error ?? birthdateProblem(birthdate, now) ?? undefined;
   const stray =
     birthdate.kind === 'other'
       ? `Stored as ${birthdate.raw}, which names no day that exists.`
@@ -230,7 +248,7 @@ export function BirthdateField({
           </>
         )
       }
-      error={error}
+      error={problem}
       {...(changed === undefined ? {} : { changed })}
     >
       <RadioGroup
@@ -256,14 +274,25 @@ export function BirthdateField({
           birthdate={birthdate}
           onChange={set}
           isDisabled={isDisabled}
-          invalid={error !== undefined}
+          invalid={problem !== undefined}
         />
       ) : null}
       {form === 'year' ? (
-        <YearOnly birthdate={birthdate} onChange={set} isDisabled={isDisabled} />
+        <YearOnly
+          birthdate={birthdate}
+          onChange={set}
+          isDisabled={isDisabled}
+          invalid={problem !== undefined}
+        />
       ) : null}
       {form === 'no-year' ? (
-        <DayAndMonth birthdate={birthdate} onChange={set} isDisabled={isDisabled} locale={locale} />
+        <DayAndMonth
+          birthdate={birthdate}
+          onChange={set}
+          isDisabled={isDisabled}
+          locale={locale}
+          invalid={problem !== undefined}
+        />
       ) : null}
     </FieldGroup>
   );
