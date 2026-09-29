@@ -14,6 +14,8 @@ interface ConfirmProps {
   busy?: boolean;
   // The server's refusal of the action, said where the action is.
   problem?: ReactNode;
+  // Held when trying again could only be refused again.
+  settled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -30,13 +32,14 @@ function OpenConfirm({
   typed,
   busy = false,
   problem,
+  settled = false,
   onConfirm,
   onCancel,
 }: ConfirmProps) {
   const shortcut = useId();
   const [entered, setEntered] = useState('');
   // Case counts; a space picked up by pasting the name does not.
-  const ready = !busy && (typed === undefined || entered.trim() === typed);
+  const ready = !busy && !settled && (typed === undefined || entered.trim() === typed);
   const confirm = (): void => {
     if (ready) onConfirm();
   };

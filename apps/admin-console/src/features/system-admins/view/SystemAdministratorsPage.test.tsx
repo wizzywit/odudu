@@ -334,6 +334,8 @@ it('changes nothing for a holder who holds it only through a group or another ro
     '/console/system/subjects',
   );
   expect(sent.some((s) => s.method === 'PUT')).toBe(false);
+  // Pressing it again would change nothing again.
+  expect(within(dialog).getByRole('button', { name: 'Revoke' })).toBeDisabled();
 });
 
 it('names what a limited operator lacks, rather than offering what the server would refuse', async () => {

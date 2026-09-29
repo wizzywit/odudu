@@ -209,3 +209,21 @@ describe('a refusal', () => {
     ).toEqual({ light: [], dark: [] });
   });
 });
+
+it('holds its action once settled, however it was confirmed', async () => {
+  render(
+    <ConfirmDialog
+      isOpen
+      title="Revoke ada?"
+      consequence="ada loses tenant-admin."
+      confirmLabel="Revoke"
+      typed="ada"
+      settled
+      onConfirm={vi.fn()}
+      onCancel={vi.fn()}
+    />,
+  );
+  const user = userEvent.setup();
+  await user.type(screen.getByRole('textbox'), 'ada');
+  expect(screen.getByRole('button', { name: 'Revoke' })).toBeDisabled();
+});

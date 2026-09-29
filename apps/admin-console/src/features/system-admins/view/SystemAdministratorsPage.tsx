@@ -197,6 +197,7 @@ function Administrators() {
         typed={revoking?.typed ?? ''}
         busy={page.busy}
         problem={problemOf(revoking)}
+        settled={revoking?.problem?.kind === 'not-direct'}
         onConfirm={page.confirmRevoke}
         onCancel={page.cancelRevoke}
       />
