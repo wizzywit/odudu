@@ -35,9 +35,10 @@ function parseJson(text: string): unknown {
 // The redirect ends the tenant's SSO session, so it names this origin's own
 // end-session endpoint; anything else would send the window somewhere the
 // console has no business sending it.
+// An ended session is sent to the console by path, so a path counts too.
 function sameOrigin(redirect: string): boolean {
   try {
-    return new URL(redirect).origin === globalThis.location.origin;
+    return new URL(redirect, globalThis.location.href).origin === globalThis.location.origin;
   } catch {
     return false;
   }

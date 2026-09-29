@@ -46,6 +46,18 @@ describe('logout', () => {
     expect(await auth.logout()).toEqual({ ok: true, redirect: REDIRECT });
   });
 
+  it('takes the console path the gateway names when the session had already ended', async () => {
+    const { auth, log } = harness(json({ redirect: '/console/' }));
+    expect(await auth.logout()).toEqual({ ok: true, redirect: '/console/' });
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('refuses a scheme-relative redirect to another host', async () => {
+    const { auth, log } = harness(json({ redirect: '//elsewhere.example/logout' }));
+    expect(await auth.logout()).toEqual({ ok: false, kind: 'schema' });
+    expect(log).toHaveBeenCalledOnce();
+  });
+
   it('refuses a redirect to another origin, as the console defect it would be', async () => {
     const { auth, log } = harness(json({ redirect: 'https://elsewhere.example/logout' }));
 
