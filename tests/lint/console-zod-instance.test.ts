@@ -6,8 +6,9 @@ import { describe, expect, it } from 'vitest';
 // zod probes `new Function` whenever a schema is built unless it is told to
 // run jitless, and the console's CSP reports that probe as a violation. The
 // switch lives in zod's module-level config, so it only reaches
-// @odudu/contracts' schemas if there is one zod, and only in time if it runs
-// before any module that builds one: the entry's first import.
+// @odudu/contracts' schemas if there is one zod. The entry importing it
+// first keeps the unbundled development server in order; in the split
+// build it is not enough, and console-zod-chunk.test.ts checks what is.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 
@@ -37,7 +38,7 @@ function firstImportsZodConfig(source: string): boolean {
 }
 
 describe("the console's zod", () => {
-  it('is configured by the first module the entry imports', () => {
+  it('is configured by the first module the entry imports, for the development server', () => {
     expect(firstImportsZodConfig(read('apps/admin-console/src/main.tsx'))).toBe(true);
   });
 

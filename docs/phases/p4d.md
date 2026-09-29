@@ -1138,7 +1138,13 @@ branch.
 - **zod's eval probe violates the shell's CSP the moment a contracts
   schema is constructed**, before anything is parsed — "Vite and
   `@odudu/contracts`" above has the trace. `z.config({ jitless: true })`,
-  in its own module imported first, fixes it.
+  in its own module imported first, fixed it while the build was one
+  chunk. Once two lazy features shared zod, the bundler moved zod into a
+  shared chunk evaluated before the entry's first import, and the probe
+  fired on every page. The build now puts zod and that module in one chunk
+  that imports nothing (`apps/admin-console/vite.config.ts`), and
+  `tests/lint/console-zod-chunk.test.ts` reads the built `dist` to hold it
+  there; the first-import check keeps only the development server right.
 - **React Aria injects a second `<style>` element, not only `usePress`'s.**
   On iOS WebKit, `usePreventScroll` prepends an `overscroll-behavior:
 contain` rule. `SHELL_CSP` carries both hashes;

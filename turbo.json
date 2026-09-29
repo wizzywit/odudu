@@ -70,7 +70,8 @@
       "outputs": ["trace-report.json"]
     },
     "@odudu/repo-checks#test": {
-      "cache": false
+      "cache": false,
+      "dependsOn": ["^typecheck", "@odudu/admin-console#build"]
     }
   }
 }
