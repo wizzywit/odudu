@@ -774,7 +774,7 @@ describe.each(['GET', 'POST'] as const)(
     // reach different outcomes once posted back (302 versus 400), so a
     // single pinned case cannot stand in for both.
     it('drops the redirect whether or not it is registered', async () => {
-      const tenantName = `logout-audmismatch-unregistered-${method.toLowerCase()}-${newId()}`;
+      const tenantName = `logout-aud-unreg-${method.toLowerCase()}-${newId()}`;
       const { tenantId } = await setupTenant(tenantName);
       const cookie = await signIn(tenantName);
       const sessionId = sessionIdFromCookie(cookie);
@@ -982,7 +982,7 @@ describe('[ODUDU-LOGOUT-NOSESSION-REDIRECT-01] a matched redirect is honoured ev
   });
 
   it('still shows the no-session page when the requested uri is not registered', async () => {
-    const tenantName = `logout-nosession-badredirect-${newId()}`;
+    const tenantName = `logout-nosession-badredir-${newId()}`;
     await setupTenant(tenantName);
 
     const res = await http.inject({

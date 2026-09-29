@@ -1,11 +1,16 @@
 export { verifyClientSecret } from '#/service/client';
 export {
   coerceTenantSetting,
+  tenantSettingProblems,
+  TENANT_SETTING_ORDERINGS,
+  TENANT_SETTING_RANGES,
   TENANT_SETTING_NAMES,
   TENANT_SETTING_COLUMNS,
   type CoerceOutcome,
   type TenantSettingName,
   type TenantSettingColumn,
+  type TenantSettingProblem,
+  type TenantSettingRange,
 } from '#/service/tenant-settings';
 export {
   tenantSettingsRepository,
@@ -15,6 +20,8 @@ export {
 export {
   ADMIN_API_AUDIENCE,
   ADMIN_CLIENT_ID,
+  CONSOLE_CALLBACK_PATH,
+  CONSOLE_POST_LOGOUT_PATH,
   isSystemTenantName,
   isSystemTenantId,
   SYSTEM_TENANT_DISABLE_REFUSED,
@@ -26,6 +33,12 @@ export {
   viewCounterpart,
   type TenantCapability,
 } from '#/service/admin-capabilities';
+export {
+  isReservedTenantName,
+  isValidTenantName,
+  RESERVED_TENANT_NAMES,
+  TENANT_NAME_RULE,
+} from '#/service/tenant-name';
 export { clients, type ClientRecord } from '#/schema/clients';
 export {
   clientRepository,
@@ -57,7 +70,7 @@ export {
   type ConsentRecord,
   type ConsentScopeRecord,
 } from '#/schema/consents';
-export { consentRepository } from '#/repository/consents';
+export { consentRepository, type SubjectConsent } from '#/repository/consents';
 export {
   clientRegistrationTokens,
   type ClientRegistrationTokenRecord,
@@ -65,9 +78,13 @@ export {
 export {
   clientRegistrationTokenRepository,
   type MintClientRegistrationToken,
+  type MintedClientRegistrationToken,
+  type RegistrationTokenRecord,
 } from '#/repository/client-registration-tokens';
 export {
+  capabilityRoleGraph,
   provisionAdminClient,
+  type CapabilityRoleGraph,
   type ProvisionAdminClientOptions,
   type ProvisionedAdminClient,
 } from '#/usecase/provision-admin-client';

@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // Policies are hand-authored SQL in drizzle/, never declared with pgPolicy():
@@ -9,6 +10,9 @@ import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg
 // without a policy, schema-drift.int.test.ts stops the view drifting.
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey(),
+  // An RFC 1123 DNS label (packages/db/drizzle/0072_tenant_name_rule.sql):
+  // minted straight into an issuer host segment, so a shape a resolver
+  // would reject is refused here rather than reaching one.
   name: text('name').notNull().unique(),
   displayName: text('display_name'),
   enabled: boolean('enabled').notNull().default(true),
@@ -76,4 +80,11 @@ export const tenants = pgTable('tenants', {
   // (packages/db/drizzle/0068_audit_retention.sql). 90 days by default, so
   // an upgraded tenant is bounded rather than growing the table forever.
   auditRetentionDays: integer('audit_retention_days').notNull().default(90),
+  // Whether an administrator may rename a username
+  // (packages/db/drizzle/0077_username_editable.sql, ADR 0039).
+  usernameEditable: boolean('username_editable').notNull().default(false),
+  // Search keys, in the C collation, filled by the database
+  // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
+  nameSearch: text('name_search').generatedAlwaysAs(sql`lower(name)`),
+  displayNameSearch: text('display_name_search').generatedAlwaysAs(sql`lower(display_name)`),
 }).enableRLS();

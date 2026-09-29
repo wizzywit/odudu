@@ -1,5 +1,6 @@
 node_modules/
 dist/
+!packages/console-gateway/tests/fixtures/dist/
 build/
 coverage/
 .turbo/
@@ -15,3 +16,5 @@ stryker.log
 .idea/
 .vscode/
 .superpowers/
+playwright-report/
+test-results/

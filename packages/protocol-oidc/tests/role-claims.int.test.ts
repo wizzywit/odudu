@@ -51,7 +51,10 @@ interface Tenant {
 }
 
 async function seedTenant(label: string): Promise<Tenant> {
-  const tenantName = `role-claims-${label}-${newId()}`;
+  // No further prefix: the longest label this file passes
+  // ('access-token-pii-default') already leaves little room under the
+  // DNS-label length limit.
+  const tenantName = `${label}-${newId()}`;
   const tenantId = newId();
   const clientDbId = newId();
 
@@ -313,7 +316,7 @@ describe('roles in an issued token', () => {
   // reached userinfo and only lost the `fullScopeAllowed` bypass; now the
   // token is refused outright, the same as any other disabled client's.
   it('refuses a disabled full-scope client’s live token at userinfo outright', async () => {
-    const tenant = await seedTenant('userinfo-disabled-full-scope');
+    const tenant = await seedTenant('userinfo-disabled-scope');
     await setFullScopeAllowed(tenant);
     await giveSubjectRole(tenant, 'admin'); // held, mapped to no scope, but full_scope_allowed
 

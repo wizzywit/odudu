@@ -8,6 +8,11 @@ export const ADMIN_CLIENT_ID = 'odudu-admin';
 // is no issuer to register in the client's audiences when it is created.
 export const ADMIN_API_AUDIENCE = 'urn:odudu:params:admin-api';
 
+// Where the console gateway is served, under ODUDU_PUBLIC_BASE_URL: the admin
+// client registers these, and the gateway names them in its requests.
+export const CONSOLE_CALLBACK_PATH = '/console/auth/callback';
+export const CONSOLE_POST_LOGOUT_PATH = '/console/';
+
 // Design rationale: docs/superpowers/specs/2026-09-10-odudu-design.md §5.
 export const SYSTEM_TENANT_NAME = 'system';
 
@@ -31,9 +36,12 @@ export const TENANT_ADMIN = 'tenant-admin';
 
 export const MANAGE_TENANTS = 'manage-tenants';
 
-// The one predicate both doors that can create a tenant — the admin API's
-// `createTenant` and `seed tenant` — refuse a name through, so a caller
-// cannot get two different answers depending on which one it asked.
+// The predicate behind `refuseSystemTenantName`
+// (apps/server/src/cli/seed.ts), the options form of `seed`'s early,
+// before-any-database-connection refusal of the one name that would
+// otherwise create `system` under a fresh id and lock `seed admin` out.
+// Every door that creates a tenant refuses a wider set — an invalid shape,
+// and `count` too — through `isReservedTenantName` instead.
 export function isSystemTenantName(name: string): boolean {
   return name === SYSTEM_TENANT_NAME;
 }

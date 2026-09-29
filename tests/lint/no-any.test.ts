@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { glob } from 'node:fs/promises';
+import path from 'node:path';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
@@ -14,6 +15,8 @@ import { describe, expect, it } from 'vitest';
 // exits zero, and leaves no trace. A ban nobody can re-enable by hand is the
 // only kind that survives; the second block is what makes it one.
 
+const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
+
 const ANY_RULES = [
   '@typescript-eslint/no-explicit-any',
   '@typescript-eslint/no-unsafe-return',
@@ -24,14 +27,14 @@ const ANY_RULES = [
 ] as const;
 
 async function lint(source: string): Promise<string[]> {
-  const eslint = new ESLint({ cwd: process.cwd() });
+  const eslint = new ESLint({ cwd: REPO_ROOT });
   const results = await eslint.lintText(source, { filePath: 'packages/kernel/src/index.ts' });
   const [result] = results;
   if (!result) throw new Error('expected a lint result');
   return result.messages.map((m) => m.ruleId ?? '');
 }
 
-describe('the any ban is enforced by lint', () => {
+describe('the any ban is enforced by lint', { timeout: 60_000 }, () => {
   it('rejects an explicit any annotation', async () => {
     const ruleIds = await lint('export function f(x: any): void {\n  console.log(x);\n}\n');
     expect(ruleIds).toContain('@typescript-eslint/no-explicit-any');
@@ -56,36 +59,64 @@ describe('the any ban is enforced by lint', () => {
   });
 });
 
-describe('the any ban cannot be waived by an inline comment', () => {
-  it('no source file disables an any-family rule', async () => {
-    const patterns = [
-      'packages/*/src/**/*.ts',
-      'packages/*/tests/**/*.ts',
-      'apps/*/src/**/*.ts',
-      'apps/*/tests/**/*.ts',
-      'tools/*/src/**/*.ts',
-      'tests/**/*.ts',
-    ];
+const SOURCE_TREES = [
+  'packages/*/src/**/*.{ts,tsx}',
+  'packages/*/tests/**/*.{ts,tsx}',
+  'apps/*/src/**/*.{ts,tsx}',
+  'apps/*/tests/**/*.{ts,tsx}',
+  'tools/*/src/**/*.ts',
+  'tests/**/*.ts',
+];
 
-    const offenders: string[] = [];
-
-    for (const pattern of patterns) {
-      for await (const file of glob(pattern)) {
-        const source = await readFile(file, 'utf8');
-        for (const line of source.split('\n')) {
-          if (!line.includes('eslint-disable')) continue;
-          for (const rule of ANY_RULES) {
-            if (line.includes(rule)) offenders.push(`${file}: ${line.trim()}`);
-          }
-        }
-        // A bare `eslint-disable` with no rule list switches off every rule in
-        // the file, including these, without ever naming them.
-        if (/eslint-disable(-next-line|-line)?\s*(\*\/|$)/m.test(source)) {
-          offenders.push(`${file}: blanket eslint-disable`);
-        }
-      }
+async function scannedFiles(): Promise<string[]> {
+  const files: string[] = [];
+  for (const pattern of SOURCE_TREES) {
+    for await (const file of glob(pattern, {
+      cwd: REPO_ROOT,
+      exclude: (entry) => path.basename(entry) === 'node_modules',
+    })) {
+      files.push(file.split(path.sep).join('/'));
     }
+  }
+  return files;
+}
 
+function waivers(file: string, source: string): string[] {
+  const offenders: string[] = [];
+  for (const line of source.split('\n')) {
+    if (!line.includes('eslint-disable')) continue;
+    for (const rule of ANY_RULES) {
+      if (line.includes(rule)) offenders.push(`${file}: ${line.trim()}`);
+    }
+  }
+  // A bare `eslint-disable` with no rule list switches off every rule in
+  // the file, including these, without ever naming them.
+  if (/eslint-disable(-next-line|-line)?\s*(\*\/|$)/m.test(source)) {
+    offenders.push(`${file}: blanket eslint-disable`);
+  }
+  return offenders;
+}
+
+describe('the any ban cannot be waived by an inline comment', { timeout: 60_000 }, () => {
+  it('no source file disables an any-family rule', async () => {
+    const offenders: string[] = [];
+    for (const file of await scannedFiles()) {
+      offenders.push(...waivers(file, await readFile(path.join(REPO_ROOT, file), 'utf8')));
+    }
     expect(offenders).toEqual([]);
+  });
+
+  it('reaches every source tree, component files included', async () => {
+    const files = await scannedFiles();
+    expect(files).toContain('apps/admin-console/src/app/App.tsx');
+    expect(files).toContain('packages/kernel/src/config.ts');
+  });
+
+  it('catches a waiver in a component file', () => {
+    const source =
+      '// eslint-' +
+      'disable-next-line @typescript-eslint/no-explicit-any\n' +
+      'export const App = (props: any) => <p>{props}</p>;\n';
+    expect(waivers('apps/admin-console/src/app/App.tsx', source)).toHaveLength(1);
   });
 });

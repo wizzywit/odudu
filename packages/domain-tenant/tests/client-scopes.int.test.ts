@@ -321,6 +321,69 @@ describe('assignOrUpdate', () => {
   });
 });
 
+describe('unassign', () => {
+  it('removes an existing assignment and reports true', async () => {
+    const tenantId = newId();
+    const { clientId, scopeId } = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const clientId = await insertClient(tx, tenantId);
+      const scope = await clientScopeRepository(tx).create({ tenantId, name: 'openid' });
+      await clientScopeRepository(tx).assign(clientId, scope.id, 'default');
+      return { clientId, scopeId: scope.id };
+    });
+
+    const removed = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).unassign(clientId, scopeId),
+    );
+    expect(removed).toBe(true);
+
+    const scopes = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).forClient(clientId),
+    );
+    expect(scopes).toEqual([]);
+  });
+
+  it('reports false when no such assignment exists', async () => {
+    const tenantId = newId();
+    const { clientId, scopeId } = await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      const clientId = await insertClient(tx, tenantId);
+      const scope = await clientScopeRepository(tx).create({ tenantId, name: 'openid' });
+      return { clientId, scopeId: scope.id };
+    });
+
+    const removed = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).unassign(clientId, scopeId),
+    );
+    expect(removed).toBe(false);
+  });
+
+  it('cannot unassign another tenant’s client scope assignment', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const clientId = await insertClient(tx, tenantId);
+        const scope = await clientScopeRepository(tx).create({ tenantId, name: 'openid' });
+        await clientScopeRepository(tx).assign(clientId, scope.id, 'default');
+        return { clientId, scopeId: scope.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const scopes = await clientScopeRepository(tx).forClient(seeded.clientId);
+        expect(scopes.map((scope) => scope.name)).toContain('openid');
+      },
+      attempt: async (tx, seeded) =>
+        clientScopeRepository(tx).unassign(seeded.clientId, seeded.scopeId),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        const scopes = await clientScopeRepository(tx).forClient(seeded.clientId);
+        expect(scopes.map((scope) => scope.name)).toContain('openid');
+      },
+    });
+  });
+});
+
 describe('byId', () => {
   it('finds a scope created in the same tenant', async () => {
     const scope = await create({ name: 'profile' });

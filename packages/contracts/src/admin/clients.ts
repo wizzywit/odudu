@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { clientScopeAssignmentViewSchema } from '#/admin/scopes';
-import { createdAtSchema, idSchema } from '#/admin/shared';
+import {
+  createdAtSchema,
+  cursorQuerySchema,
+  enabledFilterSchema,
+  idSchema,
+  searchPrefixSchema,
+} from '#/admin/shared';
 
 export const clientTypeSchema = z.enum(['public', 'confidential']);
 export const registrationOriginSchema = z.enum(['seeded', 'anonymous', 'token', 'operator']);
@@ -35,6 +41,8 @@ export const clientSchema = z.object({
   userinfo_encrypted_response_alg: z.string().nullable(),
   userinfo_encrypted_response_enc: z.string().nullable(),
   tls_client_auth_subject_dn: z.string().nullable(),
+  builtin_admin: z.boolean(),
+  service_subject_id: z.uuid().nullable(),
   scopes: z.array(clientScopeAssignmentViewSchema),
 });
 export type Client = z.infer<typeof clientSchema>;
@@ -60,6 +68,35 @@ export const createClientRequestSchema = z
       'refused with 400 naming it, never ignored.',
   );
 export type CreateClientRequest = z.infer<typeof createClientRequestSchema>;
+
+const clientFilters = {
+  client_id: searchPrefixSchema.optional(),
+  name: searchPrefixSchema.optional(),
+  type: clientTypeSchema.optional(),
+  enabled: enabledFilterSchema.optional(),
+};
+// Addressed to the second field, the one a caller adds to an existing search.
+const oneClientSearchRule = {
+  message: 'search one field at a time: client_id or name, not both',
+  path: ['name'],
+};
+const oneClientSearch = [
+  (query: { client_id?: string | undefined; name?: string | undefined }) =>
+    query.client_id === undefined || query.name === undefined,
+  oneClientSearchRule,
+] as const;
+
+export const listClientsQuerySchema = cursorQuerySchema
+  .extend(clientFilters)
+  .strict()
+  .refine(...oneClientSearch);
+export type ListClientsQuery = z.infer<typeof listClientsQuerySchema>;
+
+export const countClientsQuerySchema = z
+  .object(clientFilters)
+  .strict()
+  .refine(...oneClientSearch);
+export type CountClientsQuery = z.infer<typeof countClientsQuerySchema>;
 
 export const listClientsResponseSchema = z.object({
   items: z.array(clientSchema),

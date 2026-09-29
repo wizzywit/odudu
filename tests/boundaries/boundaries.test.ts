@@ -1,12 +1,20 @@
+import path from 'node:path';
 import { cruise } from 'dependency-cruiser';
 import type { ICruiseResult } from 'dependency-cruiser';
 import { describe, expect, it } from 'vitest';
 import config from '../../.dependency-cruiser.cjs';
 
+const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const FIXTURES = 'tests/boundaries/fixtures';
 
 async function cruiseFixtures(): Promise<ICruiseResult> {
-  const result = await cruise([FIXTURES], { ...config.options, ruleSet: config, validate: true });
+  const result = await cruise([FIXTURES], {
+    ...config.options,
+    baseDir: REPO_ROOT,
+    tsConfig: { fileName: path.join(REPO_ROOT, 'tsconfig.base.json') },
+    ruleSet: config,
+    validate: true,
+  });
   if (typeof result.output === 'string') throw new Error('expected structured output');
   return result.output;
 }
@@ -16,7 +24,7 @@ async function violations(rule: string): Promise<ICruiseResult['summary']['viola
   return output.summary.violations.filter((v) => v.rule.name === rule);
 }
 
-describe('boundary rules', () => {
+describe('boundary rules', { timeout: 60_000 }, () => {
   it('rejects a domain package importing a protocol package', async () => {
     expect((await violations('no-domain-to-protocol')).length).toBeGreaterThan(0);
   });
@@ -58,6 +66,39 @@ describe('boundary rules', () => {
     expect(
       found.some((v) => v.from.includes('protocol-example') && v.to.includes('protocol-example')),
     ).toBe(false);
+  });
+
+  it('rejects the console gateway importing a protocol package', async () => {
+    const found = await violations('console-gateway-imports-no-protocol');
+    expect(
+      found.some((v) => v.from.includes('console-gateway') && v.to.includes('protocol-oidc')),
+    ).toBe(true);
+  });
+
+  it('rejects the console gateway importing a package outside its allowlist', async () => {
+    const found = await violations('console-gateway-allowlist');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('console-gateway/src/foreign-domain.ts') && v.to.includes('/account/'),
+      ),
+    ).toBe(true);
+  });
+
+  it('permits the console gateway importing @odudu/domain-identity', async () => {
+    const output = await cruiseFixtures();
+    const fromAllowed = output.summary.violations.filter((v) =>
+      v.from.endsWith('console-gateway/src/allowed.ts'),
+    );
+    expect(fromAllowed).toHaveLength(0);
+  });
+
+  it('rejects apps/server production code importing its test harness', async () => {
+    const found = await violations('no-server-to-testing');
+    expect(found.some((v) => v.from.endsWith('apps/server/src/leak.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('apps/server/src/testing/uses-harness.ts'))).toBe(
+      false,
+    );
   });
 
   it('permits the admin API to import a protocol package', async () => {
@@ -125,6 +166,13 @@ describe('boundary rules', () => {
     ).toBe(true);
   });
 
+  it('lets a test beside a layer reach src/testing/', async () => {
+    const found = await violations('no-layer-to-testing');
+    expect(found.some((v) => v.from.endsWith('domain-example/src/view/good-view.test.tsx'))).toBe(
+      false,
+    );
+  });
+
   it('does not flag a clean service for no-layer-to-testing', async () => {
     const found = await violations('no-layer-to-testing');
     expect(found.some((v) => v.from.endsWith('domain-example/src/service/some-service.ts'))).toBe(
@@ -138,5 +186,224 @@ describe('boundary rules', () => {
       v.from.endsWith('domain-example/src/view/good-view.ts'),
     );
     expect(fromGoodView).toHaveLength(0);
+  });
+
+  it('permits a service importing a sibling service in the same package', async () => {
+    const output = await cruiseFixtures();
+    const composing = [
+      'domain-example/src/service/composed-service.ts',
+      'admin-console/src/features/clients/service.ts',
+    ];
+    for (const file of composing) {
+      const importsService = output.modules.some(
+        (m) =>
+          m.source.endsWith(file) &&
+          m.dependencies.some(
+            (d) => !d.couldNotResolve && /\/service(?:\/|\.tsx?$)/u.test(d.resolved),
+          ),
+      );
+      expect(importsService).toBe(true);
+      expect(output.summary.violations.filter((v) => v.from.endsWith(file))).toHaveLength(0);
+    }
+  });
+
+  it('rejects a single-file view importing a single-file adapter', async () => {
+    const found = await violations('no-view-to-adapter');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('admin-console/src/features/clients/view.tsx') &&
+          v.to.endsWith('admin-console/src/features/clients/adapter.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a console feature importing another feature's internals", async () => {
+    const found = await violations('console-feature-imports-only-index');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('features/subjects/usecase/reachesIn.ts') &&
+          v.to.endsWith('features/clients/service.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it("permits a console feature importing another feature's index.ts", async () => {
+    const output = await cruiseFixtures();
+    expect(
+      output.summary.violations.filter((v) =>
+        v.from.endsWith('features/subjects/usecase/usesIndex.ts'),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('rejects console shared code importing a feature', async () => {
+    const found = await violations('console-shared-imports-no-feature');
+    expect(found.some((v) => v.from.endsWith('shared/repository/featureLeak.ts'))).toBe(true);
+  });
+
+  it('rejects a console feature importing app/', async () => {
+    const found = await violations('console-nothing-imports-app');
+    expect(found.some((v) => v.from.endsWith('features/subjects/usecase/appLeak.ts'))).toBe(true);
+  });
+
+  it('rejects a console view importing shared/transport', async () => {
+    const found = await violations('console-view-no-transport');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('features/subjects/view/SubjectList.tsx') &&
+          v.to.endsWith('shared/transport/client.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a console view importing shared/adapter', async () => {
+    const found = await violations('no-view-to-adapter');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('features/subjects/view/ReadsStorage.tsx') &&
+          v.to.endsWith('shared/adapter/storage.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a console usecase importing shared/adapter', async () => {
+    const found = await violations('no-usecase-to-adapter');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('features/subjects/usecase/readsStorage.ts') &&
+          v.to.endsWith('shared/adapter/storage.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects console shared/adapter importing a feature', async () => {
+    const found = await violations('console-shared-imports-no-feature');
+    expect(found.some((v) => v.from.endsWith('shared/adapter/featureLeak.ts'))).toBe(true);
+  });
+
+  it('permits a console repository importing shared/adapter', async () => {
+    const output = await cruiseFixtures();
+    const remembers = output.modules.find((m) =>
+      m.source.endsWith('shared/repository/remembers.ts'),
+    );
+    expect(remembers?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(1);
+    expect(
+      output.summary.violations.filter((v) => v.from.endsWith('shared/repository/remembers.ts')),
+    ).toHaveLength(0);
+  });
+
+  it('rejects a console usecase reaching shared/transport', async () => {
+    const found = await violations('console-usecase-no-transport');
+    expect(found.some((v) => v.from.endsWith('features/subjects/usecase/readsTransport.ts'))).toBe(
+      true,
+    );
+  });
+
+  it('rejects the transport context read outside a repository', async () => {
+    const found = await violations('console-transport-context-in-repository');
+    expect(found.some((v) => v.from.endsWith('features/subjects/usecase/readsTransport.ts'))).toBe(
+      true,
+    );
+    expect(found.some((v) => v.from.endsWith('repository/readsTransport.ts'))).toBe(false);
+  });
+
+  it('rejects the gateway built outside an adapter', async () => {
+    const found = await violations('console-transport-client-in-adapter');
+    expect(found.some((v) => v.from.endsWith('repository/buildsGateway.ts'))).toBe(true);
+    expect(found.some((v) => v.from.endsWith('adapter/buildsGateway.ts'))).toBe(false);
+  });
+
+  it('permits a type-only import of the transport anywhere', async () => {
+    const output = await cruiseFixtures();
+    const typed = output.modules.find((m) => m.source.endsWith('usecase/typesTransport.ts'));
+    expect(typed?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(2);
+    expect(
+      output.summary.violations.filter((v) => v.from.endsWith('usecase/typesTransport.ts')),
+    ).toHaveLength(0);
+  });
+
+  it('permits the gallery importing shared/view and shared/service', async () => {
+    const output = await cruiseFixtures();
+    const gallery = output.modules.find((m) => m.source.endsWith('src/gallery/Gallery.ts'));
+    expect(gallery?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(2);
+    expect(
+      output.summary.violations.filter((v) => v.from.endsWith('src/gallery/Gallery.ts')),
+    ).toHaveLength(0);
+  });
+
+  it('rejects the gallery importing anything else of the console', async () => {
+    const found = await violations('console-gallery-shows-only-view');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('src/gallery/reachesTransport.ts') &&
+          v.to.endsWith('shared/transport/client.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a console service importing a feature index.ts', async () => {
+    const found = await violations('console-service-imports-only-service');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('features/subjects/service.ts') &&
+          v.to.endsWith('features/clients/index.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a console feature's index.ts re-exporting its repository, adapter or shared code", async () => {
+    const found = await violations('console-index-exports-view-usecase-service');
+    const from = found.filter((v) => v.from.endsWith('features/audit/index.ts'));
+    expect(from.map((v) => v.to.replace(/^.*\/src\//u, '')).sort()).toEqual([
+      'features/audit/adapter.ts',
+      'features/audit/repository.ts',
+      'shared/service/capabilities.ts',
+    ]);
+  });
+
+  it("permits a console feature's index.ts re-exporting its view, usecase and service, and a repository type", async () => {
+    const output = await cruiseFixtures();
+    const barrel = output.modules.find((m) => m.source.endsWith('features/groups/index.ts'));
+    expect(barrel?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(4);
+    expect(
+      output.summary.violations.filter((v) => v.from.endsWith('features/groups/index.ts')),
+    ).toHaveLength(0);
+  });
+
+  it('rejects console code outside src/testing/ and tests importing src/testing/', async () => {
+    const found = await violations('console-nothing-ships-testing');
+    const from = found.map((v) => v.from.replace(/^.*\/admin-console\/src\//u, '')).sort();
+    expect(from).toEqual(['app/shipsTesting.ts', 'main.tsx']);
+  });
+
+  it("rejects app/ importing a feature's internals", async () => {
+    const found = await violations('console-feature-imports-only-index');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('src/app/reachesIn.ts') && v.to.endsWith('features/clients/service.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it("permits app/ importing a feature's index.ts", async () => {
+    const output = await cruiseFixtures();
+    const router = output.modules.find((m) => m.source.endsWith('src/app/router.ts'));
+    expect(router?.dependencies.filter((d) => !d.couldNotResolve)).toHaveLength(1);
+    expect(
+      output.summary.violations.filter((v) => v.from.endsWith('src/app/router.ts')),
+    ).toHaveLength(0);
+  });
+
+  it('rejects console code importing the gallery', async () => {
+    const found = await violations('console-nothing-imports-gallery');
+    expect(found.some((v) => v.from.endsWith('shared/repository/galleryLeak.ts'))).toBe(true);
   });
 });

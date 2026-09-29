@@ -30,8 +30,21 @@ export function nextPageUrl(
 
 export interface CursorPayload {
   readonly after: string;
+  readonly sort?: string;
   readonly collection: string;
   readonly tenantId: string;
+  readonly filters: string;
+}
+
+// A SHA-256 over the filters a list was queried with, so a cursor minted
+// under one set of filters is refused when replayed under another — an
+// `undefined` value (a filter the caller left off) is indistinguishable
+// from one never passed, so both digest the same.
+export function filterDigest(filters: Readonly<Record<string, string | undefined>>): string {
+  const defined = Object.entries(filters)
+    .filter((entry): entry is [string, string] => entry[1] !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return createHash('sha256').update(JSON.stringify(defined)).digest('base64url');
 }
 
 // Distinct from the KEK a caller passes as `key` — a cursor tag and an
@@ -54,8 +67,9 @@ export function decodeCursor(
   key: Uint8Array,
   collection: string,
   tenantId: string,
+  filters: string,
   raw: string,
-): { kind: 'ok'; after: string } | { kind: 'invalid' } {
+): { kind: 'ok'; after: string; sort?: string } | { kind: 'invalid' } {
   const parts = raw.split('.');
   if (parts.length !== 2) return { kind: 'invalid' };
   const payloadPart = parts[0];
@@ -89,10 +103,14 @@ export function decodeCursor(
   if (
     typeof candidate.after !== 'string' ||
     candidate.collection !== collection ||
-    candidate.tenantId !== tenantId
+    candidate.tenantId !== tenantId ||
+    candidate.filters !== filters ||
+    (candidate.sort !== undefined && typeof candidate.sort !== 'string')
   ) {
     return { kind: 'invalid' };
   }
 
-  return { kind: 'ok', after: candidate.after };
+  return candidate.sort === undefined
+    ? { kind: 'ok', after: candidate.after }
+    : { kind: 'ok', after: candidate.after, sort: candidate.sort };
 }

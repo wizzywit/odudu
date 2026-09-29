@@ -1,5 +1,6 @@
-import { type Client } from '@odudu/contracts/admin';
+import { type Client, type ListClientsQuery } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { roles } from '@odudu/domain-authz';
 import { subjectRepository } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
@@ -14,20 +15,38 @@ import {
 import {
   clientOidcConfig,
   clientOidcConfigRepository,
+  clientTokenTtlProblem,
   isWellFormedWebOrigin,
   parseClientMetadata,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
-import { asc, eq, gt, inArray } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { redactedDiff } from '#/service/audit-detail';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import {
   AMENDABLE_CLIENT_FIELDS,
   BUILTIN_ADMIN_AMENDABLE_FIELDS,
   refusalFor,
 } from '#/service/client-patch';
 import { etagOf, matches } from '#/service/etag';
+import { publicJwks } from '#/service/public-jwks';
+import {
+  guardLastAdministrator,
+  type LastAdministratorRefusal,
+} from '#/usecase/last-administrator';
+import {
+  prefixRangeConditions,
+  requireSearchKey,
+  type ListPosition,
+} from '#/usecase/prefix-search';
+import {
+  lockSubjectRow,
+  refuseOverTargetCeiling,
+  type TargetCeilingInput,
+  type TargetCeilingRefusal,
+} from '#/usecase/subjects';
 
 const COLLECTION = 'clients';
 
@@ -40,6 +59,8 @@ const CLIENT_VIEW_COLUMNS = {
   createdAt: clients.createdAt,
   fullScopeAllowed: clients.fullScopeAllowed,
   registrationOrigin: clients.registrationOrigin,
+  builtinAdmin: clients.builtinAdmin,
+  serviceSubjectId: clients.serviceSubjectId,
   redirectUris: clientOidcConfig.redirectUris,
   grantTypes: clientOidcConfig.grantTypes,
   tokenEndpointAuthMethod: clientOidcConfig.tokenEndpointAuthMethod,
@@ -75,6 +96,8 @@ export interface ClientView {
   readonly createdAt: Date;
   readonly fullScopeAllowed: boolean;
   readonly registrationOrigin: ClientRecord['registrationOrigin'];
+  readonly builtinAdmin: boolean;
+  readonly serviceSubjectId: string | null;
   readonly redirectUris: string[];
   readonly grantTypes: string[];
   readonly tokenEndpointAuthMethod: ClientOidcConfig['tokenEndpointAuthMethod'];
@@ -191,42 +214,142 @@ export interface ClientAuditEvent {
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: ClientAuditEvent) => Promise<void>;
 
+/** The caller of a client mutation, as the target ceiling on its service account reads it. */
+export type ClientCeilingCaller = Omit<TargetCeilingInput, 'subjectId'>;
+
+// A confidential client authenticates as its service account, so a route
+// that mutates the client is a route that can take that subject over: its
+// secret, its keys, its audiences. Held to the target ceiling on that
+// subject, the refusal filed on `resource`. Takes the subject's lock before
+// the caller locks the client, the order deleting the subject takes them in
+// (`clients_service_subject_fk` sets the column null).
+export async function refuseOverServiceAccountCeiling<A extends string, R extends string>(
+  tx: TenantScopedDatabase,
+  audit: Parameters<typeof refuseOverTargetCeiling<A, R>>[1],
+  action: A,
+  serviceSubjectId: string | null,
+  caller: ClientCeilingCaller,
+  resource: { readonly type: R; readonly id: string },
+): Promise<TargetCeilingRefusal | null> {
+  if (serviceSubjectId === null) return null;
+  if (!(await lockSubjectRow(tx, serviceSubjectId))) return null;
+  return refuseOverTargetCeiling(
+    tx,
+    audit,
+    action,
+    { ...caller, subjectId: serviceSubjectId },
+    resource,
+  );
+}
+
+/** Every `listClientsQuerySchema` parameter except the page controls. */
+export type ClientFilters = Omit<ListClientsQuery, 'cursor' | 'limit'>;
+
 export interface ListClientsInput {
   readonly limit: number;
   readonly cursor: string | undefined;
   readonly cursorKey: Uint8Array;
   readonly tenantId: string;
+  readonly filters: ClientFilters;
 }
 
 export type ListClientsOutcome =
   { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly ClientView[]; next: string | null };
 
+type ClientSearchKey = typeof clients.clientIdSearch | typeof clients.nameSearch;
+
+function clientSearchOf(
+  filters: ClientFilters,
+): { readonly column: ClientSearchKey; readonly prefix: string } | undefined {
+  if (filters.client_id !== undefined) {
+    return { column: clients.clientIdSearch, prefix: filters.client_id };
+  }
+  if (filters.name !== undefined) return { column: clients.nameSearch, prefix: filters.name };
+  return undefined;
+}
+
+function exactClientConditions(filters: ClientFilters): SQL[] {
+  return [
+    ...(filters.type === undefined ? [] : [eq(clients.type, filters.type)]),
+    ...(filters.enabled === undefined ? [] : [eq(clients.enabled, filters.enabled === 'true')]),
+  ];
+}
+
+/**
+ * The WHERE clause of the clients listing, and so also of its count, which
+ * passes no position. It reads `clients` columns only, so the count needs
+ * none of the listing's join to `client_oidc_config`.
+ */
+export async function clientListConditions(
+  tx: TenantScopedDatabase,
+  filters: ClientFilters,
+  after: ListPosition | undefined,
+): Promise<SQL[]> {
+  const conditions = exactClientConditions(filters);
+  const search = clientSearchOf(filters);
+  if (search === undefined) {
+    if (after !== undefined) conditions.push(gt(clients.id, after.id));
+    return conditions;
+  }
+  const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+  conditions.push(
+    ...(await prefixRangeConditions(tx, search.column, clients.id, search.prefix, position)),
+  );
+  return conditions;
+}
+
+/** The clients listing's order, which its keyset cursor and its count both follow. */
+export function clientListOrder(filters: ClientFilters): SQL[] {
+  const search = clientSearchOf(filters);
+  return search === undefined ? [asc(clients.id)] : [asc(search.column), asc(clients.id)];
+}
+
+// A searched listing is one range scan of the search column's index
+// (0074_list_indexes_tenants_clients.sql), the way `listSubjects` is.
 export async function listClients(
   tx: TenantScopedDatabase,
   input: ListClientsInput,
 ): Promise<ListClientsOutcome> {
-  let after: string | undefined;
+  const filters = filterDigest(input.filters);
+  const search = clientSearchOf(input.filters);
+  let after: ListPosition | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
-    after = decoded.after;
+    if (search !== undefined && decoded.sort === undefined) return { kind: 'invalid_cursor' };
+    after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const rows = await clientsJoinedWithConfig(tx)
-    .where(after === undefined ? undefined : gt(clients.id, after))
-    .orderBy(asc(clients.id))
+  const conditions = await clientListConditions(tx, input.filters, after);
+  const rows = await tx
+    .select({ view: CLIENT_VIEW_COLUMNS, searchKey: search?.column ?? sql<null>`null` })
+    .from(clients)
+    .innerJoin(clientOidcConfig, eq(clients.id, clientOidcConfig.clientId))
+    .where(conditions.length === 0 ? undefined : and(...conditions))
+    .orderBy(...clientListOrder(input.filters))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;
-  const bareItems = (hasMore ? rows.slice(0, input.limit) : rows).map(narrowRow);
-  const items = await attachScopesMany(tx, bareItems);
-  const last = items[items.length - 1];
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
+  const items = await attachScopesMany(
+    tx,
+    page.map((row) => narrowRow(row.view)),
+  );
   const next =
     hasMore && last !== undefined
       ? encodeCursor(input.cursorKey, {
-          after: last.id,
+          after: last.view.id,
+          ...(search === undefined ? {} : { sort: requireSearchKey(last.searchKey) }),
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 
@@ -275,6 +398,7 @@ export type CreateClientOutcome =
       kind: 'invalid_metadata';
       error: 'invalid_redirect_uri' | 'invalid_client_metadata';
       description: string;
+      field?: string;
     }
   | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
@@ -304,6 +428,8 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): Omit<Clie
     createdAt: client.createdAt,
     fullScopeAllowed: client.fullScopeAllowed,
     registrationOrigin: client.registrationOrigin,
+    builtinAdmin: client.builtinAdmin,
+    serviceSubjectId: client.serviceSubjectId,
     redirectUris: config.redirectUris,
     grantTypes: config.grantTypes,
     tokenEndpointAuthMethod: config.tokenEndpointAuthMethod,
@@ -366,7 +492,12 @@ export async function createClient(
       outcome: 'refused',
       detail: { error: parsed.error },
     });
-    return { kind: 'invalid_metadata', error: parsed.error, description: parsed.description };
+    return {
+      kind: 'invalid_metadata',
+      error: parsed.error,
+      description: parsed.description,
+      ...(parsed.field === undefined ? {} : { field: parsed.field }),
+    };
   }
   const metadata = parsed.metadata;
   const type = clientType(metadata.tokenEndpointAuthMethod);
@@ -512,7 +643,7 @@ export function clientWireShape(view: ClientView): Client {
     client_credentials_scopes: view.clientCredentialsScopes,
     web_origins: view.webOrigins,
     post_logout_redirect_uris: view.postLogoutRedirectUris,
-    jwks: view.jwks,
+    jwks: publicJwks(view.jwks).value,
     jwks_uri: view.jwksUri,
     frontchannel_logout_uri: view.frontchannelLogoutUri,
     backchannel_logout_uri: view.backchannelLogoutUri,
@@ -524,6 +655,8 @@ export function clientWireShape(view: ClientView): Client {
     userinfo_encrypted_response_alg: view.userinfoEncryptedResponseAlg,
     userinfo_encrypted_response_enc: view.userinfoEncryptedResponseEnc,
     tls_client_auth_subject_dn: view.tlsClientAuthSubjectDn,
+    builtin_admin: view.builtinAdmin,
+    service_subject_id: view.serviceSubjectId,
     scopes: view.scopes.map((scope) => ({
       id: scope.id,
       name: scope.name,
@@ -532,13 +665,10 @@ export function clientWireShape(view: ClientView): Client {
   };
 }
 
-export interface AmendClientInput {
+export interface AmendClientInput extends ClientCeilingCaller {
   readonly clientDbId: string;
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
-  readonly actorSubjectId: string;
-  readonly actorTenantId: string;
-  readonly actorClientId: string;
 }
 
 export interface AmendClientDeps {
@@ -554,11 +684,13 @@ export type AmendClientOutcome =
       kind: 'invalid_metadata';
       error: 'invalid_redirect_uri' | 'invalid_client_metadata';
       description: string;
+      field?: string;
     }
   | { kind: 'precondition_required'; field: string }
   | { kind: 'precondition_failed' }
   | { kind: 'builtin_admin_guarded'; reason: string }
   | { kind: 'auth_method_changes_type'; reason: string }
+  | TargetCeilingRefusal
   | { kind: 'ok'; client: ClientView; etag: string };
 
 // The six list fields the schema stores whole (the same six
@@ -707,6 +839,8 @@ function checkedAdminFields(
     if (!(field in values)) continue;
     const checked = checkedInteger(field, values[field]);
     if (isFieldError(checked)) return checked;
+    const outOfRange = clientTokenTtlProblem(field, checked);
+    if (outOfRange !== null) return { field, description: outOfRange };
     if (field === 'access_token_ttl_seconds') config.accessTokenTtlSeconds = checked;
     else config.refreshTokenTtlSeconds = checked;
   }
@@ -762,6 +896,18 @@ export async function amendClient(
   deps: AmendClientDeps,
   input: AmendClientInput,
 ): Promise<AmendClientOutcome> {
+  const unlocked = await clientRepository(tx).byId(input.clientDbId);
+  if (unlocked === null) return { kind: 'not_found' };
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'client.amend',
+    unlocked.serviceSubjectId,
+    input,
+    { type: 'client', id: input.clientDbId },
+  );
+  if (refused !== null) return refused;
+
   // Locked for the rest of the transaction, so the `If-Match` comparison
   // below and the writes that follow it cannot interleave with another
   // amendment of the same client — the config row is reached only through
@@ -783,20 +929,27 @@ export async function amendClient(
   // the database still carries this column, so it cannot slip past the
   // check that way.
   if (clientRow.builtinAdmin) {
-    if (input.values.enabled === false) {
-      return {
-        kind: 'builtin_admin_guarded',
-        reason: `${clientRow.clientId} is this tenant's built-in admin client and cannot be disabled`,
-      };
-    }
     const guarded = Object.keys(input.values).find(
       (field) => !BUILTIN_ADMIN_AMENDABLE_FIELDS.includes(field),
     );
-    if (guarded !== undefined) {
-      return {
-        kind: 'builtin_admin_guarded',
-        reason: `${guarded} on ${clientRow.clientId}, this tenant's built-in admin client, is not amendable: it could leave every administrator of this tenant locked out`,
-      };
+    const reason =
+      input.values.enabled === false
+        ? `${clientRow.clientId} is this tenant's built-in admin client and cannot be disabled`
+        : guarded === undefined
+          ? null
+          : `${guarded} on ${clientRow.clientId}, this tenant's built-in admin client, is not amendable: it could leave every administrator of this tenant locked out`;
+    if (reason !== null) {
+      await deps.audit(tx, {
+        action: 'client.amend',
+        resourceType: 'client',
+        resourceId: input.clientDbId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { reason },
+      });
+      return { kind: 'builtin_admin_guarded', reason };
     }
   }
 
@@ -821,7 +974,7 @@ export async function amendClient(
         'token_endpoint_auth_method',
         configRow.tokenEndpointAuthMethod,
       ),
-      jwks: metadataFieldValue(input.values, 'jwks', configRow.jwks),
+      jwks: metadataFieldValue(input.values, 'jwks', publicJwks(configRow.jwks).value),
       jwks_uri: metadataFieldValue(input.values, 'jwks_uri', configRow.jwksUri),
       frontchannel_logout_uri: metadataFieldValue(
         input.values,
@@ -867,7 +1020,12 @@ export async function amendClient(
 
     const parsed = parseClientMetadata(merged, { tlsClientAuthEnabled: deps.tlsClientAuthEnabled });
     if (parsed.kind === 'invalid') {
-      return { kind: 'invalid_metadata', error: parsed.error, description: parsed.description };
+      return {
+        kind: 'invalid_metadata',
+        error: parsed.error,
+        description: parsed.description,
+        ...(parsed.field === undefined ? {} : { field: parsed.field }),
+      };
     }
 
     configPatch.redirectUris = parsed.metadata.redirectUris;
@@ -939,11 +1097,8 @@ export async function amendClient(
   return { kind: 'ok', client: view, etag: etagOf(clientWireShape(view)) };
 }
 
-export interface RotateClientSecretInput {
+export interface RotateClientSecretInput extends ClientCeilingCaller {
   readonly clientDbId: string;
-  readonly actorSubjectId: string;
-  readonly actorTenantId: string;
-  readonly actorClientId: string;
 }
 
 export interface RotateClientSecretDeps {
@@ -954,6 +1109,7 @@ export interface RotateClientSecretDeps {
 export type RotateClientSecretOutcome =
   | { kind: 'not_found' }
   | { kind: 'not_confidential' }
+  | TargetCeilingRefusal
   | { kind: 'ok'; client: ClientView; secret: string };
 
 /** Answers the new secret exactly once — nothing reads it back afterward. */
@@ -965,6 +1121,15 @@ export async function rotateClientSecret(
   const clientRow = await clientRepository(tx).byId(input.clientDbId);
   if (clientRow === null) return { kind: 'not_found' };
   if (clientRow.type !== 'confidential') return { kind: 'not_confidential' };
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'client.rotate_secret',
+    clientRow.serviceSubjectId,
+    input,
+    { type: 'client', id: input.clientDbId },
+  );
+  if (refused !== null) return refused;
 
   const secret = generateClientSecret();
   const secretHash = await deps.hashClientSecret(secret);
@@ -995,11 +1160,8 @@ export async function rotateClientSecret(
   };
 }
 
-export interface DeleteClientInput {
+export interface DeleteClientInput extends ClientCeilingCaller {
   readonly clientDbId: string;
-  readonly actorSubjectId: string;
-  readonly actorTenantId: string;
-  readonly actorClientId: string;
 }
 
 export interface DeleteClientDeps {
@@ -1007,20 +1169,87 @@ export interface DeleteClientDeps {
 }
 
 export type DeleteClientOutcome =
-  { kind: 'not_found' } | { kind: 'builtin_admin_guarded'; reason: string } | { kind: 'deleted' };
+  | { kind: 'not_found' }
+  | { kind: 'builtin_admin_guarded'; reason: string }
+  | TargetCeilingRefusal
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
+  | { kind: 'deleted' }
+  | LastAdministratorRefusal;
 
 export async function deleteClient(
   tx: TenantScopedDatabase,
   deps: DeleteClientDeps,
   input: DeleteClientInput,
 ): Promise<DeleteClientOutcome> {
+  return guardLastAdministrator(
+    tx,
+    {
+      action: 'client.delete',
+      resourceType: 'client',
+      resourceId: input.clientDbId,
+      actor: input,
+      audit: deps.audit,
+    },
+    (inner) => deleteClientUnguarded(inner, deps, input),
+  );
+}
+
+async function deleteClientUnguarded(
+  tx: TenantScopedDatabase,
+  deps: DeleteClientDeps,
+  input: DeleteClientInput,
+): Promise<DeleteClientOutcome> {
   const clientRow = await clientRepository(tx).byId(input.clientDbId);
   if (clientRow === null) return { kind: 'not_found' };
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'client.delete',
+    clientRow.serviceSubjectId,
+    input,
+    { type: 'client', id: input.clientDbId },
+  );
+  if (refused !== null) return refused;
   if (clientRow.builtinAdmin) {
-    return {
-      kind: 'builtin_admin_guarded',
-      reason: `${clientRow.clientId} is this tenant's built-in admin client and cannot be deleted`,
-    };
+    const reason = `${clientRow.clientId} is this tenant's built-in admin client and cannot be deleted`;
+    await deps.audit(tx, {
+      action: 'client.delete',
+      resourceType: 'client',
+      resourceId: input.clientDbId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'builtin_admin_guarded', reason };
+  }
+
+  // `roles_client_fk` cascades, so the delete takes every role scoped to the
+  // client, and every grant and composite edge naming one, with it.
+  const scopedRoles = await tx
+    .select({ id: roles.id })
+    .from(roles)
+    .where(eq(roles.clientId, input.clientDbId));
+  const denied = overreach(
+    await capabilitiesReachableFrom(
+      tx,
+      scopedRoles.map((role) => role.id),
+    ),
+    input.callerCapabilities,
+  );
+  if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'client.delete',
+      resourceType: 'client',
+      resourceId: input.clientDbId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
+    return { kind: 'capability_ceiling', requested: [], removed: denied };
   }
 
   await clientRepository(tx).delete(input.clientDbId);

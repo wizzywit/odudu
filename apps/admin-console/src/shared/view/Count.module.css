@@ -1,0 +1,7 @@
+.count {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--ink-muted);
+}

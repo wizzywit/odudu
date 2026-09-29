@@ -2,6 +2,7 @@ import {
   amendScopeRequestSchema,
   assignScopeToClientRequestSchema,
   createScopeRequestSchema,
+  listScopeClientsQuerySchema,
   listScopesQuerySchema,
   setScopeRolesRequestSchema,
   type ClientScope,
@@ -16,15 +17,26 @@ import {
   assignScopeToClient,
   createScope,
   deleteScope,
+  listScopeClients,
   listScopes,
   readScope,
   readScopeRoles,
   setScopeRoles,
+  unassignScopeFromClient,
   type AmendScopeOutcome,
   type Audit,
 } from '#/usecase/scopes';
-import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import {
+  ceilingProblem,
+  cursorProblem,
+  fieldProblem,
+  ifMatchRequired,
+  ifMatchStale,
+  problem,
+  sendProblem,
+} from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
+import { serviceAccountCeilingProblem } from '#/view/routes/clients';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface ScopesRouteDeps {
@@ -46,7 +58,8 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
 export function listScopesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
     const query = listScopesQuerySchema.parse(request.query);
-    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+    const { cursor, limit: requestedLimit, ...filters } = query;
+    const limit = coerceLimit(requestedLimit === undefined ? undefined : String(requestedLimit));
     const tenantName = request.params.tenant;
     if (tenantName === undefined) {
       throw new Error('protocol-admin: scopes route received no :tenant');
@@ -55,17 +68,14 @@ export function listScopesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listScopes(tx, {
         limit,
-        cursor: query.cursor,
+        cursor,
         cursorKey: deps.cursorKey,
         tenantId: targetTenantId,
+        filters,
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     if (outcome.next === null) {
@@ -145,6 +155,7 @@ export function createScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
       throw error;
     }
 
+    reply.header('etag', etagOf(scope));
     return reply.code(201).send(scope);
   };
 }
@@ -161,13 +172,13 @@ function amendmentProblem(
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+        fieldProblem([{ path: outcome.field, message: outcome.reason }]),
       );
     case 'invalid_value':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+        fieldProblem([{ path: outcome.field, message: outcome.description }]),
       );
     case 'precondition_failed':
       return sendProblem(
@@ -215,6 +226,10 @@ export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
     if (id === undefined) {
       throw new Error('protocol-admin: DELETE scope route received no :id');
     }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteScope(
@@ -222,6 +237,7 @@ export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
         { audit: deps.audit },
         {
           scopeId: id,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -232,6 +248,10 @@ export function deleteScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
     switch (outcome.kind) {
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'openid_guarded':
+        return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'capability_ceiling':
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'deleted':
         return reply.code(204).send();
     }
@@ -293,24 +313,13 @@ export function setScopeRolesHandler(deps: ScopesRouteDeps): AdminRouteHandler {
         return sendProblem(
           reply,
           request,
-          problem(
-            400,
-            'about:blank',
-            'Bad Request',
+          fieldProblem(
+            outcome.roleIds.map((id) => ({ path: 'role_ids', message: `names no role ${id}` })),
             `unknown role id(s): ${outcome.roleIds.join(', ')}`,
           ),
         );
       case 'capability_ceiling':
-        return sendProblem(
-          reply,
-          request,
-          problem(
-            403,
-            'about:blank',
-            'Forbidden',
-            `the caller does not hold: ${outcome.requested.join(', ')}`,
-          ),
-        );
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'precondition_required':
         return sendProblem(reply, request, ifMatchRequired('a scope\u2019s roles'));
       case 'precondition_failed':
@@ -332,6 +341,10 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
       throw new Error('protocol-admin: PUT scope client route received no :id/:clientId');
     }
     const body = assignScopeToClientRequestSchema.parse(request.body);
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       assignScopeToClient(
@@ -341,6 +354,7 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
           scopeId: id,
           clientId,
           assignment: body.assignment,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -361,8 +375,114 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
           request,
           problem(404, 'about:blank', 'Not Found', `no client ${clientId}`),
         );
+      case 'target_ceiling':
+        return serviceAccountCeilingProblem(reply, request, outcome.requested);
       case 'ok':
+        reply.header('etag', outcome.clientEtag);
         return reply.code(200).send(outcome.assignments);
     }
+  };
+}
+
+export function unassignScopeFromClientHandler(deps: ScopesRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    const clientId = request.params.clientId;
+    if (id === undefined || clientId === undefined) {
+      throw new Error('protocol-admin: DELETE scope client route received no :id/:clientId');
+    }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      unassignScopeFromClient(
+        tx,
+        { audit: deps.audit },
+        {
+          scopeId: id,
+          clientId,
+          callerCapabilities,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'scope_not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no scope ${id}`),
+        );
+      case 'client_not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no client ${clientId}`),
+        );
+      case 'builtin_admin_guarded':
+        return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'target_ceiling':
+        return serviceAccountCeilingProblem(reply, request, outcome.requested);
+      case 'not_assigned':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            404,
+            'about:blank',
+            'Not Found',
+            `scope ${id} is not assigned to client ${clientId}`,
+          ),
+        );
+      case 'removed':
+        reply.header('etag', outcome.clientEtag);
+        return reply.code(204).send();
+    }
+  };
+}
+
+export function listScopeClientsHandler(deps: ScopesRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const { tenant: tenantName, id } = request.params;
+    if (tenantName === undefined || id === undefined) {
+      throw new Error('protocol-admin: GET scope clients route received no :tenant/:id');
+    }
+    const query = listScopeClientsQuerySchema.parse(request.query);
+    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      listScopeClients(tx, {
+        tenantId: targetTenantId,
+        scopeId: id,
+        limit,
+        cursor: query.cursor,
+        cursorKey: deps.cursorKey,
+      }),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(
+        reply,
+        request,
+        problem(404, 'about:blank', 'Not Found', `no scope ${id}`),
+      );
+    }
+    if (outcome.kind === 'invalid_cursor') {
+      return sendProblem(reply, request, cursorProblem());
+    }
+    if (outcome.next === null) {
+      return reply.code(200).send({ items: outcome.items });
+    }
+    const nextUrl = nextPageUrl(`/admin/tenants/${tenantName}/scopes/${id}/clients`, {
+      ...query,
+      limit,
+      cursor: outcome.next,
+    });
+    reply.header('link', `<${nextUrl}>; rel="next"`);
+    return reply.code(200).send({ items: outcome.items, next: outcome.next });
   };
 }

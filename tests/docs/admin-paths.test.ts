@@ -26,12 +26,14 @@ const DENIED_BY_THE_DOCUMENT = ['view-clients', 'view-sessions'];
 // callers construct. Written out rather than read from those call sites,
 // deliberately: a check that derives its expectation from the code it checks
 // agrees by construction and can no longer fail. Extending this by hand when
-// a fifth type is added is the point, not an omission to tidy away.
+// another type is added is the point, not an omission to tidy away.
 const EMITTABLE_PROBLEM_TYPES = new Set([
   'about:blank',
   'about:blank#unauthorized',
   'about:blank#forbidden',
   'about:blank#not-found',
+  'about:blank#export-too-large',
+  'about:blank#last-administrator',
 ]);
 
 const CAPABILITY_SHAPED = /^(?:view|manage)-[a-z]+(?:-[a-z]+)*$/u;
@@ -52,16 +54,25 @@ function endpointsNamedBy(section: Section): { method: string; path: string }[] 
   });
 }
 
-/** The section whose heading names this route, matching on the pattern's tail. */
+/**
+ * The section whose heading names this route, matching on the pattern's
+ * tail — the longest tail that matches, so `GET /scopes/:id/clients` is not
+ * read as the `GET /clients` a shorter heading names.
+ */
 function sectionFor(
   all: Section[],
   route: { method: string; pattern: string },
 ): Section | undefined {
-  return all.find((section) =>
-    endpointsNamedBy(section).some(
-      (named) => named.method === route.method && route.pattern.endsWith(named.path),
-    ),
-  );
+  let best: { section: Section; length: number } | undefined;
+  for (const section of all) {
+    for (const named of endpointsNamedBy(section)) {
+      if (named.method !== route.method || !route.pattern.endsWith(named.path)) continue;
+      if (best === undefined || named.path.length > best.length) {
+        best = { section, length: named.path.length };
+      }
+    }
+  }
+  return best?.section;
 }
 
 describe('docs/admin-paths.md says what the admin API actually requires', () => {
@@ -100,11 +111,14 @@ describe('docs/admin-paths.md says what the admin API actually requires', () => 
       if (capability === null) return [];
       const section = sectionFor(all, route);
       if (section === undefined) return [`${route.method} ${route.pattern}: no section names it`];
-      if (backticked(`${section.heading}\n${section.body}`).includes(capability)) return [];
-      return [
-        `${route.method} ${route.pattern}: "${section.heading}" ` +
-          `(line ${String(section.headingLine)}) never names \`${capability}\``,
-      ];
+      const named = backticked(`${section.heading}\n${section.body}`);
+      return [capability, ...(route.alsoAdmits ?? [])]
+        .filter((required) => !named.includes(required))
+        .map(
+          (required) =>
+            `${route.method} ${route.pattern}: "${section.heading}" ` +
+            `(line ${String(section.headingLine)}) never names \`${required}\``,
+        );
     });
 
     expect(wrong, `${GUIDE} and ADMIN_ROUTES disagree about what a route requires`).toEqual([]);

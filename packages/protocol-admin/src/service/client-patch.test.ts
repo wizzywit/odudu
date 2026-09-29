@@ -44,6 +44,13 @@ describe('the client amendment allowlist', () => {
     }
   });
 
+  it('refuses the search keys, which the database derives from client_id and name', () => {
+    expect(refusalFor('client_id_search')).toEqual(expect.any(String));
+    expect(refusalFor('name_search')).toEqual(expect.any(String));
+    expect(AMENDABLE_CLIENT_FIELDS).not.toContain('client_id_search');
+    expect(AMENDABLE_CLIENT_FIELDS).not.toContain('name_search');
+  });
+
   it('gives an amendable field no refusal', () => {
     expect(refusalFor('redirect_uris')).toBeNull();
   });

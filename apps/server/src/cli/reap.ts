@@ -1,3 +1,4 @@
+import { CONSOLE_SESSION_IDLE_SECONDS } from '@odudu/console-gateway';
 import {
   bypassesRowLevelSecurity,
   createDatabase,
@@ -27,6 +28,8 @@ export type TableName =
   | 'email_outbox'
   | 'backchannel_logout_deliveries'
   | 'client_assertion_jti'
+  | 'console_sessions'
+  | 'console_logins'
   | 'sessions'
   | 'audit_events';
 
@@ -128,7 +131,7 @@ function grantPastRetention(now: Date, policy: RetentionPolicy): SQL {
   `;
 }
 
-const RETENTION_RULES: Record<TableName, RetentionRule> = {
+export const RETENTION_RULES: Record<TableName, RetentionRule> = {
   // Deleted here rather than left to the ON DELETE CASCADE on
   // refresh_tokens_grant_fk: a cascade deletes the rows without this pass
   // counting them, so the report would show nothing for a table that had
@@ -309,6 +312,29 @@ const RETENTION_RULES: Record<TableName, RetentionRule> = {
     `,
   },
 
+  // No policy window, for the reason client_assertion_jti has none: a
+  // session past its absolute expiry or idle past CONSOLE_SESSION_IDLE_SECONDS
+  // has already ended, and the gateway would delete it on sight. Its grant
+  // is not revoked here: it is bound to the SSO session, whose idle limit
+  // ends it (apps/server/tests/console-session.int.test.ts).
+  console_sessions: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM console_sessions c
+       WHERE c.expires_at < ${now.toISOString()}::timestamptz
+          OR c.last_seen_at < ${now.toISOString()}::timestamptz
+             - make_interval(secs => ${CONSOLE_SESSION_IDLE_SECONDS}::integer)
+    `,
+  },
+
+  console_logins: {
+    after: [],
+    statement: (now) => sql`
+      DELETE FROM console_logins l
+       WHERE l.expires_at < ${now.toISOString()}::timestamptz
+    `,
+  },
+
   // Last, and only once nothing points at it. The ON DELETE SET NULL on
   // token_grants.session_id is a backstop this must never reach: nulling a
   // session-bound grant's session would promote it to an offline one, which
@@ -362,6 +388,8 @@ export const REAP_ORDER: readonly TableName[] = [
   'email_outbox',
   'backchannel_logout_deliveries',
   'client_assertion_jti',
+  'console_sessions',
+  'console_logins',
   'sessions',
   'audit_events',
 ];
@@ -420,6 +448,12 @@ export interface ReapDeps {
    * cannot be read from inside one (ADR 0009's amendment of 2026-09-13).
    */
   readonly ownerDatabase: DatabaseHandle;
+  /**
+   * Passed straight through to `withEachTenantExclusive`. Production leaves
+   * it unset; a test uses it to make the lock's outcome deterministic under
+   * concurrency.
+   */
+  readonly onLockAttempt?: (acquired: boolean) => Promise<void> | void;
 }
 
 // Both halves of ADR 0021's claim that the policy is the scoping, checked
@@ -471,8 +505,12 @@ export async function reap(
     return { ran: false, reason: 'no tenant was enumerated' };
   }
 
-  const pass = await withEachTenantExclusive(deps.database.db, REAP_LOCK_KEY, tenantIds, (tx) =>
-    reapTenant(tx, now, policy),
+  const pass = await withEachTenantExclusive(
+    deps.database.db,
+    REAP_LOCK_KEY,
+    tenantIds,
+    (tx) => reapTenant(tx, now, policy),
+    deps.onLockAttempt,
   );
   if (!pass.acquired) {
     return { ran: false, reason: 'another instance holds the retention lock' };

@@ -245,38 +245,23 @@ beforeAll(async () => {
   // Never inserted anywhere: a key this server has no record of, standing in
   // for every other issuer's keys at once.
   foreignKey = asRecord(await generateSigningKey('ES256', KEK), tenantId);
-
-  // A tenant whose own name is markup. The login form interpolates the tenant
-  // into its `action`, which makes the tenant name the one request-derived
-  // value that reaches a rendered page at all — see the `escapeHtml` note in
-  // view/authorize-html.ts. The payload omits `/` so that the name survives
-  // a URL path segment intact.
-  const markupClientId = newId();
-  const markupTenantId = newId();
-  await withTenant(app.db, markupTenantId, async (tx: TenantScopedDatabase) => {
-    await tx.insert(tenants).values({ id: markupTenantId, name: MARKUP_TENANT });
-    await provisionTenant(tx, markupTenantId);
-    await tx.insert(clients).values({
-      id: markupClientId,
-      tenantId: markupTenantId,
-      clientId: CLIENT_ID,
-      name: 'Adversarial test client',
-      type: 'confidential',
-      secretHash: 'hashed:secret',
-    });
-    await provisionClientDefaults(tx, markupClientId);
-    await clientOidcConfigRepository(tx).create({
-      clientId: markupClientId,
-      tenantId: markupTenantId,
-      redirectUris: [REDIRECT_URI],
-      grantTypes: ['authorization_code'],
-      tokenEndpointAuthMethod: 'client_secret_basic',
-      audiences: [],
-      accessTokenTtlSeconds: 300,
-      refreshTokenTtlSeconds: 1_209_600,
-    });
-  });
 }, 120_000);
+
+// The driver reports a constraint violation on the postgres.js error, not on
+// the Drizzle wrapper's own message — see roles.int.test.ts's causeMessage
+// for the same idiom.
+async function causeMessage(promise: Promise<unknown>): Promise<string> {
+  let caught: unknown;
+  try {
+    await promise;
+    expect.unreachable('expected the insert to be rejected');
+  } catch (error) {
+    caught = error;
+  }
+  const cause = (caught as Error).cause;
+  expect(cause).toBeInstanceOf(Error);
+  return (cause as Error).message;
+}
 
 afterAll(async () => {
   await httpApp?.close();
@@ -1438,23 +1423,21 @@ describe('[RFC6749-10.14-01] a hostile state is returned encoded, never as marku
   });
 
   // The tenant name is the one value a request supplies that does reach a
-  // rendered page: the login form's `action` is built from it. A tenant named
-  // in markup is what makes this endpoint's escaping observable at all.
-  it('escapes the tenant name the login form interpolates into its action', async () => {
-    const query = new URLSearchParams();
-    for (const [key, value] of Object.entries(authorizeParams())) {
-      if (value !== undefined) query.set(key, value);
-    }
-    const res = await http.inject({
-      url: `/tenants/${encodeURIComponent(MARKUP_TENANT)}/protocol/openid-connect/auth?${query.toString()}`,
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('name="auth_session_id"');
-    expect(res.body).not.toContain('<script>');
-    expect(res.body).not.toContain(MARKUP_TENANT);
-    expect(res.body).toContain('&lt;script&gt;');
-    expect(res.body).toContain('&quot;&gt;');
+  // rendered page: the login form's `action` is built from it. A name shaped
+  // like markup can no longer reach a row at all
+  // (tenants_name_dns_label, packages/db/drizzle/0072_tenant_name_rule.sql),
+  // so the escaping this endpoint depends on is exercised directly against
+  // the pure renderer instead — see authorize-html.test.ts's "escapes a
+  // tenant name that is not a DNS label".
+  it('refuses to create a tenant named in markup', async () => {
+    const markupTenantId = newId();
+    expect(
+      await causeMessage(
+        withTenant(app.db, markupTenantId, (tx: TenantScopedDatabase) =>
+          tx.insert(tenants).values({ id: markupTenantId, name: MARKUP_TENANT }),
+        ),
+      ),
+    ).toContain('tenants_name_dns_label');
   });
 });
 

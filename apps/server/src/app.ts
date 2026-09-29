@@ -1,6 +1,7 @@
 import cookie from '@fastify/cookie';
 import formbody from '@fastify/formbody';
 import {
+  actionTokenRepository,
   tenantSettingsRepository,
   registerActionTokenRoute,
   registerRegistrationRoute,
@@ -10,6 +11,7 @@ import {
 } from '@odudu/account';
 import { type DatabaseHandle, type TenantScopedDatabase } from '@odudu/db';
 import { requiredActionRepository } from '@odudu/authn-flows';
+import { consoleGateway } from '@odudu/console-gateway';
 import {
   credentialRepository,
   evaluatePassword,
@@ -18,7 +20,7 @@ import {
   userRepository,
   verifyPassword,
 } from '@odudu/domain-identity';
-import { newId } from '@odudu/kernel';
+import { DEFAULT_CONSOLE_DIR, newId } from '@odudu/kernel';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -62,6 +64,20 @@ export interface AppDeps {
    * passkey enrolment reports itself unsupported for the same reason.
    */
   readonly publicBaseUrl?: string;
+  /**
+   * `publicBaseUrl` while the console is on, and unset while it is off: a
+   * tenant created through the admin API is registered the console's
+   * redirect and post-logout URIs under it.
+   */
+  readonly consoleBaseUrl?: string | undefined;
+  /**
+   * `ODUDU_CONSOLE_DIR`: the built single-page app the gateway serves under
+   * `/console/*`. Defaults to the same path the config schema does, so a
+   * caller with no reason to move it can leave it unset.
+   */
+  readonly consoleDir?: string;
+  /** The console gateway's clock, so a test can age a pending sign-in. */
+  readonly consoleNow?: () => Date;
   /**
    * Whether to trust `X-Forwarded-*` headers when deriving `request.ip`.
    * Defaults to `false`: with no reverse proxy in front of the server,
@@ -108,6 +124,11 @@ export interface AppDeps {
    * `jwks_uri` is not. Defaults `false`; loopback stays refused either way.
    */
   readonly allowPrivateSmtpHosts?: boolean;
+  /**
+   * Whether the deployment has an SMTP sender of its own, which a tenant
+   * with no relay of its own falls back to. Defaults `false`.
+   */
+  readonly deploymentSmtp?: boolean;
 }
 
 export interface ThrottleSettings {
@@ -250,6 +271,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(cookie);
 
   registerHealth(app, deps);
+  if (deps.consoleBaseUrl !== undefined) {
+    app.register(
+      consoleGateway({
+        database: deps.database,
+        ownerDatabase: deps.ownerDatabase,
+        kek: deps.kek,
+        publicBaseUrl: deps.consoleBaseUrl,
+        consoleDir: deps.consoleDir ?? DEFAULT_CONSOLE_DIR,
+        ...(deps.consoleNow === undefined ? {} : { now: deps.consoleNow }),
+      }),
+    );
+  }
   app.register(
     adminRoutes({
       database: deps.database,
@@ -257,9 +290,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       logger: deps.logger,
       cursorKey: deps.kek,
       kek: deps.kek,
+      consoleBaseUrl: deps.consoleBaseUrl,
       trustProxy: deps.trustProxy ?? false,
       claimMappers,
       allowPrivateSmtpHosts: deps.allowPrivateSmtpHosts ?? false,
+      deploymentSmtp: deps.deploymentSmtp ?? false,
+      retireResetLinks: (tx, subjectId) =>
+        actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
     }),
   );
   app.register(

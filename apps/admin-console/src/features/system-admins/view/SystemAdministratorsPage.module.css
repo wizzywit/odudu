@@ -1,0 +1,42 @@
+.after {
+  display: grid;
+  gap: var(--space-4);
+  margin-block-start: var(--space-4);
+}
+
+/* Kept in the accessibility tree while empty, so what fills it is announced,
+   and out of the layout so an empty one takes no room. */
+.message:empty {
+  position: absolute;
+}
+
+.message,
+.reason,
+.lead {
+  margin: 0;
+  max-inline-size: 72ch;
+}
+
+.reason,
+.lead {
+  color: var(--ink-muted);
+}
+
+.grant {
+  display: grid;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: var(--hairline);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--type-15);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}

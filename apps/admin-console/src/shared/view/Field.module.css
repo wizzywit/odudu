@@ -1,0 +1,317 @@
+.field {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--type-13);
+  font-weight: 500;
+  color: var(--ink-primary);
+}
+
+.changed {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  letter-spacing: 0.02em;
+  color: var(--signal-warning-ink);
+  background: var(--signal-warning);
+}
+
+.input {
+  inline-size: 100%;
+  min-block-size: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font: inherit;
+  font-size: var(--type-15);
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+  transition: border-color var(--motion-fast) var(--ease);
+}
+
+.input[data-mono] {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+}
+
+.input[data-hovered] {
+  border-color: var(--ink-muted);
+}
+
+.input[data-focus-visible],
+.input[data-focused] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+  border-color: var(--focus-ring);
+}
+
+.input[data-invalid] {
+  border-color: var(--signal-danger-ink);
+}
+
+.input[data-disabled] {
+  border-style: dashed;
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+}
+
+.field[data-changed] .input,
+.field[data-changed] .trigger {
+  border-inline-start: 3px solid var(--signal-warning-ink);
+}
+
+.description {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+}
+
+.reading {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  font-size: var(--type-13);
+  font-weight: 500;
+  color: var(--signal-danger-ink);
+}
+
+.error::before {
+  content: '! ';
+  font-family: var(--font-mono);
+}
+
+.unitGroup {
+  display: flex;
+  align-items: stretch;
+  max-inline-size: 20rem;
+}
+
+.unitGroup .input {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.unit {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-inline-start: 0;
+  border-start-end-radius: var(--radius-s);
+  border-end-end-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  inline-size: 100%;
+  max-inline-size: 20rem;
+  min-block-size: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font: inherit;
+  font-size: var(--type-15);
+  text-align: start;
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+  cursor: pointer;
+}
+
+.trigger[data-hovered] {
+  border-color: var(--ink-muted);
+}
+
+.trigger[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.field[data-invalid] .trigger {
+  border-color: var(--signal-danger-ink);
+}
+
+.selectValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.popover {
+  min-inline-size: var(--trigger-width);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-panel);
+  overflow-y: auto;
+}
+
+.listbox {
+  display: grid;
+  padding: var(--space-1);
+  outline: none;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  min-block-size: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-s);
+  font-size: var(--type-15);
+  color: var(--ink-primary);
+  cursor: pointer;
+  outline: none;
+}
+
+.option[data-focused],
+.option[data-hovered] {
+  background: var(--surface-sunken);
+}
+
+.option[data-selected] {
+  font-weight: 600;
+}
+
+.option[data-selected]::after {
+  content: '✓';
+  margin-inline-start: auto;
+  color: var(--signal-active-ink);
+}
+
+.option[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.toggleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--target-min);
+  cursor: pointer;
+}
+
+.track {
+  position: relative;
+  flex: none;
+  inline-size: 36px;
+  block-size: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-sunken);
+  transition:
+    background-color var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease);
+}
+
+.thumb {
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-start: 2px;
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+  transition:
+    transform var(--motion-fast) var(--ease),
+    background-color var(--motion-fast) var(--ease);
+}
+
+.switch[data-selected] .track {
+  border-color: var(--signal-active-ink);
+  background: var(--signal-active-ink);
+}
+
+.switch[data-selected] .thumb {
+  background: var(--surface-panel);
+  transform: translateX(16px);
+}
+
+.switch[data-focus-visible] .track {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.switch[data-disabled] {
+  cursor: not-allowed;
+}
+
+.state {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.rows {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.rowField {
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.pair {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.pairHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--space-2);
+  margin-inline-end: 72px;
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.row > :last-child {
+  margin-block-start: 6px;
+}

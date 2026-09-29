@@ -1,0 +1,9 @@
+const f = fetch;
+export const xhr = new XMLHttpRequest();
+export const events = new EventSource('/console/api/admin/events');
+export const socket = new WebSocket('wss://console.example.test/');
+export const beacon = navigator.sendBeacon('/console/api/admin/audit');
+export const viaWindow = window.navigator.sendBeacon('/console/api/admin/audit');
+export const bracket = globalThis['fetch'];
+export const { fetch: taken } = window;
+export const aliased = f;

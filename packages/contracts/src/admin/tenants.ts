@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { createdAtSchema, idSchema } from '#/admin/shared';
+import {
+  createdAtSchema,
+  cursorQuerySchema,
+  enabledFilterSchema,
+  idSchema,
+  searchPrefixSchema,
+} from '#/admin/shared';
 
 export const createTenantRequestSchema = z.object({
   name: z.string().min(1),
@@ -27,3 +33,31 @@ export const listTenantsResponseSchema = z.object({
   next: z.string().optional(),
 });
 export type ListTenantsResponse = z.infer<typeof listTenantsResponseSchema>;
+
+const tenantFilters = {
+  name: searchPrefixSchema.optional(),
+  display_name: searchPrefixSchema.optional(),
+  enabled: enabledFilterSchema.optional(),
+};
+// Addressed to the second field, the one a caller adds to an existing search.
+const oneTenantSearchRule = {
+  message: 'search one field at a time: name or display_name, not both',
+  path: ['display_name'],
+};
+const oneTenantSearch = [
+  (query: { name?: string | undefined; display_name?: string | undefined }) =>
+    query.name === undefined || query.display_name === undefined,
+  oneTenantSearchRule,
+] as const;
+
+export const listTenantsQuerySchema = cursorQuerySchema
+  .extend(tenantFilters)
+  .strict()
+  .refine(...oneTenantSearch);
+export type ListTenantsQuery = z.infer<typeof listTenantsQuerySchema>;
+
+export const countTenantsQuerySchema = z
+  .object(tenantFilters)
+  .strict()
+  .refine(...oneTenantSearch);
+export type CountTenantsQuery = z.infer<typeof countTenantsQuerySchema>;

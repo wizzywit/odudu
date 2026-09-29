@@ -119,6 +119,26 @@ async function loginWithAssertionOnly(
   );
 }
 
+describe('the authenticators a flow can name', () => {
+  it('come with the flow, on a read and on a write, from the registry itself', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-tenant']);
+
+    const read = await getFlow(token, t.name);
+    expect(read.json<{ available: string[] }>().available).toEqual([
+      ...registeredAuthenticatorNames(),
+    ]);
+
+    const written = await putFlow(token, t.name, [
+      { authenticator: 'password', requirement: 'required' },
+    ]);
+    expect(written.statusCode, written.body).toBe(200);
+    expect(written.json<{ available: string[] }>().available).toEqual([
+      ...registeredAuthenticatorNames(),
+    ]);
+  });
+});
+
 describe('GET /admin/tenants/{t}/flow/executions', () => {
   it('returns the ordered list a newly provisioned tenant carries', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);

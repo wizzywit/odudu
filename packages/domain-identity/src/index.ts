@@ -1,4 +1,5 @@
 export { hashPassword, verifyPassword } from '#/service/password';
+export { generateOneTimePassword } from '#/service/one-time-password';
 export { isEmailAddress } from '#/service/email';
 export { subjects, type SubjectRecord } from '#/schema/subjects';
 export { users, type UserRecord } from '#/schema/users';
@@ -29,5 +30,13 @@ export {
   type NewUser,
   type ProfileUpdate,
   type UserWithSubject,
+  type VerificationUpdate,
 } from '#/repository/users';
+export {
+  isValidBirthdate,
+  isValidE164,
+  isValidLocale,
+  isValidProfileUrl,
+  isValidZoneinfo,
+} from '#/service/profile';
 export { credentialRepository, type NewCredential } from '#/repository/credentials';

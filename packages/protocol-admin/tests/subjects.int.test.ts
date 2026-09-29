@@ -1,10 +1,12 @@
 import { requiredActionRepository } from '@odudu/authn-flows';
 import { generateTotpSecret, totpCode, totpCounter } from '@odudu/crypto';
 import { withTenant, type TenantScopedDatabase } from '@odudu/db';
-import { roleRepository } from '@odudu/domain-authz';
+import { groupRepository, roleRepository } from '@odudu/domain-authz';
+import { auditRepository } from '@odudu/domain-audit';
 import {
   credentialRepository,
   hashPassword,
+  loginFailureRepository,
   subjectRepository,
   userRepository,
 } from '@odudu/domain-identity';
@@ -16,10 +18,18 @@ import {
   TENANT_ADMIN,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
+import { sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import {
+  createPasswordSubject,
+  createSignInClient,
+  refresh,
+  signInForRefreshToken,
+  submitPassword,
+} from '#/testing/sign-in';
 import {
   amendSubject,
   createSubject,
@@ -27,6 +37,7 @@ import {
   deleteSubject,
   setRequiredActions,
   setRoles,
+  setSubjectGroups,
   type SubjectAuditEvent,
 } from '#/usecase/subjects';
 
@@ -197,25 +208,7 @@ describe('GET /admin/tenants/{t}/subjects', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('filters by a username prefix with ?search=', async () => {
-    const t = await fixture.createTenant(`acme-${newId()}`);
-    const prefix = `ss-${newId()}`;
-    await fixture.createSubject(t.name, `${prefix}-match`);
-    await fixture.createSubject(t.name, `other-${newId()}`);
-    const token = await fixture.adminToken(t.name, ['view-users']);
-
-    const res = await fixture.http.inject({
-      method: 'GET',
-      url: `/admin/tenants/${t.name}/subjects?search=${prefix}`,
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(res.statusCode).toBe(200);
-    const items = res.json<{ items: { username: string | null }[] }>().items;
-    expect(items.length).toBeGreaterThan(0);
-    expect(items.every((s) => s.username?.startsWith(prefix) === true)).toBe(true);
-  });
-
-  it('carries ?search= into the next page link, so following it stays filtered', async () => {
+  it('carries ?username= into the next page link, so following it stays filtered', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const prefix = `carry-${newId()}`;
     await fixture.createSubject(t.name, `${prefix}-a`);
@@ -225,7 +218,7 @@ describe('GET /admin/tenants/{t}/subjects', () => {
 
     const first = await fixture.http.inject({
       method: 'GET',
-      url: `/admin/tenants/${t.name}/subjects?search=${prefix}&limit=1`,
+      url: `/admin/tenants/${t.name}/subjects?username=${prefix}&limit=1`,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(first.statusCode).toBe(200);
@@ -233,7 +226,7 @@ describe('GET /admin/tenants/{t}/subjects', () => {
     if (typeof link !== 'string') throw new Error('expected a Link header on a filtered page');
     const nextPath = /<([^>]+)>/.exec(link)?.[1];
     if (nextPath === undefined) throw new Error('expected a URL inside the Link header');
-    expect(nextPath).toContain(`search=${prefix}`);
+    expect(nextPath).toContain(`username=${prefix}`);
 
     const second = await fixture.http.inject({
       method: 'GET',
@@ -242,8 +235,7 @@ describe('GET /admin/tenants/{t}/subjects', () => {
     });
     expect(second.statusCode).toBe(200);
     const items = second.json<{ items: { username: string | null }[] }>().items;
-    expect(items.length).toBeGreaterThan(0);
-    expect(items.every((s) => s.username?.startsWith(prefix) === true)).toBe(true);
+    expect(items.map((s) => s.username)).toEqual([`${prefix}-b`]);
   });
 
   it('pages by cursor', async () => {
@@ -278,6 +270,312 @@ describe('GET /admin/tenants/{t}/subjects', () => {
     expect(res.statusCode).toBe(200);
     const items = res.json<{ items: { type: string }[] }>().items;
     expect(items.some((s) => s.type === 'service')).toBe(true);
+  });
+});
+
+async function seedUser(
+  tenantId: string,
+  username: string,
+  email: string | null = null,
+): Promise<string> {
+  return withTenant(fixture.app.db, tenantId, async (tx) => {
+    const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+    await userRepository(tx).create({ subjectId: subject.id, tenantId, username, email });
+    return subject.id;
+  });
+}
+
+function listSubjectsAt(
+  tenantName: string,
+  token: string,
+  query: string,
+): Promise<LightMyRequestResponse> {
+  return fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants/${tenantName}/subjects?${query}`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+function usernamesOf(res: LightMyRequestResponse): (string | null)[] {
+  return res.json<{ items: { username: string | null }[] }>().items.map((s) => s.username);
+}
+
+// PostgreSQL's own answer to "which usernames start with this prefix,
+// case-folded", in the order a searched listing promises — the oracle the
+// search is held to, so no expectation here folds a string in JavaScript.
+async function foldedPrefixMatches(tenantId: string, prefix: string): Promise<string[]> {
+  const rows = await fixture.owner.db.execute<{ username: string }>(sql`
+    select username from users
+     where tenant_id = ${tenantId} and starts_with(lower(username), lower(${prefix}))
+     order by lower(username) collate "C", subject_id
+  `);
+  return rows.map((row) => row.username);
+}
+
+describe('GET /admin/tenants/{t}/subjects — search and exact filters', () => {
+  it('finds a username case-insensitively', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedUser(t.id, 'ada.lovelace');
+    await seedUser(t.id, 'grace.hopper');
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await listSubjectsAt(t.name, token, 'username=ADA');
+    expect(res.statusCode).toBe(200);
+    expect(usernamesOf(res)).toEqual(['ada.lovelace']);
+  });
+
+  it('orders matches by the folded username, then by id', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const name of ['ada-c', 'Ada-a', 'ADA-b', 'ada-a', 'bob']) await seedUser(t.id, name);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await listSubjectsAt(t.name, token, 'username=ada');
+    expect(res.statusCode).toBe(200);
+    const expected = await foldedPrefixMatches(t.id, 'ada');
+    expect(expected).toHaveLength(4);
+    expect(usernamesOf(res)).toEqual(expected);
+  });
+
+  it('pages a search one row at a time, returning each match once and in order', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const name of ['pg-b', 'PG-a', 'pg-c', 'other']) await seedUser(t.id, name);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const seen: (string | null)[] = [];
+    let query = 'username=pg&limit=1';
+    for (let page = 0; page < 5; page += 1) {
+      const res = await listSubjectsAt(t.name, token, query);
+      expect(res.statusCode).toBe(200);
+      const body = res.json<{ items: { username: string | null }[]; next?: string }>();
+      seen.push(...body.items.map((s) => s.username));
+      if (body.next === undefined) break;
+      query = `username=pg&limit=1&cursor=${encodeURIComponent(body.next)}`;
+    }
+    expect(seen).toEqual(await foldedPrefixMatches(t.id, 'pg'));
+    expect(seen).toHaveLength(3);
+  });
+
+  it('reads _ and % as ordinary characters', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedUser(t.id, 'axb');
+    await seedUser(t.id, 'a_b');
+    await seedUser(t.id, 'a%b');
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    expect(usernamesOf(await listSubjectsAt(t.name, token, 'username=a_b'))).toEqual(['a_b']);
+    expect(usernamesOf(await listSubjectsAt(t.name, token, 'username=a%25'))).toEqual(['a%b']);
+  });
+
+  it.each([
+    ['ÄR', 'ärger'],
+    ['İz', 'İzmir'],
+    ['ß', 'ßtraße'],
+  ])('folds %s the way the column was folded, so it finds %s', async (prefix, username) => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedUser(t.id, username);
+    await seedUser(t.id, 'zebra');
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await listSubjectsAt(t.name, token, `username=${encodeURIComponent(prefix)}`);
+    expect(res.statusCode).toBe(200);
+    expect(usernamesOf(res)).toEqual([username]);
+    expect(usernamesOf(res)).toEqual(await foldedPrefixMatches(t.id, prefix));
+  });
+
+  it('searches by email prefix', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedUser(t.id, 'grace', 'grace@navy.example');
+    await seedUser(t.id, 'ada', 'ada@analytical.example');
+    await seedUser(t.id, 'nomail');
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await listSubjectsAt(t.name, token, 'email=GRACE%40');
+    expect(res.statusCode).toBe(200);
+    expect(usernamesOf(res)).toEqual(['grace']);
+  });
+
+  it('filters to disabled subjects with ?enabled=false, and to the rest with true', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const off = await seedUser(t.id, 'off');
+    await seedUser(t.id, 'on');
+    await withTenant(fixture.app.db, t.id, (tx) => subjectRepository(tx).setEnabled(off, false));
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const disabled = await listSubjectsAt(t.name, token, 'enabled=false&limit=200');
+    expect(disabled.statusCode).toBe(200);
+    const items = disabled.json<{ items: { id: string; enabled: boolean }[] }>().items;
+    expect(items.map((s) => s.id)).toEqual([off]);
+
+    const enabled = await listSubjectsAt(t.name, token, 'enabled=true&limit=200');
+    const rest = enabled.json<{ items: { id: string; enabled: boolean }[] }>().items;
+    expect(rest.length).toBeGreaterThan(0);
+    expect(rest.every((s) => s.enabled)).toBe(true);
+  });
+
+  it('filters to subjects directly assigned a role with ?role=', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const holder = await seedUser(t.id, 'holder');
+    const viaGroup = await seedUser(t.id, 'via-group');
+    await seedUser(t.id, 'bystander');
+    const roleId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const role = await roleRepository(tx).create({ tenantId: t.id, name: `r-${newId()}` });
+      await roleRepository(tx).assignToSubject(holder, role.id);
+      const group = await groupRepository(tx).create({
+        tenantId: t.id,
+        name: `g-${newId()}`,
+        parentId: null,
+      });
+      await groupRepository(tx).mapRole(group.id, role.id);
+      await groupRepository(tx).addToSubject(viaGroup, group.id);
+      return role.id;
+    });
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await listSubjectsAt(t.name, token, `role=${roleId}`);
+    expect(res.statusCode).toBe(200);
+    expect(usernamesOf(res)).toEqual(['holder']);
+  });
+
+  it('filters to a group direct members with ?group=', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const member = await seedUser(t.id, 'member');
+    await seedUser(t.id, 'outsider');
+    const groupId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const group = await groupRepository(tx).create({
+        tenantId: t.id,
+        name: `g-${newId()}`,
+        parentId: null,
+      });
+      await groupRepository(tx).addToSubject(member, group.id);
+      return group.id;
+    });
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await listSubjectsAt(t.name, token, `group=${groupId}`);
+    expect(res.statusCode).toBe(200);
+    expect(usernamesOf(res)).toEqual(['member']);
+  });
+
+  it('ANDs a search with an exact filter', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const off = await seedUser(t.id, 'dora-off');
+    await seedUser(t.id, 'dora-on');
+    await withTenant(fixture.app.db, t.id, (tx) => subjectRepository(tx).setEnabled(off, false));
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await listSubjectsAt(t.name, token, 'username=dora&enabled=false');
+    expect(usernamesOf(res)).toEqual(['dora-off']);
+  });
+
+  it('finds nothing for a role id that belongs to another tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    await seedUser(t.id, 'here');
+    const foreignRoleId = await withTenant(fixture.app.db, other.id, async (tx) => {
+      const subject = await subjectRepository(tx).create({ tenantId: other.id, type: 'user' });
+      const role = await roleRepository(tx).create({ tenantId: other.id, name: `r-${newId()}` });
+      await roleRepository(tx).assignToSubject(subject.id, role.id);
+      return role.id;
+    });
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await listSubjectsAt(t.name, token, `role=${foreignRoleId}`);
+    expect(res.statusCode).toBe(200);
+    expect(usernamesOf(res)).toEqual([]);
+  });
+
+  it('refuses the retired ?search= parameter with 400 naming it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+    const res = await listSubjectsAt(t.name, token, 'search=ada');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('search');
+  });
+
+  it('refuses a search over username and email at once', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+    const res = await listSubjectsAt(t.name, token, 'username=a&email=b');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('one field at a time');
+  });
+
+  it('refuses an enabled value that is not true or false, and a role that is not a uuid', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+    expect((await listSubjectsAt(t.name, token, 'enabled=yes')).statusCode).toBe(400);
+    expect((await listSubjectsAt(t.name, token, 'role=admin')).statusCode).toBe(400);
+  });
+
+  it('refuses a prefix carrying NUL, which no text column can hold, with 400 rather than 500', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+    expect((await listSubjectsAt(t.name, token, 'username=a%00')).statusCode).toBe(400);
+  });
+
+  it('refuses a cursor minted under one search when replayed under another', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedUser(t.id, 'ab-1');
+    await seedUser(t.id, 'ab-2');
+    await seedUser(t.id, 'b-1');
+    await seedUser(t.id, 'b-2');
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const first = await listSubjectsAt(t.name, token, 'username=a&limit=1');
+    const next = first.json<{ next?: string }>().next;
+    if (next === undefined) throw new Error('expected a next cursor');
+
+    const replayed = await listSubjectsAt(
+      t.name,
+      token,
+      `username=b&limit=1&cursor=${encodeURIComponent(next)}`,
+    );
+    expect(replayed.statusCode).toBe(400);
+    expect(replayed.json<{ detail: string }>().detail).toBe('cursor is invalid or expired');
+  });
+
+  it.each([
+    ['a filter added', 'username=a&limit=1', 'username=a&enabled=true&limit=1'],
+    ['a filter dropped', 'username=a&enabled=true&limit=1', 'username=a&limit=1'],
+  ])('refuses a cursor replayed with %s', async (_label, minted, replayedUnder) => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedUser(t.id, 'ab-1');
+    await seedUser(t.id, 'ab-2');
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const first = await listSubjectsAt(t.name, token, minted);
+    const next = first.json<{ next?: string }>().next;
+    if (next === undefined) throw new Error('expected a next cursor');
+
+    const replayed = await listSubjectsAt(
+      t.name,
+      token,
+      `${replayedUnder}&cursor=${encodeURIComponent(next)}`,
+    );
+    expect(replayed.statusCode).toBe(400);
+    expect(replayed.json<{ detail: string }>().detail).toBe('cursor is invalid or expired');
+  });
+
+  it('finds nothing for a group id that belongs to another tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    await seedUser(t.id, 'here');
+    const foreignGroupId = await withTenant(fixture.app.db, other.id, async (tx) => {
+      const subject = await subjectRepository(tx).create({ tenantId: other.id, type: 'user' });
+      const group = await groupRepository(tx).create({
+        tenantId: other.id,
+        name: `g-${newId()}`,
+        parentId: null,
+      });
+      await groupRepository(tx).addToSubject(subject.id, group.id);
+      return group.id;
+    });
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const res = await listSubjectsAt(t.name, token, `group=${foreignGroupId}`);
+    expect(res.statusCode).toBe(200);
+    expect(usernamesOf(res)).toEqual([]);
   });
 });
 
@@ -587,6 +885,286 @@ describe('PATCH /admin/tenants/{t}/subjects/{id}', () => {
       payload: { enabled: false },
     });
     expect(res.statusCode).toBe(403);
+  });
+});
+
+async function allowUsernameEditing(tenantName: string): Promise<void> {
+  const res = await fixture.http.inject({
+    method: 'PATCH',
+    url: `/admin/tenants/${tenantName}/settings`,
+    headers: {
+      authorization: `Bearer ${await fixture.adminToken(tenantName, ['manage-tenant'])}`,
+      'content-type': 'application/json',
+    },
+    payload: { username_editable: true },
+  });
+  expect(res.statusCode).toBe(200);
+}
+
+function patchSubject(
+  tenantName: string,
+  id: string,
+  token: string,
+  payload: Record<string, unknown>,
+  ifMatch?: string,
+): Promise<LightMyRequestResponse> {
+  return fixture.http.inject({
+    method: 'PATCH',
+    url: `/admin/tenants/${tenantName}/subjects/${id}`,
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+      ...(ifMatch === undefined ? {} : { 'if-match': ifMatch }),
+    },
+    payload,
+  });
+}
+
+async function readSubjectBody(
+  tenantName: string,
+  id: string,
+): Promise<{ etag: string; username: string | null; email: string | null; enabled: boolean }> {
+  const res = await fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants/${tenantName}/subjects/${id}`,
+    headers: { authorization: `Bearer ${await fixture.adminToken(tenantName, ['view-users'])}` },
+  });
+  expect(res.statusCode).toBe(200);
+  const etag = res.headers.etag;
+  if (typeof etag !== 'string') throw new Error('GET subject carried no ETag');
+  const body = res.json<{ username: string | null; email: string | null; enabled: boolean }>();
+  return { etag, username: body.username, email: body.email, enabled: body.enabled };
+}
+
+async function amendRows(tenantId: string, subjectId: string) {
+  const rows = await withTenant(fixture.app.db, tenantId, (tx) =>
+    auditRepository(tx).list({ limit: 50 }),
+  );
+  return rows.filter((row) => row.action === 'subject.amend' && row.resourceId === subjectId);
+}
+
+const RENAME_PASSWORD = 'correct horse battery staple';
+
+describe('PATCH /admin/tenants/{t}/subjects/{id} — renaming a username', () => {
+  it('refuses username with 400 naming the setting while username_editable is off', async () => {
+    const t = await fixture.createTenant(`rename-off-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await patchSubject(t.name, id, token, { username: 'grace' }, '*');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toBe(
+      'username: this tenant has not enabled username editing (username_editable)',
+    );
+  });
+
+  it('answers 428 without If-Match once the setting is on, and renames nothing', async () => {
+    const t = await fixture.createTenant(`rename-428-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const username = `ada-${newId()}`;
+    const { id } = await fixture.createSubject(t.name, username);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await patchSubject(t.name, id, token, { username: `grace-${newId()}` });
+    expect(res.statusCode).toBe(428);
+    expect((await readSubjectBody(t.name, id)).username).toBe(username);
+  });
+
+  it('still takes email and enabled without If-Match', async () => {
+    const t = await fixture.createTenant(`rename-optional-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    expect((await patchSubject(t.name, id, token, { enabled: false })).statusCode).toBe(200);
+  });
+
+  it('answers 412 for a stale If-Match', async () => {
+    const t = await fixture.createTenant(`rename-412-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await patchSubject(t.name, id, token, { username: 'grace' }, '"stale"');
+    expect(res.statusCode).toBe(412);
+  });
+
+  it('refuses an empty username with 400, as creation does', async () => {
+    const t = await fixture.createTenant(`rename-empty-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const { id } = await fixture.createSubject(t.name, `ada-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await patchSubject(t.name, id, token, { username: '' }, '*');
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('renames under a matching ETag, findable by the new name, audited with before and after', async () => {
+    const t = await fixture.createTenant(`rename-ok-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const before = `ada-${newId()}`;
+    const after = `Grace-${newId()}`;
+    const { id } = await fixture.createSubject(t.name, before);
+    const token = await fixture.adminToken(t.name, ['manage-users', 'view-users']);
+    const { etag } = await readSubjectBody(t.name, id);
+
+    const res = await patchSubject(t.name, id, token, { username: after }, etag);
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ username: string }>().username).toBe(after);
+    expect(res.headers.etag).not.toBe(etag);
+
+    const found = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects?username=${encodeURIComponent(after.toLowerCase())}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(found.json<{ items: { id: string }[] }>().items.map((item) => item.id)).toEqual([id]);
+    const byOld = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects?username=${encodeURIComponent(before)}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(byOld.json<{ items: unknown[] }>().items).toEqual([]);
+
+    const rows = await amendRows(t.id, id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.detail).toEqual({ username: { before, after } });
+  });
+
+  it('keeps sessions, refresh tokens and lockout counters, and moves sign-in to the new name', async () => {
+    const t = await fixture.createTenant(`rename-login-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const client = await createSignInClient(fixture, t.id);
+    const before = `ada-${newId()}`;
+    const after = `grace-${newId()}`;
+    const id = await createPasswordSubject(fixture, t.id, before, RENAME_PASSWORD);
+    const refreshToken = await signInForRefreshToken(
+      fixture,
+      t.name,
+      client,
+      before,
+      RENAME_PASSWORD,
+      'openid profile',
+    );
+    const wrong = await submitPassword(fixture, t.name, client.clientId, before, 'wrong');
+    expect(wrong.statusCode).not.toBe(302);
+    const failuresOf = () =>
+      withTenant(fixture.app.db, t.id, (tx) => loginFailureRepository(tx).forSubject(id));
+    expect((await failuresOf()).failureCount).toBe(1);
+
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const { etag } = await readSubjectBody(t.name, id);
+    expect((await patchSubject(t.name, id, token, { username: after }, etag)).statusCode).toBe(200);
+
+    expect((await failuresOf()).failureCount).toBe(1);
+    const sessions = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects/${id}/sessions`,
+      headers: { authorization: `Bearer ${await fixture.adminToken(t.name, ['manage-sessions'])}` },
+    });
+    expect(sessions.json<{ items: unknown[] }>().items).toHaveLength(1);
+
+    const refreshed = await refresh(fixture, t.name, client, refreshToken);
+    expect(refreshed.statusCode).toBe(200);
+    const userinfo = await fixture.callUserinfo(
+      t.name,
+      refreshed.json<{ access_token: string }>().access_token,
+    );
+    expect(userinfo.statusCode).toBe(200);
+    expect(userinfo.json<{ preferred_username?: string }>().preferred_username).toBe(after);
+
+    const byOld = await submitPassword(fixture, t.name, client.clientId, before, RENAME_PASSWORD);
+    expect(byOld.statusCode).not.toBe(302);
+    const byNew = await submitPassword(fixture, t.name, client.clientId, after, RENAME_PASSWORD);
+    expect(byNew.statusCode).toBe(302);
+  });
+
+  it('answers 409 for a name another subject holds, and applies nothing else in the body', async () => {
+    const t = await fixture.createTenant(`rename-409-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const taken = `taken-${newId()}`;
+    await fixture.createSubject(t.name, taken);
+    const mine = `mine-${newId()}`;
+    const { id } = await fixture.createSubject(t.name, mine);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const { etag, email } = await readSubjectBody(t.name, id);
+
+    const res = await patchSubject(
+      t.name,
+      id,
+      token,
+      { username: taken, enabled: false, email: `new-${newId()}@example.com` },
+      etag,
+    );
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toBe(
+      `the username ${JSON.stringify(taken)} is already in use`,
+    );
+    const now = await readSubjectBody(t.name, id);
+    expect(now).toEqual({ etag, username: mine, email, enabled: true });
+    expect(await amendRows(t.id, id)).toHaveLength(0);
+  });
+
+  it('treats a case-variant of another subject’s name as a distinct name, as users_username_unique does', async () => {
+    const t = await fixture.createTenant(`rename-case-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const taken = `taken-${newId()}`;
+    await fixture.createSubject(t.name, taken);
+    const { id } = await fixture.createSubject(t.name, `mine-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await patchSubject(t.name, id, token, { username: taken.toUpperCase() }, '*');
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ username: string }>().username).toBe(taken.toUpperCase());
+  });
+
+  it('writes nothing and no audit row for a rename to the current name', async () => {
+    const t = await fixture.createTenant(`rename-same-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const username = `ada-${newId()}`;
+    const { id } = await fixture.createSubject(t.name, username);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const { etag } = await readSubjectBody(t.name, id);
+
+    const res = await patchSubject(t.name, id, token, { username }, etag);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers.etag).toBe(etag);
+    expect(await amendRows(t.id, id)).toHaveLength(0);
+  });
+
+  it('refuses a manage-users caller renaming a tenant-admin, under the target ceiling', async () => {
+    const t = await fixture.createTenant(`rename-ceiling-${newId()}`);
+    await allowUsernameEditing(t.name);
+    const username = `admin-${newId()}`;
+    const { id } = await fixture.createSubject(t.name, username);
+    const tenantAdminId = await capabilityRoleId(t.id, TENANT_ADMIN);
+    const assigned = await putRoles(t.name, id, await fixture.adminToken(t.name, [TENANT_ADMIN]), [
+      tenantAdminId,
+    ]);
+    expect(assigned.statusCode).toBe(200);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+
+    const res = await patchSubject(t.name, id, token, { username: `x-${newId()}` }, '*');
+    expect(res.statusCode).toBe(403);
+    expect((await readSubjectBody(t.name, id)).username).toBe(username);
+  });
+
+  it('answers 409 for an email another subject holds, and applies nothing else in the body', async () => {
+    const t = await fixture.createTenant(`amend-email-409-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const email = `taken-${newId()}@example.com`;
+    const { id: holder } = await fixture.createSubject(t.name, `holder-${newId()}`);
+    expect((await patchSubject(t.name, holder, token, { email })).statusCode).toBe(200);
+    const { id } = await fixture.createSubject(t.name, `other-${newId()}`);
+    const before = await readSubjectBody(t.name, id);
+
+    const res = await patchSubject(t.name, id, token, { enabled: false, email });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toBe(
+      `the email ${JSON.stringify(email)} is already in use`,
+    );
+    expect(await readSubjectBody(t.name, id)).toEqual(before);
+    expect(before.enabled).toBe(true);
   });
 });
 
@@ -980,6 +1558,8 @@ describe('audit', () => {
         tx,
         { audit: ok.audit },
         {
+          tenantId: t.id,
+          callerCapabilities: new Set<string>(),
           subjectId: id,
           values: { enabled: false },
           ifMatch: undefined,
@@ -998,6 +1578,8 @@ describe('audit', () => {
         tx,
         { audit: refused.audit },
         {
+          tenantId: t.id,
+          callerCapabilities: new Set<string>(),
           subjectId: id,
           values: { not_a_field: true },
           ifMatch: undefined,
@@ -1021,6 +1603,7 @@ describe('audit', () => {
         tx,
         { audit: ok.audit },
         {
+          callerCapabilities: new Set<string>(),
           subjectId: id,
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -1037,6 +1620,7 @@ describe('audit', () => {
         tx,
         { audit: refused.audit },
         {
+          callerCapabilities: new Set<string>(),
           subjectId: newId(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -1069,6 +1653,7 @@ describe('audit', () => {
         tx,
         { audit: ok.audit },
         {
+          callerCapabilities: new Set<string>(),
           subjectId: id,
           credentialId,
           actorSubjectId: 'test',
@@ -1086,6 +1671,7 @@ describe('audit', () => {
         tx,
         { audit: refused.audit },
         {
+          callerCapabilities: new Set<string>(),
           subjectId: id,
           credentialId: newId(),
           actorSubjectId: 'test',
@@ -1111,6 +1697,7 @@ describe('audit', () => {
           tenantId: t.id,
           subjectId: id,
           actions: ['configure-totp'],
+          callerCapabilities: new Set<string>(),
           ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -1130,6 +1717,7 @@ describe('audit', () => {
           tenantId: t.id,
           subjectId: newId(),
           actions: [],
+          callerCapabilities: new Set<string>(),
           ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -1174,7 +1762,7 @@ describe('audit', () => {
         {
           subjectId: id,
           roleIds: [tenantAdminId],
-          callerCapabilities: new Set(['manage-users']),
+          callerCapabilities: new Set(['manage-users', 'view-users']),
           ifMatch: '*',
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
@@ -1186,5 +1774,355 @@ describe('audit', () => {
     // An attempted privilege escalation is the one refusal this phase
     // records, so the row is the assertion rather than its absence.
     expect(refused.events.map((event) => event.outcome)).toEqual(['refused']);
+  });
+});
+
+async function createGroupMapped(
+  tenantId: string,
+  roleIds: readonly string[],
+  parentId: string | null = null,
+): Promise<string> {
+  return withTenant(fixture.app.db, tenantId, async (tx) => {
+    const group = await groupRepository(tx).create({ tenantId, name: `g-${newId()}`, parentId });
+    for (const roleId of roleIds) await groupRepository(tx).mapRole(group.id, roleId);
+    return group.id;
+  });
+}
+
+function getGroups(
+  tenantName: string,
+  subjectId: string,
+  token: string,
+): Promise<LightMyRequestResponse> {
+  return fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants/${tenantName}/subjects/${subjectId}/groups`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+function putGroups(
+  tenantName: string,
+  subjectId: string,
+  token: string,
+  groupIds: string[],
+  ifMatch: string | null = '*',
+): Promise<LightMyRequestResponse> {
+  return fixture.http.inject({
+    method: 'PUT',
+    url: `/admin/tenants/${tenantName}/subjects/${subjectId}/groups`,
+    headers: {
+      ...(ifMatch === null ? {} : { 'if-match': ifMatch }),
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
+    payload: { group_ids: groupIds },
+  });
+}
+
+function groupIdsOf(res: LightMyRequestResponse): string[] {
+  return res.json<{ items: { id: string }[] }>().items.map((group) => group.id);
+}
+
+describe('GET|PUT /admin/tenants/{t}/subjects/{id}/groups', () => {
+  it('replaces the membership set and reads it back under an ETag', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const a = await createGroupMapped(t.id, []);
+    const b = await createGroupMapped(t.id, []);
+
+    const empty = await getGroups(t.name, targetId, token);
+    expect(empty.statusCode).toBe(200);
+    expect(groupIdsOf(empty)).toEqual([]);
+    const emptyEtag = empty.headers.etag;
+    expect(typeof emptyEtag).toBe('string');
+
+    const first = await putGroups(t.name, targetId, token, [a, b], String(emptyEtag));
+    expect(first.statusCode).toBe(200);
+    expect(groupIdsOf(first)).toEqual([a, b].sort());
+    expect(first.json<{ items: { path: string }[] }>().items[0]?.path).toMatch(/^\/g-/);
+
+    const read = await getGroups(t.name, targetId, token);
+    expect(groupIdsOf(read)).toEqual([a, b].sort());
+    expect(read.headers.etag).toBe(first.headers.etag);
+
+    const second = await putGroups(t.name, targetId, token, [b], String(read.headers.etag));
+    expect(second.statusCode).toBe(200);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([b]);
+  });
+
+  it('answers 428 without If-Match and 412 for a stale one, and writes nothing', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const a = await createGroupMapped(t.id, []);
+    const staleEtag = String((await getGroups(t.name, targetId, token)).headers.etag);
+    expect((await putGroups(t.name, targetId, token, [a])).statusCode).toBe(200);
+
+    expect((await putGroups(t.name, targetId, token, [], null)).statusCode).toBe(428);
+    expect((await putGroups(t.name, targetId, token, [], staleEtag)).statusCode).toBe(412);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([a]);
+  });
+
+  it('400s an unknown group id, and one that is not an id at all', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const a = await createGroupMapped(t.id, []);
+    const missing = newId();
+
+    const unknown = await putGroups(t.name, targetId, token, [a, missing]);
+    expect(unknown.statusCode).toBe(400);
+    expect(unknown.body).toContain(missing);
+    expect((await putGroups(t.name, targetId, token, ['not-a-uuid'])).statusCode).toBe(400);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([]);
+  });
+
+  it('400s a group that belongs to another tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`other-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    // Mapped to tenant-admin in its own tenant: were it resolved at all, the
+    // ceiling would refuse it with 403, so a 400 shows it was never found.
+    const foreign = await createGroupMapped(other.id, [
+      await capabilityRoleId(other.id, TENANT_ADMIN),
+    ]);
+
+    const res = await putGroups(t.name, targetId, token, [foreign]);
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toContain(foreign);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([]);
+  });
+
+  it('treats an id repeated in another letter case as one membership', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const a = await createGroupMapped(t.id, []);
+
+    const res = await putGroups(t.name, targetId, token, [a, a.toUpperCase()]);
+    expect(res.statusCode).toBe(200);
+    expect(groupIdsOf(res)).toEqual([a]);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([a]);
+  });
+
+  it('changes the ETag when a member group is reparented, and refuses the old one', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+    const member = await createGroupMapped(t.id, []);
+    const newParent = await createGroupMapped(t.id, []);
+    expect((await putGroups(t.name, targetId, token, [member])).statusCode).toBe(200);
+    const before = await getGroups(t.name, targetId, token);
+
+    const moved = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/groups/${member}`,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        'if-match': '*',
+      },
+      payload: { parent_id: newParent },
+    });
+    expect(moved.statusCode).toBe(200);
+
+    const after = await getGroups(t.name, targetId, token);
+    expect(after.json<{ items: { path: string }[] }>().items[0]?.path).not.toBe(
+      before.json<{ items: { path: string }[] }>().items[0]?.path,
+    );
+    expect(after.headers.etag).not.toBe(before.headers.etag);
+    const stale = await putGroups(t.name, targetId, token, [], String(before.headers.etag));
+    expect(stale.statusCode).toBe(412);
+  });
+
+  it('404s a subject no one holds', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    expect((await getGroups(t.name, newId(), token)).statusCode).toBe(404);
+    expect((await putGroups(t.name, newId(), token, [])).statusCode).toBe(404);
+  });
+
+  it('is read by view-users, and refuses view-users a replacement', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    expect((await getGroups(t.name, targetId, token)).statusCode).toBe(200);
+    expect((await putGroups(t.name, targetId, token, [])).statusCode).toBe(403);
+  });
+
+  it('reaches the groups claim of the subject’s next token', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {
+      grantTypes: ['client_credentials'],
+    });
+    const serviceSubjectId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const record = await clientRepository(tx).byClientId(client.clientId);
+      return record?.serviceSubjectId ?? null;
+    });
+    if (serviceSubjectId === null) throw new Error('fixture: client has no service subject');
+    const patched = await fixture.http.inject({
+      method: 'PATCH',
+      url: `/admin/tenants/${t.name}/clients/${client.id}`,
+      headers: {
+        authorization: `Bearer ${await fixture.adminToken(t.name, ['manage-clients'])}`,
+        'content-type': 'application/json',
+        'if-match': '*',
+      },
+      payload: { client_credentials_scopes: ['groups'] },
+    });
+    expect(patched.statusCode).toBe(200);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const groupId = await createGroupMapped(t.id, []);
+    const path = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const group = await groupRepository(tx).byId(groupId);
+      return group?.path;
+    });
+
+    const claimOf = async (): Promise<unknown> => {
+      const res = await fixture.tokenRequest(t.name, client, {
+        grant_type: 'client_credentials',
+        scope: 'groups',
+      });
+      expect(res.statusCode).toBe(200);
+      const accessToken = res.json<{ access_token: string }>().access_token;
+      const payload: unknown = JSON.parse(
+        Buffer.from(accessToken.split('.')[1] ?? '', 'base64url').toString('utf8'),
+      );
+      return (payload as Record<string, unknown>).groups;
+    };
+
+    expect(await claimOf()).toBeUndefined();
+    expect((await putGroups(t.name, serviceSubjectId, token, [groupId])).statusCode).toBe(200);
+    expect(await claimOf()).toEqual([path]);
+  });
+});
+
+// The ceiling looks at the whole resulting membership set, not only the
+// groups being added — the same rule `PUT .../roles` applies to a role set.
+describe('PUT /admin/tenants/{t}/subjects/{id}/groups — the capability ceiling', () => {
+  it('refuses a manage-users-only caller joining a group mapped to tenant-admin, with a refused audit row, and leaves the membership unchanged', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users', 'view-audit']);
+    const adminGroup = await createGroupMapped(t.id, [await capabilityRoleId(t.id, TENANT_ADMIN)]);
+
+    const res = await putGroups(t.name, targetId, token, [adminGroup]);
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toContain(TENANT_ADMIN);
+
+    const audit = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const rows = audit
+      .json<{ items: { action: string; outcome: string; resource_id: string }[] }>()
+      .items.filter((item) => item.action === 'subject.groups_set');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ outcome: 'refused', resource_id: targetId });
+
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([]);
+  });
+
+  it('refuses a group that inherits tenant-admin from an ancestor', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const parent = await createGroupMapped(t.id, [await capabilityRoleId(t.id, TENANT_ADMIN)]);
+    const child = await createGroupMapped(t.id, [], parent);
+
+    expect((await putGroups(t.name, targetId, token, [child])).statusCode).toBe(403);
+  });
+
+  it('refuses a group whose role nests tenant-admin through a composite', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const nesting = await createGroupMapped(t.id, [await roleNestingTenantAdmin(t.id)]);
+
+    expect((await putGroups(t.name, targetId, token, [nesting])).statusCode).toBe(403);
+  });
+
+  // Removing the membership is refused too: the target holds tenant-admin
+  // through it, which the caller does not (the target ceiling).
+  it('refuses a set that keeps a membership the caller could not grant, and removing it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const adminGroup = await createGroupMapped(t.id, [await capabilityRoleId(t.id, TENANT_ADMIN)]);
+    const plain = await createGroupMapped(t.id, []);
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      groupRepository(tx).addToSubject(targetId, adminGroup),
+    );
+
+    expect((await putGroups(t.name, targetId, token, [adminGroup, plain])).statusCode).toBe(403);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([adminGroup]);
+
+    expect((await putGroups(t.name, targetId, token, [plain])).statusCode).toBe(403);
+    expect(groupIdsOf(await getGroups(t.name, targetId, token))).toEqual([adminGroup]);
+  });
+
+  it('lets a tenant-admin holder join a group mapped to tenant-admin', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: targetId } = await fixture.createSubject(t.name, `target-${newId()}`);
+    const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+    const adminGroup = await createGroupMapped(t.id, [await capabilityRoleId(t.id, TENANT_ADMIN)]);
+
+    expect((await putGroups(t.name, targetId, token, [adminGroup])).statusCode).toBe(200);
+  });
+
+  it('refuses joining a group mapped to manage-tenants in the system tenant', async () => {
+    const { id: targetId } = await fixture.createSubject(SYSTEM_TENANT_NAME, `target-${newId()}`);
+    const token = await fixture.systemAdminToken(['manage-users']);
+    const group = await createGroupMapped(fixture.systemTenantId, [
+      await capabilityRoleId(fixture.systemTenantId, MANAGE_TENANTS),
+    ]);
+
+    expect((await putGroups(SYSTEM_TENANT_NAME, targetId, token, [group])).statusCode).toBe(403);
+  });
+});
+
+describe('setSubjectGroups audit', () => {
+  it('calls audit exactly once on a replacement, and records a refusal on the ceiling', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id } = await fixture.createSubject(t.name, `groups-${newId()}`);
+    const plain = await createGroupMapped(t.id, []);
+    const adminGroup = await createGroupMapped(t.id, [await capabilityRoleId(t.id, TENANT_ADMIN)]);
+    const actor = {
+      ifMatch: '*',
+      actorSubjectId: 'test',
+      actorTenantId: 'test-tenant',
+      actorClientId: 'test-client',
+      callerCapabilities: new Set(['manage-users']),
+    };
+
+    const ok: SubjectAuditEvent[] = [];
+    const set = await withTenant(fixture.app.db, t.id, (tx) =>
+      setSubjectGroups(
+        tx,
+        { audit: (_tx, event) => Promise.resolve(ok.push(event)).then(() => undefined) },
+        { ...actor, subjectId: id, groupIds: [plain] },
+      ),
+    );
+    expect(set.kind).toBe('ok');
+    expect(ok.map((event) => [event.action, event.outcome])).toEqual([
+      ['subject.groups_set', 'allowed'],
+    ]);
+    expect(ok[0]?.detail).toEqual({ group_ids: { before: [], after: [plain] } });
+
+    const refused: SubjectAuditEvent[] = [];
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      setSubjectGroups(
+        tx,
+        { audit: (_tx, event) => Promise.resolve(refused.push(event)).then(() => undefined) },
+        { ...actor, subjectId: id, groupIds: [adminGroup] },
+      ),
+    );
+    expect(outcome.kind).toBe('capability_ceiling');
+    expect(refused.map((event) => event.outcome)).toEqual(['refused']);
   });
 });

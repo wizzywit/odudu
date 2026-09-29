@@ -6,7 +6,7 @@ import {
   type Audit,
   type MapperCatalogue,
 } from '#/usecase/scope-mappers';
-import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import { fieldProblem, ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -78,10 +78,11 @@ export function setScopeMappersHandler(deps: ScopeMappersRouteDeps): AdminRouteH
         return sendProblem(
           reply,
           request,
-          problem(
-            400,
-            'about:blank',
-            'Bad Request',
+          fieldProblem(
+            outcome.names.map((name) => ({
+              path: 'mapper_names',
+              message: `names no registered mapper ${name}`,
+            })),
             `unknown mapper name(s): ${outcome.names.join(', ')}; known: ${outcome.known.join(', ')}`,
           ),
         );

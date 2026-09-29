@@ -32,6 +32,13 @@ describe('paramsSchemaFor', () => {
       ADMIN_ROUTES.flatMap((route) => [...route.pattern.matchAll(/:(\w+)/gu)].map((m) => m[1])),
     );
 
-    expect([...names].sort()).toEqual(['clientId', 'credentialId', 'id', 'sid', 'tenant']);
+    expect([...names].sort()).toEqual([
+      'childId',
+      'clientId',
+      'credentialId',
+      'id',
+      'sid',
+      'tenant',
+    ]);
   });
 });

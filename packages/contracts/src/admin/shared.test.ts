@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cursorQuerySchema, MAX_LIMIT } from '#/admin/shared';
+import { cursorQuerySchema, MAX_LIMIT, problemDetailsSchema } from '#/admin/shared';
 
 describe('cursorQuerySchema', () => {
   // A shape check only: MAX_LIMIT is a page-size ceiling to coerce down to
@@ -15,5 +15,25 @@ describe('cursorQuerySchema', () => {
     for (const raw of ['0', '-1', '1.5', 'abc', '']) {
       expect(cursorQuerySchema.safeParse({ limit: raw }).success, raw).toBe(false);
     }
+  });
+});
+
+describe('problemDetailsSchema', () => {
+  it('carries the fields a refusal names beside its prose', () => {
+    const body = {
+      type: 'about:blank',
+      title: 'Bad Request',
+      status: 400,
+      instance: 'req-1',
+      detail: 'port: must be <= 65535',
+      errors: [{ path: 'port', message: 'must be <= 65535' }],
+    };
+    expect(problemDetailsSchema.parse(body)).toEqual(body);
+  });
+
+  it('refuses a field error with anything beside its path and message', () => {
+    const errors = [{ path: 'port', message: 'too big', code: 'x' }];
+    const body = { type: 'about:blank', title: 'Bad Request', status: 400, instance: 'r', errors };
+    expect(problemDetailsSchema.safeParse(body).success).toBe(false);
   });
 });

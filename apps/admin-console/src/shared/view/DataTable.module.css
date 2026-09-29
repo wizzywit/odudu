@@ -1,0 +1,143 @@
+/* The breakpoints are the shell's width (global.css): under 1024 secondary
+   columns drop out, and under 640 each row stacks into a labelled card. */
+.frame {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-panel);
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-15);
+  outline: none;
+}
+
+.table[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.column {
+  padding: var(--space-2) var(--space-4);
+  border-block-end: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-align: start;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+  outline: none;
+}
+
+.column[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.row {
+  outline: none;
+  transition: background-color var(--motion-fast) var(--ease);
+}
+
+.row + .row .cell {
+  border-block-start: 1px solid var(--border);
+}
+
+.actionable {
+  cursor: pointer;
+}
+
+.actionable[data-hovered] {
+  background: var(--surface-sunken);
+}
+
+.row[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.cell {
+  padding: var(--space-3) var(--space-4);
+  vertical-align: top;
+  text-align: start;
+  font-weight: 400;
+  outline: none;
+}
+
+.cell[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+th.cell {
+  font-weight: 500;
+}
+
+.cellLabel {
+  display: none;
+}
+
+.cellValue {
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+
+@container shell (width < 1024px) {
+  .secondary {
+    display: none;
+  }
+}
+
+@container shell (width < 640px) {
+  .table,
+  .body,
+  .row,
+  .cell {
+    display: block;
+  }
+
+  .head {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .row {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .row + .row {
+    border-block-start: 1px solid var(--border);
+  }
+
+  .row + .row .cell {
+    border-block-start: 0;
+  }
+
+  .cell,
+  .cell.secondary {
+    display: grid;
+    grid-template-columns: minmax(6rem, 1fr) minmax(0, 2fr);
+    gap: var(--space-3);
+    padding: 0;
+  }
+
+  .cellLabel {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: var(--type-12);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+}

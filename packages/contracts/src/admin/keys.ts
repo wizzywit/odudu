@@ -22,7 +22,12 @@ export const signingKeySchema = z.object({
 });
 export type SigningKey = z.infer<typeof signingKeySchema>;
 
-export const listKeysQuerySchema = cursorQuerySchema;
+export const listKeysQuerySchema = cursorQuerySchema
+  .extend({
+    status: signingKeyStatusSchema.optional(),
+    alg: signingKeyAlgSchema.optional(),
+  })
+  .strict();
 export type ListKeysQuery = z.infer<typeof listKeysQuerySchema>;
 
 export const listKeysResponseSchema = z.object({

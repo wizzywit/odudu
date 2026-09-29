@@ -54,7 +54,9 @@ interface Tenant {
 }
 
 async function seedTenant(label: string): Promise<Tenant> {
-  const tenantName = `scope-mappers-${label}-${newId()}`;
+  // Short enough to leave room under the DNS-label length limit even for
+  // the longest label this file passes ('discovery-narrowed').
+  const tenantName = `sm-${label}-${newId()}`;
   const tenantId = newId();
   const clientDbId = newId();
 

@@ -22,6 +22,11 @@ describe('the client scope amendment allowlist', () => {
     }
   });
 
+  it('never offers the stored search key, which the table has and the wire shape does not', () => {
+    expect(SCOPE_FIELDS).not.toContain('name_search');
+    expect(AMENDABLE_SCOPE_FIELDS).not.toContain('name_search');
+  });
+
   it('gives a field this resource has never heard of no refusal either', () => {
     expect(refusalFor('secret_hash')).toBeNull();
   });

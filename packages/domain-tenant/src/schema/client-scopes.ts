@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { boolean, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 import { clients } from '#/schema/clients';
@@ -20,6 +21,9 @@ export const clientScopes = pgTable('client_scopes', {
   // include_in_id_token (0016) shipped without it.
   includeInAccessToken: boolean('include_in_access_token').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  // Search key, in the C collation, filled by the database
+  // (packages/db/drizzle/0075_list_indexes_roles_groups_scopes.sql).
+  nameSearch: text('name_search').generatedAlwaysAs(sql`lower(name)`),
 }).enableRLS();
 
 // Lives beside the table, not in the repository, so that `service` can

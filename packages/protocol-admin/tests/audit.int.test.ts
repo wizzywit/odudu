@@ -124,4 +124,133 @@ describe('audit', () => {
     expect(rotated?.detail).toEqual({ secret_hash: { changed: true } });
     expect(JSON.stringify(rotated?.detail ?? {})).not.toContain(secret);
   });
+
+  it('refuses a cursor replayed under a different filter, and pages under the same one', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients', 'view-audit']);
+    for (let i = 0; i < 3; i += 1) {
+      await createClientRequest(token, t.name, {
+        client_id: `filtered-${String(i)}-${newId()}`,
+        redirect_uris: ['https://app.example/cb'],
+        token_endpoint_auth_method: 'none',
+      });
+    }
+
+    const getAudit = (query: string) =>
+      fixture.http.inject({
+        method: 'GET',
+        url: `/admin/tenants/${t.name}/audit${query}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+    const first = await getAudit('?event_type=admin_mutation&limit=1');
+    expect(first.statusCode).toBe(200);
+    const firstBody = first.json<{ items: { id: string }[]; next?: string }>();
+    expect(firstBody.next).toBeDefined();
+    const cursor = encodeURIComponent(firstBody.next ?? '');
+
+    const wrongFilter = await getAudit(`?event_type=token&limit=1&cursor=${cursor}`);
+    expect(wrongFilter.statusCode).toBe(400);
+
+    const sameFilter = await getAudit(`?event_type=admin_mutation&limit=1&cursor=${cursor}`);
+    expect(sameFilter.statusCode).toBe(200);
+    const sameFilterBody = sameFilter.json<{ items: { id: string }[] }>();
+    expect(sameFilterBody.items).toHaveLength(1);
+    expect(sameFilterBody.items[0]?.id).not.toBe(firstBody.items[0]?.id);
+  });
+
+  it('narrows to one resource by resource_type and resource_id', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients', 'view-audit']);
+
+    const first = await createClientRequest(token, t.name, {
+      client_id: `resource-a-${newId()}`,
+      redirect_uris: ['https://app.example/cb'],
+      token_endpoint_auth_method: 'none',
+    });
+    expect(first.statusCode).toBe(201);
+    const firstId = first.json<{ id: string }>().id;
+
+    const second = await createClientRequest(token, t.name, {
+      client_id: `resource-b-${newId()}`,
+      redirect_uris: ['https://app.example/cb'],
+      token_endpoint_auth_method: 'none',
+    });
+    expect(second.statusCode).toBe(201);
+
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit?resource_type=client&resource_id=${firstId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ items: { resource_id: string | null }[] }>();
+    expect(body.items.length).toBeGreaterThan(0);
+    expect(body.items.every((row) => row.resource_id === firstId)).toBe(true);
+  });
+
+  it('refuses resource_id without resource_type, naming both', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-audit']);
+
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit?resource_id=${newId()}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toBe('resource_id requires resource_type');
+  });
+
+  it('refuses an action longer than the free-text filter bound', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-audit']);
+    const tooLong = 'a'.repeat(257);
+
+    const res = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit?action=${tooLong}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('refuses a cursor replayed with resource_id added to the filter set', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients', 'view-audit']);
+    for (let i = 0; i < 2; i += 1) {
+      await createClientRequest(token, t.name, {
+        client_id: `resource-cursor-${String(i)}-${newId()}`,
+        redirect_uris: ['https://app.example/cb'],
+        token_endpoint_auth_method: 'none',
+      });
+    }
+
+    const first = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/audit?resource_type=client&limit=1`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(first.statusCode).toBe(200);
+    const firstBody = first.json<{ items: { resource_id: string | null }[]; next?: string }>();
+    expect(firstBody.next).toBeDefined();
+    const resourceId = firstBody.items[0]?.resource_id;
+    if (resourceId === null || resourceId === undefined) {
+      throw new Error('unreachable: every row here is a client.create with a resource_id');
+    }
+    const cursor = encodeURIComponent(firstBody.next ?? '');
+
+    const withResourceIdAdded = await fixture.http.inject({
+      method: 'GET',
+      url:
+        `/admin/tenants/${t.name}/audit?resource_type=client&resource_id=${resourceId}` +
+        `&limit=1&cursor=${cursor}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(withResourceIdAdded.statusCode).toBe(400);
+  });
 });

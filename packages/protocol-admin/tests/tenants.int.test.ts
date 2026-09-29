@@ -2,11 +2,17 @@ import { executionRepository } from '@odudu/authn-flows';
 import { MAX_LIMIT } from '@odudu/contracts/admin';
 import { signingKeyRepository } from '@odudu/crypto';
 import { tenants, withTenant, type RequestContext } from '@odudu/db';
-import { clientRepository, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
+import { clientRepository, TENANT_CAPABILITIES, TENANT_NAME_RULE } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { eq } from 'drizzle-orm';
+import { ADMIN_CLIENT_REDIRECT_URI, clientOidcConfigRepository } from '@odudu/protocol-oidc';
+import { eq, sql } from 'drizzle-orm';
+import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import {
+  FIXTURE_CONSOLE_BASE_URL,
+  startAdminFixture,
+  type AdminFixture,
+} from '#/testing/admin-fixture';
 import { createTenant } from '#/usecase/tenants';
 
 // Matches the fixture's own KEK (packages/protocol-admin/src/testing/
@@ -41,6 +47,28 @@ describe('POST /admin/tenants', () => {
       expect(await executionRepository(tx).forTenant(id)).not.toHaveLength(0);
       expect(await clientRepository(tx).byClientId('odudu-admin')).not.toBeNull();
     });
+  });
+
+  it("registers the console's redirect and post-logout URIs on the new admin client", async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: `console-${newId()}` },
+    });
+    expect(res.statusCode).toBe(201);
+    const { id } = res.json<{ id: string }>();
+    const config = await withTenant(fixture.app.db, id, async (tx) => {
+      const client = await clientRepository(tx).byClientId('odudu-admin');
+      if (client === null) throw new Error('the admin client was not provisioned');
+      return clientOidcConfigRepository(tx).byClientId(client.id);
+    });
+    expect(config?.redirectUris).toEqual([
+      ADMIN_CLIENT_REDIRECT_URI,
+      `${FIXTURE_CONSOLE_BASE_URL}/console/auth/callback`,
+    ]);
+    expect(config?.postLogoutRedirectUris).toEqual([`${FIXTURE_CONSOLE_BASE_URL}/console/`]);
   });
 
   it('records the caller’s request id and address on its own tenant.create row', async () => {
@@ -108,6 +136,39 @@ describe('POST /admin/tenants', () => {
       payload: { name: 'system' },
     });
     expect(res.statusCode).toBe(409);
+  });
+
+  it('refuses the name count, which a tenant collection route would shadow', async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: 'count' },
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
+  it('refuses a name that is not a DNS label, creating nothing', async () => {
+    const token = await fixture.systemAdminToken(['manage-tenants']);
+    const name = 'Acme';
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toBe(TENANT_NAME_RULE);
+
+    const listed = await fixture.http.inject({
+      method: 'GET',
+      url: '/admin/tenants',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(listed.json<{ items: { name: string }[] }>().items).not.toContainEqual(
+      expect.objectContaining({ name }),
+    );
   });
 
   it('refuses a tenant-local admin holding every tenant capability', async () => {
@@ -230,6 +291,154 @@ describe('GET /admin/tenants', () => {
   });
 });
 
+// Every tenant in this file shares one database, so each search is scoped
+// by a prefix no other test's tenant can carry.
+function uniquePrefix(): string {
+  return `q${newId().replace(/-/gu, '').slice(-10)}`;
+}
+
+async function seedTenant(name: string, displayName: string | null = null): Promise<string> {
+  const t = await fixture.createTenant(name);
+  if (displayName !== null) {
+    await fixture.owner.db.update(tenants).set({ displayName }).where(eq(tenants.id, t.id));
+  }
+  return t.id;
+}
+
+async function listTenantsAt(query: string): Promise<LightMyRequestResponse> {
+  const token = await fixture.systemAdminToken(['manage-tenants']);
+  return fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants?${query}`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+function namesOf(res: LightMyRequestResponse): string[] {
+  return res.json<{ items: { name: string }[] }>().items.map((t) => t.name);
+}
+
+// PostgreSQL's own answer, in the order a searched listing promises, so no
+// expectation here folds a string in JavaScript.
+async function displayNameMatches(prefix: string): Promise<string[]> {
+  const rows = await fixture.owner.db.execute<{ name: string }>(sql`
+    select name from tenants
+     where starts_with(lower(display_name), lower(${prefix}))
+     order by lower(display_name) collate "C", id
+  `);
+  return rows.map((row) => row.name);
+}
+
+describe('GET /admin/tenants — search and exact filters', () => {
+  it('finds a name case-insensitively', async () => {
+    const p = uniquePrefix();
+    await seedTenant(`${p}-ada`);
+    await seedTenant(`${p}-grace`);
+
+    const res = await listTenantsAt(`name=${p.toUpperCase()}-A`);
+    expect(res.statusCode).toBe(200);
+    expect(namesOf(res)).toEqual([`${p}-ada`]);
+  });
+
+  it('orders display-name matches by the folded display name, then by id', async () => {
+    const p = uniquePrefix();
+    await seedTenant(`${p}-1`, `${p} Acme c`);
+    await seedTenant(`${p}-2`, `${p.toUpperCase()} acme A`);
+    await seedTenant(`${p}-3`, `${p} ACME b`);
+    await seedTenant(`${p}-4`, `${p} acme a`);
+    await seedTenant(`${p}-5`, `${p} Beta`);
+
+    const res = await listTenantsAt(`display_name=${encodeURIComponent(`${p} acme`)}`);
+    expect(res.statusCode).toBe(200);
+    const expected = await displayNameMatches(`${p} acme`);
+    expect(expected).toHaveLength(4);
+    expect(namesOf(res)).toEqual(expected);
+  });
+
+  it('pages a display-name search one row at a time, each match once and in order', async () => {
+    const p = uniquePrefix();
+    for (const [suffix, display] of [
+      ['1', 'B'],
+      ['2', 'a'],
+      ['3', 'C'],
+    ] as const) {
+      await seedTenant(`${p}-${suffix}`, `${p}-${display}`);
+    }
+
+    const seen: string[] = [];
+    let query = `display_name=${p}&limit=1`;
+    for (let page = 0; page < 5; page += 1) {
+      const res = await listTenantsAt(query);
+      expect(res.statusCode).toBe(200);
+      const body = res.json<{ items: { name: string }[]; next?: string }>();
+      seen.push(...body.items.map((t) => t.name));
+      if (body.next === undefined) break;
+      query = `display_name=${p}&limit=1&cursor=${encodeURIComponent(body.next)}`;
+    }
+    expect(seen).toEqual([`${p}-2`, `${p}-1`, `${p}-3`]);
+  });
+
+  it('reads _ and % in a display name as ordinary characters', async () => {
+    const p = uniquePrefix();
+    await seedTenant(`${p}-x`, `${p}axb`);
+    await seedTenant(`${p}-u`, `${p}a_b`);
+    await seedTenant(`${p}-c`, `${p}a%b`);
+
+    expect(namesOf(await listTenantsAt(`display_name=${p}a_b`))).toEqual([`${p}-u`]);
+    expect(namesOf(await listTenantsAt(`display_name=${p}a%25`))).toEqual([`${p}-c`]);
+  });
+
+  it('filters by ?enabled=, ANDed with a search', async () => {
+    const p = uniquePrefix();
+    const off = await seedTenant(`${p}-off`);
+    await seedTenant(`${p}-on`);
+    await fixture.owner.db.update(tenants).set({ enabled: false }).where(eq(tenants.id, off));
+
+    expect(namesOf(await listTenantsAt(`name=${p}&enabled=false`))).toEqual([`${p}-off`]);
+    expect(namesOf(await listTenantsAt(`name=${p}&enabled=true`))).toEqual([`${p}-on`]);
+    const disabled = await listTenantsAt('enabled=false&limit=200');
+    expect(disabled.statusCode).toBe(200);
+    const items = disabled.json<{ items: { enabled: boolean }[] }>().items;
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.every((t) => !t.enabled)).toBe(true);
+  });
+
+  it('refuses an unknown parameter with 400 naming it', async () => {
+    const res = await listTenantsAt('search=acme');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('search');
+  });
+
+  it('refuses a search over name and display_name at once', async () => {
+    const res = await listTenantsAt('name=a&display_name=b');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('one field at a time');
+  });
+
+  it('refuses an enabled value that is not true or false', async () => {
+    expect((await listTenantsAt('enabled=yes')).statusCode).toBe(400);
+  });
+
+  it.each([
+    ['another search', 'name={p}-a&limit=1', 'name={p}-b&limit=1'],
+    ['a filter added', 'name={p}&limit=1', 'name={p}&enabled=true&limit=1'],
+    ['a filter dropped', 'name={p}&enabled=true&limit=1', 'name={p}&limit=1'],
+  ])('refuses a cursor replayed under %s', async (_label, minted, replayedUnder) => {
+    const p = uniquePrefix();
+    for (const suffix of ['a1', 'a2', 'b1', 'b2']) await seedTenant(`${p}-${suffix}`);
+
+    const first = await listTenantsAt(minted.replaceAll('{p}', p));
+    const next = first.json<{ next?: string }>().next;
+    if (next === undefined) throw new Error('expected a next cursor');
+
+    const replayed = await listTenantsAt(
+      `${replayedUnder.replaceAll('{p}', p)}&cursor=${encodeURIComponent(next)}`,
+    );
+    expect(replayed.statusCode).toBe(400);
+    expect(replayed.json<{ detail: string }>().detail).toBe('cursor is invalid or expired');
+  });
+});
+
 describe('createTenant', () => {
   it('calls audit exactly once when it creates a tenant', async () => {
     const events: unknown[] = [];
@@ -274,6 +483,29 @@ describe('createTenant', () => {
       NO_CONTEXT,
     );
     expect(outcome.kind).toBe('name_refused');
+    expect(events).toHaveLength(0);
+  });
+
+  it('does not call audit when it refuses a name that is not a DNS label', async () => {
+    const events: unknown[] = [];
+    const outcome = await createTenant(
+      {
+        database: fixture.app.db,
+        kek: KEK,
+        audit: (_tx, event) => {
+          events.push(event);
+          return Promise.resolve();
+        },
+      },
+      {
+        name: 'Acme',
+        actorSubjectId: 'test-subject',
+        actorTenantId: 'test-tenant',
+        actorClientId: 'test-client',
+      },
+      NO_CONTEXT,
+    );
+    expect(outcome.kind).toBe('name_invalid');
     expect(events).toHaveLength(0);
   });
 

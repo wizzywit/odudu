@@ -21,11 +21,16 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    # The suite alone reached 15 minutes; NEXT.md's CI-caching entry owns
-    # bringing it back down.
+    # Bounded by a cold cache: every package's tests run when nothing is
+    # restored, which is a full suite of 15 minutes or more.
     timeout-minutes: 30
+    env:
+      TURBO_CACHE_DIR: .turbo/cache
+      TURBO_RUN_SUMMARY: 'true'
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Enable corepack
         run: corepack enable
@@ -37,13 +42,29 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Keyed per commit so each run saves its own; the prefix restores the
+      # newest earlier one, so an unchanged package replays its test results.
+      - name: Restore the Turborepo cache
+        uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+
       - run: pnpm verify
+
+      # The cache step saves after this, so what it saves is only what this
+      # run's summaries in .turbo/runs name, not every earlier run's entries.
+      - name: Prune the Turborepo cache
+        run: node tools/turbo-cache/src/index.ts .turbo/cache .turbo/runs
 
   container:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       # smoke.sh fails closed if infra/docker/.env is missing (ADR 0015) —
       # this is the deliberate act CI performs in its place.
@@ -53,11 +74,52 @@ jobs:
       - name: Build and smoke-test the stack
         run: ./infra/docker/smoke.sh
 
+  # The console's flows in Chromium against the built image, signed in
+  # through the gateway. e2e/run.sh is the whole of it, locally as here.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium and its system libraries
+        run: pnpm --filter @odudu/admin-console exec playwright install --with-deps chromium
+
+      - name: Bootstrap infra/docker/.env
+        run: cp infra/docker/.env.example infra/docker/.env
+
+      - name: Run the console in a browser against the image
+        run: ./apps/admin-console/e2e/run.sh
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            apps/admin-console/e2e/playwright-report
+            apps/admin-console/e2e/test-results
+          retention-days: 14
+
   conformance:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Cache the conformance suite's Maven repository
         uses: actions/cache@v6
@@ -73,6 +135,11 @@ jobs:
         env:
           MAVEN_CACHE: /tmp/conformance-m2
           SUITE_DIR: /tmp/conformance-suite
+
+      # The one run that observes the console's https mode: the __Host-
+      # names and Secure over the proxy's TLS. It gates the build.
+      - name: Check the console's cookies over https
+        run: ./infra/conformance/run-console-check.sh
 
       # Cannot pass by construction — ADR 0031 — so this step does not gate
       # the build. It still runs on every push, against the suite jar the
@@ -94,6 +161,7 @@ jobs:
         with:
           # The check reads commit messages, so it needs real history.
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: '24'

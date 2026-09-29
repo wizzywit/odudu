@@ -16,6 +16,11 @@ describe('the group amendment allowlist', () => {
     expect(refusalFor('parent_id')).toBeNull();
   });
 
+  it('never offers the stored search key, which the table has and the wire shape does not', () => {
+    expect(GROUP_FIELDS).not.toContain('name_search');
+    expect(AMENDABLE_GROUP_FIELDS).not.toContain('name_search');
+  });
+
   it('gives a field this resource has never heard of no refusal either', () => {
     expect(refusalFor('secret_hash')).toBeNull();
   });

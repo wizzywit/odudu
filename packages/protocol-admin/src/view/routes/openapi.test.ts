@@ -1,4 +1,6 @@
+import { assignScopeToClientResponseSchema } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { ADMIN_ROUTES } from '#/service/capability';
 import { buildAdminOpenApiDocument } from '#/view/routes/openapi';
 
@@ -27,15 +29,32 @@ describe('buildAdminOpenApiDocument', () => {
     }
   });
 
-  it('still documents a successful response as application/json', () => {
+  it('documents a successful response as application/json unless the route names its own type', () => {
     const document = buildAdminOpenApiDocument();
     for (const route of ADMIN_ROUTES) {
       const path = route.pattern.replace(/:(\w+)/gu, '{$1}');
       const status = String(route.successStatus ?? 200);
       const response = document.paths[path]?.[route.method.toLowerCase()]?.responses[status];
-      expect(response?.content, `${route.method} ${path} ${status}`).toHaveProperty(
-        'application/json',
-      );
+      expect(response?.content, `${route.method} ${path} ${status}`).toHaveProperty([
+        route.successMediaType ?? 'application/json',
+      ]);
     }
+  });
+
+  it('documents the tenant export as its own media type', () => {
+    const response =
+      buildAdminOpenApiDocument().paths['/admin/tenants/{tenant}/export']?.get?.responses['200'];
+    expect(Object.keys(response?.content ?? {})).toEqual(['application/vnd.odudu.tenant+json']);
+  });
+
+  // The route answers the client's scope assignments, never the client,
+  // which reading takes a stronger capability than this route asks for.
+  it('documents a scope assignment as the assignments the route answers', () => {
+    const response =
+      buildAdminOpenApiDocument().paths['/admin/tenants/{tenant}/scopes/{id}/clients/{clientId}']
+        ?.put?.responses['200'];
+    expect(response?.content?.['application/json']?.schema).toEqual(
+      z.toJSONSchema(assignScopeToClientResponseSchema, { unrepresentable: 'any' }),
+    );
   });
 });

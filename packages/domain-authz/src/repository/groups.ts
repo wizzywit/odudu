@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { eq, sql } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { groupRoles, groups, subjectGroups, type GroupRecord } from '#/schema/groups';
 
@@ -63,9 +63,8 @@ export async function effectiveGroupPaths(
 // Descendants reachable from `startId` by following parent_id edges
 // downward (child -> parent points up, so this walks the reverse
 // direction). UNION, not UNION ALL: the same termination reasoning as
-// role_composites' closure — see docs/superpowers/p2a-spike-log.md. Exported
-// only for groups.int.test.ts's cyclic-parent_id termination probe; the
-// package's public surface (src/index.ts) does not re-export it.
+// role_composites' closure — see docs/superpowers/p2a-spike-log.md. What
+// deleting a group takes with it, since `groups_parent_fk` cascades.
 export async function descendantsOf(
   tx: TenantScopedDatabase,
   startId: string,
@@ -206,6 +205,34 @@ export function groupRepository(tx: TenantScopedDatabase) {
     async addToSubject(subjectId: string, groupId: string): Promise<void> {
       const group = await requireById(tx, groupId);
       await tx.insert(subjectGroups).values({ tenantId: group.tenantId, subjectId, groupId });
+    },
+
+    // Direct memberships only, like effectiveGroupPaths; ordered by id so a
+    // hash over the list is the same on every read of an unchanged set.
+    async groupsOfSubject(subjectId: string): Promise<GroupRecord[]> {
+      const rows = await tx
+        .select({ group: groups })
+        .from(subjectGroups)
+        .innerJoin(groups, eq(subjectGroups.groupId, groups.id))
+        .where(eq(subjectGroups.subjectId, subjectId))
+        .orderBy(asc(groups.id));
+      return rows.map((row) => toRecord(row.group));
+    },
+
+    // Delete-then-insert under the caller's own row lock, never a diff —
+    // the same shape as `setRoles` above. Deduplicated on the id the row
+    // holds, not the string given: a uuid matches in either letter case.
+    async setSubjectGroups(subjectId: string, groupIds: readonly string[]): Promise<void> {
+      await tx.delete(subjectGroups).where(eq(subjectGroups.subjectId, subjectId));
+      const joined = new Set<string>();
+      for (const groupId of groupIds) {
+        const group = await requireById(tx, groupId);
+        if (joined.has(group.id)) continue;
+        joined.add(group.id);
+        await tx
+          .insert(subjectGroups)
+          .values({ tenantId: group.tenantId, subjectId, groupId: group.id });
+      }
     },
   };
 }

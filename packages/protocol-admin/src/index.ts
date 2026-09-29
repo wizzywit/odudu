@@ -14,11 +14,16 @@ import { type Audit as ClientAudit } from '#/usecase/clients';
 import { type Audit as FlowAudit } from '#/usecase/flow';
 import { type Audit as GroupAudit } from '#/usecase/groups';
 import { type Audit as KeyAudit } from '#/usecase/keys';
+import { type Audit as RegistrationTokenAudit } from '#/usecase/registration-tokens';
 import { type Audit as RoleAudit } from '#/usecase/roles';
 import { type Audit as ScopeAudit } from '#/usecase/scopes';
 import { type Audit as ScopeMapperAudit, type MapperCatalogue } from '#/usecase/scope-mappers';
 import { type Audit as SettingsAudit } from '#/usecase/settings';
+import { type Audit as TenantExportAudit } from '#/usecase/tenant-export';
+import { type Audit as TenantImportAudit } from '#/usecase/tenant-import';
 import { type Audit as SmtpAudit } from '#/usecase/smtp';
+import { type Audit as AccountRecoveryAudit } from '#/usecase/account-recovery';
+import { type Audit as ConsentAudit } from '#/usecase/consents';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
 import { type Audit as SubjectAudit } from '#/usecase/subjects';
 import { type Audit } from '#/usecase/tenants';
@@ -34,6 +39,16 @@ import {
   rotateClientSecretHandler,
   type ClientsRouteDeps,
 } from '#/view/routes/clients';
+import {
+  clearLockoutHandler,
+  issuePasswordHandler,
+  type AccountRecoveryRouteDeps,
+} from '#/view/routes/account-recovery';
+import {
+  deleteConsentHandler,
+  listConsentsHandler,
+  type ConsentsRouteDeps,
+} from '#/view/routes/consents';
 import {
   amendGroupHandler,
   createGroupHandler,
@@ -65,14 +80,32 @@ import {
   type KeysRouteDeps,
 } from '#/view/routes/keys';
 import { listAuditHandler, type AuditRouteDeps } from '#/view/routes/audit';
+import {
+  countClientsHandler,
+  countGroupsHandler,
+  countRolesHandler,
+  countScopesHandler,
+  countSubjectsHandler,
+  countTenantsHandler,
+  type CountsRouteDeps,
+} from '#/view/routes/counts';
 import { registerOpenApiRoute } from '#/view/routes/openapi';
+import {
+  listRegistrationTokensHandler,
+  mintRegistrationTokenHandler,
+  revokeRegistrationTokenHandler,
+  type RegistrationTokensRouteDeps,
+} from '#/view/routes/registration-tokens';
 import {
   addRoleCompositeHandler,
   amendRoleHandler,
   createRoleHandler,
   deleteRoleHandler,
+  listRoleCompositesHandler,
   listRolesHandler,
   readRoleHandler,
+  removeRoleCompositeHandler,
+  setRoleDefaultHandler,
   type RolesRouteDeps,
 } from '#/view/routes/roles';
 import { type AdminRouteHandlers, registerAdminRoutes } from '#/view/routes/router';
@@ -81,13 +114,16 @@ import {
   assignScopeToClientHandler,
   createScopeHandler,
   deleteScopeHandler,
+  listScopeClientsHandler,
   listScopesHandler,
   readScopeHandler,
   readScopeRolesHandler,
   setScopeRolesHandler,
+  unassignScopeFromClientHandler,
   type ScopesRouteDeps,
 } from '#/view/routes/scopes';
 import {
+  deleteAllSessionsHandler,
   deleteSessionHandler,
   listSessionsHandler,
   type SessionsRouteDeps,
@@ -97,18 +133,24 @@ import {
   getSettingsHandler,
   type SettingsRouteDeps,
 } from '#/view/routes/settings';
+import { exportTenantHandler, type TenantExportRouteDeps } from '#/view/routes/tenant-export';
+import { importTenantHandler, type TenantImportRouteDeps } from '#/view/routes/tenant-import';
 import {
+  amendProfileHandler,
   amendSubjectHandler,
   createSubjectHandler,
   deleteCredentialHandler,
   deleteSubjectHandler,
   listCredentialsHandler,
   listSubjectsHandler,
+  readProfileHandler,
   readRequiredActionsHandler,
   readSubjectHandler,
+  readSubjectGroupsHandler,
   readSubjectRolesHandler,
   setRequiredActionsHandler,
   setRolesHandler,
+  setSubjectGroupsHandler,
   type SubjectsRouteDeps,
 } from '#/view/routes/subjects';
 import {
@@ -147,6 +189,10 @@ export interface AdminRoutesDeps {
   // (createTenant, #/usecase/tenants.ts) — the same KEK `seedAdmin` and
   // `seed tenant` use.
   kek: Uint8Array;
+  // `ODUDU_PUBLIC_BASE_URL` while the console is on: a tenant created or
+  // imported here has the console's redirect and post-logout URIs
+  // registered on its admin client under this base. Unset, it has neither.
+  consoleBaseUrl?: string | undefined;
   // Gates `tls_client_auth` client creation the same way `/token` and
   // dynamic registration gate it (`OidcRoutesDeps.trustProxy`,
   // @odudu/protocol-oidc) — off by default, since a `tls_client_auth`
@@ -161,6 +207,14 @@ export interface AdminRoutesDeps {
   // ADR 0028's escape hatch, applied to the relay a tenant configures for
   // itself. Off by default; loopback stays refused either way.
   allowPrivateSmtpHosts?: boolean;
+  // Whether `ODUDU_SMTP_HOST` and `ODUDU_SMTP_FROM` give the deployment a
+  // sender of its own, which a tenant with no relay falls back to — what
+  // `GET /smtp` reports as `effective`. Off by default.
+  deploymentSmtp?: boolean;
+  // Spends a subject's outstanding reset-password links when an
+  // administrator issues it a one-time password. The links belong to
+  // @odudu/account, which the composition root wires this to.
+  retireResetLinks: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
 }
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
@@ -202,7 +256,7 @@ function buildAdminRoutes(
       event: {
         readonly action: string;
         readonly resourceType: string;
-        readonly resourceId: string;
+        readonly resourceId: string | null;
         readonly actorSubjectId: string;
         readonly actorTenantId: string;
         readonly actorClientId: string;
@@ -228,8 +282,11 @@ function buildAdminRoutes(
     }
     const tenantAudit: Audit = recordAudit;
     const clientAudit: ClientAudit = recordAudit;
+    const registrationTokenAudit: RegistrationTokenAudit = recordAudit;
     const subjectAudit: SubjectAudit = recordAudit;
     const sessionAudit: SessionAudit = recordAudit;
+    const consentAudit: ConsentAudit = recordAudit;
+    const accountRecoveryAudit: AccountRecoveryAudit = recordAudit;
     const roleAudit: RoleAudit = recordAudit;
     const groupAudit: GroupAudit = recordAudit;
     const scopeAudit: ScopeAudit = recordAudit;
@@ -238,6 +295,8 @@ function buildAdminRoutes(
     const scopeMapperAudit: ScopeMapperAudit = recordAudit;
     const smtpAudit: SmtpAudit = recordAudit;
     const settingsAudit: SettingsAudit = recordAudit;
+    const tenantExportAudit: TenantExportAudit = recordAudit;
+    const tenantImportAudit: TenantImportAudit = recordAudit;
     // Same call `authzDeps.effectiveRoles` makes below, scoped to whichever
     // tenant the caller's own token was issued from — never the target
     // tenant a cross-tenant system admin is reaching into. Shared by
@@ -302,6 +361,7 @@ function buildAdminRoutes(
         allowPrivate: deps.allowPrivateSmtpHosts ?? false,
         resolve: resolveHostAddresses,
       },
+      deploymentSmtp: deps.deploymentSmtp ?? false,
     };
     const tenantsDeps: TenantsRouteDeps = {
       database: deps.database.db,
@@ -309,6 +369,24 @@ function buildAdminRoutes(
       cursorKey: deps.cursorKey,
       kek: deps.kek,
       audit: tenantAudit,
+      consoleBaseUrl: deps.consoleBaseUrl,
+    };
+    const tenantExportDeps: TenantExportRouteDeps = {
+      database: deps.database.db,
+      audit: tenantExportAudit,
+      callerCapabilities,
+    };
+    const tenantImportDeps: TenantImportRouteDeps = {
+      database: deps.database.db,
+      kek: deps.kek,
+      audit: tenantImportAudit,
+      consoleBaseUrl: deps.consoleBaseUrl,
+      hashClientSecret: hashPassword,
+      tlsClientAuthEnabled: deps.trustProxy ?? false,
+      claimMappers: deps.claimMappers,
+      tenantNameTaken: async (name) =>
+        (await tenantLookupRepository(deps.ownerDatabase.db).byName(name)) !== null,
+      callerCapabilities,
     };
     const settingsDeps: SettingsRouteDeps = {
       database: deps.database.db,
@@ -320,57 +398,109 @@ function buildAdminRoutes(
       hashClientSecret: hashPassword,
       tlsClientAuthEnabled: deps.trustProxy ?? false,
       audit: clientAudit,
+      callerCapabilities,
+    };
+    const registrationTokensDeps: RegistrationTokensRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      audit: registrationTokenAudit,
     };
     const sessionsDeps: SessionsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
       kek: deps.kek,
       audit: sessionAudit,
+      callerCapabilities,
       now: () => clock.now(),
       findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
+    };
+    const consentsDeps: ConsentsRouteDeps = {
+      database: deps.database.db,
+      audit: consentAudit,
+      callerCapabilities,
+      now: () => clock.now(),
+    };
+    const accountRecoveryDeps: AccountRecoveryRouteDeps = {
+      database: deps.database.db,
+      audit: accountRecoveryAudit,
+      callerCapabilities,
+      retireResetLinks: deps.retireResetLinks,
     };
     const auditDeps: AuditRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
     };
+    const countsDeps: CountsRouteDeps = {
+      database: deps.database.db,
+      ownerDatabase: deps.ownerDatabase.db,
+    };
     const handlers: AdminRouteHandlers = {
-      'GET /admin/tenants/:tenant/whoami': whoamiHandler,
+      'GET /admin/tenants/:tenant/whoami': whoamiHandler({ callerCapabilities }),
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/count': countSubjectsHandler(countsDeps),
       'POST /admin/tenants/:tenant/subjects': createSubjectHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id': readSubjectHandler(subjectsDeps),
       'PATCH /admin/tenants/:tenant/subjects/:id': amendSubjectHandler(subjectsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id': deleteSubjectHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/profile': readProfileHandler(subjectsDeps),
+      'PATCH /admin/tenants/:tenant/subjects/:id/profile': amendProfileHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/credentials': listCredentialsHandler(subjectsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/credentials/:credentialId':
         deleteCredentialHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/consents': listConsentsHandler(consentsDeps),
+      'DELETE /admin/tenants/:tenant/subjects/:id/consents/:clientId':
+        deleteConsentHandler(consentsDeps),
+      'POST /admin/tenants/:tenant/subjects/:id/password':
+        issuePasswordHandler(accountRecoveryDeps),
+      'DELETE /admin/tenants/:tenant/subjects/:id/lockout':
+        clearLockoutHandler(accountRecoveryDeps),
       'GET /admin/tenants/:tenant/subjects/:id/required-actions':
         readRequiredActionsHandler(subjectsDeps),
       'PUT /admin/tenants/:tenant/subjects/:id/required-actions':
         setRequiredActionsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/roles': readSubjectRolesHandler(subjectsDeps),
       'PUT /admin/tenants/:tenant/subjects/:id/roles': setRolesHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/groups': readSubjectGroupsHandler(subjectsDeps),
+      'PUT /admin/tenants/:tenant/subjects/:id/groups': setSubjectGroupsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/sessions': listSessionsHandler(sessionsDeps),
+      'DELETE /admin/tenants/:tenant/subjects/:id/sessions': deleteAllSessionsHandler(sessionsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/sessions/:sid':
         deleteSessionHandler(sessionsDeps),
       'GET /admin/tenants': listTenantsHandler(tenantsDeps),
+      'GET /admin/tenants/count': countTenantsHandler(countsDeps),
       'POST /admin/tenants': createTenantHandler(tenantsDeps),
+      'POST /admin/tenant-imports': importTenantHandler(tenantImportDeps),
       'GET /admin/tenants/:tenant': readTenantHandler(tenantsDeps),
       'PATCH /admin/tenants/:tenant': amendTenantHandler(tenantsDeps),
+      'GET /admin/tenants/:tenant/export': exportTenantHandler(tenantExportDeps),
       'GET /admin/tenants/:tenant/settings': getSettingsHandler(settingsDeps),
       'PATCH /admin/tenants/:tenant/settings': amendSettingsHandler(settingsDeps),
       'GET /admin/tenants/:tenant/clients': listClientsHandler(clientsDeps),
+      'GET /admin/tenants/:tenant/clients/count': countClientsHandler(countsDeps),
       'POST /admin/tenants/:tenant/clients': createClientHandler(clientsDeps),
       'GET /admin/tenants/:tenant/clients/:id': readClientHandler(clientsDeps),
       'PATCH /admin/tenants/:tenant/clients/:id': amendClientHandler(clientsDeps),
       'DELETE /admin/tenants/:tenant/clients/:id': deleteClientHandler(clientsDeps),
       'POST /admin/tenants/:tenant/clients/:id/secret': rotateClientSecretHandler(clientsDeps),
+      'GET /admin/tenants/:tenant/registration-tokens':
+        listRegistrationTokensHandler(registrationTokensDeps),
+      'POST /admin/tenants/:tenant/registration-tokens':
+        mintRegistrationTokenHandler(registrationTokensDeps),
+      'DELETE /admin/tenants/:tenant/registration-tokens/:id':
+        revokeRegistrationTokenHandler(registrationTokensDeps),
       'GET /admin/tenants/:tenant/roles': listRolesHandler(rolesDeps),
+      'GET /admin/tenants/:tenant/roles/count': countRolesHandler(countsDeps),
       'POST /admin/tenants/:tenant/roles': createRoleHandler(rolesDeps),
       'GET /admin/tenants/:tenant/roles/:id': readRoleHandler(rolesDeps),
       'PATCH /admin/tenants/:tenant/roles/:id': amendRoleHandler(rolesDeps),
       'DELETE /admin/tenants/:tenant/roles/:id': deleteRoleHandler(rolesDeps),
       'POST /admin/tenants/:tenant/roles/:id/composites': addRoleCompositeHandler(rolesDeps),
+      'GET /admin/tenants/:tenant/roles/:id/composites': listRoleCompositesHandler(rolesDeps),
+      'DELETE /admin/tenants/:tenant/roles/:id/composites/:childId':
+        removeRoleCompositeHandler(rolesDeps),
+      'PUT /admin/tenants/:tenant/roles/:id/default': setRoleDefaultHandler(rolesDeps),
       'GET /admin/tenants/:tenant/groups': listGroupsHandler(groupsDeps),
+      'GET /admin/tenants/:tenant/groups/count': countGroupsHandler(countsDeps),
       'POST /admin/tenants/:tenant/groups': createGroupHandler(groupsDeps),
       'GET /admin/tenants/:tenant/groups/:id': readGroupHandler(groupsDeps),
       'PATCH /admin/tenants/:tenant/groups/:id': amendGroupHandler(groupsDeps),
@@ -378,14 +508,18 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/groups/:id/roles': readGroupRolesHandler(groupsDeps),
       'PUT /admin/tenants/:tenant/groups/:id/roles': setGroupRolesHandler(groupsDeps),
       'GET /admin/tenants/:tenant/scopes': listScopesHandler(scopesDeps),
+      'GET /admin/tenants/:tenant/scopes/count': countScopesHandler(countsDeps),
       'POST /admin/tenants/:tenant/scopes': createScopeHandler(scopesDeps),
       'GET /admin/tenants/:tenant/scopes/:id': readScopeHandler(scopesDeps),
       'PATCH /admin/tenants/:tenant/scopes/:id': amendScopeHandler(scopesDeps),
       'DELETE /admin/tenants/:tenant/scopes/:id': deleteScopeHandler(scopesDeps),
       'GET /admin/tenants/:tenant/scopes/:id/roles': readScopeRolesHandler(scopesDeps),
       'PUT /admin/tenants/:tenant/scopes/:id/roles': setScopeRolesHandler(scopesDeps),
+      'GET /admin/tenants/:tenant/scopes/:id/clients': listScopeClientsHandler(scopesDeps),
       'PUT /admin/tenants/:tenant/scopes/:id/clients/:clientId':
         assignScopeToClientHandler(scopesDeps),
+      'DELETE /admin/tenants/:tenant/scopes/:id/clients/:clientId':
+        unassignScopeFromClientHandler(scopesDeps),
       'GET /admin/tenants/:tenant/scopes/:id/mappers': readScopeMappersHandler(scopeMappersDeps),
       'PUT /admin/tenants/:tenant/scopes/:id/mappers': setScopeMappersHandler(scopeMappersDeps),
       'GET /admin/tenants/:tenant/smtp': readSmtpHandler(smtpDeps),

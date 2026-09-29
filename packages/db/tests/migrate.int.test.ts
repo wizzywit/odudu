@@ -48,11 +48,13 @@ describe('migrations', () => {
       'client_registration_policy',
       'created_at',
       'display_name',
+      'display_name_search',
       'enabled',
       'id',
       'max_clients',
       'max_sessions_per_browser',
       'name',
+      'name_search',
       'otp_required',
       'password_history_depth',
       'password_max_age_days',
@@ -70,6 +72,7 @@ describe('migrations', () => {
       'reset_password_allowed',
       'sso_session_idle_seconds',
       'sso_session_max_seconds',
+      'username_editable',
       'verify_email',
     ]);
   });

@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import formbody from '@fastify/formbody';
+import { actionTokenRepository } from '@odudu/account';
 import {
   generateSigningKey,
   signingKeyRepository,
@@ -143,6 +144,17 @@ export interface AdminFixture {
   // minted directly, the same way `adminToken` is, so a test can reach
   // `/userinfo` without driving a full authorization_code exchange.
   mintUserinfoAccessToken(tenantName: string, client: TestClient, scope: string): Promise<string>;
+  // Like `mintUserinfoAccessToken`, but for a subject that already exists —
+  // an admin-amended profile's own subject, say — rather than a fresh one
+  // minted alongside the token. So a test can read the claims an admin
+  // write actually reaches, through the same `/userinfo` door a client
+  // does, rather than reading the write back through the admin API itself.
+  mintUserinfoAccessTokenForSubject(
+    tenantName: string,
+    client: TestClient,
+    subjectId: string,
+    scope: string,
+  ): Promise<string>;
 
   // State changes a test needs but no endpoint offers, written directly.
   revokeGrantsFor(tenantName: string): Promise<void>;
@@ -183,7 +195,15 @@ function basicAuth(clientId: string, secret: string): string {
   return `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}`;
 }
 
-export async function startAdminFixture(): Promise<AdminFixture> {
+/** The console base every tenant created through `POST /admin/tenants` here is registered under. */
+export const FIXTURE_CONSOLE_BASE_URL = 'http://console.test';
+
+export interface AdminFixtureOptions {
+  /** Whether the deployment has a sender of its own for a tenant without one. */
+  readonly deploymentSmtp?: boolean;
+}
+
+export async function startAdminFixture(options: AdminFixtureOptions = {}): Promise<AdminFixture> {
   const container: TestDatabase = await startTestDatabase();
   const owner = createDatabase(container.adminUrl);
   await runMigrations(owner.db, MIGRATIONS_DIR);
@@ -223,7 +243,11 @@ export async function startAdminFixture(): Promise<AdminFixture> {
         clock,
         cursorKey: KEK,
         kek: KEK,
+        consoleBaseUrl: FIXTURE_CONSOLE_BASE_URL,
         claimMappers,
+        deploymentSmtp: options.deploymentSmtp ?? false,
+        retireResetLinks: (tx, subjectId) =>
+          actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
       },
       () => {
         if (!failNextAuditWrite) return Promise.resolve();
@@ -722,6 +746,28 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     });
   }
 
+  async function mintUserinfoAccessTokenForSubject(
+    tenantName: string,
+    client: TestClient,
+    subjectId: string,
+    scope: string,
+  ): Promise<string> {
+    const ctx = requireTenant(tenantName);
+    return withTenant(app.db, ctx.id, async (tx) => {
+      const clientRecord = await clientRepository(tx).byClientId(client.clientId);
+      if (clientRecord === null) {
+        throw new Error(`fixture: unknown client ${client.clientId}`);
+      }
+      return mintTokenInTx(tx, ctx, {
+        subjectId,
+        client: clientRecord,
+        sessionId: null,
+        audience: [ctx.issuer],
+        scope,
+      });
+    });
+  }
+
   async function revokeGrantsFor(tenantName: string): Promise<void> {
     const ctx = requireTenant(tenantName);
     const ids = grantsByTenant.get(ctx.id) ?? [];
@@ -808,6 +854,7 @@ export async function startAdminFixture(): Promise<AdminFixture> {
     tokenRequest,
     callUserinfo,
     mintUserinfoAccessToken,
+    mintUserinfoAccessTokenForSubject,
     revokeGrantsFor,
     revokeCapability,
     disableClientOf,

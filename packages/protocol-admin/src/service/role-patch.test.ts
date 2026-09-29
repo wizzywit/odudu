@@ -12,8 +12,19 @@ describe('the role amendment allowlist', () => {
     }
   });
 
+  it('names the operation that does set a role’s default', () => {
+    expect(refusalFor('default_for_new_subjects')).toContain(
+      'PUT /admin/tenants/{tenant}/roles/{id}/default',
+    );
+  });
+
   it('gives description no refusal', () => {
     expect(refusalFor('description')).toBeNull();
+  });
+
+  it('never offers the stored search key, which the table has and the wire shape does not', () => {
+    expect(ROLE_FIELDS).not.toContain('name_search');
+    expect(AMENDABLE_ROLE_FIELDS).not.toContain('name_search');
   });
 
   it('gives a field this resource has never heard of no refusal either', () => {

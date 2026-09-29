@@ -1,0 +1,27 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 36px;
+  padding: var(--space-1) var(--space-4);
+  border-block-end: 1px solid var(--border);
+  font-size: var(--type-13);
+  color: var(--signal-system-ink);
+  background: var(--signal-system);
+}
+
+.label {
+  padding: 0 var(--space-2);
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.bar strong {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}

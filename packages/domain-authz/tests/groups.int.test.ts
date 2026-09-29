@@ -526,3 +526,138 @@ describe('ancestorsOf', () => {
     });
   });
 });
+
+describe('groupsOfSubject', () => {
+  it('lists the groups a subject directly belongs to, ordered by id, not their ancestors', async () => {
+    const tenant = await tenantFixture();
+    const subject = await tenant.insertSubject();
+    const parent = await tenant.createGroup('engineering', null);
+    const child = await tenant.createGroup('platform', parent.id);
+    const other = await tenant.createGroup('sales', null);
+    await tenant.addToSubject(subject, child.id);
+    await tenant.addToSubject(subject, other.id);
+
+    const found = await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).groupsOfSubject(subject),
+    );
+    expect(found.map((group) => group.id)).toEqual([child.id, other.id].sort());
+    expect(found.map((group) => group.path).sort()).toEqual(['/engineering/platform', '/sales']);
+  });
+
+  it('does not see another tenant’s memberships', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await insertSubject(tx, tenantId);
+        const group = await groupRepository(tx).create({ tenantId, name: 'eng', parentId: null });
+        await groupRepository(tx).addToSubject(subjectId, group.id);
+        return { subjectId, groupId: group.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const found = await groupRepository(tx).groupsOfSubject(seeded.subjectId);
+        expect(found.map((group) => group.id)).toEqual([seeded.groupId]);
+      },
+      attempt: async (tx, seeded) => groupRepository(tx).groupsOfSubject(seeded.subjectId),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('setSubjectGroups', () => {
+  it('replaces the membership set, and a removed group stops appearing', async () => {
+    const tenant = await tenantFixture();
+    const subject = await tenant.insertSubject();
+    const a = await tenant.createGroup('a', null);
+    const b = await tenant.createGroup('b', null);
+    await tenant.addToSubject(subject, a.id);
+
+    await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).setSubjectGroups(subject, [b.id]),
+    );
+    expect(await tenant.effectiveGroupPaths(subject)).toEqual(['/b']);
+
+    await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).setSubjectGroups(subject, []),
+    );
+    expect(await tenant.effectiveGroupPaths(subject)).toEqual([]);
+  });
+
+  it('accepts a repeated id as one membership', async () => {
+    const tenant = await tenantFixture();
+    const subject = await tenant.insertSubject();
+    const a = await tenant.createGroup('a', null);
+
+    await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).setSubjectGroups(subject, [a.id, a.id]),
+    );
+    expect(await tenant.effectiveGroupPaths(subject)).toEqual(['/a']);
+  });
+
+  it('accepts an id repeated in another letter case as one membership', async () => {
+    const tenant = await tenantFixture();
+    const subject = await tenant.insertSubject();
+    const a = await tenant.createGroup('a', null);
+
+    await withTenant(app.db, tenant.tenantId, (tx) =>
+      groupRepository(tx).setSubjectGroups(subject, [a.id, a.id.toUpperCase()]),
+    );
+    expect(await tenant.effectiveGroupPaths(subject)).toEqual(['/a']);
+  });
+
+  it('cannot clear another tenant’s subject’s memberships', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await insertSubject(tx, tenantId);
+        const group = await groupRepository(tx).create({ tenantId, name: 'eng', parentId: null });
+        await groupRepository(tx).addToSubject(subjectId, group.id);
+        return { subjectId };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await effectiveGroupPaths(tx, seeded.subjectId)).toEqual(['/eng']);
+      },
+      attempt: async (tx, seeded) => {
+        await groupRepository(tx).setSubjectGroups(seeded.subjectId, []);
+        return 'returned';
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('returned');
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        expect(await effectiveGroupPaths(tx, seeded.subjectId)).toEqual(['/eng']);
+      },
+    });
+  });
+
+  it('throws group_not_found for another tenant’s group, and writes no membership', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const group = await groupRepository(tx).create({ tenantId, name: 'eng', parentId: null });
+        return { groupId: group.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect(await groupRepository(tx).byId(seeded.groupId)).not.toBeNull();
+      },
+      attempt: async (tx, seeded) => {
+        try {
+          await groupRepository(tx).setSubjectGroups(newId(), [seeded.groupId]);
+          return 'succeeded';
+        } catch (caught) {
+          return caught instanceof Error ? caught.message : 'threw';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toMatch(/no group with id/);
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        const rows = await tx.execute(
+          sql`select subject_id from subject_groups where group_id = ${seeded.groupId}`,
+        );
+        expect(rows).toEqual([]);
+      },
+    });
+  });
+});

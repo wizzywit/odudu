@@ -624,6 +624,31 @@ describe('[RFC6749-2.3.2-01] a mapping between client identifier and authenticat
   });
 });
 
+describe('a registered jwks holding a private key', () => {
+  it('is refused with invalid_client_metadata and stores nothing', async () => {
+    const tenantName = `jwks-private-${newId()}`;
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) =>
+      seedTenant(tx, tenantId, { name: tenantName, policy: 'open' }),
+    );
+
+    const res = await http.inject({
+      method: 'POST',
+      url: URL_FOR(tenantName),
+      payload: {
+        ...MINIMAL,
+        token_endpoint_auth_method: 'private_key_jwt',
+        jwks: { keys: [{ kty: 'oct', k: 'c3ltbWV0cmljLXNlY3JldA' }] },
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'invalid_client_metadata' });
+    const stored = await withTenant(app.db, tenantId, (tx) => tx.select().from(clients));
+    expect(stored).toEqual([]);
+  });
+});
+
 describe('[ODUDU-CLIENT-REGISTRATION-JWKS-URI-01] a registered jwks_uri', () => {
   // What would this test still pass under? A version that fetches jwks_uri
   // and tolerates the fetch failing would also return 201 — the stored

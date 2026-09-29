@@ -359,7 +359,9 @@ each a two-line wrapper because `FastifyReply` cannot live in the
 transport-free `kernel` package. A route never sets `content-type`,
 `content-security-policy`, `x-frame-options` or `referrer-policy` itself;
 `html-response.test.ts` holds every package's view layer to naming none of
-those itself outside the two files that spread `pageHeaders`.
+those itself outside those two files and the console shell's `spa.ts`,
+which sets its own fixed policy (ADR 0029's amendment); any other wrapper
+gets them only by spreading `pageHeaders`.
 
 **A page that needs a script says so in its return value**, as a
 `RenderedPage` carrying the nonce its own markup used, and `pageHeaders`

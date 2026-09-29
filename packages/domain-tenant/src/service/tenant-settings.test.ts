@@ -82,6 +82,18 @@ describe('coercing a value that arrived as a string', () => {
     });
   });
 
+  // `tenants_client_registration_policy_check` (migration 0045, renamed by
+  // 0058) names these three and nothing else — a value the CHECK would
+  // refuse anyway is caught here first, so the caller reads a 400 naming
+  // them, not a 500.
+  it('refuses a registration policy outside disabled, open and token, naming them', () => {
+    expect(coerceTenantSetting('client_registration_policy', 'sometimes')).toEqual({
+      kind: 'invalid_value',
+      expected: 'text',
+      values: ['disabled', 'open', 'token'],
+    });
+  });
+
   it('coerces the per-browser session cap', () => {
     expect(coerceTenantSetting('max_sessions_per_browser', '8')).toEqual({
       kind: 'coerced',
@@ -121,5 +133,14 @@ describe('coercing a value that arrived as a string', () => {
       column: 'auditRetentionDays',
       value: 30,
     });
+  });
+
+  it('coerces username_editable as a boolean', () => {
+    expect(coerceTenantSetting('username_editable', 'true')).toEqual({
+      kind: 'coerced',
+      column: 'usernameEditable',
+      value: true,
+    });
+    expect(coerceTenantSetting('username_editable', 'yes').kind).toBe('invalid_value');
   });
 });

@@ -505,6 +505,55 @@
       "when": 1789049381714,
       "tag": "0071_session_secret",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1789049381715,
+      "tag": "0072_tenant_name_rule",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1789049381716,
+      "tag": "0073_list_indexes_subjects",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1789049381717,
+      "tag": "0074_list_indexes_tenants_clients",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1789049381718,
+      "tag": "0075_list_indexes_roles_groups_scopes",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1789049381719,
+      "tag": "0076_audit_events_resource_keyset",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1789049381720,
+      "tag": "0077_username_editable",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1789049381721,
+      "tag": "0078_console_sessions",
+      "breakpoints": true
     }
   ]
 }

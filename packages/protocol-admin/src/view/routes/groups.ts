@@ -22,7 +22,16 @@ import {
   type Audit,
   type CreateGroupOutcome,
 } from '#/usecase/groups';
-import { ifMatchRequired, ifMatchStale, problem, sendProblem } from '#/view/problem';
+import {
+  ceilingProblem,
+  cursorProblem,
+  fieldProblem,
+  ifMatchRequired,
+  ifMatchStale,
+  problem,
+  sendProblem,
+  lastAdministratorProblem,
+} from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -45,7 +54,8 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
 export function listGroupsHandler(deps: GroupsRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
     const query = listGroupsQuerySchema.parse(request.query);
-    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+    const { cursor, limit: requestedLimit, ...filters } = query;
+    const limit = coerceLimit(requestedLimit === undefined ? undefined : String(requestedLimit));
     const tenantName = request.params.tenant;
     if (tenantName === undefined) {
       throw new Error('protocol-admin: groups route received no :tenant');
@@ -54,17 +64,14 @@ export function listGroupsHandler(deps: GroupsRouteDeps): AdminRouteHandler {
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listGroups(tx, {
         limit,
-        cursor: query.cursor,
+        cursor,
         cursorKey: deps.cursorKey,
         tenantId: targetTenantId,
+        filters,
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     if (outcome.next === null) {
@@ -137,7 +144,10 @@ export function createGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', 'parent_id names no group'),
+          fieldProblem(
+            [{ path: 'parent_id', message: 'names no group' }],
+            'parent_id names no group',
+          ),
         );
       }
       // `groups_path_unique` (0018_groups.sql): a sibling by the same name
@@ -160,17 +170,9 @@ export function createGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
     }
 
     if (outcome.kind === 'capability_ceiling') {
-      return sendProblem(
-        reply,
-        request,
-        problem(
-          403,
-          'about:blank',
-          'Forbidden',
-          `the caller does not hold: ${outcome.requested.join(', ')}`,
-        ),
-      );
+      return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
     }
+    reply.header('etag', etagOf(outcome.group));
     return reply.code(201).send(outcome.group);
   };
 }
@@ -181,25 +183,30 @@ function amendmentProblem(
   outcome: Exclude<AmendGroupOutcome, { kind: 'ok' }>,
 ): FastifyReply {
   switch (outcome.kind) {
+    case 'last_administrator':
+      return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
     case 'not_found':
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
     case 'unknown_parent':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', 'parent_id names no group'),
+        fieldProblem(
+          [{ path: 'parent_id', message: 'names no group' }],
+          'parent_id names no group',
+        ),
       );
     case 'refused_field':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+        fieldProblem([{ path: outcome.field, message: outcome.reason }]),
       );
     case 'invalid_value':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+        fieldProblem([{ path: outcome.field, message: outcome.description }]),
       );
     case 'precondition_failed':
       return sendProblem(
@@ -214,16 +221,7 @@ function amendmentProblem(
         problem(409, 'about:blank', 'Conflict', 'would create a group reparent cycle'),
       );
     case 'capability_ceiling':
-      return sendProblem(
-        reply,
-        request,
-        problem(
-          403,
-          'about:blank',
-          'Forbidden',
-          `the caller does not hold: ${outcome.requested.join(', ')}`,
-        ),
-      );
+      return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
   }
 }
 
@@ -269,6 +267,10 @@ export function deleteGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
     if (id === undefined) {
       throw new Error('protocol-admin: DELETE group route received no :id');
     }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteGroup(
@@ -276,6 +278,7 @@ export function deleteGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
         { audit: deps.audit },
         {
           groupId: id,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -284,8 +287,12 @@ export function deleteGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
     );
 
     switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'capability_ceiling':
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'deleted':
         return reply.code(204).send();
     }
@@ -341,30 +348,21 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
     );
 
     switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'unknown_role':
         return sendProblem(
           reply,
           request,
-          problem(
-            400,
-            'about:blank',
-            'Bad Request',
+          fieldProblem(
+            outcome.roleIds.map((id) => ({ path: 'role_ids', message: `names no role ${id}` })),
             `unknown role id(s): ${outcome.roleIds.join(', ')}`,
           ),
         );
       case 'capability_ceiling':
-        return sendProblem(
-          reply,
-          request,
-          problem(
-            403,
-            'about:blank',
-            'Forbidden',
-            `the caller does not hold: ${outcome.requested.join(', ')}`,
-          ),
-        );
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'precondition_required':
         return sendProblem(reply, request, ifMatchRequired('a group\u2019s roles'));
       case 'precondition_failed':

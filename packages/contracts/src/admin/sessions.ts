@@ -18,3 +18,8 @@ export const listSessionsResponseSchema = z.object({
   next: z.string().optional(),
 });
 export type ListSessionsResponse = z.infer<typeof listSessionsResponseSchema>;
+
+export const endSessionsResponseSchema = z.object({
+  ended: z.number().int().nonnegative(),
+});
+export type EndSessionsResponse = z.infer<typeof endSessionsResponseSchema>;

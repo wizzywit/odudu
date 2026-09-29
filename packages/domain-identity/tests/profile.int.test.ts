@@ -7,12 +7,13 @@ import {
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
-import { newId } from '@odudu/kernel';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
+import { newId, OduduError } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { subjectRepository } from '#/repository/subjects';
 import { userRepository, type ProfileUpdate } from '#/repository/users';
-import { isValidBirthdate, isValidLocale, isValidZoneinfo } from '#/service/profile';
+import { isValidBirthdate, isValidE164, isValidLocale, isValidZoneinfo } from '#/service/profile';
 
 let containerHandle: TestDatabase | undefined;
 let ownerHandle: DatabaseHandle | undefined;
@@ -321,6 +322,192 @@ describe('markEmailVerified', () => {
   });
 });
 
+describe('setVerification', () => {
+  it('sets emailVerified alone, leaving phoneNumberVerified untouched', async () => {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+
+    const updated = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).setVerification(subjectId, { emailVerified: true }),
+    );
+    expect(updated.emailVerified).toBe(true);
+    expect(updated.phoneNumberVerified).toBe(false);
+  });
+
+  it('sets phoneNumberVerified alone against a verified-shaped phone number', async () => {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+    await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).updateProfile(subjectId, { phoneNumber: '+14155552671' }),
+    );
+
+    const updated = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).setVerification(subjectId, { phoneNumberVerified: true }),
+    );
+    expect(updated.phoneNumberVerified).toBe(true);
+    expect(updated.emailVerified).toBe(false);
+  });
+
+  it('sets both flags in one call', async () => {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+    await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).updateProfile(subjectId, { phoneNumber: '+14155552671' }),
+    );
+
+    const updated = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).setVerification(subjectId, {
+        emailVerified: true,
+        phoneNumberVerified: true,
+      }),
+    );
+    expect(updated.emailVerified).toBe(true);
+    expect(updated.phoneNumberVerified).toBe(true);
+  });
+
+  it('cannot verify a user in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        const subjectId = await seedUser(tx, tenantId);
+        return subjectId;
+      },
+      verifySeeded: async (tx, subjectId) => {
+        const found = await userRepository(tx).bySubjectId(subjectId);
+        expect(found?.emailVerified).toBe(false);
+      },
+      attempt: async (tx, subjectId) => {
+        try {
+          await userRepository(tx).setVerification(subjectId, { emailVerified: true });
+          return 'succeeded';
+        } catch {
+          return 'blocked';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyTenantAUnaffected: async (tx, subjectId) => {
+        const found = await userRepository(tx).bySubjectId(subjectId);
+        expect(found?.emailVerified).toBe(false);
+      },
+    });
+  });
+
+  it('stamps profileUpdatedAt when a flag actually changes', async () => {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+
+    const updated = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).setVerification(subjectId, { emailVerified: true }),
+    );
+    expect(updated.profileUpdatedAt).toBeInstanceOf(Date);
+  });
+
+  it('does not stamp profileUpdatedAt when the patch changes nothing', async () => {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+
+    const first = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).setVerification(subjectId, { emailVerified: true }),
+    );
+    expect(first.profileUpdatedAt).toBeInstanceOf(Date);
+
+    const resubmitted = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).setVerification(subjectId, { emailVerified: true }),
+    );
+    expect(resubmitted.profileUpdatedAt).toEqual(first.profileUpdatedAt);
+  });
+});
+
+describe('updateUsername', () => {
+  it('renames the user, who is then found by the new name', async () => {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+
+    const renamed = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).updateUsername(subjectId, 'Renamed-Ada'),
+    );
+    expect(renamed.username).toBe('Renamed-Ada');
+    const byNew = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).byUsername('Renamed-Ada'),
+    );
+    expect(byNew?.user.subjectId).toBe(subjectId);
+  });
+
+  it('cannot rename a user in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => seedUser(tx, tenantId),
+      verifySeeded: async (tx, subjectId) => {
+        expect(await userRepository(tx).bySubjectId(subjectId)).not.toBeNull();
+      },
+      attempt: async (tx, subjectId) => {
+        try {
+          await userRepository(tx).updateUsername(subjectId, `hijacked-${newId()}`);
+          return 'succeeded';
+        } catch (error) {
+          if (error instanceof OduduError && error.code === 'user_not_found') return 'blocked';
+          throw error;
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyTenantAUnaffected: async (tx, subjectId) => {
+        const found = await userRepository(tx).bySubjectId(subjectId);
+        expect(found?.username).toMatch(/^user-/u);
+      },
+    });
+  });
+});
+
+describe('lockBySubjectId', () => {
+  it('reads the same record bySubjectId does', async () => {
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+
+    const locked = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).lockBySubjectId(subjectId),
+    );
+    expect(locked?.subjectId).toBe(subjectId);
+  });
+
+  it('returns null for a subject with no users row', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    const subjectId = await withTenant(app.db, tenantId, (tx) =>
+      subjectRepository(tx)
+        .create({ tenantId, type: 'service' })
+        .then((s) => s.id),
+    );
+
+    const locked = await withTenant(app.db, tenantId, (tx) =>
+      userRepository(tx).lockBySubjectId(subjectId),
+    );
+    expect(locked).toBeNull();
+  });
+
+  it('cannot lock a user in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => seedUser(tx, tenantId),
+      verifySeeded: async (tx, subjectId) => {
+        const found = await userRepository(tx).bySubjectId(subjectId);
+        expect(found).not.toBeNull();
+      },
+      attempt: async (tx, subjectId) => {
+        const found = await userRepository(tx).lockBySubjectId(subjectId);
+        return found === null ? 'blocked' : 'succeeded';
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('blocked');
+      },
+      verifyTenantAUnaffected: async (tx, subjectId) => {
+        const found = await userRepository(tx).bySubjectId(subjectId);
+        expect(found).not.toBeNull();
+      },
+    });
+  });
+});
+
 // One transaction per case: a CHECK violation aborts the transaction it
 // happens in, so an update attempted after one in the same transaction
 // fails for a reason unrelated to the value under test.
@@ -392,6 +579,39 @@ describe('SQL/TypeScript parity for the shape-constrained columns', () => {
 
     expect(Object.fromEntries(cases.map((c, i) => [c, accepted[i]]))).toEqual(
       Object.fromEntries(cases.map((c) => [c, isValidZoneinfo(c)])),
+    );
+  });
+
+  it('users_verified_phone_is_e164 accepts exactly what isValidE164 accepts', async () => {
+    const cases = [
+      '+14155552671',
+      '+441234567890',
+      '+14155552671;ext=123',
+      '(415) 555-2671',
+      '555-2671',
+      '14155552671',
+      '+14155552671;ext=abc',
+    ];
+    const tenantId = newId();
+    const subjectId = await withTenant(app.db, tenantId, (tx) => seedUser(tx, tenantId));
+
+    const accepted: boolean[] = [];
+    for (const candidate of cases) {
+      accepted.push(
+        await withTenant(app.db, tenantId, (tx) =>
+          userRepository(tx).updateProfile(subjectId, {
+            phoneNumber: candidate,
+            phoneNumberVerified: true,
+          }),
+        ).then(
+          () => true,
+          () => false,
+        ),
+      );
+    }
+
+    expect(Object.fromEntries(cases.map((c, i) => [c, accepted[i]]))).toEqual(
+      Object.fromEntries(cases.map((c) => [c, isValidE164(c)])),
     );
   });
 });

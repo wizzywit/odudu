@@ -865,8 +865,18 @@ export { tenantIssuer } from '#/service/issuer';
 export { issuerBaseFor, tenantIssuerFor } from '#/view/issuer';
 export { assertionJtiRepository } from '#/repository/assertion-jti';
 export { isWellFormedWebOrigin } from '#/service/web-origin';
+export {
+  CLIENT_TOKEN_TTL_RANGES,
+  clientTokenTtlProblem,
+  type ClientTokenTtlField,
+  type ClientTokenTtlRange,
+} from '#/service/client-token-ttl';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
-export { provisionAdminClient, ADMIN_CLIENT_REDIRECT_URI } from '#/usecase/provision-admin-client';
+export {
+  provisionAdminClient,
+  ADMIN_CLIENT_REDIRECT_URI,
+  type ProvisionAdminClientOptions,
+} from '#/usecase/provision-admin-client';
 export { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
 export {
   parseClientMetadata,

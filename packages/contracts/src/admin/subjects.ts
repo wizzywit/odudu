@@ -1,10 +1,47 @@
 import { z } from 'zod';
-import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
+import {
+  createdAtSchema,
+  cursorQuerySchema,
+  enabledFilterSchema,
+  idSchema,
+  searchPrefixSchema,
+} from '#/admin/shared';
+import { ADMIN_CAPABILITIES } from '#/admin/whoami';
 
-export const listSubjectsQuerySchema = cursorQuerySchema.extend({
-  search: z.string().min(1).optional(),
-});
+// A capability, or `tenant-admin`, which nests every one: held effectively —
+// directly, through a group or its ancestors, or nested under another role.
+export const SUBJECT_CAPABILITY_FILTER = [...ADMIN_CAPABILITIES, 'tenant-admin'] as const;
+
+const subjectFilters = {
+  username: searchPrefixSchema.optional(),
+  email: searchPrefixSchema.optional(),
+  enabled: enabledFilterSchema.optional(),
+  role: z.uuid().optional(),
+  group: z.uuid().optional(),
+  capability: z.enum(SUBJECT_CAPABILITY_FILTER).optional(),
+};
+// Addressed to the second field, the one a caller adds to an existing search.
+const oneSubjectSearchRule = {
+  message: 'search one field at a time: username or email, not both',
+  path: ['email'],
+};
+const oneSubjectSearch = [
+  (query: { username?: string | undefined; email?: string | undefined }) =>
+    query.username === undefined || query.email === undefined,
+  oneSubjectSearchRule,
+] as const;
+
+export const listSubjectsQuerySchema = cursorQuerySchema
+  .extend(subjectFilters)
+  .strict()
+  .refine(...oneSubjectSearch);
 export type ListSubjectsQuery = z.infer<typeof listSubjectsQuerySchema>;
+
+export const countSubjectsQuerySchema = z
+  .object(subjectFilters)
+  .strict()
+  .refine(...oneSubjectSearch);
+export type CountSubjectsQuery = z.infer<typeof countSubjectsQuerySchema>;
 
 export const subjectTypeSchema = z.enum(['user', 'service', 'agent_instance']);
 
@@ -27,18 +64,24 @@ export const listSubjectsResponseSchema = z.object({
 });
 export type ListSubjectsResponse = z.infer<typeof listSubjectsResponseSchema>;
 
+// The one rule a username is held to, on creation and on a rename alike.
+export const usernameSchema = z.string().min(1);
+
 // No `password` field, deliberately: creating a subject through this door
 // writes an `update-password` required action instead, so no operator ever
 // handles a user's password. Zod's default `z.object` already emits
 // `additionalProperties: false`, so a body carrying one is refused before
 // the usecase ever sees it.
 export const createSubjectRequestSchema = z.object({
-  username: z.string().min(1),
+  username: usernameSchema,
   email: z.string().min(1).optional(),
 });
 export type CreateSubjectRequest = z.infer<typeof createSubjectRequestSchema>;
 
+// `username` is accepted only where the tenant's `username_editable` is on,
+// and then only under `If-Match` (docs/admin-paths.md).
 export const amendSubjectRequestSchema = z.object({
+  username: usernameSchema.optional(),
   email: z.string().min(1).nullable().optional(),
   enabled: z.boolean().optional(),
 });
@@ -91,9 +134,13 @@ export const setRolesRequestSchema = z.object({
 });
 export type SetRolesRequest = z.infer<typeof setRolesRequestSchema>;
 
+// The owning client by row id and by `client_id`, both null for a tenant
+// role: a tenant role and a client's can share a name.
 export const roleAssignmentSchema = z.object({
   id: idSchema,
   name: z.string(),
+  client_id: idSchema.nullable(),
+  client_key: z.string().nullable(),
 });
 
 export const setRolesResponseSchema = z.object({

@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { tenantSettingsRepository, sendVerificationEmail } from '@odudu/account';
 import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
@@ -15,6 +14,7 @@ import {
 import {
   credentialRepository,
   evaluatePassword,
+  generateOneTimePassword,
   hashPassword,
   subjectRepository,
   userRepository,
@@ -23,20 +23,26 @@ import {
   type ProfileUpdate,
 } from '@odudu/domain-identity';
 import {
+  ADMIN_CLIENT_ID,
   clientRegistrationTokenRepository,
   clientRepository,
   clientScopeRepository,
+  isReservedTenantName,
   isSystemTenantName,
+  isValidTenantName,
   provisionClientDefaults,
   verifyClientSecret,
   SYSTEM_TENANT_ID,
   SYSTEM_TENANT_NAME,
   TENANT_ADMIN,
+  TENANT_NAME_RULE,
   type ClientRecord,
   type ClientScopeAssignment,
   coerceTenantSetting,
+  TENANT_SETTING_COLUMNS,
+  tenantSettingProblems,
 } from '@odudu/domain-tenant';
-import { loadConfig, newId, OduduError } from '@odudu/kernel';
+import { consoleBaseUrl, loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
   GRANT_TYPES_PERMITTED,
@@ -45,7 +51,7 @@ import {
   tenantLookupRepository,
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
-import { eq } from 'drizzle-orm';
+import { eq, getTableColumns } from 'drizzle-orm';
 import { createLogger } from '#/logger';
 
 // A confidential client's method of proving its secret at /token: either
@@ -147,6 +153,22 @@ function assertAuthMethodPairedWithSecret(opts: SeedOptions): void {
     throw new OduduError(
       'seed_invalid_options',
       'tokenEndpointAuthMethod requires a client secret',
+    );
+  }
+}
+
+// `odudu-admin` is reserved for the built-in admin client every tenant is
+// provisioned with (createClient, @odudu/protocol-admin, `reserved_client_id`).
+// Refused here, before resolveTenantId runs: on a new tenant name,
+// provisionAdminClient would create that public client first and only then
+// have assertMatchesExisting reject the confidential client requested here,
+// by which point the tenant row was already committed on the owner
+// connection and the provisioning transaction's rollback cannot undo that.
+function assertClientIdNotReserved(clientId: string): void {
+  if (clientId === ADMIN_CLIENT_ID) {
+    throw new OduduError(
+      'seed_invalid_options',
+      `the client_id ${JSON.stringify(clientId)} is reserved`,
     );
   }
 }
@@ -311,6 +333,8 @@ async function resolveTenantId(ownerDb: Database, tenantName: string): Promise<R
     };
   }
 
+  refuseInvalidOrReservedTenantName(tenantName);
+
   const tenantId = newId();
   await lookup.create({ id: tenantId, name: tenantName });
   return { tenantId, created: true, passwordPolicy: await passwordPolicyFor(ownerDb, tenantId) };
@@ -344,6 +368,7 @@ async function performSeed(
   runtimeDb: Database,
   kek: Uint8Array,
   opts: SeedOptions,
+  consoleBase: string | undefined,
 ): Promise<SeedResult> {
   const {
     tenantId,
@@ -355,6 +380,10 @@ async function performSeed(
     if (tenantCreated) {
       await provisionTenant(tx, tenantId);
     }
+    // Idempotent, so a tenant seeded before this client existed gains one
+    // here rather than being left without — only the flow and signing key
+    // above are creation-only.
+    await provisionAdminClient(tx, tenantId, { consoleBaseUrl: consoleBase });
 
     const existingClient = await clientRepository(tx).byClientId(opts.clientId);
     if (existingClient !== null) {
@@ -468,12 +497,15 @@ async function performSeed(
 // own configuration and opens its own connections so that both the
 // container smoke test and CI can invoke it as a plain one-shot command.
 async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
-  // This form resolves a tenant by name and creates one under a fresh id
-  // when it finds none, which for `system` would leave `seed admin` — which
-  // keys that tenant on a fixed id — refusing to run afterward. The `seed
-  // tenant` subcommand and the admin API's `createTenant` refuse the same
-  // name through this same predicate.
+  // Checked here, before any database connection opens: resolving `system`
+  // by name would create it under a fresh id, leaving `seed admin` — which
+  // keys that tenant on a fixed id — refusing to run afterward. A reserved
+  // name that does not carry that particular failure mode, and an invalid
+  // shape, are refused the moment this call actually tries to create a row
+  // — resolveTenantId's create branch runs the same guard `seed tenant` and
+  // the admin API's `createTenant` do.
   refuseSystemTenantName(opts.tenant);
+  assertClientIdNotReserved(opts.clientId);
   assertAbsoluteRedirectUris(opts.redirectUris);
   assertUserOptionsPaired(opts);
   assertEmailHasAUser(opts);
@@ -487,7 +519,13 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
     : owner;
 
   try {
-    const result = await performSeed(owner.db, runtime.db, config.ODUDU_KEK, opts);
+    const result = await performSeed(
+      owner.db,
+      runtime.db,
+      config.ODUDU_KEK,
+      opts,
+      consoleBaseUrl(config),
+    );
 
     // Sent only after performSeed's transaction commits (withTenant cannot
     // nest), and the userSubjectId check below only satisfies the compiler:
@@ -526,12 +564,6 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
     if (runtime !== owner) await runtime.close();
     await owner.close();
   }
-}
-
-// 24 random bytes, base64url: printed once and never stored, so length is
-// chosen for pasting rather than for memorability.
-function generatedPassword(): string {
-  return randomBytes(24).toString('base64url');
 }
 
 // Idempotent: a re-run against an already-bootstrapped system tenant leaves
@@ -620,7 +652,10 @@ export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin>
         // client_scopes_name_unique.
         await provisionTenant(tx, tenantId);
       }
-      const { clientDbId } = await provisionAdminClient(tx, tenantId, { crossTenant: true });
+      const { clientDbId } = await provisionAdminClient(tx, tenantId, {
+        crossTenant: true,
+        consoleBaseUrl: consoleBaseUrl(config),
+      });
       await ensureSigningKey(tx, tenantId, config.ODUDU_KEK);
 
       if ((await userRepository(tx).byUsername(options.username)) !== null) {
@@ -630,7 +665,7 @@ export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin>
         );
       }
 
-      const password = generatedPassword();
+      const password = generateOneTimePassword();
       const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
       await userRepository(tx).create({
         subjectId: subject.id,
@@ -859,16 +894,36 @@ interface ResolvedRole {
   id: string;
 }
 
-// Three doors refuse this name by the one predicate (isSystemTenantName,
-// @odudu/domain-tenant): `seed tenant`, the options form of `seed`, and the
-// admin API's `createTenant`, which answers 409 rather than the unique
-// index's constraint violation. Exported so a test can prove the answer is
-// identical without opening a database.
+// The options form of `seed` checks this before it opens a database
+// connection: resolving `system` here would create it under a fresh id,
+// leaving `seed admin` — which keys that tenant on a fixed id — refusing
+// to run afterward. Exported so a test can prove the answer without
+// opening a database. refuseInvalidOrReservedTenantName below covers the
+// rest of the rule, the moment this same door actually creates a row.
 export function refuseSystemTenantName(name: string): void {
   if (isSystemTenantName(name)) {
     throw new OduduError(
       'seed_system_tenant_conflict',
       `${name} is the reserved name of the system tenant`,
+    );
+  }
+}
+
+// The one guard every door that can create a tenant runs before writing the
+// row: `seed tenant`, the options form of `seed` (through resolveTenantId's
+// create branch below) and the admin API's `createTenant`
+// (@odudu/protocol-admin), which maps the same two predicates to 400 and
+// 409 rather than a raw CHECK violation or an unreserved shadow route.
+// Only the create branch calls it — looking up an existing tenant never
+// re-checks its name.
+function refuseInvalidOrReservedTenantName(name: string): void {
+  if (!isValidTenantName(name)) {
+    throw new OduduError('seed_invalid_options', TENANT_NAME_RULE);
+  }
+  if (isReservedTenantName(name)) {
+    throw new OduduError(
+      'seed_system_tenant_conflict',
+      `${JSON.stringify(name)} is a reserved tenant name`,
     );
   }
 }
@@ -891,6 +946,7 @@ async function runTenantCommand(
   runtimeDb: Database,
   kek: Uint8Array,
   argv: readonly string[],
+  consoleBase: string | undefined,
 ): Promise<TenantCommandResult> {
   const { values } = parseArgs({
     args: [...argv],
@@ -900,10 +956,14 @@ async function runTenantCommand(
     throw new OduduError('seed_invalid_options', 'seed tenant requires --name');
   }
   const tenantName = values.name;
-  refuseSystemTenantName(tenantName);
+  // Named directly by an operator, so refused up front rather than left to
+  // resolveTenantId's own call of the same guard below — a typo is reported
+  // before --set is even parsed, not after.
+  refuseInvalidOrReservedTenantName(tenantName);
   // Parsed before the tenant is touched, so a typo in the third --set does
   // not leave the first two applied.
   const settings = parseSettings(values.set ?? []);
+  await refuseOutOfRangeSettings(ownerDb, tenantName, settings);
 
   const { tenantId, created } = await resolveTenantId(ownerDb, tenantName);
   if (created) {
@@ -926,11 +986,16 @@ async function runTenantCommand(
       });
     });
   }
+  // Idempotent, so a tenant this command finds rather than creates still
+  // gets one if an earlier run predates the admin client's existence.
+  await withTenant(runtimeDb, tenantId, (tx) =>
+    provisionAdminClient(tx, tenantId, { consoleBaseUrl: consoleBase }),
+  );
 
   if (settings.length > 0) {
-    // Whatever the CHECK constraints refuse (migrations 0028, 0035, 0041)
-    // refuses this write too: the seed CLI has no development override, in
-    // the way it has none for the password policy.
+    // The CHECK constraints (migrations 0028, 0035, 0041) remain the
+    // backstop: the seed CLI has no development override, in the way it has
+    // none for the password policy.
     await withTenant(runtimeDb, tenantId, (tx) =>
       tx
         .update(tenants)
@@ -946,6 +1011,36 @@ async function runTenantCommand(
     tenantId,
     ...(settings.length > 0 ? { settings: settings.map(({ name }) => name) } : {}),
   };
+}
+
+// The ranges `PATCH /settings` holds a write to (`tenantSettingProblems`),
+// judged before anything is written, every problem at once: over the stored
+// row when the tenant exists, and over the column defaults a new one starts
+// with, so a refused `--set` never leaves a half-seeded tenant behind.
+async function refuseOutOfRangeSettings(
+  ownerDb: Database,
+  tenantName: string,
+  settings: readonly ParsedSetting[],
+): Promise<void> {
+  if (settings.length === 0) return;
+  const [stored] = await ownerDb.select().from(tenants).where(eq(tenants.name, tenantName));
+  const columns = getTableColumns(tenants);
+  const current: Record<string, unknown> = Object.fromEntries(
+    TENANT_SETTING_COLUMNS.map(({ name, column }) => [
+      name,
+      stored === undefined ? columns[column].default : stored[column],
+    ]),
+  );
+  const problems = tenantSettingProblems({
+    ...current,
+    ...Object.fromEntries(settings.map(({ name, value }) => [name, value])),
+  });
+  if (problems.length > 0) {
+    throw new OduduError(
+      'seed_invalid_options',
+      problems.map(({ name, message }) => `tenant setting ${name} ${message}`).join('; '),
+    );
+  }
 }
 
 interface ParsedSetting {
@@ -979,7 +1074,9 @@ function parseSettings(assignments: readonly string[]): ParsedSetting[] {
     if (outcome.kind === 'invalid_value') {
       throw new OduduError(
         'seed_invalid_options',
-        `tenant setting ${name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`,
+        outcome.values === undefined
+          ? `tenant setting ${name} expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`
+          : `tenant setting ${name} must be one of ${outcome.values.join(', ')}`,
       );
     }
     return { name, column: outcome.column, value: outcome.value };
@@ -1144,6 +1241,7 @@ async function runUserCommand(
       username: { type: 'string' },
       password: { type: 'string' },
       email: { type: 'string' },
+      'require-password-change': { type: 'boolean' },
     },
   });
 
@@ -1193,6 +1291,9 @@ async function runUserCommand(
       type: 'password',
       secret: { kind: 'password', hash: await hashPassword(password) },
     });
+    if (values['require-password-change'] === true) {
+      await requiredActionRepository(tx).add(tenantId, subject.id, 'update-password');
+    }
     return subject.id;
   });
 
@@ -1740,7 +1841,13 @@ async function runSeedCommand(argv: readonly string[]): Promise<SeedCommandResul
   try {
     switch (command) {
       case 'tenant':
-        return await runTenantCommand(owner.db, runtime.db, config.ODUDU_KEK, rest);
+        return await runTenantCommand(
+          owner.db,
+          runtime.db,
+          config.ODUDU_KEK,
+          rest,
+          consoleBaseUrl(config),
+        );
       case 'client':
         return await runClientCommand(owner.db, runtime.db, rest);
       case 'user':

@@ -1,0 +1,142 @@
+.picker {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  justify-items: start;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.label {
+  font-size: var(--type-13);
+  font-weight: 600;
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: min(100%, 28rem);
+}
+
+.field {
+  flex: 1;
+  display: flex;
+}
+
+.input {
+  inline-size: 100%;
+  min-block-size: var(--target-min);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font: inherit;
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+}
+
+.input[data-focus-visible],
+.input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.list {
+  display: grid;
+  inline-size: min(100%, 28rem);
+  max-block-size: 16rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface-panel);
+  outline: none;
+}
+
+.list[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-block-size: var(--target-min);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  outline: none;
+  transition: background-color var(--motion-fast) var(--ease);
+}
+
+.option + .option {
+  border-block-start: 1px solid var(--border);
+}
+
+.option[data-hovered] {
+  background: var(--surface-sunken);
+}
+
+.option[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.box {
+  position: relative;
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
+  margin-block-start: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-panel);
+}
+
+.option[data-selected] .box {
+  border-color: var(--signal-active-ink);
+  background: var(--signal-active-ink);
+}
+
+.option[data-selected] .box::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 1px;
+  inset-inline-start: 4px;
+  inline-size: 5px;
+  block-size: 9px;
+  border: solid var(--surface-panel);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.text {
+  display: grid;
+}
+
+.name {
+  font-size: var(--type-15);
+}
+
+.detail {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.empty {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+}

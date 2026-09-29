@@ -555,7 +555,7 @@ describe('[ODUDU-TOKEN-EXCHANGE-SUBJECT-03] an id_token as subject_token', () =>
   });
 
   it('refuses an id_token signed by another tenant', async () => {
-    const foreignTenant = `token-exchange-foreign-idtoken-${newId()}`;
+    const foreignTenant = `foreign-idtoken-${newId()}`;
     const foreignTenantId = newId();
     await setupTenant(foreignTenant, foreignTenantId);
     const { idToken: foreignIdToken } = await loginAndGetToken({ tenantName: foreignTenant });

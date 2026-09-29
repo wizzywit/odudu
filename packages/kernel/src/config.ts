@@ -72,6 +72,10 @@ const publicBaseUrl = z
     return `${parsed.protocol}//${parsed.host}`;
   });
 
+// The container image's own layout for the built console; shared with
+// `apps/server/src/app.ts`'s own default so the two can never drift apart.
+export const DEFAULT_CONSOLE_DIR = '/app/console';
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   ODUDU_HTTP_HOST: z.string().min(1).default('0.0.0.0'),
@@ -251,6 +255,12 @@ const schema = z.object({
   ODUDU_SMTP_PASSWORD: z.string().min(1).optional(),
   ODUDU_SMTP_STARTTLS: booleanEnvVar,
   ODUDU_PUBLIC_BASE_URL: publicBaseUrl,
+  // The administration console under /console. On unless turned off, and
+  // while on it needs ODUDU_PUBLIC_BASE_URL: its redirect URI is built from
+  // that base, never from a request (apps/server/src/config-guard.ts).
+  ODUDU_CONSOLE: enabledEnvVar,
+  // The built console's static files, as the container image lays them out.
+  ODUDU_CONSOLE_DIR: z.string().min(1).default(DEFAULT_CONSOLE_DIR),
   // Lets a bounded address-checked fetch — the JWKS fetcher
   // (@odudu/protocol-oidc's client-keys repository) or the back-channel
   // logout transport (apps/server/src/logout-delivery-transport.ts) —
@@ -269,6 +279,15 @@ const schema = z.object({
 });
 
 export type Config = Readonly<z.infer<typeof schema>>;
+
+/**
+ * The base the console's redirect and post-logout URIs are registered
+ * under on every tenant's built-in admin client, or `undefined` when there
+ * is nothing to register: the console is off, or no base is configured.
+ */
+export function consoleBaseUrl(config: Config): string | undefined {
+  return config.ODUDU_CONSOLE ? config.ODUDU_PUBLIC_BASE_URL : undefined;
+}
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = schema

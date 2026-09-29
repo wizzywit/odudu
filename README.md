@@ -102,20 +102,45 @@ begins — `registration_allowed`, `verify_email` and `reset_password_allowed`
 registration or mailed verification. `odudu seed tenant --set` changes them,
 and every other tenant setting, by the column name the schema uses:
 `odudu seed tenant --name demo --set registration_allowed=true`, repeatable.
+Each value is held to the ranges `PATCH /settings` enforces, judged against
+the tenant's stored settings (or a new tenant's defaults) before anything is
+written, and every problem is named at once.
+`--name` is a DNS label — 1-63 lowercase letters, digits or hyphens, never
+starting or ending with one, since it is minted straight into an issuer
+host segment — and `system` and `count` are reserved; `POST /admin/tenants`
+enforces the identical rule, and the database's own CHECK stands behind
+both doors. Migration `0072_tenant_name_rule.sql` adds that CHECK without
+`NOT VALID`, so it aborts naming `tenants_name_dns_label` on a database that
+already holds a name outside the rule; find the offending rows with
+
+```sql
+select id, name from tenants where name !~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$';
+```
+
+and recreate each one under a valid name — renaming changes a tenant's
+issuer, so the admin API refuses it (ADR 0039).
 `GET`/`PATCH /admin/tenants/{tenant}/settings` changes the same set through
 the admin API, by the same column names; the ranges the numeric ones accept
 are CHECK constraints either way, so neither door has a way past a policy
-the database enforces. Outgoing mail goes through `ODUDU_SMTP_HOST`,
-`ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`, `ODUDU_SMTP_USERNAME`,
-`ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`; leave `ODUDU_SMTP_HOST`
-unset and the server logs every message instead of sending it, which is what
-the compose stack does. A tenant can override all of it with its own
-transport — `PUT /admin/tenants/{tenant}/smtp`, whose password is stored
-under the same key-encryption envelope a signing key's private half uses —
-and `POST /admin/tenants/{tenant}/smtp/test` sends one message through it
-before a user's verification mail depends on it. A tenant's configuration
-that carries a username or a password is refused unless `starttls` is on,
-and its `host` is held to ADR 0028's address rules before any connection —
+the database enforces. `username_editable`, off by default, lets an
+administrator rename a subject's username through
+`PATCH /admin/tenants/{tenant}/subjects/{id}`, always under `If-Match`
+([docs/admin-paths.md](docs/admin-paths.md#renaming-a-username)); `sub` does
+not change, so sessions, refresh tokens and lockout counters survive it,
+and the old name stops signing in at once. Outgoing mail goes through
+`ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
+`ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`;
+leave `ODUDU_SMTP_HOST` unset and the server logs every message instead of
+sending it, which is what the compose stack does. A tenant can override all
+of it with its own transport through `PUT /admin/tenants/{tenant}/smtp`,
+whose password is stored under the same key-encryption envelope a signing
+key's private half uses. A later `PUT` that leaves the password out keeps it
+only while `host`, `port` and `username` stay the same.
+`POST /admin/tenants/{tenant}/smtp/test` sends one message through the
+transport before a user's verification mail depends on it. A
+tenant's configuration that carries a username or a password is refused
+unless `starttls` is on, and its `host` is held to ADR 0028's address rules
+before any connection —
 `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS` re-admits the private ranges where a
 relay genuinely is internal, and loopback stays refused regardless. See
 [the address verification section of docs/request-paths.md](docs/request-paths.md#address-verification)
@@ -270,10 +295,11 @@ Argon2id verification a wrong password pays for, so neither the page nor the
 timing distinguishes a locked account from a wrong password or from a
 username nobody holds. An attempt made during a lockout still counts, which
 is what keeps those costs equal — and means retrying extends the wait. A
-correct password accepted by an unlocked account deletes the row — which,
-with waiting the window out, is the whole of how a lockout ends: the admin
-API has no route that clears a `login_failures` row, so an operator still
-waits the window out or reaches for SQL.
+correct password accepted by an unlocked account deletes the row, and so
+does an operator: `DELETE /admin/tenants/{tenant}/subjects/{id}/lockout`
+clears it at once, and `POST …/subjects/{id}/password` issues a one-time
+password, shown once, for a subject who has lost theirs
+([docs/admin-paths.md](docs/admin-paths.md#delete-subjectsidlockout)).
 See [the brute-force section of docs/request-paths.md](docs/request-paths.md#brute-force-lockout)
 for the walkthrough.
 
@@ -705,8 +731,93 @@ genuinely enforced in the container:
 
 That drives a full authorization-code-with-PKCE exchange against the
 container — seed a tenant and client, request `/authorize`, submit the login
-form the way a browser would, redeem the code at `/token` — and then tears
-the stack down, volumes included.
+form the way a browser would, redeem the code at `/token` — checks that the
+image serves the console's shell with its CSP and a hashed asset as
+`immutable`, and then tears the stack down, volumes included. It runs as its
+own compose project, `odudu-smoke`, on ports 3100 and 5452, so it runs
+beside the stack started below and its teardown never reaches that one.
+
+**Drive the console in a browser** against the same image:
+
+```bash
+./apps/admin-console/e2e/run.sh
+```
+
+It builds the image, starts it as the compose project `odudu-e2e` on ports
+3080 and 5462 (`ODUDU_HOST_PORT` and `POSTGRES_HOST_PORT` move them), seeds
+throwaway tenants and administrators, and runs the Playwright specs in
+`apps/admin-console/e2e/` in Chromium. Any page fails its test on a
+content-security-policy violation or a console error, and each console page
+a spec reaches is held to axe's WCAG 2.2 AA rules, contrast included, in
+both colour schemes and under both theme overrides. The stack is torn down
+afterwards unless `E2E_KEEP_STACK=1`, and arguments after the script go to
+`playwright test`. CI runs it as the `e2e` job.
+
+**Developing the console.** `pnpm --filter @odudu/admin-console dev` starts
+its Vite dev server, which proxies `/console/api` and `/console/auth` to a
+running server — `http://localhost:3000` by default, the port a host-run
+server above listens on. Name a different one, such as the throwaway
+stack below's 3090, with:
+
+```bash
+ODUDU_CONSOLE_UPSTREAM=http://localhost:3090 pnpm --filter @odudu/admin-console dev
+```
+
+`pnpm --filter @odudu/admin-console build` produces the static bundle the
+image serves; the Dockerfile copies it to `/app/console`
+(`ODUDU_CONSOLE_DIR`'s default). Every console package is a
+devDependency, so nothing it needs reaches the running container.
+
+**The component gallery** shows every Instrument component and its states,
+outside the app shell:
+
+```bash
+pnpm --filter @odudu/admin-console gallery
+```
+
+Serves it at http://localhost:5173/console/gallery.html; `?theme=dark` and
+`?dialog=plain|typed|secret|unsaved` put it in a given state from the URL.
+It is a development-only page — `build` above never bundles it.
+
+**Try the console**, in a stack that leaves no trace: its own compose
+project, `odudu-try`, on ports 3090 and 5472, beside anything already
+running:
+
+```bash
+cd infra/docker
+export COMPOSE_PROJECT_NAME=odudu-try ODUDU_HOST_PORT=3090 POSTGRES_HOST_PORT=5472
+docker compose up -d --build
+until curl -fsS http://localhost:3090/health/ready; do sleep 2; done
+```
+
+Bootstrap the first administrator, whose one-time password is printed
+once:
+
+```bash
+docker compose exec -T odudu node dist/main.js seed admin --username ada
+```
+
+Give a tenant its own administrator too, with a forced password change on
+the first sign-in:
+
+```bash
+docker compose exec -T odudu node dist/main.js seed tenant --name demo
+docker compose exec -T odudu node dist/main.js seed user --tenant demo \
+  --username grace --password correct-horse-battery --require-password-change
+docker compose exec -T odudu node dist/main.js seed grant-role \
+  --tenant demo --username grace --role odudu-admin:tenant-admin
+```
+
+Open http://localhost:3090/console/ and sign in as either: `ada` lives in
+`system`, so she types `system` at the tenant question (or opens
+http://localhost:3090/console/system), and from there system authority
+reaches every tenant; `grace` signs in to `demo`, and is asked for a new
+password first. Tear the stack down,
+volumes included, when you're done:
+
+```bash
+docker compose down -v
+```
 
 **Sign somebody in yourself.** The first tenant, client, user and signing
 key come from the server's seed command — the admin API needs an
@@ -752,6 +863,18 @@ Whichever of the two you run first answers:
   "userSubjectId": "01a096f4-…"
 }
 ```
+
+Creating `demo` also provisions its `odudu-admin` client, the same built-in,
+public client `seed admin` provisions for the system tenant — every tenant
+gets one the moment it exists, not just the one an operator logs into,
+since a tenant's own administrators need it too. `seed tenant --name demo`
+on its own does the same: whichever door creates the tenant provisions the
+signing key and the admin client together. Provisioning the admin client is
+idempotent, so either command also gives one to a tenant it finds rather
+than creates, if an earlier run predates the client's existence; the
+signing key stays creation-only. Seed refuses (`admin_client_not_builtin`)
+if the tenant already holds a client named `odudu-admin` that is not the
+built-in one, rather than adopting it.
 
 That tenant now serves the protocol. The discovery document is the one
 request every client makes first, and every URL below comes out of it:
@@ -856,6 +979,22 @@ access token's payload carries it:
 [docs/request-paths.md](docs/request-paths.md#roles-once-a-scope-reaches-it)
 shows the whole payload.)
 
+The admin API reaches the same state without the CLI:
+`PUT /admin/tenants/{tenant}/subjects/:id/roles` and
+`PUT /admin/tenants/{tenant}/subjects/:id/groups` replace a subject's
+direct roles and group memberships, each under a capability ceiling that
+refuses authority the caller does not hold itself
+([docs/admin-paths.md](docs/admin-paths.md)). Every route that mutates a
+subject, or a client (on the service account it authenticates as), is
+refused with `403` when that subject holds an admin capability the caller
+does not — so `manage-clients` alone cannot rotate the secret of a
+`tenant-admin` service account — and a group, role or scope edit, or a
+client delete that takes the client's roles with it, is refused when what it
+removes reaches a capability the caller does not hold. A subject's OIDC profile
+claims — everything `odudu seed profile` sets — are no longer a CLI-only
+surface either: `GET`/`PATCH /admin/tenants/{tenant}/subjects/:id/profile`
+read and amend them, `email_verified`/`phone_number_verified` included.
+
 **"I created a role and it is not in my token."** Three things gate a role
 onto a token, independently: it must be granted to the subject
 (`grant-role`), mapped to a scope (`map-role`), and that scope must both be
@@ -876,9 +1015,13 @@ while it is the default, `disabled` — `seed client` and
 client in that tenant, neither of which the policy governs, since both
 require an operator already.
 A tenant whose policy is `token` needs a way to mint the
-credential a registering client presents, and `seed registration-token`
-is that command: `--tenant`, `--uses` (a token is good for that many
-registrations, never zero) and `--ttl` in seconds.
+credential a registering client presents: `seed registration-token`, for an
+operator at the command line, and `POST /admin/tenants/{tenant}/registration-tokens`
+(`manage-clients`, [docs/admin-paths.md](docs/admin-paths.md)) for the admin
+console. Both take the same two numbers — `--uses`/`uses` (a token is good
+for that many registrations, never zero) and `--ttl`/`ttl_seconds` in
+seconds — and mint through the one repository
+(`packages/domain-tenant/src/repository/client-registration-tokens.ts`).
 
 ```bash
 node --env-file=.env apps/server/src/main.ts seed registration-token \
@@ -941,15 +1084,129 @@ one. The account's first login is forced through a password change —
 `update-password` is queued as a required action the moment the subject is
 created.
 
+A tenant's own administrator can be given the same first login.
+`seed user --require-password-change` queues `update-password` for the user
+it creates, and `seed grant-role` with `odudu-admin:tenant-admin` makes that
+user the tenant's administrator. Run against `infra/docker`:
+
+```bash
+docker compose exec -T odudu node dist/main.js seed user \
+  --tenant demo --username grace --password correct-horse-battery \
+  --require-password-change
+docker compose exec -T odudu node dist/main.js seed grant-role \
+  --tenant demo --username grace --role odudu-admin:tenant-admin
+```
+
+```
+{"command":"user","tenant":"demo","tenantId":"01a0e90b-af49-71c1-bd40-4ab9466ce05d","username":"grace","userSubjectId":"01a0e90b-b209-7283-86f1-aac6a0b2be8d"}
+{"command":"grant-role","tenant":"demo","tenantId":"01a0e90b-af49-71c1-bd40-4ab9466ce05d","username":"grace","role":"odudu-admin:tenant-admin"}
+```
+
+grace's first sign-in asks for a new password, then asks her to sign in
+with it. Without the flag, `seed user` queues nothing.
+
 The `odudu-admin` client is provisioned as a public client authorised with
 `authorization_code` and `refresh_token`, carrying the tenant's default
 scopes, the admin API's resource identifier `urn:odudu:params:admin-api` as
-its registered audience, and one redirect URI, `http://127.0.0.1:8080/callback`. There is no
-administration console yet, so that loopback address (RFC 8252 §7.3) is
-the only place a code can be delivered: an administrator obtains a token by
-running a listener on that exact port and completing the flow with PKCE.
-Redirect matching is exact, and no command or endpoint can add a second
-URI to this client yet, so a console will need one before it can log in.
+its registered audience, and the loopback redirect URI
+`http://127.0.0.1:8080/callback` (RFC 8252 §7.3): an administrator with no
+console obtains a token by running a listener on that exact port and
+completing the flow with PKCE. While the console is on (`ODUDU_CONSOLE`,
+default `true`), the same client is also registered
+`${ODUDU_PUBLIC_BASE_URL}/console/auth/callback` as a redirect URI and
+`${ODUDU_PUBLIC_BASE_URL}/console/` as a post-logout redirect URI — by
+`seed admin`, `seed tenant`, `seed --tenant`, `POST /admin/tenants` and
+`POST /admin/tenant-imports` alike, and never from a request's `Host`.
+Redirect matching is exact, so after setting or changing
+`ODUDU_PUBLIC_BASE_URL`, re-register every tenant's admin client:
+
+```bash
+node --env-file=.env apps/server/src/main.ts console provision
+```
+
+It prints `provisioned <n> tenants`. Each tenant's console URIs are replaced
+by the current base's, and every other URI on the client, the loopback
+included, is kept. With `ODUDU_CONSOLE=false` it refuses, having nothing to
+register, and nothing else touches a registered console URI either.
+
+**The console signs in through a gateway under `/console`**, which holds the
+tokens server-side and gives the browser nothing but a session cookie:
+
+- `GET /console/auth/login?tenant=&return_to=` stores a pending sign-in and
+  redirects to the tenant's authorization endpoint as `odudu-admin`, with
+  PKCE and the admin API's `resource`. `return_to` must be a `/console/`
+  path; anything else falls back to `/console/`.
+- `GET /console/auth/callback` checks `state` against the login cookie and
+  the RFC 9207 `iss`, exchanges the code, verifies the ID token and its
+  nonce, and sets the session cookie. A console session the browser's
+  cookie still names, in any tenant, is ended and its grant revoked once
+  the new session is written, so switching tenants leaves one session and a
+  refused or cancelled sign-in leaves the old one as it was; a wait of more
+  than 5 s for the old session's lock skips its revoke rather than failing
+  the sign-in, and the old row idles out. Every refusal is the same `400`
+  page.
+  An error response from the authorization endpoint instead redirects
+  `302` to `/console/?login_error=<code>`, carrying only the error code,
+  which the console puts into words: above its tenant question, or in a
+  toast back at the tenant still signed in to when a switch was refused.
+- `GET /console/api/session` answers `{ tenant, subject_id, username }`. An
+  ended session answers `401` with the problem type
+  `about:blank#console-session-ended` and clears the cookie.
+- `* /console/api/admin/*` forwards to `/admin/*` with the session's access
+  token, the query string and the body's bytes unchanged, and only the
+  request headers `Content-Type`, `If-Match`, `If-None-Match` and `Accept`.
+  The browser's own `Cookie` and `Authorization` are never forwarded. Every
+  in-process call carries the console request's own `X-Request-Id`, so an
+  audit row's `request_id` and a problem's `instance` are the id the
+  browser was answered with. The
+  status and body come back as the admin API sent them, with only
+  `Content-Type`, `ETag`, `Location`, `Link` and `Cache-Control`, and an
+  `/admin/` URI in `Location` or `Link` rewritten to `/console/api/admin/`.
+  A request names the subject its tab believes is signed in, in
+  `X-Odudu-Console-Subject`, since every tab shares one cookie and another
+  tab's sign-in can replace the session. One naming another subject, or a
+  write naming none, is refused `409` with the problem type
+  `about:blank#console-principal-changed` and forwarded nowhere; a read
+  naming none is still forwarded. The body limit is the tenant import's,
+  16 MiB. An access token within 30 s
+  of expiry is refreshed first, once per session however many requests
+  arrive together. A refused refresh ends the session with the
+  session-ended `401`, as does a `200` whose body cannot be read, since it
+  has already rotated the refresh token. Any other token-endpoint failure,
+  or a wait of more than 5 s for the session's lock, answers `502` and keeps
+  the session. The admin API's own `401` is confirmed with one
+  `GET /admin/tenants/{the session's tenant}/whoami` on the same token. If
+  that answers `200`, the `401` was about the path, an unknown tenant or
+  one the token was not issued by, and it is passed back as it is with the
+  session kept. If that is refused too, the session is deleted, its grant
+  revoked, and the answer is the session-ended `401`.
+- `POST /console/auth/logout` revokes the session's refresh token, deletes
+  the session and clears its cookie, then answers `200 { "redirect": … }`
+  with the tenant's RP-initiated logout URL, carrying `id_token_hint`,
+  `post_logout_redirect_uri=<base>/console/` and `client_id=odudu-admin`.
+  The SPA navigates there itself, because only the browser's own request
+  carries the tenant's SSO cookie; without it the logout endpoint still
+  redirects but ends nothing. With no session the answer is
+  `{ "redirect": "/console/" }`. A wait of more than 5 s for the session's
+  lock answers `502`, keeping the session and its cookie. Any other
+  failure answers problem+json and keeps both too, since everything that
+  can fail runs before the session is deleted; a failed discovery after it
+  answers `{ "redirect": "/console/" }` instead.
+
+The session cookie is `__Host-odudu-console` (`HttpOnly; Secure;
+SameSite=Strict; Path=/`), or `odudu-console` without `Secure` over plain
+HTTP. Its value is `<tenant id>.<secret>`, and only the secret's SHA-256 is
+stored. A session ends after 30 minutes idle or 12 hours in all, and the
+request that finds it over deletes it and revokes its grant, or answers
+`502` and leaves it, if a refresh holds its lock for more than 5 s. A request
+carrying that cookie twice is treated as carrying none. Any request to
+`/console/api/` or `/console/auth/` other than `GET`, `HEAD` or `OPTIONS`
+must carry `Origin` equal to the origin of `ODUDU_PUBLIC_BASE_URL` and the
+header `X-Odudu-Console: 1`, or it is refused `403` before anything else
+runs.
+A transcript of each request, executed against a running stack, is in
+[`docs/console-paths.md`](docs/console-paths.md), beside
+[docs/admin-paths.md](docs/admin-paths.md).
 
 **One pass deletes everything that expires.** Every login writes an
 `authentication_sessions` row, every redemption an `authorization_codes`
@@ -967,7 +1224,7 @@ node --env-file=.env apps/server/src/main.ts reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0,"audit_events":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"sessions":0,"audit_events":0}}
 ```
 
 Those zeros on a freshly used stack are the design, not a bug. A row is
@@ -1163,7 +1420,15 @@ A real deployment today looks like:
    With the flag off, `tls_client_auth` is unavailable end to end:
    discovery does not advertise it and dynamic client registration refuses
    to register a client for it, not only `/token`'s own refusal to
-   authenticate one.
+   authenticate one. **Raise the proxy's request body limit for tenant
+   import.** `POST /admin/tenant-imports` accepts a body of up to 16 MiB
+   (`TENANT_IMPORT_BODY_LIMIT` in `@odudu/contracts`, applied to that route
+   alone and to the console gateway's proxy), since an export with its
+   subjects runs to several megabytes; every other route keeps Fastify's
+   1 MiB default. nginx refuses anything over 1 MiB by default, so a proxy
+   left at its default answers a larger import `413` before Odudu sees it:
+   set `client_max_body_size 16m;` on the location that forwards
+   `/admin/` and `/console/api/`.
 5. Set `ODUDU_PUBLIC_BASE_URL` to the origin users reach the server on.
    **With `NODE_ENV=production` the server refuses to boot without it** — it
    is the base of every mailed link and the WebAuthn relying party id every
@@ -1191,22 +1456,36 @@ A real deployment today looks like:
    sits in `email_outbox` unsent, and the flows that queued them still
    answer exactly as they do when mail is going out — by design, since the
    reset endpoint must not answer differently for an address that exists.
+9. **The administration console is on by default** (`ODUDU_CONSOLE=true`),
+   and while it is on the server refuses to boot in any environment
+   without `ODUDU_PUBLIC_BASE_URL`, naming both variables — its redirect
+   URI is built from that base alone. It also refuses an `https` base
+   while `ODUDU_TRUST_PROXY` is off: the console reaches this server's
+   OIDC endpoints in-process, the issuer is built from a request's scheme,
+   and only a trusted `x-forwarded-proto` lets such a request see the
+   `https` issuer the browser sees. It refuses `ODUDU_TLS=true` with an
+   `http` base too, since the console cookie follows the base's scheme and
+   would lose `Secure` while every other cookie keeps it; an `http` base
+   with TLS off boots with a warning that the cookie is `odudu-console`
+   without `Secure`. Set `ODUDU_CONSOLE=false` to serve no
+   console at all. `ODUDU_CONSOLE_DIR` names the built console's
+   directory, `/app/console` by default. Run
+   `node dist/main.js console provision` once after changing the base.
 
 ### What is not built yet
 
 Being straight about this, because "self-hostable" should mean something.
 Every row says where it stands, and every row has a phase:
 
-|                                                                                                        | Where it stands |
-| ------------------------------------------------------------------------------------------------------ | --------------- |
-| A consent screen — `consent_required` is recorded per client, nothing reads it yet                     | P3a             |
-| An account console for self-service credential management, and an operator unlock for a locked account | P4d             |
-| An admin **console** — the admin API exists, nothing drives it but `curl`                              | P4d             |
-| Published images and a release process                                                                 | P12             |
-| Secret management beyond environment variables                                                         | P12             |
-| Backup and restore guidance                                                                            | P12             |
-| Multi-replica support: migration locking, shared session cache, HA                                     | P11             |
-| Helm chart or Kubernetes manifests                                                                     | P11             |
+|                                                                                                                                         | Where it stands |
+| --------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Self-service for an End-User: a "me" API and application-initiated actions for credential ceremonies                                    | P4f             |
+| An admin **console** — Overview, System › Tenants and System administrators, and a tenant's Export are built; the rest are placeholders | P4d             |
+| Published images and a release process                                                                                                  | P12             |
+| Secret management beyond environment variables                                                                                          | P12             |
+| Backup and restore guidance                                                                                                             | P12             |
+| Multi-replica support: migration locking, shared session cache, HA                                                                      | P11             |
+| Helm chart or Kubernetes manifests                                                                                                      | P11             |
 
 The three P12 rows had no phase at all until 2026-09-14. They are
 operational rather than protocol work, and the roadmap — written outward

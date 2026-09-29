@@ -21,6 +21,7 @@ export interface AuditEventFilter {
   readonly eventType?: AuditEventType | undefined;
   readonly actorSubjectId?: string | undefined;
   readonly resourceType?: string | undefined;
+  readonly resourceId?: string | undefined;
   readonly action?: string | undefined;
   readonly outcome?: 'allowed' | 'refused' | 'failed' | undefined;
   readonly from?: Date | undefined;
@@ -93,6 +94,9 @@ export function auditRepository(tx: TenantScopedDatabase) {
       }
       if (filter.resourceType !== undefined) {
         conditions.push(eq(auditEvents.resourceType, filter.resourceType));
+      }
+      if (filter.resourceId !== undefined) {
+        conditions.push(eq(auditEvents.resourceId, filter.resourceId));
       }
       if (filter.action !== undefined) {
         conditions.push(eq(auditEvents.action, filter.action));

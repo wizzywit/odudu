@@ -1,5 +1,5 @@
 import { provisionTenant } from '@odudu/authn-flows';
-import { type Tenant } from '@odudu/contracts/admin';
+import { type ListTenantsQuery, type Tenant } from '@odudu/contracts/admin';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import {
   isUniqueViolation,
@@ -10,16 +10,23 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import {
-  isSystemTenantName,
+  isReservedTenantName,
+  isValidTenantName,
   SYSTEM_TENANT_DISABLE_REFUSED,
   SYSTEM_TENANT_NAME,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { provisionAdminClient } from '@odudu/protocol-oidc';
-import { asc, eq, gt } from 'drizzle-orm';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { and, asc, eq, gt, sql, type SQL } from 'drizzle-orm';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_TENANT_FIELDS, refusalFor } from '#/service/tenant-patch';
+import {
+  prefixRangeConditions,
+  requireSearchKey,
+  type Executor,
+  type ListPosition,
+} from '#/usecase/prefix-search';
 
 const COLLECTION = 'tenants';
 
@@ -73,10 +80,15 @@ export interface CreateTenantDeps {
   // `generateSigningKey`.
   readonly kek: Uint8Array;
   readonly audit: Audit;
+  /** Registers the console's URIs on the new admin client; unset while the console is off. */
+  readonly consoleBaseUrl?: string | undefined;
 }
 
 export type CreateTenantOutcome =
-  { kind: 'created'; tenant: TenantRecord } | { kind: 'name_refused' } | { kind: 'name_taken' };
+  | { kind: 'created'; tenant: TenantRecord }
+  | { kind: 'name_invalid' }
+  | { kind: 'name_refused' }
+  | { kind: 'name_taken' };
 
 // Mirrors `ensureSigningKey` (apps/server/src/cli/seed.ts): a freshly
 // inserted tenant has none yet, so there is nothing to check first — a
@@ -100,6 +112,44 @@ async function mintSigningKey(
 }
 
 /**
+ * Thrown by `insertProvisionedTenant` when the tenants row alone collides
+ * on its name — never for a violation anywhere in provisioning after it.
+ */
+export class TenantNameTakenError extends Error {
+  constructor() {
+    super('a tenant already holds that name');
+    this.name = 'TenantNameTakenError';
+  }
+}
+
+/**
+ * The row, its browser flow, its built-in admin client and its signing key,
+ * inside a transaction `withTenant` has already bound to `row.id` — shared
+ * by creating a tenant and importing one, so the two cannot provision
+ * differently.
+ */
+export async function insertProvisionedTenant(
+  tx: TenantScopedDatabase,
+  kek: Uint8Array,
+  row: { readonly id: string; readonly name: string; readonly displayName: string | null },
+  consoleBaseUrl: string | undefined,
+): Promise<TenantRecord> {
+  let rows: TenantRecord[];
+  try {
+    rows = await tx.insert(tenants).values(row).returning(TENANT_COLUMNS);
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new TenantNameTakenError();
+    throw error;
+  }
+  const created = rows[0];
+  if (created === undefined) throw new Error('insert into tenants returned no row');
+  await provisionTenant(tx, row.id);
+  await provisionAdminClient(tx, row.id, { consoleBaseUrl });
+  await mintSigningKey(tx, row.id, kek);
+  return created;
+}
+
+/**
  * One transaction: the row, its browser flow, its built-in admin client and
  * its signing key. `withTenant` binds `app.tenant_id` to the id about to be
  * inserted before the row exists — the same RLS-satisfying order
@@ -113,11 +163,16 @@ export async function createTenant(
   input: CreateTenantInput,
   context: RequestContext,
 ): Promise<CreateTenantOutcome> {
+  // Checked before the reserved-name door: an invalid shape and a reserved
+  // name can both be true of the same input, and the shape is the more
+  // specific complaint.
+  if (!isValidTenantName(input.name)) return { kind: 'name_invalid' };
+
   // Left to the unique index, this would surface as a constraint violation
-  // with no reason attached. `apps/server/src/cli/seed.ts`'s
-  // `refuseSystemTenantName` refuses the identical name through the same
-  // predicate, so the two doors cannot disagree.
-  if (isSystemTenantName(input.name)) return { kind: 'name_refused' };
+  // with no reason attached. `seed tenant`'s equivalent guard refuses the
+  // identical names through the same predicate, so the two doors cannot
+  // disagree.
+  if (isReservedTenantName(input.name)) return { kind: 'name_refused' };
 
   const id = newId();
   let tenant: TenantRecord;
@@ -126,18 +181,12 @@ export async function createTenant(
       deps.database,
       id,
       async (tx) => {
-        const rows = await tx
-          .insert(tenants)
-          .values({ id, name: input.name, displayName: input.displayName ?? null })
-          .returning(TENANT_COLUMNS);
-        const created = rows[0];
-        if (created === undefined) {
-          throw new Error('insert into tenants returned no row');
-        }
-
-        await provisionTenant(tx, id);
-        await provisionAdminClient(tx, id);
-        await mintSigningKey(tx, id, deps.kek);
+        const created = await insertProvisionedTenant(
+          tx,
+          deps.kek,
+          { id, name: input.name, displayName: input.displayName ?? null },
+          deps.consoleBaseUrl,
+        );
 
         // Written inside the same transaction as the row it describes: a
         // rollback below leaves no audit row for a tenant that never existed.
@@ -162,12 +211,15 @@ export async function createTenant(
     // (#/usecase/clients.ts). Under row-level security a tenant holding
     // this name is not even visible to a lookup here, so the unique index
     // is the only thing that can answer.
-    if (isUniqueViolation(error)) return { kind: 'name_taken' };
+    if (error instanceof TenantNameTakenError) return { kind: 'name_taken' };
     throw error;
   }
 
   return { kind: 'created', tenant };
 }
+
+/** Every `listTenantsQuerySchema` parameter except the page controls. */
+export type TenantFilters = Omit<ListTenantsQuery, 'cursor' | 'limit'>;
 
 export interface ListTenantsInput {
   readonly limit: number;
@@ -177,45 +229,99 @@ export interface ListTenantsInput {
   // since only a system admin ever reaches this collection — so one minted
   // here cannot be replayed against a list bound to another tenant's path.
   readonly tenantId: string;
+  readonly filters: TenantFilters;
 }
 
 export type ListTenantsOutcome =
   { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly TenantRecord[]; next: string | null };
 
+type TenantSearchKey = typeof tenants.nameSearch | typeof tenants.displayNameSearch;
+
+function tenantSearchOf(
+  filters: TenantFilters,
+): { readonly column: TenantSearchKey; readonly prefix: string } | undefined {
+  if (filters.name !== undefined) return { column: tenants.nameSearch, prefix: filters.name };
+  if (filters.display_name !== undefined) {
+    return { column: tenants.displayNameSearch, prefix: filters.display_name };
+  }
+  return undefined;
+}
+
+/** The WHERE clause of the tenants listing, and of its count, which passes no position. */
+export async function tenantListConditions(
+  database: Executor,
+  filters: TenantFilters,
+  after: ListPosition | undefined,
+): Promise<SQL[]> {
+  const conditions: SQL[] = [];
+  if (filters.enabled !== undefined) {
+    conditions.push(eq(tenants.enabled, filters.enabled === 'true'));
+  }
+  const search = tenantSearchOf(filters);
+  if (search === undefined) {
+    if (after !== undefined) conditions.push(gt(tenants.id, after.id));
+    return conditions;
+  }
+  const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+  conditions.push(
+    ...(await prefixRangeConditions(database, search.column, tenants.id, search.prefix, position)),
+  );
+  return conditions;
+}
+
+/** The tenants listing's order, which its keyset cursor and its count both follow. */
+export function tenantListOrder(filters: TenantFilters): SQL[] {
+  const search = tenantSearchOf(filters);
+  return search === undefined ? [asc(tenants.id)] : [asc(search.column), asc(tenants.id)];
+}
+
 // The system tenant appears in this listing like any other — hiding it
 // would make the one tenant an operator most needs to inspect the one they
-// cannot.
+// cannot. A searched listing is one range scan of the search column's
+// index (0074_list_indexes_tenants_clients.sql).
 export async function listTenants(
   database: Database,
   input: ListTenantsInput,
 ): Promise<ListTenantsOutcome> {
-  let after: string | undefined;
+  const filters = filterDigest(input.filters);
+  const search = tenantSearchOf(input.filters);
+  let after: ListPosition | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
-    after = decoded.after;
+    if (search !== undefined && decoded.sort === undefined) return { kind: 'invalid_cursor' };
+    after = { id: decoded.after, sort: decoded.sort };
   }
 
+  const conditions = await tenantListConditions(database, input.filters, after);
   const rows = await database
-    .select(TENANT_COLUMNS)
+    .select({ record: TENANT_COLUMNS, searchKey: search?.column ?? sql<null>`null` })
     .from(tenants)
-    .where(after === undefined ? undefined : gt(tenants.id, after))
-    .orderBy(asc(tenants.id))
+    .where(conditions.length === 0 ? undefined : and(...conditions))
+    .orderBy(...tenantListOrder(input.filters))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;
-  const items = hasMore ? rows.slice(0, input.limit) : rows;
-  const last = items[items.length - 1];
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
   const next =
     hasMore && last !== undefined
       ? encodeCursor(input.cursorKey, {
-          after: last.id,
+          after: last.record.id,
+          ...(search === undefined ? {} : { sort: requireSearchKey(last.searchKey) }),
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 
-  return { kind: 'ok', items, next };
+  return { kind: 'ok', items: page.map((row) => row.record), next };
 }
 
 export function tenantWireShape(record: TenantRecord): Tenant {
@@ -298,10 +404,18 @@ export async function amendTenant(
   // so disabling it locks every tenant's administration out at once, with
   // `psql` the only way back.
   if (input.values.enabled === false && current.name === SYSTEM_TENANT_NAME) {
-    return {
-      kind: 'system_tenant_guarded',
-      reason: SYSTEM_TENANT_DISABLE_REFUSED,
-    };
+    const reason = SYSTEM_TENANT_DISABLE_REFUSED;
+    await deps.audit(tx, {
+      action: 'tenant.amend',
+      resourceType: 'tenant',
+      resourceId: input.tenantId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'system_tenant_guarded', reason };
   }
 
   if (matches(input.ifMatch, etagOf(tenantWireShape(current))) === 'mismatch') {

@@ -1,7 +1,13 @@
-import { type AssignScopeToClientResponse, type ClientScope } from '@odudu/contracts/admin';
+import {
+  type AssignScopeToClientResponse,
+  type ClientScope,
+  type ListScopesQuery,
+  type ScopeClient,
+} from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clientScopeRoles, roleRepository, roles } from '@odudu/domain-authz';
 import {
+  clientRepository,
   clientScopeAssignments,
   clientScopeRepository,
   clientScopes,
@@ -9,18 +15,42 @@ import {
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
-import { asc, eq, gt, inArray } from 'drizzle-orm';
-import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
-import { decodeCursor, encodeCursor } from '#/service/cursor';
+import { and, asc, eq, gt, inArray, type SQL } from 'drizzle-orm';
+import {
+  capabilitiesReachableFrom,
+  overreach,
+  replacementOverreach,
+} from '#/service/capability-ceiling';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
-import { type RoleAssignment } from '#/usecase/subjects';
+import {
+  prefixRangeConditions,
+  requireSearchKey,
+  type ListPosition,
+} from '#/usecase/prefix-search';
+import {
+  clientWireShape,
+  readClient,
+  refuseOverServiceAccountCeiling,
+  type ClientCeilingCaller,
+} from '#/usecase/clients';
+import {
+  roleAssignmentColumns,
+  type RoleAssignment,
+  type TargetCeilingRefusal,
+} from '#/usecase/subjects';
 
 const COLLECTION = 'scopes';
 
 export interface ScopeAuditEvent {
   readonly action:
-    'scope.create' | 'scope.amend' | 'scope.delete' | 'scope.roles_set' | 'scope.assign_to_client';
+    | 'scope.create'
+    | 'scope.amend'
+    | 'scope.delete'
+    | 'scope.roles_set'
+    | 'scope.assign_to_client'
+    | 'scope.unassign_from_client';
   readonly resourceType: 'scope';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -51,56 +81,109 @@ export function scopeWireShape(scope: {
   };
 }
 
+/** Every `listScopesQuerySchema` parameter except the page controls. */
+export type ScopeFilters = Omit<ListScopesQuery, 'cursor' | 'limit'>;
+
 export interface ListScopesInput {
   readonly limit: number;
   readonly cursor: string | undefined;
   readonly cursorKey: Uint8Array;
   readonly tenantId: string;
+  readonly filters: ScopeFilters;
 }
 
 export type ListScopesOutcome =
   { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly ClientScope[]; next: string | null };
 
+/** The client scopes listing's order, which its keyset cursor and its count both follow. */
+export function scopeListOrder(filters: ScopeFilters): SQL[] {
+  return filters.name === undefined
+    ? [asc(clientScopes.id)]
+    : [asc(clientScopes.nameSearch), asc(clientScopes.id)];
+}
+
+/** The WHERE clause of the client scopes listing, and of its count, which passes no position. */
+export async function scopeListConditions(
+  tx: TenantScopedDatabase,
+  filters: ScopeFilters,
+  after: ListPosition | undefined,
+): Promise<SQL[]> {
+  const conditions: SQL[] = [];
+  if (filters.name === undefined) {
+    if (after !== undefined) conditions.push(gt(clientScopes.id, after.id));
+    return conditions;
+  }
+  const position = after?.sort === undefined ? undefined : { id: after.id, sort: after.sort };
+  conditions.push(
+    ...(await prefixRangeConditions(
+      tx,
+      clientScopes.nameSearch,
+      clientScopes.id,
+      filters.name,
+      position,
+    )),
+  );
+  return conditions;
+}
+
+// A searched listing is one range scan of `client_scopes_name_search`
+// (0075_list_indexes_roles_groups_scopes.sql), the way `listSubjects` is.
 export async function listScopes(
   tx: TenantScopedDatabase,
   input: ListScopesInput,
 ): Promise<ListScopesOutcome> {
-  let after: string | undefined;
+  const filters = filterDigest(input.filters);
+  const prefix = input.filters.name;
+  let after: ListPosition | undefined;
   if (input.cursor !== undefined) {
-    const decoded = decodeCursor(input.cursorKey, COLLECTION, input.tenantId, input.cursor);
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
-    after = decoded.after;
+    if (prefix !== undefined && decoded.sort === undefined) return { kind: 'invalid_cursor' };
+    after = { id: decoded.after, sort: decoded.sort };
   }
 
+  const conditions = await scopeListConditions(tx, input.filters, after);
   const rows = await tx
     .select()
     .from(clientScopes)
-    .where(after === undefined ? undefined : gt(clientScopes.id, after))
-    .orderBy(asc(clientScopes.id))
+    .where(conditions.length === 0 ? undefined : and(...conditions))
+    .orderBy(...scopeListOrder(input.filters))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;
-  const items = (hasMore ? rows.slice(0, input.limit) : rows).map((row) =>
-    scopeWireShape({
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      includeInIdToken: row.includeInIdToken,
-      includeInAccessToken: row.includeInAccessToken,
-      createdAt: row.createdAt,
-    }),
-  );
-  const last = items[items.length - 1];
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
   const next =
     hasMore && last !== undefined
       ? encodeCursor(input.cursorKey, {
           after: last.id,
+          ...(prefix === undefined ? {} : { sort: requireSearchKey(last.nameSearch) }),
           collection: COLLECTION,
           tenantId: input.tenantId,
+          filters,
         })
       : null;
 
-  return { kind: 'ok', items, next };
+  return {
+    kind: 'ok',
+    items: page.map((row) =>
+      scopeWireShape({
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        includeInIdToken: row.includeInIdToken,
+        includeInAccessToken: row.includeInAccessToken,
+        createdAt: row.createdAt,
+      }),
+    ),
+    next,
+  };
 }
 
 export type ReadScopeOutcome = { kind: 'not_found' } | { kind: 'ok'; scope: ClientScope };
@@ -306,6 +389,8 @@ export async function amendScope(
 
 export interface DeleteScopeInput {
   readonly scopeId: string;
+  /** The caller's own admin capabilities: what the scope's role mappings reach is held to them. */
+  readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -315,17 +400,72 @@ export interface DeleteScopeDeps {
   readonly audit: Audit;
 }
 
-export type DeleteScopeOutcome = { kind: 'not_found' } | { kind: 'deleted' };
+export type DeleteScopeOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'openid_guarded'; reason: string }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
+  | { kind: 'deleted' };
 
 // `client_scope_assignments_scope_fk` and `client_scope_roles_scope_fk`
 // (0016_client_scopes.sql, 0017_roles.sql) both cascade: deleting a scope
 // silently takes every client assignment and role mapping naming it with
-// it, never refusing on either.
+// it, never refusing on either — except `openid` itself, guarded below.
 export async function deleteScope(
   tx: TenantScopedDatabase,
   deps: DeleteScopeDeps,
   input: DeleteScopeInput,
 ): Promise<DeleteScopeOutcome> {
+  const scope = await clientScopeRepository(tx).byId(input.scopeId);
+  if (scope === null) return { kind: 'not_found' };
+
+  // The cascade above takes `openid` off every client in the tenant in one
+  // stroke, the built-in admin client included — and that client supports
+  // no grant but `authorization_code`/`refresh_token` (`provisionAdminClient`,
+  // packages/protocol-oidc/src/usecase/provision-admin-client.ts), whose
+  // default requested scope is `openid` (`scopesAreGrantable`,
+  // authorize-validation.ts). Losing it there locks every administrator of
+  // this tenant out of a fresh login once their refresh token expires.
+  if (scope.name === 'openid') {
+    const reason =
+      'openid is deleted along with every client’s assignment of it, ' +
+      'this tenant’s built-in admin client’s included, and could lock ' +
+      'out every administrator of this tenant';
+    await deps.audit(tx, {
+      action: 'scope.delete',
+      resourceType: 'scope',
+      resourceId: input.scopeId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'openid_guarded', reason };
+  }
+
+  // Judged the way `setScopeRoles` judges a role it leaves out, since the
+  // cascade takes every one of the scope's role mappings.
+  const denied = overreach(
+    await capabilitiesReachableFrom(
+      tx,
+      (await mappedRoles(tx, input.scopeId)).map((role) => role.id),
+    ),
+    input.callerCapabilities,
+  );
+  if (denied.length > 0) {
+    await deps.audit(tx, {
+      action: 'scope.delete',
+      resourceType: 'scope',
+      resourceId: input.scopeId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { denied },
+    });
+    return { kind: 'capability_ceiling', requested: [], removed: denied };
+  }
+
   const deleted = await clientScopeRepository(tx).delete(input.scopeId);
   if (!deleted) return { kind: 'not_found' };
 
@@ -346,11 +486,11 @@ export interface SetScopeRolesInput {
   readonly roleIds: readonly string[];
   /**
    * The caller's own admin-client capability names — the same ceiling
-   * `setRoles` (#/usecase/subjects.ts) enforces. `reachableRoleIds`
-   * (read fresh per token issuance, @odudu/protocol-oidc) is what turns a
-   * scope's role mapping into claims on a token, so mapping a role here
-   * must never surface a capability the caller does not itself hold into a
-   * client that previously could not reach it.
+   * `setRoles` (#/usecase/subjects.ts) enforces, on the delta.
+   * `reachableRoleIds` (read fresh per token issuance, @odudu/protocol-oidc)
+   * turns a scope's role mapping into claims on a token, so a role mapped
+   * here must never surface a capability the caller does not hold, nor a
+   * role left out withdraw one.
    */
   readonly callerCapabilities: ReadonlySet<string>;
   readonly ifMatch: string | undefined;
@@ -366,7 +506,7 @@ export interface SetScopeRolesDeps {
 export type SetScopeRolesOutcome =
   | { kind: 'not_found' }
   | { kind: 'unknown_role'; roleIds: readonly string[] }
-  | { kind: 'capability_ceiling'; requested: readonly string[] }
+  | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string };
@@ -381,9 +521,10 @@ async function mappedRoles(
   scopeId: string,
 ): Promise<readonly RoleAssignment[]> {
   return tx
-    .select({ id: roles.id, name: roles.name })
+    .select(roleAssignmentColumns)
     .from(clientScopeRoles)
     .innerJoin(roles, eq(clientScopeRoles.roleId, roles.id))
+    .leftJoin(clients, eq(clients.id, roles.clientId))
     .where(eq(clientScopeRoles.clientScopeId, scopeId))
     .orderBy(asc(roles.id));
 }
@@ -454,8 +595,13 @@ export async function setScopeRoles(
     return { kind: 'unknown_role', roleIds: missing };
   }
 
-  const requestedCapabilities = await capabilitiesReachableFrom(tx, uniqueRoleIds);
-  const denied = overreach(requestedCapabilities, input.callerCapabilities);
+  const breach = await replacementOverreach(
+    tx,
+    (await mappedRoles(tx, input.scopeId)).map((role) => role.id),
+    uniqueRoleIds,
+    input.callerCapabilities,
+  );
+  const denied = [...new Set([...breach.granted, ...breach.removed])];
   if (denied.length > 0) {
     await deps.audit(tx, {
       action: 'scope.roles_set',
@@ -467,7 +613,7 @@ export async function setScopeRoles(
       outcome: 'refused',
       detail: { denied },
     });
-    return { kind: 'capability_ceiling', requested: denied };
+    return { kind: 'capability_ceiling', requested: breach.granted, removed: breach.removed };
   }
 
   await roleRepository(tx).setClientScopeRoles(input.scopeId, uniqueRoleIds);
@@ -486,13 +632,10 @@ export async function setScopeRoles(
   return { kind: 'ok', roles: mapped, etag: etagOf({ items: mapped }) };
 }
 
-export interface AssignScopeToClientInput {
+export interface AssignScopeToClientInput extends ClientCeilingCaller {
   readonly scopeId: string;
   readonly clientId: string;
   readonly assignment: ClientScopeAssignment;
-  readonly actorSubjectId: string;
-  readonly actorTenantId: string;
-  readonly actorClientId: string;
 }
 
 export interface AssignScopeToClientDeps {
@@ -502,7 +645,16 @@ export interface AssignScopeToClientDeps {
 export type AssignScopeToClientOutcome =
   | { kind: 'scope_not_found' }
   | { kind: 'client_not_found' }
-  | { kind: 'ok'; assignments: AssignScopeToClientResponse };
+  | TargetCeilingRefusal
+  | { kind: 'ok'; assignments: AssignScopeToClientResponse; clientEtag: string };
+
+// The `ETag` `GET …/clients/:id` answers, which hashes the client's scopes too:
+// an assignment changes it, and a caller editing the client needs the new one.
+async function clientEtagOf(tx: TenantScopedDatabase, clientId: string): Promise<string> {
+  const read = await readClient(tx, clientId);
+  if (read.kind === 'not_found') throw new Error(`client ${clientId} vanished mid-assignment`);
+  return etagOf(clientWireShape(read.client));
+}
 
 /**
  * Assigns or re-assigns a scope's `default`/`optional` split on a client —
@@ -518,11 +670,17 @@ export async function assignScopeToClient(
   const scope = await clientScopeRepository(tx).byId(input.scopeId);
   if (scope === null) return { kind: 'scope_not_found' };
 
-  const clientRows = await tx
-    .select({ id: clients.id })
-    .from(clients)
-    .where(eq(clients.id, input.clientId));
-  if (clientRows.length === 0) return { kind: 'client_not_found' };
+  const client = await clientRepository(tx).byId(input.clientId);
+  if (client === null) return { kind: 'client_not_found' };
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'scope.assign_to_client',
+    client.serviceSubjectId,
+    input,
+    { type: 'scope', id: input.scopeId },
+  );
+  if (refused !== null) return refused;
 
   await clientScopeRepository(tx).assignOrUpdate(input.clientId, input.scopeId, input.assignment);
 
@@ -560,5 +718,170 @@ export async function assignScopeToClient(
         assignment: row.assignment,
       })),
     },
+    clientEtag: await clientEtagOf(tx, input.clientId),
+  };
+}
+
+export interface UnassignScopeFromClientInput extends ClientCeilingCaller {
+  readonly scopeId: string;
+  readonly clientId: string;
+}
+
+export interface UnassignScopeFromClientDeps {
+  readonly audit: Audit;
+}
+
+export type UnassignScopeFromClientOutcome =
+  | { kind: 'scope_not_found' }
+  | { kind: 'client_not_found' }
+  | { kind: 'builtin_admin_guarded'; reason: string }
+  | TargetCeilingRefusal
+  | { kind: 'not_assigned' }
+  | { kind: 'removed'; clientEtag: string };
+
+/**
+ * Removes a client's assignment of a scope — the inverse of
+ * `assignScopeToClient`. Neither a `default` nor an `optional` assignment is
+ * privileged over the other: both go, and `unassign` (@odudu/domain-tenant)
+ * does not distinguish them.
+ */
+export async function unassignScopeFromClient(
+  tx: TenantScopedDatabase,
+  deps: UnassignScopeFromClientDeps,
+  input: UnassignScopeFromClientInput,
+): Promise<UnassignScopeFromClientOutcome> {
+  const scope = await clientScopeRepository(tx).byId(input.scopeId);
+  if (scope === null) return { kind: 'scope_not_found' };
+
+  // `byId`, not a raw select: the one read that serves both the 404 below
+  // and the guard that follows it, on the same row.
+  const client = await clientRepository(tx).byId(input.clientId);
+  if (client === null) return { kind: 'client_not_found' };
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'scope.unassign_from_client',
+    client.serviceSubjectId,
+    input,
+    { type: 'scope', id: input.scopeId },
+  );
+  if (refused !== null) return refused;
+
+  // Reads `builtinAdmin`, never `client_id` — the same check `amendClient`
+  // (#/usecase/clients.ts) makes. The built-in admin client supports no
+  // grant but `authorization_code`/`refresh_token`
+  // (`provisionAdminClient`, protocol-oidc), and `/authorize` refuses any
+  // scope this client is not assigned, `openid` included, its own default
+  // (`scopesAreGrantable`) — so unassigning here can lock every
+  // administrator of this tenant out of a fresh login.
+  if (client.builtinAdmin) {
+    const reason =
+      `the scope ${scope.name} on ${client.clientId}, this tenant’s built-in ` +
+      'admin client, cannot be unassigned: it could leave every administrator ' +
+      'of this tenant locked out of /authorize';
+    await deps.audit(tx, {
+      action: 'scope.unassign_from_client',
+      resourceType: 'scope',
+      resourceId: input.scopeId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason },
+    });
+    return { kind: 'builtin_admin_guarded', reason };
+  }
+
+  const removed = await clientScopeRepository(tx).unassign(input.clientId, input.scopeId);
+  if (!removed) return { kind: 'not_assigned' };
+
+  await deps.audit(tx, {
+    action: 'scope.unassign_from_client',
+    resourceType: 'scope',
+    resourceId: input.scopeId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+  });
+
+  return { kind: 'removed', clientEtag: await clientEtagOf(tx, input.clientId) };
+}
+
+export interface ListScopeClientsInput {
+  readonly tenantId: string;
+  readonly scopeId: string;
+  readonly limit: number;
+  readonly cursor: string | undefined;
+  readonly cursorKey: Uint8Array;
+}
+
+export type ListScopeClientsOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'invalid_cursor' }
+  | { kind: 'ok'; items: readonly ScopeClient[]; next: string | null };
+
+const SCOPE_CLIENTS_COLLECTION = 'scope_clients';
+
+// Keyed on the client's row id, and the cursor bound to the scope, so a page
+// of one scope's clients never resumes another's.
+export async function listScopeClients(
+  tx: TenantScopedDatabase,
+  input: ListScopeClientsInput,
+): Promise<ListScopeClientsOutcome> {
+  if ((await clientScopeRepository(tx).byId(input.scopeId)) === null) return { kind: 'not_found' };
+  const filters = filterDigest({ scope: input.scopeId });
+  let after: string | undefined;
+  if (input.cursor !== undefined) {
+    const decoded = decodeCursor(
+      input.cursorKey,
+      SCOPE_CLIENTS_COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
+    if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
+    after = decoded.after;
+  }
+
+  const rows = await tx
+    .select({
+      id: clients.id,
+      clientId: clients.clientId,
+      name: clients.name,
+      assignment: clientScopeAssignments.assignment,
+    })
+    .from(clientScopeAssignments)
+    .innerJoin(clients, eq(clients.id, clientScopeAssignments.clientId))
+    .where(
+      and(
+        eq(clientScopeAssignments.clientScopeId, input.scopeId),
+        ...(after === undefined ? [] : [gt(clients.id, after)]),
+      ),
+    )
+    .orderBy(asc(clients.id))
+    .limit(input.limit + 1);
+
+  const hasMore = rows.length > input.limit;
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
+  const next =
+    hasMore && last !== undefined
+      ? encodeCursor(input.cursorKey, {
+          after: last.id,
+          collection: SCOPE_CLIENTS_COLLECTION,
+          tenantId: input.tenantId,
+          filters,
+        })
+      : null;
+  return {
+    kind: 'ok',
+    items: page.map((row) => ({
+      id: row.id,
+      client_id: row.clientId,
+      name: row.name,
+      assignment: row.assignment,
+    })),
+    next,
   };
 }

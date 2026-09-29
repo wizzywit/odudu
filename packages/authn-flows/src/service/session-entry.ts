@@ -13,12 +13,11 @@ function sha256(secret: string): Buffer {
 // secret is a private field, so logging or serialising an entry shows only
 // its id.
 export class SessionEntry {
+  readonly id: string;
   readonly #secret: string;
 
-  private constructor(
-    readonly id: string,
-    secret: string,
-  ) {
+  private constructor(id: string, secret: string) {
+    this.id = id;
     this.#secret = secret;
   }
 

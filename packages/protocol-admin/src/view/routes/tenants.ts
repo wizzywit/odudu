@@ -1,11 +1,13 @@
 import {
   amendTenantRequestSchema,
   createTenantRequestSchema,
-  cursorQuerySchema,
+  listTenantsQuerySchema,
 } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import { requestContextFrom } from '@odudu/domain-audit';
+import { TENANT_NAME_RULE } from '@odudu/domain-tenant';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
+import { etagOf } from '#/service/etag';
 import {
   amendTenant,
   createTenant,
@@ -14,7 +16,7 @@ import {
   tenantWireShape,
   type Audit,
 } from '#/usecase/tenants';
-import { problem, sendProblem } from '#/view/problem';
+import { cursorProblem, fieldProblem, problem, queryProblem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -24,6 +26,7 @@ export interface TenantsRouteDeps {
   readonly cursorKey: Uint8Array;
   readonly kek: Uint8Array;
   readonly audit: Audit;
+  readonly consoleBaseUrl?: string | undefined;
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -70,13 +73,16 @@ export function amendTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+          fieldProblem([{ path: outcome.field, message: outcome.reason }]),
         );
       case 'invalid_value':
         return sendProblem(
           reply,
           request,
-          problem(400, 'about:blank', 'Bad Request', outcome.description),
+          fieldProblem(
+            [{ path: outcome.field, message: outcome.description }],
+            outcome.description,
+          ),
         );
       case 'system_tenant_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
@@ -101,7 +107,12 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
     const body = createTenantRequestSchema.parse(request.body);
 
     const outcome = await createTenant(
-      { database: deps.database, kek: deps.kek, audit: deps.audit },
+      {
+        database: deps.database,
+        kek: deps.kek,
+        audit: deps.audit,
+        consoleBaseUrl: deps.consoleBaseUrl,
+      },
       {
         name: body.name,
         displayName: body.display_name,
@@ -111,6 +122,14 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
       },
       requestContextFrom(request),
     );
+
+    if (outcome.kind === 'name_invalid') {
+      return sendProblem(
+        reply,
+        request,
+        fieldProblem([{ path: 'name', message: TENANT_NAME_RULE }], TENANT_NAME_RULE),
+      );
+    }
 
     if (outcome.kind === 'name_refused') {
       return sendProblem(
@@ -138,20 +157,26 @@ export function createTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
       );
     }
 
-    return reply.code(201).send(tenantWireShape(outcome.tenant));
+    const tenant = tenantWireShape(outcome.tenant);
+    reply.header('etag', etagOf(tenant));
+    return reply.code(201).send(tenant);
   };
 }
 
 export function listTenantsHandler(deps: TenantsRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
-    // Same narrowing as above: ADMIN_ROUTES' `querystringSchema` already
-    // validated `limit`/`cursor`'s shape (coerceTypes turns "10" into 10),
-    // but refuses none above MAX_LIMIT — an over-large page size is coerced
-    // down, not rejected (design spec §9). coerceLimit is the one place
-    // that clamps, so the shape it already checked is re-stated as a
-    // string rather than duplicated as a second bound.
-    const query = cursorQuerySchema.parse(request.query);
-    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+    // ADMIN_ROUTES' `querystringSchema` already validated each parameter's
+    // shape (coerceTypes turns "10" into 10) but refuses no `limit` above
+    // MAX_LIMIT — an over-large page size is coerced down, not rejected
+    // (design spec §9), by coerceLimit alone. The one-search-field
+    // refinement has no JSON Schema form, so it is only enforced here.
+    const parsed = listTenantsQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return sendProblem(reply, request, queryProblem(parsed.error));
+    }
+    const query = parsed.data;
+    const { cursor, limit: requestedLimit, ...filters } = query;
+    const limit = coerceLimit(requestedLimit === undefined ? undefined : String(requestedLimit));
 
     // Listing the collection is inherently cross-tenant, so it reads
     // through the owner connection — the same bypass `createTenant` and
@@ -159,16 +184,13 @@ export function listTenantsHandler(deps: TenantsRouteDeps): AdminRouteHandler {
     // RLS-scoped one, which would see no `app.tenant_id` to filter by.
     const outcome = await listTenants(deps.ownerDatabase, {
       limit,
-      cursor: query.cursor,
+      cursor,
       cursorKey: deps.cursorKey,
       tenantId: targetTenantId,
+      filters,
     });
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     const items = outcome.items.map(tenantWireShape);

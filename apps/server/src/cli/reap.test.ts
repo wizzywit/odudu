@@ -42,6 +42,8 @@ describe('the order the retention pass runs in', () => {
         'email_outbox',
         'backchannel_logout_deliveries',
         'client_assertion_jti',
+        'console_sessions',
+        'console_logins',
         'sessions',
         'audit_events',
       ]);

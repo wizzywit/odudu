@@ -1,0 +1,92 @@
+import { QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { expect, it } from 'vitest';
+import { z } from 'zod';
+import { useRefusal } from '#/features/session/usecase/useAuthority.ts';
+import { createQueryClient } from '#/shared/repository/queryClient.ts';
+import { useTransport, TransportContext } from '#/shared/transport/useTransport.ts';
+import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
+import { fakeTransport, json, problem } from '#/testing/fakeTransport.ts';
+
+const WHOAMI = 'GET /console/api/admin/tenants/acme/whoami';
+
+// A section as a feature will write one: it sends, and hands the answer over.
+function RotateSecret() {
+  const { gateway } = useTransport();
+  const { refused, report } = useRefusal('acme');
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          gateway
+            .request('POST', 'admin/tenants/acme/clients/c1/secret', { schema: z.unknown() })
+            .then((result) => {
+              report(result, 'manage-clients');
+            })
+            .catch(() => undefined);
+        }}
+      >
+        Rotate secret
+      </button>
+      {refused === null ? null : (
+        <CapabilityNote capability={refused}>Rotating a client secret</CapabilityNote>
+      )}
+    </>
+  );
+}
+
+function mount(answer: ReturnType<typeof json>) {
+  const fake = fakeTransport({
+    [WHOAMI]: json({
+      subjectId: 's1',
+      issuerTenantId: 't1',
+      capabilities: ['manage-clients'],
+      crossTenant: false,
+    }),
+    'POST /console/api/admin/tenants/acme/clients/c1/secret': answer,
+  });
+  render(
+    <TransportContext value={fake.transport}>
+      <QueryClientProvider client={createQueryClient()}>
+        <RotateSecret />
+      </QueryClientProvider>
+    </TransportContext>,
+  );
+  return fake;
+}
+
+const whoamiReads = (calls: readonly { method: string; path: string }[]) =>
+  calls.filter((call) => `${call.method} ${call.path}` === WHOAMI).length;
+
+it('says which capability a refused request needed, and reads whoami again', async () => {
+  const user = userEvent.setup();
+  const { calls } = mount(problem(403, 'about:blank', 'Forbidden'));
+  await waitFor(() => {
+    expect(whoamiReads(calls)).toBe(1);
+  });
+
+  await user.click(screen.getByRole('button', { name: 'Rotate secret' }));
+
+  expect(await screen.findByRole('note')).toHaveTextContent(
+    'Rotating a client secret needs the manage-clients capability.',
+  );
+  await waitFor(() => {
+    expect(whoamiReads(calls)).toBe(2);
+  });
+});
+
+it('leaves any other answer to the caller', async () => {
+  const user = userEvent.setup();
+  const { calls } = mount(problem(409, 'about:blank', 'Conflict'));
+  await waitFor(() => {
+    expect(whoamiReads(calls)).toBe(1);
+  });
+  await user.click(screen.getByRole('button', { name: 'Rotate secret' }));
+  await waitFor(() => {
+    expect(calls.some((call) => call.method === 'POST')).toBe(true);
+  });
+  expect(screen.queryByRole('note')).toBeNull();
+  expect(whoamiReads(calls)).toBe(1);
+});

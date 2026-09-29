@@ -35,6 +35,22 @@ afterAll(async () => {
   await fixtureHandle?.stop();
 });
 
+// The driver reports a constraint violation on the postgres.js error, not
+// on the Drizzle wrapper's own message — see roles.int.test.ts's
+// causeMessage for the same idiom.
+async function causeMessage(promise: Promise<unknown>): Promise<string> {
+  let caught: unknown;
+  try {
+    await promise;
+    expect.unreachable('expected the insert to be rejected');
+  } catch (error) {
+    caught = error;
+  }
+  const cause = (caught as Error).cause;
+  expect(cause).toBeInstanceOf(Error);
+  return (cause as Error).message;
+}
+
 function claimsOf(token: string): Record<string, unknown> {
   const parsed: unknown = JSON.parse(
     Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'),
@@ -204,13 +220,18 @@ describe('a token issued by another tenant of this deployment', () => {
     await expectRefusedWithoutRow(x, y, extended);
   });
 
-  it('writes nothing for a tenant whose name reaches below another tenant name', async () => {
-    const { x, y } = await twoTenants();
-    const below = await fixture.createTenant(`${x.name}/extra`);
-    const token = await fixture.adminToken(below.name, [...TENANT_CAPABILITIES]);
+  // A tenant literally named with a path below another one's name cannot
+  // exist any more: tenants_name_dns_label (packages/db/drizzle/
+  // 0072_tenant_name_rule.sql) refuses '/' before this scenario is ever a
+  // router question. The sibling case above — a forged `iss` reaching
+  // below a real tenant's issuer — is the attack this predicate cannot
+  // close, since it never touches a stored name.
+  it('refuses to create a tenant whose name reaches below another tenant name', async () => {
+    const { x } = await twoTenants();
 
-    await expectRefusedWithoutRow(x, y, token);
-    expect(await rowsOf(below.id)).toHaveLength(0);
+    expect(await causeMessage(fixture.createTenant(`${x.name}/extra`))).toContain(
+      'tenants_name_dns_label',
+    );
   });
 
   it('writes nothing when no bearer token is presented', async () => {

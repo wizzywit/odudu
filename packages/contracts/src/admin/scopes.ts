@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { roleAssignmentSchema } from '#/admin/subjects';
-import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
+import { createdAtSchema, cursorQuerySchema, idSchema, searchPrefixSchema } from '#/admin/shared';
 
 export const clientScopeSchema = z.object({
   id: idSchema,
@@ -12,8 +12,13 @@ export const clientScopeSchema = z.object({
 });
 export type ClientScope = z.infer<typeof clientScopeSchema>;
 
-export const listScopesQuerySchema = cursorQuerySchema;
+const scopeFilters = { name: searchPrefixSchema.optional() };
+
+export const listScopesQuerySchema = cursorQuerySchema.extend(scopeFilters).strict();
 export type ListScopesQuery = z.infer<typeof listScopesQuerySchema>;
+
+export const countScopesQuerySchema = z.object(scopeFilters).strict();
+export type CountScopesQuery = z.infer<typeof countScopesQuerySchema>;
 
 export const listScopesResponseSchema = z.object({
   items: z.array(clientScopeSchema),
@@ -69,3 +74,22 @@ export const assignScopeToClientResponseSchema = z.object({
   scopes: z.array(clientScopeAssignmentViewSchema),
 });
 export type AssignScopeToClientResponse = z.infer<typeof assignScopeToClientResponseSchema>;
+
+// Which clients carry a scope, readable with `manage-tenant` alone: a client
+// named by its row id, `client_id` and name, and nothing of its configuration.
+export const listScopeClientsQuerySchema = cursorQuerySchema.extend({}).strict();
+export type ListScopeClientsQuery = z.infer<typeof listScopeClientsQuerySchema>;
+
+export const scopeClientSchema = z.object({
+  id: idSchema,
+  client_id: z.string(),
+  name: z.string(),
+  assignment: clientScopeAssignmentSchema,
+});
+export type ScopeClient = z.infer<typeof scopeClientSchema>;
+
+export const listScopeClientsResponseSchema = z.object({
+  items: z.array(scopeClientSchema),
+  next: z.string().optional(),
+});
+export type ListScopeClientsResponse = z.infer<typeof listScopeClientsResponseSchema>;

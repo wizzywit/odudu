@@ -15,9 +15,18 @@ import {
 import { type SessionLifespans } from '@odudu/authn-flows';
 import { auditRepository } from '@odudu/domain-audit';
 import { withTenant, type TenantScopedDatabase } from '@odudu/db';
+import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { endSession, listSessions, type SessionAuditEvent } from '#/usecase/sessions';
+import {
+  createPasswordSubject,
+  createSignInClient,
+  refresh,
+  signInForRefreshToken,
+} from '#/testing/sign-in';
+
+const SIGN_IN_PASSWORD = 'correct horse battery staple';
 
 // The same shape `lifespansOf` (#/usecase/authenticate-admin.ts) builds
 // from a real `TenantLookup` — fixed values here since these tests probe
@@ -419,6 +428,157 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/sessions/{sid}', () => {
   );
 });
 
+describe('DELETE /admin/tenants/{t}/subjects/{id}/sessions', () => {
+  async function endAll(
+    tenantName: string,
+    subjectId: string,
+    capabilities: readonly string[] = ['manage-sessions'],
+  ): Promise<LightMyRequestResponse> {
+    const token = await fixture.adminToken(tenantName, capabilities);
+    return fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${tenantName}/subjects/${subjectId}/sessions`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  it('ends every live session, so each one’s refresh token fails, and answers the count', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await createSignInClient(fixture, t.id);
+    const username = `lou-${newId()}`;
+    const subjectId = await createPasswordSubject(fixture, t.id, username, SIGN_IN_PASSWORD);
+    const first = await signInForRefreshToken(fixture, t.name, client, username, SIGN_IN_PASSWORD);
+    const second = await signInForRefreshToken(fixture, t.name, client, username, SIGN_IN_PASSWORD);
+    const res = await endAll(t.name, subjectId);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ended: 2 });
+
+    for (const token of [first, second]) {
+      const refused = await refresh(fixture, t.name, client, token);
+      expect(refused.statusCode).toBe(400);
+      expect(refused.json<{ error: string }>().error).toBe('invalid_grant');
+    }
+    const listed = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/subjects/${subjectId}/sessions`,
+      headers: { authorization: `Bearer ${await fixture.adminToken(t.name, ['manage-sessions'])}` },
+    });
+    expect(listed.json<{ items: unknown[] }>().items).toEqual([]);
+  });
+
+  it('revokes the rotated refresh token too, not just the one first issued', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const client = await createSignInClient(fixture, t.id);
+    const username = `max-${newId()}`;
+    const subjectId = await createPasswordSubject(fixture, t.id, username, SIGN_IN_PASSWORD);
+    const issued = await signInForRefreshToken(fixture, t.name, client, username, SIGN_IN_PASSWORD);
+    const rotated = await refresh(fixture, t.name, client, issued);
+    expect(rotated.statusCode).toBe(200);
+
+    expect((await endAll(t.name, subjectId)).json()).toEqual({ ended: 1 });
+
+    const refused = await refresh(
+      fixture,
+      t.name,
+      client,
+      rotated.json<{ refresh_token: string }>().refresh_token,
+    );
+    expect(refused.json<{ error: string }>().error).toBe('invalid_grant');
+  });
+
+  it('enqueues a back-channel delivery per session, as ending one does', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `ned-${newId()}`);
+    const one = await seedSessionWithGrant(t.id, subjectId);
+    const two = await seedSessionWithGrant(t.id, subjectId);
+
+    expect((await endAll(t.name, subjectId)).json()).toEqual({ ended: 2 });
+
+    await withTenant(fixture.app.db, t.id, async (tx) => {
+      for (const seeded of [one, two]) {
+        const grants = await tokenGrantRepository(tx).bySession(seeded.sessionId);
+        expect(grants.every((grant) => grant.revokedAt !== null)).toBe(true);
+      }
+      const due = await logoutDeliveryRepository(tx).claimDue({
+        now: fixture.clock.now(),
+        limit: 50,
+        leaseSeconds: 60,
+      });
+      expect(due.map((d) => d.clientId).sort()).toEqual([one.client.id, two.client.id].sort());
+    });
+  });
+
+  it('writes session.end_all once, and session.ended once per session with via admin', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `ola-${newId()}`);
+    const one = await seedLiveSession(t.id, subjectId);
+    const two = await seedLiveSession(t.id, subjectId);
+
+    expect((await endAll(t.name, subjectId)).statusCode).toBe(200);
+
+    const rows = await withTenant(fixture.app.db, t.id, (tx) =>
+      auditRepository(tx).list({ limit: 50 }),
+    );
+    const endAllRows = rows.filter((row) => row.action === 'session.end_all');
+    expect(endAllRows).toHaveLength(1);
+    expect(endAllRows[0]).toMatchObject({
+      eventType: 'admin_mutation',
+      resourceType: 'subject',
+      resourceId: subjectId,
+      detail: { ended: 2 },
+    });
+    const ended = rows.filter((row) => row.action === 'session.ended');
+    expect(ended.map((row) => row.resourceId).sort()).toEqual([one, two].sort());
+    expect(ended.every((row) => (row.detail as { via?: string }).via === 'admin')).toBe(true);
+  });
+
+  it('answers { ended: 0 } for a subject with no live session', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `pia-${newId()}`);
+    const res = await endAll(t.name, subjectId);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ended: 0 });
+  });
+
+  it('leaves another subject’s sessions alone', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `quin-${newId()}`);
+    const { id: otherId } = await fixture.createSubject(t.name, `rae-${newId()}`);
+    const other = await seedLiveSession(t.id, otherId);
+
+    expect((await endAll(t.name, subjectId)).json()).toEqual({ ended: 0 });
+
+    const live = await withTenant(fixture.app.db, t.id, (tx) =>
+      sessionRepository(tx).liveById(other, TEST_LIFESPANS, fixture.clock.now()),
+    );
+    expect(live).not.toBeNull();
+  });
+
+  it('answers 404 for an unknown subject, and for another tenant’s, ending nothing', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const u = await fixture.createTenant(`umbrella-${newId()}`);
+    const { id: foreignId } = await fixture.createSubject(u.name, `sam-${newId()}`);
+    const foreignSession = await seedLiveSession(u.id, foreignId);
+
+    expect((await endAll(t.name, newId())).statusCode).toBe(404);
+    expect((await endAll(t.name, foreignId)).statusCode).toBe(404);
+
+    const live = await withTenant(fixture.app.db, u.id, (tx) =>
+      sessionRepository(tx).liveById(foreignSession, TEST_LIFESPANS, fixture.clock.now()),
+    );
+    expect(live).not.toBeNull();
+  });
+
+  it.each(TENANT_CAPABILITIES.filter((c) => c !== 'manage-sessions'))(
+    'refuses a caller holding only %s',
+    async (capability) => {
+      const t = await fixture.createTenant(`acme-${newId()}`);
+      const { id: subjectId } = await fixture.createSubject(t.name, `tom-${newId()}`);
+      expect((await endAll(t.name, subjectId, [capability])).statusCode).toBe(403);
+    },
+  );
+});
+
 // Drives the usecase directly, the way subjects.int.test.ts's own
 // describe('audit', ...) does, so a mutation's exactly-once call and a
 // refusal's zero calls are pinned without going through HTTP.
@@ -451,6 +611,7 @@ describe('audit', () => {
           tenantId: t.id,
           subjectId,
           sessionId,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -472,6 +633,7 @@ describe('audit', () => {
           tenantId: t.id,
           subjectId,
           sessionId: newId(),
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',

@@ -13,14 +13,42 @@ export const cursorQuerySchema = z.object({
 });
 export type CursorQuery = z.infer<typeof cursorQuerySchema>;
 
+// A search is a prefix of one named field, matched case-insensitively;
+// the exact filters AND with it and with each other. A prefix is text
+// PostgreSQL can hold, which excludes NUL.
+export const searchPrefixSchema = z
+  .string()
+  .min(1)
+  .regex(/^[^\u0000]*$/);
+
+export const enabledFilterSchema = z.enum(['true', 'false']);
+
+// One field a refusal names, by its JSON path from the request: `name`, or
+// `document.clients[0].redirect_uris`.
+export const fieldErrorSchema = z.strictObject({
+  path: z.string(),
+  message: z.string(),
+});
+export type FieldError = z.infer<typeof fieldErrorSchema>;
+
+// `detail` is prose for a person; `errors` names each field at fault, so a
+// client can place a message under its field without parsing `detail`.
 export const problemDetailsSchema = z.object({
   type: z.string(),
   title: z.string(),
   status: z.number().int(),
   instance: z.string(),
+  detail: z.string().optional(),
+  errors: z.array(fieldErrorSchema).optional(),
 });
 export type ProblemDetails = z.infer<typeof problemDetailsSchema>;
 
 export const idSchema = z.string();
-export const createdAtSchema = z.string();
+// An ISO 8601 instant, wire-shaped as a bare string — never validated more
+// strictly than that, since every producer here is this server's own
+// `Date#toISOString()`. `createdAtSchema` is this under the name most call
+// sites reach for; a field that isn't a `created_at` uses this one instead
+// of borrowing a name that would say otherwise.
+export const dateTimeSchema = z.string();
+export const createdAtSchema = dateTimeSchema;
 export const etagSchema = z.string();

@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { isCheckViolation, isUniqueViolation } from '#/sqlstate';
+import { isCheckViolation, isLockNotAvailable, isUniqueViolation } from '#/sqlstate';
 
 describe('reading a SQLSTATE off a wrapped driver error', () => {
   it('finds one the driver reports directly', () => {
     expect(isUniqueViolation(Object.assign(new Error('x'), { code: '23505' }))).toBe(true);
     expect(isCheckViolation(Object.assign(new Error('x'), { code: '23514' }))).toBe(true);
+    expect(isLockNotAvailable(Object.assign(new Error('x'), { code: '55P03' }))).toBe(true);
+  });
+
+  it('finds a lock timeout under a wrapper', () => {
+    const wrapped = Object.assign(new Error('wrapper'), {
+      cause: Object.assign(new Error('inner'), { code: '55P03' }),
+    });
+
+    expect(isLockNotAvailable(wrapped)).toBe(true);
+    expect(isUniqueViolation(wrapped)).toBe(false);
   });
 
   // The walk must not stop at the first `code` it meets: Drizzle wraps

@@ -9,13 +9,15 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "dev": "node --watch --env-file-if-exists=../../.env src/main.ts",
-    "build": "tsup"
+    "build": "tsup",
+    "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",
     "@fastify/formbody": "9.0.0",
     "@odudu/account": "workspace:*",
     "@odudu/authn-flows": "workspace:*",
+    "@odudu/console-gateway": "workspace:*",
     "@odudu/crypto": "workspace:*",
     "@odudu/db": "workspace:*",
     "@odudu/domain-audit": "workspace:*",

@@ -26,6 +26,7 @@ export interface AdminRouteParams {
   readonly credentialId?: string;
   readonly sid?: string;
   readonly clientId?: string;
+  readonly childId?: string;
 }
 
 export type AdminRequest = FastifyRequest<{ Params: AdminRouteParams }>;
@@ -75,7 +76,7 @@ function targetTenantNameFor(route: AdminRoute, params: AdminRouteParams): strin
 }
 
 // A refusal is sent whether or not its row could be written.
-async function recordRefusal(
+export async function recordRefusal(
   database: Database,
   request: FastifyRequest,
   tenantId: string,
@@ -132,10 +133,11 @@ async function handleRoute(
     outcome.principal,
     { tenantId: targetTenant.id },
     route.capability,
+    route.alsoAdmits,
   );
   if (decision.kind === 'forbidden') {
     await recordRefusal(deps.database, request, targetTenant.id, (tx) =>
-      recordCapabilityRefused(tx, outcome.principal, decision.missing),
+      recordCapabilityRefused(tx, outcome.principal, decision.missing, decision.alsoAdmits),
     );
     return sendForbidden(request, reply);
   }
@@ -168,10 +170,17 @@ export function registerAdminRoutes(
     app.route<{ Params: AdminRouteParams }>({
       method: route.method,
       url: route.pattern,
+      ...(route.bodyLimit === undefined ? {} : { bodyLimit: route.bodyLimit }),
       schema: {
         ...(paramsSchema === undefined ? {} : { params: paramsSchema }),
         ...(route.querystringSchema !== undefined ? { querystring: route.querystringSchema } : {}),
         ...(route.bodySchema !== undefined ? { body: route.bodySchema } : {}),
+      },
+      // Every admin response is specific to its caller, and several carry a
+      // secret shown once; set before validation, so a refusal carries it too.
+      onRequest: (_request, reply, done) => {
+        reply.header('cache-control', 'no-store');
+        done();
       },
       handler: (request, reply) => handleRoute(route, handler, deps, request, reply),
     });

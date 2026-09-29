@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { roleAssignmentSchema } from '#/admin/subjects';
-import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
+import { createdAtSchema, cursorQuerySchema, idSchema, searchPrefixSchema } from '#/admin/shared';
 
 export const groupSchema = z.object({
   id: idSchema,
@@ -11,8 +11,13 @@ export const groupSchema = z.object({
 });
 export type Group = z.infer<typeof groupSchema>;
 
-export const listGroupsQuerySchema = cursorQuerySchema;
+const groupFilters = { name: searchPrefixSchema.optional() };
+
+export const listGroupsQuerySchema = cursorQuerySchema.extend(groupFilters).strict();
 export type ListGroupsQuery = z.infer<typeof listGroupsQuerySchema>;
+
+export const countGroupsQuerySchema = z.object(groupFilters).strict();
+export type CountGroupsQuery = z.infer<typeof countGroupsQuerySchema>;
 
 export const listGroupsResponseSchema = z.object({
   items: z.array(groupSchema),
@@ -42,3 +47,15 @@ export const setGroupRolesResponseSchema = z.object({
   items: z.array(roleAssignmentSchema),
 });
 export type SetGroupRolesResponse = z.infer<typeof setGroupRolesResponseSchema>;
+
+// A subject's direct memberships. Lives beside `groupSchema` rather than in
+// #/admin/subjects, which this module already imports from.
+export const setSubjectGroupsRequestSchema = z.object({
+  group_ids: z.array(idSchema),
+});
+export type SetSubjectGroupsRequest = z.infer<typeof setSubjectGroupsRequestSchema>;
+
+export const setSubjectGroupsResponseSchema = z.object({
+  items: z.array(groupSchema),
+});
+export type SetSubjectGroupsResponse = z.infer<typeof setSubjectGroupsResponseSchema>;

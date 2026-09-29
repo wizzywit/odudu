@@ -47,9 +47,12 @@ const SAMPLE_BODIES: Readonly<Partial<Record<string, unknown>>> = {
   'POST /admin/tenants/:tenant/subjects': { username: 'sample' },
   'PUT /admin/tenants/:tenant/subjects/:id/required-actions': { actions: [] },
   'PUT /admin/tenants/:tenant/subjects/:id/roles': { role_ids: [] },
+  'PUT /admin/tenants/:tenant/subjects/:id/groups': { group_ids: [] },
   'POST /admin/tenants': { name: `sample-${newId()}` },
+  'POST /admin/tenant-imports': { name: `sample-${newId()}`, document: {} },
   'POST /admin/tenants/:tenant/clients': { client_id: `sample-${newId()}` },
   'POST /admin/tenants/:tenant/roles': { name: 'sample' },
+  'PUT /admin/tenants/:tenant/roles/:id/default': { default: false },
   'POST /admin/tenants/:tenant/roles/:id/composites': { child_role_id: 'placeholder' },
   'POST /admin/tenants/:tenant/groups': { name: 'sample' },
   'PUT /admin/tenants/:tenant/groups/:id/roles': { role_ids: [] },
@@ -58,6 +61,7 @@ const SAMPLE_BODIES: Readonly<Partial<Record<string, unknown>>> = {
   'PUT /admin/tenants/:tenant/scopes/:id/mappers': { mapper_names: [] },
   'PUT /admin/tenants/:tenant/scopes/:id/clients/:clientId': { assignment: 'default' },
   'POST /admin/tenants/:tenant/keys': { alg: 'RS256' },
+  'POST /admin/tenants/:tenant/registration-tokens': { uses: 1, ttl_seconds: 3600 },
   'PUT /admin/tenants/:tenant/smtp': {
     host: 'smtp.example',
     port: 587,
@@ -92,6 +96,12 @@ function methodOf(route: AdminRoute): RouteMethod {
 
 // `tenantScopedRoutes`/`systemRoutes` are filtered to `capability !== null`,
 // which `Array.prototype.filter` does not carry into the element type.
+// A route its handler holds to a further capability beside its own: export
+// carries every client, which every other route reads with manage-clients.
+const ALSO_REQUIRED: Readonly<Record<string, readonly AdminCapability[]>> = {
+  'GET /admin/tenants/:tenant/export': ['manage-clients'],
+};
+
 function requiredCapabilityOf(route: AdminRoute): AdminCapability {
   const capability = route.capability;
   if (capability === null) {
@@ -100,7 +110,7 @@ function requiredCapabilityOf(route: AdminRoute): AdminCapability {
   return capability;
 }
 
-// `tenantScopedRoutes` (below) already excludes the two manage-tenants-only
+// `tenantScopedRoutes` (below) already excludes the manage-tenants-only
 // routes, so every capability reaching here is a `TenantCapability` —
 // narrowed by a runtime check because `requiredCapabilityOf`'s return type
 // cannot say so on its own.
@@ -202,7 +212,10 @@ describe('the capability matrix', () => {
     for (const capability of TENANT_CAPABILITIES) {
       const token = await fixture.adminToken(t.name, [capability]);
       const res = await callWith(route, url, token);
-      const permitted = admits(capability, requiredCapabilityOf(route));
+      const permitted =
+        [requiredCapabilityOf(route), ...(route.alsoAdmits ?? [])].some((required) =>
+          admits(capability, required),
+        ) && (ALSO_REQUIRED[routeKey(route)] ?? []).every((also) => admits(capability, also));
       expect(res.statusCode === 403, `${capability} at ${routeKey(route)}`).toBe(!permitted);
     }
   });
@@ -220,8 +233,8 @@ describe('the capability matrix', () => {
     },
   );
 
-  // The two routes with no `:tenant` segment: the tenant collection itself,
-  // reached only by a system-tenant admin holding manage-tenants.
+  // The routes with no `:tenant` segment: the tenant collection and its
+  // count, reached only by a system-tenant admin holding manage-tenants.
   const systemRoutes = ADMIN_ROUTES.filter((route) => !route.pattern.includes(':tenant'));
 
   it.each(systemRoutes)('$method $pattern admits only manage-tenants', async (route) => {
@@ -242,6 +255,14 @@ describe('the capability matrix', () => {
   // its path and method already say, independent of what any route
   // actually declares.
   describe('a route names a capability its own path and method already imply', () => {
+    it('admits a further capability on a read alone', () => {
+      const widened = tenantScopedRoutes.filter((route) => route.alsoAdmits !== undefined);
+      expect(widened.map(routeKey).sort()).toEqual([
+        'GET /admin/tenants/:tenant/groups',
+        'GET /admin/tenants/:tenant/roles',
+      ]);
+    });
+
     it('no mutating method requires a bare view-* capability', () => {
       for (const route of tenantScopedRoutes) {
         if (route.method === 'GET') continue;

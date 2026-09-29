@@ -5,6 +5,8 @@ export {
   type CursorQuery,
   problemDetailsSchema,
   type ProblemDetails,
+  fieldErrorSchema,
+  type FieldError,
   idSchema,
   createdAtSchema,
   etagSchema,
@@ -24,6 +26,10 @@ export {
   type AmendTenantRequest,
   tenantSchema,
   type Tenant,
+  listTenantsQuerySchema,
+  type ListTenantsQuery,
+  countTenantsQuerySchema,
+  type CountTenantsQuery,
   listTenantsResponseSchema,
   type ListTenantsResponse,
 } from '#/admin/tenants';
@@ -34,6 +40,12 @@ export {
   type Settings,
 } from '#/admin/settings';
 export {
+  profileSchema,
+  type Profile,
+  amendProfileRequestSchema,
+  type AmendProfileRequest,
+} from '#/admin/profile';
+export {
   clientTypeSchema,
   registrationOriginSchema,
   clientSchema,
@@ -42,6 +54,10 @@ export {
   type CreateClientResponse,
   createClientRequestSchema,
   type CreateClientRequest,
+  listClientsQuerySchema,
+  type ListClientsQuery,
+  countClientsQuerySchema,
+  type CountClientsQuery,
   listClientsResponseSchema,
   type ListClientsResponse,
   amendClientRequestSchema,
@@ -50,13 +66,28 @@ export {
   type RotateClientSecretResponse,
 } from '#/admin/clients';
 export {
+  registrationTokenSchema,
+  type RegistrationToken,
+  listRegistrationTokensQuerySchema,
+  type ListRegistrationTokensQuery,
+  listRegistrationTokensResponseSchema,
+  type ListRegistrationTokensResponse,
+  mintRegistrationTokenRequestSchema,
+  type MintRegistrationTokenRequest,
+  mintRegistrationTokenResponseSchema,
+  type MintRegistrationTokenResponse,
+} from '#/admin/registration-tokens';
+export {
   subjectTypeSchema,
   subjectSchema,
   type Subject,
   listSubjectsQuerySchema,
   type ListSubjectsQuery,
+  countSubjectsQuerySchema,
+  type CountSubjectsQuery,
   listSubjectsResponseSchema,
   type ListSubjectsResponse,
+  usernameSchema,
   createSubjectRequestSchema,
   type CreateSubjectRequest,
   amendSubjectRequestSchema,
@@ -76,18 +107,30 @@ export {
   roleAssignmentSchema,
   setRolesResponseSchema,
   type SetRolesResponse,
+  SUBJECT_CAPABILITY_FILTER,
 } from '#/admin/subjects';
 export {
   sessionSchema,
   type Session,
   listSessionsResponseSchema,
   type ListSessionsResponse,
+  endSessionsResponseSchema,
+  type EndSessionsResponse,
 } from '#/admin/sessions';
+export { issuePasswordResponseSchema, type IssuePasswordResponse } from '#/admin/account-recovery';
+export {
+  consentSchema,
+  type Consent,
+  listConsentsResponseSchema,
+  type ListConsentsResponse,
+} from '#/admin/consents';
 export {
   roleSchema,
   type Role,
   listRolesQuerySchema,
   type ListRolesQuery,
+  countRolesQuerySchema,
+  type CountRolesQuery,
   listRolesResponseSchema,
   type ListRolesResponse,
   createRoleRequestSchema,
@@ -96,12 +139,18 @@ export {
   type AmendRoleRequest,
   addRoleCompositeRequestSchema,
   type AddRoleCompositeRequest,
+  listRoleCompositesResponseSchema,
+  type ListRoleCompositesResponse,
+  setRoleDefaultRequestSchema,
+  type SetRoleDefaultRequest,
 } from '#/admin/roles';
 export {
   groupSchema,
   type Group,
   listGroupsQuerySchema,
   type ListGroupsQuery,
+  countGroupsQuerySchema,
+  type CountGroupsQuery,
   listGroupsResponseSchema,
   type ListGroupsResponse,
   createGroupRequestSchema,
@@ -112,12 +161,18 @@ export {
   type SetGroupRolesRequest,
   setGroupRolesResponseSchema,
   type SetGroupRolesResponse,
+  setSubjectGroupsRequestSchema,
+  type SetSubjectGroupsRequest,
+  setSubjectGroupsResponseSchema,
+  type SetSubjectGroupsResponse,
 } from '#/admin/groups';
 export {
   clientScopeSchema,
   type ClientScope,
   listScopesQuerySchema,
   type ListScopesQuery,
+  countScopesQuerySchema,
+  type CountScopesQuery,
   listScopesResponseSchema,
   type ListScopesResponse,
   createScopeRequestSchema,
@@ -134,6 +189,12 @@ export {
   type AssignScopeToClientRequest,
   assignScopeToClientResponseSchema,
   type AssignScopeToClientResponse,
+  listScopeClientsQuerySchema,
+  type ListScopeClientsQuery,
+  scopeClientSchema,
+  type ScopeClient,
+  listScopeClientsResponseSchema,
+  type ListScopeClientsResponse,
 } from '#/admin/scopes';
 export {
   scopeMappersSchema,
@@ -144,6 +205,7 @@ export {
 export {
   smtpConfigSchema,
   type SmtpConfig,
+  smtpPortSchema,
   putSmtpRequestSchema,
   type PutSmtpRequest,
   testSmtpRequestSchema,
@@ -165,6 +227,7 @@ export {
   createKeyRequestSchema,
   type CreateKeyRequest,
 } from '#/admin/keys';
+export { whoamiResponseSchema, type WhoamiResponse, ADMIN_CAPABILITIES } from '#/admin/whoami';
 export {
   executionRequirementSchema,
   type ExecutionRequirement,
@@ -177,3 +240,40 @@ export {
   replaceExecutionsResponseSchema,
   type ReplaceExecutionsResponse,
 } from '#/admin/flow';
+export { countResponseSchema, type CountResponse } from '#/admin/counts';
+export {
+  EXPORT_SUBJECT_CAP,
+  TENANT_DOCUMENT_MEDIA_TYPE,
+  REGISTRATION_POLICY_SETTINGS,
+  exportTenantQuerySchema,
+  type ExportTenantQuery,
+  roleReferenceSchema,
+  type RoleReference,
+  registrationPolicySchema,
+  type RegistrationPolicy,
+  tenantSettingsDocumentSchema,
+  type TenantSettingsDocument,
+  exportedFlowStepSchema,
+  exportedClientSchema,
+  type ExportedClient,
+  exportedRoleSchema,
+  type ExportedRole,
+  exportedGroupSchema,
+  type ExportedGroup,
+  exportedScopeSchema,
+  type ExportedScope,
+  exportedSmtpSchema,
+  type ExportedSmtp,
+  exportedSubjectSchema,
+  type ExportedSubject,
+  tenantDocumentSchema,
+  type TenantDocument,
+  importTenantRequestSchema,
+  type ImportTenantRequest,
+  importedClientSecretSchema,
+  importTenantResponseSchema,
+  type ImportTenantResponse,
+  importErrorSchema,
+  type ImportError,
+  TENANT_IMPORT_BODY_LIMIT,
+} from '#/admin/tenant-document';

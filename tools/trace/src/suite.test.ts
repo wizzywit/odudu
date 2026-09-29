@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { isSpecificationId, readSuite } from '#/suite';
+import { isSpecificationId, readSuite, readSuites } from '#/suite';
 
 function report(assertionResults: { fullName: string; status: string }[]): unknown {
   return { testResults: [{ assertionResults }] };
@@ -90,5 +90,33 @@ describe('isSpecificationId', () => {
 
   it('treats an ODUDU-prefixed id as a project id, not a specification id', () => {
     expect(isSpecificationId('ODUDU-CROSS-TENANT-LEAKAGE-01')).toBe(false);
+  });
+});
+
+describe('readSuites', () => {
+  it('merges several reports, in input order', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'odudu-trace-'));
+    const a = join(dir, 'a.json');
+    const b = join(dir, 'b.json');
+    await writeFile(
+      a,
+      JSON.stringify(report([{ fullName: '[RFC7636-4.1-01] a', status: 'passed' }])),
+    );
+    await writeFile(
+      b,
+      JSON.stringify(report([{ fullName: '[RFC6749-3.1-01] b', status: 'failed' }])),
+    );
+
+    expect(await readSuites([a, b])).toEqual([
+      { id: 'RFC7636-4.1-01', title: '[RFC7636-4.1-01] a', passed: true },
+      { id: 'RFC6749-3.1-01', title: '[RFC6749-3.1-01] b', passed: false },
+    ]);
+  });
+
+  it('rejects naming a report that is missing', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'odudu-trace-'));
+    const missing = join(dir, 'absent', 'trace-report.json');
+
+    await expect(readSuites([missing])).rejects.toThrow(missing);
   });
 });

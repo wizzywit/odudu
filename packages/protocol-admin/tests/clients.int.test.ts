@@ -1,7 +1,10 @@
+import { PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { withTenant, type TenantScopedDatabase } from '@odudu/db';
-import { ClientIdConflictError, clientRepository } from '@odudu/domain-tenant';
+import { ClientIdConflictError, clientRepository, clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
-import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
+import { clientOidcConfig, clientOidcConfigRepository } from '@odudu/protocol-oidc';
+import { eq, sql } from 'drizzle-orm';
+import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -293,6 +296,36 @@ describe('POST /admin/tenants/{t}/clients', () => {
     );
   });
 
+  it('refuses a jwks holding a private key, on create and on amend', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const privateJwks = { keys: [{ kty: 'EC', crv: 'P-256', x: 'x', y: 'y', d: 'private' }] };
+    const description = 'jwks.keys[0] carries the private member d; register public keys only';
+
+    const created = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers,
+      payload: {
+        client_id: `rp-${newId()}`,
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'private_key_jwt',
+        jwks: privateJwks,
+      },
+    });
+    expect(created.statusCode).toBe(400);
+    expect(created.json<{ detail: string }>().detail).toBe(description);
+
+    const client = await fixture.createConfidentialClient(t.name, {});
+    const amended = await fixture.patchClient(t.name, client.id, {
+      token_endpoint_auth_method: 'private_key_jwt',
+      jwks: privateJwks,
+    });
+    expect(amended.statusCode).toBe(400);
+    expect(amended.json<{ detail: string }>().detail).toBe(description);
+  });
+
   it('refuses a caller holding only manage-users', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-users']);
@@ -349,6 +382,64 @@ describe('GET /admin/tenants/{t}/clients and /clients/{id}', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  it('reads builtin_admin: true for the built-in admin client, false for an ordinary one', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const admin = await fixture.builtinAdminClient(t.name);
+
+    const adminRead = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients/${admin.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(adminRead.json<{ builtin_admin: boolean }>().builtin_admin).toBe(true);
+
+    const create = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: `spa-${newId()}`,
+        redirect_uris: ['https://app.example/callback'],
+        token_endpoint_auth_method: 'none',
+      },
+    });
+    expect(create.json<{ builtin_admin: boolean }>().builtin_admin).toBe(false);
+  });
+
+  it('reads a confidential client’s service_subject_id, and null for a public client', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+
+    const confidential = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: `backend-${newId()}`,
+        grant_types: ['client_credentials'],
+        token_endpoint_auth_method: 'client_secret_basic',
+      },
+    });
+    expect(
+      typeof confidential.json<{ service_subject_id: string | null }>().service_subject_id,
+    ).toBe('string');
+
+    const publicClient = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: {
+        client_id: `spa-${newId()}`,
+        redirect_uris: ['https://app.example/callback'],
+        token_endpoint_auth_method: 'none',
+      },
+    });
+    expect(
+      publicClient.json<{ service_subject_id: string | null }>().service_subject_id,
+    ).toBeNull();
   });
 
   it('refuses a caller holding only manage-users', async () => {
@@ -425,6 +516,176 @@ describe('GET /admin/tenants/{t}/clients and /clients/{id}', () => {
     expect(secondBody.items).toHaveLength(1);
     // The cursor moved: the second page's row is not the first page's row.
     expect(secondBody.items[0]?.client_id).not.toBe(firstBody.items[0]?.client_id);
+  });
+});
+
+async function seedClient(
+  tenantName: string,
+  clientId: string,
+  options: { readonly name?: string; readonly confidential?: boolean } = {},
+): Promise<string> {
+  const token = await fixture.adminToken(tenantName, ['manage-clients']);
+  const res = await fixture.http.inject({
+    method: 'POST',
+    url: `/admin/tenants/${tenantName}/clients`,
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    payload: {
+      client_id: clientId,
+      ...(options.name === undefined ? {} : { client_name: options.name }),
+      redirect_uris: ['https://app.example/cb'],
+      token_endpoint_auth_method: options.confidential === true ? 'client_secret_basic' : 'none',
+    },
+  });
+  if (res.statusCode !== 201) throw new Error(`could not create ${clientId}: ${res.body}`);
+  return res.json<{ id: string }>().id;
+}
+
+async function listClientsAt(tenantName: string, query: string): Promise<LightMyRequestResponse> {
+  const token = await fixture.adminToken(tenantName, ['manage-clients']);
+  return fixture.http.inject({
+    method: 'GET',
+    url: `/admin/tenants/${tenantName}/clients?${query}`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+function clientIdsOf(res: LightMyRequestResponse): string[] {
+  return res.json<{ items: { client_id: string }[] }>().items.map((c) => c.client_id);
+}
+
+// PostgreSQL's own answer, in the order a searched listing promises, so no
+// expectation here folds a string in JavaScript.
+async function nameMatches(tenantId: string, prefix: string): Promise<string[]> {
+  const rows = await fixture.owner.db.execute<{ client_id: string }>(sql`
+    select client_id from clients
+     where tenant_id = ${tenantId} and starts_with(lower(name), lower(${prefix}))
+     order by lower(name) collate "C", id
+  `);
+  return rows.map((row) => row.client_id);
+}
+
+describe('GET /admin/tenants/{t}/clients — search and exact filters', () => {
+  it('finds a client_id case-insensitively', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedClient(t.name, 'Portal-Web');
+    await seedClient(t.name, 'billing');
+
+    const res = await listClientsAt(t.name, 'client_id=portal');
+    expect(res.statusCode).toBe(200);
+    expect(clientIdsOf(res)).toEqual(['Portal-Web']);
+  });
+
+  it('orders name matches by the folded name, then by id', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedClient(t.name, 'c1', { name: 'Shop c' });
+    await seedClient(t.name, 'c2', { name: 'SHOP A' });
+    await seedClient(t.name, 'c3', { name: 'shop b' });
+    await seedClient(t.name, 'c4', { name: 'Shop a' });
+    await seedClient(t.name, 'c5', { name: 'Stock' });
+
+    const res = await listClientsAt(t.name, 'name=shop');
+    expect(res.statusCode).toBe(200);
+    const expected = await nameMatches(t.id, 'shop');
+    expect(expected).toHaveLength(4);
+    expect(clientIdsOf(res)).toEqual(expected);
+  });
+
+  it('pages a client_id search one row at a time, each match once and in order', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const clientId of ['app-b', 'APP-a', 'app-c', 'other']) await seedClient(t.name, clientId);
+
+    const seen: string[] = [];
+    let query = 'client_id=app&limit=1';
+    for (let page = 0; page < 5; page += 1) {
+      const res = await listClientsAt(t.name, query);
+      expect(res.statusCode).toBe(200);
+      const body = res.json<{ items: { client_id: string }[]; next?: string }>();
+      seen.push(...body.items.map((c) => c.client_id));
+      if (body.next === undefined) break;
+      query = `client_id=app&limit=1&cursor=${encodeURIComponent(body.next)}`;
+    }
+    expect(seen).toEqual(['APP-a', 'app-b', 'app-c']);
+  });
+
+  it('reads _ and % as ordinary characters', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedClient(t.name, 'axb');
+    await seedClient(t.name, 'a_b');
+    await seedClient(t.name, 'a%b');
+
+    expect(clientIdsOf(await listClientsAt(t.name, 'client_id=a_b'))).toEqual(['a_b']);
+    expect(clientIdsOf(await listClientsAt(t.name, 'client_id=a%25'))).toEqual(['a%b']);
+  });
+
+  it('filters by ?type= and ?enabled=, ANDed with a search', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    await seedClient(t.name, 'svc-a', { confidential: true });
+    const off = await seedClient(t.name, 'svc-b', { confidential: true });
+    await seedClient(t.name, 'spa');
+    await fixture.owner.db.update(clients).set({ enabled: false }).where(eq(clients.id, off));
+
+    expect(clientIdsOf(await listClientsAt(t.name, 'client_id=s&type=public'))).toEqual(['spa']);
+    expect(clientIdsOf(await listClientsAt(t.name, 'client_id=s&type=confidential'))).toEqual([
+      'svc-a',
+      'svc-b',
+    ]);
+    expect(clientIdsOf(await listClientsAt(t.name, 'enabled=false'))).toEqual(['svc-b']);
+    expect(clientIdsOf(await listClientsAt(t.name, 'type=confidential&enabled=true'))).toEqual(
+      expect.arrayContaining(['svc-a']),
+    );
+    expect(
+      clientIdsOf(await listClientsAt(t.name, 'type=confidential&enabled=true')),
+    ).not.toContain('svc-b');
+  });
+
+  it('finds nothing searching for a client that belongs to another tenant', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const other = await fixture.createTenant(`acme-${newId()}`);
+    await seedClient(other.name, 'foreign-app');
+
+    const res = await listClientsAt(t.name, 'client_id=foreign');
+    expect(res.statusCode).toBe(200);
+    expect(clientIdsOf(res)).toEqual([]);
+  });
+
+  it('refuses an unknown parameter with 400 naming it', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await listClientsAt(t.name, 'search=app');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('search');
+  });
+
+  it('refuses a search over client_id and name at once', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const res = await listClientsAt(t.name, 'client_id=a&name=b');
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ detail: string }>().detail).toContain('one field at a time');
+  });
+
+  it('refuses a type other than public or confidential, and an enabled other than true or false', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    expect((await listClientsAt(t.name, 'type=service')).statusCode).toBe(400);
+    expect((await listClientsAt(t.name, 'enabled=yes')).statusCode).toBe(400);
+  });
+
+  it.each([
+    ['another search', 'client_id=a&limit=1', 'client_id=b&limit=1'],
+    ['a filter added', 'client_id=a&limit=1', 'client_id=a&type=public&limit=1'],
+    ['a filter dropped', 'client_id=a&type=public&limit=1', 'client_id=a&limit=1'],
+  ])('refuses a cursor replayed under %s', async (_label, minted, replayedUnder) => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    for (const clientId of ['a-1', 'a-2', 'b-1', 'b-2']) await seedClient(t.name, clientId);
+
+    const first = await listClientsAt(t.name, minted);
+    const next = first.json<{ next?: string }>().next;
+    if (next === undefined) throw new Error('expected a next cursor');
+
+    const replayed = await listClientsAt(
+      t.name,
+      `${replayedUnder}&cursor=${encodeURIComponent(next)}`,
+    );
+    expect(replayed.statusCode).toBe(400);
+    expect(replayed.json<{ detail: string }>().detail).toBe('cursor is invalid or expired');
   });
 });
 
@@ -663,6 +924,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           clientDbId: created.id,
           values: { name: 'Audited rename' },
           ifMatch: undefined,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -691,6 +953,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           clientDbId: created.id,
           values: { client_id: 'evasion-attempt' },
           ifMatch: undefined,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -719,6 +982,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           clientDbId: created.id,
           values: { grant_types: ['client_credentials'] },
           ifMatch: undefined,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -729,7 +993,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
     expect(events).toHaveLength(0);
   });
 
-  it('does not call audit when the built-in admin guard refuses it', async () => {
+  it('calls audit once, with a refused row, when the built-in admin guard refuses it', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const admin = await fixture.builtinAdminClient(t.name);
     const events: unknown[] = [];
@@ -747,6 +1011,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           clientDbId: admin.id,
           values: { enabled: false },
           ifMatch: undefined,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -754,7 +1019,9 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
       ),
     );
     expect(outcome.kind).toBe('builtin_admin_guarded');
-    expect(events).toHaveLength(0);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ outcome: 'refused' });
+    expect(typeof (events[0] as { detail?: { reason?: unknown } }).detail?.reason).toBe('string');
   });
 
   it('409s amending token_endpoint_auth_method across the public/confidential boundary', async () => {
@@ -822,6 +1089,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           clientDbId: created.client.id,
           values: { token_endpoint_auth_method: 'client_secret_basic' },
           ifMatch: undefined,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -850,6 +1118,7 @@ describe('PATCH /admin/tenants/{t}/clients/{id}', () => {
           clientDbId: created.id,
           values: { token_endpoint_auth_method: 'none' },
           ifMatch: undefined,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -923,6 +1192,7 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
         },
         {
           clientDbId: created.id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -933,7 +1203,7 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
     expect(events).toHaveLength(1);
   });
 
-  it('does not call audit when the built-in admin guard refuses it', async () => {
+  it('calls audit once, with a refused row, when the built-in admin guard refuses it', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const admin = await fixture.builtinAdminClient(t.name);
     const events: unknown[] = [];
@@ -948,6 +1218,7 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
         },
         {
           clientDbId: admin.id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -955,7 +1226,9 @@ describe('DELETE /admin/tenants/{t}/clients/{id}', () => {
       ),
     );
     expect(outcome.kind).toBe('builtin_admin_guarded');
-    expect(events).toHaveLength(0);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ outcome: 'refused' });
+    expect(typeof (events[0] as { detail?: { reason?: unknown } }).detail?.reason).toBe('string');
   });
 });
 
@@ -1031,6 +1304,7 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
         },
         {
           clientDbId: created.id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1068,6 +1342,7 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
         },
         {
           clientDbId: id,
+          callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
           actorClientId: 'test-client',
@@ -1167,7 +1442,8 @@ describe("the built-in admin client's guards", () => {
   it('allows disabling an ordinary admin-capable client, locking that caller out', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const provisioner = await fixture.createServiceAccountClient(t.name, ['manage-users']);
-    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    // `manage-users` too: the caller must cover what the service account holds.
+    const token = await fixture.adminToken(t.name, ['manage-clients', 'manage-users']);
     const res = await fixture.http.inject({
       method: 'PATCH',
       url: `/admin/tenants/${t.name}/clients/${provisioner.id}`,
@@ -1182,5 +1458,72 @@ describe("the built-in admin client's guards", () => {
       headers: { authorization: `Bearer ${provisioner.token}` },
     });
     expect(after.statusCode).toBe(401);
+  });
+});
+
+// A private member stored before registration and the admin API refused
+// one: nothing serves it back, and no amendment is refused because of it.
+describe('a jwks stored with a private member', () => {
+  const publicKey = { kty: 'EC', crv: 'P-256', x: 'public-x', y: 'public-y', kid: 'one' };
+
+  async function legacyClient(): Promise<{ tenantName: string; id: string; secrets: string[] }> {
+    const t = await fixture.createTenant(`jwks-${newId()}`);
+    const client = await fixture.createConfidentialClient(t.name, {});
+    const privateValues = Object.fromEntries(
+      PRIVATE_JWK_MEMBERS.map((member) => [member, `private-${member}-${newId()}`]),
+    );
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      tx
+        .update(clientOidcConfig)
+        .set({ jwks: { keys: [{ ...publicKey, ...privateValues }] } })
+        .where(eq(clientOidcConfig.clientId, client.id)),
+    );
+    return { tenantName: t.name, id: client.id, secrets: Object.values(privateValues) };
+  }
+
+  it('is served without it, by the read and by the list', async () => {
+    const legacy = await legacyClient();
+    const headers = {
+      authorization: `Bearer ${await fixture.adminToken(legacy.tenantName, ['manage-clients'])}`,
+    };
+    const base = `/admin/tenants/${legacy.tenantName}/clients`;
+
+    const read = await fixture.http.inject({ method: 'GET', url: `${base}/${legacy.id}`, headers });
+    const list = await fixture.http.inject({ method: 'GET', url: base, headers });
+
+    expect(read.json<{ jwks: unknown }>().jwks).toEqual({ keys: [publicKey] });
+    for (const secret of legacy.secrets) {
+      expect(read.payload).not.toContain(secret);
+      expect(list.payload).not.toContain(secret);
+    }
+  });
+
+  it('does not refuse an amendment of another metadata field, and is stored without it', async () => {
+    const legacy = await legacyClient();
+    const token = await fixture.adminToken(legacy.tenantName, ['manage-clients']);
+    const url = `/admin/tenants/${legacy.tenantName}/clients/${legacy.id}`;
+    const read = await fixture.http.inject({
+      method: 'GET',
+      url,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const res = await fixture.http.inject({
+      method: 'PATCH',
+      url,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        'if-match': String(read.headers.etag),
+      },
+      payload: { redirect_uris: ['https://app.example/other'] },
+    });
+
+    expect(res.statusCode, res.payload).toBe(200);
+    const [stored] = await fixture.owner.db
+      .select({ jwks: clientOidcConfig.jwks })
+      .from(clientOidcConfig)
+      .where(eq(clientOidcConfig.clientId, legacy.id));
+    expect(stored?.jwks).toEqual({ keys: [publicKey] });
   });
 });

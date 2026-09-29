@@ -3,6 +3,7 @@ import {
   amendRoleRequestSchema,
   createRoleRequestSchema,
   listRolesQuerySchema,
+  setRoleDefaultRequestSchema,
 } from '@odudu/contracts/admin';
 import { isUniqueViolation, type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
@@ -13,14 +14,26 @@ import {
   amendRole,
   createRole,
   deleteRole,
+  listRoleComposites,
   listRoles,
   readRole,
+  removeRoleComposite,
+  setRoleDefault,
   type AddRoleCompositeOutcome,
   type AmendRoleOutcome,
   type Audit,
   type CreateRoleOutcome,
 } from '#/usecase/roles';
-import { problem, sendProblem } from '#/view/problem';
+import {
+  ceilingProblem,
+  cursorProblem,
+  fieldProblem,
+  ifMatchStale,
+  problem,
+  sendProblem,
+  type Problem,
+  lastAdministratorProblem,
+} from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
@@ -35,6 +48,15 @@ export interface RolesRouteDeps {
   ) => Promise<ReadonlySet<string>>;
 }
 
+function defaultRoleCapabilityProblem(capabilities: readonly string[]): Problem {
+  return problem(
+    403,
+    'about:blank',
+    'Forbidden',
+    `a role handed to every new subject may reach no admin capability, and this one would reach: ${capabilities.join(', ')}`,
+  );
+}
+
 function ifMatchHeader(request: AdminRequest): string | undefined {
   const value = request.headers['if-match'];
   return typeof value === 'string' ? value : undefined;
@@ -43,7 +65,8 @@ function ifMatchHeader(request: AdminRequest): string | undefined {
 export function listRolesHandler(deps: RolesRouteDeps): AdminRouteHandler {
   return async (request, reply, _principal, targetTenantId) => {
     const query = listRolesQuerySchema.parse(request.query);
-    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
+    const { cursor, limit: requestedLimit, ...filters } = query;
+    const limit = coerceLimit(requestedLimit === undefined ? undefined : String(requestedLimit));
     const tenantName = request.params.tenant;
     if (tenantName === undefined) {
       throw new Error('protocol-admin: roles route received no :tenant');
@@ -52,17 +75,14 @@ export function listRolesHandler(deps: RolesRouteDeps): AdminRouteHandler {
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       listRoles(tx, {
         limit,
-        cursor: query.cursor,
+        cursor,
         cursorKey: deps.cursorKey,
         tenantId: targetTenantId,
+        filters,
       }),
     );
     if (outcome.kind === 'invalid_cursor') {
-      return sendProblem(
-        reply,
-        request,
-        problem(400, 'about:blank', 'Bad Request', 'cursor is invalid or expired'),
-      );
+      return sendProblem(reply, request, cursorProblem());
     }
 
     if (outcome.next === null) {
@@ -142,9 +162,25 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', 'client_id names no client'),
+        fieldProblem(
+          [{ path: 'client_id', message: 'names no client' }],
+          'client_id names no client',
+        ),
       );
     }
+    if (outcome.kind === 'default_on_admin_client') {
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          403,
+          'about:blank',
+          'Forbidden',
+          `a role of ${outcome.adminClient}, this tenant's built-in admin client, is an admin capability and cannot be handed to every new subject`,
+        ),
+      );
+    }
+    reply.header('etag', etagOf(outcome.role));
     return reply.code(201).send(outcome.role);
   };
 }
@@ -161,13 +197,13 @@ function amendmentProblem(
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.reason}`),
+        fieldProblem([{ path: outcome.field, message: outcome.reason }]),
       );
     case 'invalid_value':
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', `${outcome.field}: ${outcome.description}`),
+        fieldProblem([{ path: outcome.field, message: outcome.description }]),
       );
     case 'precondition_failed':
       return sendProblem(
@@ -215,6 +251,10 @@ export function deleteRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
     if (id === undefined) {
       throw new Error('protocol-admin: DELETE role route received no :id');
     }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
 
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       deleteRole(
@@ -222,6 +262,7 @@ export function deleteRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
         { audit: deps.audit },
         {
           roleId: id,
+          callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
@@ -230,10 +271,14 @@ export function deleteRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
     );
 
     switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
       case 'not_found':
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'builtin_admin_guarded':
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'capability_ceiling':
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
       case 'deleted':
         return reply.code(204).send();
     }
@@ -252,8 +297,13 @@ function compositeProblem(
       return sendProblem(
         reply,
         request,
-        problem(400, 'about:blank', 'Bad Request', 'child_role_id names no role'),
+        fieldProblem(
+          [{ path: 'child_role_id', message: 'names no role' }],
+          'child_role_id names no role',
+        ),
       );
+    case 'builtin_admin_guarded':
+      return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
     case 'capability_ceiling':
       return sendProblem(
         reply,
@@ -265,12 +315,16 @@ function compositeProblem(
           `the caller does not hold: ${outcome.requested.join(', ')}`,
         ),
       );
+    case 'default_role_capability':
+      return sendProblem(reply, request, defaultRoleCapabilityProblem(outcome.capabilities));
     case 'cycle':
       return sendProblem(
         reply,
         request,
         problem(409, 'about:blank', 'Conflict', 'would create a role composite cycle'),
       );
+    case 'precondition_failed':
+      return sendProblem(reply, request, ifMatchStale());
   }
 }
 
@@ -294,6 +348,7 @@ export function addRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHandler
         {
           parentRoleId: id,
           childRoleId: body.child_role_id,
+          ifMatch: ifMatchHeader(request),
           callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,
@@ -305,6 +360,115 @@ export function addRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHandler
     if (outcome.kind !== 'ok') {
       return compositeProblem(reply, request, outcome);
     }
+    reply.header('etag', outcome.etag);
     return reply.code(204).send();
+  };
+}
+
+export function listRoleCompositesHandler(deps: RolesRouteDeps): AdminRouteHandler {
+  return async (request, reply, _principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: GET composites route received no :id');
+    }
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      listRoleComposites(tx, id),
+    );
+    if (outcome.kind === 'not_found') {
+      return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found', `no role ${id}`));
+    }
+    reply.header('etag', outcome.etag);
+    return reply.code(200).send({ items: outcome.items });
+  };
+}
+
+export function removeRoleCompositeHandler(deps: RolesRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const { id, childId } = request.params;
+    if (id === undefined || childId === undefined) {
+      throw new Error('protocol-admin: DELETE composite route received no :id or :childId');
+    }
+    const callerCapabilities = await deps.callerCapabilities(
+      principal.issuerTenantId,
+      principal.subjectId,
+    );
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      removeRoleComposite(
+        tx,
+        { audit: deps.audit },
+        {
+          parentRoleId: id,
+          childRoleId: childId,
+          ifMatch: ifMatchHeader(request),
+          callerCapabilities,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'last_administrator':
+        return sendProblem(reply, request, lastAdministratorProblem(outcome.reason));
+      case 'not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no composite ${childId} under role ${id}`),
+        );
+      case 'builtin_admin_guarded':
+        return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.reason));
+      case 'capability_ceiling':
+        return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
+      case 'removed':
+        reply.header('etag', outcome.etag);
+        return reply.code(204).send();
+    }
+  };
+}
+
+export function setRoleDefaultHandler(deps: RolesRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: PUT default route received no :id');
+    }
+    const body = setRoleDefaultRequestSchema.parse(request.body);
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      setRoleDefault(
+        tx,
+        { audit: deps.audit },
+        {
+          roleId: id,
+          value: body.default,
+          ifMatch: ifMatchHeader(request),
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no role ${id}`),
+        );
+      case 'default_role_capability':
+        return sendProblem(reply, request, defaultRoleCapabilityProblem(outcome.capabilities));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
+      case 'ok':
+        reply.header('etag', outcome.etag);
+        return reply.code(200).send(outcome.role);
+    }
   };
 }

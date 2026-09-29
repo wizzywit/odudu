@@ -496,7 +496,10 @@ www-authenticate: Bearer realm="client-registration"
 in seconds, and both are required since the schema has no default for
 either. Every other seed subcommand answers with a line of JSON; this one
 answers with the token alone, so `TOKEN=$(odudu seed registration-token …)`
-captures exactly the credential and nothing else.
+captures exactly the credential and nothing else. The admin API mints the
+same way, for an operator who would rather not shell into the container:
+`POST /admin/tenants/{tenant}/registration-tokens` (`manage-clients`),
+documented in [docs/admin-paths.md](admin-paths.md).
 
 ```bash
 TOKEN=$(odudu seed registration-token --tenant reg-demo --uses 1 --ttl 3600)
@@ -681,6 +684,39 @@ curl -sS -X POST http://localhost:3000/tenants/reg-demo/clients-registrations/op
   "frontchannel_logout_uri": "https://rp.example/fc",
   "frontchannel_logout_session_required": true
 }
+```
+
+A registered `jwks` carries public keys only. A key holding any private
+member — `d`, `p`, `q`, `dp`, `dq`, `qi` or `k` — is refused, on
+registration here and on `POST` and `PATCH /admin/tenants/{tenant}/clients`
+alike, since all three validate through the same client metadata check: a
+stored private half would be handed back by every read and export of the
+client. These three calls were captured later than the rest of this
+section, against a different stack: a compose project of their own,
+published on port 3080 and built from the branch that made an admin `400`
+name its field under `errors`, in a tenant `jwks-demo` created through
+`POST /admin/tenants` with `client_registration_policy` set to `open`
+through `PATCH /settings`, so the refusal is the key's and not the
+policy's. That stack was torn down afterwards. A private key is refused
+by registration and by the admin API, and the first key without its private
+member then registers:
+
+```bash
+curl -sS -X POST http://localhost:3080/tenants/jwks-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"token_endpoint_auth_method":"private_key_jwt","jwks":{"keys":[{"kty":"EC","crv":"P-256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0","d":"jpsQnnGQmL-YBIffH1136cspYG6-0iY7X1fCE9-E9LI"}]}}'
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"client_id":"signer-app","grant_types":["client_credentials"],"token_endpoint_auth_method":"private_key_jwt","jwks":{"keys":[{"kty":"oct","k":"c3ltbWV0cmljLXNlY3JldA"}]}}' \
+  http://localhost:3080/admin/tenants/jwks-demo/clients
+curl -sS -X POST http://localhost:3080/tenants/jwks-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://rp.example/cb"],"token_endpoint_auth_method":"private_key_jwt","jwks":{"keys":[{"kty":"EC","crv":"P-256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}}'
+```
+
+```
+{"error":"invalid_client_metadata","error_description":"jwks.keys[0] carries the private member d; register public keys only"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"jwks.keys[0] carries the private member k; register public keys only","errors":[{"path":"jwks","message":"jwks.keys[0] carries the private member k; register public keys only"}],"instance":"01a0ea63-bbfe-7bcd-9234-5a96705e5f51"}
+{"client_id":"01a0ea63-bc2e-76fa-b646-56b5121f644e","client_id_issued_at":1790638799,"client_secret":"_YZPORl5uy3NcYXEzMq8PSjdCnddn4XutbW7T4-QR4Y","client_secret_expires_at":0,"redirect_uris":["https://rp.example/cb"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"private_key_jwt","jwks":{"keys":[{"kty":"EC","crv":"P-256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}}
 ```
 
 ## Path A: authorization code with PKCE
@@ -1589,7 +1625,10 @@ through the group) onto the same access token:
 own membership is `/engineering/backend`, not `/engineering` too — but
 `roles` carries what those memberships and their ancestors reach, which is
 why `engineering-lead` appears even though nothing ever joined `ada` to
-`/engineering` itself.
+`/engineering` itself. `seed join-group` is one way in; the admin API's
+`PUT /admin/tenants/{tenant}/subjects/:id/groups` is the other, and refuses
+a membership whose roles reach past its caller's own
+([docs/admin-paths.md](admin-paths.md)).
 
 ### 5. `/userinfo`
 
@@ -2565,7 +2604,9 @@ curl -sS -X POST http://localhost:3000/tenants/register-demo/login-actions/regis
 ```
 
 The subject, the `users` row, the password credential and the tenant's
-default roles are all created in one transaction, and the `verify_email`
+default roles — those `PUT /admin/tenants/{tenant}/roles/{id}/default`
+marks, none of which may reach an admin capability
+([docs/admin-paths.md](admin-paths.md)) — are all created in one transaction, and the `verify_email`
 token is issued inside that same transaction — the mail goes out only after
 it commits, the same ordering [Address verification](#address-verification)
 establishes. With `ODUDU_SMTP_HOST` unset, the link lands in the container's
@@ -3688,7 +3729,9 @@ setup at the same moment, for the same reason.
 
 Two ways out that this does not provide, both needing a page this server does
 not have yet: asking for a fresh set _before_ running out, and a warning as
-the list gets short. Both are the account console, which is **P4d**'s.
+the list gets short. Both are self-service, which is **P4f**'s: an
+application-initiated action for the fresh set, and the "me" API's count for
+the warning.
 
 ### Where the step sits in the flow
 
@@ -5409,7 +5452,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0,"audit_events":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"sessions":0,"audit_events":0}}
 ```
 
 Those zeros are the point. By this stage the database holds a consumed
@@ -5446,15 +5489,11 @@ and a replayed spent one are refused identically — so
 `ODUDU_RETENTION_ACTION_TOKEN_SECONDS`) is a courtesy window for an operator
 to read, not a bound ADR 0021's detection-window argument requires.
 
-`audit_events` reports `0` in every count below, in both passes. That is
-not this section's own capture — it was re-verified on a separate, minimal
-stack (seed a tenant, run `odudu reap`, confirm `audit_events` is `0` and
-last in `REAP_ORDER`'s order) rather than by re-walking the whole of
-[Path A](#path-a-authorization-code-with-pkce) — but it holds by
-construction regardless: the rows this walkthrough does write there — one
-per login step — are minutes old, and `audit_events`' own retention rule
-(`audit_retention_days`, 90 by default and unrelated to any window above)
-deletes nothing younger than a day.
+`audit_events` reports `0` in every count below, in both passes. The rows
+this walkthrough writes there, one per login step, are minutes old, and
+`audit_events`' own retention rule (`audit_retention_days`, 90 by default
+and unrelated to any window above) deletes nothing younger than a day. The
+forty-day backdate below does not touch that table.
 
 What makes a row deletable is the **grant family** being past retention,
 which is seven days for a session-bound family and thirty for an offline
@@ -5473,7 +5512,7 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":1,"audit_events":0}}
+{"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"sessions":1,"audit_events":0}}
 ```
 
 Both refresh tokens of the family, the code that produced it, the grant
@@ -5492,8 +5531,47 @@ odudu reap
 ```
 
 ```
-{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"sessions":0,"audit_events":0}}
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"sessions":0,"audit_events":0}}
 ```
+
+`console_sessions` and `console_logins` report `0` in every capture in this
+section so far, because nothing in this walkthrough signs in to the admin
+console. To see their rules work, insert rows directly into the same
+stack, right after the second run above: three console sessions for `ada`
+(idle for 31 minutes, past its own `expires_at`, and live) and two pending
+logins (expired, and live):
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -q -c "
+INSERT INTO console_sessions (id, tenant_id, subject_id, secret_hash, access_token_wrapped, refresh_token_wrapped, id_token_wrapped, access_expires_at, created_at, last_seen_at, expires_at)
+SELECT gen_random_uuid(), u.tenant_id, u.subject_id, sha256(gen_random_uuid()::text::bytea), 'a', 'r', 'i', now(), now() - s.age, now() - s.idle, now() + s.remaining
+  FROM users u JOIN tenants t ON t.id = u.tenant_id,
+       (VALUES (interval '1 hour', interval '31 minutes', interval '11 hours'),
+               (interval '13 hours', interval '1 minute', interval '-1 hour'),
+               (interval '1 hour', interval '1 minute', interval '11 hours')) AS s(age, idle, remaining)
+ WHERE t.name = 'demo' AND u.username = 'ada';
+INSERT INTO console_logins (id, tenant_id, state_hash, verifier_wrapped, nonce, return_to, expires_at)
+SELECT gen_random_uuid(), t.id, sha256(gen_random_uuid()::text::bytea), 'v', 'n', '/console/', now() + l.remaining
+  FROM tenants t, (VALUES (interval '-1 minute'), (interval '5 minutes')) AS l(remaining)
+ WHERE t.name = 'demo';
+"
+odudu reap
+```
+
+```
+{"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":2,"console_logins":1,"sessions":0,"audit_events":0}}
+```
+
+The idle session and the expired one are removed, and so is the expired
+login. The live session and the live login remain. A console session ends
+after thirty minutes idle or at its own `expires_at`, whichever comes first.
+A pending login ends at its `expires_at`. Neither table keeps a row past
+that point, because a row past either bound cannot be used again, so
+keeping it would serve no detection. The pass revokes no grant with the
+row: a console session's grant is bound to the tenant's SSO session, and
+its refresh token answers `invalid_grant` once that session idles out
+(`apps/server/tests/console-session.int.test.ts`). The gateway itself
+revokes the grant when a request finds the session over.
 
 ### When the pass refuses, or finds nothing to look at
 
@@ -9076,8 +9154,62 @@ shows for a `client_id` it does not know — so a probe cannot tell a missing
 tenant from a missing client.
 
 A disabled tenant takes the same branch in the same lookup, so it is never
-distinguishable from one that never existed; that half was not exercised
-here, because nothing can disable a tenant yet.
+distinguishable from one that never existed. Captured on 2026-09-29 from
+the repository root against the console's browser-test stack, which
+`apps/admin-console/e2e/run.sh` starts as compose project `odudu-e2e` on
+port 3080 (hence the project name and the port). A tenant `lapsed` is
+seeded and answers, then is disabled through `psql`, in the column
+`PATCH /admin/tenants/{tenant}` with `enabled: false` and the console's
+Disable both write, and is asked again beside `nope`. The two `diff`s
+compare `lapsed`'s and `nope`'s discovery answer and rendered `/auth`
+page, headers included but for `date` and `x-request-id`; each printed
+nothing and exited 0:
+
+```bash
+export COMPOSE_PROJECT_NAME=odudu-e2e
+odudu() { docker compose -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
+pg() { docker compose -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -tA -c "$1"; }
+ask() {
+  for p in "$@"; do
+    printf '%-50s %s\n' "/tenants/$t/$p" \
+      "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:3080/tenants/$t/$p")"
+  done
+}
+odudu seed tenant --name lapsed
+t=lapsed ask .well-known/openid-configuration protocol/openid-connect/certs
+pg "update tenants set enabled = false where name = 'lapsed' returning name, enabled"
+for t in lapsed nope; do
+  ask .well-known/openid-configuration protocol/openid-connect/{certs,token,userinfo,auth}
+done
+answer() { curl -s -D - "http://localhost:3080/tenants/$1/$2" | grep -iv '^date:\|^x-request-id:'; }
+diff <(answer lapsed .well-known/openid-configuration) <(answer nope .well-known/openid-configuration)
+echo "diff exit $?"
+diff <(answer lapsed protocol/openid-connect/auth) <(answer nope protocol/openid-connect/auth)
+echo "diff exit $?"
+```
+
+```
+{"command":"tenant","created":true,"tenant":"lapsed","tenantId":"01a0ebb2-585c-7c91-917e-343998f82358"}
+/tenants/lapsed/.well-known/openid-configuration   200
+/tenants/lapsed/protocol/openid-connect/certs      200
+lapsed|f
+UPDATE 1
+/tenants/lapsed/.well-known/openid-configuration   404
+/tenants/lapsed/protocol/openid-connect/certs      404
+/tenants/lapsed/protocol/openid-connect/token      404
+/tenants/lapsed/protocol/openid-connect/userinfo   404
+/tenants/lapsed/protocol/openid-connect/auth       400
+/tenants/nope/.well-known/openid-configuration     404
+/tenants/nope/protocol/openid-connect/certs        404
+/tenants/nope/protocol/openid-connect/token        404
+/tenants/nope/protocol/openid-connect/userinfo     404
+/tenants/nope/protocol/openid-connect/auth         400
+diff exit 0
+diff exit 0
+```
+
+`odudu seed` also wrote Node's `ExperimentalWarning` for Web Crypto to
+stderr, which is left out above.
 
 Tenant isolation goes further than the URL, and the credentials prove it:
 an authorization code, a refresh token, an access token and an
@@ -9142,6 +9274,9 @@ like the wrong secret.
 [docs/admin-paths.md](admin-paths.md) documents the admin API — the
 endpoints under `/admin/tenants/{tenant}/` — separately from this document,
 because it serves an operator rather than an application integrator.
+[docs/console-paths.md](console-paths.md) documents the console gateway
+under `/console`, which signs an administrator in and forwards the console's
+calls to that API.
 
 ## What is not implemented
 
@@ -9267,7 +9402,8 @@ session lifecycle. A citation of either half here means that half.
   so a list runs out into a fresh set rather than into a lockout.
   What is not there yet: no way for a subject to ask for a fresh set _before_
   they run out, and no warning as the list gets short — self-service
-  credential management is the account console, which is **P4d**'s. And **no rate
+  credential management is **P4f**'s "me" API and application-initiated
+  actions. And **no rate
   limit on re-issuing**: while the action is owed, each login submission
   with a valid password renders the page again, which costs ten Argon2id
   hashes and eleven row writes. Bounded by holding the password and by
@@ -9298,6 +9434,14 @@ session lifecycle. A citation of either half here means that half.
   key behind, and `resolveSender` falling back to the deployment's own
   `ODUDU_SMTP_*` where a tenant configures none. What is not there yet: a UI
   to configure it, which is **P4d**'s.
+- **A password change or reset leaves every other session alive.** Neither
+  the `update-password` action nor a redeemed reset link ends the subject's
+  other sessions, and neither offers to — ASVS V3.3.3 asks that a subject be
+  given that option after changing their password. Planned: **P4f**, whose
+  self-service password change and "me" session list are where the offer
+  belongs. An administrator can already end them all with
+  `DELETE /admin/tenants/{tenant}/subjects/{id}/sessions`
+  ([Admin paths](admin-paths.md#delete-subjectsidsessions)).
 
 - **Every page this server renders is hardcoded HTML**, dependency-free with
   every interpolated value escaped: twelve `*-html.ts` renderers across the
@@ -9413,6 +9557,21 @@ session lifecycle. A citation of either half here means that half.
   `/introspect` and the admin API's own checks do record their refusals.
   The request log shows each such request's path and status, not its
   reason.
+- **The console's single-page app has only some of its features.** The
+  image builds `apps/admin-console` into `/app/console`, and the gateway
+  under `/console` serves it ([docs/console-paths.md](console-paths.md)).
+  Beyond signing in, the rail, the tenant switch and sign-out, the
+  Overview and System › Tenants work — the tenant list, guided creation
+  with a first administrator, the tenant record, import, and export,
+  which is also a tenant's own Export area — and System › System
+  administrators, which lists, grants and revokes them. Every other area
+  is a placeholder that reads and changes nothing. Planned: **P4d**, whose
+  fourth part adds the rest one at a time.
+- **The tenant's sign-in pages do not pass WCAG 2.2 AA.** They are
+  unstyled, and axe reports `target-size` on `#passkey-submit`; the
+  console's browser tests hold that check as a `fixme`. Planned: **P4b**,
+  whose criterion requires every server-rendered page to pass axe in both
+  colour schemes.
 
 **Endpoints that do not exist at all**
 
