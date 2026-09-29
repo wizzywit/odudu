@@ -1,6 +1,6 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session/index.ts';
+import { useEndOwnSession, useRefusal } from '#/features/session/index.ts';
 import { areaAt, areaHref } from '#/features/shell/index.ts';
 import { useGo } from '#/features/subjects/repository/useGo.ts';
 import {
@@ -98,6 +98,8 @@ export function useSubjectAccount(
   subject: Subject,
   etag: string,
   gone: boolean,
+  // Whether this is the subject signed in, whose delete ends the session.
+  self: boolean,
 ): SubjectAccount {
   const refusal = useRefusal(tenant);
   const push = useToasts((queue) => queue.push);
@@ -123,6 +125,7 @@ export function useSubjectAccount(
   const username = useUsernameMode(tenant);
   const enabledChange = useSubjectEnabled(tenant, subject.id, etag);
   const deletion = useSubjectDeletion(tenant, subject.id);
+  const endOwnSession = useEndOwnSession();
   const [confirming, setConfirming] = useState<'disable' | 'delete' | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [enabledMessage, setEnabledMessage] = useState<string | null>(null);
@@ -188,6 +191,10 @@ export function useSubjectAccount(
         deletion
           .run()
           .then((result) => {
+            if (result.ok && self) {
+              endOwnSession().catch(() => undefined);
+              return;
+            }
             if (result.ok) {
               setConfirming(null);
               push({ tone: 'success', message: `${name} was deleted.` });

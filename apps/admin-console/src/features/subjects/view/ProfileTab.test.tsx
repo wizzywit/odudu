@@ -220,6 +220,36 @@ it('says so when you are disabling yourself, and shows the guard’s refusal', a
   );
 });
 
+it('says a self-delete is your own account, ends the session and cannot be undone, then signs out', async () => {
+  const user = userEvent.setup();
+  const grace = subject(GRACE.subject_id, 'grace');
+  const { sent, leavePage, router } = renderConsoleAt(
+    `/console/acme/subjects/${GRACE.subject_id}`,
+    subjectRoutes(undefined, {
+      [`GET ${S}/${GRACE.subject_id}`]: json(grace, 200, { etag: '"g1"' }),
+      [`GET ${S}/${GRACE.subject_id}/profile`]: json(profile(), 200, { etag: '"gp"' }),
+      [`DELETE ${S}/${GRACE.subject_id}`]: noContent(),
+      'POST /console/auth/logout': json({
+        redirect: '/tenants/acme/protocol/openid-connect/logout',
+      }),
+    }),
+  );
+  await user.click(await screen.findByRole('button', { name: 'Delete grace' }));
+  const dialog = await screen.findByRole('alertdialog', { name: 'Delete your own account?' });
+  expect(dialog).toHaveTextContent(
+    'This is your own account, the one you are signed in as. Deleting grace ends your console session at once, and it cannot be undone: every credential, session, grant, role and group membership goes with it.',
+  );
+  const confirm = within(dialog).getByRole('button', { name: 'Delete grace' });
+  expect(confirm).toBeDisabled();
+  await user.type(within(dialog).getByRole('textbox', { name: 'Type grace to confirm' }), 'grace');
+  await user.click(confirm);
+  await waitFor(() => {
+    expect(leavePage).toHaveBeenCalledWith('/console/');
+  });
+  expect(sent.map((s) => `${s.method} ${s.path}`)).toContain('POST /console/auth/logout');
+  expect(router.state.location.pathname).not.toBe('/acme/subjects');
+});
+
 it('deletes only once the username is typed, then goes back to the list', async () => {
   const user = userEvent.setup();
   const { sent, router } = renderConsoleAt(

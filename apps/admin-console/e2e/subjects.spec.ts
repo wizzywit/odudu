@@ -267,3 +267,25 @@ test('a username is renamed on its record while the tenant allows it', async ({ 
     `${subjects.renamed}-2`,
   );
 });
+
+test('an administrator who deletes their own subject is signed out, not shown an error', async ({
+  page,
+}) => {
+  const { departing } = subjects;
+  await signIn(page, departing);
+  await openSubject(page, departing.username);
+  await page.getByRole('button', { name: `Delete ${departing.username}` }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Delete your own account?' });
+  await expect(dialog).toContainText('This is your own account');
+  await expect(dialog).toContainText('ends your console session at once');
+  await expect(dialog).toContainText('cannot be undone');
+  await expectAccessible(page);
+  await dialog
+    .getByRole('textbox', { name: `Type ${departing.username} to confirm` })
+    .fill(departing.username);
+  await dialog.getByRole('button', { name: `Delete ${departing.username}` }).click();
+  await expect(page.getByLabel('Username')).toBeVisible();
+  expect(new URL(page.url()).pathname).toMatch(/^\/tenants\/|^\/console\//u);
+  expect(subjectId(departing.username)).toBe('');
+  expect((await page.request.get('/console/api/session')).status()).toBe(401);
+});

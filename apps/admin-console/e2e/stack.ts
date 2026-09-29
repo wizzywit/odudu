@@ -90,6 +90,8 @@ const seededSchema = z.object({
     issued: account,
     // Deleted by a test.
     doomed: z.string(),
+    // A tenant administrator who deletes their own subject.
+    departing: account,
     // An administrator of a second tenant, where a test turns renaming on.
     renamer: account,
     // The subject of that tenant the test renames.

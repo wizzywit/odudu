@@ -192,10 +192,10 @@ function Deletion({ account, self }: { account: SubjectAccount; self: boolean })
       </div>
       <ConfirmDialog
         isOpen={account.remove.confirming}
-        title={self ? 'Delete your own subject?' : `Delete ${name}?`}
+        title={self ? 'Delete your own account?' : `Delete ${name}?`}
         consequence={
           self
-            ? `You are deleting ${name}, the subject you are signed in as. Everything they hold goes with them, this console session ends, and nothing brings them back.`
+            ? `This is your own account, the one you are signed in as. Deleting ${name} ends your console session at once, and it cannot be undone: every credential, session, grant, role and group membership goes with it.`
             : `${name} is removed with every credential, session, grant, role and group membership they hold. Nothing brings them back.`
         }
         confirmLabel={`Delete ${name}`}
@@ -344,7 +344,7 @@ function ProfilePanel({
 }
 
 export function ProfileTab({ tenant, subject, etag, gone, canManage, self }: TabProps) {
-  const account = useSubjectAccount(tenant, subject, etag, gone);
+  const account = useSubjectAccount(tenant, subject, etag, gone, self);
   const itself = signsInAsItself(subject);
   return (
     <div className={styles.tab}>

@@ -56,6 +56,7 @@ export default function globalSetup(): void {
     locked: { tenant: `${run}-s`, username: 'lamarr', password: password() },
     issued: { tenant: `${run}-s`, username: 'franklin', password: password() },
     doomed: 'turing',
+    departing: { tenant: `${run}-s`, username: 'meitner', password: password() },
     renamer: { tenant: `${run}-t`, username: 'hamilton', password: password() },
     renamed: 'rena',
     prefix: `made-${run}`,
@@ -101,6 +102,7 @@ export default function globalSetup(): void {
   subject(subjects.locked);
   subject(subjects.issued);
   subject({ tenant: subjects.admin.tenant, username: subjects.doomed, password: password() });
+  administrator(subjects.departing);
   seed(['tenant', '--name', subjects.renamer.tenant]);
   administrator(subjects.renamer);
   subject({ tenant: subjects.renamer.tenant, username: subjects.renamed, password: password() });
