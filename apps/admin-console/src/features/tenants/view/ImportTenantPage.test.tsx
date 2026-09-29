@@ -107,6 +107,21 @@ it('shows each client secret once, one at a time, then offers the first administ
   expect(screen.getByText(/An import creates no administrator/u)).toBeVisible();
 });
 
+it('shows the detail of a 400 that lists no errors', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    routes(
+      problem(400, 'about:blank', 'Bad Request', {
+        detail: 'the request body could not be parsed as JSON',
+      }),
+    ),
+  );
+  await fill(user);
+  await user.click(screen.getByRole('button', { name: 'Import' }));
+  expect(await screen.findByText('the request body could not be parsed as JSON')).toBeVisible();
+});
+
 it('refuses a file too large, or not JSON, before sending anything', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(AT, routes(REFUSED));

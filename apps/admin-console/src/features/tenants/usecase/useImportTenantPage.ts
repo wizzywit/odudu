@@ -85,7 +85,7 @@ export function useImportTenantPage(): ImportTenantPage {
   else if (problem?.status === 413) message = TOO_LARGE;
   else if (problem !== null && problem.status !== 400 && problem.status !== 409)
     message = problem.detail ?? problem.title;
-  else if (errors.length > 0 && problem !== null) message = problem.detail ?? problem.title;
+  else if (problem?.status === 400) message = problem.detail ?? problem.title;
   if (found !== null && 'missing' in found)
     message = `${found.missing} was not imported. Import it again.`;
 
