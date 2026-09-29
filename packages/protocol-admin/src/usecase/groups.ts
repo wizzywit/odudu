@@ -3,7 +3,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
 import { isUuid, OduduError } from '@odudu/kernel';
-import { and, asc, eq, gt, inArray, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, type SQL } from 'drizzle-orm';
 import {
   capabilitiesOfGroupsAndAncestors,
   capabilitiesOfSubtree,
@@ -67,6 +67,8 @@ export async function groupListConditions(
   after: ListPosition | undefined,
 ): Promise<SQL[]> {
   const conditions: SQL[] = [];
+  if (filters.parent === 'root') conditions.push(isNull(groups.parentId));
+  else if (filters.parent !== undefined) conditions.push(eq(groups.parentId, filters.parent));
   if (filters.name === undefined) {
     if (after !== undefined) conditions.push(gt(groups.id, after.id));
     return conditions;

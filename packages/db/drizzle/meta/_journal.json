@@ -554,6 +554,13 @@
       "when": 1789049381721,
       "tag": "0078_console_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1789049381722,
+      "tag": "0079_list_indexes_subject_claims",
+      "breakpoints": true
     }
   ]
 }

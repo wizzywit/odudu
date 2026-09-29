@@ -108,12 +108,16 @@ beforeAll(async () => {
       insert into subjects (id, tenant_id, type)
       select gen_random_uuid(), ${tenantId}, 'user' from generate_series(1, ${ROWS})`;
     await owner.sql`
-      insert into users (subject_id, tenant_id, username, email)
+      insert into users (subject_id, tenant_id, username, email, name, given_name, family_name)
       select s.id, s.tenant_id,
              case when n % 2 = 0 then upper(substr(md5(n::text), 1, 8))
                   else substr(md5(n::text), 1, 8) end || '-' || n,
              case when n % 3 = 0 then null
-                  else substr(md5((n * 7)::text), 1, 8) || n || '@example.com' end
+                  else substr(md5((n * 7)::text), 1, 8) || n || '@example.com' end,
+             case when n % 4 = 0 then null
+                  else initcap(substr(md5((n * 11)::text), 1, 6)) || ' ' || n end,
+             case when n % 4 = 0 then null else initcap(substr(md5((n * 11)::text), 1, 6)) end,
+             case when n % 5 = 0 then null else substr(md5((n * 13)::text), 1, 7) end
         from (select id, tenant_id, row_number() over () as n
                 from subjects where tenant_id = ${tenantId}) s`;
     await owner.sql`
@@ -286,6 +290,7 @@ function subjectsCase(label: string, index: string, column: string, filters: Sub
           cursorKey: CURSOR_KEY,
           tenantId: targetTenantId,
           filters,
+          now: new Date(),
         }),
       );
       return outcome.kind === 'ok' ? outcome.next : null;
@@ -361,6 +366,13 @@ const CASES: readonly PlanCase[] = [
     username: 'A',
   }),
   subjectsCase('subjects ?email=a', 'users_email_search', 'email_search', { email: 'a' }),
+  subjectsCase('subjects ?name=b', 'users_name_search', 'name_search', { name: 'b' }),
+  subjectsCase('subjects ?given_name=c', 'users_given_name_search', 'given_name_search', {
+    given_name: 'c',
+  }),
+  subjectsCase('subjects ?family_name=d', 'users_family_name_search', 'family_name_search', {
+    family_name: 'd',
+  }),
   tenantsCase('tenants ?name=T3', 'tenants_name_search', 'name_search', { name: 'T3' }),
   tenantsCase('tenants ?display_name=A', 'tenants_display_name_search', 'display_name_search', {
     display_name: 'A',
@@ -606,7 +618,7 @@ const COUNT_CASES: readonly CountPlanCase[] = [
     index: 'users_username_search',
     column: 'username_search',
     throughOwner: false,
-    count: scopedCount((tx, options) => countSubjects(tx, { username: 'A' }, options)),
+    count: scopedCount((tx, options) => countSubjects(tx, { username: 'A' }, new Date(), options)),
   },
   {
     label: 'subjects/count ?email=a',
@@ -614,7 +626,15 @@ const COUNT_CASES: readonly CountPlanCase[] = [
     index: 'users_email_search',
     column: 'email_search',
     throughOwner: false,
-    count: scopedCount((tx, options) => countSubjects(tx, { email: 'a' }, options)),
+    count: scopedCount((tx, options) => countSubjects(tx, { email: 'a' }, new Date(), options)),
+  },
+  {
+    label: 'subjects/count ?name=b',
+    table: 'users',
+    index: 'users_name_search',
+    column: 'name_search',
+    throughOwner: false,
+    count: scopedCount((tx, options) => countSubjects(tx, { name: 'b' }, new Date(), options)),
   },
   {
     label: 'tenants/count ?name=T3',
@@ -747,13 +767,15 @@ const UNSEARCHED_COUNT_CASES = [
     label: 'subjects/count',
     tables: ['subjects'],
     throughOwner: false,
-    count: scopedCount((tx, options) => countSubjects(tx, {}, options)),
+    count: scopedCount((tx, options) => countSubjects(tx, {}, new Date(), options)),
   },
   {
     label: 'subjects/count ?role=<id>',
     tables: ['subjects', 'subject_roles'],
     throughOwner: false,
-    count: scopedCount((tx, options) => countSubjects(tx, { role: heldRoleId }, options)),
+    count: scopedCount((tx, options) =>
+      countSubjects(tx, { role: heldRoleId }, new Date(), options),
+    ),
   },
   {
     label: 'clients/count',

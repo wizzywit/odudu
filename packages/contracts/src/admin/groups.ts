@@ -11,7 +11,12 @@ export const groupSchema = z.object({
 });
 export type Group = z.infer<typeof groupSchema>;
 
-const groupFilters = { name: searchPrefixSchema.optional() };
+// One level of the tree: the children of the group `parent` names, or the
+// groups with no parent at all under `root`.
+const groupFilters = {
+  name: searchPrefixSchema.optional(),
+  parent: z.union([z.uuid(), z.literal('root')]).optional(),
+};
 
 export const listGroupsQuerySchema = cursorQuerySchema.extend(groupFilters).strict();
 export type ListGroupsQuery = z.infer<typeof listGroupsQuerySchema>;

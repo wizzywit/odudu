@@ -1,5 +1,6 @@
 import { requiredActionRepository, type RequiredAction } from '@odudu/authn-flows';
 import {
+  SUBJECT_SEARCH_FIELDS,
   usernameSchema,
   type Credential,
   type Group,
@@ -17,6 +18,7 @@ import {
 import {
   credentialRepository,
   isEmailAddress,
+  loginFailures,
   passwordExpired,
   subjectRepository,
   subjects,
@@ -28,7 +30,19 @@ import {
 } from '@odudu/domain-identity';
 import { clients, tenantSettingsRepository } from '@odudu/domain-tenant';
 import { isUuid } from '@odudu/kernel';
-import { and, asc, eq, gt, inArray, isNotNull, isNull, ne, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  notInArray,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { type SelectedFields } from 'drizzle-orm/pg-core';
 import { redactedDiff } from '#/service/audit-detail';
 import {
@@ -194,27 +208,54 @@ export interface ListSubjectsInput {
   readonly cursor: string | undefined;
   readonly cursorKey: Uint8Array;
   readonly tenantId: string;
-  /** A subject with no `users` row never matches a username or email search. */
+  /** A subject with no `users` row never matches a search. */
   readonly filters: SubjectFilters;
+  /** What `?locked=` is judged against. */
+  readonly now: Date;
 }
 
 export type ListSubjectsOutcome =
   { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly SubjectView[]; next: string | null };
 
-type SearchKeyColumn = typeof users.usernameSearch | typeof users.emailSearch;
+const SEARCH_KEYS = {
+  username: users.usernameSearch,
+  email: users.emailSearch,
+  name: users.nameSearch,
+  given_name: users.givenNameSearch,
+  family_name: users.familyNameSearch,
+} as const;
+
+type SearchKeyColumn = (typeof SEARCH_KEYS)[keyof typeof SEARCH_KEYS];
 
 function searchOf(
   filters: SubjectFilters,
 ): { readonly column: SearchKeyColumn; readonly prefix: string } | undefined {
-  if (filters.username !== undefined) {
-    return { column: users.usernameSearch, prefix: filters.username };
+  for (const field of SUBJECT_SEARCH_FIELDS) {
+    const prefix = filters[field];
+    if (prefix !== undefined) return { column: SEARCH_KEYS[field], prefix };
   }
-  if (filters.email !== undefined) return { column: users.emailSearch, prefix: filters.email };
   return undefined;
 }
 
-function exactFilterConditions(filters: SubjectFilters, tx: TenantScopedDatabase): SQL[] {
+// `isLockedOut` (@odudu/domain-identity) in SQL: locked while `locked_until` is still ahead.
+function lockedSubjects(tx: TenantScopedDatabase, now: Date) {
+  return tx
+    .select({ id: loginFailures.subjectId })
+    .from(loginFailures)
+    .where(gt(loginFailures.lockedUntil, now));
+}
+
+function exactFilterConditions(
+  filters: SubjectFilters,
+  tx: TenantScopedDatabase,
+  now: Date,
+): SQL[] {
   const conditions: SQL[] = [];
+  if (filters.type !== undefined) conditions.push(eq(subjects.type, filters.type));
+  if (filters.locked === 'true') conditions.push(inArray(subjects.id, lockedSubjects(tx, now)));
+  if (filters.locked === 'false') {
+    conditions.push(notInArray(subjects.id, lockedSubjects(tx, now)));
+  }
   if (filters.enabled === 'true') conditions.push(isNull(subjects.disabledAt));
   if (filters.enabled === 'false') conditions.push(isNotNull(subjects.disabledAt));
   if (filters.role !== undefined) {
@@ -245,8 +286,9 @@ export async function subjectListConditions(
   tx: TenantScopedDatabase,
   filters: SubjectFilters,
   after: ListPosition | undefined,
+  now: Date,
 ): Promise<SQL[]> {
-  const conditions = exactFilterConditions(filters, tx);
+  const conditions = exactFilterConditions(filters, tx, now);
   const search = searchOf(filters);
   if (search === undefined) {
     if (after !== undefined) conditions.push(gt(subjects.id, after.id));
@@ -297,7 +339,7 @@ export async function listSubjects(
     after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const conditions = await subjectListConditions(tx, input.filters, after);
+  const conditions = await subjectListConditions(tx, input.filters, after, input.now);
   const searchKey = search?.column;
   const rows = await subjectListRows(tx, {
     ...SUBJECT_VIEW_COLUMNS,

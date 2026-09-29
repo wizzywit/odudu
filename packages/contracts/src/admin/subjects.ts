@@ -12,38 +12,63 @@ import { ADMIN_CAPABILITIES } from '#/admin/whoami';
 // directly, through a group or its ancestors, or nested under another role.
 export const SUBJECT_CAPABILITY_FILTER = [...ADMIN_CAPABILITIES, 'tenant-admin'] as const;
 
+export const subjectTypeSchema = z.enum(['user', 'service', 'agent_instance']);
+
+// Each a prefix of one column, matched case-insensitively; `name`,
+// `given_name` and `family_name` are the OIDC claim columns as stored, never
+// the username a `name` claim falls back to.
+export const SUBJECT_SEARCH_FIELDS = [
+  'username',
+  'email',
+  'name',
+  'given_name',
+  'family_name',
+] as const;
+export type SubjectSearchField = (typeof SUBJECT_SEARCH_FIELDS)[number];
+
 const subjectFilters = {
   username: searchPrefixSchema.optional(),
   email: searchPrefixSchema.optional(),
+  name: searchPrefixSchema.optional(),
+  given_name: searchPrefixSchema.optional(),
+  family_name: searchPrefixSchema.optional(),
   enabled: enabledFilterSchema.optional(),
   role: z.uuid().optional(),
   group: z.uuid().optional(),
   capability: z.enum(SUBJECT_CAPABILITY_FILTER).optional(),
+  type: subjectTypeSchema.optional(),
+  // Locked now, by the server's clock: what `GET …/subjects/{id}/lockout` answers as `locked`.
+  locked: enabledFilterSchema.optional(),
 };
+
+type SearchedQuery = Partial<Record<SubjectSearchField, string | undefined>>;
+
+function searchedFields(query: SearchedQuery): SubjectSearchField[] {
+  return SUBJECT_SEARCH_FIELDS.filter((field) => query[field] !== undefined);
+}
+
 // Addressed to the second field, the one a caller adds to an existing search.
-const oneSubjectSearchRule = {
-  message: 'search one field at a time: username or email, not both',
-  path: ['email'],
-};
-const oneSubjectSearch = [
-  (query: { username?: string | undefined; email?: string | undefined }) =>
-    query.username === undefined || query.email === undefined,
-  oneSubjectSearchRule,
-] as const;
+function oneSubjectSearch(query: SearchedQuery, ctx: z.RefinementCtx): void {
+  const [first, second] = searchedFields(query);
+  if (first === undefined || second === undefined) return;
+  ctx.addIssue({
+    code: 'custom',
+    message: `search one field at a time: ${first} or ${second}, not both`,
+    path: [second],
+  });
+}
 
 export const listSubjectsQuerySchema = cursorQuerySchema
   .extend(subjectFilters)
   .strict()
-  .refine(...oneSubjectSearch);
+  .superRefine(oneSubjectSearch);
 export type ListSubjectsQuery = z.infer<typeof listSubjectsQuerySchema>;
 
 export const countSubjectsQuerySchema = z
   .object(subjectFilters)
   .strict()
-  .refine(...oneSubjectSearch);
+  .superRefine(oneSubjectSearch);
 export type CountSubjectsQuery = z.infer<typeof countSubjectsQuerySchema>;
-
-export const subjectTypeSchema = z.enum(['user', 'service', 'agent_instance']);
 
 // username and email are null for a subject with no `users` row — a
 // service or agent_instance subject, which authenticates as itself rather

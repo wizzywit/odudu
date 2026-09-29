@@ -437,6 +437,7 @@ function buildAdminRoutes(
     const countsDeps: CountsRouteDeps = {
       database: deps.database.db,
       ownerDatabase: deps.ownerDatabase.db,
+      now: () => clock.now(),
     };
     const handlers: AdminRouteHandlers = {
       'GET /admin/tenants/:tenant/whoami': whoamiHandler({ callerCapabilities }),

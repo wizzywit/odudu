@@ -41,11 +41,12 @@ function bounded(rows: readonly { readonly n: number }[], cap: number): CountRes
 export async function countSubjects(
   tx: TenantScopedDatabase,
   filters: SubjectFilters,
+  now: Date,
   options: CountOptions = {},
 ): Promise<CountResponse> {
   const cap = options.cap ?? COUNT_CAP;
   const matching = subjectListRows(tx, { one: ONE })
-    .where(whereOf(await subjectListConditions(tx, filters, undefined)))
+    .where(whereOf(await subjectListConditions(tx, filters, undefined, now)))
     .orderBy(...subjectListOrder(filters))
     .limit(cap + 1)
     .as('matching');

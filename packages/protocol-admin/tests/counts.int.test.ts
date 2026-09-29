@@ -24,14 +24,16 @@ async function tenantWithSubjects(usernames: readonly string[]) {
 describe('countSubjects', () => {
   it('counts every subject of the tenant, uncapped', async () => {
     const t = await tenantWithSubjects(['ada', 'alan', 'grace']);
-    const counted = await withTenant(fixture.app.db, t.id, (tx) => countSubjects(tx, {}));
+    const counted = await withTenant(fixture.app.db, t.id, (tx) =>
+      countSubjects(tx, {}, fixture.clock.now()),
+    );
     expect(counted).toEqual({ count: 3, capped: false });
   });
 
   it('counts only the subjects a search matches', async () => {
     const t = await tenantWithSubjects(['ada', 'Alan', 'grace']);
     const counted = await withTenant(fixture.app.db, t.id, (tx) =>
-      countSubjects(tx, { username: 'a' }),
+      countSubjects(tx, { username: 'a' }, fixture.clock.now()),
     );
     expect(counted).toEqual({ count: 2, capped: false });
   });
@@ -39,7 +41,7 @@ describe('countSubjects', () => {
   it('stops at the ceiling and says it did', async () => {
     const t = await tenantWithSubjects(['ada', 'alan', 'grace']);
     const counted = await withTenant(fixture.app.db, t.id, (tx) =>
-      countSubjects(tx, {}, { cap: 2 }),
+      countSubjects(tx, {}, fixture.clock.now(), { cap: 2 }),
     );
     expect(counted).toEqual({ count: 2, capped: true });
   });
@@ -47,7 +49,7 @@ describe('countSubjects', () => {
   it('is not capped at exactly the ceiling', async () => {
     const t = await tenantWithSubjects(['ada', 'alan']);
     const counted = await withTenant(fixture.app.db, t.id, (tx) =>
-      countSubjects(tx, {}, { cap: 2 }),
+      countSubjects(tx, {}, fixture.clock.now(), { cap: 2 }),
     );
     expect(counted).toEqual({ count: 2, capped: false });
   });
@@ -56,7 +58,7 @@ describe('countSubjects', () => {
     const t = await tenantWithSubjects(['ada']);
     await tenantWithSubjects(['alan', 'anne', 'arthur']);
     const counted = await withTenant(fixture.app.db, t.id, (tx) =>
-      countSubjects(tx, { username: 'a' }),
+      countSubjects(tx, { username: 'a' }, fixture.clock.now()),
     );
     expect(counted).toEqual({ count: 1, capped: false });
   });

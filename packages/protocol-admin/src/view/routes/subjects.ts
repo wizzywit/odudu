@@ -124,6 +124,7 @@ export function listSubjectsHandler(deps: SubjectsRouteDeps): AdminRouteHandler 
         cursorKey: deps.cursorKey,
         tenantId: targetTenantId,
         filters,
+        now: deps.now(),
       }),
     );
     if (outcome.kind === 'invalid_cursor') {

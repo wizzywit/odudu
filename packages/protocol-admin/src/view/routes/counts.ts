@@ -25,6 +25,7 @@ import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router'
 export interface CountsRouteDeps {
   readonly database: Database;
   readonly ownerDatabase: Database;
+  readonly now: () => Date;
 }
 
 // ADMIN_ROUTES' `querystringSchema` already validated each parameter's
@@ -45,17 +46,18 @@ async function sendCount<Q>(
 
 function tenantScopedCount<Q>(
   schema: z.ZodType<Q>,
-  count: (tx: TenantScopedDatabase, filters: Q) => Promise<CountResponse>,
+  count: (tx: TenantScopedDatabase, filters: Q, deps: CountsRouteDeps) => Promise<CountResponse>,
 ) {
   return (deps: CountsRouteDeps): AdminRouteHandler =>
     (request, reply, _principal, targetTenantId) =>
       sendCount(schema, request, reply, (filters) =>
-        adminTx(deps.database, request, targetTenantId, (tx) => count(tx, filters)),
+        adminTx(deps.database, request, targetTenantId, (tx) => count(tx, filters, deps)),
       );
 }
 
-export const countSubjectsHandler = tenantScopedCount(countSubjectsQuerySchema, (tx, filters) =>
-  countSubjects(tx, filters),
+export const countSubjectsHandler = tenantScopedCount(
+  countSubjectsQuerySchema,
+  (tx, filters, deps) => countSubjects(tx, filters, deps.now()),
 );
 export const countClientsHandler = tenantScopedCount(countClientsQuerySchema, (tx, filters) =>
   countClients(tx, filters),

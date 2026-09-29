@@ -111,6 +111,8 @@ export {
   setRolesResponseSchema,
   type SetRolesResponse,
   SUBJECT_CAPABILITY_FILTER,
+  SUBJECT_SEARCH_FIELDS,
+  type SubjectSearchField,
 } from '#/admin/subjects';
 export {
   sessionSchema,
