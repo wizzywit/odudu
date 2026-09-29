@@ -24,6 +24,8 @@ import {
   type CountOptions,
 } from '#/usecase/counts';
 import { listGroups } from '#/usecase/groups';
+import { listLogoutDeliveries } from '#/usecase/logout-deliveries';
+import { listMail } from '#/usecase/mail';
 import { listRoles, type RoleFilters } from '#/usecase/roles';
 import { listScopes } from '#/usecase/scopes';
 import { listSubjects, type SubjectFilters } from '#/usecase/subjects';
@@ -46,6 +48,8 @@ const ROLES_PER_CLIENT = 300;
 // resource ordinarily has.
 const BUSY_RESOURCE_ROWS = 5_000;
 const HELD_ROLE_SUBJECTS = 2_000;
+const SERVICE_SUBJECTS = 50;
+const CHILD_GROUPS = 3_000;
 
 interface Statement {
   readonly query: string;
@@ -69,6 +73,7 @@ let targetTenantId: string;
 let scopedClientId: string;
 let busyGrantId: string;
 let heldRoleId: string;
+let parentGroupId: string;
 
 function capture(query: string, parameters: readonly unknown[]): void {
   captured?.push({ query, parameters });
@@ -171,6 +176,33 @@ beforeAll(async () => {
     select id from clients where tenant_id = ${targetTenantId} order by id limit 1`;
   if (scoped === undefined) throw new Error('no client in the target tenant');
   scopedClientId = scoped.id;
+
+  // A few service subjects among many users, one group with many children,
+  // and an outbox and a delivery queue long enough to page.
+  await owner.sql`
+    insert into subjects (id, tenant_id, type)
+    select gen_random_uuid(), ${targetTenantId}, 'service' from generate_series(1, ${SERVICE_SUBJECTS})`;
+  const [parent] = await owner.sql<{ id: string; path: string }[]>`
+    select id, path from groups where tenant_id = ${targetTenantId} order by id limit 1`;
+  if (parent === undefined) throw new Error('no group in the target tenant');
+  parentGroupId = parent.id;
+  await owner.sql`
+    insert into groups (id, tenant_id, parent_id, name, path)
+    select gen_random_uuid(), ${targetTenantId}, ${parent.id}, 'child-' || g,
+           ${parent.path} || '/child-' || g
+      from generate_series(1, ${CHILD_GROUPS}) g`;
+  await owner.sql`
+    insert into email_outbox (id, tenant_id, to_address, subject, body_text, body_html, created_at)
+    select gen_random_uuid(), ${targetTenantId}, 'user' || g || '@example.com', 'Verify', 'x', 'x',
+           now() - (g || ' seconds')::interval
+      from generate_series(1, ${ROWS}) g`;
+  await owner.sql`
+    insert into backchannel_logout_deliveries
+      (id, tenant_id, client_id, session_id, endpoint, logout_token, created_at)
+    select gen_random_uuid(), ${targetTenantId}, c.id, gen_random_uuid(),
+           'https://rp.example/bcl', 'token', now() - (g || ' seconds')::interval
+      from (select id from clients where tenant_id = ${targetTenantId} order by id limit 20) c
+     cross join generate_series(1, ${ROWS / 20}) g`;
 
   const [held] = await owner.sql<{ id: string }[]>`
     select id from roles
@@ -639,6 +671,26 @@ const COUNT_CASES: readonly CountPlanCase[] = [
     count: scopedCount((tx, options) => countSubjects(tx, { name: 'b' }, new Date(), options)),
   },
   {
+    label: 'subjects/count ?given_name=c',
+    table: 'users',
+    index: 'users_given_name_search',
+    column: 'given_name_search',
+    throughOwner: false,
+    count: scopedCount((tx, options) =>
+      countSubjects(tx, { given_name: 'c' }, new Date(), options),
+    ),
+  },
+  {
+    label: 'subjects/count ?family_name=d',
+    table: 'users',
+    index: 'users_family_name_search',
+    column: 'family_name_search',
+    throughOwner: false,
+    count: scopedCount((tx, options) =>
+      countSubjects(tx, { family_name: 'd' }, new Date(), options),
+    ),
+  },
+  {
     label: 'tenants/count ?name=T3',
     table: 'tenants',
     index: 'tenants_name_search',
@@ -806,5 +858,89 @@ describe('the plan each unsearched count is given', () => {
         for (const table of countCase.tables) expect(seqScanned, table).not.toContain(table);
       },
     );
+  });
+});
+
+// A listing narrowed by an exact filter, or ordered newest first, has its
+// own index, and never reads its table whole. The paged ones read it in
+// their own order; a type filter picks few enough rows that sorting them is
+// the planner's cheaper choice, and is allowed.
+interface IndexedListing {
+  readonly label: string;
+  readonly index: string;
+  readonly sortless: boolean;
+  readonly list: (tx: TenantScopedDatabase) => Promise<unknown>;
+}
+
+const INDEXED_LISTINGS: readonly IndexedListing[] = [
+  {
+    label: 'subjects ?type=service',
+    index: 'subjects_by_type',
+    sortless: false,
+    list: (tx: TenantScopedDatabase) =>
+      listSubjects(tx, {
+        limit: 50,
+        cursor: undefined,
+        cursorKey: CURSOR_KEY,
+        tenantId: targetTenantId,
+        filters: { type: 'service' },
+        now: new Date(),
+      }),
+  },
+  {
+    label: 'groups ?parent=<id>',
+    index: 'groups_by_parent',
+    sortless: true,
+    list: (tx: TenantScopedDatabase) =>
+      listGroups(tx, {
+        limit: 50,
+        cursor: undefined,
+        cursorKey: CURSOR_KEY,
+        tenantId: targetTenantId,
+        filters: { parent: parentGroupId },
+      }),
+  },
+  {
+    label: 'mail',
+    index: 'email_outbox_recent',
+    sortless: true,
+    list: (tx: TenantScopedDatabase) =>
+      listMail(tx, {
+        tenantId: targetTenantId,
+        revealRecipients: true,
+        maxAttempts: 5,
+        limit: 50,
+        cursor: undefined,
+        cursorKey: CURSOR_KEY,
+      }),
+  },
+  {
+    label: 'clients/:id/logout-deliveries',
+    index: 'backchannel_logout_deliveries_recent',
+    sortless: true,
+    list: (tx: TenantScopedDatabase) =>
+      listLogoutDeliveries(tx, {
+        tenantId: targetTenantId,
+        clientDbId: scopedClientId,
+        limit: 50,
+        cursor: undefined,
+        cursorKey: CURSOR_KEY,
+      }),
+  },
+];
+
+describe('the plan each indexed listing is given', () => {
+  it.each(INDEXED_LISTINGS)('$label reads its index in order, with no sort', async (listing) => {
+    const { statement } = await issuedBy(async () => {
+      await withTenant(app.db, targetTenantId, (tx) => listing.list(tx));
+      return null;
+    });
+    const [json] = await explained(app, statement, 'FORMAT JSON', targetTenantId);
+    const nodes = allNodes(rootPlan(json));
+    const types = nodes.map((node) => node.nodeType);
+    expect(nodes.some((node) => node.indexName === listing.index)).toBe(true);
+    if (listing.sortless) expect(types).not.toContain('Sort');
+    expect(types).not.toContain('Seq Scan');
+    await recordPlan(listing.label, statement);
   });
 });
