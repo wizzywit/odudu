@@ -80,15 +80,13 @@ export function GeneralTab({
         </p>
         {enabled.fixed === null ? (
           <div className={styles.actions}>
-            {enabled.enabled ? (
-              <Button variant="danger" isDisabled={enabled.busy} onPress={enabled.ask}>
-                {`Disable ${name}`}
-              </Button>
-            ) : (
-              <Button isDisabled={enabled.busy} onPress={enabled.enable}>
-                {enabled.busy ? 'Enabling…' : `Enable ${name}`}
-              </Button>
-            )}
+            {/* One button whose label turns, so focus stays on it across the change. */}
+            <Button
+              variant={enabled.enabled ? 'danger' : 'secondary'}
+              onPress={enabled.enabled ? enabled.ask : enabled.enable}
+            >
+              {enabled.enabled ? `Disable ${name}` : enabled.busy ? 'Enabling…' : `Enable ${name}`}
+            </Button>
           </div>
         ) : (
           <p className={styles.fixedRule}>{enabled.fixed}</p>

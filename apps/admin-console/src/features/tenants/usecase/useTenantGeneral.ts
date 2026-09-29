@@ -76,6 +76,7 @@ export function useTenantGeneral(
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const set = (next: boolean): void => {
+    if (change.busy) return;
     setMessage(null);
     change
       .set(next)
