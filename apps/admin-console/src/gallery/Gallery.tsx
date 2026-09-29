@@ -7,6 +7,7 @@ import type { Toast } from '#/shared/service/toast.ts';
 import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
 import { AppShell } from '#/shared/view/AppShell.tsx';
 import { Button } from '#/shared/view/Button.tsx';
+import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ChunkFailed } from '#/shared/view/ChunkBoundary.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
@@ -540,6 +541,14 @@ export function Gallery({
               <Button variant="danger">Delete client</Button>
               <Button isDisabled>Saving…</Button>
               <Button size="small">Small</Button>
+            </div>
+          </Specimen>
+          <Specimen label="ButtonLink">
+            <div className={styles.row}>
+              <ButtonLink href="#basics" variant="primary">
+                Create a tenant
+              </ButtonLink>
+              <ButtonLink href="#basics">Import a tenant</ButtonLink>
             </div>
           </Specimen>
           <Specimen label="StatusTag">
