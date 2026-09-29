@@ -1,5 +1,6 @@
 .picker {
   display: grid;
+  align-content: start;
   gap: var(--space-2);
   justify-items: start;
 }
