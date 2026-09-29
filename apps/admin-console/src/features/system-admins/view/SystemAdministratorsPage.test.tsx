@@ -132,7 +132,9 @@ it("creates one through system's guided administrator step", async () => {
       .getByRole('navigation', { name: 'Areas of system' })
       .querySelector('[aria-current="page"]'),
   ).toHaveTextContent('System administrators');
-  expect(sessionStorage.getItem(KEY)).toContain('"tenant":"system"');
+  expect(sessionStorage.getItem('odudu.console.system-administrator')).toContain(
+    '"tenant":"system"',
+  );
 });
 
 it('grants tenant-admin to a subject chosen from system', async () => {

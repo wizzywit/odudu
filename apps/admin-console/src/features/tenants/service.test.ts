@@ -8,6 +8,8 @@ import {
   tenantHref,
   systemAdminsTrail,
   tenantsTrail,
+  flowOf,
+  freshCreation,
   exportFileName,
   fileSize,
   importFileProblem,
@@ -112,5 +114,21 @@ describe('the way back to a list', () => {
       { label: 'System administrators', href: '/console/system/system-admins' },
       { label: 'Add a system administrator' },
     ]);
+  });
+});
+
+describe('the two guided flows', () => {
+  it("keeps system's own administrators apart from tenant creation", () => {
+    expect(flowOf('system')).toBe('system-administrator');
+    expect(flowOf('acme')).toBe('tenant');
+  });
+
+  it('starts each at its own first step', () => {
+    expect(freshCreation('tenant')).toEqual({ step: 'tenant', name: '', displayName: '' });
+    expect(freshCreation('system-administrator')).toMatchObject({
+      step: 'administrator',
+      tenant: 'system',
+      subjectId: null,
+    });
   });
 });

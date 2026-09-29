@@ -108,6 +108,18 @@ export function administratorOf(
   };
 }
 
+// Creating a tenant and adding one of system's own administrators are two
+// flows, each kept apart, so a page only ever resumes its own.
+export type CreationFlow = 'tenant' | 'system-administrator';
+
+export function flowOf(tenant: string): CreationFlow {
+  return tenant === SYSTEM_TENANT ? 'system-administrator' : 'tenant';
+}
+
+export function freshCreation(flow: CreationFlow): Creation {
+  return flow === 'tenant' ? FRESH_CREATION : administratorOf(SYSTEM_TENANT, 'existing');
+}
+
 const SYSTEM_BASE = '/console/system';
 
 export const TENANTS_HREF = `${SYSTEM_BASE}/tenants`;

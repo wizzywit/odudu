@@ -6,7 +6,7 @@ import {
   type DoneStep,
   type TenantStep,
 } from '#/features/tenants/usecase/useNewTenant.ts';
-import { systemAdminsTrail, tenantsTrail } from '#/features/tenants/service.ts';
+import { systemAdminsTrail, tenantsTrail, type CreationFlow } from '#/features/tenants/service.ts';
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
@@ -213,8 +213,8 @@ function Done({ step, onStartOver }: { step: DoneStep; onStartOver: () => void }
   );
 }
 
-function Creation() {
-  const { current, startOver } = useNewTenant();
+function Creation({ flow }: { flow: CreationFlow }) {
+  const { current, startOver } = useNewTenant(flow);
   const at = current.step === 'tenant' ? 0 : current.step === 'administrator' ? 1 : 2;
   const systemAdmins = current.step === 'tenant' ? null : current.systemAdminsHref;
   const title =
@@ -254,7 +254,7 @@ export function NewTenantPage({ tenant }: { tenant: string }) {
       title="Create a tenant"
       breadcrumb={tenantsTrail('Create a tenant')}
     >
-      <Creation />
+      <Creation flow="tenant" />
     </SystemGate>
   );
 }
@@ -268,7 +268,7 @@ export function NewSystemAdministratorPage({ tenant }: { tenant: string }) {
       title="Add a system administrator"
       breadcrumb={systemAdminsTrail('Add a system administrator')}
     >
-      <Creation />
+      <Creation flow="system-administrator" />
     </SystemGate>
   );
 }

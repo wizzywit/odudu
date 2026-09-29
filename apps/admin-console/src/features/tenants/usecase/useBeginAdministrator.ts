@@ -19,7 +19,7 @@ export interface BeginAdministrator {
   readonly keep: () => void;
 }
 
-// One creation is kept per tab. A half-made administrator of this tenant is
+// One creation is kept per tab for each flow. A half-made administrator of this tenant is
 // resumed; of another, it is only dropped once the person says so, since a
 // retry would find its username taken and leave it without a role.
 export function useBeginAdministrator(
@@ -38,7 +38,7 @@ export function useBeginAdministrator(
   };
   return {
     start: () => {
-      const stored = storedCreation(owner);
+      const stored = storedCreation(owner, tenant);
       if (stored?.step !== 'administrator' || stored.subjectId === null) {
         begin();
       } else if (stored.tenant === tenant) {

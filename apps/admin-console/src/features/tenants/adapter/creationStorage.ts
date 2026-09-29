@@ -1,7 +1,10 @@
 import { z } from 'zod';
-import type { Creation } from '#/features/tenants/service.ts';
+import type { Creation, CreationFlow } from '#/features/tenants/service.ts';
 
-const KEY = 'odudu.console.tenant-creation';
+const KEYS: Readonly<Record<CreationFlow, string>> = {
+  tenant: 'odudu.console.tenant-creation',
+  'system-administrator': 'odudu.console.system-administrator',
+};
 
 // Unknown members are dropped, so nothing reaches storage but these.
 const creationSchema = z.discriminatedUnion('step', [
@@ -29,9 +32,9 @@ function storage(): Storage | undefined {
   }
 }
 
-export function loadCreation(owner: string): Creation | null {
+export function loadCreation(owner: string, flow: CreationFlow): Creation | null {
   try {
-    const text = storage()?.getItem(KEY);
+    const text = storage()?.getItem(KEYS[flow]);
     if (text === null || text === undefined) return null;
     const parsed = storedSchema.safeParse(JSON.parse(text));
     return parsed.success && parsed.data.owner === owner ? parsed.data.creation : null;
@@ -40,14 +43,14 @@ export function loadCreation(owner: string): Creation | null {
   }
 }
 
-export function storeCreation(owner: string, creation: Creation | null): void {
+export function storeCreation(owner: string, creation: Creation | null, flow: CreationFlow): void {
   try {
     if (creation === null) {
-      storage()?.removeItem(KEY);
+      storage()?.removeItem(KEYS[flow]);
       return;
     }
     const stored = storedSchema.parse({ owner, creation });
-    storage()?.setItem(KEY, JSON.stringify(stored));
+    storage()?.setItem(KEYS[flow], JSON.stringify(stored));
   } catch {
     // Unkept, a reload starts the creation over from what the server holds.
   }

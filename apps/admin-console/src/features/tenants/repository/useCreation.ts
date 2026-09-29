@@ -3,7 +3,13 @@ import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { loadCreation, storeCreation } from '#/features/tenants/adapter/creationStorage.ts';
 import { createTenant, findTenant } from '#/features/tenants/adapter/tenants.ts';
-import { administratorOf, FRESH_CREATION, type Creation } from '#/features/tenants/service.ts';
+import {
+  administratorOf,
+  flowOf,
+  freshCreation,
+  type Creation,
+  type CreationFlow,
+} from '#/features/tenants/service.ts';
 import { createSubject, findSubject, issuePassword } from '#/shared/adapter/administrators.ts';
 import {
   defect,
@@ -26,28 +32,30 @@ export interface CreationProgress {
 }
 
 // Kept in this tab's storage on every change, so a reload resumes it.
-export function useCreationProgress(owner: string): CreationProgress {
-  const [creation, setCreation] = useState<Creation>(() => loadCreation(owner) ?? FRESH_CREATION);
+export function useCreationProgress(owner: string, flow: CreationFlow): CreationProgress {
+  const [creation, setCreation] = useState<Creation>(
+    () => loadCreation(owner, flow) ?? freshCreation(flow),
+  );
   // A finished creation survives a reload, which runs no cleanup, but not
   // leaving the page: the next "Create a tenant" starts a new one.
   useEffect(() => {
     if (creation.step !== 'done') return undefined;
-    storeCreation(owner, creation);
+    storeCreation(owner, creation, flow);
     return () => {
-      if (loadCreation(owner)?.step === 'done') storeCreation(owner, null);
+      if (loadCreation(owner, flow)?.step === 'done') storeCreation(owner, null, flow);
     };
-  }, [owner, creation]);
+  }, [owner, flow, creation]);
   return {
     creation,
     update: (next) => {
-      storeCreation(owner, next);
+      storeCreation(owner, next, flow);
       setCreation(next);
     },
   };
 }
 
-export function storedCreation(owner: string): Creation | null {
-  return loadCreation(owner);
+export function storedCreation(owner: string, tenant: string): Creation | null {
+  return loadCreation(owner, flowOf(tenant));
 }
 
 export function beginAdministrator(
@@ -55,7 +63,7 @@ export function beginAdministrator(
   tenant: string,
   origin: 'created' | 'imported' | 'existing',
 ): void {
-  storeCreation(owner, administratorOf(tenant, origin));
+  storeCreation(owner, administratorOf(tenant, origin), flowOf(tenant));
 }
 
 export interface TenantCreate {

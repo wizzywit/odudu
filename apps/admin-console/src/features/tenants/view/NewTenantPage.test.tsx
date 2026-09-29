@@ -10,6 +10,8 @@ const AT = '/console/system/new-tenant';
 const SUBJECT_ID = '01a0e72d-7fc7-7950-a1e7-1d079588f8b4';
 const PASSWORD = 'one-time-Qm9vYmFyYmF6';
 const KEY = 'odudu.console.tenant-creation';
+const SYSTEM_KEY = 'odudu.console.system-administrator';
+const SYSTEM_AT = '/console/system/system-admins/new';
 
 beforeEach(() => {
   sessionStorage.clear();
@@ -149,10 +151,11 @@ it('never sends a creation twice whose answer was lost, and looks for the tenant
   expect(sent.filter((s) => s.method === 'POST')).toHaveLength(1);
 });
 
-function at(creation: unknown) {
+function at(creation: unknown, where = AT) {
   return () => {
-    sessionStorage.setItem(KEY, JSON.stringify({ owner: 'system/s0', creation }));
-    return consoleAt(AT, routes()).element;
+    const key = where === SYSTEM_AT ? SYSTEM_KEY : KEY;
+    sessionStorage.setItem(key, JSON.stringify({ owner: 'system/s0', creation }));
+    return consoleAt(where, routes()).element;
   };
 }
 
@@ -334,13 +337,10 @@ it('asks a resumed step for all that tenant-admin carries, since the password is
 it("adds a system administrator as system's own administrator, and leads back to them", async () => {
   const user = userEvent.setup();
   sessionStorage.setItem(
-    KEY,
+    SYSTEM_KEY,
     JSON.stringify({ owner: 'system/s0', creation: { ...HALFWAY, tenant: 'system' } }),
   );
-  renderConsoleAt(
-    '/console/system/system-admins/new',
-    systemRoutes(administratorRoutes('system', SUBJECT_ID, PASSWORD)),
-  );
+  renderConsoleAt(SYSTEM_AT, systemRoutes(administratorRoutes('system', SUBJECT_ID, PASSWORD)));
   expect(
     await screen.findByRole('heading', { level: 1, name: 'Add a system administrator' }),
   ).toBeVisible();
@@ -374,40 +374,53 @@ it("adds a system administrator as system's own administrator, and leads back to
 
 it('passes axe in both themes adding a system administrator', async () => {
   expect(
-    await axeInBothThemes(at({ ...HALFWAY, tenant: 'system' }), () =>
+    await axeInBothThemes(at({ ...HALFWAY, tenant: 'system' }, SYSTEM_AT), () =>
       screen.findByText(/reaches every tenant/u),
     ),
   ).toEqual({ light: [], dark: [] });
   expect(
-    await axeInBothThemes(at({ step: 'done', tenant: 'system', username: 'grace' }), () =>
-      screen.findAllByRole('link', { name: 'Back to System administrators' }),
+    await axeInBothThemes(
+      at({ step: 'done', tenant: 'system', username: 'grace' }, SYSTEM_AT),
+      () => screen.findAllByRole('link', { name: 'Back to System administrators' }),
     ),
   ).toEqual({ light: [], dark: [] });
 });
 
-it('moves to the address of the step it shows, in place, so the rail matches it', async () => {
+it('opens a new tenant, not a system administrator left half added', async () => {
   sessionStorage.setItem(
-    KEY,
+    SYSTEM_KEY,
     JSON.stringify({ owner: 'system/s0', creation: { ...HALFWAY, tenant: 'system' } }),
   );
-  const { router } = renderConsoleAt(
-    AT,
-    systemRoutes(administratorRoutes('system', SUBJECT_ID, PASSWORD)),
-  );
-  await waitFor(() => {
-    expect(router.state.location.pathname).toBe('/system/system-admins/new');
-  });
-  expect(router.history.length).toBe(1);
-  expect(
-    await screen.findByRole('heading', { level: 1, name: 'Add a system administrator' }),
-  ).toBeVisible();
+  const { router } = renderConsoleAt(AT, routes());
+  expect(await screen.findByRole('textbox', { name: 'Name' })).toBeVisible();
+  expect(screen.getByRole('heading', { level: 1, name: 'Create a tenant' })).toBeVisible();
+  expect(router.state.location.pathname).toBe('/system/new-tenant');
+  expect(sessionStorage.getItem(SYSTEM_KEY)).toContain('"tenant":"system"');
 });
 
-it("moves a tenant's administrator step back beside Tenants when opened under System administrators", async () => {
+it('opens a system administrator, not a tenant left half created', async () => {
   sessionStorage.setItem(KEY, JSON.stringify({ owner: 'system/s0', creation: HALFWAY }));
-  const { router } = renderConsoleAt('/console/system/system-admins/new', routes());
-  await waitFor(() => {
-    expect(router.state.location.pathname).toBe('/system/new-tenant');
-  });
-  expect(router.history.length).toBe(1);
+  const { router } = renderConsoleAt(
+    SYSTEM_AT,
+    systemRoutes(administratorRoutes('system', SUBJECT_ID, PASSWORD)),
+  );
+  expect(await screen.findByText(/reaches every tenant/u)).toBeVisible();
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'Add a system administrator' }),
+  ).toBeVisible();
+  expect(router.state.location.pathname).toBe('/system/system-admins/new');
+  expect(sessionStorage.getItem(KEY)).toContain('"tenant":"acme"');
+});
+
+it('resumes a system administrator after a reload, beside a tenant of its own', async () => {
+  sessionStorage.setItem(KEY, JSON.stringify({ owner: 'system/s0', creation: HALFWAY }));
+  sessionStorage.setItem(
+    SYSTEM_KEY,
+    JSON.stringify({
+      owner: 'system/s0',
+      creation: { ...HALFWAY, tenant: 'system', username: 'ada', subjectId: SUBJECT_ID },
+    }),
+  );
+  renderConsoleAt(SYSTEM_AT, systemRoutes(administratorRoutes('system', SUBJECT_ID, PASSWORD)));
+  expect(await screen.findByText(/ada/u, { selector: 'code' })).toBeVisible();
 });
