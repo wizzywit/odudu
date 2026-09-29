@@ -8,6 +8,7 @@ import {
   type RouterHistory,
 } from '@tanstack/react-router';
 import { RouterProvider as AriaRouterProvider } from 'react-aria-components';
+import { lazyFeatureRoute } from '#/app/lazyFeatureRoute.tsx';
 import { NavigationGuard } from '#/app/NavigationGuard.tsx';
 import { ConsoleHome, SessionGate } from '#/features/session/index.ts';
 import {
@@ -63,10 +64,24 @@ const tenant = createRoute({
   notFoundComponent: PageNotFound,
 });
 
-const areas = [OVERVIEW, ...EVERY_AREA.filter((area) => area !== OVERVIEW)].map((area) =>
+const Overview = lazyFeatureRoute(
+  () => import('#/features/overview/index.ts').then((feature) => feature.OverviewPage),
+  'Loading the overview',
+);
+
+const overview = createRoute({
+  getParentRoute: () => tenant,
+  path: '/',
+  component: function TenantOverview() {
+    const { tenant: name } = tenant.useParams();
+    return <Overview key={name} tenant={name} />;
+  },
+});
+
+const areas = EVERY_AREA.filter((area) => area !== OVERVIEW).map((area) =>
   createRoute({
     getParentRoute: () => tenant,
-    path: area.path === '' ? '/' : area.path,
+    path: area.path,
     component: function Area() {
       const { tenant: name } = tenant.useParams();
       return <AreaPage key={`${name}/${area.path}`} tenant={name} area={area} />;
@@ -74,7 +89,7 @@ const areas = [OVERVIEW, ...EVERY_AREA.filter((area) => area !== OVERVIEW)].map(
   }),
 );
 
-const routeTree = root.addChildren([home, tenant.addChildren(areas)]);
+const routeTree = root.addChildren([home, tenant.addChildren([overview, ...areas])]);
 
 export function createConsoleRouter(history: RouterHistory = createBrowserHistory()) {
   return createRouter({

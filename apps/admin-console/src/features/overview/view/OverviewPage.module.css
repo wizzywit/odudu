@@ -1,0 +1,18 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-block-start: var(--space-4);
+}
+
+.wide {
+  grid-column: 1 / -1;
+  display: grid;
+  min-inline-size: 0;
+}
+
+@container shell (width < 1024px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

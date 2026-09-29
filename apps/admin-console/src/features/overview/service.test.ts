@@ -4,6 +4,7 @@ import {
   discoveryView,
   needsAttention,
   publishedKeys,
+  rawJson,
   type AttentionInputs,
 } from '#/features/overview/service.ts';
 
@@ -20,8 +21,14 @@ describe('the discovery document, as the page lays it out', () => {
     service_documentation: 'https://id.example/docs',
   });
 
-  it('keeps the issuer apart', () => {
+  it('keeps the issuer apart, with the address of the document it publishes', () => {
     expect(view.issuer).toBe('https://id.example/tenants/acme');
+    expect(view.document).toBe('https://id.example/tenants/acme/.well-known/openid-configuration');
+  });
+
+  it('keeps the whole document, laid out, for the raw view', () => {
+    expect(view.raw).toContain('\n  "service_documentation": "https://id.example/docs"');
+    expect(JSON.parse(view.raw)).toMatchObject({ scopes_supported: ['openid'] });
   });
 
   it("lists every endpoint and the JWKS address, in the document's order", () => {
@@ -78,6 +85,10 @@ describe('the published keys', () => {
       { kid: 'kid-r', kty: 'RSA', alg: 'RS256', use: 'sig', lane: 'rotating' },
       { kid: 'kid-x', kty: 'RSA', alg: null, use: null, lane: 'unlisted' },
     ]);
+  });
+
+  it('keeps the whole set, laid out, for the raw view', () => {
+    expect(rawJson(jwks)).toBe(JSON.stringify(jwks, null, 2));
   });
 
   it('says the lane is unknown when the keys could not be read', () => {

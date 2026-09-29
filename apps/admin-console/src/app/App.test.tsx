@@ -404,7 +404,8 @@ describe('leaving', () => {
       'POST /console/auth/logout': offline(),
     });
     await user.click(await screen.findByRole('button', { name: 'Sign out' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Could not sign out. Try again.');
+    const said = await screen.findByText('Could not sign out. Try again.');
+    expect(said.closest('[role="alert"]')).not.toBeNull();
     expect(leavePage).not.toHaveBeenCalled();
   });
 
@@ -490,7 +491,8 @@ describe('the rail shortcut', () => {
     act(() => {
       useUnsavedGuard.getState().setDirty('acme/settings#sessions', 'Sessions');
     });
-    await user.click(screen.getByRole('link', { name: 'Subjects' }));
+    const rail = screen.getByRole('navigation', { name: 'Areas of acme' });
+    await user.click(within(rail).getByRole('link', { name: 'Subjects' }));
     await screen.findByRole('alertdialog', { name: 'Leave without saving?' });
     await user.keyboard('[[');
     expect(screen.getByRole('button', { name: 'Collapse menu', hidden: true })).toBeInTheDocument();

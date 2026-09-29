@@ -21,6 +21,9 @@ export interface Jwks {
 
 export interface DiscoveryView {
   readonly issuer: string;
+  // Where relying parties read it, OpenID Connect Discovery 1.0 §4.
+  readonly document: string;
+  readonly raw: string;
   readonly endpoints: readonly { readonly name: string; readonly url: string }[];
   readonly lists: readonly { readonly name: string; readonly values: readonly string[] }[];
   readonly flags: readonly { readonly name: string; readonly value: boolean }[];
@@ -34,10 +37,16 @@ function isStrings(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
+export function rawJson(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
 export function discoveryView(document: Discovery): DiscoveryView {
   const members = Object.entries(document);
   return {
     issuer: document.issuer,
+    document: `${document.issuer.replace(/\/$/u, '')}/.well-known/openid-configuration`,
+    raw: rawJson(document),
     endpoints: members.flatMap(([name, value]) =>
       isEndpoint(name) && typeof value === 'string' ? [{ name, url: value }] : [],
     ),
@@ -161,3 +170,39 @@ export type Read<T> =
   | { readonly status: 'loading' }
   | { readonly status: 'ready'; readonly data: T }
   | { readonly status: 'failed'; readonly refused: boolean; readonly retry: () => void };
+
+// A read the page may not make at all, because whoami says the capability
+// it needs is not held.
+export type Gated<T> = Read<T> | { readonly status: 'needs'; readonly capability: string };
+
+export interface CountTile {
+  readonly id: string;
+  readonly label: string;
+  readonly href: string;
+  readonly noun: { readonly one: string; readonly other: string };
+  readonly count: Gated<CountResponse>;
+  // The client cap, when settings could be read.
+  readonly limit?: number | undefined;
+}
+
+export interface AttentionLink extends AttentionItem {
+  readonly href: string;
+  // The label of the area the link opens.
+  readonly place: string;
+}
+
+export interface AttentionState {
+  readonly status: 'checking' | 'ready';
+  readonly items: readonly AttentionLink[];
+  // Capabilities a check needed and whoami says are not held.
+  readonly unchecked: readonly string[];
+  readonly failed: boolean;
+  readonly retry: () => void;
+}
+
+export interface KeysView {
+  readonly rows: readonly PublishedKey[];
+  readonly raw: string;
+  // The capability the keys' lanes need, when it is not held.
+  readonly lanesNeed: string | null;
+}
