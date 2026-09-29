@@ -39,7 +39,9 @@ it('lists each item with a link to the page that fixes it', () => {
 
 it('says when nothing needs attention', () => {
   render(<AttentionPanel attention={state({ items: [] })} />);
-  expect(screen.getByText('Nothing needs attention.')).toBeVisible();
+  const line = screen.getByText('Nothing needs attention.');
+  expect(line).toBeVisible();
+  expect(line.closest('p')?.querySelector('[aria-hidden="true"]')).toHaveTextContent('✓');
 });
 
 it('says it is still checking', () => {

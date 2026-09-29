@@ -1,5 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
+import gridCss from '#/features/overview/view/OverviewPage.module.css?raw';
+import discoveryCss from '#/features/overview/view/DiscoveryPanel.module.css?raw';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { json, problem, type Answer } from '#/testing/fakeTransport.ts';
 import {
@@ -174,4 +176,14 @@ it('passes axe in both themes, with everything and with little', async () => {
       ),
     ).toEqual({ light: [], dark: [] });
   }
+});
+
+it('sizes each panel to its content, so a short one never stretches to its neighbour', () => {
+  expect(gridCss).toMatch(/\.grid\s*\{[^}]*align-items:\s*start/u);
+});
+
+it('shows a long discovery name in full, wrapping it rather than cutting it off', () => {
+  const source = discoveryCss.replace(/\/\*[\s\S]*?\*\//gu, '');
+  expect(source).toMatch(/\.pair dt code\s*\{[^}]*overflow-wrap:\s*anywhere/u);
+  expect(source).not.toMatch(/text-overflow|white-space:\s*nowrap/u);
 });

@@ -18,7 +18,11 @@
 }
 
 .pair dt {
+  min-inline-size: 0;
   font-size: var(--type-13);
+}
+
+.pair dt code {
   overflow-wrap: anywhere;
 }
 

@@ -26,7 +26,14 @@ export function AttentionPanel({ attention }: { attention: AttentionState }) {
           ))}
         </ul>
       ) : null}
-      {clear ? <p className={styles.clear}>Nothing needs attention.</p> : null}
+      {clear ? (
+        <p className={styles.clear}>
+          <span aria-hidden="true" className={styles.check}>
+            ✓
+          </span>
+          Nothing needs attention.
+        </p>
+      ) : null}
       {unchecked.length > 0 ? (
         <p role="note" className={styles.note}>
           {'Some checks need a capability you do not hold: '}
