@@ -891,9 +891,11 @@ a pushed commit and the review it attracted answered.
    first editing feature: the e2e test of a session ending mid-edit, which
    restores the draft and saves nothing, and the `beforeunload` prompt a
    dirty section registers, both in `apps/admin-console/e2e/tenants.spec.ts`
-   ("a session that ends mid-edit…"). Still owed are route-level code
-   splitting, once the feature routes exist to split along, and §9's
-   accessibility duties for every feature, ending in the VoiceOver pass. The tenant shell also renders `whoami`'s
+   ("a session that ends mid-edit…"). Route-level code splitting is done
+   too: each feature is loaded through its `index.ts` by
+   `lazyFeatureRoute` (`apps/admin-console/src/app/lazyFeatureRoute.tsx`)
+   and builds as a chunk of its own. Still owed are §9's accessibility
+   duties for every feature, ending in the VoiceOver pass. The tenant shell also renders `whoami`'s
    answer for a tenant that does not exist as a not-found page, since a
    system administrator reaches any well-formed tenant name. That answer
    is a plain `401`, not a `404`: the admin router refuses a tenant it
