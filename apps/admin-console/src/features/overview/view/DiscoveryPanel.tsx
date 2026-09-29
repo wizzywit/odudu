@@ -99,7 +99,7 @@ function Keys({ keys }: { keys: Read<KeysView> }) {
             label="Published keys"
             columns={COLUMNS}
             rows={keys.data.rows}
-            rowKey={(key) => key.kid ?? key.kty}
+            rowKey={(key) => key.row}
           />
           {keys.data.lanesNeed === null ? null : (
             <CapabilityNote capability={keys.data.lanesNeed}>Each key&apos;s lane</CapabilityNote>

@@ -64,6 +64,8 @@ export function discoveryView(document: Discovery): DiscoveryView {
 export type KeyLane = SigningKey['status'] | 'unlisted' | 'unknown';
 
 export interface PublishedKey {
+  // Its place in the set: a kid is optional, so it cannot key a row.
+  readonly row: string;
   readonly kid: string | null;
   readonly kty: string;
   readonly alg: string | null;
@@ -75,12 +77,19 @@ export function publishedKeys(
   jwks: Jwks,
   keys: readonly SigningKey[] | undefined,
 ): readonly PublishedKey[] {
-  return jwks.keys.map((key) => {
+  return jwks.keys.map((key, index) => {
     const kid = key.kid ?? null;
     const listed = keys?.find((k) => k.kid === kid);
     let lane: KeyLane = 'unknown';
     if (keys !== undefined) lane = listed?.status ?? 'unlisted';
-    return { kid, kty: key.kty, alg: key.alg ?? null, use: key.use ?? null, lane };
+    return {
+      row: String(index),
+      kid,
+      kty: key.kty,
+      alg: key.alg ?? null,
+      use: key.use ?? null,
+      lane,
+    };
   });
 }
 

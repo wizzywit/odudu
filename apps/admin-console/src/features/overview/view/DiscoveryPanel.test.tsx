@@ -22,8 +22,8 @@ const KEYS: Read<KeysView> = {
   status: 'ready',
   data: {
     rows: [
-      { kid: 'kid-active-0001', kty: 'EC', alg: 'ES256', use: 'sig', lane: 'active' },
-      { kid: 'kid-staged-0002', kty: 'RSA', alg: 'RS256', use: 'sig', lane: 'rotating' },
+      { row: '0', kid: 'kid-active-0001', kty: 'EC', alg: 'ES256', use: 'sig', lane: 'active' },
+      { row: '1', kid: 'kid-staged-0002', kty: 'RSA', alg: 'RS256', use: 'sig', lane: 'rotating' },
     ],
     raw: '{\n  "keys": []\n}',
     lanesNeed: null,
@@ -70,7 +70,7 @@ it('names the capability a lane needs when the key list could not be read', () =
   const unread: Read<KeysView> = {
     status: 'ready',
     data: {
-      rows: [{ kid: 'k', kty: 'EC', alg: null, use: null, lane: 'unknown' }],
+      rows: [{ row: '0', kid: 'k', kty: 'EC', alg: null, use: null, lane: 'unknown' }],
       raw: '{}',
       lanesNeed: 'manage-keys',
     },
