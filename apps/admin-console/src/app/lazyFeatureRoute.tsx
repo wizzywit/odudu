@@ -7,7 +7,7 @@ import { Skeleton } from '#/shared/view/Skeleton.tsx';
 // A route whose component is a feature's own chunk, fetched on first use.
 // TanStack's lazyRouteComponent is not used: on a stale chunk it writes
 // sessionStorage and reloads past the unsaved-changes guard, which this
-// asks first (docs/phases/p4d.md, "Part 4 spikes").
+// asks first.
 export function lazyFeatureRoute<P extends object>(
   load: () => Promise<ComponentType<P>>,
   label: string,

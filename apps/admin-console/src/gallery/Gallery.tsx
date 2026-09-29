@@ -297,6 +297,7 @@ function ClientList() {
       columns={COLUMNS}
       rowKey={(c) => c.id}
       onRowAction={NOTHING}
+      capability="manage-clients"
       actions={<Button variant="primary">Create client</Button>}
     />
   );

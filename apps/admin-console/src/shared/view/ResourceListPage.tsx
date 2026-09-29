@@ -41,7 +41,7 @@ export function ResourceListPage<T>({
   rowKey: (row: T) => string;
   onRowAction?: (id: string) => void;
   // What a refused read needed, named rather than shown as a failure.
-  capability?: string;
+  capability: string;
   nothingYet?: ReactNode;
   nothingYetAction?: ReactNode;
 }) {
@@ -71,7 +71,7 @@ export function ResourceListPage<T>({
           columns={columns}
           rowKey={rowKey}
           {...(onRowAction === undefined ? {} : { onRowAction })}
-          {...(capability === undefined ? {} : { capability })}
+          capability={capability}
           {...(nothingYet === undefined ? {} : { nothingYet })}
           {...(nothingYetAction === undefined ? {} : { nothingYetAction })}
         />
@@ -141,7 +141,7 @@ function Body<T>({
   readonly columns: readonly Column<T>[];
   rowKey: (row: T) => string;
   onRowAction?: (id: string) => void;
-  capability?: string;
+  capability: string;
   nothingYet?: ReactNode;
   nothingYetAction?: ReactNode;
 }) {
@@ -149,7 +149,7 @@ function Body<T>({
     case 'loading':
       return <Skeleton label={`Loading ${noun.other}`} lines={4} />;
     case 'refused':
-      return <CapabilityNote capability={capability ?? 'a further'}>{title}</CapabilityNote>;
+      return <CapabilityNote capability={capability}>{title}</CapabilityNote>;
     case 'failed':
       return (
         <EmptyState
