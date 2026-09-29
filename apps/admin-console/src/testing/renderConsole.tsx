@@ -15,7 +15,8 @@ export function preloadConsoleRoutes(): Promise<void> {
   return preloadFeatures();
 }
 
-beforeAll(preloadConsoleRoutes);
+// Its own budget: all four feature graphs load here, on a busy runner too.
+beforeAll(preloadConsoleRoutes, 60_000);
 
 export const GRACE = { tenant: 'acme', subject_id: 's1', username: 'grace' };
 export const ROOT = { tenant: 'system', subject_id: 's0', username: 'root' };
