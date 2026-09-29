@@ -7,4 +7,8 @@ export { usePrincipal, useSignedIn } from '#/features/session/usecase/useSignedI
 export { useSignIn } from '#/features/session/usecase/useSignIn.ts';
 export { useSignOut } from '#/features/session/usecase/useSignOut.ts';
 export { useTenantAccess, type TenantAccess } from '#/features/session/usecase/useTenantAccess.ts';
-export { useAuthority, useRefusal } from '#/features/session/usecase/useAuthority.ts';
+export {
+  useAuthority,
+  useRefusal,
+  useTenantMissing,
+} from '#/features/session/usecase/useAuthority.ts';

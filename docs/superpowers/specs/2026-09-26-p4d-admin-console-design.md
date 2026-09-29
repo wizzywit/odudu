@@ -883,10 +883,12 @@ a pushed commit and the review it attracted answered.
    `beforeunload` prompt a dirty section registers, both with the first
    editing feature; route-level code splitting, once the feature routes
    exist to split along; and §9's accessibility duties for every feature,
-   ending in the VoiceOver pass. Overview also renders `whoami`'s `404` for
-   a tenant that does not exist as a not-found page, since a system
-   administrator reaches any well-formed tenant name today and gets the
-   shell.
+   ending in the VoiceOver pass. The tenant shell also renders `whoami`'s
+   answer for a tenant that does not exist as a not-found page, since a
+   system administrator reaches any well-formed tenant name. That answer
+   is a plain `401`, not a `404`: the admin router refuses a tenant it
+   cannot find before it authenticates, and the gateway passes the `401`
+   through with the session kept.
 6. **Close** — the whole-branch review and the phase-closing pass
    `CLAUDE.md` describes.
 

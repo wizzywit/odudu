@@ -1,0 +1,16 @@
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  color: var(--ink-primary);
+  font-size: var(--type-13);
+  text-decoration: none;
+}
+
+.link[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

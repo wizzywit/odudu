@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
-import { json } from '#/testing/fakeTransport.ts';
+import { json, problem } from '#/testing/fakeTransport.ts';
 import {
   consoleAt,
   GRACE,
@@ -46,4 +46,38 @@ it('passes axe in both themes, under system authority as well', async () => {
       ),
     ).toEqual({ light: [], dark: [] });
   }
+});
+
+const NO_SUCH = {
+  'GET /console/api/session': json(ROOT),
+  'GET /console/api/admin/tenants/no-such/whoami': problem(401, 'about:blank', 'Unauthorized'),
+};
+
+it('tells a system administrator that no tenant has the name, with no rail to offer', async () => {
+  renderConsoleAt('/console/no-such', NO_SUCH);
+  expect(await screen.findByRole('heading', { level: 1, name: 'Tenant not found' })).toBeVisible();
+  expect(screen.getByText(/No tenant is named/u)).toHaveTextContent('No tenant is named no-such.');
+  expect(screen.getByRole('link', { name: 'Choose a tenant' })).toHaveAttribute(
+    'href',
+    '/console/?choose',
+  );
+  expect(screen.queryByRole('navigation', { name: 'Areas of no-such' })).toBeNull();
+});
+
+it('passes axe in both themes on the tenant-not-found page', async () => {
+  expect(
+    await axeInBothThemes(
+      () => consoleAt('/console/no-such', NO_SUCH).element,
+      () => screen.findByRole('heading', { level: 1, name: 'Tenant not found' }),
+    ),
+  ).toEqual({ light: [], dark: [] });
+});
+
+it("keeps a tenant administrator's shell on whoami's 401, which says nothing of the tenant", async () => {
+  renderConsoleAt('/console/acme', {
+    'GET /console/api/session': json(GRACE),
+    'GET /console/api/admin/tenants/acme/whoami': problem(401, 'about:blank', 'Unauthorized'),
+  });
+  expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
+  expect(screen.queryByRole('heading', { name: 'Tenant not found' })).toBeNull();
 });

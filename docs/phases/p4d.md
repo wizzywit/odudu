@@ -1227,8 +1227,10 @@ the branch, three of them in the session lifecycle this part owns.
 
 A system administrator opening a well-formed tenant that does not exist
 still gets the shell with placeholder areas. It is harmless while every
-area is a placeholder, and it is Part 4's, on the Overview feature, whose
-first read is the `whoami` that answers `404` there (spec §12, item 5).
+area is a placeholder, and it is Part 4's (spec §12, item 5). The `whoami`
+read there answers a plain `401`, not a `404`: the admin router refuses an
+unknown tenant before it authenticates, and the gateway passes it through
+with the session kept (`apps/server/tests/console-proxy.int.test.ts`).
 
 ## Part 3 — the console's bundle
 

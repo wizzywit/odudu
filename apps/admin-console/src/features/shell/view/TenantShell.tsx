@@ -1,8 +1,14 @@
 import type { ReactNode } from 'react';
-import { SignedInElsewhere, SigningIn, useTenantAccess } from '#/features/session/index.ts';
+import {
+  SignedInElsewhere,
+  SigningIn,
+  useTenantAccess,
+  useTenantMissing,
+} from '#/features/session/index.ts';
 import { useShell } from '#/features/shell/usecase/useShell.ts';
 import { PageNotFound } from '#/features/shell/view/PageNotFound.tsx';
 import { RailFooter } from '#/features/shell/view/RailFooter.tsx';
+import { TenantNotFound } from '#/features/shell/view/TenantNotFound.tsx';
 import { isTenantName, type Principal } from '#/shared/service/principal.ts';
 import { AppShell } from '#/shared/view/AppShell.tsx';
 import { ContextBar } from '#/shared/view/ContextBar.tsx';
@@ -19,6 +25,14 @@ function SignedInShell({
   children: ReactNode;
 }) {
   const shell = useShell(tenant, principal);
+  const missing = useTenantMissing(tenant);
+  if (missing === true) {
+    return (
+      <main id="main" tabIndex={-1} className={styles.lost}>
+        <TenantNotFound tenant={tenant} chooseHref={shell.switchHref} />
+      </main>
+    );
+  }
   return (
     <AppShell
       brand={`odudu · ${tenant}`}
