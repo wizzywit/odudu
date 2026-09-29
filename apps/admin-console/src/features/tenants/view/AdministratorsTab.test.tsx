@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
@@ -68,6 +68,31 @@ it('names what adding an administrator needs, rather than offering it, to manage
     'Adding an administrator needs the manage-users capability.',
     'Adding an administrator needs the manage-clients capability.',
   ]);
+});
+
+it('names manage-tenants for system, which its last-administrator guard counts', async () => {
+  const { sent } = renderConsoleAt('/console/system/tenants/system?tab=administrators', {
+    ...systemRoutes({
+      [`GET ${ADMIN}/system`]: json(tenant('system'), 200, { etag: '"s1"' }),
+      [`GET ${ADMIN}/system/subjects`]: json({ items: [GRACE] }),
+      [`GET ${ADMIN}/system/subjects/count`]: json({ count: 1, capped: false }),
+    }),
+  });
+  const lead = await screen.findByText(/holds manage-tenants in system/u);
+  expect(lead).toHaveTextContent(
+    'the last one cannot be disabled, deleted, or lose manage-tenants',
+  );
+  expect(within(lead).getByRole('link', { name: 'System administrators' })).toHaveAttribute(
+    'href',
+    '/console/system/system-admins',
+  );
+  await waitFor(() => {
+    expect(
+      sent
+        .filter((s) => s.path.startsWith(`${ADMIN}/system/subjects`))
+        .map((s) => s.search.get('capability')),
+    ).toEqual(['manage-tenants', 'manage-tenants']);
+  });
 });
 
 it('passes axe in both themes', async () => {

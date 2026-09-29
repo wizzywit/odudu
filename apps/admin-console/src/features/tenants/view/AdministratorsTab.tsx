@@ -1,4 +1,5 @@
 import type { Subject } from '@odudu/contracts/admin';
+import { Link } from 'react-aria-components';
 import { useTenantAdministrators } from '#/features/tenants/usecase/useTenantAdministrators.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import { Count } from '#/shared/view/Count.tsx';
@@ -33,12 +34,18 @@ const COLUMNS: readonly Column<Subject>[] = [
 ];
 
 export function AdministratorsTab({ tenant }: { tenant: string }) {
-  const { list, add, addNeeds } = useTenantAdministrators(tenant);
+  const { list, add, addNeeds, counted, systemAdminsHref } = useTenantAdministrators(tenant);
   const label = `Administrators of ${tenant}`;
   return (
     <div className={styles.tab}>
       <p className={styles.lead}>
-        {`Everybody who holds tenant-admin in ${tenant}, directly, through a group or under another role. A change that would leave ${tenant} with no enabled administrator is refused: the last one cannot be disabled, deleted, or lose tenant-admin.`}
+        {`Everybody who holds ${counted} in ${tenant}, directly, through a group or under another role. A change that would leave ${tenant} with no enabled administrator is refused: the last one cannot be disabled, deleted, or lose ${counted}.`}
+        {systemAdminsHref === null ? null : (
+          <>
+            {' '}
+            They are managed under <Link href={systemAdminsHref}>System administrators</Link>.
+          </>
+        )}
       </p>
       <div className={styles.actions}>
         <Button onPress={add} isDisabled={addNeeds.length > 0}>

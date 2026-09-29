@@ -158,6 +158,14 @@ export const TENANTS_HREF = `${SYSTEM_BASE}/tenants`;
 export const NEW_TENANT_HREF = `${SYSTEM_BASE}/new-tenant`;
 export const IMPORT_TENANT_HREF = `${SYSTEM_BASE}/import-tenant`;
 
+export const SYSTEM_ADMINS_HREF = `${SYSTEM_BASE}/system-admins`;
+
+// What the last-administrator guard counts: system's administrators are
+// those who can reach every tenant, which is manage-tenants.
+export function administratorCapability(tenant: string): 'tenant-admin' | 'manage-tenants' {
+  return tenant === 'system' ? 'manage-tenants' : TENANT_ADMIN;
+}
+
 export function tenantHref(name: string): string {
   return `${TENANTS_HREF}/${encodeURIComponent(name)}`;
 }

@@ -4,12 +4,21 @@ import { holds } from '#/features/shell/index.ts';
 import { useAdministrators } from '#/features/tenants/repository/useAdministrators.ts';
 import { beginAdministrator } from '#/features/tenants/repository/useCreation.ts';
 import { useGo } from '#/features/tenants/repository/useGo.ts';
-import { ADMINISTRATOR_NEEDS, NEW_TENANT_HREF } from '#/features/tenants/service.ts';
+import {
+  ADMINISTRATOR_NEEDS,
+  administratorCapability,
+  NEW_TENANT_HREF,
+  SYSTEM_ADMINS_HREF,
+} from '#/features/tenants/service.ts';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
 export interface TenantAdministrators {
   readonly list: ResourceListState<Subject>;
+  // The capability or role the guard counts, and for `system` where its
+  // administrators are managed.
+  readonly counted: 'tenant-admin' | 'manage-tenants';
+  readonly systemAdminsHref: string | null;
   // What adding one needs that whoami says is missing, named instead of refused.
   readonly addNeeds: readonly AdminCapability[];
   readonly add: () => void;
@@ -24,6 +33,8 @@ export function useTenantAdministrators(tenant: string): TenantAdministrators {
     authority === undefined ? [] : ADMINISTRATOR_NEEDS.filter((c) => !holds(authority, c));
   return {
     list,
+    counted: administratorCapability(tenant),
+    systemAdminsHref: tenant === SYSTEM_TENANT ? SYSTEM_ADMINS_HREF : null,
     addNeeds,
     add: () => {
       if (addNeeds.length > 0) return;
