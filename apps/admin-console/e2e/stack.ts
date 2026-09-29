@@ -47,6 +47,21 @@ const seededSchema = z.object({
   limited: account,
   // A tenant administrator of a tenant of its own, whose settings a test changes.
   overview: account,
+  // A system administrator whose console session a test ends mid-edit.
+  resumer: account,
+  // Tenants the System area's tests change, one per test that changes one.
+  tenants: z.object({
+    // Edited, disabled and enabled again.
+    general: z.string(),
+    // Holds a confidential client, and is exported and imported.
+    source: z.string(),
+    // Changed behind an open page, for a 412.
+    conflict: z.string(),
+    // Edited by `resumer` when the session ends.
+    resume: z.string(),
+    // The prefix every tenant a test creates starts with.
+    prefix: z.string(),
+  }),
 });
 
 export type Account = z.infer<typeof account>;

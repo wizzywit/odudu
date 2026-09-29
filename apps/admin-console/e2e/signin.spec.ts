@@ -155,11 +155,3 @@ test('a session that ends on the server signs in again and comes back to the pag
   expect(await sessionTenant(page)).toBe(expiring.tenant);
   expect(consoleSessions(expiring)).toBe(1);
 });
-
-test('a session that ends mid-edit restores the draft after sign-in and saves nothing', () => {
-  test.skip(
-    true,
-    'No console section can be edited yet. The first feature with one brings this test, ' +
-      'and with it the beforeunload prompt a dirty section registers.',
-  );
-});

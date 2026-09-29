@@ -40,10 +40,31 @@ export default function globalSetup(): void {
   const system = { tenant: 'system', username: `root-${run}`, password: password() };
   const limited = { tenant: admin.tenant, username: 'babbage', password: password() };
   const overview = { tenant: `${run}-c`, username: 'turing', password: password() };
+  const resumer = { tenant: 'system', username: `resume-${run}`, password: password() };
+  const tenants = {
+    general: `${run}-d`,
+    source: `${run}-e`,
+    conflict: `${run}-f`,
+    resume: `${run}-g`,
+    prefix: `${run}-n`,
+  };
 
   seed(['tenant', '--name', admin.tenant]);
   seed(['tenant', '--name', other.tenant]);
   seed(['tenant', '--name', overview.tenant]);
+  for (const name of [tenants.general, tenants.source, tenants.conflict, tenants.resume]) {
+    seed(['tenant', '--name', name]);
+  }
+  seed([
+    'client',
+    '--tenant',
+    tenants.source,
+    '--client-id',
+    'billing',
+    `--client-secret=${password()}`,
+    '--redirect-uri',
+    'https://billing.example/callback',
+  ]);
   administrator(admin);
   administrator(forced, '--require-password-change');
   administrator(expiring);
@@ -54,6 +75,7 @@ export default function globalSetup(): void {
   // Creates the system tenant; its own generated password is not used.
   seed(['admin', '--username', `boot-${run}`]);
   administrator(system);
+  administrator(resumer);
 
-  publish({ admin, forced, expiring, other, system, limited, overview });
+  publish({ admin, forced, expiring, other, system, limited, overview, resumer, tenants });
 }
