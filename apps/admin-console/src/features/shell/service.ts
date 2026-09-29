@@ -90,6 +90,12 @@ export const EVERY_AREA: readonly Area[] = [
   ...TENANT_AREAS.flatMap((g) => g.areas),
 ];
 
+export function areaAt(path: string): Area {
+  const found = EVERY_AREA.find((a) => a.path === path);
+  if (found === undefined) throw new Error(`no area is at "${path}"`);
+  return found;
+}
+
 export function holds(authority: Authority | undefined, capability: AdminCapability): boolean {
   return authority?.capabilities.includes(capability) === true;
 }

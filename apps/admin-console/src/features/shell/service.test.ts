@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   actsWithSystemAuthority,
+  areaAt,
   areaHref,
   currentHref,
   OVERVIEW,
@@ -95,4 +96,10 @@ describe('the system-authority context bar', () => {
       actsWithSystemAuthority(SYSTEM_ADMIN, 'acme', { capabilities: [], crossTenant: false }),
     ).toBe(false);
   });
+});
+
+it('finds an area by its path, and refuses one no area has', () => {
+  expect(areaAt('audit')).toMatchObject({ label: 'Audit trail', capability: 'view-audit' });
+  expect(areaAt('')).toBe(OVERVIEW);
+  expect(() => areaAt('nowhere')).toThrow('no area is at "nowhere"');
 });
