@@ -30,7 +30,7 @@ function page(record: RecordView, onTabChange = vi.fn(), tab = 'general') {
       title="Billing portal"
       status={<span>enabled</span>}
       noun="client"
-      actions={<Button variant="danger">Delete client</Button>}
+      actions={<Button>Open the audit trail</Button>}
       label="Client sections"
       tab={tab}
       onTabChange={onTabChange}
@@ -118,7 +118,7 @@ it('says it is loading, that the record is gone, or that it could not be read', 
 
   rerender(page(view({ status: 'missing' })));
   expect(screen.getByRole('heading', { name: 'No such client' })).toBeVisible();
-  expect(screen.queryByRole('button', { name: 'Delete client' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Open the audit trail' })).toBeNull();
 
   const failed = view({ status: 'failed' });
   rerender(page(failed));

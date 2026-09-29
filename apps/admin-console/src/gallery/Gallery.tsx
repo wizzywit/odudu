@@ -341,9 +341,24 @@ function SubjectRecord() {
       label="Subject sections"
       tab={tab}
       onTabChange={setTab}
-      actions={<Button variant="danger">Delete subject</Button>}
+      actions={<Button>Open the audit trail</Button>}
       tabs={[
-        { id: 'profile', label: 'Profile', panel: <p>Claims and verification</p> },
+        {
+          id: 'profile',
+          label: 'Profile',
+          panel: (
+            <div className={styles.stack}>
+              <p>Claims and verification</p>
+              <section aria-labelledby="gallery-danger" className={styles.danger}>
+                <h2 id="gallery-danger">Danger zone</h2>
+                <p>Deleting ada ends every session and cannot be undone.</p>
+                <div>
+                  <Button variant="danger">Delete ada</Button>
+                </div>
+              </section>
+            </div>
+          ),
+        },
         { id: 'roles', label: 'Roles', panel: <p>Roles held directly</p> },
         {
           id: 'activity',
