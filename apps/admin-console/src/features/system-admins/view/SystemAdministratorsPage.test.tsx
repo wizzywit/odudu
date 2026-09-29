@@ -173,6 +173,28 @@ it('marks a subject who already holds it, from the list it already read', async 
   expect(perRow).toEqual([]);
 });
 
+it('marks a holder the list is narrowed away from, by one read per picker search', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(`${AT}?q=root`, routes());
+  const table = await screen.findByRole('grid', { name: 'System administrators' });
+  expect(within(table).queryByText('ada')).toBeNull();
+  const choose = await screen.findByRole('group', { name: 'Subject in system' });
+  const ada = await within(choose).findByRole('option', { name: /ada/u });
+  await waitFor(() => {
+    expect(ada).toHaveAccessibleDescription(/already a system administrator/u);
+  });
+  await user.type(within(choose).getByRole('searchbox'), 'gr{Enter}');
+  await within(choose).findByRole('option', { name: /grace/u });
+  const holderReads = sent.filter(
+    (s) =>
+      s.path === `${S}/subjects` &&
+      s.search.get('capability') === 'manage-tenants' &&
+      s.search.get('cursor') === null,
+  );
+  const byQuery = holderReads.map((s) => s.search.get('username') ?? '');
+  expect(byQuery.filter((q) => q === 'gr')).toHaveLength(1);
+});
+
 it('revokes behind a typed confirmation, keeping the roles that are not an administrator’s', async () => {
   const user = userEvent.setup();
   let revoked = false;

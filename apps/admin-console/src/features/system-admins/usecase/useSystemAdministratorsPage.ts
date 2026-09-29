@@ -9,6 +9,7 @@ import {
 import { holds } from '#/features/shell/index.ts';
 import { subjectHref } from '#/features/subjects/index.ts';
 import { useAdministratorChange } from '#/features/system-admins/repository/useAdministratorChange.ts';
+import { usePickerHolders } from '#/features/system-admins/repository/usePickerHolders.ts';
 import { useSubjectPicker } from '#/features/system-admins/repository/useSubjectPicker.ts';
 import {
   useEnabledHolders,
@@ -118,7 +119,9 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
   );
   const changeNeeds = lacking(roleChangeNeeds(SYSTEM_TENANT));
   const only = onlyHolderOf(list.rows, enabledHolders);
-  const holders = new Set(list.rows.map((row) => row.id));
+  const picked = usePickerHolders(picker.query);
+  // Until the picker's own read answers, what the list shows still counts.
+  const holders = new Set([...(picked ?? []), ...list.rows.map((row) => row.id)]);
 
   const refused = (name: string, verb: string, outcome: Refused): string => {
     refusal.report(outcome.failure, ADMINISTRATOR_REQUEST_NEEDS[outcome.request]);
