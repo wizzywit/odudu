@@ -69,6 +69,9 @@ export default defineConfig({
           // font and rail tests read these files' source.
           css: { include: [/\/shared\/view\/(?:tokens\.css|fonts\.css|\w+\.module\.css\?raw)/u] },
           setupFiles: [...SETUP, join(REPO_ROOT, CONSOLE, 'tests/setup.ts')],
+          // axe over several states in both themes takes five seconds or more
+          // on a busy runner; a hang is still caught by each find's own limit.
+          testTimeout: 30_000,
         },
       },
     ],
