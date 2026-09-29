@@ -93,7 +93,7 @@ it('follows a whoami re-read after a 403, in the rail and on the page, without a
     }),
   );
   const rail = await screen.findByRole('navigation', { name: 'Areas of acme' });
-  expect(within(rail).getByRole('link', { name: 'Clients' })).toBeVisible();
+  expect(await within(rail).findByRole('link', { name: 'Clients' })).toBeVisible();
   await user.type(await screen.findByRole('textbox', { name: 'Nickname' }), 'Countess');
   await user.click(screen.getByRole('button', { name: 'Save Name' }));
   expect(await screen.findByRole('note')).toHaveTextContent(

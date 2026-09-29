@@ -57,8 +57,13 @@ describe('the rail', () => {
     ]);
   });
 
-  it('lists every area until whoami has answered', () => {
-    expect(railGroups('acme', false, undefined).flatMap((g) => g.items)).toHaveLength(13);
+  it('lists only what needs nothing while whoami is still being asked', () => {
+    const groups = railGroups('acme', false, undefined, true);
+    expect(groups.flatMap((g) => g.items.map((i) => i.label))).toEqual(['Overview']);
+  });
+
+  it('lists every area when whoami could not answer, since the server decides regardless', () => {
+    expect(railGroups('acme', false, undefined, false).flatMap((g) => g.items)).toHaveLength(13);
   });
 
   it('puts the System area first when it is shown', () => {

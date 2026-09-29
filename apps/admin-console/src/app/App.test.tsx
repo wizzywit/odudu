@@ -492,7 +492,7 @@ describe('the rail shortcut', () => {
       useUnsavedGuard.getState().setDirty('acme/settings#sessions', 'Sessions');
     });
     const rail = screen.getByRole('navigation', { name: 'Areas of acme' });
-    await user.click(within(rail).getByRole('link', { name: 'Subjects' }));
+    await user.click(await within(rail).findByRole('link', { name: 'Subjects' }));
     await screen.findByRole('alertdialog', { name: 'Leave without saving?' });
     await user.keyboard('[[');
     expect(screen.getByRole('button', { name: 'Collapse menu', hidden: true })).toBeInTheDocument();

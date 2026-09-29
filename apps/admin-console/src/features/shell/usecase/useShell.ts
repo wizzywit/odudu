@@ -1,5 +1,10 @@
 import { useLocation } from '@tanstack/react-router';
-import { CHOOSE_TENANT, useAuthority, useSignOut } from '#/features/session/index.ts';
+import {
+  CHOOSE_TENANT,
+  useAuthority,
+  useAuthorityAnswered,
+  useSignOut,
+} from '#/features/session/index.ts';
 import {
   actsWithSystemAuthority,
   currentHref,
@@ -17,6 +22,8 @@ import { useTheme } from '#/shared/repository/useTheme.ts';
 
 export interface Shell {
   readonly groups: readonly RailSection[];
+  // Whoami has not answered yet, so the rail says it is checking.
+  readonly checking: boolean;
   readonly currentHref: string | undefined;
   readonly systemAuthority: boolean;
   readonly systemRecordHref: string;
@@ -40,11 +47,18 @@ export function useShell(tenant: string, principal: Principal): Shell {
   const openDialogs = useDialogHost((host) => host.open);
   // The guard's own dialog is left out of the host's count, so it is asked too.
   const asking = useUnsavedGuard((guard) => guard.pending !== null);
-  const groups = railGroups(tenant, showsSystemArea(principal, tenant, authority), authority);
+  const checking = !useAuthorityAnswered(tenant);
+  const groups = railGroups(
+    tenant,
+    showsSystemArea(principal, tenant, authority),
+    authority,
+    checking,
+  );
   const pathname = new URL(publicHref, globalThis.location.origin).pathname;
 
   return {
     groups,
+    checking,
     currentHref: currentHref(tenant, groups, pathname),
     systemAuthority: actsWithSystemAuthority(principal, tenant, authority),
     systemRecordHref: systemRecordHref(tenant),

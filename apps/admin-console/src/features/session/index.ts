@@ -10,6 +10,7 @@ export { useEndOwnSession } from '#/features/session/usecase/useEndOwnSession.ts
 export { useTenantAccess, type TenantAccess } from '#/features/session/usecase/useTenantAccess.ts';
 export {
   useAuthority,
+  useAuthorityAnswered,
   useRefusal,
   useRereadAuthority,
   useTenantMissing,

@@ -28,6 +28,8 @@ export function useAuthorityQuery(
   readonly authority: Authority | undefined;
   // undefined until whoami has answered.
   readonly refusedUnknown: boolean | undefined;
+  // Whether whoami has answered at all, with its capabilities or a failure.
+  readonly answered: boolean;
   readonly reread: () => void;
 } {
   const { gateway } = useTransport();
@@ -45,6 +47,7 @@ export function useAuthorityQuery(
   return {
     authority: query.data?.ok === true ? query.data.data : undefined,
     refusedUnknown: query.data === undefined ? undefined : refusedUnknown(query.data),
+    answered: query.data !== undefined,
     reread: () => {
       client.invalidateQueries({ queryKey: key }).catch(() => undefined);
     },

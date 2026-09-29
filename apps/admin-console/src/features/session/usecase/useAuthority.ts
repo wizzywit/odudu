@@ -13,6 +13,12 @@ export function useAuthority(tenant: string): Authority | undefined {
   return useWhoami(tenant).authority;
 }
 
+// Whether whoami has answered for the tenant, well or not: until then the
+// console cannot say what the principal may reach.
+export function useAuthorityAnswered(tenant: string): boolean {
+  return useWhoami(tenant).answered;
+}
+
 // For a change to what the principal holds, which whoami has not seen.
 export function useRereadAuthority(tenant: string): () => void {
   return useWhoami(tenant).reread;

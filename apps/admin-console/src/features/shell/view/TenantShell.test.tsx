@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
-import { json, problem } from '#/testing/fakeTransport.ts';
+import { json, pending, problem } from '#/testing/fakeTransport.ts';
 import {
   consoleAt,
   GRACE,
@@ -22,6 +22,31 @@ it('frames the tenant with its rail and the principal in the footer', async () =
   });
   expect(await screen.findByRole('navigation', { name: 'Areas of acme' })).toBeInTheDocument();
   expect(screen.getByText(/Signed in as/u)).toHaveTextContent('Signed in as grace');
+});
+
+it('lists no area it may take away while whoami is still being asked', async () => {
+  renderConsoleAt('/console/acme', {
+    'GET /console/api/session': json(GRACE),
+    'GET /console/api/admin/tenants/acme/whoami': pending(),
+  });
+  const rail = await screen.findByRole('navigation', { name: 'Areas of acme' });
+  expect(within(rail).getByRole('link', { name: 'Overview' })).toBeVisible();
+  expect(within(rail).queryByRole('link', { name: 'Subjects' })).toBeNull();
+  expect(within(rail).getByRole('status')).toHaveTextContent('Checking which areas you can reach');
+});
+
+it('lists every area when whoami could not answer', async () => {
+  renderConsoleAt('/console/acme', {
+    'GET /console/api/session': json(GRACE),
+    'GET /console/api/admin/tenants/acme/whoami': problem(
+      500,
+      'about:blank',
+      'Internal Server Error',
+    ),
+  });
+  const rail = await screen.findByRole('navigation', { name: 'Areas of acme' });
+  expect(await within(rail).findByRole('link', { name: 'Subjects' })).toBeVisible();
+  expect(within(rail).queryByRole('status')).toBeNull();
 });
 
 it('shows the not-found page for a name no tenant can have', async () => {

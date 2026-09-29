@@ -48,6 +48,7 @@ function SignedInShell({
         <Rail
           label={`Areas of ${tenant}`}
           groups={shell.groups}
+          checking={shell.checking}
           {...(shell.currentHref === undefined ? {} : { currentHref: shell.currentHref })}
           header={<strong className={styles.brand}>odudu · {tenant}</strong>}
           footer={

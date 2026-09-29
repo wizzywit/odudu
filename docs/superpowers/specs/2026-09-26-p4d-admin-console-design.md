@@ -613,8 +613,9 @@ Export; **Observe** — Audit trail.
 
 **What the rail and a page offer follows `whoami`**, which is advice: the
 server still decides every request. The rail lists only the areas whose
-first read the caller's capabilities admit, and lists every one until
-`whoami` answers. An address to any other area still opens and says which
+first read the caller's capabilities admit. Until `whoami` answers it lists
+only what needs no capability and says it is checking, so no area shows and
+then vanishes; a `whoami` that fails lists them all. An address to any other area still opens and says which
 capability it needs, because people share links. A page the caller can read
 but not change carries none of the writes it cannot make — no Create,
 Delete, Save or edit control — shows its fields as text, and says so in one

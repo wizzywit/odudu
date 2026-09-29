@@ -26,6 +26,12 @@ it('is a named navigation of grouped links, marking the current one', () => {
   expect(within(nav).getByRole('link', { name: 'Groups' })).not.toHaveAttribute('aria-current');
 });
 
+it('says it is still checking the areas, rather than showing ones it may take away', () => {
+  render(<Rail label="acme" groups={GROUPS.slice(0, 1)} checking />);
+  const nav = screen.getByRole('navigation', { name: 'acme' });
+  expect(within(nav).getByRole('status')).toHaveTextContent('Checking which areas you can reach');
+});
+
 it('passes axe in both themes', async () => {
   expect(
     await axeInBothThemes(() => (
