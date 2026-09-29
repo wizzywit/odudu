@@ -214,7 +214,7 @@ test('a subject’s details are entered through typed fields and stored as the c
   await phone.getByRole('combobox', { name: 'Country' }).fill('Nigeria');
   await page.getByRole('option', { name: 'Nigeria' }).click();
   await phone.getByRole('textbox', { name: 'Number' }).fill('0803 123 4567');
-  await expect(phone).toContainText('Stored as +2348031234567.');
+  await expect(phone).toContainText('Stored as +2348031234567, which reads +234 803 123 4567.');
   const birthdate = details.getByRole('group', { name: 'Birthdate' });
   await birthdate.getByText('Year only', { exact: true }).click();
   await birthdate.getByRole('textbox', { name: 'Year' }).fill('1990');

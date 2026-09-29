@@ -1,7 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
-import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { json, problem } from '#/testing/fakeTransport.ts';
 import { consoleAt, renderConsoleAt, resetConsole, whoami } from '#/testing/renderConsole.tsx';
@@ -80,7 +79,7 @@ it('follows a whoami re-read after a 403, in the rail and on the page, without a
   const user = userEvent.setup();
   let revoked = false;
   const refused = problem(403, 'about:blank', 'Forbidden');
-  renderConsoleAt(
+  const { router } = renderConsoleAt(
     ADA_AT,
     subjectRoutes(undefined, {
       'GET /console/api/admin/tenants/acme/whoami': (request) =>
@@ -115,7 +114,12 @@ it('follows a whoami re-read after a 403, in the rail and on the page, without a
   await user.click(within(name).getByRole('button', { name: 'Discard your change to Name' }));
   expect(screen.queryByText(/not saved/u)).toBeNull();
   expect(screen.getByRole('tab', { name: 'Profile' })).toBeVisible();
-  expect(useUnsavedGuard.getState().dirty.size).toBe(0);
+  // Nothing is held any more, so leaving asks nothing.
+  await user.click(within(rail).getByRole('link', { name: 'Subjects' }));
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/acme/subjects');
+  });
+  expect(screen.queryByRole('alertdialog')).toBeNull();
 });
 
 it('reads whoami once, however many parts of the page ask what it says', async () => {
