@@ -1,23 +1,32 @@
 import { useId } from 'react';
 import { describeValue, type Conflict } from '#/shared/service/conflict.ts';
+import type { ConflictSource } from '#/shared/service/sectionSave.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import styles from '#/shared/view/ConflictPanel.module.css';
 
 function shown(conflict: Conflict, value: unknown): string {
-  return conflict.secret ? 'hidden' : describeValue(value);
+  if (conflict.secret) return 'hidden';
+  return (conflict.describe ?? describeValue)(value);
 }
+
+const LEAD: Record<ConflictSource, string> = {
+  changed: 'Somebody else saved these fields while you were editing them. Nothing has been merged.',
+  kept: 'The record changed after these edits were kept, so each is shown beside what it holds now. Nothing has been merged.',
+};
 
 // Nothing merges on its own: the person sees both values and chooses, for
 // the section as a whole, which of them the record keeps.
 export function ConflictPanel({
   section,
   conflicts,
+  source = 'changed',
   busy = false,
   onKeepMine,
   onTakeTheirs,
 }: {
   section: string;
   readonly conflicts: readonly Conflict[];
+  source?: ConflictSource;
   busy?: boolean;
   onKeepMine: () => void;
   onTakeTheirs: () => void;
@@ -31,9 +40,7 @@ export function ConflictPanel({
       <p id={caption} className={styles.title}>
         Changed in {section} since you opened it
       </p>
-      <p className={styles.lead}>
-        Somebody else saved these fields while you were editing them. Nothing has been merged.
-      </p>
+      <p className={styles.lead}>{LEAD[source]}</p>
       <table aria-labelledby={caption} className={styles.table}>
         <thead>
           <tr>

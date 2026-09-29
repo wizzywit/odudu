@@ -5,7 +5,8 @@ import { useDrafts, type DraftFields, type KeptDraft } from '#/shared/repository
 export interface SectionDraft {
   // Edits kept when a session ended, handed back once; the section applies
   // them as its own unsaved edits, and nothing is sent until somebody saves.
-  // A save of them sends `restored.etag`, the ETag they were made against.
+  // `restored.etag` is the ETag they were made against, which tells whether
+  // the record has moved on since.
   readonly restored: KeptDraft | null;
   // Called once the restored edits are saved or discarded.
   readonly settle: () => void;

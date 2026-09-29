@@ -74,3 +74,27 @@ it('renders nothing when nothing conflicts', () => {
 it('passes axe in both themes', async () => {
   expect(await axeInBothThemes(() => panel())).toEqual({ light: [], dark: [] });
 });
+
+it('reads a value the way its field says to', () => {
+  render(
+    panel({
+      conflicts: [
+        {
+          field: 'access_token_ttl',
+          label: 'Access token lifetime',
+          theirs: 900,
+          yours: 600,
+          secret: false,
+          describe: (value) => `${String(value)} s`,
+        },
+      ],
+    }),
+  );
+  expect(screen.getAllByRole('row')[1]).toHaveTextContent('Access token lifetime900 s600 s');
+});
+
+it('does not claim somebody changed fields when kept edits meet a newer record', () => {
+  render(panel({ source: 'kept' }));
+  expect(screen.getByText(/The record changed after these edits were kept/u)).toBeVisible();
+  expect(screen.queryByText(/Somebody else saved/u)).toBeNull();
+});

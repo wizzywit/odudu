@@ -7,6 +7,9 @@ export interface Conflict {
   readonly yours: unknown;
   // A secret's value is never shown, not even to say that it differs.
   readonly secret: boolean;
+  // How the field reads its value, where describeValue would not do: a
+  // lifetime shown with its duration, say.
+  readonly describe?: ((value: unknown) => string) | undefined;
 }
 
 export function describeValue(value: unknown): string {

@@ -4,15 +4,22 @@ import { recordKey, type RecordEntry } from '#/shared/repository/useRecord.ts';
 import { useSectionDraft } from '#/shared/repository/useSectionDraft.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import type { Conflict } from '#/shared/service/conflict.ts';
+import {
+  BLOCKED_BY_CONFLICT,
+  type ConflictSource,
+  type SaveStatus,
+} from '#/shared/service/sectionSave.ts';
 import { edit as editDraft, rebase, sameValue, type Values } from '#/shared/service/dirty.ts';
 import { fieldErrorsOf } from '#/shared/service/fieldErrors.ts';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
+import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export interface SectionField<V> {
   readonly value: V;
   readonly label: string;
   readonly kind: 'plain' | 'secret';
+  // How a conflict shows the value, where plain text would not do.
+  readonly describe?: (value: unknown) => string;
 }
 
 export type SectionFields<T extends Values> = { readonly [K in keyof T]: SectionField<T[K]> };
@@ -23,11 +30,7 @@ export interface SaveInput<T extends Values> {
   readonly ifMatch: string;
 }
 
-// `conflict` and `stale` both follow a 412: `conflict` while a field edited
-// here was changed there too, `stale` when the edits sit on the fresh read
-// untouched and only need saving again.
-export type SaveStatus =
-  'idle' | 'saving' | 'saved' | 'invalid' | 'conflict' | 'stale' | 'refused' | 'failed';
+export type { ConflictSource, SaveStatus };
 
 type Phase = Exclude<SaveStatus, 'conflict'>;
 
@@ -35,6 +38,9 @@ export interface SectionSave<T extends Values> {
   readonly status: SaveStatus;
   readonly fieldErrors: Readonly<Partial<Record<keyof T & string, string>>>;
   readonly conflicts: readonly Conflict[];
+  readonly conflictSource: ConflictSource;
+  // Why Save is held, for Section's `blocked`.
+  readonly blocked: string | undefined;
   // Re-saves every edit on the fresh ETag.
   readonly keepMine: () => void;
   // Drops the conflicting edits and keeps the rest.
@@ -44,18 +50,21 @@ export interface SectionSave<T extends Values> {
   readonly dirty: boolean;
   readonly saving: boolean;
   readonly restored: boolean;
-  // A refusal that belongs beside the save, such as a guard's 409.
+  // A refusal that belongs beside the save: a guard's 409, or the
+  // capability a 403 needed.
   readonly message: string | null;
   readonly edit: <K extends keyof T & string>(field: K, value: T[K]) => void;
   readonly discard: () => void;
-  readonly submit: () => void;
+  // False when it declined to send, for Section's `onSave`.
+  readonly submit: () => boolean;
 }
 
 interface State<T extends Values> {
   readonly base: T;
-  readonly etag: string | null;
+  readonly etag: string;
   readonly edits: Partial<T>;
   readonly conflicts: readonly (keyof T & string)[];
+  readonly source: ConflictSource;
   readonly phase: Phase;
   readonly fieldErrors: Readonly<Record<string, string>>;
   readonly message: string | null;
@@ -93,9 +102,6 @@ function problemMessage(label: string, result: Exclude<GatewayResult<unknown>, {
     case 'defect':
       return `The console could not save ${label}. This is a fault in the console, not something you did.`;
     case 'problem':
-      if (result.problem.status === 403) {
-        return `${label} was not saved: your role does not allow this change.`;
-      }
       if (result.problem.status === 404) return `${label} was not saved: it no longer exists.`;
       return `${label} was not saved: ${result.problem.detail ?? result.problem.title}`;
   }
@@ -112,6 +118,8 @@ export function useSectionSave<T extends Values, R>({
   section,
   label = section,
   etag,
+  capability,
+  onRefused,
   fields,
   save,
 }: {
@@ -119,8 +127,12 @@ export function useSectionSave<T extends Values, R>({
   readonly record: string;
   readonly section: string;
   readonly label?: string;
-  // The ETag the record was read with, or null before it is read.
-  readonly etag: string | null;
+  // The ETag the record was read with: a section mounts once it is read.
+  readonly etag: string;
+  // What the save needs, named when a 403 refuses it.
+  readonly capability: string;
+  // Told of a 403, so the caller can re-read whoami (`useRefusal.report`).
+  readonly onRefused?: (failure: GatewayFailure) => void;
   readonly fields: SectionFields<T>;
   readonly save: (gateway: Gateway, input: SaveInput<T>) => Promise<GatewayResult<R>>;
 }): SectionSave<T> {
@@ -156,6 +168,7 @@ export function useSectionSave<T extends Values, R>({
       etag,
       edits,
       conflicts,
+      source: 'kept',
       phase: 'idle',
       fieldErrors: {},
       message: null,
@@ -170,6 +183,7 @@ export function useSectionSave<T extends Values, R>({
       etag,
       edits: rebased.draft.edits,
       conflicts: [...new Set([...still, ...rebased.conflicts])],
+      source: rebased.conflicts.length > 0 ? 'changed' : state.source,
     };
     setState(current);
   } else {
@@ -227,13 +241,22 @@ export function useSectionSave<T extends Values, R>({
       update(() => ({ phase: 'refused', message }));
       return;
     }
-    const refused = result.kind === 'problem' && result.problem.status === 403;
-    update(() => ({ phase: refused ? 'refused' : 'failed' }));
+    if (result.kind === 'problem' && result.problem.status === 403) {
+      update(() => ({
+        phase: 'refused',
+        message: `${label} was not saved: it needs the ${capability} capability.`,
+      }));
+      onRefused?.(result);
+      return;
+    }
+    update(() => ({ phase: 'failed' }));
     toast('error', problemMessage(label, result));
   };
 
+  const startable = (from: State<T>): boolean =>
+    !inFlight.current && Object.keys(from.edits).length > 0;
+
   const run = async (from: State<T>): Promise<void> => {
-    if (inFlight.current || from.etag === null || Object.keys(from.edits).length === 0) return;
     inFlight.current = true;
     update(() => ({ phase: 'saving', message: null }));
     try {
@@ -255,15 +278,18 @@ export function useSectionSave<T extends Values, R>({
     theirs: current.base[name],
     yours: current.edits[name],
     secret: fields[name].kind === 'secret',
+    describe: fields[name].describe,
   }));
 
   return {
     status: conflicts.length > 0 ? 'conflict' : current.phase,
     fieldErrors: current.fieldErrors as SectionSave<T>['fieldErrors'],
     conflicts,
+    conflictSource: current.source,
+    blocked: conflicts.length > 0 ? BLOCKED_BY_CONFLICT : undefined,
     keepMine: () => {
       const from = latest.current;
-      if (inFlight.current || from.conflicts.length === 0) return;
+      if (!startable(from) || from.conflicts.length === 0) return;
       update(() => ({ conflicts: [] }));
       run({ ...from, conflicts: [] }).catch(() => undefined);
     },
@@ -296,8 +322,9 @@ export function useSectionSave<T extends Values, R>({
     },
     submit: () => {
       const from = latest.current;
-      if (from.conflicts.length > 0) return;
+      if (from.conflicts.length > 0 || !startable(from)) return false;
       run(from).catch(() => undefined);
+      return true;
     },
   };
 }

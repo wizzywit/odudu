@@ -10,11 +10,11 @@ import { useRecord } from '#/shared/repository/useRecord.ts';
 import { useSectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
-import { describeValue } from '#/shared/service/conflict.ts';
-import type { Gateway } from '#/shared/transport/gateway.ts';
+import type { Gateway, GatewayFailure } from '#/shared/transport/gateway.ts';
 import { TransportContext } from '#/shared/transport/useTransport.ts';
 import { NumberWithUnitField, TextField } from '#/shared/view/Field.tsx';
 import { Section } from '#/shared/view/Section.tsx';
+import { SectionNotice } from '#/shared/view/SectionNotice.tsx';
 import {
   fakeTransport,
   inTurn,
@@ -48,38 +48,23 @@ function amend(gateway: Gateway, body: unknown, ifMatch: string) {
   });
 }
 
-function Conflicts({
-  save,
+function General({
+  data,
+  etag,
+  onRefused,
 }: {
-  save: ReturnType<typeof useSectionSave<{ name: string }, Client>>;
+  data: Client;
+  etag: string;
+  onRefused?: (failure: GatewayFailure) => void;
 }) {
-  if (save.conflicts.length === 0) return null;
-  return (
-    <div>
-      <ul aria-label="Conflicts">
-        {save.conflicts.map((conflict) => (
-          <li key={conflict.field}>
-            {`${conflict.label}: theirs ${describeValue(conflict.theirs)}, yours ${describeValue(conflict.yours)}`}
-          </li>
-        ))}
-      </ul>
-      <button type="button" onClick={save.keepMine}>
-        Keep mine
-      </button>
-      <button type="button" onClick={save.takeTheirs}>
-        Take theirs
-      </button>
-    </div>
-  );
-}
-
-function General({ data, etag }: { data: Client; etag: string | null }) {
   const save = useSectionSave({
     tenant: 'acme',
     record: 'clients/c1',
     section: 'general',
     label: 'General',
     etag,
+    capability: 'manage-clients',
+    ...(onRefused === undefined ? {} : { onRefused }),
     fields: { name: { value: data.name, label: 'Name', kind: 'plain' } },
     save: (gateway, { changes, ifMatch }) => amend(gateway, changes, ifMatch),
   });
@@ -90,10 +75,19 @@ function General({ data, etag }: { data: Client; etag: string | null }) {
       saving={save.saving}
       onSave={save.submit}
       onDiscard={save.discard}
+      blocked={save.blocked}
       notice={
         <>
-          <Conflicts save={save} />
-          {save.message === null ? null : <p>{save.message}</p>}
+          <SectionNotice
+            section="General"
+            status={save.status}
+            conflicts={save.conflicts}
+            conflictSource={save.conflictSource}
+            message={save.message}
+            busy={save.saving}
+            onKeepMine={save.keepMine}
+            onTakeTheirs={save.takeTheirs}
+          />
           <p>{`status ${save.status}`}</p>
         </>
       }
@@ -110,13 +104,14 @@ function General({ data, etag }: { data: Client; etag: string | null }) {
   );
 }
 
-function Tokens({ data, etag }: { data: Client; etag: string | null }) {
+function Tokens({ data, etag }: { data: Client; etag: string }) {
   const save = useSectionSave({
     tenant: 'acme',
     record: 'clients/c1',
     section: 'tokens',
     label: 'Tokens',
     etag,
+    capability: 'manage-clients',
     fields: {
       access_token_ttl: {
         value: data.access_token_ttl,
@@ -153,24 +148,28 @@ function Tokens({ data, etag }: { data: Client; etag: string | null }) {
   );
 }
 
-function ClientRecord() {
+function ClientRecord({ onRefused }: { onRefused?: (failure: GatewayFailure) => void }) {
   const record = useRecord({ tenant: 'acme', record: 'clients/c1', read });
-  if (record.data === undefined) return <p>Loading</p>;
+  if (record.data === undefined || record.etag === null) return <p>Loading</p>;
   return (
     <>
-      <General data={record.data} etag={record.etag} />
+      <General
+        data={record.data}
+        etag={record.etag}
+        {...(onRefused === undefined ? {} : { onRefused })}
+      />
       <Tokens data={record.data} etag={record.etag} />
     </>
   );
 }
 
-function mount(routes: Record<string, Answer>) {
+function mount(routes: Record<string, Answer>, onRefused?: (failure: GatewayFailure) => void) {
   const fake = fakeTransport(routes);
   const queryClient = createQueryClient();
   render(
     <TransportContext value={fake.transport}>
       <QueryClientProvider client={queryClient}>
-        <ClientRecord />
+        <ClientRecord {...(onRefused === undefined ? {} : { onRefused })} />
       </QueryClientProvider>
     </TransportContext>,
   );
@@ -286,18 +285,18 @@ it('on a 412 re-reads the record and shows theirs beside yours, merging nothing'
   await rename(user, 'Billing');
   await user.click(within(general()).getByRole('button', { name: 'Save General' }));
 
-  const conflicts = await screen.findByRole('list', { name: 'Conflicts' });
+  const conflicts = await screen.findByRole('table', {
+    name: 'Changed in General since you opened it',
+  });
   expect(reads()).toBe(2);
-  expect(within(conflicts).getByRole('listitem')).toHaveTextContent(
-    'Name: theirs Payments, yours Billing',
-  );
+  expect(within(conflicts).getAllByRole('row')[1]).toHaveTextContent('NamePaymentsBilling');
   expect(within(general()).getByText('status conflict')).toBeVisible();
   expect(within(general()).getByRole('textbox', { name: 'Name' })).toHaveValue('Billing');
 
-  await user.click(within(general()).getByRole('button', { name: 'Save General' }));
+  expect(within(general()).getByRole('button', { name: 'Save General' })).toBeDisabled();
   expect(patches()).toHaveLength(1);
 
-  await user.click(screen.getByRole('button', { name: 'Keep mine' }));
+  await user.click(screen.getByRole('button', { name: 'Keep mine in General' }));
   await waitFor(() => {
     expect(patches()).toHaveLength(2);
   });
@@ -305,7 +304,7 @@ it('on a 412 re-reads the record and shows theirs beside yours, merging nothing'
     expect.objectContaining({ ifMatch: '"e2"', body: { name: 'Billing' } }),
   );
   await waitFor(() => {
-    expect(screen.queryByRole('list', { name: 'Conflicts' })).toBeNull();
+    expect(screen.queryByRole('table')).toBeNull();
   });
 });
 
@@ -318,7 +317,7 @@ it('takes theirs by dropping only the conflicting edits', async () => {
   });
   await rename(user, 'Billing');
   await user.click(within(general()).getByRole('button', { name: 'Save General' }));
-  await user.click(await screen.findByRole('button', { name: 'Take theirs' }));
+  await user.click(await screen.findByRole('button', { name: 'Take theirs in General' }));
 
   expect(within(general()).getByRole('textbox', { name: 'Name' })).toHaveValue('Payments');
   expect(within(general()).queryByRole('button', { name: 'Save General' })).toBeNull();
@@ -336,7 +335,7 @@ it('keeps edits on the fresh read after a 412 whose change touched none of them'
   await user.click(within(general()).getByRole('button', { name: 'Save General' }));
 
   expect(await within(general()).findByText('status stale')).toBeVisible();
-  expect(screen.queryByRole('list', { name: 'Conflicts' })).toBeNull();
+  expect(screen.queryByRole('table')).toBeNull();
   expect(within(general()).getByRole('textbox', { name: 'Name' })).toHaveValue('Billing');
   await user.click(within(general()).getByRole('button', { name: 'Save General' }));
   await waitFor(() => {
@@ -419,10 +418,8 @@ it('puts back a kept draft, showing theirs beside it when the record moved on si
     drafts: { 'acme/clients/c1': { general: { etag: '"e0"', values: { name: 'Billing' } } } },
   });
   const { patches } = mount({ [GET]: client(LOADED, '"e1"'), [PATCH]: pending() });
-  const conflicts = await screen.findByRole('list', { name: 'Conflicts' });
-  expect(within(conflicts).getByRole('listitem')).toHaveTextContent(
-    'Name: theirs Billing portal, yours Billing',
-  );
+  const conflicts = await screen.findByRole('table');
+  expect(within(conflicts).getAllByRole('row')[1]).toHaveTextContent('NameBilling portalBilling');
   await act(async () => {
     await Promise.resolve();
   });
@@ -444,20 +441,21 @@ it('puts back a kept draft made against the record as it stands, with no conflic
     { name: 'Name' },
   );
   expect(name).toHaveValue('Billing');
-  expect(screen.queryByRole('list', { name: 'Conflicts' })).toBeNull();
+  expect(screen.queryByRole('table')).toBeNull();
   await user.click(within(general()).getByRole('button', { name: 'Save General' }));
   await waitFor(() => {
     expect(patches()).toEqual([expect.objectContaining({ ifMatch: '"e1"' })]);
   });
 });
 
-function Fragile({ data, etag, fail }: { data: Client; etag: string | null; fail: () => boolean }) {
+function Fragile({ data, etag, fail }: { data: Client; etag: string; fail: () => boolean }) {
   const save = useSectionSave({
     tenant: 'acme',
     record: 'clients/c1',
     section: 'general',
     label: 'General',
     etag,
+    capability: 'manage-clients',
     fields: { name: { value: data.name, label: 'Name', kind: 'plain' } },
     // Breaks after a round trip, as an adapter defect found in its answer would.
     save: async (gateway, { changes, ifMatch }) => {
@@ -494,7 +492,7 @@ it('stays able to save after a save that threw', async () => {
   let failures = 1;
   function Page() {
     const record = useRecord({ tenant: 'acme', record: 'clients/c1', read });
-    if (record.data === undefined) return null;
+    if (record.data === undefined || record.etag === null) return null;
     return <Fragile data={record.data} etag={record.etag} fail={() => failures-- > 0} />;
   }
   render(
@@ -513,4 +511,203 @@ it('stays able to save after a save that threw', async () => {
   await waitFor(() => {
     expect(fake.sent.filter((request) => request.method === 'PATCH')).toHaveLength(2);
   });
+});
+
+const announced = () => within(general()).getByRole('status');
+
+it('announces a conflict in one line, with the comparison beside the announcement', async () => {
+  const user = userEvent.setup();
+  mount({
+    [GET]: inTurn(client(LOADED, '"e1"'), client({ ...LOADED, name: 'Payments' }, '"e2"')),
+    [PATCH]: problem(412, 'about:blank', 'Precondition Failed'),
+  });
+  await rename(user, 'Billing');
+  await user.click(within(general()).getByRole('button', { name: 'Save General' }));
+  await waitFor(() => {
+    expect(announced()).toHaveTextContent(
+      'Name in General changed elsewhere since you opened it. Keep yours or take theirs.',
+    );
+  });
+  expect(within(announced()).queryByRole('table')).toBeNull();
+  expect(
+    within(general()).getByRole('button', { name: 'Save General' }),
+  ).toHaveAccessibleDescription('Keep yours or take theirs before saving. Enter');
+});
+
+it('announces a 412 that touched none of the edits, and asks for another save', async () => {
+  const user = userEvent.setup();
+  mount({
+    [GET]: inTurn(client(LOADED, '"e1"'), client({ ...LOADED, access_token_ttl: 600 }, '"e2"')),
+    [PATCH]: problem(412, 'about:blank', 'Precondition Failed'),
+  });
+  await rename(user, 'Billing');
+  await user.click(within(general()).getByRole('button', { name: 'Save General' }));
+  await waitFor(() => {
+    expect(announced()).toHaveTextContent(
+      'General changed elsewhere since you opened it. None of your edits was touched, and they are kept on the new version: save again to apply them.',
+    );
+  });
+});
+
+it('announces a guard refusal', async () => {
+  const user = userEvent.setup();
+  mount({
+    [GET]: client(LOADED, '"e1"'),
+    [PATCH]: problem(409, 'about:blank#last-administrator', 'Conflict', {
+      detail: 'grace is the last enabled administrator',
+    }),
+  });
+  await rename(user, 'Billing');
+  await user.click(within(general()).getByRole('button', { name: 'Save General' }));
+  await waitFor(() => {
+    expect(announced()).toHaveTextContent('grace is the last enabled administrator');
+  });
+});
+
+it('names the capability a 403 needed, hands the refusal on, and toasts nothing', async () => {
+  const user = userEvent.setup();
+  const refusals: GatewayFailure[] = [];
+  mount(
+    { [GET]: client(LOADED, '"e1"'), [PATCH]: problem(403, 'about:blank', 'Forbidden') },
+    (failure) => {
+      refusals.push(failure);
+    },
+  );
+  await rename(user, 'Billing');
+  await user.click(within(general()).getByRole('button', { name: 'Save General' }));
+  await waitFor(() => {
+    expect(announced()).toHaveTextContent(
+      'General was not saved: it needs the manage-clients capability.',
+    );
+  });
+  expect(refusals).toEqual([expect.objectContaining({ kind: 'problem' })]);
+  expect(useToasts.getState().toasts).toEqual([]);
+});
+
+it('reports a 428 as a fault in the console, not a refusal of the person', async () => {
+  const user = userEvent.setup();
+  mount({
+    [GET]: client(LOADED, '"e1"'),
+    [PATCH]: problem(428, 'about:blank', 'Precondition Required', {
+      detail: 'If-Match is required to replace client',
+    }),
+  });
+  await rename(user, 'Billing');
+  await user.click(within(general()).getByRole('button', { name: 'Save General' }));
+  await waitFor(() => {
+    expect(useToasts.getState().toasts).toEqual([
+      expect.objectContaining({
+        message:
+          'The console could not save General. This is a fault in the console, not something you did.',
+      }),
+    ]);
+  });
+});
+
+it('says a kept draft only differs from the record now, not that somebody changed each field', async () => {
+  storeDrafts({
+    owner: 'acme/s1',
+    drafts: { 'acme/clients/c1': { general: { etag: '"e0"', values: { name: 'Billing' } } } },
+  });
+  mount({ [GET]: client(LOADED, '"e1"'), [PATCH]: pending() });
+  await waitFor(() => {
+    expect(announced()).toHaveTextContent(
+      'General changed since these edits were kept: Name. Compare them, then keep yours or take theirs.',
+    );
+  });
+});
+
+function Both({ data, etag }: { data: Client; etag: string }) {
+  const save = useSectionSave({
+    tenant: 'acme',
+    record: 'clients/c1',
+    section: 'both',
+    label: 'Both',
+    etag,
+    capability: 'manage-clients',
+    fields: {
+      name: { value: data.name, label: 'Name', kind: 'plain' },
+      access_token_ttl: { value: data.access_token_ttl, label: 'Lifetime', kind: 'plain' },
+    },
+    save: (gateway, { changes, ifMatch }) => amend(gateway, changes, ifMatch),
+  });
+  return (
+    <Section
+      title="Both"
+      dirty={save.dirty}
+      saving={save.saving}
+      onSave={save.submit}
+      onDiscard={save.discard}
+      blocked={save.blocked}
+      notice={
+        <SectionNotice
+          section="Both"
+          status={save.status}
+          conflicts={save.conflicts}
+          conflictSource={save.conflictSource}
+          message={save.message}
+          busy={save.saving}
+          onKeepMine={save.keepMine}
+          onTakeTheirs={save.takeTheirs}
+        />
+      }
+    >
+      <TextField
+        label="Name"
+        value={save.values.name}
+        onChange={(name) => {
+          save.edit('name', name);
+        }}
+      />
+      <NumberWithUnitField
+        label="Lifetime"
+        unit="seconds"
+        value={save.values.access_token_ttl}
+        onChange={(ttl) => {
+          save.edit('access_token_ttl', ttl);
+        }}
+      />
+    </Section>
+  );
+}
+
+it('saves the edits left after taking theirs, and keeps focus in the section', async () => {
+  const user = userEvent.setup();
+  const fake = fakeTransport({
+    [GET]: inTurn(client(LOADED, '"e1"'), client({ ...LOADED, name: 'Payments' }, '"e2"')),
+    [PATCH]: inTurn(
+      problem(412, 'about:blank', 'Precondition Failed'),
+      client({ name: 'Payments', access_token_ttl: 900 }, '"e3"'),
+    ),
+  });
+  function Page() {
+    const record = useRecord({ tenant: 'acme', record: 'clients/c1', read });
+    if (record.data === undefined || record.etag === null) return null;
+    return <Both data={record.data} etag={record.etag} />;
+  }
+  render(
+    <TransportContext value={fake.transport}>
+      <QueryClientProvider client={createQueryClient()}>
+        <Page />
+      </QueryClientProvider>
+    </TransportContext>,
+  );
+  const region = await screen.findByRole('region', { name: 'Both' });
+  await user.clear(within(region).getByRole('textbox', { name: 'Name' }));
+  await user.type(within(region).getByRole('textbox', { name: 'Name' }), 'Billing');
+  const ttl = within(region).getByRole('textbox', { name: 'Lifetime' });
+  await user.clear(ttl);
+  await user.type(ttl, '900');
+  await user.tab();
+  await user.click(within(region).getByRole('button', { name: 'Save Both' }));
+  await user.click(await within(region).findByRole('button', { name: 'Take theirs in Both' }));
+  expect(within(region).getByRole('heading', { name: 'Both' })).toHaveFocus();
+
+  await user.type(within(region).getByRole('textbox', { name: 'Lifetime' }), '{Enter}');
+  await waitFor(() => {
+    expect(fake.sent.filter((request) => request.method === 'PATCH')).toHaveLength(2);
+  });
+  expect(fake.sent.filter((request) => request.method === 'PATCH')[1]).toEqual(
+    expect.objectContaining({ ifMatch: '"e2"', body: { access_token_ttl: 900 } }),
+  );
 });
