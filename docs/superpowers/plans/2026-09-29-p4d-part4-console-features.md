@@ -233,8 +233,10 @@ Each item below is its own commit, test first, each with a real transcript.
   - It rebases the record's other dirty sections on the fresh read.
 - `ConflictPanel` (view) shows theirs against yours per field, with the two actions.
 - `useSecretOnce()`: a mutation wrapper whose result reaches the SecretDialog
-  only. It is never cached: `gcTime: 0` is already the default, and this
-  asserts it. Tests prove the value is gone once the dialog closes.
+  only. It is never cached: the console's `QueryClient` sets mutation
+  `gcTime: 0` (`shared/repository/queryClient.ts:12`), which drops an
+  unobserved result from the `MutationCache`. Tests assert that neither the
+  hook's result nor the `MutationCache` holds the secret once the dialog closes.
 - `ResourceListPage`: FilterBar, Count, DataTable, Pager and the three empty
   states, bound to a list query with `q`, filters and a cursor trail in the URL.
 - `RecordPage`: PageHeader, tabs through `useRecordTab`, the "updated since you
