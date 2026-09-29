@@ -41,6 +41,12 @@ export default function globalSetup(): void {
   const limited = { tenant: admin.tenant, username: 'babbage', password: password() };
   const overview = { tenant: `${run}-c`, username: 'turing', password: password() };
   const resumer = { tenant: 'system', username: `resume-${run}`, password: password() };
+  const systemAdmins = {
+    candidate: { tenant: 'system', username: `candidate-${run}`, password: password() },
+    revokee: { tenant: 'system', username: `revokee-${run}`, password: password() },
+    limited: { tenant: 'system', username: `watcher-${run}`, password: password() },
+    created: `created-${run}`,
+  };
   const tenants = {
     general: `${run}-d`,
     source: `${run}-e`,
@@ -76,6 +82,22 @@ export default function globalSetup(): void {
   seed(['admin', '--username', `boot-${run}`]);
   administrator(system);
   administrator(resumer);
+  subject(systemAdmins.candidate);
+  administrator(systemAdmins.revokee);
+  subject(systemAdmins.limited);
+  grant(systemAdmins.limited, 'odudu-admin:manage-tenants');
+  grant(systemAdmins.limited, 'odudu-admin:view-users');
 
-  publish({ admin, forced, expiring, other, system, limited, overview, resumer, tenants });
+  publish({
+    admin,
+    forced,
+    expiring,
+    other,
+    system,
+    limited,
+    overview,
+    resumer,
+    tenants,
+    systemAdmins,
+  });
 }

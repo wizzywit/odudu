@@ -62,6 +62,17 @@ const seededSchema = z.object({
     // The prefix every tenant a test creates starts with.
     prefix: z.string(),
   }),
+  // Subjects of system the System administrators tests grant, revoke or sign in as.
+  systemAdmins: z.object({
+    // Holds no role, and is granted tenant-admin.
+    candidate: account,
+    // A system administrator whose tenant-admin is revoked.
+    revokee: account,
+    // Holds manage-tenants and view-users alone.
+    limited: account,
+    // The username the guided step creates.
+    created: z.string(),
+  }),
 });
 
 export type Account = z.infer<typeof account>;
