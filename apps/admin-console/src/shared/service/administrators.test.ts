@@ -8,6 +8,7 @@ import {
   roleChangeNeeds,
   tenantAdminCarries,
   tenantAdminRole,
+  holdsDirectly,
   withoutRoles,
   withRole,
 } from '#/shared/service/administrators.ts';
@@ -78,6 +79,12 @@ describe('the roles that make an administrator', () => {
       'r1',
       'r2',
     ]);
+  });
+
+  it("are held directly only when one of them is among the subject's own roles", () => {
+    expect(holdsDirectly(['r1', 'r-tenants'], ['r-admin', 'r-tenants'])).toBe(true);
+    expect(holdsDirectly(['r1', 'r2'], ['r-admin', 'r-tenants'])).toBe(false);
+    expect(holdsDirectly([], ['r-admin'])).toBe(false);
   });
 });
 

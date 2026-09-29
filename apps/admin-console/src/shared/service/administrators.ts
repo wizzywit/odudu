@@ -69,6 +69,12 @@ export function administratorRoleIds(
     .map((role) => role.id);
 }
 
+// A subject holding the capability only through a group or a nested role
+// holds none of these itself, so removing its own roles would change nothing.
+export function holdsDirectly(held: readonly string[], granting: readonly string[]): boolean {
+  return held.some((role) => granting.includes(role));
+}
+
 export function withRole(held: readonly string[], role: string): readonly string[] {
   return held.includes(role) ? held : [...held, role];
 }

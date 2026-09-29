@@ -10,6 +10,7 @@ import {
   administratorRoleIds,
   administratorRoleNames,
   builtinAdminClient,
+  holdsDirectly,
   TENANT_ADMIN,
   tenantAdminRole,
   withoutRoles,
@@ -124,7 +125,7 @@ export async function revokeAdministrator(
   const granting = administratorRoleIds(tenant, found, client.client);
   const held = await heldRoles(gateway, tenant, subject.id);
   if (isRefused(held)) return { kind: 'refused', ...held };
-  if (!held.ids.some((id) => granting.includes(id))) return { kind: 'not-direct' };
+  if (!holdsDirectly(held.ids, granting)) return { kind: 'not-direct' };
   const set = await setSubjectRoles(
     gateway,
     tenant,
