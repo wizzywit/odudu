@@ -249,24 +249,90 @@ it("shows the last-administrator guard's refusal plainly when the server answers
   await user.click(await screen.findByRole('button', { name: 'Revoke ada' }));
   const dialog = await screen.findByRole('alertdialog');
   await user.type(within(dialog).getByRole('textbox'), 'ada{Enter}');
+  // Beside the action it refused: the dialog stays, saying why.
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'ada was not revoked: this would leave no enabled subject holding manage-tenants.',
+  );
+  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+});
+
+it('says a revoke met roles changed under it, beside the action, and changes nothing', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    routes({
+      [`PUT ${S}/subjects/s-ada/roles`]: problem(412, 'about:blank', 'Precondition Failed'),
+    }),
+  );
+  await user.click(await screen.findByRole('button', { name: 'Revoke ada' }));
+  const dialog = await screen.findByRole('alertdialog');
+  await user.type(within(dialog).getByRole('textbox'), 'ada{Enter}');
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'ada was not revoked: their roles changed while this ran. Try again.',
+  );
+});
+
+it('says a grant met roles changed under it, beside the Grant button', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    routes({
+      [`PUT ${S}/subjects/s-grace/roles`]: problem(412, 'about:blank', 'Precondition Failed'),
+    }),
+  );
+  const choose = await screen.findByRole('group', { name: 'Subject in system' });
+  await user.click(await within(choose).findByRole('option', { name: /grace/u }));
+  const grant = screen.getByRole('button', { name: 'Grant tenant-admin to grace' });
+  await waitFor(() => {
+    expect(grant).toBeEnabled();
+  });
+  await user.click(grant);
+  const section = screen.getByRole('region', { name: 'Grant to an existing subject' });
   expect(
-    await screen.findByText(
-      'ada was not revoked: this would leave no enabled subject holding manage-tenants.',
+    await within(section).findByText(
+      'grace was not granted tenant-admin: their roles changed while this ran. Try again.',
     ),
   ).toBeVisible();
+});
+
+it('does not call a revoke done when whether they still hold it could not be checked', async () => {
+  const user = userEvent.setup();
+  const service = subject('s-svc', 'unused', { type: 'service', username: null, email: null });
+  renderConsoleAt(
+    AT,
+    routes({
+      [`GET ${S}/subjects`]: subjects([ROOT_ROW, service]),
+      ...roles('s-svc', ['r-admin']),
+    }),
+  );
+  await user.click(await screen.findByRole('button', { name: 'Revoke s-svc' }));
+  await user.type(
+    within(await screen.findByRole('alertdialog')).getByRole('textbox'),
+    's-svc{Enter}',
+  );
+  expect(
+    await screen.findByText(
+      'tenant-admin and manage-tenants were taken from s-svc. Whether they still hold manage-tenants another way could not be checked: the list shows it.',
+    ),
+  ).toBeVisible();
+  expect(screen.queryByText('s-svc is no longer a system administrator.')).toBeNull();
 });
 
 it('changes nothing for a holder who holds it only through a group or another role', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(AT, routes(roles('s-ada', ['reader'])));
   await user.click(await screen.findByRole('button', { name: 'Revoke ada' }));
-  await user.type(
-    within(await screen.findByRole('alertdialog')).getByRole('textbox'),
-    'ada{Enter}',
+  const dialog = await screen.findByRole('alertdialog');
+  await user.type(within(dialog).getByRole('textbox'), 'ada{Enter}');
+  const alert = await within(dialog).findByRole('alert');
+  expect(alert).toHaveTextContent(
+    'Nothing was changed: ada holds manage-tenants only through a group or a role that nests it. Change it on ada’s Groups and Roles tabs, under Subjects.',
   );
-  expect(
-    await screen.findByText(/Nothing was changed: ada holds manage-tenants only through/u),
-  ).toBeVisible();
+  expect(within(alert).getByRole('link', { name: 'Subjects' })).toHaveAttribute(
+    'href',
+    '/console/system/subjects',
+  );
   expect(sent.some((s) => s.method === 'PUT')).toBe(false);
 });
 
@@ -292,6 +358,21 @@ it('is no page for a tenant administrator', async () => {
     [`GET ${ADMIN}/acme/whoami`]: whoami(['manage-tenant']),
   });
   expect(await screen.findByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+});
+
+it('passes axe in both themes with a refusal in the revoke dialog', async () => {
+  const user = userEvent.setup();
+  expect(
+    await axeInBothThemes(
+      () => consoleAt(AT, routes(roles('s-ada', ['reader']))).element,
+      async () => {
+        await user.click(await screen.findByRole('button', { name: 'Revoke ada' }));
+        const dialog = await screen.findByRole('alertdialog');
+        await user.type(within(dialog).getByRole('textbox'), 'ada{Enter}');
+        await within(dialog).findByRole('alert');
+      },
+    ),
+  ).toEqual({ light: [], dark: [] });
 });
 
 it('passes axe in both themes: the list, the only holder, and the revoke dialog', async () => {

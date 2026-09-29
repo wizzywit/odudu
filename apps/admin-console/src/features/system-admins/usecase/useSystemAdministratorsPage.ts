@@ -6,7 +6,7 @@ import {
   useRefusal,
   useRereadAuthority,
 } from '#/features/session/index.ts';
-import { holds } from '#/features/shell/index.ts';
+import { areaAt, areaHref, holds } from '#/features/shell/index.ts';
 import { useAdministratorChange } from '#/features/system-admins/repository/useAdministratorChange.ts';
 import { useSubjectPicker } from '#/features/system-admins/repository/useSubjectPicker.ts';
 import {
@@ -32,10 +32,17 @@ import type { PickerState } from '#/shared/service/picker.ts';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
+// Why the revoke in the open dialog did not happen, said in that dialog.
+export type RevokeProblem =
+  | { readonly kind: 'refused'; readonly text: string }
+  // Held only indirectly; the subject's own tabs are where it can be changed.
+  | { readonly kind: 'not-direct'; readonly name: string; readonly subjectsHref: string };
+
 export interface RevokeDialog {
   readonly title: string;
   readonly consequence: string;
   readonly typed: string;
+  readonly problem: RevokeProblem | null;
 }
 
 export interface SystemAdministrators {
@@ -54,8 +61,10 @@ export interface SystemAdministrators {
   readonly cancelRevoke: () => void;
   readonly confirmRevoke: () => void;
   readonly busy: boolean;
-  // What the last grant or revoke came to, when it is not a plain success.
-  readonly message: string | null;
+  // Why the last grant did not happen, said beside the Grant button.
+  readonly grantMessage: string | null;
+  // What a revoke that landed came to, when it is not a plain success.
+  readonly revokeNotice: string | null;
 }
 
 // A refusal is the server's answer about the one change, so it is said in
@@ -82,6 +91,8 @@ function refusalText(name: string, verb: string, refused: Refused): string {
   }
 }
 
+const SUBJECTS_HREF = areaHref(SYSTEM_TENANT, areaAt('subjects'));
+
 export function useSystemAdministratorsPage(): SystemAdministrators {
   const principal = usePrincipal();
   const authority = useAuthority(SYSTEM_TENANT);
@@ -95,7 +106,9 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
   const toast = useToasts((queue) => queue.push);
   const [chosen, setChosen] = useState<Subject | null>(null);
   const [target, setTarget] = useState<Subject | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [grantMessage, setGrantMessage] = useState<string | null>(null);
+  const [revokeNotice, setRevokeNotice] = useState<string | null>(null);
+  const [problem, setProblem] = useState<RevokeProblem | null>(null);
 
   const lacking = (needs: readonly AdminCapability[]): readonly AdminCapability[] =>
     authority === undefined ? [] : needs.filter((capability) => !holds(authority, capability));
@@ -105,9 +118,9 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
   const changeNeeds = lacking(roleChangeNeeds(SYSTEM_TENANT));
   const only = onlyHolderOf(list.rows, enabledHolders);
 
-  const refused = (name: string, verb: string, outcome: Refused): void => {
+  const refused = (name: string, verb: string, outcome: Refused): string => {
     refusal.report(outcome.failure, ADMINISTRATOR_REQUEST_NEEDS[outcome.request]);
-    setMessage(refusalText(name, verb, outcome));
+    return refusalText(name, verb, outcome);
   };
 
   return {
@@ -129,12 +142,12 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
     grant: () => {
       if (chosen === null || changeNeeds.length > 0 || change.busy) return;
       const name = subjectName(chosen);
-      setMessage(null);
+      setGrantMessage(null);
       change
         .grant(chosen.id)
         .then((outcome) => {
           if (outcome !== null) {
-            refused(name, 'granted tenant-admin', outcome);
+            setGrantMessage(refused(name, 'granted tenant-admin', outcome));
             return;
           }
           setChosen(null);
@@ -152,37 +165,45 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
                 : `Revoke ${subjectName(target)}?`,
             consequence: revokeConsequence(target, target.id === principal.subjectId),
             typed: confirmationText(target),
+            problem,
           },
     startRevoke: (subject) => {
       if (changeNeeds.length > 0 || subject.id === only?.id) return;
-      setMessage(null);
+      setRevokeNotice(null);
+      setProblem(null);
       setTarget(subject);
     },
     cancelRevoke: () => {
+      setProblem(null);
       setTarget(null);
     },
     confirmRevoke: () => {
       if (target === null || change.busy) return;
       const name = subjectName(target);
       const self = target.id === principal.subjectId;
+      setProblem(null);
       change
         .revoke(target)
         .then((outcome) => {
-          setTarget(null);
           if (outcome.kind === 'refused') {
-            refused(name, 'revoked', outcome);
+            setProblem({ kind: 'refused', text: refused(name, 'revoked', outcome) });
             return;
           }
           if (outcome.kind === 'not-direct') {
-            setMessage(
-              `Nothing was changed: ${name} holds manage-tenants only through a group or a role that nests it. Change that group or role to revoke it.`,
+            setProblem({ kind: 'not-direct', name, subjectsHref: SUBJECTS_HREF });
+            return;
+          }
+          setTarget(null);
+          if (self) rereadAuthority();
+          if (outcome.stillHolds === true) {
+            setRevokeNotice(
+              `tenant-admin and manage-tenants were taken from ${name}, who still holds manage-tenants through a group or a role that nests it. Change that group or role to finish.`,
             );
             return;
           }
-          if (self) rereadAuthority();
-          if (outcome.stillHolds === true) {
-            setMessage(
-              `tenant-admin and manage-tenants were taken from ${name}, who still holds manage-tenants through a group or a role that nests it. Change that group or role to finish.`,
+          if (outcome.stillHolds === null) {
+            setRevokeNotice(
+              `tenant-admin and manage-tenants were taken from ${name}. Whether they still hold manage-tenants another way could not be checked: the list shows it.`,
             );
             return;
           }
@@ -191,6 +212,7 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
         .catch(() => undefined);
     },
     busy: change.busy,
-    message,
+    grantMessage,
+    revokeNotice,
   };
 }

@@ -1,7 +1,9 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useId } from 'react';
+import { Link } from 'react-aria-components';
 import {
   useSystemAdministratorsPage,
+  type RevokeProblem,
   type SystemAdministrators,
 } from '#/features/system-admins/usecase/useSystemAdministratorsPage.ts';
 import { ReplaceUnfinished, SystemGate } from '#/features/tenants/index.ts';
@@ -107,9 +109,27 @@ function Grant({ page }: { page: SystemAdministrators }) {
         >
           {chosen === null ? 'Grant tenant-admin' : `Grant tenant-admin to ${nameOf(chosen)}`}
         </Button>
+        <p role="status" aria-label="Last grant" className={styles.message}>
+          {page.grantMessage}
+        </p>
       </div>
     </section>
   );
+}
+
+function Problem({ problem }: { problem: RevokeProblem }) {
+  if (problem.kind === 'refused') return problem.text;
+  return (
+    <>
+      {`Nothing was changed: ${problem.name} holds manage-tenants only through a group or a role that nests it. Change it on ${problem.name}’s Groups and Roles tabs, under `}
+      <Link href={problem.subjectsHref}>Subjects</Link>.
+    </>
+  );
+}
+
+function problemOf(revoking: SystemAdministrators['revoking']) {
+  const problem = revoking?.problem ?? null;
+  return problem === null ? undefined : <Problem problem={problem} />;
 }
 
 function Administrators() {
@@ -144,11 +164,13 @@ function Administrators() {
         rowKey={(subject) => subject.id}
         capability="view-users"
         nothingYet="Nobody in system holds manage-tenants, so only odudu seed admin can make one."
+        notice={
+          <p role="status" aria-label="Last revoke" className={styles.message}>
+            {page.revokeNotice}
+          </p>
+        }
       />
       <div className={styles.after}>
-        <p role="status" className={styles.message}>
-          {page.message}
-        </p>
         {page.onlyHolder === null ? null : (
           <p id={reasonId} className={styles.reason}>
             {page.onlyHolder.reason}
@@ -174,6 +196,7 @@ function Administrators() {
         tone="danger"
         typed={revoking?.typed ?? ''}
         busy={page.busy}
+        problem={problemOf(revoking)}
         onConfirm={page.confirmRevoke}
         onCancel={page.cancelRevoke}
       />
