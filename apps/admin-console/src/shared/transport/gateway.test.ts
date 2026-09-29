@@ -554,8 +554,7 @@ describe('gateway.download, a body kept as the bytes the server sent', () => {
 
     const result = await gateway.download('GET', EXPORT_PATH);
 
-    expect(result.ok).toBe(false);
-    expect(result.ok === false && result.kind === 'problem' && result.problem.status).toBe(401);
+    expect(result).toMatchObject({ ok: false, kind: 'problem', problem: { status: 401 } });
     expect(ended).toHaveBeenCalledTimes(1);
   });
 
