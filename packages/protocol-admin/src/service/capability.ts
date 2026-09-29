@@ -552,9 +552,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-sessions',
     responseSchema: endTenantSessionsResponseSchema,
     description:
-      'Ends every live session in the tenant, each as `DELETE …/subjects/{id}/sessions/{sid}` ' +
-      'ends one. A session whose subject holds an admin capability the caller does not is ' +
-      'left alone and counted under `beyond_ceiling` (the target ceiling, run over the tenant).',
+      'Ends the tenant\u2019s live sessions, each as `DELETE …/subjects/{id}/sessions/{sid}` ' +
+      'ends one, at most 500 a call in id order; `remaining` says how many are still live ' +
+      'within reach, so a caller repeats the call until it is 0. A session whose subject holds ' +
+      'an admin capability the caller does not is left alone and counted under ' +
+      '`beyond_ceiling` (the target ceiling, run over the tenant).',
   },
   {
     method: 'GET',

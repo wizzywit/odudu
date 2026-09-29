@@ -143,6 +143,9 @@ export interface TenantSessionsAuditEvent {
   readonly detail: Record<string, unknown>;
 }
 
+/** How many sessions one call ends; the rest are `remaining`, for the next. */
+export const TENANT_SESSIONS_END_LIMIT = 500;
+
 export interface EndTenantSessionsDeps {
   readonly audit: (tx: TenantScopedDatabase, event: TenantSessionsAuditEvent) => Promise<void>;
   readonly kek: Uint8Array;
@@ -162,13 +165,14 @@ export interface EndTenantSessionsInput {
 // Each session through the one `endSession` a single end makes, so each has
 // its grants revoked and its Back-Channel Logout Tokens queued. A session
 // whose subject holds an admin capability the caller does not is left
-// alone and counted instead (ADR 0040): the ceiling a per-subject end
-// applies, run over the tenant as a set.
+// alone and counted instead (ADR 0040's amendment of 2026-09-30). At most
+// `TENANT_SESSIONS_END_LIMIT` go per call, in id order, so no one
+// transaction holds every session in a large tenant locked.
 export async function endTenantSessions(
   tx: TenantScopedDatabase,
   deps: EndTenantSessionsDeps,
   input: EndTenantSessionsInput,
-): Promise<{ ended: number; beyondCeiling: number }> {
+): Promise<{ ended: number; remaining: number; beyondCeiling: number }> {
   const live = liveSessionCondition(input.lifespans, input.now);
   const beyond = subjectsBeyond(input.callerCapabilities);
   const reachable = beyond === null ? live : and(live, not(inArray(sessions.subjectId, beyond)));
@@ -177,6 +181,7 @@ export async function endTenantSessions(
     .from(sessions)
     .where(reachable)
     .orderBy(asc(sessions.id))
+    .limit(TENANT_SESSIONS_END_LIMIT)
     .for('update');
   for (const target of targets) {
     await endOidcSession(
@@ -192,6 +197,7 @@ export async function endTenantSessions(
       },
     );
   }
+  const remaining = (await tx.select({ n: count() }).from(sessions).where(reachable))[0]?.n ?? 0;
   const skipped =
     beyond === null
       ? 0
@@ -210,9 +216,9 @@ export async function endTenantSessions(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
-    detail: { ended: targets.length, beyond_ceiling: skipped },
+    detail: { ended: targets.length, remaining, beyond_ceiling: skipped },
   });
-  return { ended: targets.length, beyondCeiling: skipped };
+  return { ended: targets.length, remaining, beyondCeiling: skipped };
 }
 
 /** The client a `…/clients/:id/…` route names, or null: its row id and `client_id`. */

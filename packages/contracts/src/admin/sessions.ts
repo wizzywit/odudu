@@ -46,10 +46,12 @@ export const listTenantSessionsResponseSchema = z.object({
 });
 export type ListTenantSessionsResponse = z.infer<typeof listTenantSessionsResponseSchema>;
 
-// `beyond_ceiling` counts what was left alone because its subject holds an
-// admin capability the caller does not (ADR 0040).
+// `remaining` counts what is still live within reach, for the next call;
+// `beyond_ceiling` what was left alone because its subject holds an admin
+// capability the caller does not (ADR 0040).
 export const endTenantSessionsResponseSchema = z.object({
   ended: z.number().int().nonnegative(),
+  remaining: z.number().int().nonnegative(),
   beyond_ceiling: z.number().int().nonnegative(),
 });
 export type EndTenantSessionsResponse = z.infer<typeof endTenantSessionsResponseSchema>;

@@ -20,7 +20,7 @@ import {
   refreshTokens,
   tokenGrantRepository,
 } from '@odudu/protocol-oidc';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -34,6 +34,7 @@ import {
   countTenantSessions,
   endTenantSessions,
   listTenantSessions,
+  TENANT_SESSIONS_END_LIMIT,
 } from '#/usecase/tenant-sessions';
 
 const LIFESPANS = {
@@ -281,6 +282,54 @@ describe('DELETE /sessions', () => {
   });
 });
 
+// Seeded in one statement: the point is how many a call ends, not how each began.
+async function seedManySessions(tenantId: string, subjectId: string, count: number) {
+  const expires = new Date(fixture.clock.now().getTime() + 3_600_000).toISOString();
+  const active = fixture.clock.now().toISOString();
+  await withTenant(fixture.app.db, tenantId, (tx) =>
+    tx.execute(sql`
+      INSERT INTO sessions (id, tenant_id, subject_id, expires_at, last_active_at, secret_hash)
+      SELECT gen_random_uuid(), ${tenantId}, ${subjectId}, ${expires}::timestamptz,
+             ${active}::timestamptz, md5(g::text)
+        FROM generate_series(1, ${count}) g`),
+  );
+}
+
+describe('DELETE /sessions, bounded per call', () => {
+  it(`ends ${String(TENANT_SESSIONS_END_LIMIT)} when that is all there are, and none remain`, async () => {
+    const t = await fixture.createTenant(`cap-${newId()}`);
+    const ada = await seedUser(t.id, 'ada');
+    const token = await fixture.adminToken(t.name, ['manage-sessions']);
+    await seedManySessions(t.id, ada, TENANT_SESSIONS_END_LIMIT - 1);
+
+    const res = await call('DELETE', t.name, token, 'sessions');
+    expect(res.json()).toEqual({
+      ended: TENANT_SESSIONS_END_LIMIT,
+      remaining: 0,
+      beyond_ceiling: 0,
+    });
+  });
+
+  it('ends no more than the limit, and says how many remain for the next call', async () => {
+    const t = await fixture.createTenant(`cap-${newId()}`);
+    const ada = await seedUser(t.id, 'ada');
+    const token = await fixture.adminToken(t.name, ['manage-sessions']);
+    await fixture.adminToken(t.name, ['manage-sessions']);
+    await seedManySessions(t.id, ada, TENANT_SESSIONS_END_LIMIT - 1);
+
+    const first = await call('DELETE', t.name, token, 'sessions');
+    expect(first.json()).toEqual({
+      ended: TENANT_SESSIONS_END_LIMIT,
+      remaining: 1,
+      beyond_ceiling: 0,
+    });
+    const counted = await withTenant(fixture.app.db, t.id, (tx) =>
+      countTenantSessions(tx, { lifespans: LIFESPANS, now: fixture.clock.now() }),
+    );
+    expect(counted.count).toBe(1);
+  });
+});
+
 describe('GET /subjects/:id/grants and DELETE /subjects/:id/grants/:clientId', () => {
   it('lists every unrevoked grant, offline ones marked, then revokes one client’s', async () => {
     const t = await fixture.createTenant(`gr-${newId()}`);
@@ -485,7 +534,7 @@ describe('the tenant-wide session and grant reads and writes, probed with a fore
           },
         ),
       expectBlocked: (result) => {
-        expect(result).toEqual({ ended: 0, beyondCeiling: 0 });
+        expect(result).toEqual({ ended: 0, remaining: 0, beyondCeiling: 0 });
       },
       verifyTenantAUnaffected: async (tx, seeded) => {
         const live = await sessionRepository(tx).liveById(

@@ -154,6 +154,10 @@ export function endTenantSessionsHandler(deps: TenantSessionsRouteDeps): AdminRo
         },
       ),
     );
-    return reply.code(200).send({ ended: outcome.ended, beyond_ceiling: outcome.beyondCeiling });
+    return reply.code(200).send({
+      ended: outcome.ended,
+      remaining: outcome.remaining,
+      beyond_ceiling: outcome.beyondCeiling,
+    });
   };
 }
