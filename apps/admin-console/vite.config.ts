@@ -10,7 +10,21 @@ export default defineConfig({
   base: '/console/',
   plugins: [react()],
   // gallery.html is a development-only page; the build reaches index.html alone.
-  build: { outDir: 'dist', rolldownOptions: { input: 'index.html' } },
+  build: {
+    outDir: 'dist',
+    rolldownOptions: {
+      input: 'index.html',
+      // zod and its jitless setting share a chunk that imports nothing, so
+      // the setting runs before any split chunk builds a schema (zodConfig.ts).
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: 'zod', test: /[\\/]node_modules[\\/]zod[\\/]|[\\/]src[\\/]zodConfig\.ts$/u },
+          ],
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/console/api': upstream,
