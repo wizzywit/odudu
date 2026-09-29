@@ -433,7 +433,7 @@ const FLOWS = [
     flow: 'Add an administrator to acme',
     at: ACME_AT,
     first: 'Username',
-    heading: 'First administrator of acme',
+    heading: 'Add an administrator to acme',
   },
   {
     flow: 'Add a system administrator',
@@ -468,10 +468,23 @@ it('adds an administrator to an existing tenant under its record, and offers ano
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(ACME_AT, routes());
   expect(await screen.findByText(/gets another administrator/u)).toBeVisible();
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'Add an administrator to acme' }),
+  ).toBeVisible();
+  expect(screen.queryByRole('list', { name: 'Steps' })).toBeNull();
   const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+  expect(
+    within(trail)
+      .getAllByRole('listitem')
+      .map((item) => item.textContent.replace('›', '')),
+  ).toEqual(['System', 'Tenants', 'acme', 'Add an administrator']);
   expect(within(trail).getByRole('link', { name: 'Tenants' })).toHaveAttribute(
     'href',
     '/console/system/tenants',
+  );
+  expect(within(trail).getByRole('link', { name: 'acme' })).toHaveAttribute(
+    'href',
+    '/console/system/tenants/acme',
   );
   await user.type(screen.getByRole('textbox', { name: 'Username' }), 'grace');
   const button = screen.getByRole('button', { name: 'Create administrator' });
@@ -484,6 +497,10 @@ it('adds an administrator to an existing tenant under its record, and offers ano
   await user.click(within(dialog).getByRole('checkbox'));
   await user.click(within(dialog).getByRole('button', { name: 'Close' }));
   expect(await screen.findByRole('link', { name: 'Open acme' })).toBeVisible();
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'Add an administrator to acme' }),
+  ).toBeVisible();
+  expect(screen.queryByRole('list', { name: 'Steps' })).toBeNull();
   expect(sent.some((s) => s.path === ADMIN && s.method === 'POST')).toBe(false);
   expect(screen.queryByRole('button', { name: 'Create another tenant' })).toBeNull();
   await user.click(screen.getByRole('button', { name: 'Add another administrator' }));
@@ -503,7 +520,7 @@ it("resumes a tenant's administrator after a reload, and only that tenant's", as
   expect(screen.getByText(/, created\. What is left/u)).toBeVisible();
   await router.navigate({ href: '/system/tenants/globex/new-administrator' });
   expect(
-    await screen.findByRole('heading', { level: 1, name: 'First administrator of globex' }),
+    await screen.findByRole('heading', { level: 1, name: 'Add an administrator to globex' }),
   ).toBeVisible();
   expect(screen.getByRole('textbox', { name: 'Username' })).toHaveValue('');
   expect(sessionStorage.getItem(ACME_KEY)).toContain(SUBJECT_ID);

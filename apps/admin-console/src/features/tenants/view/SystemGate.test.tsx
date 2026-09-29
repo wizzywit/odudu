@@ -43,6 +43,25 @@ it('names adding a system administrator, under its own area, while it checks', a
   expect(within(trail).queryByRole('link', { name: 'Tenants' })).toBeNull();
 });
 
+it("names adding an administrator to a tenant, under that tenant's record, while it checks", async () => {
+  renderConsoleAt('/console/system/tenants/acme/new-administrator', {
+    'GET /console/api/session': json(ROOT),
+    [`GET ${ADMIN}/system/whoami`]: pending(),
+  });
+  expect(
+    await screen.findByText('Checking access to Add an administrator to acme'),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'Add an administrator to acme' }),
+  ).toBeVisible();
+  const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+  expect(within(trail).getByRole('link', { name: 'acme' })).toHaveAttribute(
+    'href',
+    '/console/system/tenants/acme',
+  );
+  expect(within(trail).getByText('Add an administrator')).toHaveAttribute('aria-current', 'page');
+});
+
 it('is no page for a system principal whom whoami gives no manage-tenants', async () => {
   renderConsoleAt('/console/system/import-tenant', {
     'GET /console/api/session': json(ROOT),

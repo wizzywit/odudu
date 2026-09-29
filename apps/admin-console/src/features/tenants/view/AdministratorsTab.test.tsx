@@ -51,7 +51,7 @@ it('adds an administrator through the guided step, resumed for this tenant', asy
     expect(router.state.location.pathname).toBe('/system/tenants/acme/new-administrator');
   });
   expect(
-    await screen.findByRole('heading', { level: 1, name: 'First administrator of acme' }),
+    await screen.findByRole('heading', { level: 1, name: 'Add an administrator to acme' }),
   ).toBeVisible();
 });
 
@@ -124,7 +124,7 @@ it("leaves a tenant creation half made elsewhere alone, and opens this tenant's 
   const { router } = renderConsoleAt(AT, routes());
   await user.click(await screen.findByRole('button', { name: 'Add an administrator' }));
   expect(
-    await screen.findByRole('heading', { level: 1, name: 'First administrator of acme' }),
+    await screen.findByRole('heading', { level: 1, name: 'Add an administrator to acme' }),
   ).toBeVisible();
   expect(screen.getByRole('textbox', { name: 'Username' })).toHaveValue('');
   expect(screen.queryByRole('alertdialog')).toBeNull();

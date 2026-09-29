@@ -7,8 +7,10 @@ import {
   type TenantStep,
 } from '#/features/tenants/usecase/useNewTenant.ts';
 import {
+  addAdministratorTitle,
   flowOf,
   systemAdminsTrail,
+  tenantAdministratorTrail,
   tenantsTrail,
   type CreationFlow,
 } from '#/features/tenants/service.ts';
@@ -223,16 +225,27 @@ function Creation({ flow }: { flow: CreationFlow }) {
   const { current, startOver, replacing, replace, keep } = useNewTenant(flow);
   const at = current.step === 'tenant' ? 0 : current.step === 'administrator' ? 1 : 2;
   const systemAdmins = current.step === 'tenant' ? null : current.systemAdminsHref;
+  // A created or imported tenant has no administrator yet, so this is its first.
+  const first =
+    flow === 'tenant' || (current.step === 'administrator' && current.origin !== 'existing');
   const title =
     current.step === 'tenant'
       ? 'Create a tenant'
-      : systemAdmins === null
-        ? `First administrator of ${current.tenant}`
-        : 'Add a system administrator';
+      : systemAdmins !== null
+        ? 'Add a system administrator'
+        : first
+          ? `First administrator of ${current.tenant}`
+          : addAdministratorTitle(current.tenant);
+  const breadcrumb =
+    systemAdmins !== null
+      ? systemAdminsTrail(title)
+      : flow === 'tenant' || current.step === 'tenant'
+        ? tenantsTrail(title)
+        : tenantAdministratorTrail(current.tenant);
   return (
     <>
       <PageHeader
-        breadcrumb={systemAdmins === null ? tenantsTrail(title) : systemAdminsTrail(title)}
+        breadcrumb={breadcrumb}
         title={title}
         description="Where it has got to is kept in this tab, so a reload carries on from the last request that landed."
         {...(current.step === 'administrator'
@@ -245,7 +258,7 @@ function Creation({ flow }: { flow: CreationFlow }) {
             }
           : {})}
       />
-      {systemAdmins === null ? <Steps at={at} /> : null}
+      {flow === 'tenant' ? <Steps at={at} /> : null}
       {current.step === 'tenant' ? <Tenant step={current} /> : null}
       {current.step === 'administrator' ? <Administrator step={current} /> : null}
       {current.step === 'done' ? <Done step={current} onStartOver={startOver} /> : null}
@@ -284,8 +297,8 @@ export function NewAdministratorPage({ tenant, name }: { tenant: string; name: s
   return (
     <SystemGate
       tenant={tenant}
-      title="Add an administrator"
-      breadcrumb={tenantsTrail('Add an administrator')}
+      title={addAdministratorTitle(name)}
+      breadcrumb={tenantAdministratorTrail(name)}
     >
       <Creation flow={flowOf(name)} />
     </SystemGate>

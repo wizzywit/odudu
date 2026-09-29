@@ -7,6 +7,7 @@ import {
   NEW_TENANT_HREF,
   tenantHref,
   systemAdminsTrail,
+  tenantAdministratorTrail,
   tenantsTrail,
   administratorOf,
   administratorStepHref,
@@ -109,6 +110,15 @@ describe('the way back to a list', () => {
       { label: 'System' },
       { label: 'Tenants', href: '/console/system/tenants' },
       { label: 'acme' },
+    ]);
+  });
+
+  it("climbs from a tenant's own administrator step through its record", () => {
+    expect(tenantAdministratorTrail('acme')).toEqual([
+      { label: 'System' },
+      { label: 'Tenants', href: '/console/system/tenants' },
+      { label: 'acme', href: '/console/system/tenants/acme' },
+      { label: 'Add an administrator' },
     ]);
   });
 

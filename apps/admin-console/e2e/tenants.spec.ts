@@ -135,6 +135,10 @@ test('an administrator begun on a tenant leaves Create a tenant at its tenant st
   await page.goto(`/console/system/tenants/${tenants.general}?tab=administrators`);
   await page.getByRole('button', { name: 'Add an administrator' }).click();
   await expect(page).toHaveURL(`/console/system/tenants/${tenants.general}/new-administrator`);
+  await expect(
+    page.getByRole('heading', { level: 1, name: `Add an administrator to ${tenants.general}` }),
+  ).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Steps' })).toHaveCount(0);
   const username = page.getByRole('textbox', { name: 'Username' });
   await username.fill('begun');
   await expectAccessible(page);
