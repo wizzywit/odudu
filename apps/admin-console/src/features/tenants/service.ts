@@ -1,0 +1,150 @@
+import { isTenantName, TENANT_NAME_RULE } from '@odudu/contracts';
+import { TENANT_IMPORT_BODY_LIMIT, type Tenant } from '@odudu/contracts/admin';
+
+export type { Tenant };
+
+export const NAME_RULE = `${TENANT_NAME_RULE.charAt(0).toUpperCase()}${TENANT_NAME_RULE.slice(1)}.`;
+
+export function nameProblem(name: string): string | null {
+  if (name === '') return 'Enter a name for the tenant.';
+  return isTenantName(name) ? null : NAME_RULE;
+}
+
+const SYSTEM_ISSUER_TAIL = '/tenants/system';
+
+// Every tenant's issuer is the public base's `/tenants/<name>`, so the one
+// the console can read, the system tenant's, shows where a new one will be.
+export function issuerPreview(systemIssuer: string | undefined, name: string): string | null {
+  if (systemIssuer?.endsWith(SYSTEM_ISSUER_TAIL) !== true || !isTenantName(name)) return null;
+  return `${systemIssuer.slice(0, -SYSTEM_ISSUER_TAIL.length)}/tenants/${name}`;
+}
+
+// The UTC day, so one export taken twice in an evening is named the same
+// wherever the person is.
+export function exportFileName(tenant: string, now: Date): string {
+  return `${tenant}-${now.toISOString().slice(0, 10)}.odudu-tenant.json`;
+}
+
+export const EXPORT_MEDIA_TYPE = 'application/vnd.odudu.tenant+json';
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parsed(text: string): unknown {
+  try {
+    const value: unknown = JSON.parse(text);
+    return value;
+  } catch {
+    return undefined;
+  }
+}
+
+// What an export says it left out, by JSON path; read only to show it, since
+// the file saved is the text as the server sent it.
+export function omittedOf(text: string): readonly string[] {
+  const document = parsed(text);
+  if (!isRecord(document)) return [];
+  const omitted = document.omitted;
+  return Array.isArray(omitted)
+    ? omitted.filter((path): path is string => typeof path === 'string')
+    : [];
+}
+
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${String(bytes)} bytes`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+export function importFileProblem(bytes: number): string | null {
+  if (bytes <= TENANT_IMPORT_BODY_LIMIT) return null;
+  return `The file is larger than ${fileSize(TENANT_IMPORT_BODY_LIMIT)}, the most an import accepts.`;
+}
+
+export type ParsedDocument =
+  | { readonly ok: true; readonly document: unknown }
+  | { readonly ok: false; readonly message: string };
+
+export function parseDocument(text: string): ParsedDocument {
+  const document = parsed(text);
+  return document === undefined
+    ? { ok: false, message: 'The file is not JSON, so it cannot be a tenant document.' }
+    : { ok: true, document };
+}
+
+export type AdministratorCall = 'create' | 'grant' | 'password';
+
+// Each call is one step a reload can land between. The one-time password is
+// issued last: a lost answer is replaced by issuing another, which nothing
+// else here can say of itself.
+export function administratorCalls(done: {
+  readonly subjectId: string | null;
+  readonly granted: boolean;
+}): readonly AdministratorCall[] {
+  const calls: AdministratorCall[] = [];
+  if (done.subjectId === null) calls.push('create');
+  if (!done.granted) calls.push('grant');
+  calls.push('password');
+  return calls;
+}
+
+// A tenant's guided creation, as far as it has gone. The typed values are
+// kept so a reload resumes it; the one-time password never is.
+export type Creation =
+  | { readonly step: 'tenant'; readonly name: string; readonly displayName: string }
+  | {
+      readonly step: 'administrator';
+      readonly tenant: string;
+      // Where the tenant came from, which decides what the page says of it.
+      readonly origin: 'created' | 'imported' | 'existing';
+      readonly username: string;
+      readonly email: string;
+      readonly subjectId: string | null;
+      readonly granted: boolean;
+    }
+  | { readonly step: 'done'; readonly tenant: string; readonly username: string };
+
+export const FRESH_CREATION: Creation = { step: 'tenant', name: '', displayName: '' };
+
+export function administratorOf(
+  tenant: string,
+  origin: 'created' | 'imported' | 'existing',
+): Creation {
+  return {
+    step: 'administrator',
+    tenant,
+    origin,
+    username: '',
+    email: '',
+    subjectId: null,
+    granted: false,
+  };
+}
+
+export const TENANT_ADMIN = 'tenant-admin';
+
+// A tenant may make a client role of its own named `tenant-admin`, so the
+// one that grants the console is found through the built-in client.
+export function builtinAdminClient(
+  clients: readonly { readonly id: string; readonly builtin_admin: boolean }[],
+): string | null {
+  return clients.find((client) => client.builtin_admin)?.id ?? null;
+}
+
+export function tenantAdminRole(
+  roles: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly client_id: string | null;
+  }[],
+  adminClient: string,
+): string | null {
+  return (
+    roles.find((role) => role.name === TENANT_ADMIN && role.client_id === adminClient)?.id ?? null
+  );
+}
+
+export function withRole(held: readonly string[], role: string): readonly string[] {
+  return held.includes(role) ? held : [...held, role];
+}
