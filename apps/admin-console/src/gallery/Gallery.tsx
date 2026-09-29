@@ -26,6 +26,7 @@ import { FilterBar } from '#/shared/view/FilterBar.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import { Pager } from '#/shared/view/Pager.tsx';
 import { Rail } from '#/shared/view/Rail.tsx';
+import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { ResourceListPage } from '#/shared/view/ResourceListPage.tsx';
 import { SaveBar } from '#/shared/view/SaveBar.tsx';
 import { SecretDialog } from '#/shared/view/SecretDialog.tsx';
@@ -293,6 +294,35 @@ function ClientList() {
   );
 }
 
+function SubjectRecord() {
+  const [tab, setTab] = useState('profile');
+  const [updated, setUpdated] = useState(true);
+  return (
+    <RecordPage
+      record={{
+        status: 'ready',
+        updated,
+        acknowledge: () => {
+          setUpdated(false);
+        },
+        retry: NOTHING,
+      }}
+      kicker={`${TENANT} · subject`}
+      title="ada"
+      noun="subject"
+      label="Subject sections"
+      tab={tab}
+      onTabChange={setTab}
+      actions={<Button variant="danger">Delete subject</Button>}
+      tabs={[
+        { id: 'profile', label: 'Profile', panel: <p>Claims and verification</p> },
+        { id: 'roles', label: 'Roles', panel: <p>Roles held directly</p> },
+        { id: 'activity', label: 'Activity', panel: <p>Audit rows for ada</p> },
+      ]}
+    />
+  );
+}
+
 function Dialogs({ initial }: { initial: GalleryDialog | null }) {
   const [open, setOpen] = useState<GalleryDialog | null>(initial);
   const close = (): void => {
@@ -503,6 +533,9 @@ export function Gallery({
                 onChange={() => undefined}
               />
             </Section>
+          </Specimen>
+          <Specimen label="RecordPage: updated since you opened it">
+            <SubjectRecord />
           </Specimen>
           <Specimen label="A field the server refused">
             <SelectField
