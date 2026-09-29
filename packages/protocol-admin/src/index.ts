@@ -168,6 +168,11 @@ import {
 } from '#/view/routes/tenants';
 import { whoamiHandler } from '#/view/routes/whoami';
 import {
+  bulkSubjectsHandler,
+  clearLockoutsHandler,
+  type BulkSubjectsRouteDeps,
+} from '#/view/routes/bulk-subjects';
+import {
   listSubjectGrantsHandler,
   revokeClientGrantsHandler,
   revokeSubjectGrantsHandler,
@@ -435,6 +440,16 @@ function buildAdminRoutes(
       now: () => clock.now(),
       findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
     };
+    const bulkSubjectsDeps: BulkSubjectsRouteDeps = {
+      database: deps.database.db,
+      subjectAudit,
+      sessionAudit,
+      lockoutsAudit: recordAudit,
+      kek: deps.kek,
+      callerCapabilities,
+      now: () => clock.now(),
+      findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
+    };
     const tenantSessionsDeps: TenantSessionsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
@@ -480,6 +495,8 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/subjects/username-policy':
         readUsernamePolicyHandler(subjectsDeps),
       'POST /admin/tenants/:tenant/subjects': createSubjectHandler(subjectsDeps),
+      'POST /admin/tenants/:tenant/subjects/bulk': bulkSubjectsHandler(bulkSubjectsDeps),
+      'DELETE /admin/tenants/:tenant/lockouts': clearLockoutsHandler(bulkSubjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id': readSubjectHandler(subjectsDeps),
       'PATCH /admin/tenants/:tenant/subjects/:id': amendSubjectHandler(subjectsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id': deleteSubjectHandler(subjectsDeps),

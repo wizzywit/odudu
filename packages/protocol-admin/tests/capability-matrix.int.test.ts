@@ -45,6 +45,10 @@ function admits(held: AdminCapability, required: AdminCapability): boolean {
 // itself a 403.
 const SAMPLE_BODIES: Readonly<Partial<Record<string, unknown>>> = {
   'POST /admin/tenants/:tenant/subjects': { username: 'sample' },
+  'POST /admin/tenants/:tenant/subjects/bulk': {
+    action: 'disable',
+    ids: ['0199aa00-0000-7000-8000-0000000000fe'],
+  },
   'PUT /admin/tenants/:tenant/subjects/:id/required-actions': { actions: [] },
   'PUT /admin/tenants/:tenant/subjects/:id/roles': { role_ids: [] },
   'PUT /admin/tenants/:tenant/subjects/:id/groups': { group_ids: [] },

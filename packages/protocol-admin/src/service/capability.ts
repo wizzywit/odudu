@@ -63,6 +63,9 @@ import {
   listSubjectsQuerySchema,
   countSubjectsQuerySchema,
   listSubjectsResponseSchema,
+  bulkSubjectsRequestSchema,
+  bulkSubjectsResponseSchema,
+  clearLockoutsResponseSchema,
   listEffectiveRolesResponseSchema,
   listTenantsQuerySchema,
   countTenantsQuerySchema,
@@ -215,6 +218,21 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: subjectSchema,
     successStatus: 201,
     bodySchema: createSubjectRequestSchema,
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/subjects/bulk',
+    capability: 'manage-users',
+    responseSchema: bulkSubjectsResponseSchema,
+    bodySchema: bulkSubjectsRequestSchema,
+    description:
+      'Applies one action to at most 100 subjects, each exactly as its single-subject door ' +
+      'would — `PATCH …/subjects/{id}` for `disable` and `enable`, `DELETE …/subjects/{id}`, ' +
+      'and `DELETE …/subjects/{id}/sessions` for `end-sessions`, which additionally requires ' +
+      '`manage-sessions` — each in its own transaction with its own audit row. Answers `200` ' +
+      'with the status each id would have had, and a refusal\u2019s problem `type` and `detail`.' +
+      TARGET_CEILING +
+      LAST_ADMINISTRATOR,
   },
   {
     method: 'GET',
@@ -1000,6 +1018,16 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Refused with 409 while the key is active, or while a client is registered against ' +
       'an algorithm no remaining key would produce. `If-Match` is optional: a stale one, ' +
       'taken over the key, is refused with `412`.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/lockouts',
+    capability: 'manage-users',
+    responseSchema: clearLockoutsResponseSchema,
+    description:
+      'Clears every subject\u2019s run of failed sign-ins, locked or still counting, as ' +
+      '`DELETE …/subjects/{id}/lockout` clears one. A subject holding an admin capability the ' +
+      'caller does not keeps its count and is counted under `beyond_ceiling`.',
   },
   // A tenant's own SMTP credential: manage-tenant, the same capability
   // `/settings` and `/flow` use. GET never carries a password; `configured`

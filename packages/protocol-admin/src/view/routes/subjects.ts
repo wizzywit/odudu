@@ -289,6 +289,10 @@ function amendmentProblem(
   }
 }
 
+export function targetCeilingDetail(denied: readonly string[]): string {
+  return `the subject holds what the caller does not: ${denied.join(', ')}`;
+}
+
 export function targetCeilingProblem(
   reply: FastifyReply,
   request: AdminRequest,
@@ -297,12 +301,7 @@ export function targetCeilingProblem(
   return sendProblem(
     reply,
     request,
-    problem(
-      403,
-      'about:blank',
-      'Forbidden',
-      `the subject holds what the caller does not: ${denied.join(', ')}`,
-    ),
+    problem(403, 'about:blank', 'Forbidden', targetCeilingDetail(denied)),
   );
 }
 

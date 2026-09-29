@@ -204,3 +204,36 @@ export const listEffectiveRolesResponseSchema = z.object({
   items: z.array(effectiveRoleSchema),
 });
 export type ListEffectiveRolesResponse = z.infer<typeof listEffectiveRolesResponseSchema>;
+
+export const BULK_SUBJECT_ACTIONS = ['disable', 'enable', 'delete', 'end-sessions'] as const;
+export const BULK_SUBJECT_LIMIT = 100;
+
+export const bulkSubjectsRequestSchema = z.object({
+  action: z.enum(BULK_SUBJECT_ACTIONS),
+  ids: z.array(z.uuid()).min(1).max(BULK_SUBJECT_LIMIT),
+});
+export type BulkSubjectsRequest = z.infer<typeof bulkSubjectsRequestSchema>;
+
+// Each id answered as its own request to the single-subject door would be:
+// the status it would carry, and a refusal's problem `type` and `detail`.
+export const bulkSubjectResultSchema = z.object({
+  id: idSchema,
+  status: z.number().int(),
+  type: z.string().optional(),
+  detail: z.string().optional(),
+  ended: z.number().int().nonnegative().optional(),
+});
+export type BulkSubjectResult = z.infer<typeof bulkSubjectResultSchema>;
+
+export const bulkSubjectsResponseSchema = z.object({
+  items: z.array(bulkSubjectResultSchema),
+});
+export type BulkSubjectsResponse = z.infer<typeof bulkSubjectsResponseSchema>;
+
+// Cleared from every subject the caller's ceiling reaches; `beyond_ceiling`
+// counts the subjects left as they were.
+export const clearLockoutsResponseSchema = z.object({
+  cleared: z.number().int().nonnegative(),
+  beyond_ceiling: z.number().int().nonnegative(),
+});
+export type ClearLockoutsResponse = z.infer<typeof clearLockoutsResponseSchema>;
