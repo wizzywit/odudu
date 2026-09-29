@@ -59,6 +59,12 @@ it('passes over a rotating key older than the active one, which a promotion demo
   expect(readyToPromote([active, demoted], NOW)).toEqual([]);
 });
 
+it('never offers a key of another algorithm, which already signs for clients asking it', () => {
+  const other = key({ id: 'rs', alg: 'RS256', created_at: ago(10 * 86_400) });
+  const same = key({ id: 'es', alg: 'ES256', created_at: ago(10 * 86_400) });
+  expect(readyToPromote([ACTIVE, other, same], NOW)).toEqual([same]);
+});
+
 it('offers any old rotating key when there is no active key at all', () => {
   const staged = key({ id: 'r', created_at: ago(30 * 86_400) });
   expect(readyToPromote([staged], NOW)).toEqual([staged]);

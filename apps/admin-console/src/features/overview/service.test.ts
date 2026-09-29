@@ -64,7 +64,7 @@ const KEYS: readonly SigningKey[] = [
     id: 'r',
     status: 'rotating',
     kid: 'kid-r',
-    alg: 'RS256',
+    alg: 'ES256',
     created_at: '2026-09-02T00:00:00Z',
     not_after: null,
   },
@@ -74,7 +74,7 @@ describe('the published keys', () => {
   const jwks = {
     keys: [
       { kty: 'EC', kid: 'kid-a', alg: 'ES256', use: 'sig' },
-      { kty: 'RSA', kid: 'kid-r', alg: 'RS256', use: 'sig' },
+      { kty: 'EC', kid: 'kid-r', alg: 'ES256', use: 'sig' },
       { kty: 'RSA', kid: 'kid-x' },
     ],
   };
@@ -82,7 +82,7 @@ describe('the published keys', () => {
   it('names each key by its lane, matched on kid', () => {
     expect(publishedKeys(jwks, KEYS)).toEqual([
       { kid: 'kid-a', kty: 'EC', alg: 'ES256', use: 'sig', lane: 'active' },
-      { kid: 'kid-r', kty: 'RSA', alg: 'RS256', use: 'sig', lane: 'rotating' },
+      { kid: 'kid-r', kty: 'EC', alg: 'ES256', use: 'sig', lane: 'rotating' },
       { kid: 'kid-x', kty: 'RSA', alg: null, use: null, lane: 'unlisted' },
     ]);
   });

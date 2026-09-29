@@ -1,7 +1,7 @@
 import type { SigningKey } from '@odudu/contracts/admin';
 
-// Every signed token lives as long as its client's access token lifetime,
-// which `client_oidc_config_access_token_ttl_ceiling`
+// No signed token outlives its client's access token lifetime, which
+// `client_oidc_config_access_token_ttl_ceiling`
 // (packages/db/drizzle/0013_access_token_ttl_ceiling.sql) holds to an hour;
 // refresh tokens are opaque and signed by no key.
 export const LONGEST_TOKEN_LIFETIME_SECONDS = 3600;
@@ -18,7 +18,9 @@ export function promotableAt(
 
 // A key carries only `created_at`, and a promotion demotes the key it
 // replaces to `rotating` too, so a rotating key older than the active one
-// is taken to be a demoted one: a key to retire, not to promote.
+// is taken to be a demoted one: a key to retire, not to promote. A rotating
+// key of another algorithm already signs for the clients that ask for it,
+// and promoting it would change the algorithm of every token.
 export function readyToPromote(
   keys: readonly SigningKey[],
   now: Date,
@@ -29,6 +31,7 @@ export function readyToPromote(
   return keys.filter(
     (key) =>
       key.status === 'rotating' &&
+      (active === undefined || key.alg === active.alg) &&
       (activeSince === null || new Date(key.created_at).getTime() > activeSince) &&
       now.getTime() > promotableAt(key, longestTokenLifetimeSeconds).getTime(),
   );

@@ -32,7 +32,7 @@ const KEYS = [
     id: 'k-staged',
     status: 'rotating',
     kid: 'kid-staged',
-    alg: 'RS256',
+    alg: 'ES256',
     created_at: HOUR_AGO,
     not_after: null,
   },
@@ -67,7 +67,7 @@ function routes(capabilities: readonly string[]): Record<string, Answer> {
     'GET /console/api/tenants/acme/jwks': json({
       keys: [
         { kty: 'EC', kid: 'kid-active', alg: 'ES256', use: 'sig' },
-        { kty: 'RSA', kid: 'kid-staged', alg: 'RS256', use: 'sig' },
+        { kty: 'EC', kid: 'kid-staged', alg: 'ES256', use: 'sig' },
       ],
     }),
     [`GET ${ADMIN}/subjects/count`]: count(42),
