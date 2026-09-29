@@ -174,6 +174,26 @@ it('passes axe in both themes at each step', { timeout: 20_000 }, async () => {
   ).toEqual({ light: [], dark: [] });
 });
 
+it('starts fresh once a finished creation has been left', async () => {
+  sessionStorage.setItem(
+    KEY,
+    JSON.stringify({
+      owner: 'system/s0',
+      creation: { step: 'done', tenant: 'acme', username: 'grace' },
+    }),
+  );
+  const { router } = renderConsoleAt(AT, {
+    ...routes(),
+    [`GET ${ADMIN}`]: json({ items: [] }),
+    [`GET ${ADMIN}/count`]: json({ count: 0, capped: false }),
+  });
+  expect(await screen.findByRole('link', { name: 'Open acme' })).toBeVisible();
+  await router.navigate({ href: '/system/tenants' });
+  await screen.findByRole('heading', { level: 1, name: 'Tenants' });
+  await router.navigate({ href: '/system/new-tenant' });
+  expect(await screen.findByRole('textbox', { name: 'Name' })).toHaveValue('');
+});
+
 const HALFWAY = {
   step: 'administrator',
   tenant: 'acme',

@@ -1,6 +1,6 @@
 import type { Subject, Tenant } from '@odudu/contracts/admin';
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   createSubject,
   findSubject,
@@ -36,6 +36,15 @@ export interface CreationProgress {
 // Kept in this tab's storage on every change, so a reload resumes it.
 export function useCreationProgress(owner: string): CreationProgress {
   const [creation, setCreation] = useState<Creation>(() => loadCreation(owner) ?? FRESH_CREATION);
+  // A finished creation survives a reload, which runs no cleanup, but not
+  // leaving the page: the next "Create a tenant" starts a new one.
+  useEffect(() => {
+    if (creation.step !== 'done') return undefined;
+    storeCreation(owner, creation);
+    return () => {
+      if (loadCreation(owner)?.step === 'done') storeCreation(owner, null);
+    };
+  }, [owner, creation]);
   return {
     creation,
     update: (next) => {
