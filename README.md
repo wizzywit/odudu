@@ -124,8 +124,10 @@ it holds. The tenant must be disabled first (`PATCH /admin/tenants/{tenant}`
 with `{"enabled": false}`), which ends every session it holds and queues a
 Back-Channel Logout Token for each relying party that registered a URI; the
 deletion is refused with `409` while any of those tokens is still to be
-sent. A resource server verifying access tokens against a cached copy of
-the tenant's JWKS still accepts one issued before the disable until it
+sent, or while any session is still live. Until it is deleted, a disabled
+tenant still serves its discovery document and `/certs`, so its relying
+parties can validate those tokens. A resource server verifying access tokens
+against a cached copy of the tenant's JWKS still accepts one issued before the disable until it
 expires, at most 3600 seconds later
 ([docs/admin-paths.md](docs/admin-paths.md#delete-admintenantstenant)).
 `GET`/`PATCH /admin/tenants/{tenant}/settings` changes the same set through

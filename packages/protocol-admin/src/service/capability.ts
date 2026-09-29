@@ -610,8 +610,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Amends display_name and enabled. `name` is refused with 400: it is already in the ' +
       'issuer URL of every token this tenant has minted. Disabling the system tenant is ' +
       'refused with 409, since every cross-tenant administrator authenticates against it. ' +
-      'Disabling any other ends every live session in it, queuing a Back-Channel Logout ' +
-      'Token for each relying party that used one, in the same transaction.',
+      'Once a disable of any other has committed, every live session in it is ended in ' +
+      'batches of 500, each its own transaction, queuing a Back-Channel Logout Token for ' +
+      'each relying party that used one; the answer comes when all have ended. A batch that ' +
+      'fails is answered with `500` `sessions-not-ended`: the disable stands, and sending ' +
+      '`enabled: false` again ends the rest. Its discovery document and key set stay served.',
   },
   {
     method: 'DELETE',
@@ -625,9 +628,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       '`system` tenant\u2019s trail as `tenant.delete`. `confirm` must be the tenant\u2019s ' +
       'own name, refused with `400` naming it otherwise. Refused with `409` for `system`; ' +
       'with `409` `tenant-enabled` until the tenant is disabled, which ends its sessions and ' +
-      'queues their Logout Tokens; and with `409` `logout-deliveries-pending` until each of ' +
-      'those has been sent. Refused with `403` when the tenant\u2019s subjects hold an admin ' +
-      'capability the caller does not (the target ceiling, over every subject at once).',
+      'queues their Logout Tokens; with `409` `sessions-live` while any session is still ' +
+      'live; and with `409` `logout-deliveries-pending` until each of those tokens is ' +
+      'delivered or has spent every attempt. The tenant\u2019s keys go with it. Refused ' +
+      'with `403` when the tenant\u2019s subjects hold an admin capability the caller does ' +
+      'not (the target ceiling, over every subject at once).',
   },
   {
     method: 'GET',
@@ -656,8 +661,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: settingsSchema,
     bodySchema: amendSettingsRequestSchema,
     description:
-      '`enabled: false` ends every live session in the tenant, as disabling it through ' +
-      '`PATCH /admin/tenants/{tenant}` does.',
+      '`enabled: false` ends every live session in the tenant, after the change has ' +
+      'committed and in batches, as `PATCH /admin/tenants/{tenant}` does.',
   },
   // No `view-clients`: client metadata is configuration rather than a
   // population to browse, so every route below requires `manage-clients`.

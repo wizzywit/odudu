@@ -5,7 +5,6 @@ import {
   listTenantsQuerySchema,
 } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
-import { tenantIssuerFor } from '@odudu/protocol-oidc';
 import { requestContextFrom } from '@odudu/domain-audit';
 import { SYSTEM_TENANT_ID, TENANT_NAME_RULE } from '@odudu/domain-tenant';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
@@ -20,8 +19,10 @@ import {
   tenantWireShape,
   type Audit,
 } from '#/usecase/tenants';
+import { type EndDisabledTenantSessionsDeps } from '#/usecase/end-sessions';
 import { cursorProblem, fieldProblem, problem, queryProblem, sendProblem } from '#/view/problem';
 import { adminTx, adminTxThen } from '#/view/routes/admin-tx';
+import { endSessionsAfterDisable } from '#/view/routes/disabled-tenant-sessions';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface TenantsRouteDeps {
@@ -36,6 +37,7 @@ export interface TenantsRouteDeps {
     subjectId: string,
   ) => Promise<ReadonlySet<string>>;
   readonly now: () => Date;
+  readonly sessionsAudit: EndDisabledTenantSessionsDeps['audit'];
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -63,11 +65,9 @@ export function amendTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       amendTenant(
         tx,
-        { audit: deps.audit, kek: deps.kek },
+        { audit: deps.audit },
         {
           tenantId: targetTenantId,
-          issuer: tenantIssuerFor(request, request.params.tenant ?? ''),
-          now: deps.now(),
           values,
           ifMatch: ifMatchHeader(request),
           actorSubjectId: principal.subjectId,
@@ -103,9 +103,14 @@ export function amendTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
           request,
           problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches'),
         );
-      case 'ok':
+      case 'ok': {
+        if (values.enabled === false) {
+          const failed = await endSessionsAfterDisable(deps, request, principal, targetTenantId);
+          if (failed !== null) return sendProblem(reply, request, failed);
+        }
         reply.header('etag', outcome.etag);
         return reply.code(200).send(outcome.tenant);
+      }
     }
   };
 }
@@ -224,6 +229,7 @@ export function deleteTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
     );
     const input = {
       tenantId: targetTenantId,
+      now: deps.now(),
       confirm: query.confirm,
       callerCapabilities,
       actorSubjectId: principal.subjectId,
@@ -261,6 +267,17 @@ export function deleteTenantHandler(deps: TenantsRouteDeps): AdminRouteHandler {
             'about:blank#tenant-enabled',
             'Conflict',
             `${outcome.name} is enabled: disable it first, which ends its sessions and tells their relying parties`,
+          ),
+        );
+      case 'sessions_live':
+        return sendProblem(
+          reply,
+          request,
+          problem(
+            409,
+            'about:blank#sessions-live',
+            'Conflict',
+            `sessions still live: ${String(outcome.live)}; disable ${outcome.name} again to end them and tell their relying parties`,
           ),
         );
       case 'logout_pending':

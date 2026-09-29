@@ -1,4 +1,4 @@
-import { provisionTenant } from '@odudu/authn-flows';
+import { liveSessionCondition, provisionTenant, sessions } from '@odudu/authn-flows';
 import { type ListTenantsQuery, type Tenant } from '@odudu/contracts/admin';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import {
@@ -24,7 +24,6 @@ import {
 import { and, asc, count, eq, gt, isNull, lt, sql, type SQL } from 'drizzle-orm';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { capabilitiesHeldInTenant, overreach } from '#/service/capability-ceiling';
-import { endSessionsOfDisabledTenant } from '#/usecase/end-sessions';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_TENANT_FIELDS, refusalFor } from '#/service/tenant-patch';
 import {
@@ -356,9 +355,6 @@ export async function readTenant(
 
 export interface AmendTenantInput {
   readonly tenantId: string;
-  /** Where the Logout Tokens a disable queues say they come from. */
-  readonly issuer: string;
-  readonly now: Date;
   readonly values: Readonly<Record<string, unknown>>;
   readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
@@ -368,7 +364,6 @@ export interface AmendTenantInput {
 
 export interface AmendTenantDeps {
   readonly audit: Audit;
-  readonly kek: Uint8Array;
 }
 
 export type AmendTenantOutcome =
@@ -467,11 +462,6 @@ export async function amendTenant(
             .returning(TENANT_COLUMNS)
         )[0] ?? current);
 
-  const sessionsEnded =
-    current.enabled && !after.enabled
-      ? await endSessionsOfDisabledTenant(tx, deps, input)
-      : undefined;
-
   await deps.audit(tx, {
     action: 'tenant.amend',
     resourceType: 'tenant',
@@ -480,7 +470,6 @@ export async function amendTenant(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
-    ...(sessionsEnded === undefined ? {} : { detail: { sessions_ended: sessionsEnded } }),
   });
 
   const tenant = tenantWireShape(after);
@@ -492,6 +481,7 @@ export const SYSTEM_TENANT_DELETE_REFUSED =
 
 export interface DeleteTenantInput {
   readonly tenantId: string;
+  readonly now: Date;
   /** The tenant's own name, typed by the caller: a slip of the path deletes nothing. */
   readonly confirm: string;
   readonly callerCapabilities: ReadonlySet<string>;
@@ -506,6 +496,7 @@ export type DeleteTenantOutcome =
   | { kind: 'system_tenant_guarded'; name: string; reason: string }
   | { kind: 'ceiling'; name: string; requested: readonly string[] }
   | { kind: 'enabled'; name: string }
+  | { kind: 'sessions_live'; name: string; live: number }
   | { kind: 'logout_pending'; name: string; pending: number }
   | { kind: 'deleted'; name: string };
 
@@ -519,12 +510,20 @@ export async function deleteTenantRows(
   input: DeleteTenantInput,
 ): Promise<DeleteTenantOutcome> {
   const rows = await tx
-    .select({ name: tenants.name, enabled: tenants.enabled })
+    .select({
+      name: tenants.name,
+      enabled: tenants.enabled,
+      ssoSessionIdleSeconds: tenants.ssoSessionIdleSeconds,
+      ssoSessionMaxSeconds: tenants.ssoSessionMaxSeconds,
+      rememberMeIdleSeconds: tenants.rememberMeIdleSeconds,
+      rememberMeMaxSeconds: tenants.rememberMeMaxSeconds,
+    })
     .from(tenants)
     .where(eq(tenants.id, input.tenantId))
     .for('update');
-  const name = rows[0]?.name;
-  if (name === undefined) return { kind: 'not_found' };
+  const tenant = rows[0];
+  if (tenant === undefined) return { kind: 'not_found' };
+  const name = tenant.name;
   if (input.confirm !== name) return { kind: 'confirm_mismatch', name };
   if (name === SYSTEM_TENANT_NAME) {
     return { kind: 'system_tenant_guarded', name, reason: SYSTEM_TENANT_DELETE_REFUSED };
@@ -532,9 +531,14 @@ export async function deleteTenantRows(
   const requested = overreach(await capabilitiesHeldInTenant(tx), input.callerCapabilities);
   if (requested.length > 0) return { kind: 'ceiling', name, requested };
   // Disabling first is what ends every session with its Logout Tokens
-  // queued; deleting waits until each has been sent, since the queue goes
-  // with the tenant.
-  if (rows[0]?.enabled === true) return { kind: 'enabled', name };
+  // queued; deleting waits until none is left live and each token has been
+  // offered, since the queue goes with the tenant.
+  if (tenant.enabled) return { kind: 'enabled', name };
+  const live =
+    (
+      await tx.select({ n: count() }).from(sessions).where(liveSessionCondition(tenant, input.now))
+    )[0]?.n ?? 0;
+  if (live > 0) return { kind: 'sessions_live', name, live };
   const pending =
     (
       await tx
@@ -565,6 +569,7 @@ export async function recordTenantDeletion(
     outcome.kind === 'not_found' ||
     outcome.kind === 'confirm_mismatch' ||
     outcome.kind === 'enabled' ||
+    outcome.kind === 'sessions_live' ||
     outcome.kind === 'logout_pending'
   ) {
     return outcome;

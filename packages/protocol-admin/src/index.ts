@@ -428,6 +428,7 @@ function buildAdminRoutes(
       consoleBaseUrl: deps.consoleBaseUrl,
       callerCapabilities,
       now: () => clock.now(),
+      sessionsAudit: tenantSessionsAudit,
     };
     const tenantExportDeps: TenantExportRouteDeps = {
       database: deps.database.db,
@@ -451,6 +452,7 @@ function buildAdminRoutes(
       audit: settingsAudit,
       kek: deps.kek,
       now: () => clock.now(),
+      sessionsAudit: tenantSessionsAudit,
     };
     const clientsDeps: ClientsRouteDeps = {
       database: deps.database.db,

@@ -76,11 +76,9 @@ describe('two concurrent writes carrying the same If-Match', () => {
     const first = withTenant(fixture.app.db, t.id, async (tx) => {
       const outcome = await amendSettings(
         tx,
-        { audit: AUDIT, kek: Buffer.alloc(32, 7) },
+        { audit: AUDIT },
         {
           tenantId: t.id,
-          issuer: 'https://idp.example/tenants/unused',
-          now: new Date(),
           values: { password_min_length: 12 },
           ifMatch: before.etag,
           actorSubjectId: 'first',
@@ -97,11 +95,9 @@ describe('two concurrent writes carrying the same If-Match', () => {
     const second = withTenant(fixture.app.db, t.id, (tx) =>
       amendSettings(
         tx,
-        { audit: AUDIT, kek: Buffer.alloc(32, 7) },
+        { audit: AUDIT },
         {
           tenantId: t.id,
-          issuer: 'https://idp.example/tenants/unused',
-          now: new Date(),
           values: { password_min_length: 13 },
           ifMatch: before.etag,
           actorSubjectId: 'second',

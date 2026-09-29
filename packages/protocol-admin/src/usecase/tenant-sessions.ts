@@ -7,7 +7,7 @@ import { tokenGrants, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { and, asc, count, eq, gt, inArray, not, sql, type SQL } from 'drizzle-orm';
 import { subjectsBeyond } from '#/service/capability-ceiling';
 import { COUNT_CAP } from '#/usecase/counts';
-import { endSessionsWhere } from '#/usecase/end-sessions';
+import { endSessionsWhere, TENANT_SESSIONS_END_LIMIT } from '#/usecase/end-sessions';
 import { idPage, resumeAfter, type IdPageOutcome } from '#/usecase/id-page';
 
 export interface TenantSessionView {
@@ -140,8 +140,7 @@ export interface TenantSessionsAuditEvent {
   readonly detail: Record<string, unknown>;
 }
 
-/** How many sessions one call ends; the rest are `remaining`, for the next. */
-export const TENANT_SESSIONS_END_LIMIT = 500;
+export { TENANT_SESSIONS_END_LIMIT };
 
 export interface EndTenantSessionsDeps {
   readonly audit: (tx: TenantScopedDatabase, event: TenantSessionsAuditEvent) => Promise<void>;

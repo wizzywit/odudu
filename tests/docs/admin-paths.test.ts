@@ -39,6 +39,8 @@ const EMITTABLE_PROBLEM_TYPES = new Set([
   'about:blank#reset-password-off',
   'about:blank#tenant-enabled',
   'about:blank#logout-deliveries-pending',
+  'about:blank#sessions-live',
+  'about:blank#sessions-not-ended',
 ]);
 
 const CAPABILITY_SHAPED = /^(?:view|manage)-[a-z]+(?:-[a-z]+)*$/u;

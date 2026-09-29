@@ -1,6 +1,5 @@
 import { amendSettingsRequestSchema } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
-import { tenantIssuerFor } from '@odudu/protocol-oidc';
 import {
   amendSettings,
   AmendSettingsRefusedError,
@@ -10,6 +9,8 @@ import {
 } from '#/usecase/settings';
 import { fieldProblem, problem, sendProblem, type Problem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
+import { endSessionsAfterDisable } from '#/view/routes/disabled-tenant-sessions';
+import { type EndDisabledTenantSessionsDeps } from '#/usecase/end-sessions';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 
 export interface SettingsRouteDeps {
@@ -17,12 +18,7 @@ export interface SettingsRouteDeps {
   readonly audit: Audit;
   readonly kek: Uint8Array;
   readonly now: () => Date;
-}
-
-function tenantNameOf(request: AdminRequest): string {
-  const name = request.params.tenant;
-  if (name === undefined) throw new Error('protocol-admin: settings route received no :tenant');
-  return name;
+  readonly sessionsAudit: EndDisabledTenantSessionsDeps['audit'];
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -65,11 +61,9 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
       outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
         amendSettings(
           tx,
-          { audit: deps.audit, kek: deps.kek },
+          { audit: deps.audit },
           {
             tenantId: targetTenantId,
-            issuer: tenantIssuerFor(request, tenantNameOf(request)),
-            now: deps.now(),
             values: body,
             ifMatch: ifMatchHeader(request),
             actorSubjectId: principal.subjectId,
@@ -124,9 +118,14 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
           request,
           problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches'),
         );
-      case 'amended':
+      case 'amended': {
+        if (body.enabled === false) {
+          const failed = await endSessionsAfterDisable(deps, request, principal, targetTenantId);
+          if (failed !== null) return sendProblem(reply, request, failed);
+        }
         reply.header('etag', outcome.etag);
         return reply.code(200).send(outcome.settings);
+      }
     }
   };
 }

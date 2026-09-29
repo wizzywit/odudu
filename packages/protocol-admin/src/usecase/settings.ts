@@ -11,7 +11,6 @@ import {
   type TenantSettingsRecord,
 } from '@odudu/domain-tenant';
 import { etagOf, matches } from '#/service/etag';
-import { endSessionsOfDisabledTenant } from '#/usecase/end-sessions';
 
 export interface SettingsAuditEvent {
   readonly action: 'tenant.amend_settings';
@@ -48,9 +47,6 @@ export async function readSettings(
 
 export interface AmendSettingsInput {
   readonly tenantId: string;
-  /** Where the Logout Tokens a disable queues say they come from. */
-  readonly issuer: string;
-  readonly now: Date;
   readonly values: Readonly<Record<string, boolean | number | string>>;
   readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
@@ -60,7 +56,6 @@ export interface AmendSettingsInput {
 
 export interface AmendSettingsDeps {
   readonly audit: Audit;
-  readonly kek: Uint8Array;
 }
 
 export type AmendSettingsOutcome =
@@ -193,11 +188,6 @@ export async function amendSettings(
     throw error;
   }
 
-  const sessionsEnded =
-    current.settings.enabled === true && settings.enabled === false
-      ? await endSessionsOfDisabledTenant(tx, deps, input)
-      : undefined;
-
   await deps.audit(tx, {
     action: 'tenant.amend_settings',
     resourceType: 'tenant',
@@ -206,7 +196,6 @@ export async function amendSettings(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
-    ...(sessionsEnded === undefined ? {} : { detail: { sessions_ended: sessionsEnded } }),
   });
 
   return { kind: 'amended', settings, etag: etagOf(settings) };

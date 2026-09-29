@@ -204,11 +204,13 @@ every delivery fails, and `ODUDU_THROTTLE_LIMIT=1000`. Against it: `seed admin
 `offline_access` — and `linus` once. `$ADMIN_TOKEN` is `ada-t8b2`'s token, got
 fresh for each section the way "Getting the token" shows, and
 `P=http://localhost:3082/admin/tenants/ops-demo` throughout. Each section says
-what else it seeded. `DELETE /admin/tenants/{tenant}`, the two rename refusals,
-`GET /admin/openapi.json`, `ivy`'s read under `GET /audit` and the back-channel
-logout queue ran last, on the image rebuilt at `1507a6c3`, whose only change is
-the wording of the `about:blank#logout-deliveries-pending` detail. The stack was
-torn down with `docker compose down -v` when the capture finished.
+what else it seeded. The two rename refusals, `GET /admin/openapi.json`, `ivy`'s
+read under `GET /audit` and the back-channel logout queue ran last, on the image
+rebuilt at `1507a6c3`, whose only change is the wording of the
+`about:blank#logout-deliveries-pending` detail. The stack was torn down with
+`docker compose down -v` when the capture finished. `DELETE
+/admin/tenants/{tenant}` was captured again on an eleventh stack, as its section
+says.
 
 ## The shape of it
 
@@ -951,12 +953,14 @@ set from a token issued by the tenant being disabled. On the **system**
 tenant it is refused with `409` — every cross-tenant administrator
 authenticates there, so disabling it would lock the whole deployment's
 administration out with `psql` the only way back, the same reasoning that
-guards the built-in admin client. Disabling also ends every live session
-the tenant holds, in the same transaction, queueing a Back-Channel Logout
-Token for each client that registered a URI, and records how many under
-`sessions_ended` in the amendment's audit `detail` — the precondition
-`DELETE /admin/tenants/{tenant}` below refuses without. `PATCH /settings`
-with `{"enabled": false}` does the same. Re-enabling restores nothing.
+guards the built-in admin client. Once a disable
+has committed, every live session the tenant holds is ended, 500 to a
+transaction, each batch queueing a Back-Channel Logout Token for each client
+that registered a URI and writing a `session.end_all` row — the precondition
+`DELETE /admin/tenants/{tenant}` below refuses without, which describes the
+batches. Sending `{"enabled": false}` to a tenant already disabled ends any
+session still live. `PATCH /settings` with `{"enabled": false}` does the same.
+Re-enabling restores nothing.
 
 Captured against the sixth stack, on the `showcase` tenant
 `POST /admin/tenants` created there with `display_name: "Showcase"`. The
@@ -1050,13 +1054,28 @@ system administrator's authority lives in `system`, which no deletion reaches.
 
 No relying party is left signed in without having been sent a Back-Channel
 Logout Token. So an enabled tenant is refused with `409`,
-`about:blank#tenant-enabled`: disabling it first — `PATCH /admin/tenants/{tenant}`
-or `PATCH /settings` with `{"enabled": false}` — ends every live session it
-holds, with no cap and no ceiling, queueing a Logout Token for each client
-that registered a back-channel URI, the way `DELETE /sessions` does. A tenant
-whose tokens are still to be sent is refused with `409`,
-`about:blank#logout-deliveries-pending`, naming how many; one that was
-delivered, or that failed its last attempt, is not waited for.
+`about:blank#tenant-enabled`. Disabling it first — `PATCH /admin/tenants/{tenant}`
+or `PATCH /settings` with `{"enabled": false}` — commits the disable on its
+own, then ends every live session it holds, with no ceiling, 500 to a
+transaction, queueing a Logout Token for each client that registered a
+back-channel URI, the way `DELETE /sessions` does; each batch writes a
+`session.end_all` row with `via: "tenant_disabled"`. The answer comes once
+none is left. Should a batch fail, the disable stands and the answer is `500`,
+`about:blank#sessions-not-ended`, saying how many sessions are still live;
+sending `{"enabled": false}` again ends the rest. So a tenant that still has a
+live session is refused with `409`, `about:blank#sessions-live`, naming how
+many. The batches run in the request rather than in a scheduled pass: a
+session ends in a few statements, so even a large tenant is done in the
+request, the operator learns there whether it finished, and nothing new has
+to be enabled, scheduled or watched for it. A tenant whose tokens are still
+to be sent is refused with `409`, `about:blank#logout-deliveries-pending`,
+naming how many; one that was delivered, or that spent its last attempt, is
+not waited for, since it will never be offered again.
+
+A disabled tenant keeps answering its discovery document and `/certs`, and
+nothing else: the Logout Tokens its disable queued are signed with its keys,
+and a relying party validates each against them (Back-Channel Logout 1.0
+§2.6). Deleting the tenant removes them.
 
 One window no deletion can close. A resource server that verifies access
 tokens itself, against a cached copy of the tenant's JWKS, accepts one
@@ -1070,16 +1089,19 @@ that raced it and began second fails its foreign-key check once the
 deletion commits, and answers `500`; nothing is orphaned, since the row it
 needed is gone and it writes nothing.
 
-Against the tenth stack, a tenant `doomed` created through `POST /admin/tenants`,
-given a client through `POST /clients`, its id
-`01a0ee9a-d00a-7b84-8e79-d778d33efb0f`. `count-rows.sql` counts that id's rows
+Against an eleventh stack — compose project `odudu-t8b2` again, on 3082 and
+5464, brought up from an empty volume with the tenth's settings and
+`ada-t8b2` seeded in `system`, from this branch as it stood after the batched
+disable — a tenant `doomed` created through `POST /admin/tenants`, given a
+client through `POST /clients`, its id
+`01a0eed4-542b-78ed-b7f3-77aeb1ff6d64`. `count-rows.sql` counts that id's rows
 in every table with a `tenant_id` column, as the database's owner:
 
 ```
 SELECT table_name,
        (xpath('/row/n/text()', query_to_xml(format(
          'select count(*) as n from %I where tenant_id = %L',
-         table_name, '01a0ee9a-d00a-7b84-8e79-d778d33efb0f'), false, true, '')))[1]::text::int AS n
+         table_name, '01a0eed4-542b-78ed-b7f3-77aeb1ff6d64'), false, true, '')))[1]::text::int AS n
   FROM information_schema.columns
  WHERE table_schema = 'public' AND column_name = 'tenant_id'
  ORDER BY n DESC, table_name;
@@ -1089,20 +1111,38 @@ SELECT table_name,
 `doomed-app`, a confidential client with a back-channel logout URI of
 `https://postgres:9/backchannel`, where nothing listens. Before, three
 refusals — no `confirm`, a wrong one, and `system` — then the refusal of an
-enabled tenant, its disabling, which ended `ada`'s session and queued one
-token, the refusal while that token is pending, five passes of the sender
-a minute apart, each a failure, the fifth its last attempt, the deletion, a
-read of the tenant, after, and `system`'s trail:
+enabled tenant; its disabling, which ended `ada`'s session in one batch and
+queued one token; the batch's row; the disabled tenant's discovery document
+and key set, still served, beside a `/token` it refuses; a session written
+straight into the table after the disable, and the refusal it causes; the
+disable sent again, which ends it; the refusal while the token is pending;
+five passes of the sender a minute apart, each a failure, the fifth its last
+attempt; the deletion; a read of the tenant, its discovery document and key
+set, now gone; after; and `system`'s trail:
 
 ```bash
 A="Authorization: Bearer $ADMIN_TOKEN"
 T=http://localhost:3082/admin/tenants
-docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f -' < count-rows.sql
+O=http://localhost:3082/tenants/doomed
+pg() { docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f -'; }
+pg < count-rows.sql
 curl -sS -X DELETE -H "$A" "$T/doomed"; echo
 curl -sS -X DELETE -H "$A" "$T/doomed?confirm=Doomed"; echo
 curl -sS -X DELETE -H "$A" "$T/system?confirm=system"; echo
 curl -sS -X DELETE -H "$A" "$T/doomed?confirm=doomed"; echo
 curl -sS -X PATCH -H "$A" -H 'content-type: application/json' -d '{"enabled":false}' "$T/doomed"; echo
+curl -sS -H "$A" "$T/doomed/audit?action=session.end_all" \
+  | python3 -c 'import json,sys;[print(json.dumps({k:i[k] for k in ("action","actor_name","detail")})) for i in json.load(sys.stdin)["items"]]'
+for p in .well-known/openid-configuration protocol/openid-connect/certs protocol/openid-connect/token; do
+  printf '%-40s %s\n' "$p" "$(curl -s -o /dev/null -w '%{http_code}' "$O/$p")"
+done
+curl -sS "$O/protocol/openid-connect/certs" | python3 -c 'import json,sys;print([k["kid"] for k in json.load(sys.stdin)["keys"]])'
+echo "INSERT INTO sessions (id, tenant_id, subject_id, expires_at, last_active_at, secret_hash)
+  SELECT gen_random_uuid(), tenant_id, subject_id, now() + interval '1 hour', now(), md5('late')
+    FROM users WHERE tenant_id = '01a0eed4-542b-78ed-b7f3-77aeb1ff6d64' AND username = 'ada';" | pg
+curl -sS -X DELETE -H "$A" "$T/doomed?confirm=doomed"; echo
+curl -sS -o /dev/null -w '%{http_code}\n' -X PATCH -H "$A" -H 'content-type: application/json' \
+  -d '{"enabled":false}' "$T/doomed"
 curl -sS -X DELETE -H "$A" "$T/doomed?confirm=doomed"; echo
 for pass in 1 2 3 4 5; do
   docker compose exec -T odudu node dist/main.js send-logouts 2>/dev/null
@@ -1110,8 +1150,11 @@ for pass in 1 2 3 4 5; do
 done
 curl -sS -D - -X DELETE -H "$A" "$T/doomed?confirm=doomed"
 curl -sS -H "$A" "$T/doomed"; echo
-docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f -' < count-rows.sql
-curl -sS -H "$A" "$T/system/audit?action=tenant.delete&resource_type=tenant&resource_id=01a0ee9a-d00a-7b84-8e79-d778d33efb0f" \
+for p in .well-known/openid-configuration protocol/openid-connect/certs; do
+  printf '%-40s %s\n' "$p" "$(curl -s -o /dev/null -w '%{http_code}' "$O/$p")"
+done
+pg < count-rows.sql
+curl -sS -H "$A" "$T/system/audit?action=tenant.delete&resource_type=tenant&resource_id=01a0eed4-542b-78ed-b7f3-77aeb1ff6d64" \
   | python3 -c 'import json,sys;[print(json.dumps({k:i[k] for k in ("action","outcome","actor_name","resource_id","detail")})) for i in json.load(sys.stdin)["items"]]'
 curl -sS -H "$A" "$T/system/audit?action=tenant.delete&outcome=refused&limit=1" \
   | python3 -c 'import json,sys;[print(json.dumps({k:i[k] for k in ("action","outcome","actor_name","resource_id","detail")})) for i in json.load(sys.stdin)["items"]]'
@@ -1157,25 +1200,35 @@ curl -sS -H "$A" "$T/system/audit?action=tenant.delete&outcome=refused&limit=1" 
  user_required_actions         |  0
 (35 rows)
 
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring must have required property 'confirm'","errors":[{"path":"confirm","message":"must have required property 'confirm'"}],"instance":"01a0ee9a-d820-78eb-9415-d4f28aaa27aa"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"confirm: must be the tenant’s own name, doomed","errors":[{"path":"confirm","message":"must be the tenant’s own name, doomed"}],"instance":"01a0ee9a-d830-7a31-8151-63ec232a4546"}
-{"type":"about:blank","title":"Conflict","status":409,"detail":"the system tenant is where every cross-tenant administrator authenticates, and is never deleted","instance":"01a0ee9a-d854-71fd-b34e-2e7ac847c1e9"}
-{"type":"about:blank#tenant-enabled","title":"Conflict","status":409,"detail":"doomed is enabled: disable it first, which ends its sessions and tells their relying parties","instance":"01a0ee9a-d871-7ec1-b6d2-56b8e5edc14e"}
-{"id":"01a0ee9a-d00a-7b84-8e79-d778d33efb0f","name":"doomed","display_name":null,"enabled":false,"created_at":"2026-09-29T19:18:38.347Z"}
-{"type":"about:blank#logout-deliveries-pending","title":"Conflict","status":409,"detail":"Back-Channel Logout Tokens still to be sent: 1; deleting the tenant would discard them","instance":"01a0ee9a-d8cf-75ba-99e7-26824c4889d1"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must have required property 'confirm'","errors":[{"path":"confirm","message":"must have required property 'confirm'"}],"instance":"01a0eed4-5980-7e21-ab86-2d5ab304c04f"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"confirm: must be the tenant’s own name, doomed","errors":[{"path":"confirm","message":"must be the tenant’s own name, doomed"}],"instance":"01a0eed4-598e-7117-bc78-737af44782ec"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the system tenant is where every cross-tenant administrator authenticates, and is never deleted","instance":"01a0eed4-59a9-7e87-b1e9-e3e8f7d3bb15"}
+{"type":"about:blank#tenant-enabled","title":"Conflict","status":409,"detail":"doomed is enabled: disable it first, which ends its sessions and tells their relying parties","instance":"01a0eed4-59c2-73d4-b091-7ae7a47c85c2"}
+{"id":"01a0eed4-542b-78ed-b7f3-77aeb1ff6d64","name":"doomed","display_name":null,"enabled":false,"created_at":"2026-09-29T20:21:27.724Z"}
+{"action": "session.end_all", "actor_name": null, "detail": {"via": "tenant_disabled", "ended": 1, "remaining": 0}}
+.well-known/openid-configuration         200
+protocol/openid-connect/certs            200
+protocol/openid-connect/token            404
+['01a0eed4-5474-7289-b049-4826f3b02344']
+INSERT 0 1
+{"type":"about:blank#sessions-live","title":"Conflict","status":409,"detail":"sessions still live: 1; disable doomed again to end them and tell their relying parties","instance":"01a0eed4-5b98-7e70-8d43-aa35ffa3640d"}
+200
+{"type":"about:blank#logout-deliveries-pending","title":"Conflict","status":409,"detail":"Back-Channel Logout Tokens still to be sent: 1; deleting the tenant would discard them","instance":"01a0eed4-5bff-735f-81a8-a849f6b697a5"}
 {"ran":true,"delivered":0,"failed":1}
 {"ran":true,"delivered":0,"failed":1}
 {"ran":true,"delivered":0,"failed":1}
 {"ran":true,"delivered":0,"failed":1}
 {"ran":true,"delivered":0,"failed":1}
 HTTP/1.1 204 No Content
-x-request-id: 01a0ee9e-a176-79e9-ba70-85683d66ea48
+x-request-id: 01a0eed8-29ff-7666-b2bb-fe4a75ea7aa3
 cache-control: no-store
-Date: Tue, 29 Sep 2026 19:22:48 GMT
+Date: Tue, 29 Sep 2026 20:25:39 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0ee9e-a1b4-79bd-8487-664647ee5a32"}
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0eed8-2a53-76fc-91f1-82685e8e8b25"}
+.well-known/openid-configuration         404
+protocol/openid-connect/certs            404
           table_name           | n
 -------------------------------+---
  action_tokens                 | 0
@@ -1215,7 +1268,7 @@ Keep-Alive: timeout=72
  users                         | 0
 (35 rows)
 
-{"action": "tenant.delete", "outcome": "allowed", "actor_name": "ada-t8b2", "resource_id": "01a0ee9a-d00a-7b84-8e79-d778d33efb0f", "detail": {"name": "doomed"}}
+{"action": "tenant.delete", "outcome": "allowed", "actor_name": "ada-t8b2", "resource_id": "01a0eed4-542b-78ed-b7f3-77aeb1ff6d64", "detail": {"name": "doomed"}}
 {"action": "tenant.delete", "outcome": "refused", "actor_name": "ada-t8b2", "resource_id": "0199aa00-0000-7000-8000-000000000001", "detail": {"name": "system", "reason": "system_tenant_guarded"}}
 ```
 
@@ -1748,8 +1801,8 @@ the rest of the amending transaction before its current `ETag` is computed,
 so two `PATCH`es sent at once are serialised: the second reads what the
 first wrote and its `If-Match` is stale, rather than both matching the same
 pre-write row and the later write replacing the earlier one unseen.
-Setting `enabled` to `false` ends the tenant's sessions exactly as
-`PATCH /admin/tenants/{tenant}` does.
+Setting `enabled` to `false` ends the tenant's sessions, once the change has
+committed, exactly as `PATCH /admin/tenants/{tenant}` does.
 
 ```bash
 curl -sS -D - \

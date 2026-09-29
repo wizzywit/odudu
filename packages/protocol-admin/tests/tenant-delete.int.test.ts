@@ -4,13 +4,14 @@ import { auditRepository } from '@odudu/domain-audit';
 import { loginFailures } from '@odudu/domain-identity';
 import { SYSTEM_TENANT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { emailOutbox } from '@odudu/email';
-import { backchannelLogoutDeliveries } from '@odudu/protocol-oidc';
+import { BACKCHANNEL_LOGOUT_MAX_ATTEMPTS, backchannelLogoutDeliveries } from '@odudu/protocol-oidc';
 import { newId } from '@odudu/kernel';
 import { isNull, sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import { TENANT_SESSIONS_END_LIMIT } from '#/usecase/tenant-sessions';
 import { deleteTenantRows } from '#/usecase/tenants';
 import { createPasswordSubject, createSignInClient, signInForTokens } from '#/testing/sign-in';
 
@@ -168,6 +169,27 @@ async function signedInTenant(): Promise<{ id: string; name: string }> {
   return t;
 }
 
+// Sessions written straight into the table, as many as a batch needs,
+// each live for an hour; the one subject holds them all.
+async function seedLiveSessions(tenantId: string, subjectId: string, n: number): Promise<void> {
+  const expires = new Date(fixture.clock.now().getTime() + 3_600_000).toISOString();
+  const active = fixture.clock.now().toISOString();
+  await withTenant(fixture.app.db, tenantId, (tx) =>
+    tx.execute(sql`
+      INSERT INTO sessions (id, tenant_id, subject_id, expires_at, last_active_at, secret_hash)
+      SELECT gen_random_uuid(), ${tenantId}, ${subjectId}, ${expires}::timestamptz,
+             ${active}::timestamptz, md5(g::text || ${tenantId})
+        FROM generate_series(1, ${n}) g`),
+  );
+}
+
+async function endAllRowsOf(tenantId: string): Promise<unknown[]> {
+  const rows = await withTenant(fixture.app.db, tenantId, (tx) =>
+    auditRepository(tx).list({ action: 'session.end_all', limit: 10 }),
+  );
+  return rows.map((row) => row.detail).reverse();
+}
+
 describe('disabling a tenant', () => {
   it.each([
     ['PATCH /admin/tenants/{tenant}', (name: string) => `/admin/tenants/${name}`],
@@ -181,6 +203,40 @@ describe('disabling a tenant', () => {
     expect(res.statusCode).toBe(200);
     expect(await liveSessionsOf(t.id)).toBe(0);
     expect(await queuedDeliveriesOf(t.id)).toBe(1);
+  });
+
+  it('commits the disable, then ends sessions in batches, each audited', async () => {
+    const t = await fixture.createTenant(`batch-${newId()}`);
+    const ada = await createPasswordSubject(fixture, t.id, 'ada', PASSWORD);
+    await seedLiveSessions(t.id, ada, TENANT_SESSIONS_END_LIMIT + 1);
+    const token = await fixture.systemAdminToken(['tenant-admin']);
+
+    const res = await call(token, 'PATCH', `/admin/tenants/${t.name}`, { enabled: false });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ enabled: boolean }>().enabled).toBe(false);
+    expect(await liveSessionsOf(t.id)).toBe(0);
+    expect(await endAllRowsOf(t.id)).toEqual([
+      { ended: TENANT_SESSIONS_END_LIMIT, remaining: 1, via: 'tenant_disabled' },
+      { ended: 1, remaining: 0, via: 'tenant_disabled' },
+    ]);
+    const amend = await withTenant(fixture.app.db, t.id, (tx) =>
+      auditRepository(tx).list({ action: 'tenant.amend', limit: 1 }),
+    );
+    expect(amend[0]?.detail).toEqual({});
+  });
+
+  it('ends what is still live when a disabled tenant is disabled again', async () => {
+    const t = await fixture.createTenant(`again-${newId()}`);
+    const ada = await createPasswordSubject(fixture, t.id, 'ada', PASSWORD);
+    const token = await fixture.systemAdminToken(['tenant-admin']);
+    await call(token, 'PATCH', `/admin/tenants/${t.name}`, { enabled: false });
+    await seedLiveSessions(t.id, ada, 2);
+
+    const res = await call(token, 'PATCH', `/admin/tenants/${t.name}/settings`, {
+      enabled: false,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(await liveSessionsOf(t.id)).toBe(0);
   });
 
   it('ends nothing when it leaves the tenant as it was', async () => {
@@ -236,6 +292,46 @@ describe('DELETE /admin/tenants/:tenant', () => {
       `/admin/tenants/${doomed.name}?confirm=${doomed.name}`,
     );
     expect(again.statusCode).toBe(401);
+  });
+
+  it('refuses a disabled tenant that still has a live session, with its own 409', async () => {
+    const t = await fixture.createTenant(`live-${newId()}`);
+    const ada = await createPasswordSubject(fixture, t.id, 'ada', PASSWORD);
+    const token = await fixture.systemAdminToken(['tenant-admin']);
+    await call(token, 'PATCH', `/admin/tenants/${t.name}`, { enabled: false });
+    await seedLiveSessions(t.id, ada, 1);
+    const url = `/admin/tenants/${t.name}?confirm=${t.name}`;
+
+    const live = await call(token, 'DELETE', url);
+    expect(live.statusCode).toBe(409);
+    expect(live.json<{ type: string; detail: string }>()).toMatchObject({
+      type: 'about:blank#sessions-live',
+      detail: `sessions still live: 1; disable ${t.name} again to end them and tell their relying parties`,
+    });
+    expect((await rowsPerTenantTable(t.id)).get('tenants')).toBe(1);
+
+    await call(token, 'PATCH', `/admin/tenants/${t.name}`, { enabled: false });
+    expect((await call(token, 'DELETE', url)).statusCode).toBe(204);
+  });
+
+  it.each([
+    ['spent every attempt', 0],
+    ['was abandoned when due again', -60_000],
+  ])('goes ahead past a delivery that %s', async (_state, dueOffset) => {
+    const t = await signedInTenant();
+    const token = await fixture.systemAdminToken(['tenant-admin']);
+    await call(token, 'PATCH', `/admin/tenants/${t.name}`, { enabled: false });
+    expect(await queuedDeliveriesOf(t.id)).toBe(1);
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      tx.update(backchannelLogoutDeliveries).set({
+        attempts: BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
+        lastError: 'connect ECONNREFUSED',
+        nextAttemptAt: new Date(fixture.clock.now().getTime() + dueOffset),
+      }),
+    );
+
+    const res = await call(token, 'DELETE', `/admin/tenants/${t.name}?confirm=${t.name}`);
+    expect(res.statusCode).toBe(204);
   });
 
   it('refuses a name that is not the tenant’s with 400 naming confirm, and deletes nothing', async () => {
@@ -299,6 +395,7 @@ describe('deleteTenantRows, probed with a foreign tenant_id', () => {
       attempt: (tx, seeded) =>
         deleteTenantRows(tx, {
           tenantId: seeded.tenantId,
+          now: new Date(),
           confirm: seeded.name,
           callerCapabilities: new Set(['tenant-admin']),
           actorSubjectId: newId(),
