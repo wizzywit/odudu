@@ -31,7 +31,6 @@ export interface ClearLockoutsInput {
 // and is counted instead (ADR 0040), as the single door refuses it. The row
 // names whose counts went, as far as `AUDITED_SUBJECT_IDS` of them, so the
 // single door's per-subject trail is not lost to the tenant-wide one.
-
 export async function clearLockouts(
   tx: TenantScopedDatabase,
   deps: { readonly audit: (tx: TenantScopedDatabase, event: LockoutsAuditEvent) => Promise<void> },

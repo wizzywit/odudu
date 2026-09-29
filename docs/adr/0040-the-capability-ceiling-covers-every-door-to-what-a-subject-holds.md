@@ -101,3 +101,9 @@ capability, which is the opposite of what `manage-sessions` exists for in an
 incident. Who was left alone stays readable through the doors the caller
 already has: `GET …/sessions`, `?locked=true` and `GET …/subjects/{id}/grants`.
 A new door over the whole tenant takes this outcome, not a refusal.
+
+One whole-tenant door is exempt: disabling the tenant, through
+`PATCH /admin/tenants/{tenant}` or `PATCH /settings`, ends every live session in
+it, held to no ceiling and counting none. A disable already shuts every subject
+out, so ending their sessions takes nothing more than the disable itself does;
+what it is held to is `manage-tenant` and the refusal of the `system` tenant.

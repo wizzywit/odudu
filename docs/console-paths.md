@@ -725,7 +725,7 @@ Keep-Alive: timeout=72
 {"items":[{"id":"01a0e77b-dea5-777b-926e-7ef515714f64","occurred_at":"2026-09-28T10:07:29.949Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"01a0e72d-5927-73c3-b14d-a5b60d1ca9ad","actor_subject_id":"01a0e72d-5ba9-78cd-b877-7ea6d4076028","actor_client_id":"01a0e72d-599e-701c-87a2-7672d411bed2","resource_type":"subject","resource_id":"01a0e72d-7fc7-7950-a1e7-1d079588f8b4","request_id":"01a0e77b-de8a-742b-b05b-bbadf4c187fe","ip":"172.20.0.1","detail":{"email":{"after":"hopper@example.com","before":"grace.hopper@example.com"}}}]}
 ```
 
-_(Captured before each audit row answered `actor_name` and `actor_origin`; not re-run, since the four runs above cannot be repeated on one stack without the sessions, grants and timings this section names. Every other field is as shown.)_
+_(Captured before each audit row answered `actor_name` and `actor_origin`; not re-run, since the third run this section comes from cannot be repeated on one stack without the session, grants and timings it names. Every other field is as shown.)_
 
 ## `POST /console/api/admin/tenants/{tenant}/subjects`, refused as cross-site
 
@@ -930,7 +930,7 @@ Keep-Alive: timeout=72
 {"items":[{"id":"01a0e95a-6c98-7609-92cc-53689a8ccae6","occurred_at":"2026-09-28T18:50:12.497Z","event_type":"admin_mutation","action":"subject.create","outcome":"allowed","actor_tenant_id":"01a0e95a-054b-71ee-ba7c-25720d128406","actor_subject_id":"01a0e95a-081b-76fa-af1b-6da2485d3057","actor_client_id":"01a0e95a-05d4-790f-86b0-9cf1e44c3dd1","resource_type":"subject","resource_id":"01a0e95a-6c92-7aa6-bf80-69f93079a62b","request_id":"01a0e95a-6c79-7552-8df2-d2de317ef73a","ip":"172.21.0.1","detail":{}}]}
 ```
 
-_(Captured before each audit row answered `actor_name` and `actor_origin`; not re-run, since the four runs above cannot be repeated on one stack without the sessions, grants and timings this section names. Every other field is as shown.)_
+_(Captured before each audit row answered `actor_name` and `actor_origin`; not re-run, since the fourth run this section comes from cannot be repeated on one stack without the session, grants and timings it names. Every other field is as shown.)_
 
 ## A path that escapes `/admin/`
 
@@ -1108,7 +1108,7 @@ After, the expiry is 300 s from the refresh:
 (1 row)
 ```
 
-_(Captured before each audit row answered `actor_name` and `actor_origin`; not re-run, since the four runs above cannot be repeated on one stack without the sessions, grants and timings this section names. Every other field is as shown.)_
+_(Captured before each audit row answered `actor_name` and `actor_origin`; not re-run, since the second run this section comes from cannot be repeated on one stack without the session, grants and timings it names. Every other field is as shown.)_
 
 The tenant's `token` audit rows since `$FROM` are one `token.refresh`, on
 the grant the sign-in created:
@@ -1270,7 +1270,7 @@ Keep-Alive: timeout=72
 {"items":[{"id":"01a0e74a-0a95-71ab-ad6b-de15e65bb772","occurred_at":"2026-09-28T09:13:04.396Z","event_type":"token","action":"token.refresh","outcome":"allowed","actor_tenant_id":"01a0e72d-5927-73c3-b14d-a5b60d1ca9ad","actor_subject_id":"01a0e72d-5ba9-78cd-b877-7ea6d4076028","actor_client_id":"01a0e72d-599e-701c-87a2-7672d411bed2","resource_type":"grant","resource_id":"01a0e741-5a0b-706e-8ae5-3f10ef8a7447","request_id":"01a0e74a-0a7b-7f8e-9764-6e7e42b23b8d","ip":"172.20.0.1","detail":{"scope":"openid"}}]}
 ```
 
-_(Captured before each audit row answered `actor_name` and `actor_origin`; not re-run, since the four runs above cannot be repeated on one stack without the sessions, grants and timings this section names. Every other field is as shown.)_
+_(Captured before each audit row answered `actor_name` and `actor_origin`; not re-run, since the second run this section comes from cannot be repeated on one stack without the session, grants and timings it names. Every other field is as shown.)_
 
 The second run's session was not logged out, so its `console_sessions` row
 is still there. It is the same throwaway tenant's, and it ends idle 30
