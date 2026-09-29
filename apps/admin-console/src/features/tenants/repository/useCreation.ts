@@ -15,6 +15,7 @@ import { createTenant, findTenant } from '#/features/tenants/adapter/tenants.ts'
 import {
   administratorCalls,
   administratorOf,
+  type AdministratorCall,
   builtinAdminClient,
   FRESH_CREATION,
   TENANT_ADMIN,
@@ -84,6 +85,8 @@ export interface AdministratorRun {
   readonly granted: boolean;
   // Told as each call lands, so a reload between two resumes at the next.
   readonly onProgress: (done: { readonly subjectId: string; readonly granted: boolean }) => void;
+  // Told once of the call that failed, as it fails.
+  readonly onFailure: (failure: GatewayFailure, call: AdministratorCall) => void;
 }
 
 function defect(message: string): GatewayFailure {
@@ -114,6 +117,25 @@ async function grantTenantAdmin(
   return setSubjectRoles(gateway, tenant, subjectId, withRole(ids, role), held.etag);
 }
 
+async function runCall(
+  gateway: Gateway,
+  run: AdministratorRun,
+  call: AdministratorCall,
+  subjectId: string | null,
+): Promise<GatewayResult<{ readonly subjectId?: string; readonly password?: string }>> {
+  if (call === 'create') {
+    const created = await createSubject(gateway, run.tenant, run);
+    return created.ok ? { ...created, data: { subjectId: created.data.id } } : created;
+  }
+  if (subjectId === null)
+    return defect('console defect: an administrator step ran with no subject');
+  if (call === 'grant') {
+    const granted = await grantTenantAdmin(gateway, run.tenant, subjectId);
+    return granted.ok ? { ...granted, data: {} } : granted;
+  }
+  return issuePassword(gateway, run.tenant, subjectId);
+}
+
 async function runAdministrator(
   gateway: Gateway,
   run: AdministratorRun,
@@ -121,23 +143,20 @@ async function runAdministrator(
   let subjectId = run.subjectId;
   let granted = run.granted;
   for (const call of administratorCalls({ subjectId, granted })) {
-    if (call === 'create') {
-      const created = await createSubject(gateway, run.tenant, run);
-      if (!created.ok) return created;
-      subjectId = created.data.id;
-      run.onProgress({ subjectId, granted });
-    } else if (subjectId === null) {
-      return defect('console defect: an administrator step ran with no subject');
-    } else if (call === 'grant') {
-      const grant = await grantTenantAdmin(gateway, run.tenant, subjectId);
-      if (!grant.ok) return grant;
-      granted = true;
-      run.onProgress({ subjectId, granted });
-    } else {
-      return issuePassword(gateway, run.tenant, subjectId);
+    const result = await runCall(gateway, run, call, subjectId);
+    if (!result.ok) {
+      run.onFailure(result, call);
+      return result;
     }
+    if (result.data.password !== undefined)
+      return { ...result, data: { password: result.data.password } };
+    if (call === 'create') subjectId = result.data.subjectId ?? null;
+    if (call === 'grant') granted = true;
+    if (subjectId !== null) run.onProgress({ subjectId, granted });
   }
-  return defect('console defect: an administrator step issued no password');
+  const failure = defect('console defect: an administrator step issued no password');
+  run.onFailure(failure, 'password');
+  return failure;
 }
 
 // The subject, its tenant-admin grant and its one-time password, each one

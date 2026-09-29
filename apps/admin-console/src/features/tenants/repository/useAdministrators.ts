@@ -1,5 +1,8 @@
 import type { Subject } from '@odudu/contracts/admin';
-import { readAdministratorPage } from '#/features/tenants/adapter/administrators.ts';
+import {
+  readAdministratorCount,
+  readAdministratorPage,
+} from '#/features/tenants/adapter/administrators.ts';
 import { TENANT_ADMIN } from '#/features/tenants/service.ts';
 import { useResourceList } from '#/shared/repository/useResourceList.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
@@ -13,5 +16,6 @@ export function useAdministrators(tenant: string): ResourceListState<Subject> {
     search: ['username'],
     fixed: { capability: TENANT_ADMIN },
     read: (gateway, query) => readAdministratorPage(gateway, tenant, query),
+    count: (gateway, query) => readAdministratorCount(gateway, tenant, query),
   });
 }

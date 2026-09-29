@@ -69,7 +69,7 @@ export const TENANT_AREAS: readonly AreaGroup[] = [
     areas: [
       area('settings', 'Settings', 'manage-tenant'),
       area('email', 'Email', 'manage-tenant'),
-      area('import-export', 'Import / export', 'manage-tenant'),
+      area('export', 'Export', 'manage-tenant'),
     ],
   },
   { heading: 'Observe', areas: [area('audit', 'Audit trail', 'view-audit', true)] },

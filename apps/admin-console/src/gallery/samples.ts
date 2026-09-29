@@ -111,7 +111,7 @@ export const RAIL_GROUPS = [
     items: [
       { href: '#settings', label: 'Settings' },
       { href: '#email', label: 'Email' },
-      { href: '#import', label: 'Import / export' },
+      { href: '#export', label: 'Export' },
     ],
   },
   { heading: 'Observe', items: [{ href: '#audit', label: 'Audit trail' }] },

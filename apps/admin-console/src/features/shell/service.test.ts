@@ -39,7 +39,7 @@ describe('the rail', () => {
       'Signing keys',
       'Settings',
       'Email',
-      'Import / export',
+      'Export',
       'Audit trail',
     ]);
     expect(groups[1]?.items[0]?.href).toBe('/console/acme/subjects');

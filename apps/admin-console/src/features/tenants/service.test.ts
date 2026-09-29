@@ -4,6 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   administratorCalls,
   builtinAdminClient,
+  enterHref,
+  IMPORT_TENANT_HREF,
+  NEW_TENANT_HREF,
+  tenantHref,
   tenantAdminRole,
   withRole,
   exportFileName,
@@ -40,7 +44,7 @@ describe('the issuer preview', () => {
   it('shows nothing for a name the rule refuses, or an issuer of another shape', () => {
     expect(issuerPreview(SYSTEM, '')).toBeNull();
     expect(issuerPreview(SYSTEM, 'Not A Label')).toBeNull();
-    expect(issuerPreview('https://id.example/realms/system', 'acme')).toBeNull();
+    expect(issuerPreview('https://id.example/issuers/system', 'acme')).toBeNull();
     expect(issuerPreview(undefined, 'acme')).toBeNull();
   });
 });
@@ -118,5 +122,14 @@ describe('the tenant-admin role', () => {
   it('is added to the roles a subject already holds, once', () => {
     expect(withRole(['r1'], 'r-admin')).toEqual(['r1', 'r-admin']);
     expect(withRole(['r-admin', 'r1'], 'r-admin')).toEqual(['r-admin', 'r1']);
+  });
+});
+
+describe('the addresses', () => {
+  it('puts creation and import beside the list, so no tenant name shadows them', () => {
+    expect(tenantHref('new')).toBe('/console/system/tenants/new');
+    expect(NEW_TENANT_HREF).toBe('/console/system/new-tenant');
+    expect(IMPORT_TENANT_HREF).toBe('/console/system/import-tenant');
+    expect(enterHref('acme')).toBe('/console/acme');
   });
 });

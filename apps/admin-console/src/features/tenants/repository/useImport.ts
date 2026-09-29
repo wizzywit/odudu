@@ -38,7 +38,7 @@ export interface TenantImport {
 
 // The secrets are split off before the mutation settles, so the mutation
 // cache holds only the tenant and how many there were.
-export function useImport(): TenantImport {
+export function useImport(onRefused: (failure: GatewayFailure) => void): TenantImport {
   const { gateway } = useTransport();
   const [secrets, setSecrets] = useState<readonly ImportedSecret[]>([]);
   const [shown, setShown] = useState(0);
@@ -48,7 +48,10 @@ export function useImport(): TenantImport {
       const document = parseDocument(await readFileText(input.file));
       if (!document.ok) return { ok: false, kind: 'file', message: document.message };
       const result = await importTenant(gateway, { ...input, document: document.document });
-      if (!result.ok) return { ok: false, kind: 'refused', failure: result };
+      if (!result.ok) {
+        onRefused(result);
+        return { ok: false, kind: 'refused', failure: result };
+      }
       setShown(0);
       setSecrets(
         result.data.client_secrets.map(({ client_id, secret }) => ({

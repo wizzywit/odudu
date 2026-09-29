@@ -148,3 +148,19 @@ export function tenantAdminRole(
 export function withRole(held: readonly string[], role: string): readonly string[] {
   return held.includes(role) ? held : [...held, role];
 }
+
+const SYSTEM_BASE = '/console/system';
+
+export const TENANTS_HREF = `${SYSTEM_BASE}/tenants`;
+// Beside the list rather than under it: `new` and `import` are tenant names
+// too, and a record's address would otherwise shadow them.
+export const NEW_TENANT_HREF = `${SYSTEM_BASE}/new-tenant`;
+export const IMPORT_TENANT_HREF = `${SYSTEM_BASE}/import-tenant`;
+
+export function tenantHref(name: string): string {
+  return `${TENANTS_HREF}/${encodeURIComponent(name)}`;
+}
+
+export function enterHref(name: string): string {
+  return `/console/${encodeURIComponent(name)}`;
+}

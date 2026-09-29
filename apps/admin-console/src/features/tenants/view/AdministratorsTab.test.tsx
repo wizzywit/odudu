@@ -1,0 +1,65 @@
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, expect, it } from 'vitest';
+import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
+import { json } from '#/testing/fakeTransport.ts';
+import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
+import { ADMIN, systemRoutes, tenant } from '#/testing/tenantsFixtures.ts';
+
+afterEach(() => {
+  resetConsole();
+  sessionStorage.clear();
+});
+
+const GRACE = {
+  id: '01a0e72d-7fc7-7950-a1e7-1d079588f8b4',
+  type: 'user',
+  username: 'grace',
+  email: 'grace@acme.test',
+  enabled: true,
+  created_at: '2026-09-28T08:41:53.858Z',
+};
+
+function routes() {
+  return systemRoutes({
+    [`GET ${ADMIN}/acme`]: json(tenant('acme'), 200, { etag: '"t1"' }),
+    [`GET ${ADMIN}/acme/subjects`]: json({ items: [GRACE] }),
+    [`GET ${ADMIN}/acme/subjects/count`]: json({ count: 1, capped: false }),
+  });
+}
+
+const AT = '/console/system/tenants/acme?tab=administrators';
+
+it('lists everybody holding tenant-admin, and says the last one cannot be removed', async () => {
+  const { sent } = renderConsoleAt(AT, routes());
+  expect(await screen.findByRole('grid', { name: 'Administrators of acme' })).toHaveTextContent(
+    'grace@acme.test',
+  );
+  expect(await screen.findByText('1 administrator')).toBeVisible();
+  expect(
+    screen.getByText(/the last one cannot be disabled, deleted, or lose tenant-admin/u),
+  ).toBeVisible();
+  const reads = sent.filter((s) => s.path.startsWith(`${ADMIN}/acme/subjects`));
+  expect(reads.map((s) => s.search.get('capability'))).toEqual(['tenant-admin', 'tenant-admin']);
+});
+
+it('adds an administrator through the guided step, resumed for this tenant', async () => {
+  const user = userEvent.setup();
+  const { router } = renderConsoleAt(AT, routes());
+  await user.click(await screen.findByRole('button', { name: 'Add an administrator' }));
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/system/new-tenant');
+  });
+  expect(
+    await screen.findByRole('heading', { level: 1, name: 'First administrator of acme' }),
+  ).toBeVisible();
+});
+
+it('passes axe in both themes', async () => {
+  expect(
+    await axeInBothThemes(
+      () => consoleAt(AT, routes()).element,
+      () => screen.findByRole('grid', { name: 'Administrators of acme' }),
+    ),
+  ).toEqual({ light: [], dark: [] });
+});

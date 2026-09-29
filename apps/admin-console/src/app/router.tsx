@@ -78,7 +78,71 @@ const overview = createRoute({
   },
 });
 
-const areas = EVERY_AREA.filter((area) => area !== OVERVIEW).map((area) =>
+function tenantsPage(name: 'TenantsPage' | 'NewTenantPage' | 'ImportTenantPage' | 'ExportPage') {
+  return lazyFeatureRoute(
+    () => import('#/features/tenants/index.ts').then((feature) => feature[name]),
+    'Loading tenants',
+  );
+}
+
+const Tenants = tenantsPage('TenantsPage');
+const NewTenant = tenantsPage('NewTenantPage');
+const ImportTenant = tenantsPage('ImportTenantPage');
+const Export = tenantsPage('ExportPage');
+const TenantRecord = lazyFeatureRoute(
+  () => import('#/features/tenants/index.ts').then((feature) => feature.TenantRecordPage),
+  'Loading the tenant',
+);
+
+// The System area's tenant pages, and a tenant's own export.
+const tenantPages = [
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'tenants',
+    component: function TenantList() {
+      const { tenant: name } = tenant.useParams();
+      return <Tenants key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'tenants/$name',
+    component: function TenantAtName() {
+      const { tenant: name } = tenant.useParams();
+      const { name: record } = tenantRecord.useParams();
+      return <TenantRecord key={`${name}/${record}`} tenant={name} name={record} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'new-tenant',
+    component: function TenantCreation() {
+      const { tenant: name } = tenant.useParams();
+      return <NewTenant key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'import-tenant',
+    component: function TenantImport() {
+      const { tenant: name } = tenant.useParams();
+      return <ImportTenant key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'export',
+    component: function TenantExport() {
+      const { tenant: name } = tenant.useParams();
+      return <Export key={name} tenant={name} />;
+    },
+  }),
+] as const;
+const tenantRecord = tenantPages[1];
+
+const TAKEN = new Set(['tenants', 'export']);
+
+const areas = EVERY_AREA.filter((area) => area !== OVERVIEW && !TAKEN.has(area.path)).map((area) =>
   createRoute({
     getParentRoute: () => tenant,
     path: area.path,
@@ -89,7 +153,10 @@ const areas = EVERY_AREA.filter((area) => area !== OVERVIEW).map((area) =>
   }),
 );
 
-const routeTree = root.addChildren([home, tenant.addChildren([overview, ...areas])]);
+const routeTree = root.addChildren([
+  home,
+  tenant.addChildren([overview, ...tenantPages, ...areas]),
+]);
 
 export function createConsoleRouter(history: RouterHistory = createBrowserHistory()) {
   return createRouter({

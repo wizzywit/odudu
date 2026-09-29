@@ -1,9 +1,11 @@
 import {
+  countResponseSchema,
   issuePasswordResponseSchema,
   listClientsResponseSchema,
   listSubjectsResponseSchema,
   setRolesResponseSchema,
   subjectSchema,
+  type CountResponse,
   type IssuePasswordResponse,
   type ListClientsResponse,
   type ListRolesResponse,
@@ -29,6 +31,18 @@ export function readAdministratorPage(
     {
       schema: listSubjectsResponseSchema,
     },
+  );
+}
+
+export function readAdministratorCount(
+  gateway: Gateway,
+  tenant: string,
+  query: URLSearchParams,
+): Promise<GatewayResult<CountResponse>> {
+  return gateway.request(
+    'GET',
+    `admin/tenants/${tenantPath(tenant)}/subjects/count?${query.toString()}`,
+    { schema: countResponseSchema },
   );
 }
 
