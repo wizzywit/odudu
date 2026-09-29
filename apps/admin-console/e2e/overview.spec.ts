@@ -54,7 +54,7 @@ test('the discovery panel shows the document and keys relying parties read', asy
   const jwks = jwksSchema.parse(await publicDocument(page, 'protocol/openid-connect/certs'));
   await signIn(page, overview);
 
-  const panel = page.getByRole('region', { name: 'Discovery' });
+  const panel = page.getByRole('region', { name: 'Discovery', exact: true });
   await expect(panel.getByText(document.issuer, { exact: true })).toBeVisible();
   const endpoints = panel.getByRole('region', { name: 'Endpoints' });
   for (const [name, value] of Object.entries(document)) {
@@ -120,9 +120,9 @@ test('an operator without view-audit is told what the audit panel needs, and ask
   await expect(
     page.getByRole('region', { name: 'Needs attention' }).getByRole('note'),
   ).toContainText('manage-keys');
-  await expect(page.getByRole('region', { name: 'Discovery' }).getByRole('note')).toContainText(
-    "Each key's lane needs the manage-keys capability.",
-  );
+  await expect(
+    page.getByRole('region', { name: 'Discovery', exact: true }).getByRole('note'),
+  ).toContainText("Each key's lane needs the manage-keys capability.");
   await expectAccessible(page);
   const api = `/console/api/admin/tenants/${limited.tenant}`;
   expect(asked).not.toContain(`${api}/audit`);

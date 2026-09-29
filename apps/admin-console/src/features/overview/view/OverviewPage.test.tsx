@@ -161,6 +161,8 @@ it('reads whoami again when the server refuses a read whoami said was allowed', 
   await waitFor(() => {
     expect(whoamis()).toBe(2);
   });
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  expect(whoamis()).toBe(2);
 });
 
 it('passes axe in both themes, with everything and with little', async () => {
