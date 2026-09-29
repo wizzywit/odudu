@@ -258,3 +258,17 @@ export function NewTenantPage({ tenant }: { tenant: string }) {
     </SystemGate>
   );
 }
+
+// system's own administrators are added under System administrators, so the
+// page keeps that area's name and trail while access is checked.
+export function NewSystemAdministratorPage({ tenant }: { tenant: string }) {
+  return (
+    <SystemGate
+      tenant={tenant}
+      title="Add a system administrator"
+      breadcrumb={systemAdminsTrail('Add a system administrator')}
+    >
+      <Creation />
+    </SystemGate>
+  );
+}
