@@ -99,7 +99,11 @@ describe('PhoneField', () => {
   });
 
   it('carries the telephone autofill token on the number, which autofill can fill', () => {
-    render(<Controlled />);
+    render(
+      <OwnDataFields when>
+        <Controlled />
+      </OwnDataFields>,
+    );
     expect(screen.getByRole('combobox', { name: 'Country' })).toHaveAttribute(
       'autocomplete',
       'off',

@@ -45,7 +45,11 @@ function stored(): string {
 describe('CountryField', () => {
   it('lists names in the reader’s language and stores the English one', async () => {
     const user = userEvent.setup();
-    render(<Controlled Field={CountryField} label="Land" locale="de" />);
+    render(
+      <OwnDataFields when>
+        <Controlled Field={CountryField} label="Land" locale="de" />
+      </OwnDataFields>,
+    );
     const box = screen.getByRole('combobox', { name: 'Land' });
     expect(box).toHaveAttribute('autocomplete', 'country-name');
     await user.type(box, 'Deutsch');
@@ -110,7 +114,11 @@ describe('TimeZoneField', () => {
 describe('LocaleField', () => {
   it('shows each locale by name and stores its BCP 47 tag', async () => {
     const user = userEvent.setup();
-    render(<Controlled Field={LocaleField} label="Locale" locale="en" />);
+    render(
+      <OwnDataFields when>
+        <Controlled Field={LocaleField} label="Locale" locale="en" />
+      </OwnDataFields>,
+    );
     const box = screen.getByRole('combobox', { name: 'Locale' });
     expect(box).toHaveAttribute('autocomplete', 'language');
     await user.type(box, 'English (Nig');
@@ -145,7 +153,11 @@ describe('LocaleField', () => {
 describe('GenderField', () => {
   it('stores the values OIDC names, and any other the subject gives', async () => {
     const user = userEvent.setup();
-    render(<Controlled Field={GenderField} label="Gender" />);
+    render(
+      <OwnDataFields when>
+        <Controlled Field={GenderField} label="Gender" />
+      </OwnDataFields>,
+    );
     await user.click(screen.getByRole('button', { name: /Gender/u }));
     await user.click(await screen.findByRole('option', { name: 'Female' }));
     expect(stored()).toBe('female');

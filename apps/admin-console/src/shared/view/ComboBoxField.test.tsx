@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ComboBoxField, type ComboOption } from '#/shared/view/ComboBoxField.tsx';
-import { ReadOnlyFields } from '#/shared/view/Field.tsx';
+import { OwnDataFields, ReadOnlyFields } from '#/shared/view/Field.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 const ZONES: readonly ComboOption[] = [
@@ -96,13 +96,15 @@ describe('ComboBoxField', () => {
   it('carries the autocomplete token it is given', () => {
     const onChange = vi.fn();
     render(
-      <ComboBoxField
-        label="Country"
-        options={[]}
-        value=""
-        onChange={onChange}
-        autoComplete="country-name"
-      />,
+      <OwnDataFields when>
+        <ComboBoxField
+          label="Country"
+          options={[]}
+          value=""
+          onChange={onChange}
+          autoComplete="country-name"
+        />
+      </OwnDataFields>,
     );
     expect(screen.getByRole('combobox', { name: 'Country' })).toHaveAttribute(
       'autocomplete',

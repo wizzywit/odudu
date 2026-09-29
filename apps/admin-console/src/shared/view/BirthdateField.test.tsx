@@ -100,7 +100,11 @@ describe('BirthdateField', () => {
   });
 
   it('carries the bday token for autofill', () => {
-    const { container } = render(<Controlled />);
+    const { container } = render(
+      <OwnDataFields when>
+        <Controlled />
+      </OwnDataFields>,
+    );
     expect(container.querySelector('input[autocomplete="bday"]')).not.toBeNull();
   });
 

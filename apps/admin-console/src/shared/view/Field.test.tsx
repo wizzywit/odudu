@@ -451,3 +451,11 @@ describe('ReadOnlyValue', () => {
     expect(screen.getByRole('definition')).toHaveTextContent('Countess · not saved');
   });
 });
+
+it('offers no autofill unless a page declares the data the operator’s own', () => {
+  render(<TextField label="Given name" value="" autoComplete="given-name" onChange={vi.fn()} />);
+  expect(screen.getByRole('textbox', { name: 'Given name' })).toHaveAttribute(
+    'autocomplete',
+    'off',
+  );
+});

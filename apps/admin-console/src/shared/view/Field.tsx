@@ -102,10 +102,10 @@ export function Description({ children }: { children: ReactNode }) {
   );
 }
 
-// A token names the operator's own data (WCAG 1.3.5): on a record about
-// somebody else it would offer the operator's own name, phone or address
-// for theirs, so there every field turns autofill off.
-export const OwnData = createContext(true);
+// A token names the operator's own data (WCAG 1.3.5), so a field carries it
+// only where a page declares the data theirs; anywhere else it would offer
+// the operator's own name, phone or address for somebody else's.
+export const OwnData = createContext(false);
 
 export function OwnDataFields({ children, when }: { children: ReactNode; when: boolean }) {
   return <OwnData value={when}>{children}</OwnData>;

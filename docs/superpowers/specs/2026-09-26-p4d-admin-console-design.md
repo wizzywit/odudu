@@ -719,9 +719,10 @@ A tenant cannot be deleted: the API has no such route. It can be disabled.
   a field produces passes the predicates the server refuses with, which
   `@odudu/contracts` states once. A field carries its `autocomplete` token
   (WCAG 1.3.5) only where it describes the operator: on the operator's own
-  subject record. On anybody else's record, and on the create page, every
-  field says `autocomplete="off"`, since 1.3.5 covers data about the user
-  and a token there would offer the operator's own details for theirs.
+  subject record, which declares its fields the operator's own. Every other
+  field says `autocomplete="off"` unless its page declares otherwise, since
+  1.3.5 covers data about the user and a token on somebody else's record
+  would offer the operator's own details for theirs.
 - **Nothing hidden**: no hover-only or swipe-only action, no unlabelled icon
   button, and a keyboard shortcut is shown beside the control it triggers.
 

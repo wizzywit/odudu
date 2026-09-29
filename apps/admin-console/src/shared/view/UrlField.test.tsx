@@ -14,7 +14,11 @@ function Controlled() {
 describe('UrlField', () => {
   it('says what is wrong as it is typed, not before the scheme is finished', async () => {
     const user = userEvent.setup();
-    render(<Controlled />);
+    render(
+      <OwnDataFields when>
+        <Controlled />
+      </OwnDataFields>,
+    );
     const box = screen.getByRole('textbox', { name: 'Website' });
     expect(box).toHaveAttribute('autocomplete', 'url');
     expect(box).toHaveAttribute('type', 'url');
@@ -37,7 +41,11 @@ describe('UrlField', () => {
 describe('PictureField', () => {
   it('previews a picture the console’s own origin serves', () => {
     const own = `${window.location.origin}/avatar.png`;
-    render(<PictureField label="Picture" value={own} onChange={vi.fn()} />);
+    render(
+      <OwnDataFields when>
+        <PictureField label="Picture" value={own} onChange={vi.fn()} />
+      </OwnDataFields>,
+    );
     expect(screen.getByRole('textbox', { name: 'Picture' })).toHaveAttribute(
       'autocomplete',
       'photo',
