@@ -33,12 +33,13 @@ export function useAuthorityQuery(
   const { gateway } = useTransport();
   const client = useQueryClient();
   const key = ['whoami', tenant, subjectId] as const;
-  // Every page and the rail ask for it, so a page mounting must not read it
-  // again each time: a 403 re-reads it, and so does coming back to the window.
+  // Every page and the rail ask for it, so it is fresh for half a minute:
+  // one read per page, and a capability gained mid-session shows on the next
+  // page after that. A 403 re-reads it at once.
   const query = useQuery({
     queryKey: key,
     queryFn: () => readAuthority(gateway, tenant),
-    refetchOnMount: false,
+    staleTime: 30_000,
     enabled: subjectId !== null && live,
   });
   return {
