@@ -17,6 +17,7 @@ const PATTERNS = {
   list: 'ResourceListPage: a whole list, searched, counted and paged',
   copy: 'CopyValue',
   breadcrumb: 'Breadcrumb: the way up from a page below a list',
+  'key-hint': 'KeyHint: a shortcut told, not offered, on each platform',
   'skeleton-table': 'Skeleton: a table, its own header over placeholder rows',
   'skeleton-record': 'Skeleton: a record, its tabs and sections',
 } as const;
