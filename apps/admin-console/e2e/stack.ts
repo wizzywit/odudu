@@ -73,6 +73,22 @@ const seededSchema = z.object({
     // The username the guided step creates.
     created: z.string(),
   }),
+  // A tenant of its own for the Subjects tests, and the subjects each changes.
+  subjects: z.object({
+    // Holds tenant-admin there.
+    admin: account,
+    // Holds view-users alone.
+    viewer: account,
+    // Usernames of subjects whose profiles a test edits, one per test.
+    edited: z.string(),
+    conflict: z.string(),
+    // Locked out by a test, then cleared.
+    locked: account,
+    // Issued a one-time password, which then signs in.
+    issued: account,
+    // The prefix every subject a test creates starts with.
+    prefix: z.string(),
+  }),
 });
 
 export type Account = z.infer<typeof account>;

@@ -146,8 +146,10 @@ test('a session that ends on the server signs in again and comes back to the pag
 
   await expect(page).toHaveURL(`/console/${expiring.tenant}/subjects`);
   await expect(page.getByRole('heading', { level: 1, name: 'Subjects' })).toBeVisible();
-  // The read that found the session over was the new page's whoami.
-  forgive(problems, `/console/api/admin/tenants/${expiring.tenant}/whoami`);
+  // The read that found the session over was the new page's whoami, or its list.
+  for (const read of ['whoami', 'subjects', 'subjects/count']) {
+    forgive(problems, `/console/api/admin/tenants/${expiring.tenant}/${read}`);
+  }
   expect(signIns).toHaveLength(1);
   expect(new URL(signIns[0] ?? '').searchParams.get('return_to')).toBe(
     `/console/${expiring.tenant}/subjects`,

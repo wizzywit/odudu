@@ -47,6 +47,15 @@ export default function globalSetup(): void {
     limited: { tenant: 'system', username: `watcher-${run}`, password: password() },
     created: `created-${run}`,
   };
+  const subjects = {
+    admin: { tenant: `${run}-s`, username: 'noether', password: password() },
+    viewer: { tenant: `${run}-s`, username: 'watcher', password: password() },
+    edited: 'ada',
+    conflict: 'augusta',
+    locked: { tenant: `${run}-s`, username: 'lamarr', password: password() },
+    issued: { tenant: `${run}-s`, username: 'franklin', password: password() },
+    prefix: `made-${run}`,
+  };
   const tenants = {
     general: `${run}-d`,
     source: `${run}-e`,
@@ -78,6 +87,15 @@ export default function globalSetup(): void {
   administrator(overview);
   subject(limited);
   grant(limited, 'odudu-admin:manage-tenant');
+  seed(['tenant', '--name', subjects.admin.tenant]);
+  administrator(subjects.admin);
+  subject(subjects.viewer);
+  grant(subjects.viewer, 'odudu-admin:view-users');
+  for (const username of [subjects.edited, subjects.conflict]) {
+    subject({ tenant: subjects.admin.tenant, username, password: password() });
+  }
+  subject(subjects.locked);
+  subject(subjects.issued);
   // Creates the system tenant; its own generated password is not used.
   seed(['admin', '--username', `boot-${run}`]);
   administrator(system);
@@ -99,5 +117,6 @@ export default function globalSetup(): void {
     resumer,
     tenants,
     systemAdmins,
+    subjects,
   });
 }
