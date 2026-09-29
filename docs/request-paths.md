@@ -6562,15 +6562,24 @@ Querying the same row again shows why, in the queue's own words:
 ```
    client_id    |              endpoint              | attempts | delivered_at |               last_error
 ----------------+------------------------------------+----------+--------------+-----------------------------------------
- reports-widget | https://127.0.0.1:9443/backchannel |        2 |              | address 127.0.0.1 is a loopback address
+ reports-widget | https://127.0.0.1:9443/backchannel |        1 |              | address 127.0.0.1 is a loopback address
 (1 row)
 ```
 
 `assertPublicAddress` (`packages/protocol-oidc/src/service/remote-address.ts`)
 refuses `127.0.0.0/8` unconditionally, ahead of any override — the same
 guard `clientKeySet`'s `jwks_uri` fetch uses (ADR 0028). `attempts` reads
-`2`, not `1`, because `claimDue` spends one optimistically at the claim
-and `markFailed` spends a second recording the outcome.
+`1`: `claimDue` spends the attempt when it claims the row, and `markFailed`
+records only the error and when the row is next due, so
+`BACKCHANNEL_LOGOUT_MAX_ATTEMPTS` is the number of times a token is really
+offered. The pass and this second query were recaptured against the tenth
+stack of [docs/admin-paths.md](admin-paths.md) once `markFailed` stopped
+spending a second attempt: `reports-widget` created in its `demo` through
+`POST /clients` with this back-channel URI, `ada` signed in through it and
+signed out through the confirmation page, as
+[One sign-in's audit trail](#one-sign-ins-audit-trail-read-through-the-admin-api)
+does, then the same query, which answered the first query's row above byte
+for byte, the same pass and the same query again.
 
 **A private-range address is a different branch of that same guard, and
 one an operator can open.** `ODUDU_ALLOW_PRIVATE_CLIENT_URLS` — already
@@ -6644,8 +6653,8 @@ docker compose -f infra/docker/compose.yaml exec -T postgres \
 (1 row)
 ```
 
-`attempts` reads `1` here, not `2`: `markDelivered` records success without
-touching `attempts` the way `markFailed` does.
+`attempts` reads `1` here, the one offer that was delivered: the claim spends
+the attempt, and `markDelivered` records the success.
 
 Discovery now advertises `backchannel_logout_supported`,
 `backchannel_logout_session_supported`, `frontchannel_logout_supported`
@@ -8073,8 +8082,8 @@ other traffic in `demo`; the request id on each row is what shows that held
 here:
 
 ```bash
-BASE=http://localhost:3000/tenants/demo/protocol/openid-connect
-LOGIN=http://localhost:3000/tenants/demo/login-actions/authenticate
+BASE=http://localhost:3082/tenants/demo/protocol/openid-connect
+LOGIN=http://localhost:3082/tenants/demo/login-actions/authenticate
 SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 VERIFIER=$(openssl rand -hex 32)
@@ -8124,28 +8133,27 @@ for EVENT_TYPE in token session; do
   curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
     --data-urlencode "event_type=$EVENT_TYPE" \
     --data-urlencode "from=$SINCE" \
-    http://localhost:3000/admin/tenants/demo/audit
+    http://localhost:3082/admin/tenants/demo/audit
   echo
 done
 ```
 
 The refresh's status, the logout's, then the `token` page and the
-`session` page, newest first. They were captured before each row answered
-`actor_name` and `actor_origin` as well, resolved when it is read
-([Admin paths](admin-paths.md#get-audit)); every other field is as shown:
+`session` page, newest first:
 
 ```
 200
 200
-{"items":[{"id":"01a0de57-47f6-75ee-bd0c-397d8c07d8c1","occurred_at":"2026-09-26T15:30:57.138Z","event_type":"token","action":"token.refresh","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"grant","resource_id":"01a0de57-47d6-7a12-9446-5170a97d2ebd","request_id":"trail-refresh","ip":"172.20.0.1","detail":{"scope":"openid"}},{"id":"01a0de57-47de-7930-ae5b-63f55f8c41ab","occurred_at":"2026-09-26T15:30:57.100Z","event_type":"token","action":"token.issue","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"grant","resource_id":"01a0de57-47d6-7a12-9446-5170a97d2ebd","request_id":"trail-code","ip":"172.20.0.1","detail":{"scope":"openid","grant_type":"authorization_code"}}]}
-{"items":[{"id":"01a0de57-4822-7f4d-866e-9bc1eb70258c","occurred_at":"2026-09-26T15:30:57.185Z","event_type":"session","action":"session.ended","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":null,"resource_type":"session","resource_id":"01a0de57-47b6-73c8-ac09-420a582bac8e","request_id":"trail-logout","ip":"172.20.0.1","detail":{"via":"logout"}},{"id":"01a0de57-47b7-79a8-99b2-d2ba39295b21","occurred_at":"2026-09-26T15:30:57.077Z","event_type":"session","action":"session.created","outcome":"allowed","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0db22-1c92-7730-9d37-4085f28eca2c","actor_client_id":"01a0db22-1c61-714b-be3a-3d5234477dff","resource_type":"session","resource_id":"01a0de57-47b6-73c8-ac09-420a582bac8e","request_id":"trail-sign-in","ip":"172.20.0.1","detail":{}}]}
+{"items":[{"id":"01a0ee96-87dd-7f97-b784-a892d1af681b","occurred_at":"2026-09-29T19:13:57.706Z","event_type":"token","action":"token.refresh","outcome":"allowed","actor_tenant_id":"01a0ee8f-032e-718b-b030-be2b154a9e99","actor_subject_id":"01a0ee96-6112-7cc3-a854-5f4ba72b225c","actor_client_id":"01a0ee96-84ed-7dd5-9923-92767eef6df0","actor_name":"ada","actor_origin":"tenant","resource_type":"grant","resource_id":"01a0ee96-8791-7f44-8bae-5ec847f7a4c2","request_id":"trail-refresh","ip":"172.22.0.1","detail":{"scope":"openid"}},{"id":"01a0ee96-8798-708b-bf8c-d732e7e83210","occurred_at":"2026-09-29T19:13:57.630Z","event_type":"token","action":"token.issue","outcome":"allowed","actor_tenant_id":"01a0ee8f-032e-718b-b030-be2b154a9e99","actor_subject_id":"01a0ee96-6112-7cc3-a854-5f4ba72b225c","actor_client_id":"01a0ee96-84ed-7dd5-9923-92767eef6df0","actor_name":"ada","actor_origin":"tenant","resource_type":"grant","resource_id":"01a0ee96-8791-7f44-8bae-5ec847f7a4c2","request_id":"trail-code","ip":"172.22.0.1","detail":{"scope":"openid","grant_type":"authorization_code"}}]}
+{"items":[{"id":"01a0ee96-885c-7fc5-aef6-3fd42f3b388f","occurred_at":"2026-09-29T19:13:57.851Z","event_type":"session","action":"session.ended","outcome":"allowed","actor_tenant_id":"01a0ee8f-032e-718b-b030-be2b154a9e99","actor_subject_id":"01a0ee96-6112-7cc3-a854-5f4ba72b225c","actor_client_id":null,"actor_name":"ada","actor_origin":"tenant","resource_type":"session","resource_id":"01a0ee96-874e-7f1b-a875-ff5846806788","request_id":"trail-logout","ip":"172.22.0.1","detail":{"via":"logout"}},{"id":"01a0ee96-8750-7584-aab5-50435e2d0819","occurred_at":"2026-09-29T19:13:57.577Z","event_type":"session","action":"session.created","outcome":"allowed","actor_tenant_id":"01a0ee8f-032e-718b-b030-be2b154a9e99","actor_subject_id":"01a0ee96-6112-7cc3-a854-5f4ba72b225c","actor_client_id":"01a0ee96-84ed-7dd5-9923-92767eef6df0","actor_name":"ada","actor_origin":"tenant","resource_type":"session","resource_id":"01a0ee96-874e-7f1b-a875-ff5846806788","request_id":"trail-sign-in","ip":"172.22.0.1","detail":{}}]}
 ```
 
-Captured against the same stack as
-[what a refused login leaves behind](#what-a-refused-login-leaves-behind),
-with the image rebuilt from the current tree after the logout confirmation
-gained its `csrf` token, which the logout above reads off the page it
-fetched and posts back. The ids the rows name:
+Recaptured against the tenth stack
+([docs/admin-paths.md](admin-paths.md)), after `demo-spa`
+was created in its `demo` through `POST /clients` as a public client and
+`ada` seeded there with `odudu seed user`, so each row answers `actor_name`
+and `actor_origin` as well; the ids are that run's.
+The ids the rows name:
 
 ```bash
 docker compose exec -T postgres psql -U odudu -d odudu -c \
@@ -8159,7 +8167,7 @@ docker compose exec -T postgres psql -U odudu -d odudu -c \
 ```
                  demo                 |               demo_spa               |                 ada
 --------------------------------------+--------------------------------------+--------------------------------------
- 01a0db22-1c32-7d17-b351-697d7911033c | 01a0db22-1c61-714b-be3a-3d5234477dff | 01a0db22-1c92-7730-9d37-4085f28eca2c
+ 01a0ee8f-032e-718b-b030-be2b154a9e99 | 01a0ee96-84ed-7dd5-9923-92767eef6df0 | 01a0ee96-6112-7cc3-a854-5f4ba72b225c
 (1 row)
 ```
 

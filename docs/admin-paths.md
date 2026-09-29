@@ -170,7 +170,7 @@ with `docker compose down -v` when the capture finished.
 
 **The eighth stack.** `GET /subjects/username-policy`, the refusal of a
 disabled subject's token under "The shape of it", and `GET /admin/openapi.json`
-(recaptured since against the ninth stack, below) were captured against one more stack of their own: compose project
+(recaptured since against the tenth stack, below) were captured against one more stack of their own: compose project
 `odudu-t8b` on port 3080, built from this branch and brought up from an
 empty volume, with `seed admin --username ada-t8b` run against it, then a
 tenant `policy-demo` made with `odudu seed tenant` and a subject `vera`
@@ -179,33 +179,36 @@ alone. `$VERA_TOKEN` is `vera`'s own admin access token, got the way
 "Getting the token" shows but at `policy-demo`. It was torn down with
 `docker compose down -v` when the capture finished.
 
-**The ninth stack.** The sections on routes added for the operator's side of
-a tenant — its sessions and grants, its mail and logout deliveries, bulk and
-tenant-wide writes, claim evaluation, audit reporting and tenant deletion —
-and the recaptures their notes name, ran against one more stack: compose
-project `odudu-t8b2` on port 3082, its Postgres on 5464, built from this
-branch at `1b528d35` and brought up from an empty volume with
+**The tenth stack.** The sections on routes added for the operator's side of a
+tenant — its sessions and grants, its mail and logout deliveries, bulk and
+tenant-wide writes, claim evaluation, audit reporting and tenant deletion — the
+older `GET /audit` transcripts their notes say were recaptured, and in
+[docs/request-paths.md](request-paths.md) "One sign-in's audit trail" and the
+back-channel logout queue's `attempts`, ran against one more stack: compose
+project `odudu-t8b2` on port 3082, its Postgres on 5464, built from this branch
+at `a66cf8df` and brought up from an empty volume with
 `ODUDU_OUTBOX_ENABLED=false` and `ODUDU_LOGOUT_SENDER_ENABLED=false`, so that
-mail and Logout Tokens leave only when `odudu send-mail` and
-`odudu send-logouts` are run by hand, `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS=true`
-and `ODUDU_ALLOW_PRIVATE_CLIENT_URLS=true`, so that a relay and a logout
-endpoint can name the stack's own `postgres` container, where nothing
-listens and so every delivery fails, and `ODUDU_THROTTLE_LIMIT=1000`. Against
-it: `seed admin --username ada-t8b2` in `system`, a tenant `ops-demo` made
-through `POST /admin/tenants`, subjects `grace` (with an address), `linus`
-(without) and `mona` seeded there with `odudu seed user`, `mona` granted
-`odudu-admin:manage-tenant`, and a confidential client `ops-app` made through
+mail and Logout Tokens leave only when `odudu send-mail` and `odudu
+send-logouts` are run by hand, `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS=true` and
+`ODUDU_ALLOW_PRIVATE_CLIENT_URLS=true`, so that a relay and a logout endpoint
+can name the stack's own `postgres` container, where nothing listens and so
+every delivery fails, and `ODUDU_THROTTLE_LIMIT=1000`. Against it: `seed admin
+--username ada-t8b2` in `system`, a tenant `ops-demo` made through `POST
+/admin/tenants`, subjects `grace` (with an address), `linus` (without), `mona`,
+`sam` and `uma` seeded there with `odudu seed user`, `mona` granted
+`odudu-admin:manage-tenant`, `sam` `odudu-admin:manage-sessions` and `uma`
+`odudu-admin:manage-users`, and a confidential client `ops-app` made through
 `POST /clients` with a back-channel logout URI of
-`https://postgres:9/backchannel`, row id `01a0ee37-01c9-760e-b4cd-b94b21b9fe36`.
+`https://postgres:9/backchannel`, row id `01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123`.
 `grace` then signed in through `ops-app` twice — once asking for
 `offline_access` — and `linus` once. `$ADMIN_TOKEN` is `ada-t8b2`'s token, got
 fresh for each section the way "Getting the token" shows, and
-`P=http://localhost:3082/admin/tenants/ops-demo` throughout. Each section
-says what else it seeded. The one change made after the image was built —
-`DELETE /clients/:id/grants` also held to the client's service account's
-ceiling — is exercised by no transcript here: `ops-app`'s service account
-holds nothing. The stack was torn down with `docker compose down -v` when the
-capture finished.
+`P=http://localhost:3082/admin/tenants/ops-demo` throughout. Each section says
+what else it seeded. `DELETE /admin/tenants/{tenant}`, the two rename refusals,
+`GET /admin/openapi.json`, `ivy`'s read under `GET /audit` and the back-channel
+logout queue ran last, on the image rebuilt at `1507a6c3`, whose only change is
+the wording of the `about:blank#logout-deliveries-pending` detail. The stack was
+torn down with `docker compose down -v` when the capture finished.
 
 ## The shape of it
 
@@ -936,10 +939,11 @@ Two fields amend: `display_name` and `enabled`. Everything else is refused
 with `400` carrying its reason, `name` most of all — it is already in the
 issuer URL of every token this tenant has minted and in the path of every
 request addressed to it, so renaming through a general amendment would
-orphan both. That is a decision rather than a gap: a rename that reissued
-nothing would leave every relying party's configured issuer pointing at a
-tenant that no longer answers, so it belongs to an operation that migrates
-those too, not to a general amendment.
+orphan both. That is a decision rather than a gap, and ADR 0039 makes it
+permanent: a rename that reissued nothing would leave every relying party's
+configured issuer pointing at a tenant that no longer answers. The refusal
+names the way to do it instead — create a new tenant, export this one and
+import it under the new name.
 
 `enabled: false` is how a tenant is taken out of service without deleting
 it: its own administrators stop authenticating, so the flag is not one to
@@ -947,7 +951,12 @@ set from a token issued by the tenant being disabled. On the **system**
 tenant it is refused with `409` — every cross-tenant administrator
 authenticates there, so disabling it would lock the whole deployment's
 administration out with `psql` the only way back, the same reasoning that
-guards the built-in admin client.
+guards the built-in admin client. Disabling also ends every live session
+the tenant holds, in the same transaction, queueing a Back-Channel Logout
+Token for each client that registered a URI, and records how many under
+`sessions_ended` in the amendment's audit `detail` — the precondition
+`DELETE /admin/tenants/{tenant}` below refuses without. `PATCH /settings`
+with `{"enabled": false}` does the same. Re-enabling restores nothing.
 
 Captured against the sixth stack, on the `showcase` tenant
 `POST /admin/tenants` created there with `display_name: "Showcase"`. The
@@ -1002,7 +1011,7 @@ amendment — is refused and changes nothing:
 
 The name refusal's text was changed after the capture above: a rename is not
 offered, permanently, by ADR 0039, and the refusal now says so rather than
-pointing at an operation that will never exist. Against the ninth stack, the
+pointing at an operation that will never exist. Against the tenth stack, the
 tenant's and, for the same reason, a group's:
 
 ```bash
@@ -1011,12 +1020,12 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3082/admin/tenants/ops-demo; echo
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -d '{"name": "finance-2"}' \
-  http://localhost:3082/admin/tenants/ops-demo/groups/01a0ee37-a071-73ab-bb1a-7bdc0a63fa9f; echo
+  http://localhost:3082/admin/tenants/ops-demo/groups/01a0ee8b-2f54-7a5a-9da6-7ba6baacbe13; echo
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: name is already in the issuer URL of every token this tenant has minted, and in the path of every admin and protocol request addressed to it; a rename is not offered, by ADR 0039","errors":[{"path":"name","message":"name is already in the issuer URL of every token this tenant has minted, and in the path of every admin and protocol request addressed to it; a rename is not offered, by ADR 0039"}],"instance":"01a0ee3b-7a5c-7e45-83f3-ef32e5e68a26"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: name is embedded in every descendant path and in the groups claim a relying party matches on; a rename is not offered, by ADR 0039: create a new group and move its members","errors":[{"path":"name","message":"name is embedded in every descendant path and in the groups claim a relying party matches on; a rename is not offered, by ADR 0039: create a new group and move its members"}],"instance":"01a0ee3b-7a74-7036-b8aa-d29a9c8bfe92"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: name is already in the issuer URL of every token this tenant has minted, and in the path of every admin and protocol request addressed to it; a rename is not offered, by ADR 0039: create a new tenant, export this one and import it under the new name","errors":[{"path":"name","message":"name is already in the issuer URL of every token this tenant has minted, and in the path of every admin and protocol request addressed to it; a rename is not offered, by ADR 0039: create a new tenant, export this one and import it under the new name"}],"instance":"01a0ee9e-a4d8-72b1-9896-b14ad3d19376"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"name: name is embedded in every descendant path and in the groups claim a relying party matches on; a rename is not offered, by ADR 0039: create a new group and move its members","errors":[{"path":"name","message":"name is embedded in every descendant path and in the groups claim a relying party matches on; a rename is not offered, by ADR 0039: create a new group and move its members"}],"instance":"01a0ee9e-a4ed-7b89-9fdd-193dd93a8064"}
 ```
 
 ## `DELETE /admin/tenants/{tenant}`
@@ -1039,34 +1048,72 @@ target ceiling, over every subject). The tenant's own trail goes with it, so
 last-administrator guard is needed beside the refusal of `system`: a
 system administrator's authority lives in `system`, which no deletion reaches.
 
-Against the ninth stack, a tenant `doomed` created through `POST /admin/tenants`,
-given a subject and a client through `POST /subjects` and `POST /clients`, its id
-`01a0ee3b-0638-7689-9ab6-d14569e1edf7`. `count-rows.sql` counts that id's rows
+No relying party is left signed in without having been sent a Back-Channel
+Logout Token. So an enabled tenant is refused with `409`,
+`about:blank#tenant-enabled`: disabling it first — `PATCH /admin/tenants/{tenant}`
+or `PATCH /settings` with `{"enabled": false}` — ends every live session it
+holds, with no cap and no ceiling, queueing a Logout Token for each client
+that registered a back-channel URI, the way `DELETE /sessions` does. A tenant
+whose tokens are still to be sent is refused with `409`,
+`about:blank#logout-deliveries-pending`, naming how many; one that was
+delivered, or that failed its last attempt, is not waited for.
+
+One window no deletion can close. A resource server that verifies access
+tokens itself, against a cached copy of the tenant's JWKS, accepts one
+issued before the tenant was disabled until it expires — at most 3600
+seconds, the cap on `access_token_ttl_seconds`. Disabling ends the sessions
+and refresh tokens behind it; it cannot recall a token already handed out.
+
+The deletion is one transaction, so a very large tenant cascades inside one
+request, holding its locks until the last row is gone. A tenant-scoped write
+that raced it and began second fails its foreign-key check once the
+deletion commits, and answers `500`; nothing is orphaned, since the row it
+needed is gone and it writes nothing.
+
+Against the tenth stack, a tenant `doomed` created through `POST /admin/tenants`,
+given a client through `POST /clients`, its id
+`01a0ee9a-d00a-7b84-8e79-d778d33efb0f`. `count-rows.sql` counts that id's rows
 in every table with a `tenant_id` column, as the database's owner:
 
 ```
 SELECT table_name,
        (xpath('/row/n/text()', query_to_xml(format(
          'select count(*) as n from %I where tenant_id = %L',
-         table_name, '01a0ee3b-0638-7689-9ab6-d14569e1edf7'), false, true, '')))[1]::text::int AS n
+         table_name, '01a0ee9a-d00a-7b84-8e79-d778d33efb0f'), false, true, '')))[1]::text::int AS n
   FROM information_schema.columns
  WHERE table_schema = 'public' AND column_name = 'tenant_id'
  ORDER BY n DESC, table_name;
 ```
 
-Before, three refusals — no `confirm`, a wrong one, and `system` — the
-deletion, a read of the tenant, after, and `system`'s trail:
+`ada` was seeded in it with `odudu seed user` and signed in once through
+`doomed-app`, a confidential client with a back-channel logout URI of
+`https://postgres:9/backchannel`, where nothing listens. Before, three
+refusals — no `confirm`, a wrong one, and `system` — then the refusal of an
+enabled tenant, its disabling, which ended `ada`'s session and queued one
+token, the refusal while that token is pending, five passes of the sender
+a minute apart, each a failure, the fifth its last attempt, the deletion, a
+read of the tenant, after, and `system`'s trail:
 
 ```bash
 A="Authorization: Bearer $ADMIN_TOKEN"
+T=http://localhost:3082/admin/tenants
 docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f -' < count-rows.sql
-curl -sS -X DELETE -H "$A" http://localhost:3082/admin/tenants/doomed; echo
-curl -sS -X DELETE -H "$A" 'http://localhost:3082/admin/tenants/doomed?confirm=Doomed'; echo
-curl -sS -X DELETE -H "$A" 'http://localhost:3082/admin/tenants/system?confirm=system'; echo
-curl -sS -D - -X DELETE -H "$A" 'http://localhost:3082/admin/tenants/doomed?confirm=doomed'
-curl -sS -H "$A" http://localhost:3082/admin/tenants/doomed; echo
+curl -sS -X DELETE -H "$A" "$T/doomed"; echo
+curl -sS -X DELETE -H "$A" "$T/doomed?confirm=Doomed"; echo
+curl -sS -X DELETE -H "$A" "$T/system?confirm=system"; echo
+curl -sS -X DELETE -H "$A" "$T/doomed?confirm=doomed"; echo
+curl -sS -X PATCH -H "$A" -H 'content-type: application/json' -d '{"enabled":false}' "$T/doomed"; echo
+curl -sS -X DELETE -H "$A" "$T/doomed?confirm=doomed"; echo
+for pass in 1 2 3 4 5; do
+  docker compose exec -T odudu node dist/main.js send-logouts 2>/dev/null
+  [ "$pass" = 5 ] || sleep 61
+done
+curl -sS -D - -X DELETE -H "$A" "$T/doomed?confirm=doomed"
+curl -sS -H "$A" "$T/doomed"; echo
 docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f -' < count-rows.sql
-curl -sS -H "$A" 'http://localhost:3082/admin/tenants/system/audit?action=tenant.delete' \
+curl -sS -H "$A" "$T/system/audit?action=tenant.delete&resource_type=tenant&resource_id=01a0ee9a-d00a-7b84-8e79-d778d33efb0f" \
+  | python3 -c 'import json,sys;[print(json.dumps({k:i[k] for k in ("action","outcome","actor_name","resource_id","detail")})) for i in json.load(sys.stdin)["items"]]'
+curl -sS -H "$A" "$T/system/audit?action=tenant.delete&outcome=refused&limit=1" \
   | python3 -c 'import json,sys;[print(json.dumps({k:i[k] for k in ("action","outcome","actor_name","resource_id","detail")})) for i in json.load(sys.stdin)["items"]]'
 ```
 
@@ -1077,17 +1124,19 @@ curl -sS -H "$A" 'http://localhost:3082/admin/tenants/system/audit?action=tenant
  client_scopes                 |  8
  role_composites               |  8
  roles                         |  8
+ audit_events                  |  5
  authentication_executions     |  4
- audit_events                  |  3
  client_oidc_config            |  2
  clients                       |  2
  subjects                      |  2
+ authentication_sessions       |  1
+ authorization_codes           |  1
+ sessions                      |  1
  signing_keys                  |  1
- user_required_actions         |  1
+ token_grants                  |  1
+ user_credentials              |  1
  users                         |  1
  action_tokens                 |  0
- authentication_sessions       |  0
- authorization_codes           |  0
  backchannel_logout_deliveries |  0
  client_assertion_jti          |  0
  client_registration_tokens    |  0
@@ -1102,25 +1151,31 @@ curl -sS -H "$A" 'http://localhost:3082/admin/tenants/system/audit?action=tenant
  groups                        |  0
  login_failures                |  0
  refresh_tokens                |  0
- sessions                      |  0
  subject_groups                |  0
  subject_roles                 |  0
  tenant_smtp                   |  0
- token_grants                  |  0
- user_credentials              |  0
+ user_required_actions         |  0
 (35 rows)
 
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring must have required property 'confirm'","errors":[{"path":"confirm","message":"must have required property 'confirm'"}],"instance":"01a0ee3b-32e8-7b63-bc05-b0c252d74b6f"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"confirm: must be the tenant’s own name, doomed","errors":[{"path":"confirm","message":"must be the tenant’s own name, doomed"}],"instance":"01a0ee3b-32f5-7d53-8023-ae07614f2a33"}
-{"type":"about:blank","title":"Conflict","status":409,"detail":"the system tenant is where every cross-tenant administrator authenticates, and is never deleted","instance":"01a0ee3b-3310-7008-a08c-871e13c6046d"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must have required property 'confirm'","errors":[{"path":"confirm","message":"must have required property 'confirm'"}],"instance":"01a0ee9a-d820-78eb-9415-d4f28aaa27aa"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"confirm: must be the tenant’s own name, doomed","errors":[{"path":"confirm","message":"must be the tenant’s own name, doomed"}],"instance":"01a0ee9a-d830-7a31-8151-63ec232a4546"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the system tenant is where every cross-tenant administrator authenticates, and is never deleted","instance":"01a0ee9a-d854-71fd-b34e-2e7ac847c1e9"}
+{"type":"about:blank#tenant-enabled","title":"Conflict","status":409,"detail":"doomed is enabled: disable it first, which ends its sessions and tells their relying parties","instance":"01a0ee9a-d871-7ec1-b6d2-56b8e5edc14e"}
+{"id":"01a0ee9a-d00a-7b84-8e79-d778d33efb0f","name":"doomed","display_name":null,"enabled":false,"created_at":"2026-09-29T19:18:38.347Z"}
+{"type":"about:blank#logout-deliveries-pending","title":"Conflict","status":409,"detail":"Back-Channel Logout Tokens still to be sent: 1; deleting the tenant would discard them","instance":"01a0ee9a-d8cf-75ba-99e7-26824c4889d1"}
+{"ran":true,"delivered":0,"failed":1}
+{"ran":true,"delivered":0,"failed":1}
+{"ran":true,"delivered":0,"failed":1}
+{"ran":true,"delivered":0,"failed":1}
+{"ran":true,"delivered":0,"failed":1}
 HTTP/1.1 204 No Content
-x-request-id: 01a0ee3b-3328-7a71-bdd9-f1163610ba25
+x-request-id: 01a0ee9e-a176-79e9-ba70-85683d66ea48
 cache-control: no-store
-Date: Tue, 29 Sep 2026 17:34:12 GMT
+Date: Tue, 29 Sep 2026 19:22:48 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0ee3b-334e-70b6-a39f-28b6bf7ab93c"}
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0ee9e-a1b4-79bd-8487-664647ee5a32"}
           table_name           | n
 -------------------------------+---
  action_tokens                 | 0
@@ -1160,7 +1215,7 @@ Keep-Alive: timeout=72
  users                         | 0
 (35 rows)
 
-{"action": "tenant.delete", "outcome": "allowed", "actor_name": "ada-t8b2", "resource_id": "01a0ee3b-0638-7689-9ab6-d14569e1edf7", "detail": {"name": "doomed"}}
+{"action": "tenant.delete", "outcome": "allowed", "actor_name": "ada-t8b2", "resource_id": "01a0ee9a-d00a-7b84-8e79-d778d33efb0f", "detail": {"name": "doomed"}}
 {"action": "tenant.delete", "outcome": "refused", "actor_name": "ada-t8b2", "resource_id": "0199aa00-0000-7000-8000-000000000001", "detail": {"name": "system", "reason": "system_tenant_guarded"}}
 ```
 
@@ -1313,16 +1368,21 @@ The trail, scoped to this run — the exports (`$ADMIN_TOKEN`'s, allowed)
 and then the two refusals (`tenant-operator`'s, naming `manage-clients`
 both times):
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, after the same requests were made there in a tenant of the
+same name — the same client, role, group, SMTP relay, `grace` and
+`tenant-operator` — so the ids are that run's, not those above:
+
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3000/admin/tenants/export-demo/audit?action=tenant.export&from=$RUN_START"
+  "http://localhost:3082/admin/tenants/export-demo/audit?action=tenant.export&from=$RUN_START"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3000/admin/tenants/export-demo/audit?action=capability.refused&from=$RUN_START"
+  "http://localhost:3082/admin/tenants/export-demo/audit?action=capability.refused&from=$RUN_START"; echo
 ```
 
 ```
-{"items":[{"id":"01a0e5d9-ab90-7cf8-aa83-5fa065a45b70","occurred_at":"2026-09-28T02:30:42.821Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e5d9-7862-732b-a27c-0efffe82a3db","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e5d9-ab7a-7793-aae0-aae5d63f08df","ip":"172.20.0.1","detail":{"include_subjects":true}},{"id":"01a0e5d9-ab6a-7b1f-b4fb-e215f49d4617","occurred_at":"2026-09-28T02:30:42.783Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e5d9-7862-732b-a27c-0efffe82a3db","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e5d9-ab55-75ec-928f-2b775c8ffebd","ip":"172.20.0.1","detail":{"include_subjects":false}},{"id":"01a0e5d9-ab47-743f-9954-84eb1bdb27a2","occurred_at":"2026-09-28T02:30:42.744Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e5d9-7862-732b-a27c-0efffe82a3db","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e5d9-ab29-7996-b59d-51008a110a5c","ip":"172.20.0.1","detail":{"include_subjects":true}},{"id":"01a0e5d9-8b76-7b7c-befd-cc591e6e895a","occurred_at":"2026-09-28T02:30:34.599Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e5d9-7862-732b-a27c-0efffe82a3db","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"tenant","resource_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","request_id":"01a0e5d9-8b57-7c1d-bb96-b5e32edb81b1","ip":"172.20.0.1","detail":{"include_subjects":false}}]}
-{"items":[{"id":"01a0e5d9-ee45-7e75-9dd8-51c63b80f954","occurred_at":"2026-09-28T02:30:59.909Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","actor_subject_id":"01a0e4c3-4083-7293-8831-26a05de70216","actor_client_id":"01a0e4c2-de61-7157-af81-7cd142b62099","resource_type":null,"resource_id":null,"request_id":"01a0e5d9-ee38-79e3-bd44-7588a226f488","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"manage-clients"}},{"id":"01a0e5d9-ee29-7f3a-86cb-fae8e2bebdcc","occurred_at":"2026-09-28T02:30:59.880Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0e4c2-de55-724f-8fb7-a92b9af1da21","actor_subject_id":"01a0e4c3-4083-7293-8831-26a05de70216","actor_client_id":"01a0e4c2-de61-7157-af81-7cd142b62099","resource_type":null,"resource_id":null,"request_id":"01a0e5d9-ee19-720b-a216-800817e3c760","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"manage-clients"}}]}
+{"items":[{"id":"01a0ee8d-ef61-7b06-9e71-2e3ae736de6d","occurred_at":"2026-09-29T19:04:34.385Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"tenant","resource_id":"01a0ee8d-dff4-720e-bdb4-15576ad2ebff","request_id":"01a0ee8d-ef48-7511-85ab-1f473209b38b","ip":"172.22.0.1","detail":{"include_subjects":true}},{"id":"01a0ee8d-ef44-7673-b602-460dcbf39665","occurred_at":"2026-09-29T19:04:34.364Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"tenant","resource_id":"01a0ee8d-dff4-720e-bdb4-15576ad2ebff","request_id":"01a0ee8d-ef34-7c17-9279-d86c8afed9c7","ip":"172.22.0.1","detail":{"include_subjects":false}},{"id":"01a0ee8d-ef2f-7aa6-a892-59e9c27d618e","occurred_at":"2026-09-29T19:04:34.339Z","event_type":"admin_mutation","action":"tenant.export","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"tenant","resource_id":"01a0ee8d-dff4-720e-bdb4-15576ad2ebff","request_id":"01a0ee8d-ef14-77be-acb8-f45139b61f0a","ip":"172.22.0.1","detail":{"include_subjects":false}}]}
+{"items":[{"id":"01a0ee8d-ef81-7a9a-9f95-bcd6e4e83f9b","occurred_at":"2026-09-29T19:04:34.433Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0ee8d-dff4-720e-bdb4-15576ad2ebff","actor_subject_id":"01a0ee8d-e7a7-7728-b5d1-5bac0435926e","actor_client_id":"01a0ee8d-e002-7eb7-859e-f2b6810e1c0f","actor_name":"tenant-operator","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":"01a0ee8d-ef75-7140-acff-159dd214780b","ip":"172.22.0.1","detail":{"reason":"missing_capability","capability":"manage-clients"}},{"id":"01a0ee8d-ef71-7dc3-8778-ce07da5bd8e6","occurred_at":"2026-09-29T19:04:34.417Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0ee8d-dff4-720e-bdb4-15576ad2ebff","actor_subject_id":"01a0ee8d-e7a7-7728-b5d1-5bac0435926e","actor_client_id":"01a0ee8d-e002-7eb7-859e-f2b6810e1c0f","actor_name":"tenant-operator","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":"01a0ee8d-ef65-7217-bf0f-f0ac27727a7c","ip":"172.22.0.1","detail":{"reason":"missing_capability","capability":"manage-clients"}}]}
 ```
 
 The subjects and `omitted` of the export with subjects, selected with
@@ -1518,19 +1578,23 @@ trail, scoped to the tenant `resource_id` this import created — the only
 row it could ever hold, since an import always creates a fresh tenant
 rather than writing into one that already exists:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, after the same export and import were made there between
+tenants of the same names, so the ids are that run's, not those above:
+
 ```bash
 for tenant in import-source import-demo2; do
   curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-    "http://localhost:3080/admin/tenants/$tenant/keys" | jq -c '[.items[].kid]'
+    "http://localhost:3082/admin/tenants/$tenant/keys" | jq -c '[.items[].kid]'
 done
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/import-demo2/audit?action=tenant.import&resource_type=tenant&resource_id=01a0ea50-3f1f-7f91-b047-452cba78ee10"
+  "http://localhost:3082/admin/tenants/import-demo2/audit?action=tenant.import&resource_type=tenant&resource_id=01a0ee8e-894a-7532-b53c-436e1bf29d84"; echo
 ```
 
 ```
-["01a0ea50-21bf-7fcb-a4c7-63ffe2dac418"]
-["01a0ea50-3f42-759c-9234-407c0822189b"]
-{"items":[{"id":"01a0ea50-3f9a-79e9-aad9-5164ce07bbf5","occurred_at":"2026-09-28T23:18:42.719Z","event_type":"admin_mutation","action":"tenant.import","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ea4b-e3e1-766f-b23b-bed19bea9b2b","actor_client_id":"01a0ea4b-e3a2-7937-91a3-150f2fd3415e","resource_type":"tenant","resource_id":"01a0ea50-3f1f-7f91-b047-452cba78ee10","request_id":"01a0ea50-3f09-7d61-ae37-ded07c55d6ab","ip":"172.21.0.1","detail":{"counts":{"roles":9,"groups":1,"scopes":8,"clients":1,"subjects":1},"source_version":1}}]}
+["01a0ee8e-88bc-73b0-ac5d-e23cf428d01a"]
+["01a0ee8e-8967-7770-a633-9779f73c79db"]
+{"items":[{"id":"01a0ee8e-89a2-7a21-9fa1-7624eeea8bb3","occurred_at":"2026-09-29T19:05:13.802Z","event_type":"admin_mutation","action":"tenant.import","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"tenant","resource_id":"01a0ee8e-894a-7532-b53c-436e1bf29d84","request_id":"01a0ee8e-8939-7302-ac14-ae4fc690b455","ip":"172.22.0.1","detail":{"counts":{"roles":8,"groups":0,"scopes":8,"clients":1,"subjects":0},"source_version":1}}]}
 ```
 
 A document broken in two places at once — a scope mapping naming a role
@@ -1684,6 +1748,8 @@ the rest of the amending transaction before its current `ETag` is computed,
 so two `PATCH`es sent at once are serialised: the second reads what the
 first wrote and its `If-Match` is stale, rather than both matching the same
 pre-write row and the later write replacing the earlier one unseen.
+Setting `enabled` to `false` ends the tenant's sessions exactly as
+`PATCH /admin/tenants/{tenant}` does.
 
 ```bash
 curl -sS -D - \
@@ -2375,8 +2441,13 @@ nothing. The rotation, a `jwks` swap and the delete on `root-robot` are
 refused, a rotation on `plain-robot` is not, and the refused rows are the
 three on `root-robot`:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, after the same three clients were made there in a tenant of
+the same name and their service accounts given the same roles, so the ids
+are that run's, not those above:
+
 ```bash
-ROOT=http://localhost:3000/admin/tenants/ceiling-clients/clients/01a0e58a-ac43-7148-8881-6c3fdc6cf1ae
+ROOT=http://localhost:3082/admin/tenants/ceiling-clients/clients/01a0ee8d-9a7c-7c78-85bd-60906ed648c4
 curl -sS -X POST -H "Authorization: Bearer $OPS_TOKEN" "$ROOT/secret"
 echo
 curl -sS -X PATCH -H "Authorization: Bearer $OPS_TOKEN" -H 'content-type: application/json' \
@@ -2385,18 +2456,18 @@ echo
 curl -sS -X DELETE -H "Authorization: Bearer $OPS_TOKEN" "$ROOT"
 echo
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $OPS_TOKEN" \
-  http://localhost:3000/admin/tenants/ceiling-clients/clients/01a0e58a-aca8-786f-a574-21674f047897/secret
+  http://localhost:3082/admin/tenants/ceiling-clients/clients/01a0ee8d-9b1f-7e8a-a358-ac868a9d5ff8/secret
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3000/admin/tenants/ceiling-clients/audit?resource_type=client&resource_id=01a0e58a-ac43-7148-8881-6c3fdc6cf1ae&outcome=refused"
+  "http://localhost:3082/admin/tenants/ceiling-clients/audit?resource_type=client&resource_id=01a0ee8d-9a7c-7c78-85bd-60906ed648c4&outcome=refused"
 echo
 ```
 
 ```
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"the client's service account holds what the caller does not: view-audit, manage-sessions, manage-keys, manage-tenant, manage-users, view-users","instance":"01a0e58a-cf29-709d-9802-4f44423e6326"}
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"the client's service account holds what the caller does not: view-audit, manage-sessions, manage-keys, manage-tenant, manage-users, view-users","instance":"01a0e58a-cf59-7be6-9f42-f3c8935d7152"}
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"the client's service account holds what the caller does not: view-audit, manage-sessions, manage-keys, manage-tenant, manage-users, view-users","instance":"01a0e58a-cf82-7fe7-9b0b-2d1ddc99a45f"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the client's service account holds what the caller does not: view-users, manage-users, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0ee8d-9d72-7aef-b030-5e4e844fb8d0"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the client's service account holds what the caller does not: view-users, manage-users, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0ee8d-9e1e-7367-ac27-387c29322f2b"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the client's service account holds what the caller does not: view-users, manage-users, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0ee8d-9e6e-7867-b29b-b95bbda04560"}
 200
-{"items":[{"id":"01a0e58a-cf92-7f1d-8ace-8224c2aab302","occurred_at":"2026-09-28T01:04:34.701Z","event_type":"admin_mutation","action":"client.delete","outcome":"refused","actor_tenant_id":"01a0e58a-ab08-7733-92ed-2e54588af553","actor_subject_id":"01a0e58a-ab8f-7377-a87c-50e28671b6ee","actor_client_id":"01a0e58a-abee-7e81-ab83-51c418d622bd","resource_type":"client","resource_id":"01a0e58a-ac43-7148-8881-6c3fdc6cf1ae","request_id":"01a0e58a-cf82-7fe7-9b0b-2d1ddc99a45f","ip":"172.20.0.1","detail":{"denied":["view-audit","manage-sessions","manage-keys","manage-tenant","manage-users","view-users"]}},{"id":"01a0e58a-cf74-7295-9c54-9abb75615a75","occurred_at":"2026-09-28T01:04:34.670Z","event_type":"admin_mutation","action":"client.amend","outcome":"refused","actor_tenant_id":"01a0e58a-ab08-7733-92ed-2e54588af553","actor_subject_id":"01a0e58a-ab8f-7377-a87c-50e28671b6ee","actor_client_id":"01a0e58a-abee-7e81-ab83-51c418d622bd","resource_type":"client","resource_id":"01a0e58a-ac43-7148-8881-6c3fdc6cf1ae","request_id":"01a0e58a-cf59-7be6-9f42-f3c8935d7152","ip":"172.20.0.1","detail":{"denied":["view-audit","manage-sessions","manage-keys","manage-tenant","manage-users","view-users"]}},{"id":"01a0e58a-cf47-7573-8001-0dc35f83d319","occurred_at":"2026-09-28T01:04:34.626Z","event_type":"admin_mutation","action":"client.rotate_secret","outcome":"refused","actor_tenant_id":"01a0e58a-ab08-7733-92ed-2e54588af553","actor_subject_id":"01a0e58a-ab8f-7377-a87c-50e28671b6ee","actor_client_id":"01a0e58a-abee-7e81-ab83-51c418d622bd","resource_type":"client","resource_id":"01a0e58a-ac43-7148-8881-6c3fdc6cf1ae","request_id":"01a0e58a-cf29-709d-9802-4f44423e6326","ip":"172.20.0.1","detail":{"denied":["view-audit","manage-sessions","manage-keys","manage-tenant","manage-users","view-users"]}}]}
+{"items":[{"id":"01a0ee8d-9e95-7c5f-9119-4c27c3f4778a","occurred_at":"2026-09-29T19:04:13.711Z","event_type":"admin_mutation","action":"client.delete","outcome":"refused","actor_tenant_id":"01a0ee8d-9906-7ea0-b0d0-b27c727122fc","actor_subject_id":"01a0ee8d-99a1-7ad9-9e10-15e628d32b27","actor_client_id":"01a0ee8d-99d0-788f-939c-578f783208dc","actor_name":"ops-robot","actor_origin":"tenant","resource_type":"client","resource_id":"01a0ee8d-9a7c-7c78-85bd-60906ed648c4","request_id":"01a0ee8d-9e6e-7867-b29b-b95bbda04560","ip":"172.22.0.1","detail":{"denied":["view-users","manage-users","manage-tenant","manage-keys","manage-sessions","view-audit"]}},{"id":"01a0ee8d-9e46-701d-9e8e-27e1361b03a9","occurred_at":"2026-09-29T19:04:13.624Z","event_type":"admin_mutation","action":"client.amend","outcome":"refused","actor_tenant_id":"01a0ee8d-9906-7ea0-b0d0-b27c727122fc","actor_subject_id":"01a0ee8d-99a1-7ad9-9e10-15e628d32b27","actor_client_id":"01a0ee8d-99d0-788f-939c-578f783208dc","actor_name":"ops-robot","actor_origin":"tenant","resource_type":"client","resource_id":"01a0ee8d-9a7c-7c78-85bd-60906ed648c4","request_id":"01a0ee8d-9e1e-7367-ac27-387c29322f2b","ip":"172.22.0.1","detail":{"denied":["view-users","manage-users","manage-tenant","manage-keys","manage-sessions","view-audit"]}},{"id":"01a0ee8d-9e07-74d8-99ba-e12aab225392","occurred_at":"2026-09-29T19:04:13.533Z","event_type":"admin_mutation","action":"client.rotate_secret","outcome":"refused","actor_tenant_id":"01a0ee8d-9906-7ea0-b0d0-b27c727122fc","actor_subject_id":"01a0ee8d-99a1-7ad9-9e10-15e628d32b27","actor_client_id":"01a0ee8d-99d0-788f-939c-578f783208dc","actor_name":"ops-robot","actor_origin":"tenant","resource_type":"client","resource_id":"01a0ee8d-9a7c-7c78-85bd-60906ed648c4","request_id":"01a0ee8d-9d72-7aef-b030-5e4e844fb8d0","ip":"172.22.0.1","detail":{"denied":["view-users","manage-users","manage-tenant","manage-keys","manage-sessions","view-audit"]}}]}
 ```
 
 The two scope routes, from `scopes-robot` in the same tenant, a client whose
@@ -2441,19 +2512,23 @@ once every attempt `send-logouts` makes is spent
 endpoint. Never the token itself. `?status=` narrows it; an unknown client
 answers `404`.
 
-Against the ninth stack, after `DELETE /sessions` above queued a token for each
+Against the tenth stack, after `DELETE /sessions` above queued a token for each
 of `ops-app`'s two sessions it ended, and one pass of the sender, run by hand:
 
 ```bash
 docker compose exec -T odudu node dist/main.js send-logouts 2>/dev/null
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/logout-deliveries"; echo
+  "$P/clients/01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123/logout-deliveries"; echo
 ```
 
 ```
 {"ran":true,"delivered":0,"failed":2}
-{"items":[{"id":"01a0ee38-e7ca-7b01-a497-95949b63c6a3","session_id":"01a0ee37-27d7-73c8-b8e6-5977965a3a5d","endpoint":"https://postgres:9/backchannel","status":"pending","attempts":2,"last_error":"connect ECONNREFUSED 172.21.0.2:9","created_at":"2026-09-29T17:31:41.871Z","next_attempt_at":"2026-09-29T17:32:51.061Z","delivered_at":null},{"id":"01a0ee38-e7c0-74e8-93d1-120ac12eed77","session_id":"01a0ee37-269b-70ba-b9b2-c421cb773c97","endpoint":"https://postgres:9/backchannel","status":"pending","attempts":2,"last_error":"connect ECONNREFUSED 172.21.0.2:9","created_at":"2026-09-29T17:31:41.871Z","next_attempt_at":"2026-09-29T17:32:51.061Z","delivered_at":null}]}
+{"items":[{"id":"01a0ee8c-5536-7104-abd0-6c8afe2c2850","session_id":"01a0ee8b-28f4-79df-bbe5-95698666977b","endpoint":"https://postgres:9/backchannel","status":"pending","attempts":1,"last_error":"connect ECONNREFUSED 172.22.0.2:9","created_at":"2026-09-29T19:02:49.371Z","next_attempt_at":"2026-09-29T19:03:50.227Z","delivered_at":null},{"id":"01a0ee8c-552f-7614-bf53-93c13eeca916","session_id":"01a0ee8b-27fa-7271-bb21-8bf1dec2d0fa","endpoint":"https://postgres:9/backchannel","status":"pending","attempts":1,"last_error":"connect ECONNREFUSED 172.22.0.2:9","created_at":"2026-09-29T19:02:49.371Z","next_attempt_at":"2026-09-29T19:03:50.227Z","delivered_at":null}]}
 ```
+
+Each pass spends one attempt on each token it offers, so a token one failed
+pass has offered answers `attempts: 1`, and a token is offered
+`BACKCHANNEL_LOGOUT_MAX_ATTEMPTS` times before it is `failed`.
 
 ## `DELETE /clients/:id/grants`
 
@@ -2468,17 +2543,17 @@ alone and counted under `beyond_ceiling`, and the route is held to the
 ceiling on the client's service account, as every client mutation is.
 `client.grants_revoke` carries both counts. An unknown client answers `404`.
 
-Against the ninth stack, after `linus` signed in again asking for
+Against the tenth stack, after `linus` signed in again asking for
 `offline_access`, and `sam` again (`$SAM_TOKEN`): `sam` first, then
 `$ADMIN_TOKEN`, then `mona`'s grants:
 
 ```bash
 curl -sS -X DELETE -H "Authorization: Bearer $SAM_TOKEN" \
-  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/grants"; echo
+  "$P/clients/01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123/grants"; echo
 curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/grants"; echo
+  "$P/clients/01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123/grants"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/subjects/01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4/grants"; echo
+  "$P/subjects/01a0ee8a-c8f6-7450-b486-861a66a87684/grants"; echo
 ```
 
 ```
@@ -2500,26 +2575,29 @@ the exchange and `/userinfo` call (`mappedClaims` and `idTokenScopeOf`,
 `@odudu/protocol-oidc`), never a copy of them. Mapped claims only: none of the
 envelope a signer adds (`iss`, `aud`, `exp`, …), and nothing is signed.
 `id_token` is `null` without `openid`; `scope` absent means the client's
-default scopes. Each evaluation is audited as `client.evaluate`. An unknown
+default scopes. It assumes every scope asked for is consented to: for a
+client with `consent_required`, a real code carries only the scopes the
+subject has consented to, which may be fewer. `scope` is at most 2048
+characters. Each evaluation is audited as `client.evaluate`. An unknown
 client or subject answers `404`.
 
-Against the ninth stack, for `grace`, her profile given its name claims
+Against the tenth stack, for `grace`, her profile given its name claims
 through `PATCH /subjects/:id/profile` beforehand; once naming a scope, once
 not, and the row it left:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/evaluate?subject=01a0ee36-c9ff-7162-8bb7-0fad74136098&scope=openid%20profile%20email%20roles"; echo
+  "$P/clients/01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123/evaluate?subject=01a0ee8a-c58a-716c-96a6-edcab4ca1a70&scope=openid%20profile%20email%20roles"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/evaluate?subject=01a0ee36-c9ff-7162-8bb7-0fad74136098"; echo
+  "$P/clients/01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123/evaluate?subject=01a0ee8a-c58a-716c-96a6-edcab4ca1a70"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
   "$P/audit?action=client.evaluate&limit=1"; echo
 ```
 
 ```
-{"scope":"openid profile email roles","id_token":{"sub":"01a0ee36-c9ff-7162-8bb7-0fad74136098","name":"Grace Hopper","given_name":"Grace","family_name":"Hopper","preferred_username":"grace","updated_at":1790703006,"email":"grace@navy.example","email_verified":false},"access_token":{},"userinfo":{"sub":"01a0ee36-c9ff-7162-8bb7-0fad74136098","name":"Grace Hopper","given_name":"Grace","family_name":"Hopper","preferred_username":"grace","updated_at":1790703006,"email":"grace@navy.example","email_verified":false}}
-{"scope":"openid profile email address phone roles groups","id_token":{"sub":"01a0ee36-c9ff-7162-8bb7-0fad74136098","name":"Grace Hopper","given_name":"Grace","family_name":"Hopper","preferred_username":"grace","updated_at":1790703006,"email":"grace@navy.example","email_verified":false},"access_token":{"groups":["/finance/payables"]},"userinfo":{"sub":"01a0ee36-c9ff-7162-8bb7-0fad74136098","name":"Grace Hopper","given_name":"Grace","family_name":"Hopper","preferred_username":"grace","updated_at":1790703006,"email":"grace@navy.example","email_verified":false,"groups":["/finance/payables"]}}
-{"items":[{"id":"01a0ee38-9353-74c0-875f-807773ed0eb3","occurred_at":"2026-09-29T17:31:20.261Z","event_type":"admin_mutation","action":"client.evaluate","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee35-85df-757f-aa7f-799b0da59a0b","actor_client_id":"01a0ee35-85aa-755e-96a0-78b5b2a102fc","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee37-01c9-760e-b4cd-b94b21b9fe36","request_id":"01a0ee38-9337-7a65-87d9-920b2b1e1321","ip":"172.21.0.1","detail":{"scope":"openid profile email address phone roles groups","subject_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098"}}],"next":"eyJhZnRlciI6IjIwMjYtMDktMjlUMTc6MzE6MjAuMjYxWnwwMWEwZWUzOC05MzUzLTc0YzAtODc1Zi04MDc3NzNlZDBlYjMiLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6IjAxYTBlZTM2LTgyNTctNzU1NS1hN2QxLWY4Y2Q0YTA1M2EzMyIsImZpbHRlcnMiOiI1V1p5R0tkUVJIX3VEUTNNRkpGclFtYzFDdWt4UllCcV9XSDhFc1dWd1ZBIn0.24Oxeu_goHCF5F47slqTcUj9hy89ZMgnpryZytioHNQ"}
+{"scope":"openid profile email roles","id_token":{"sub":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","name":"Grace Hopper","given_name":"Grace","family_name":"Hopper","preferred_username":"grace","updated_at":1790708493,"email":"grace@navy.example","email_verified":false},"access_token":{},"userinfo":{"sub":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","name":"Grace Hopper","given_name":"Grace","family_name":"Hopper","preferred_username":"grace","updated_at":1790708493,"email":"grace@navy.example","email_verified":false}}
+{"scope":"openid profile email address phone roles groups","id_token":{"sub":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","name":"Grace Hopper","given_name":"Grace","family_name":"Hopper","preferred_username":"grace","updated_at":1790708493,"email":"grace@navy.example","email_verified":false},"access_token":{"groups":["/finance/payables"]},"userinfo":{"sub":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","name":"Grace Hopper","given_name":"Grace","family_name":"Hopper","preferred_username":"grace","updated_at":1790708493,"email":"grace@navy.example","email_verified":false,"groups":["/finance/payables"]}}
+{"items":[{"id":"01a0ee8b-36e3-7657-8294-ea4e0498f059","occurred_at":"2026-09-29T19:01:36.085Z","event_type":"admin_mutation","action":"client.evaluate","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123","request_id":"01a0ee8b-36c5-7315-bb6f-d5c0b7732ca2","ip":"172.22.0.1","detail":{"scope":"openid profile email address phone roles groups","subject_id":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70"}}],"next":"eyJhZnRlciI6IjIwMjYtMDktMjlUMTk6MDE6MzYuMDg1WnwwMWEwZWU4Yi0zNmUzLTc2NTctODI5NC1lYTRlMDQ5OGYwNTkiLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6IjAxYTBlZThhLWMzOTQtN2I0OS05NDJiLTNkZWE3MGE5NjJlNyIsImZpbHRlcnMiOiI1V1p5R0tkUVJIX3VEUTNNRkpGclFtYzFDdWt4UllCcV9XSDhFc1dWd1ZBIn0.L9X-Z6lPk9dhSI-ZVeSTnwzC4owFeLuOMZdoJGBw-RI"}
 ```
 
 Neither answer carries `roles`, though `grace` holds two and asked for the
@@ -2538,7 +2616,7 @@ or rotation. An unknown client answers `404`.
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/installation"; echo
+  "$P/clients/01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123/installation"; echo
 ```
 
 ```
@@ -2654,16 +2732,20 @@ The audit trail for that mint and that revoke, each scoped to the second
 token's own `resource_id` so this prints only the row it describes rather
 than every mint or revoke `demo` has ever recorded:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, after a token was minted in its `demo` and revoked the same
+way, so the id is that run's, not the one above:
+
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3000/admin/tenants/demo/audit?action=registration_token.mint&resource_type=registration_token&resource_id=01a0e1bd-36f3-7e51-84a5-25d4b0b2d50e"
+  "http://localhost:3082/admin/tenants/demo/audit?action=registration_token.mint&resource_type=registration_token&resource_id=01a0ee8f-0361-755d-b510-c9d6fde88a03"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3000/admin/tenants/demo/audit?action=registration_token.revoke&resource_type=registration_token&resource_id=01a0e1bd-36f3-7e51-84a5-25d4b0b2d50e"
+  "http://localhost:3082/admin/tenants/demo/audit?action=registration_token.revoke&resource_type=registration_token&resource_id=01a0ee8f-0361-755d-b510-c9d6fde88a03"; echo
 ```
 
 ```
-{"items":[{"id":"01a0e1bd-36f7-70a8-b075-0f63ba51ff19","occurred_at":"2026-09-27T07:21:09.106Z","event_type":"admin_mutation","action":"registration_token.mint","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e1ac-87e9-7e58-bb85-d4cb7c6535b1","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"registration_token","resource_id":"01a0e1bd-36f3-7e51-84a5-25d4b0b2d50e","request_id":"01a0e1bd-36cf-7549-a184-629a614157d1","ip":"172.20.0.1","detail":{"uses":1,"ttl_seconds":3600}}]}
-{"items":[{"id":"01a0e1bd-4a55-75e2-a75f-48529fd60b9f","occurred_at":"2026-09-27T07:21:14.065Z","event_type":"admin_mutation","action":"registration_token.revoke","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e1ac-87e9-7e58-bb85-d4cb7c6535b1","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"registration_token","resource_id":"01a0e1bd-36f3-7e51-84a5-25d4b0b2d50e","request_id":"01a0e1bd-4a39-7bef-bac1-4d92c2a1274e","ip":"172.20.0.1","detail":{"expires_at":{"before":"2026-09-27T08:21:09.108Z"},"remaining_uses":{"before":1}}}]}
+{"items":[{"id":"01a0ee8f-0362-7553-addc-3f32813a6ac1","occurred_at":"2026-09-29T19:05:45.056Z","event_type":"admin_mutation","action":"registration_token.mint","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"registration_token","resource_id":"01a0ee8f-0361-755d-b510-c9d6fde88a03","request_id":"01a0ee8f-0356-773a-bb66-91367ea0bff9","ip":"172.22.0.1","detail":{"uses":1,"ttl_seconds":3600}}]}
+{"items":[{"id":"01a0ee8f-036e-7d81-bda1-1a6bc375bfde","occurred_at":"2026-09-29T19:05:45.068Z","event_type":"admin_mutation","action":"registration_token.revoke","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"registration_token","resource_id":"01a0ee8f-0361-755d-b510-c9d6fde88a03","request_id":"01a0ee8f-0366-718b-a606-cbb01d9513c9","ip":"172.22.0.1","detail":{"expires_at":{"before":"2026-09-29T20:05:45.057Z"},"remaining_uses":{"before":1}}}]}
 ```
 
 ```bash
@@ -2877,7 +2959,7 @@ not captured.
 
 ### Filtering by type, lockout and name
 
-Against the ninth stack, after `grace`'s profile was given `name`,
+Against the tenth stack, after `grace`'s profile was given `name`,
 `given_name` and `family_name` through `PATCH /subjects/:id/profile` and five
 wrong passwords were submitted for `linus` inside a minute: two name
 searches, the refusal of two at once, `linus`'s lockout as the per-subject
@@ -2888,7 +2970,7 @@ of type `service`, `ops-app`'s service account, beside the count of users:
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?name=grace%20h"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?family_name=HOP"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?name=grace&username=grace"; echo
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/01a0ee36-cbc9-7067-a0d0-0a78f9e9cb3a/lockout"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/01a0ee8a-c748-743d-b60e-9b0ed48221a3/lockout"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?locked=true"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/count?locked=true"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?type=service"; echo
@@ -2896,14 +2978,14 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/count?type=user"; 
 ```
 
 ```
-{"items":[{"id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","type":"user","username":"grace","email":"grace@navy.example","enabled":true,"created_at":"2026-09-29T17:29:23.191Z"}]}
-{"items":[{"id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","type":"user","username":"grace","email":"grace@navy.example","enabled":true,"created_at":"2026-09-29T17:29:23.191Z"}]}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: username or name, not both","errors":[{"path":"name","message":"search one field at a time: username or name, not both"}],"instance":"01a0ee37-72b6-7fc4-862d-914206c22e5d"}
-{"locked":true,"locked_until":"2026-09-29T17:31:05.762Z","failure_count":5,"last_failure_at":"2026-09-29T17:30:05.762Z"}
-{"items":[{"id":"01a0ee36-cbc9-7067-a0d0-0a78f9e9cb3a","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-09-29T17:29:23.650Z"}]}
+{"items":[{"id":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","type":"user","username":"grace","email":"grace@navy.example","enabled":true,"created_at":"2026-09-29T19:01:07.075Z"}]}
+{"items":[{"id":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","type":"user","username":"grace","email":"grace@navy.example","enabled":true,"created_at":"2026-09-29T19:01:07.075Z"}]}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: username or name, not both","errors":[{"path":"name","message":"search one field at a time: username or name, not both"}],"instance":"01a0ee8b-2d91-7207-9ff0-5667db14c7c8"}
+{"locked":true,"locked_until":"2026-09-29T19:02:33.177Z","failure_count":5,"last_failure_at":"2026-09-29T19:01:33.177Z"}
+{"items":[{"id":"01a0ee8a-c748-743d-b60e-9b0ed48221a3","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-09-29T19:01:07.522Z"}]}
 {"count":1,"capped":false}
-{"items":[{"id":"01a0ee37-0186-76e6-a744-d157c4b37228","type":"service","username":null,"email":null,"enabled":true,"created_at":"2026-09-29T17:29:37.410Z"}]}
-{"count":3,"capped":false}
+{"items":[{"id":"01a0ee8a-d189-7b39-b7b4-e37a483b6268","type":"service","username":null,"email":null,"enabled":true,"created_at":"2026-09-29T19:01:10.146Z"}]}
+{"count":5,"capped":false}
 ```
 
 ## `POST /subjects`
@@ -3348,13 +3430,18 @@ The audit trail for `grace` holds the two renames and nothing for the
 refused ones — the `409` rolled back with its transaction, and the `400`
 and `428` were refused before anything was written:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, after the same renames and refusals were made there against
+a `grace` seeded in a tenant of the same name, `username_editable` on, so the
+ids are that run's, not those above:
+
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3000/admin/tenants/rename-demo/audit?resource_type=subject&resource_id=$GRACE"
+  "http://localhost:3082/admin/tenants/rename-demo/audit?resource_type=subject&resource_id=$GRACE"; echo
 ```
 
 ```
-{"items":[{"id":"01a0e37d-0eda-744c-a075-5b44532dba6a","occurred_at":"2026-09-27T15:30:18.966Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e37a-fb97-78b3-91a4-9404635be93e","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"subject","resource_id":"01a0e37c-9f28-77e3-8579-d0907e90b1c3","request_id":"01a0e37d-0ecc-7554-bf0c-c15ec0474da2","ip":"172.20.0.1","detail":{"username":{"after":"Ada","before":"grace-hopper"}}},{"id":"01a0e37d-0d81-7dc1-a749-5e486aa7a340","occurred_at":"2026-09-27T15:30:18.619Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e37a-fb97-78b3-91a4-9404635be93e","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"subject","resource_id":"01a0e37c-9f28-77e3-8579-d0907e90b1c3","request_id":"01a0e37d-0d71-7b2c-8918-ddf9dca2a612","ip":"172.20.0.1","detail":{"username":{"after":"grace-hopper","before":"grace"}}}]}
+{"items":[{"id":"01a0ee8f-5fb5-792d-b8a6-34c2673e2c04","occurred_at":"2026-09-29T19:06:08.688Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee8f-5d26-7a80-b7c9-3c64c4f582cf","request_id":"01a0ee8f-5fa4-7964-85ce-e82236b46ff3","ip":"172.22.0.1","detail":{"username":{"after":"Ada","before":"grace-hopper"}}},{"id":"01a0ee8f-5f83-702a-858a-e775655db38b","occurred_at":"2026-09-29T19:06:08.639Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee8f-5d26-7a80-b7c9-3c64c4f582cf","request_id":"01a0ee8f-5f73-7961-bb79-d4978fb330e7","ip":"172.22.0.1","detail":{"username":{"after":"grace-hopper","before":"grace"}}}]}
 ```
 
 ## `GET /subjects/:id/profile` and `PATCH /subjects/:id/profile`
@@ -3638,10 +3725,10 @@ problem `type` and `detail`; `end-sessions` adds how many were `ended`. More
 than 100 ids, none, an id that is not a UUID or an action not in the list is
 refused with `400`.
 
-Against the ninth stack, as `uma`, a subject seeded in `ops-demo` and granted
+Against the tenth stack, as `uma`, a subject seeded in `ops-demo` and granted
 `odudu-admin:manage-users` alone (`$UMA_TOKEN`), after `temp-1`
-(`01a0ee3a-2665-7889-8245-6427ca634310`) and `temp-2`
-(`01a0ee3a-2715-788b-a64b-43ac6214f7dc`) were created through
+(`01a0ee8c-67c6-7752-904b-584bbc614619`) and `temp-2`
+(`01a0ee8c-67ea-7049-b5d2-57c68046736c`) were created through
 `POST /subjects`: a disable of `temp-1`, of `mona`, who holds
 `manage-tenant`, and of an id no subject holds; `end-sessions` without
 `manage-sessions`; then a delete by `$ADMIN_TOKEN`, and the rows the first
@@ -3649,13 +3736,13 @@ request left, each naming its id:
 
 ```bash
 curl -sS -X POST -H "Authorization: Bearer $UMA_TOKEN" -H 'content-type: application/json' \
-  -d '{"action":"disable","ids":["01a0ee3a-2665-7889-8245-6427ca634310","01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","0199aa00-0000-7000-8000-0000000000ff"]}' \
+  -d '{"action":"disable","ids":["01a0ee8c-67c6-7752-904b-584bbc614619","01a0ee8a-c8f6-7450-b486-861a66a87684","0199aa00-0000-7000-8000-0000000000ff"]}' \
   "$P/subjects/bulk"; echo
 curl -sS -X POST -H "Authorization: Bearer $UMA_TOKEN" -H 'content-type: application/json' \
-  -d '{"action":"end-sessions","ids":["01a0ee3a-2665-7889-8245-6427ca634310"]}' \
+  -d '{"action":"end-sessions","ids":["01a0ee8c-67c6-7752-904b-584bbc614619"]}' \
   "$P/subjects/bulk"; echo
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"action":"delete","ids":["01a0ee3a-2665-7889-8245-6427ca634310","01a0ee3a-2715-788b-a64b-43ac6214f7dc"]}' \
+  -d '{"action":"delete","ids":["01a0ee8c-67c6-7752-904b-584bbc614619","01a0ee8c-67ea-7049-b5d2-57c68046736c"]}' \
   "$P/subjects/bulk"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit/count?action=subject.delete"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit?action=subject.amend&limit=2" \
@@ -3663,12 +3750,12 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit?action=subject.amend&
 ```
 
 ```
-{"items":[{"id":"01a0ee3a-2665-7889-8245-6427ca634310","status":204},{"id":"01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","status":403,"type":"about:blank","detail":"the subject holds what the caller does not: manage-tenant"},{"id":"0199aa00-0000-7000-8000-0000000000ff","status":404,"type":"about:blank","detail":"no subject 0199aa00-0000-7000-8000-0000000000ff"}]}
-{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0ee3a-5242-7244-aff3-97adecd23a13"}
-{"items":[{"id":"01a0ee3a-2665-7889-8245-6427ca634310","status":204},{"id":"01a0ee3a-2715-788b-a64b-43ac6214f7dc","status":204}]}
+{"items":[{"id":"01a0ee8c-67c6-7752-904b-584bbc614619","status":204},{"id":"01a0ee8a-c8f6-7450-b486-861a66a87684","status":403,"type":"about:blank","detail":"the subject holds what the caller does not: manage-tenant"},{"id":"0199aa00-0000-7000-8000-0000000000ff","status":404,"type":"about:blank","detail":"no subject 0199aa00-0000-7000-8000-0000000000ff"}]}
+{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0ee8c-69e5-74a5-bb6e-e50bd8569a6b"}
+{"items":[{"id":"01a0ee8c-67c6-7752-904b-584bbc614619","status":204},{"id":"01a0ee8c-67ea-7049-b5d2-57c68046736c","status":204}]}
 {"count":2,"capped":false}
-{"action": "subject.amend", "outcome": "refused", "actor_name": "uma", "resource_id": "01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4", "detail": {"denied": ["manage-tenant"]}}
-{"action": "subject.amend", "outcome": "allowed", "actor_name": "uma", "resource_id": "01a0ee3a-2665-7889-8245-6427ca634310", "detail": {"enabled": {"after": false, "before": true}}}
+{"action": "subject.amend", "outcome": "refused", "actor_name": "uma", "resource_id": "01a0ee8a-c8f6-7450-b486-861a66a87684", "detail": {"denied": ["manage-tenant"]}}
+{"action": "subject.amend", "outcome": "allowed", "actor_name": "uma", "resource_id": "01a0ee8c-67c6-7752-904b-584bbc614619", "detail": {"enabled": {"after": false, "before": true}}}
 ```
 
 ## `GET /subjects/:id/credentials`
@@ -3765,23 +3852,28 @@ HTTP/1.1 200 OK
 Revoking them, then the list again, then the audit row, scoped to `ines`
 and this action:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`: in a tenant of the same name, `ines` seeded there, owed
+`generate-recovery-codes` and signed in once so the page minted her a set,
+then the same three requests, so the ids are that run's, not those above:
+
 ```bash
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$INES/recovery-codes"
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$INES/credentials"
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$INES/credentials"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/lockout-demo/audit?resource_type=subject&resource_id=01a0ec85-0c4c-7ab4-821c-a4fad1d15482&action=subject.recovery_codes_revoke"
+  "http://localhost:3082/admin/tenants/lockout-demo/audit?resource_type=subject&resource_id=01a0ee8f-bef6-7e61-b451-6bb2bb05a643&action=subject.recovery_codes_revoke"; echo
 ```
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a0ec85-8f5d-77c6-9e72-1b616bbf212f
+x-request-id: 01a0ee8f-c14b-7de0-b504-c314a6070e23
 cache-control: no-store
-Date: Tue, 29 Sep 2026 09:36:11 GMT
+Date: Tue, 29 Sep 2026 19:06:33 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a0ec85-0c6d-75c9-a720-81d3b70c0811","type":"password","created_at":"2026-09-29T09:35:37.542Z","expired":false}]}
-{"items":[{"id":"01a0ec85-8f6b-7d63-8543-cdd0afffd1ba","occurred_at":"2026-09-29T09:36:11.112Z","event_type":"admin_mutation","action":"subject.recovery_codes_revoke","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ec84-4f03-7de9-9587-5090fad14c29","actor_client_id":"01a0ec84-4ed1-713e-988d-b1fa4430d476","resource_type":"subject","resource_id":"01a0ec85-0c4c-7ab4-821c-a4fad1d15482","request_id":"01a0ec85-8f5d-77c6-9e72-1b616bbf212f","ip":"172.22.0.1","detail":{"revoked":10}}]}
+{"items":[{"id":"01a0ee8f-bf17-764e-b49c-59229a548da4","type":"password","created_at":"2026-09-29T19:06:33.071Z","expired":false}]}
+{"items":[{"id":"01a0ee8f-c159-7839-a043-7aeabfb94d1e","occurred_at":"2026-09-29T19:06:33.686Z","event_type":"admin_mutation","action":"subject.recovery_codes_revoke","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee8f-bef6-7e61-b451-6bb2bb05a643","request_id":"01a0ee8f-c14b-7de0-b504-c314a6070e23","ip":"172.22.0.1","detail":{"revoked":10}}]}
 ```
 
 ## `GET /subjects/:id/consents` and `DELETE /subjects/:id/consents/:clientId`
@@ -4193,25 +4285,29 @@ Requires `manage-users`. Clears every subject's run of failed sign-ins, locked
 or still counting, as `DELETE /subjects/:id/lockout` clears one, and answers
 how many it cleared. A subject holding an admin capability the caller does not
 keeps its count and is counted under `beyond_ceiling` instead — the target
-ceiling that door applies, run over the tenant as a set. One
-`subject.lockouts_clear` row, filed on the tenant, carries both counts.
+ceiling that door applies, run over the tenant as a set (ADR 0040's
+amendment of 2026-09-30). One `subject.lockouts_clear` row, filed on the
+tenant, carries both counts and, under `subject_ids`, the ids whose counts
+it cleared, sorted, at most 100 of them, so the per-subject trail the single
+door leaves is not lost; a subject left beyond the ceiling writes no refused
+row of its own (ADR 0037).
 
-Against the ninth stack, after five wrong passwords for `linus`, which lock
+Against the tenth stack, after five wrong passwords for `linus`, which lock
 him, and two for `grace`, which do not:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?locked=true"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/lockout"; echo
+  "$P/subjects/01a0ee8a-c58a-716c-96a6-edcab4ca1a70/lockout"; echo
 curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$P/lockouts"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?locked=true"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/lockout"; echo
+  "$P/subjects/01a0ee8a-c58a-716c-96a6-edcab4ca1a70/lockout"; echo
 ```
 
 ```
-{"items":[{"id":"01a0ee36-cbc9-7067-a0d0-0a78f9e9cb3a","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-09-29T17:29:23.650Z"}]}
-{"locked":false,"locked_until":null,"failure_count":2,"last_failure_at":"2026-09-29T17:32:18.697Z"}
+{"items":[{"id":"01a0ee8a-c748-743d-b60e-9b0ed48221a3","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-09-29T19:01:07.522Z"}]}
+{"locked":false,"locked_until":null,"failure_count":2,"last_failure_at":"2026-09-29T19:02:52.059Z"}
 {"cleared":2,"beyond_ceiling":0}
 {"items":[]}
 {"locked":false,"locked_until":null,"failure_count":0,"last_failure_at":null}
@@ -4239,13 +4335,13 @@ would otherwise meet later, silently, is a `409` of its own type:
   only be logged.
 
 None of the three writes a row: each is a conflict with the data, not a guard
-(ADR 0037's amendment of 2026-09-28). Against the ninth stack, for `grace`
+(ADR 0037's amendment of 2026-09-28). Against the tenth stack, for `grace`
 and then `linus`, who has no address, taking each refusal in turn: the
 setting, then a relay for `ops-demo` at the stack's own `postgres` container,
 port 25, where nothing listens:
 
 ```bash
-G=01a0ee36-c9ff-7162-8bb7-0fad74136098
+G=01a0ee8a-c58a-716c-96a6-edcab4ca1a70
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/$G/password-reset"; echo
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"reset_password_allowed":true}' "$P/settings" | grep -o '"reset_password_allowed":[a-z]*'
@@ -4256,28 +4352,28 @@ curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: applic
 curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/$G/password-reset"
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/$G/verification"
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/subjects/01a0ee36-cbc9-7067-a0d0-0a78f9e9cb3a/verification"; echo
+  "$P/subjects/01a0ee8a-c748-743d-b60e-9b0ed48221a3/verification"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
   "$P/audit?resource_type=subject&resource_id=$G&action=subject.password_reset_send"; echo
 ```
 
 ```
-{"type":"about:blank#reset-password-off","title":"Conflict","status":409,"detail":"reset_password_allowed is off, so the tenant would refuse the link; turn it on with PATCH /settings first","instance":"01a0ee39-adfd-7a0a-9134-fbc58ed703fe"}
+{"type":"about:blank#reset-password-off","title":"Conflict","status":409,"detail":"reset_password_allowed is off, so the tenant would refuse the link; turn it on with PATCH /settings first","instance":"01a0ee8c-61e6-766b-9b7d-dfa1705a654d"}
 "reset_password_allowed":true
 {"configured":false,"host":null,"port":null,"from_address":null,"username":null,"password_set":false,"starttls":null,"effective":"none"}
-{"type":"about:blank#no-mail-relay","title":"Conflict","status":409,"detail":"the tenant has no relay and the deployment no sender, so the mail would only be logged","instance":"01a0ee39-afa3-7fe6-a98b-dd5c94c739e6"}
+{"type":"about:blank#no-mail-relay","title":"Conflict","status":409,"detail":"the tenant has no relay and the deployment no sender, so the mail would only be logged","instance":"01a0ee8c-6254-71bb-99ff-38173b7334d0"}
 {"configured":true,"host":"postgres","port":25,"from_address":"noreply@ops.example","username":null,"password_set":false,"starttls":false,"effective":"tenant"}
 HTTP/1.1 202 Accepted
-x-request-id: 01a0ee39-b0c3-7b71-bdca-e470d7f6aaf9
+x-request-id: 01a0ee8c-6291-7ba8-91e6-d08ea702a515
 cache-control: no-store
 content-length: 0
-Date: Tue, 29 Sep 2026 17:32:33 GMT
+Date: Tue, 29 Sep 2026 19:02:52 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 202
-{"type":"about:blank#no-email","title":"Conflict","status":409,"detail":"the subject has no email address to send to","instance":"01a0ee39-b2ab-727f-93e3-8c4902726010"}
-{"items":[{"id":"01a0ee39-b16f-7b10-97f4-9d2005324d27","occurred_at":"2026-09-29T17:32:33.485Z","event_type":"admin_mutation","action":"subject.password_reset_send","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee35-85df-757f-aa7f-799b0da59a0b","actor_client_id":"01a0ee35-85aa-755e-96a0-78b5b2a102fc","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","request_id":"01a0ee39-b0c3-7b71-bdca-e470d7f6aaf9","ip":"172.21.0.1","detail":{}}]}
+{"type":"about:blank#no-email","title":"Conflict","status":409,"detail":"the subject has no email address to send to","instance":"01a0ee8c-62de-71e8-afbb-2a704e8fa724"}
+{"items":[{"id":"01a0ee8c-62ab-7858-b95a-960db8f34277","occurred_at":"2026-09-29T19:02:52.832Z","event_type":"admin_mutation","action":"subject.password_reset_send","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","request_id":"01a0ee8c-6291-7ba8-91e6-d08ea702a515","ip":"172.22.0.1","detail":{}}]}
 ```
 
 ## `POST /subjects/:id/password`
@@ -4454,8 +4550,12 @@ Captured against the sixth stack, in a tenant also named `recovery-demo`
 created there for it, with its own `mo` (`manage-users`) and `lin`
 (`tenant-admin`) set up the same way:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, in a tenant of the same name with `mo` and `lin` set up the
+same way, so the ids are that run's, not those above:
+
 ```bash
-LIN=http://localhost:3080/admin/tenants/recovery-demo/subjects/01a0ea55-d2a6-7d89-ae8b-0015c914b174
+LIN=http://localhost:3082/admin/tenants/recovery-demo/subjects/01a0ee90-8113-7860-8d43-2175e6975b6d
 ETAG=$(curl -sS -D - -o /dev/null -H "Authorization: Bearer $MO_TOKEN" "$LIN/roles" | tr -d '\r' | sed -n 's/^etag: //p')
 curl -sS -X PUT -H "Authorization: Bearer $MO_TOKEN" -H 'content-type: application/json' \
   -H "If-Match: $ETAG" -d '{"role_ids":[]}' "$LIN/roles"
@@ -4465,15 +4565,15 @@ echo
 curl -sS -H "Authorization: Bearer $MO_TOKEN" "$LIN/roles"
 echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3080/admin/tenants/recovery-demo/audit?event_type=admin_mutation&outcome=refused&limit=2'
+  'http://localhost:3082/admin/tenants/recovery-demo/audit?event_type=admin_mutation&outcome=refused&limit=2'
 echo
 ```
 
 ```
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"the subject holds what the caller does not: manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0ea56-72dd-7947-8717-f730ab16c2fd"}
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"the subject holds what the caller does not: manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0ea56-72f6-7e35-9cc7-69ee4b0968ab"}
-{"items":[{"id":"01a0ea55-d266-7ece-b85c-6c65a026651c","name":"tenant-admin","client_id":"01a0ea55-d25e-7fb4-9555-945f47ff83ee","client_key":"odudu-admin"}]}
-{"items":[{"id":"01a0ea56-7301-7cac-9b7a-443f26ab09d9","occurred_at":"2026-09-28T23:25:29.214Z","event_type":"admin_mutation","action":"subject.lockout_clear","outcome":"refused","actor_tenant_id":"01a0ea55-d255-7ed9-9fb0-d3eb7ad375cf","actor_subject_id":"01a0ea55-d28d-79b5-abaa-842a3aacfb34","actor_client_id":"01a0ea55-d25e-7fb4-9555-945f47ff83ee","resource_type":"subject","resource_id":"01a0ea55-d2a6-7d89-ae8b-0015c914b174","request_id":"01a0ea56-72f6-7e35-9cc7-69ee4b0968ab","ip":"172.21.0.1","detail":{"denied":["manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}},{"id":"01a0ea56-72ea-7399-b6f8-649018663201","occurred_at":"2026-09-28T23:25:29.191Z","event_type":"admin_mutation","action":"subject.roles_set","outcome":"refused","actor_tenant_id":"01a0ea55-d255-7ed9-9fb0-d3eb7ad375cf","actor_subject_id":"01a0ea55-d28d-79b5-abaa-842a3aacfb34","actor_client_id":"01a0ea55-d25e-7fb4-9555-945f47ff83ee","resource_type":"subject","resource_id":"01a0ea55-d2a6-7d89-ae8b-0015c914b174","request_id":"01a0ea56-72dd-7947-8717-f730ab16c2fd","ip":"172.21.0.1","detail":{"denied":["manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}]}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the subject holds what the caller does not: manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0ee90-b399-7446-a234-746e913625a6"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the subject holds what the caller does not: manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0ee90-b5dc-7596-8f44-6dcdf3d976e4"}
+{"items":[{"id":"01a0ee90-580e-7688-b635-280e0a9e75bb","name":"tenant-admin","client_id":"01a0ee90-57cb-7a51-9164-4d2888295163","client_key":"odudu-admin"}]}
+{"items":[{"id":"01a0ee90-b5ec-7d42-9fea-4c6a2ca2d7b8","occurred_at":"2026-09-29T19:07:36.298Z","event_type":"admin_mutation","action":"subject.lockout_clear","outcome":"refused","actor_tenant_id":"01a0ee90-5627-7af7-8dce-d98eb1aa9c7a","actor_subject_id":"01a0ee90-6fbc-71d1-9286-e933bcf69384","actor_client_id":"01a0ee90-57cb-7a51-9164-4d2888295163","actor_name":"mo","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee90-8113-7860-8d43-2175e6975b6d","request_id":"01a0ee90-b5dc-7596-8f44-6dcdf3d976e4","ip":"172.22.0.1","detail":{"denied":["manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}},{"id":"01a0ee90-b530-7f48-a043-1cc199dfefda","occurred_at":"2026-09-29T19:07:36.051Z","event_type":"admin_mutation","action":"subject.roles_set","outcome":"refused","actor_tenant_id":"01a0ee90-5627-7af7-8dce-d98eb1aa9c7a","actor_subject_id":"01a0ee90-6fbc-71d1-9286-e933bcf69384","actor_client_id":"01a0ee90-57cb-7a51-9164-4d2888295163","actor_name":"mo","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee90-8113-7860-8d43-2175e6975b6d","request_id":"01a0ee90-b399-7446-a234-746e913625a6","ip":"172.22.0.1","detail":{"denied":["manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}],"next":"eyJhZnRlciI6IjIwMjYtMDktMjlUMTk6MDc6MzYuMDUxWnwwMWEwZWU5MC1iNTMwLTdmNDgtYTA0My0xY2MxOTlkZmVmZGEiLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6IjAxYTBlZTkwLTU2MjctN2FmNy04ZGNlLWQ5OGViMWFhOWM3YSIsImZpbHRlcnMiOiJVZDFzeWdzd19Oblp0UzJDZ2dXQk91dVc3UE5YT29TVFlRakVMdDlBN1JZIn0.e-kpCAejGJ48wy3fmFUnWnFy6XVSh8Ou4S_8Dz24j6E"}
 ```
 
 `ada-recovery` is a subject of the system tenant, not of `recovery-demo`,
@@ -4497,16 +4597,21 @@ and the service's own log searched for the issued password. Bounded with
 recaptured further above, since an unscoped `limit=7` now surfaces that
 later demonstration's own rows instead of these:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, after the same recovery was made there in the tenant of the
+same name above, before its ceiling demonstration, and bounded the same way;
+the ids and the issued password are that run's, not those above:
+
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3000/admin/tenants/recovery-demo/audit?event_type=admin_mutation&to=2026-09-27T13:20:00.000Z&limit=7'
+  'http://localhost:3082/admin/tenants/recovery-demo/audit?event_type=admin_mutation&to=2026-09-29T19:07:32.000Z&limit=7'
 echo
 
-docker compose logs odudu | grep -c 'pW6gZTlq-xIQGIYgB9BfvU6NbNyxcrfp'
+docker compose logs odudu | grep -c 'xZdG91476aUnqv7I9Ow7w6ZysjNDO2d-'
 ```
 
 ```
-{"items":[{"id":"01a0e305-3569-77bd-aeeb-87cf4f51038b","occurred_at":"2026-09-27T13:19:24.519Z","event_type":"admin_mutation","action":"subject.delete","outcome":"refused","actor_tenant_id":"01a0e2e7-2b73-7aa6-9b99-9e959d2ed2af","actor_subject_id":"01a0e303-cb74-73df-a5d4-034c577a4a93","actor_client_id":"01a0e2e7-2b7b-7ee3-af15-f175f6271d5e","resource_type":"subject","resource_id":"01a0e303-cd42-76f3-92bd-9f1f860bc8a0","request_id":"01a0e305-355e-7948-94aa-bd9f7b23958d","ip":"172.20.0.1","detail":{"denied":["manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}},{"id":"01a0e305-3554-7cb6-9005-349e526d3a8e","occurred_at":"2026-09-27T13:19:24.497Z","event_type":"admin_mutation","action":"subject.amend","outcome":"refused","actor_tenant_id":"01a0e2e7-2b73-7aa6-9b99-9e959d2ed2af","actor_subject_id":"01a0e303-cb74-73df-a5d4-034c577a4a93","actor_client_id":"01a0e2e7-2b7b-7ee3-af15-f175f6271d5e","resource_type":"subject","resource_id":"01a0e303-cd42-76f3-92bd-9f1f860bc8a0","request_id":"01a0e305-3545-7f28-9e64-6ebcebd9bda8","ip":"172.20.0.1","detail":{"denied":["manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}},{"id":"01a0e305-353a-71a5-adf9-b3421f5d3c03","occurred_at":"2026-09-27T13:19:24.471Z","event_type":"admin_mutation","action":"subject.password_issue","outcome":"refused","actor_tenant_id":"01a0e2e7-2b73-7aa6-9b99-9e959d2ed2af","actor_subject_id":"01a0e303-cb74-73df-a5d4-034c577a4a93","actor_client_id":"01a0e2e7-2b7b-7ee3-af15-f175f6271d5e","resource_type":"subject","resource_id":"01a0e303-cd42-76f3-92bd-9f1f860bc8a0","request_id":"01a0e305-352c-7c19-98f0-ac995ff67ab6","ip":"172.20.0.1","detail":{"denied":["manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}},{"id":"01a0e304-e8c8-7bf5-9898-590d7c69afb7","occurred_at":"2026-09-27T13:19:04.868Z","event_type":"admin_mutation","action":"subject.password_issue","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e2e6-9e0a-721e-8def-3f749480e8c9","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"subject","resource_id":"01a0e303-9db3-712d-9272-98d2c2a04320","request_id":"01a0e304-e89b-7b63-977c-5ee041f0256a","ip":"172.20.0.1","detail":{}},{"id":"01a0e304-c9a2-7c55-912b-17f4fb999480","occurred_at":"2026-09-27T13:18:56.923Z","event_type":"admin_mutation","action":"session.end_all","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e2e6-9e0a-721e-8def-3f749480e8c9","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"subject","resource_id":"01a0e303-9db3-712d-9272-98d2c2a04320","request_id":"01a0e304-c992-7ce0-a32d-345ffe41df00","ip":"172.20.0.1","detail":{"ended":2}},{"id":"01a0e304-78ea-762f-b1ff-bf39aa9b48ac","occurred_at":"2026-09-27T13:18:36.265Z","event_type":"admin_mutation","action":"subject.lockout_clear","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e2e6-9e0a-721e-8def-3f749480e8c9","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"subject","resource_id":"01a0e303-9db3-712d-9272-98d2c2a04320","request_id":"01a0e304-78e0-7003-90f4-53ed807b3fd4","ip":"172.20.0.1","detail":{"cleared":true}},{"id":"01a0e304-288e-7876-98f1-f6af5d9654fb","occurred_at":"2026-09-27T13:18:15.690Z","event_type":"admin_mutation","action":"subject.roles_set","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e2e6-9e0a-721e-8def-3f749480e8c9","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"subject","resource_id":"01a0e303-cd42-76f3-92bd-9f1f860bc8a0","request_id":"01a0e304-287e-7a72-86a9-39ef6e2e4de2","ip":"172.20.0.1","detail":{}}],"next":"eyJhZnRlciI6IjIwMjYtMDktMjdUMTM6MTg6MTUuNjkwWnwwMWEwZTMwNC0yODhlLTc4NzYtOThmMS1mNmFmNWQ5NjU0ZmIiLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6IjAxYTBlMmU3LTJiNzMtN2FhNi05Yjk5LTllOTU5ZDJlZDJhZiIsImZpbHRlcnMiOiJWcHJKd0NwQ1FtRHBRR1F2RXEtLW4xYXo2ZTZ4dzZSNXBBSUlOTkFuNFc0In0.ApTkp2G9mTzPCG_hqT_t9bGH8xxr8v6LT-BFAW_Z2H8"}
+{"items":[{"id":"01a0ee90-a22a-7937-bf93-6b780e3e09f6","occurred_at":"2026-09-29T19:07:31.118Z","event_type":"admin_mutation","action":"subject.delete","outcome":"refused","actor_tenant_id":"01a0ee90-5627-7af7-8dce-d98eb1aa9c7a","actor_subject_id":"01a0ee90-6fbc-71d1-9286-e933bcf69384","actor_client_id":"01a0ee90-57cb-7a51-9164-4d2888295163","actor_name":"mo","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee90-8113-7860-8d43-2175e6975b6d","request_id":"01a0ee90-a102-7f9d-a668-d511d7c1c776","ip":"172.22.0.1","detail":{"denied":["manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}},{"id":"01a0ee90-a0b0-7d64-9222-215fce17a0c3","occurred_at":"2026-09-29T19:07:30.851Z","event_type":"admin_mutation","action":"subject.amend","outcome":"refused","actor_tenant_id":"01a0ee90-5627-7af7-8dce-d98eb1aa9c7a","actor_subject_id":"01a0ee90-6fbc-71d1-9286-e933bcf69384","actor_client_id":"01a0ee90-57cb-7a51-9164-4d2888295163","actor_name":"mo","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee90-8113-7860-8d43-2175e6975b6d","request_id":"01a0ee90-a007-7588-ae28-e4c84e936197","ip":"172.22.0.1","detail":{"denied":["manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}},{"id":"01a0ee90-9fea-7807-abbe-61cfe794ca56","occurred_at":"2026-09-29T19:07:30.649Z","event_type":"admin_mutation","action":"subject.password_issue","outcome":"refused","actor_tenant_id":"01a0ee90-5627-7af7-8dce-d98eb1aa9c7a","actor_subject_id":"01a0ee90-6fbc-71d1-9286-e933bcf69384","actor_client_id":"01a0ee90-57cb-7a51-9164-4d2888295163","actor_name":"mo","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee90-8113-7860-8d43-2175e6975b6d","request_id":"01a0ee90-9ef8-7d2d-87a9-637c23262314","ip":"172.22.0.1","detail":{"denied":["manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}},{"id":"01a0ee90-9af6-7d69-b4cb-ef4ab6c02f0e","occurred_at":"2026-09-29T19:07:29.240Z","event_type":"admin_mutation","action":"subject.password_issue","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee90-63eb-7f15-b728-2778d1eeb1b2","request_id":"01a0ee90-9996-747f-b057-d2736997b322","ip":"172.22.0.1","detail":{}},{"id":"01a0ee90-996d-7b41-8af2-ef7c4dcb79c8","occurred_at":"2026-09-29T19:07:28.919Z","event_type":"admin_mutation","action":"session.end_all","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee90-63eb-7f15-b728-2778d1eeb1b2","request_id":"01a0ee90-98b2-73e2-8dcc-603f420cdea1","ip":"172.22.0.1","detail":{"ended":2}},{"id":"01a0ee90-9882-771e-b457-690b797a5d7e","occurred_at":"2026-09-29T19:07:28.767Z","event_type":"admin_mutation","action":"subject.lockout_clear","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee90-63eb-7f15-b728-2778d1eeb1b2","request_id":"01a0ee90-9801-7539-b002-2152699cc740","ip":"172.22.0.1","detail":{"cleared":true}},{"id":"01a0ee90-834e-74cd-b6c1-836195dea170","occurred_at":"2026-09-29T19:07:23.325Z","event_type":"admin_mutation","action":"subject.roles_set","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee90-8113-7860-8d43-2175e6975b6d","request_id":"01a0ee90-82fa-7893-90bc-e2d7754452d3","ip":"172.22.0.1","detail":{}}],"next":"eyJhZnRlciI6IjIwMjYtMDktMjlUMTk6MDc6MjMuMzI1WnwwMWEwZWU5MC04MzRlLTc0Y2QtYjZjMS04MzYxOTVkZWExNzAiLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6IjAxYTBlZTkwLTU2MjctN2FmNy04ZGNlLWQ5OGViMWFhOWM3YSIsImZpbHRlcnMiOiJ6MEhPVzdmamNrYy1ISnhGTHZHOUlmaENwb1FRYUF2b3pBeURyck5nODhNIn0.zjFNAkHr5Uuj4lvGunjfSDELiAKAA-7YkKkhFTkGLDQ"}
 0
 ```
 
@@ -4687,25 +4792,30 @@ Captured against the fifth stack in `admins-demo`, as `ada-t2`, on
 last write answered, then disabling her, then deleting her, then her
 refused rows, newest first:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, as `ada-t8b2`, on a `grace` seeded as the only holder of
+`tenant-admin` in a tenant of the same name, her roles emptied under the
+`ETag` a read of them answered, so the ids are that run's, not those above:
+
 ```bash
 curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -H 'If-Match: "f53ec1eb4f91dfbec94e6883e54543d2f4e61da255444c524364fde81c89bf27"' \
+  -H 'If-Match: "ed3ace191e50ac13f9c21c9ec7f012d4155f16ce7ca3ea35698f18c9f25c3cd8"' \
   -d '{"role_ids":[]}' \
-  http://localhost:3080/admin/tenants/admins-demo/subjects/01a0ea0f-36a4-7377-b18e-c6e48982a5cf/roles
+  http://localhost:3082/admin/tenants/admins-demo/subjects/01a0ee91-5901-7963-a2e4-c73142de6325/roles; echo
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"enabled":false}' \
-  http://localhost:3080/admin/tenants/admins-demo/subjects/01a0ea0f-36a4-7377-b18e-c6e48982a5cf
+  http://localhost:3082/admin/tenants/admins-demo/subjects/01a0ee91-5901-7963-a2e4-c73142de6325; echo
 curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/admins-demo/subjects/01a0ea0f-36a4-7377-b18e-c6e48982a5cf
+  http://localhost:3082/admin/tenants/admins-demo/subjects/01a0ee91-5901-7963-a2e4-c73142de6325; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3080/admin/tenants/admins-demo/audit?resource_type=subject&resource_id=01a0ea0f-36a4-7377-b18e-c6e48982a5cf&outcome=refused'
+  'http://localhost:3082/admin/tenants/admins-demo/audit?resource_type=subject&resource_id=01a0ee91-5901-7963-a2e4-c73142de6325&outcome=refused'; echo
 ```
 
 ```
-{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a0ea0f-572b-78de-b7c5-d71f91ecbb33"}
-{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a0ea0f-5788-7059-a5e9-3a6e77b88b57"}
-{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a0ea0f-57ba-7b44-9a49-09a99feb1eef"}
-{"items":[{"id":"01a0ea0f-57f0-7f46-b7dc-84790f87bf9d","occurred_at":"2026-09-28T22:07:49.217Z","event_type":"admin_mutation","action":"subject.delete","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e9d2-6208-702f-b5ca-3f7db33b3ca7","actor_client_id":"01a0e9d2-61c4-7d4a-a5e0-0b9ee3a5c898","resource_type":"subject","resource_id":"01a0ea0f-36a4-7377-b18e-c6e48982a5cf","request_id":"01a0ea0f-57ba-7b44-9a49-09a99feb1eef","ip":"172.21.0.1","detail":{"reason":"this would leave no enabled subject holding tenant-admin"}},{"id":"01a0ea0f-57ab-718a-b7be-f6250cbd60f1","occurred_at":"2026-09-28T22:07:49.147Z","event_type":"admin_mutation","action":"subject.amend","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e9d2-6208-702f-b5ca-3f7db33b3ca7","actor_client_id":"01a0e9d2-61c4-7d4a-a5e0-0b9ee3a5c898","resource_type":"subject","resource_id":"01a0ea0f-36a4-7377-b18e-c6e48982a5cf","request_id":"01a0ea0f-5788-7059-a5e9-3a6e77b88b57","ip":"172.21.0.1","detail":{"reason":"this would leave no enabled subject holding tenant-admin"}},{"id":"01a0ea0f-5776-7e40-b03f-01c0175677a3","occurred_at":"2026-09-28T22:07:49.086Z","event_type":"admin_mutation","action":"subject.roles_set","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e9d2-6208-702f-b5ca-3f7db33b3ca7","actor_client_id":"01a0e9d2-61c4-7d4a-a5e0-0b9ee3a5c898","resource_type":"subject","resource_id":"01a0ea0f-36a4-7377-b18e-c6e48982a5cf","request_id":"01a0ea0f-572b-78de-b7c5-d71f91ecbb33","ip":"172.21.0.1","detail":{"reason":"this would leave no enabled subject holding tenant-admin"}}]}
+{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a0ee91-5c87-7b01-bee7-d60919b3f51a"}
+{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a0ee91-5ccd-7e16-b183-e33e0b17cee3"}
+{"type":"about:blank#last-administrator","title":"Conflict","status":409,"detail":"this would leave no enabled subject holding tenant-admin","instance":"01a0ee91-5d11-7b93-acf2-8a3f1ac1ced3"}
+{"items":[{"id":"01a0ee91-5d41-742d-8e36-8d689e236e62","occurred_at":"2026-09-29T19:08:19.116Z","event_type":"admin_mutation","action":"subject.delete","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee91-5901-7963-a2e4-c73142de6325","request_id":"01a0ee91-5d11-7b93-acf2-8a3f1ac1ced3","ip":"172.22.0.1","detail":{"reason":"this would leave no enabled subject holding tenant-admin"}},{"id":"01a0ee91-5cf2-7d9e-b589-044ea71896ad","occurred_at":"2026-09-29T19:08:19.040Z","event_type":"admin_mutation","action":"subject.amend","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee91-5901-7963-a2e4-c73142de6325","request_id":"01a0ee91-5ccd-7e16-b183-e33e0b17cee3","ip":"172.22.0.1","detail":{"reason":"this would leave no enabled subject holding tenant-admin"}},{"id":"01a0ee91-5cb4-72e7-aa73-3ead5e69f32c","occurred_at":"2026-09-29T19:08:18.980Z","event_type":"admin_mutation","action":"subject.roles_set","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee91-5901-7963-a2e4-c73142de6325","request_id":"01a0ee91-5c87-7b01-bee7-d60919b3f51a","ip":"172.22.0.1","detail":{"reason":"this would leave no enabled subject holding tenant-admin"}}]}
 ```
 
 The group, role and client doors, the system tenant's `manage-tenants`,
@@ -4724,7 +4834,7 @@ it is nested under. Unpaged, and with no `ETag`: `GET /subjects/:id/roles` is
 the list `PUT /subjects/:id/roles` replaces, and this is what follows from it.
 An unknown subject answers `404`.
 
-Against the ninth stack, after two tenant roles `billing-reader` and
+Against the tenth stack, after two tenant roles `billing-reader` and
 `billing-auditor`, a group `/finance` with `/finance/payables` beneath it, and,
 through the endpoints above, `billing-auditor` nesting `billing-reader`,
 `/finance` mapped to `billing-reader`, `grace` assigned `billing-auditor` and
@@ -4732,14 +4842,14 @@ made a member of `/finance/payables`. Her assignments, then what she holds:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/roles"; echo
+  "$P/subjects/01a0ee8a-c58a-716c-96a6-edcab4ca1a70/roles"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/effective-roles"; echo
+  "$P/subjects/01a0ee8a-c58a-716c-96a6-edcab4ca1a70/effective-roles"; echo
 ```
 
 ```
-{"items":[{"id":"01a0ee37-a05a-7421-921c-4acc3765fbc8","name":"billing-auditor","client_id":null,"client_key":null}]}
-{"items":[{"id":"01a0ee37-a044-73b1-bcbc-eb769b290e82","name":"billing-reader","client_id":null,"client_key":null,"via":[{"kind":"group","group_id":"01a0ee37-a071-73ab-bb1a-7bdc0a63fa9f","group_path":"/finance"},{"kind":"composite","parent_role_id":"01a0ee37-a05a-7421-921c-4acc3765fbc8","parent_name":"billing-auditor"}]},{"id":"01a0ee37-a05a-7421-921c-4acc3765fbc8","name":"billing-auditor","client_id":null,"client_key":null,"via":[{"kind":"direct"}]}]}
+{"items":[{"id":"01a0ee8b-2f3b-769a-9d35-2cd69f7b8c23","name":"billing-auditor","client_id":null,"client_key":null}]}
+{"items":[{"id":"01a0ee8b-2f1f-7484-9703-dfbd7e559f17","name":"billing-reader","client_id":null,"client_key":null,"via":[{"kind":"group","group_id":"01a0ee8b-2f54-7a5a-9da6-7ba6baacbe13","group_path":"/finance"},{"kind":"composite","parent_role_id":"01a0ee8b-2f3b-769a-9d35-2cd69f7b8c23","parent_name":"billing-auditor"}]},{"id":"01a0ee8b-2f3b-769a-9d35-2cd69f7b8c23","name":"billing-auditor","client_id":null,"client_key":null,"via":[{"kind":"direct"}]}]}
 ```
 
 `billing-reader` is held twice over — through `/finance`, an ancestor of the
@@ -4928,13 +5038,18 @@ Both writes that reached the ceiling are in the trail, scoped here to
 `mei2` — the refusal naming what was denied, the replacement the ids
 before and after:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, after the same groups, `helpdesk` caller and `mei2` were
+set up in a tenant of the same name and the same two writes made, so the ids
+are that run's, not those above:
+
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3080/admin/tenants/groups-demo/audit?action=subject.groups_set&resource_type=subject&resource_id=01a0ea57-1d43-77ec-b206-42dda565fb15'
+  'http://localhost:3082/admin/tenants/groups-demo/audit?action=subject.groups_set&resource_type=subject&resource_id=01a0ee91-f9ee-7a8d-95e6-172e2046fd89'; echo
 ```
 
 ```
-{"items":[{"id":"01a0ea57-5e83-7ffb-994a-8dd1d09a9453","occurred_at":"2026-09-28T23:26:29.501Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"allowed","actor_tenant_id":"01a0ea57-1c82-78e1-9073-05566ded41d5","actor_subject_id":"01a0ea57-1d65-7217-a5b9-ff54d0d3a52c","actor_client_id":"01a0ea57-1c8a-73dd-9bde-65e9bbdb4ce5","resource_type":"subject","resource_id":"01a0ea57-1d43-77ec-b206-42dda565fb15","request_id":"01a0ea57-5e74-7dd5-ab1d-bbbab618f8c5","ip":"172.21.0.1","detail":{"group_ids":{"after":["01a0ea57-1d14-7cc6-a92a-5410441bee70"],"before":[]}}},{"id":"01a0ea57-5e55-7f90-8a48-0e89f85df966","occurred_at":"2026-09-28T23:26:29.456Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"refused","actor_tenant_id":"01a0ea57-1c82-78e1-9073-05566ded41d5","actor_subject_id":"01a0ea57-1d65-7217-a5b9-ff54d0d3a52c","actor_client_id":"01a0ea57-1c8a-73dd-9bde-65e9bbdb4ce5","resource_type":"subject","resource_id":"01a0ea57-1d43-77ec-b206-42dda565fb15","request_id":"01a0ea57-5e47-7dc8-bf97-d79ee7cb9723","ip":"172.21.0.1","detail":{"denied":["tenant-admin","manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}]}
+{"items":[{"id":"01a0ee92-0b20-786b-96a8-0c524c57eaf0","occurred_at":"2026-09-29T19:09:03.642Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"allowed","actor_tenant_id":"01a0ee91-efe3-731c-b7a3-c6fd335482fe","actor_subject_id":"01a0ee92-03da-787f-b2a3-7f41dab5a8ca","actor_client_id":"01a0ee91-f035-7000-a6c8-4c4741aa542a","actor_name":"helpdesk","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee91-f9ee-7a8d-95e6-172e2046fd89","request_id":"01a0ee92-0abf-79d4-b987-4fdfb7cc8fb5","ip":"172.22.0.1","detail":{"group_ids":{"after":["01a0ee91-f31c-7288-b4ba-1444fb09422e"],"before":[]}}},{"id":"01a0ee92-0a8e-7f9c-8c56-6d33fdba3c4f","occurred_at":"2026-09-29T19:09:03.485Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"refused","actor_tenant_id":"01a0ee91-efe3-731c-b7a3-c6fd335482fe","actor_subject_id":"01a0ee92-03da-787f-b2a3-7f41dab5a8ca","actor_client_id":"01a0ee91-f035-7000-a6c8-4c4741aa542a","actor_name":"helpdesk","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee91-f9ee-7a8d-95e6-172e2046fd89","request_id":"01a0ee92-0a44-713d-b143-f1a0929f3e54","ip":"172.22.0.1","detail":{"denied":["tenant-admin","manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}]}
 ```
 
 ## `GET /subjects/:id/sessions` and `DELETE /subjects/:id/sessions/:sid`
@@ -5123,24 +5238,24 @@ ones included, with the write revoking a consent makes
 how many; it ends no session. It is held to the target ceiling, and writes
 `grant.revoke`. An unknown subject answers `404`.
 
-Against the ninth stack, `grace`'s two grants through `ops-app`, the offline
+Against the tenth stack, `grace`'s two grants through `ops-app`, the offline
 one's refresh token (`$GRACE_OFFLINE_REFRESH_TOKEN`) presented after the
 revocation, and what is left:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/grants"; echo
+  "$P/subjects/01a0ee8a-c58a-716c-96a6-edcab4ca1a70/grants"; echo
 curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/grants/01a0ee37-01c9-760e-b4cd-b94b21b9fe36"; echo
+  "$P/subjects/01a0ee8a-c58a-716c-96a6-edcab4ca1a70/grants/01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123"; echo
 curl -sS -u "ops-app:$OPS_APP_SECRET" --data-urlencode grant_type=refresh_token \
   --data-urlencode "refresh_token=$GRACE_OFFLINE_REFRESH_TOKEN" \
   http://localhost:3082/tenants/ops-demo/protocol/openid-connect/token; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/subjects/01a0ee36-c9ff-7162-8bb7-0fad74136098/grants"; echo
+  "$P/subjects/01a0ee8a-c58a-716c-96a6-edcab4ca1a70/grants"; echo
 ```
 
 ```
-{"items":[{"id":"01a0ee37-254b-7bf1-a5d8-2bf35799ed65","client_id":"01a0ee37-01c9-760e-b4cd-b94b21b9fe36","client_key":"ops-app","scope":"openid profile email offline_access","created_at":"2026-09-29T17:29:46.295Z","session_id":null,"offline":true,"refresh_expires_at":"2026-10-13T17:29:46.530Z"},{"id":"01a0ee37-2735-7869-889a-2bc0616501ef","client_id":"01a0ee37-01c9-760e-b4cd-b94b21b9fe36","client_key":"ops-app","scope":"openid profile email","created_at":"2026-09-29T17:29:46.993Z","session_id":"01a0ee37-269b-70ba-b9b2-c421cb773c97","offline":false,"refresh_expires_at":"2026-10-13T17:29:47.044Z"}]}
+{"items":[{"id":"01a0ee8b-2736-7d56-a78d-5d0c22330e0b","client_id":"01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123","client_key":"ops-app","scope":"openid profile email offline_access","created_at":"2026-09-29T19:01:32.013Z","session_id":null,"offline":true,"refresh_expires_at":"2026-10-13T19:01:32.073Z"},{"id":"01a0ee8b-2871-7378-912a-5d2f335a483d","client_id":"01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123","client_key":"ops-app","scope":"openid profile email","created_at":"2026-09-29T19:01:32.338Z","session_id":"01a0ee8b-27fa-7271-bb21-8bf1dec2d0fa","offline":false,"refresh_expires_at":"2026-10-13T19:01:32.391Z"}]}
 {"revoked":2}
 {"error":"invalid_grant"}
 {"items":[]}
@@ -5157,31 +5272,31 @@ sessions holding a grant through that client, by its row id;
 `GET /clients/:id/sessions` is the same narrowing, answering `404` for a client
 that does not exist. The count is capped like every other.
 
-Against the ninth stack, with the three sessions its sign-ins left:
+Against the tenth stack, with the three sessions its sign-ins left:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/sessions/count"; echo
 curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$P/sessions?limit=2"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/clients/01a0ee37-01c9-760e-b4cd-b94b21b9fe36/sessions"; echo
+  "$P/clients/01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123/sessions"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/sessions/count?client=01a0ee37-01c9-760e-b4cd-b94b21b9fe36"; echo
+  "$P/sessions/count?client=01a0ee8a-d1a7-7c3c-a05b-903a2d8fa123"; echo
 ```
 
 ```
 {"count":3,"capped":false}
 HTTP/1.1 200 OK
-x-request-id: 01a0ee38-2847-7c83-94fc-7a4d309466e8
+x-request-id: 01a0ee8b-343a-7279-ad8e-e45c5b139fc1
 cache-control: no-store
-link: </admin/tenants/ops-demo/sessions?limit=2&cursor=eyJhZnRlciI6IjAxYTBlZTM3LTI2OWItNzBiYS1iOWIyLWM0MjFjYjc3M2M5NyIsImNvbGxlY3Rpb24iOiJ0ZW5hbnQtc2Vzc2lvbnMiLCJ0ZW5hbnRJZCI6IjAxYTBlZTM2LTgyNTctNzU1NS1hN2QxLWY4Y2Q0YTA1M2EzMyIsImZpbHRlcnMiOiJUMVBOb1l3cnFnd0RWTHRmbWo3TDVlMFNxMDJPRWJxSFBDOFJGaElDdVVVIn0.0sEMo7pF2il-Qv_JYZCxR1w6Eekio278eN2wqwgt55I>; rel="next"
+link: </admin/tenants/ops-demo/sessions?limit=2&cursor=eyJhZnRlciI6IjAxYTBlZThiLTI3ZmEtNzI3MS1iYjIxLThiZjFkZWMyZDBmYSIsImNvbGxlY3Rpb24iOiJ0ZW5hbnQtc2Vzc2lvbnMiLCJ0ZW5hbnRJZCI6IjAxYTBlZThhLWMzOTQtN2I0OS05NDJiLTNkZWE3MGE5NjJlNyIsImZpbHRlcnMiOiJUMVBOb1l3cnFnd0RWTHRmbWo3TDVlMFNxMDJPRWJxSFBDOFJGaElDdVVVIn0.TWjgj_zCkTnLF8x2j2neR72PFkSthAD4leDxqPxE6Wk>; rel="next"
 content-type: application/json; charset=utf-8
 content-length: 793
-Date: Tue, 29 Sep 2026 17:30:52 GMT
+Date: Tue, 29 Sep 2026 19:01:35 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a0ee37-239d-772a-8155-04231f2d294f","subject_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","username":"grace","created_at":"2026-09-29T17:29:46.134Z","last_active_at":"2026-09-29T17:29:46.134Z","remembered":false,"client_ids":[]},{"id":"01a0ee37-269b-70ba-b9b2-c421cb773c97","subject_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","username":"grace","created_at":"2026-09-29T17:29:46.899Z","last_active_at":"2026-09-29T17:29:46.899Z","remembered":false,"client_ids":["ops-app"]}],"next":"eyJhZnRlciI6IjAxYTBlZTM3LTI2OWItNzBiYS1iOWIyLWM0MjFjYjc3M2M5NyIsImNvbGxlY3Rpb24iOiJ0ZW5hbnQtc2Vzc2lvbnMiLCJ0ZW5hbnRJZCI6IjAxYTBlZTM2LTgyNTctNzU1NS1hN2QxLWY4Y2Q0YTA1M2EzMyIsImZpbHRlcnMiOiJUMVBOb1l3cnFnd0RWTHRmbWo3TDVlMFNxMDJPRWJxSFBDOFJGaElDdVVVIn0.0sEMo7pF2il-Qv_JYZCxR1w6Eekio278eN2wqwgt55I"}
-{"items":[{"id":"01a0ee37-269b-70ba-b9b2-c421cb773c97","subject_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","username":"grace","created_at":"2026-09-29T17:29:46.899Z","last_active_at":"2026-09-29T17:29:46.899Z","remembered":false,"client_ids":["ops-app"]},{"id":"01a0ee37-27d7-73c8-b8e6-5977965a3a5d","subject_id":"01a0ee36-cbc9-7067-a0d0-0a78f9e9cb3a","username":"linus","created_at":"2026-09-29T17:29:47.220Z","last_active_at":"2026-09-29T17:29:47.220Z","remembered":false,"client_ids":["ops-app"]}]}
+{"items":[{"id":"01a0ee8b-26ae-74b4-8598-c6ca2545c92f","subject_id":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","username":"grace","created_at":"2026-09-29T19:01:31.945Z","last_active_at":"2026-09-29T19:01:31.945Z","remembered":false,"client_ids":[]},{"id":"01a0ee8b-27fa-7271-bb21-8bf1dec2d0fa","subject_id":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","username":"grace","created_at":"2026-09-29T19:01:32.281Z","last_active_at":"2026-09-29T19:01:32.281Z","remembered":false,"client_ids":["ops-app"]}],"next":"eyJhZnRlciI6IjAxYTBlZThiLTI3ZmEtNzI3MS1iYjIxLThiZjFkZWMyZDBmYSIsImNvbGxlY3Rpb24iOiJ0ZW5hbnQtc2Vzc2lvbnMiLCJ0ZW5hbnRJZCI6IjAxYTBlZThhLWMzOTQtN2I0OS05NDJiLTNkZWE3MGE5NjJlNyIsImZpbHRlcnMiOiJUMVBOb1l3cnFnd0RWTHRmbWo3TDVlMFNxMDJPRWJxSFBDOFJGaElDdVVVIn0.TWjgj_zCkTnLF8x2j2neR72PFkSthAD4leDxqPxE6Wk"}
+{"items":[{"id":"01a0ee8b-27fa-7271-bb21-8bf1dec2d0fa","subject_id":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","username":"grace","created_at":"2026-09-29T19:01:32.281Z","last_active_at":"2026-09-29T19:01:32.281Z","remembered":false,"client_ids":["ops-app"]},{"id":"01a0ee8b-28f4-79df-bbe5-95698666977b","subject_id":"01a0ee8a-c748-743d-b60e-9b0ed48221a3","username":"linus","created_at":"2026-09-29T19:01:32.530Z","last_active_at":"2026-09-29T19:01:32.530Z","remembered":false,"client_ids":["ops-app"]}]}
 {"count":2,"capped":false}
 ```
 
@@ -5198,12 +5313,17 @@ and its own `session.ended` row. A session whose subject holds an admin
 capability the caller does not is left alone and counted under
 `beyond_ceiling`: the target ceiling, run over the tenant as a set (ADR 0040,
 whose consequence is that `manage-sessions` alone ends no administrator's
-session). One `session.end_all` row, filed on the tenant, carries both counts.
-The caller's own session ends with the rest when it is one of them.
+session; ADR 0040's amendment of 2026-09-30). One call ends at most 500
+sessions, in id order, and answers how many are still live beyond those
+under `remaining`, so a tenant with more is ended by calling again until
+`remaining` is `0` — each call a transaction short enough not to hold the
+tenant's sessions locked for the length of a large one. One
+`session.end_all` row, filed on the tenant, carries all three counts. The
+caller's own session ends with the rest when it is one of them.
 
-Against the ninth stack, after `sam` was seeded in `ops-demo` and granted
-`odudu-admin:manage-sessions` alone, and signed in to the tenant's own admin
-client (`$SAM_TOKEN`), and `mona` signed in through `ops-app`:
+Against the tenth stack, after `sam`, granted `odudu-admin:manage-sessions`
+alone, signed in to the tenant's own admin client (`$SAM_TOKEN`), and `mona`
+signed in through `ops-app`:
 
 ```bash
 curl -sS -H "Authorization: Bearer $SAM_TOKEN" "$P/whoami"; echo
@@ -5215,12 +5335,12 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit?action=session.end_al
 ```
 
 ```
-{"subjectId":"01a0ee38-c0dd-702e-b847-69ca6fa2d181","issuerTenantId":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","capabilities":["manage-sessions"],"crossTenant":false}
-{"items":[{"id":"01a0ee37-239d-772a-8155-04231f2d294f","subject_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","username":"grace","created_at":"2026-09-29T17:29:46.134Z","last_active_at":"2026-09-29T17:29:46.134Z","remembered":false,"client_ids":[]},{"id":"01a0ee37-269b-70ba-b9b2-c421cb773c97","subject_id":"01a0ee36-c9ff-7162-8bb7-0fad74136098","username":"grace","created_at":"2026-09-29T17:29:46.899Z","last_active_at":"2026-09-29T17:29:46.899Z","remembered":false,"client_ids":["ops-app"]},{"id":"01a0ee37-27d7-73c8-b8e6-5977965a3a5d","subject_id":"01a0ee36-cbc9-7067-a0d0-0a78f9e9cb3a","username":"linus","created_at":"2026-09-29T17:29:47.220Z","last_active_at":"2026-09-29T17:29:47.220Z","remembered":false,"client_ids":["ops-app"]},{"id":"01a0ee38-c387-7be7-95db-67f3c1133a43","subject_id":"01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","username":"mona","created_at":"2026-09-29T17:31:32.609Z","last_active_at":"2026-09-29T17:31:32.609Z","remembered":false,"client_ids":["ops-app"]},{"id":"01a0ee38-c551-7c88-bb44-cafa3359b49f","subject_id":"01a0ee38-c0dd-702e-b847-69ca6fa2d181","username":"sam","created_at":"2026-09-29T17:31:33.067Z","last_active_at":"2026-09-29T17:31:33.067Z","remembered":false,"client_ids":["odudu-admin"]}]}
-{"ended":4,"beyond_ceiling":1}
-{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0ee38-e7e0-70c2-a746-e77af66a892d"}
-{"items":[{"id":"01a0ee38-c387-7be7-95db-67f3c1133a43","subject_id":"01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","username":"mona","created_at":"2026-09-29T17:31:32.609Z","last_active_at":"2026-09-29T17:31:32.609Z","remembered":false,"client_ids":["ops-app"]}]}
-{"items":[{"id":"01a0ee38-e7d2-7520-a9f7-e5bd57f78d82","occurred_at":"2026-09-29T17:31:41.871Z","event_type":"admin_mutation","action":"session.end_all","outcome":"allowed","actor_tenant_id":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","actor_subject_id":"01a0ee38-c0dd-702e-b847-69ca6fa2d181","actor_client_id":"01a0ee36-8264-70d1-b609-23ba4b7469c8","actor_name":"sam","actor_origin":"tenant","resource_type":"tenant","resource_id":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","request_id":"01a0ee38-e79e-7bc0-a2e4-dd81e2cca18a","ip":"172.21.0.1","detail":{"ended":4,"beyond_ceiling":1}}]}
+{"subjectId":"01a0ee8a-ca97-7a85-b36d-e23f6a8ae2d3","issuerTenantId":"01a0ee8a-c394-7b49-942b-3dea70a962e7","capabilities":["manage-sessions"],"crossTenant":false}
+{"items":[{"id":"01a0ee8b-26ae-74b4-8598-c6ca2545c92f","subject_id":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","username":"grace","created_at":"2026-09-29T19:01:31.945Z","last_active_at":"2026-09-29T19:01:31.945Z","remembered":false,"client_ids":[]},{"id":"01a0ee8b-27fa-7271-bb21-8bf1dec2d0fa","subject_id":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","username":"grace","created_at":"2026-09-29T19:01:32.281Z","last_active_at":"2026-09-29T19:01:32.281Z","remembered":false,"client_ids":["ops-app"]},{"id":"01a0ee8b-28f4-79df-bbe5-95698666977b","subject_id":"01a0ee8a-c748-743d-b60e-9b0ed48221a3","username":"linus","created_at":"2026-09-29T19:01:32.530Z","last_active_at":"2026-09-29T19:01:32.530Z","remembered":false,"client_ids":["ops-app"]},{"id":"01a0ee8c-520e-7010-b273-0d3799401aea","subject_id":"01a0ee8a-c8f6-7450-b486-861a66a87684","username":"mona","created_at":"2026-09-29T19:02:48.588Z","last_active_at":"2026-09-29T19:02:48.588Z","remembered":false,"client_ids":["ops-app"]},{"id":"01a0ee8c-5369-74cc-9b41-6304c2990dbb","subject_id":"01a0ee8a-ca97-7a85-b36d-e23f6a8ae2d3","username":"sam","created_at":"2026-09-29T19:02:48.935Z","last_active_at":"2026-09-29T19:02:48.935Z","remembered":false,"client_ids":["odudu-admin"]}]}
+{"ended":4,"remaining":0,"beyond_ceiling":1}
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0ee8c-5559-7b23-ac77-3108e2291fa2"}
+{"items":[{"id":"01a0ee8c-520e-7010-b273-0d3799401aea","subject_id":"01a0ee8a-c8f6-7450-b486-861a66a87684","username":"mona","created_at":"2026-09-29T19:02:48.588Z","last_active_at":"2026-09-29T19:02:48.588Z","remembered":false,"client_ids":["ops-app"]}]}
+{"items":[{"id":"01a0ee8c-5548-7fd9-8179-8d3d1320b981","occurred_at":"2026-09-29T19:02:49.371Z","event_type":"admin_mutation","action":"session.end_all","outcome":"allowed","actor_tenant_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","actor_subject_id":"01a0ee8a-ca97-7a85-b36d-e23f6a8ae2d3","actor_client_id":"01a0ee8a-c3a0-7429-ab4a-4ecef6baf694","actor_name":"sam","actor_origin":"tenant","resource_type":"tenant","resource_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","request_id":"01a0ee8c-550b-776a-8847-5fcfd763a5d1","ip":"172.22.0.1","detail":{"ended":4,"remaining":0,"beyond_ceiling":1}}]}
 ```
 
 `sam`'s own session was one of the four, so his token is refused at once;
@@ -5492,15 +5612,19 @@ curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3080/admin/tena
 Then `kai`, created there the same way holding `manage-clients` alone,
 refused the list, and the row that refusal wrote:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, with a `kai` seeded in a tenant of the same name holding
+`manage-clients` alone, so the ids are that run's, not those above:
+
 ```bash
-curl -sS -H "Authorization: Bearer $KAI_TOKEN" http://localhost:3080/admin/tenants/admins-demo/roles
+curl -sS -H "Authorization: Bearer $KAI_TOKEN" http://localhost:3082/admin/tenants/admins-demo/roles; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3080/admin/tenants/admins-demo/audit?action=capability.refused&limit=1'
+  'http://localhost:3082/admin/tenants/admins-demo/audit?action=capability.refused&limit=1'; echo
 ```
 
 ```
-{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0ea59-ad69-77c6-b031-ef9d6a4deb3e"}
-{"items":[{"id":"01a0ea59-ad72-7bc6-aed5-61c3cacf762e","occurred_at":"2026-09-28T23:29:00.785Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0ea59-5cd2-7d04-a47c-25e735e7b213","actor_subject_id":"01a0ea59-5e81-774a-9022-591faf17dc09","actor_client_id":"01a0ea59-5cdb-7604-a205-088e108e7bc7","resource_type":null,"resource_id":null,"request_id":"01a0ea59-ad69-77c6-b031-ef9d6a4deb3e","ip":"172.21.0.1","detail":{"reason":"missing_capability","capability":"manage-tenant","also_admits":["view-users"]}}],"next":"eyJhZnRlciI6IjIwMjYtMDktMjhUMjM6Mjk6MDAuNzg1WnwwMWEwZWE1OS1hZDcyLTdiYzYtYWVkNS02MWMzY2FjZjc2MmUiLCJjb2xsZWN0aW9uIjoiYXVkaXQiLCJ0ZW5hbnRJZCI6IjAxYTBlYTU5LTVjZDItN2QwNC1hNDdjLTI1ZTczNWU3YjIxMyIsImZpbHRlcnMiOiJzV3pnMmJuM3FLa3djU0htSGVxS1gyYlZ5VlA3Tl8wRWdhSmI3Si1TeWRrIn0._hLOGy-ndefRZaJaHjbJNYMIU9Z0Igi7InzhgrbAU9s"}
+{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0ee91-6bf2-708d-839a-f58481e120e8"}
+{"items":[{"id":"01a0ee91-6c24-7df3-aff4-f3b3cb39e5c3","occurred_at":"2026-09-29T19:08:22.941Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0ee91-5500-7587-bec8-ccd5ea0cfb56","actor_subject_id":"01a0ee91-621f-7416-9ebf-80d7244ddda7","actor_client_id":"01a0ee91-551f-76e0-b7f0-ff2a01e786b4","actor_name":"kai","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":"01a0ee91-6bf2-708d-839a-f58481e120e8","ip":"172.22.0.1","detail":{"reason":"missing_capability","capability":"manage-tenant","also_admits":["view-users"]}}]}
 ```
 
 ## `POST /roles/:id/composites`
@@ -5675,13 +5799,19 @@ The trail holds the removal that landed; the guarded one wrote its
 the parent role's `resource_id`, since the action alone would also match
 every other role's removals in this tenant:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, after the same three roles were nested in a tenant of the
+same name and the same edge removed twice, so the ids are that run's, not
+those above. The guarded removal there came after this capture, and is
+outside its scope either way:
+
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3080/admin/tenants/composites-demo/audit?action=role.composite_remove&resource_type=role&resource_id=01a0ea5a-6e28-777a-b4f5-82d7512a7293'
+  'http://localhost:3082/admin/tenants/composites-demo/audit?action=role.composite_remove&resource_type=role&resource_id=01a0ee92-a1c5-70f4-b754-e2b9d40c22c7'; echo
 ```
 
 ```
-{"items":[{"id":"01a0ea5a-6ee5-7c98-8b70-4d1d1de50ded","occurred_at":"2026-09-28T23:29:50.305Z","event_type":"admin_mutation","action":"role.composite_remove","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ea4b-e3e1-766f-b23b-bed19bea9b2b","actor_client_id":"01a0ea4b-e3a2-7937-91a3-150f2fd3415e","resource_type":"role","resource_id":"01a0ea5a-6e28-777a-b4f5-82d7512a7293","request_id":"01a0ea5a-6ed8-7b76-bfdb-b055727a4621","ip":"172.21.0.1","detail":{"child_role_id":"01a0ea5a-6e54-7a44-a792-1e835b730a0e"}}]}
+{"items":[{"id":"01a0ee92-a3d6-72f5-8f9e-9b31dd3f3923","occurred_at":"2026-09-29T19:09:42.712Z","event_type":"admin_mutation","action":"role.composite_remove","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"role","resource_id":"01a0ee92-a1c5-70f4-b754-e2b9d40c22c7","request_id":"01a0ee92-a38e-7adc-ab75-39fad347ea6c","ip":"172.22.0.1","detail":{"child_role_id":"01a0ee92-a205-756a-8ca0-a2fbca9167e0"}}]}
 ```
 
 ### Composites answer an `ETag`
@@ -5866,13 +5996,18 @@ have handed out, and `member`'s two changes. Two roles are named here, so
 point before the composite-door demonstration below repeats
 `role.default_set` against the same `member` role:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, after `member` and `helpdesk-lead`, nesting `manage-users`,
+were made in the same tenant and the same three writes sent, bounded the
+same way, so the ids are that run's, not those above:
+
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3080/admin/tenants/composites-demo/audit?action=role.default_set&to=2026-09-28T23:31:14.000Z&limit=3'
+  'http://localhost:3082/admin/tenants/composites-demo/audit?action=role.default_set&to=2026-09-29T19:09:44.000Z&limit=3'; echo
 ```
 
 ```
-{"items":[{"id":"01a0ea5b-b275-7841-93ad-ffb05f9e69ea","occurred_at":"2026-09-28T23:31:13.139Z","event_type":"admin_mutation","action":"role.default_set","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ea4b-e3e1-766f-b23b-bed19bea9b2b","actor_client_id":"01a0ea4b-e3a2-7937-91a3-150f2fd3415e","resource_type":"role","resource_id":"01a0ea5b-b175-7800-a7c4-d9b8a1155f7d","request_id":"01a0ea5b-b26b-7882-b22f-6ea4f53ef4bb","ip":"172.21.0.1","detail":{"denied":["manage-users","view-users"]}},{"id":"01a0ea5b-b218-75dc-b981-e0cfcf282bf4","occurred_at":"2026-09-28T23:31:13.047Z","event_type":"admin_mutation","action":"role.default_set","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ea4b-e3e1-766f-b23b-bed19bea9b2b","actor_client_id":"01a0ea4b-e3a2-7937-91a3-150f2fd3415e","resource_type":"role","resource_id":"01a0ea5b-b15f-7803-aef7-fc6af8f80938","request_id":"01a0ea5b-b20f-760f-bfe7-3d4a363d04d5","ip":"172.21.0.1","detail":{"default_for_new_subjects":{"after":false,"before":true}}},{"id":"01a0ea5b-b1c4-7b12-b279-8c972cd53870","occurred_at":"2026-09-28T23:31:12.960Z","event_type":"admin_mutation","action":"role.default_set","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ea4b-e3e1-766f-b23b-bed19bea9b2b","actor_client_id":"01a0ea4b-e3a2-7937-91a3-150f2fd3415e","resource_type":"role","resource_id":"01a0ea5b-b15f-7803-aef7-fc6af8f80938","request_id":"01a0ea5b-b1b7-70f4-8ceb-8e199454e7e1","ip":"172.21.0.1","detail":{"default_for_new_subjects":{"after":true,"before":false}}}]}
+{"items":[{"id":"01a0ee92-a71f-7771-9b1a-03a150ed714d","occurred_at":"2026-09-29T19:09:43.575Z","event_type":"admin_mutation","action":"role.default_set","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"role","resource_id":"01a0ee92-a288-7ed8-9c42-53a785bcb715","request_id":"01a0ee92-a6de-79b1-953a-0c1ea870ddf4","ip":"172.22.0.1","detail":{"denied":["manage-users","view-users"]}},{"id":"01a0ee92-a6d6-75f3-a442-ac6daeb27c94","occurred_at":"2026-09-29T19:09:43.505Z","event_type":"admin_mutation","action":"role.default_set","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"role","resource_id":"01a0ee92-a253-705a-8b4e-3ea3cb68bbf7","request_id":"01a0ee92-a6b9-7135-9a56-79d0f994e9e5","ip":"172.22.0.1","detail":{"default_for_new_subjects":{"after":false,"before":true}}},{"id":"01a0ee92-a69c-73a6-b9c0-2a21029de42c","occurred_at":"2026-09-29T19:09:43.440Z","event_type":"admin_mutation","action":"role.default_set","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"role","resource_id":"01a0ee92-a253-705a-8b4e-3ea3cb68bbf7","request_id":"01a0ee92-a67c-7ec0-8d69-42d693e4b738","ip":"172.22.0.1","detail":{"default_for_new_subjects":{"after":true,"before":false}}}]}
 ```
 
 After that trail was read, the composite door: `member` marked default
@@ -6026,21 +6161,21 @@ under `GET /roles` gives, where it was captured.
 no parent, so a tree is drawn a level at a time rather than from every page
 of groups; `GET /groups/count` takes it too, and it `AND`s with `?name=`. A
 value that is neither a UUID nor `root` is refused with `400`. Against the
-ninth stack, with `/finance` and `/finance/payables` made for
+tenth stack, with `/finance` and `/finance/payables` made for
 `GET /subjects/:id/effective-roles` above:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=root"; echo
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=01a0ee37-a071-73ab-bb1a-7bdc0a63fa9f"; echo
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups/count?parent=01a0ee37-a071-73ab-bb1a-7bdc0a63fa9f"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=01a0ee8b-2f54-7a5a-9da6-7ba6baacbe13"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups/count?parent=01a0ee8b-2f54-7a5a-9da6-7ba6baacbe13"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=top"; echo
 ```
 
 ```
-{"items":[{"id":"01a0ee37-a071-73ab-bb1a-7bdc0a63fa9f","name":"finance","parent_id":null,"path":"/finance","created_at":"2026-09-29T17:30:18.096Z"}]}
-{"items":[{"id":"01a0ee37-dfad-7281-8472-6b99abca6bc4","name":"payables","parent_id":"01a0ee37-a071-73ab-bb1a-7bdc0a63fa9f","path":"/finance/payables","created_at":"2026-09-29T17:30:34.279Z"}]}
+{"items":[{"id":"01a0ee8b-2f54-7a5a-9da6-7ba6baacbe13","name":"finance","parent_id":null,"path":"/finance","created_at":"2026-09-29T19:01:34.163Z"}]}
+{"items":[{"id":"01a0ee8b-303e-7b1b-bf73-31200beeba2a","name":"payables","parent_id":"01a0ee8b-2f54-7a5a-9da6-7ba6baacbe13","path":"/finance/payables","created_at":"2026-09-29T19:01:34.395Z"}]}
 {"count":1,"capped":false}
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring/parent must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\", querystring/parent must be equal to constant, querystring/parent must match a schema in anyOf","errors":[{"path":"parent","message":"must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\""},{"path":"parent","message":"must be equal to constant"},{"path":"parent","message":"must match a schema in anyOf"}],"instance":"01a0ee37-e337-7adc-bd97-0daf237fc872"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/parent must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\", querystring/parent must be equal to constant, querystring/parent must match a schema in anyOf","errors":[{"path":"parent","message":"must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\""},{"path":"parent","message":"must be equal to constant"},{"path":"parent","message":"must match a schema in anyOf"}],"instance":"01a0ee8b-3334-7d7f-894d-3bc213174a7f"}
 ```
 
 ## `GET /groups/:id/roles` and `PUT /groups/:id/roles`
@@ -6796,12 +6931,12 @@ that checks what still depends on one. `If-Match` is optional; a stale one is
 refused with `412`. Writes `key.delete`, naming the `kid`. An unknown key
 answers `404`.
 
-Against the ninth stack, a key staged with `POST /keys`
-(`01a0ee3a-71c2-79bf-852a-d9f98afb5c92`), deleted before and after it was
+Against the tenth stack, a key staged with `POST /keys`
+(`01a0ee8c-6b4e-7479-a229-78e90920c309`), deleted before and after it was
 retired, then the keys left and the key's own trail:
 
 ```bash
-K=01a0ee3a-71c2-79bf-852a-d9f98afb5c92
+K=01a0ee8c-6b4e-7479-a229-78e90920c309
 curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$P/keys/$K"; echo
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "$P/keys/$K/retire"; echo
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$P/keys/$K"
@@ -6811,19 +6946,19 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit?resource_type=signing
 ```
 
 ```
-{"type":"about:blank","title":"Conflict","status":409,"detail":"the key is rotating: only a retired key can be deleted; retire it first","instance":"01a0ee3a-9ae5-7c4e-aa2f-df2b4bf8e119"}
-{"id":"01a0ee3a-71c2-79bf-852a-d9f98afb5c92","status":"retired","kid":"01a0ee3a-71c1-7d78-89c6-4485daaf4b62","alg":"RS256","created_at":"2026-09-29T17:33:22.630Z","not_after":null}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the key is rotating: only a retired key can be deleted; retire it first","instance":"01a0ee8c-6c2d-7cdf-a62c-6bec497d8f65"}
+{"id":"01a0ee8c-6b4e-7479-a229-78e90920c309","status":"retired","kid":"01a0ee8c-6b4e-7479-a229-78e820c93668","alg":"RS256","created_at":"2026-09-29T19:02:55.023Z","not_after":null}
 HTTP/1.1 204 No Content
-x-request-id: 01a0ee3a-9c12-77d7-a53e-7f3bbd06a549
+x-request-id: 01a0ee8c-6c76-7042-bd64-41005d2f2b33
 cache-control: no-store
-Date: Tue, 29 Sep 2026 17:33:33 GMT
+Date: Tue, 29 Sep 2026 19:02:55 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a0ee36-82a1-706a-90fe-271ad77d3de9","status":"active","kid":"01a0ee36-82a0-759d-a078-f8c02e68c9ab","alg":"ES256","created_at":"2026-09-29T17:29:04.855Z","not_after":null}]}
-{"action": "key.delete", "outcome": "allowed", "resource_id": "01a0ee3a-71c2-79bf-852a-d9f98afb5c92", "detail": {"kid": "01a0ee3a-71c1-7d78-89c6-4485daaf4b62"}}
-{"action": "key.retire", "outcome": "allowed", "resource_id": "01a0ee3a-71c2-79bf-852a-d9f98afb5c92", "detail": {}}
-{"action": "key.create", "outcome": "allowed", "resource_id": "01a0ee3a-71c2-79bf-852a-d9f98afb5c92", "detail": {}}
+{"items":[{"id":"01a0ee8a-c3c8-750a-8d55-6ba394c1e76e","status":"active","kid":"01a0ee8a-c3c7-7eea-9175-adeee2ccc815","alg":"ES256","created_at":"2026-09-29T19:01:06.581Z","not_after":null}]}
+{"action": "key.delete", "outcome": "allowed", "resource_id": "01a0ee8c-6b4e-7479-a229-78e90920c309", "detail": {"kid": "01a0ee8c-6b4e-7479-a229-78e820c93668"}}
+{"action": "key.retire", "outcome": "allowed", "resource_id": "01a0ee8c-6b4e-7479-a229-78e90920c309", "detail": {}}
+{"action": "key.create", "outcome": "allowed", "resource_id": "01a0ee8c-6b4e-7479-a229-78e90920c309", "detail": {}}
 ```
 
 ## `GET /flow/executions` and `PUT /flow/executions`
@@ -7183,11 +7318,13 @@ carries the link a recipient signs in with. `?status=` narrows it.
 
 The recipient is a subject's address, which reading takes `view-users`
 everywhere else, so a caller without `view-users` sees it masked — its first
-character and its domain — wherever it appears, a relay's error quoting it
-back included, with `to_masked` true. `manage-tenant` alone says that mail went
+character and its domain — wherever it appears, with `to_masked` true. A
+relay's error quoting it back is masked too, matched without regard to case
+and as a whole address, so `<Grace@Navy.Example>` is masked as surely as the
+address as stored, and so is its local part followed by `@` on its own. `manage-tenant` alone says that mail went
 and whether it failed, not to whom.
 
-Against the ninth stack, after the two links above were queued: one pass of the
+Against the tenth stack, after the two links above were queued: one pass of the
 sender, run by hand, which the relay at `postgres:25` refuses; the outbox as
 `$ADMIN_TOKEN` reads it; then as `mona`, signed in to the tenant's own admin
 client (`$MONA_TOKEN`):
@@ -7200,13 +7337,13 @@ curl -sS -H "Authorization: Bearer $MONA_TOKEN" "$P/mail?status=retrying"; echo
 ```
 
 ```
-{"level":30,"time":1790703164050,"pid":565,"hostname":"f2aea15bc9cb","msg":"ODUDU_SMTP_HOST is unset; capturing outgoing mail instead of sending it"}
-{"level":40,"time":1790703164335,"pid":565,"hostname":"f2aea15bc9cb","err":{"type":"Error","message":"connect ECONNREFUSED 172.21.0.2:25","stack":"Error: connect ECONNREFUSED 172.21.0.2:25\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)","errno":-111,"code":"ESOCKET","syscall":"connect","address":"172.21.0.2","port":25,"command":"CONN"},"messageId":"01a0ee39-b168-74e1-a485-d382963e951c","attempts":1,"msg":"outbox message failed and will be retried"}
-{"level":40,"time":1790703164353,"pid":565,"hostname":"f2aea15bc9cb","err":{"type":"Error","message":"connect ECONNREFUSED 172.21.0.2:25","stack":"Error: connect ECONNREFUSED 172.21.0.2:25\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)","errno":-111,"code":"ESOCKET","syscall":"connect","address":"172.21.0.2","port":25,"command":"CONN"},"messageId":"01a0ee39-b27f-73ab-9d07-503978c18cea","attempts":1,"msg":"outbox message failed and will be retried"}
+{"level":30,"time":1790708573691,"pid":404,"hostname":"1dd2b3990a77","msg":"ODUDU_SMTP_HOST is unset; capturing outgoing mail instead of sending it"}
+{"level":40,"time":1790708573757,"pid":404,"hostname":"1dd2b3990a77","err":{"type":"Error","message":"connect ECONNREFUSED 172.22.0.2:25","stack":"Error: connect ECONNREFUSED 172.22.0.2:25\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)","errno":-111,"code":"ESOCKET","syscall":"connect","address":"172.22.0.2","port":25,"command":"CONN"},"messageId":"01a0ee8c-62a9-7880-8d8c-61381391ed4a","attempts":1,"msg":"outbox message failed and will be retried"}
+{"level":40,"time":1790708573761,"pid":404,"hostname":"1dd2b3990a77","err":{"type":"Error","message":"connect ECONNREFUSED 172.22.0.2:25","stack":"Error: connect ECONNREFUSED 172.22.0.2:25\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)","errno":-111,"code":"ESOCKET","syscall":"connect","address":"172.22.0.2","port":25,"command":"CONN"},"messageId":"01a0ee8c-62cf-7422-b5a9-7220bfeef117","attempts":1,"msg":"outbox message failed and will be retried"}
 {"ran":true,"sent":0,"failed":2}
-{"items":[{"id":"01a0ee39-b27f-73ab-9d07-503978c18cea","to":"grace@navy.example","to_masked":false,"subject":"Verify your ops-demo account","status":"retrying","attempts":1,"last_error":"connect ECONNREFUSED 172.21.0.2:25","created_at":"2026-09-29T17:32:33.769Z","next_attempt_at":"2026-09-29T17:33:44.051Z","sent_at":null},{"id":"01a0ee39-b168-74e1-a485-d382963e951c","to":"grace@navy.example","to_masked":false,"subject":"Reset your ops-demo password","status":"retrying","attempts":1,"last_error":"connect ECONNREFUSED 172.21.0.2:25","created_at":"2026-09-29T17:32:33.485Z","next_attempt_at":"2026-09-29T17:33:44.051Z","sent_at":null}]}
-{"subjectId":"01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","issuerTenantId":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","capabilities":["manage-tenant"],"crossTenant":false}
-{"items":[{"id":"01a0ee39-b27f-73ab-9d07-503978c18cea","to":"g***@navy.example","to_masked":true,"subject":"Verify your ops-demo account","status":"retrying","attempts":1,"last_error":"connect ECONNREFUSED 172.21.0.2:25","created_at":"2026-09-29T17:32:33.769Z","next_attempt_at":"2026-09-29T17:33:44.051Z","sent_at":null},{"id":"01a0ee39-b168-74e1-a485-d382963e951c","to":"g***@navy.example","to_masked":true,"subject":"Reset your ops-demo password","status":"retrying","attempts":1,"last_error":"connect ECONNREFUSED 172.21.0.2:25","created_at":"2026-09-29T17:32:33.485Z","next_attempt_at":"2026-09-29T17:33:44.051Z","sent_at":null}]}
+{"items":[{"id":"01a0ee8c-62cf-7422-b5a9-7220bfeef117","to":"grace@navy.example","to_masked":false,"subject":"Verify your ops-demo account","status":"retrying","attempts":1,"last_error":"connect ECONNREFUSED 172.22.0.2:25","created_at":"2026-09-29T19:02:52.872Z","next_attempt_at":"2026-09-29T19:03:53.692Z","sent_at":null},{"id":"01a0ee8c-62a9-7880-8d8c-61381391ed4a","to":"grace@navy.example","to_masked":false,"subject":"Reset your ops-demo password","status":"retrying","attempts":1,"last_error":"connect ECONNREFUSED 172.22.0.2:25","created_at":"2026-09-29T19:02:52.832Z","next_attempt_at":"2026-09-29T19:03:53.692Z","sent_at":null}]}
+{"subjectId":"01a0ee8a-c8f6-7450-b486-861a66a87684","issuerTenantId":"01a0ee8a-c394-7b49-942b-3dea70a962e7","capabilities":["manage-tenant"],"crossTenant":false}
+{"items":[{"id":"01a0ee8c-62cf-7422-b5a9-7220bfeef117","to":"g***@navy.example","to_masked":true,"subject":"Verify your ops-demo account","status":"retrying","attempts":1,"last_error":"connect ECONNREFUSED 172.22.0.2:25","created_at":"2026-09-29T19:02:52.872Z","next_attempt_at":"2026-09-29T19:03:53.692Z","sent_at":null},{"id":"01a0ee8c-62a9-7880-8d8c-61381391ed4a","to":"g***@navy.example","to_masked":true,"subject":"Reset your ops-demo password","status":"retrying","attempts":1,"last_error":"connect ECONNREFUSED 172.22.0.2:25","created_at":"2026-09-29T19:02:52.832Z","next_attempt_at":"2026-09-29T19:03:53.692Z","sent_at":null}]}
 ```
 
 ## `GET /audit`
@@ -7233,12 +7370,33 @@ acting across tenants; `other-tenant`, the subject of a foreign token
 refused at the door. A name is never resolved outside the row's tenant: an
 auditor of a tenant reads no other tenant's subjects anywhere else, so a
 system administrator appears as `system` with the id alone, and a system
-auditor reads that name in `system`'s own trail. `GET /clients/:id/evaluate`
-and `DELETE /sessions` above show a `system` and a `tenant` actor, and
-`GET /audit/export` below a deleted one. Every other transcript of this
-listing in this document, in [docs/request-paths.md](request-paths.md) and
-in [docs/console-paths.md](console-paths.md), was captured before the two
-fields were added and shows every field but them.
+auditor reads that name in `system`'s own trail. A name is a username,
+which reading takes `view-users` everywhere else, so a caller holding
+`view-audit` without it reads `actor_name` as `null` on every row, with
+`actor_origin` still set — the same rule that masks a recipient under
+`GET /mail`. `GET /clients/:id/evaluate` and `DELETE /sessions` above show a
+`system` and a `tenant` actor, and `GET /audit/export` below a deleted one.
+The older transcripts of this listing in this document and in
+[docs/request-paths.md](request-paths.md) were recaptured against the tenth
+stack once the two fields were added, each saying so where it appears; those
+in [docs/console-paths.md](console-paths.md) say at the block that they
+predate them.
+
+Against the tenth stack, `ivy`, seeded in `ops-demo` with `odudu seed user`
+and granted `odudu-admin:view-audit` alone (`$IVY_TOKEN`), reads the row
+`DELETE /sessions` above left, then `$ADMIN_TOKEN` reads the same row:
+
+```bash
+curl -sS -H "Authorization: Bearer $IVY_TOKEN" "$P/whoami"; echo
+curl -sS -H "Authorization: Bearer $IVY_TOKEN" "$P/audit?action=session.end_all&limit=1"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit?action=session.end_all&limit=1"; echo
+```
+
+```
+{"subjectId":"01a0eea2-0572-77d8-b198-1cd4eae2caff","issuerTenantId":"01a0ee8a-c394-7b49-942b-3dea70a962e7","capabilities":["view-audit"],"crossTenant":false}
+{"items":[{"id":"01a0ee8c-5548-7fd9-8179-8d3d1320b981","occurred_at":"2026-09-29T19:02:49.371Z","event_type":"admin_mutation","action":"session.end_all","outcome":"allowed","actor_tenant_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","actor_subject_id":"01a0ee8a-ca97-7a85-b36d-e23f6a8ae2d3","actor_client_id":"01a0ee8a-c3a0-7429-ab4a-4ecef6baf694","actor_name":null,"actor_origin":"tenant","resource_type":"tenant","resource_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","request_id":"01a0ee8c-550b-776a-8847-5fcfd763a5d1","ip":"172.22.0.1","detail":{"ended":4,"remaining":0,"beyond_ceiling":1}}]}
+{"items":[{"id":"01a0ee8c-5548-7fd9-8179-8d3d1320b981","occurred_at":"2026-09-29T19:02:49.371Z","event_type":"admin_mutation","action":"session.end_all","outcome":"allowed","actor_tenant_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","actor_subject_id":"01a0ee8a-ca97-7a85-b36d-e23f6a8ae2d3","actor_client_id":"01a0ee8a-c3a0-7429-ab4a-4ecef6baf694","actor_name":"sam","actor_origin":"tenant","resource_type":"tenant","resource_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","request_id":"01a0ee8c-550b-776a-8847-5fcfd763a5d1","ip":"172.22.0.1","detail":{"ended":4,"remaining":0,"beyond_ceiling":1}}]}
+```
 
 `outcome` is `allowed`, `refused` or `failed`. Three kinds of mutation
 refusal record an `admin_mutation` row. **`POST /clients`** does — a
@@ -7316,13 +7474,21 @@ she authenticated as is `01a0daee-7bb4-7abb-99dd-12bbd701c5d4`. Requests
 below went from the host into the container over the compose network, so
 `ip` is that network's own gateway address rather than `127.0.0.1`.
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, after the same writes were made in its own `demo` — `demo-app`,
+`demo-backend` with a `jwks`, the reserved `client_id` refused, then a key
+staged, promoted and the old one retired — so the ids below are that run's,
+not the third stack's, and the actor is `ada-t8b2`. `actor_origin` is
+`system` on every row, and `actor_name` `null`, a system administrator
+being named only in `system`'s own trail:
+
 ```bash
 curl -sS -G \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "resource_type=client" \
   --data-urlencode "action=client.create" \
   --data-urlencode "limit=20" \
-  http://localhost:3000/admin/tenants/demo/audit
+  http://localhost:3082/admin/tenants/demo/audit; echo
 ```
 
 All three `client.create` rows on this stack, newest first: the
@@ -7331,7 +7497,7 @@ reserved-`client_id` refusal, attempted last, then `demo-app` and
 oldest last:
 
 ```
-{"items":[{"id":"01a0daef-c428-73d7-86f7-15d31e7ec3e0","occurred_at":"2026-09-25T23:39:01.543Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0daef-c41f-70ad-ac7a-45d82523ca89","ip":"172.20.0.1","detail":{}},{"id":"01a0daef-c414-763a-ac6e-28e568659122","occurred_at":"2026-09-25T23:39:01.514Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"01a0daef-c40c-7dac-8d24-bf63c93db1b2","request_id":"01a0daef-c402-7a09-9c9c-4e2d0672b648","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code","refresh_token"]},"web_origins":{"after":[]},"redirect_uris":{"after":["http://localhost:3000/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"none"}}},{"id":"01a0daef-c3f6-7eac-8f6f-908fe252c948","occurred_at":"2026-09-25T23:39:01.441Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"01a0daef-c3ea-727a-a8d1-57245d276f1c","request_id":"01a0daef-c3b3-73bc-bef7-8350110f08f7","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
+{"items":[{"id":"01a0ee95-ae60-72e3-8a5d-c5f9b1c33908","occurred_at":"2026-09-29T19:13:02.047Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0ee95-ae38-7a0f-a18d-797dbc8a2d06","ip":"172.22.0.1","detail":{}},{"id":"01a0ee95-ae2b-761b-9477-55bd94e8374a","occurred_at":"2026-09-29T19:13:01.912Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ae07-7eaf-83d7-bbb02a7840c4","request_id":"01a0ee95-adbb-7232-b2b2-9841c6fe75df","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"private_key_jwt"}}},{"id":"01a0ee95-adb1-78e5-a8f7-8b6c6e6526a6","occurred_at":"2026-09-29T19:13:01.658Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ad80-7776-8fec-a430c88e186b","request_id":"01a0ee95-acb2-79b9-b44d-5c3ba2e2026d","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/callback"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
 ```
 
 `actor_tenant_id` is `system` on all three, and `tenant_id` is absent from
@@ -7347,16 +7513,29 @@ Three signing-key rows from a stage/promote/retire rotation on this same
 stack, narrowed by `resource_type` alone. Their `detail` is empty, a key
 having no allowlisted field to diff:
 
+```bash
+curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "resource_type=signing_key" \
+  http://localhost:3082/admin/tenants/demo/audit; echo
 ```
-{"items":[{"id":"01a0daef-ee73-761c-bcf6-238fb5748e87","occurred_at":"2026-09-25T23:39:12.367Z","event_type":"admin_mutation","action":"key.retire","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"signing_key","resource_id":"01a0daef-a976-77ad-81e8-bec6ba60d906","request_id":"01a0daef-ee65-71d7-8693-366338b3d3cd","ip":"172.20.0.1","detail":{}},{"id":"01a0daef-ee57-7c06-ba34-229c5f617394","occurred_at":"2026-09-25T23:39:12.340Z","event_type":"admin_mutation","action":"key.promote","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"signing_key","resource_id":"01a0daef-dbc4-734b-86a1-6f46504e961d","request_id":"01a0daef-ee47-7a74-b7e2-4c3316d0a916","ip":"172.20.0.1","detail":{}},{"id":"01a0daef-dbc5-76a5-a17b-495d1ee64bd1","occurred_at":"2026-09-25T23:39:07.586Z","event_type":"admin_mutation","action":"key.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"signing_key","resource_id":"01a0daef-dbc4-734b-86a1-6f46504e961d","request_id":"01a0daef-dbb7-7d36-a27b-c77de68a9cdc","ip":"172.20.0.1","detail":{}}]}
+
+```
+{"items":[{"id":"01a0ee95-cfe1-7153-acc8-171c106ae32a","occurred_at":"2026-09-29T19:13:10.611Z","event_type":"admin_mutation","action":"key.retire","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a0ee8f-0351-70d4-b27e-603117608afa","request_id":"01a0ee95-cfb8-7c03-b413-90980541875c","ip":"172.22.0.1","detail":{}},{"id":"01a0ee95-cfb2-7812-8c50-6c32a6c48cdf","occurred_at":"2026-09-29T19:13:10.573Z","event_type":"admin_mutation","action":"key.promote","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a0ee95-cf89-7295-80f6-3c8d6130aee4","request_id":"01a0ee95-cf9a-781f-bfa8-eacac5902eed","ip":"172.22.0.1","detail":{}},{"id":"01a0ee95-cf8b-73da-b942-b67b1913e78c","occurred_at":"2026-09-29T19:13:10.529Z","event_type":"admin_mutation","action":"key.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a0ee95-cf89-7295-80f6-3c8d6130aee4","request_id":"01a0ee95-cf73-7d9f-9017-ea6b33905fc4","ip":"172.22.0.1","detail":{}}]}
 ```
 
 And `?outcome=refused`, non-empty for `POST /clients`: the same
 reserved-`client_id` row shown above, on its own —
 `resource_id` is the `client_id` string, there being no row to name:
 
+```bash
+curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data-urlencode "resource_type=client" \
+  --data-urlencode "outcome=refused" \
+  http://localhost:3082/admin/tenants/demo/audit; echo
 ```
-{"items":[{"id":"01a0daef-c428-73d7-86f7-15d31e7ec3e0","occurred_at":"2026-09-25T23:39:01.543Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0daef-c41f-70ad-ac7a-45d82523ca89","ip":"172.20.0.1","detail":{}}]}
+
+```
+{"items":[{"id":"01a0ee95-ae60-72e3-8a5d-c5f9b1c33908","occurred_at":"2026-09-29T19:13:02.047Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0ee95-ae38-7a0f-a18d-797dbc8a2d06","ip":"172.22.0.1","detail":{}}]}
 ```
 
 Adding `event_type=admin_mutation` to the first query on this stack —
@@ -7370,11 +7549,11 @@ curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "event_type=admin_mutation" \
   --data-urlencode "resource_type=client" \
   --data-urlencode "action=client.create" \
-  http://localhost:3000/admin/tenants/demo/audit
+  http://localhost:3082/admin/tenants/demo/audit; echo
 ```
 
 ```
-{"items":[{"id":"01a0daef-c428-73d7-86f7-15d31e7ec3e0","occurred_at":"2026-09-25T23:39:01.543Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0daef-c41f-70ad-ac7a-45d82523ca89","ip":"172.20.0.1","detail":{}},{"id":"01a0daef-c414-763a-ac6e-28e568659122","occurred_at":"2026-09-25T23:39:01.514Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"01a0daef-c40c-7dac-8d24-bf63c93db1b2","request_id":"01a0daef-c402-7a09-9c9c-4e2d0672b648","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code","refresh_token"]},"web_origins":{"after":[]},"redirect_uris":{"after":["http://localhost:3000/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"none"}}},{"id":"01a0daef-c3f6-7eac-8f6f-908fe252c948","occurred_at":"2026-09-25T23:39:01.441Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0daee-7bfc-7f6c-90de-d72b0aa3b5d8","actor_client_id":"01a0daee-7bb4-7abb-99dd-12bbd701c5d4","resource_type":"client","resource_id":"01a0daef-c3ea-727a-a8d1-57245d276f1c","request_id":"01a0daef-c3b3-73bc-bef7-8350110f08f7","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
+{"items":[{"id":"01a0ee95-ae60-72e3-8a5d-c5f9b1c33908","occurred_at":"2026-09-29T19:13:02.047Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0ee95-ae38-7a0f-a18d-797dbc8a2d06","ip":"172.22.0.1","detail":{}},{"id":"01a0ee95-ae2b-761b-9477-55bd94e8374a","occurred_at":"2026-09-29T19:13:01.912Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ae07-7eaf-83d7-bbb02a7840c4","request_id":"01a0ee95-adbb-7232-b2b2-9841c6fe75df","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"private_key_jwt"}}},{"id":"01a0ee95-adb1-78e5-a8f7-8b6c6e6526a6","occurred_at":"2026-09-29T19:13:01.658Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ad80-7776-8fec-a430c88e186b","request_id":"01a0ee95-acb2-79b9-b44d-5c3ba2e2026d","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/callback"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
 ```
 
 `?event_type=token`, a vocabulary event type no admin route writes,
@@ -7411,17 +7590,20 @@ system-tenant admin (`resource-doc`) and a tenant created only for this
 subsection, `resource-audit-1790486559`, so its trail holds nothing but
 what it did: two clients, `resource-doc-a` and `resource-doc-b`.
 
+Recaptured against the tenth stack in a tenant `resource-audit`, created
+there with the same two clients by `ada-t8b2`, so the id is that run's:
+
 ```bash
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "resource_type=client" \
-  --data-urlencode "resource_id=01a0e150-b9ec-70a9-8e34-663280fa0514" \
-  http://localhost:3000/admin/tenants/resource-audit-1790486559/audit
+  --data-urlencode "resource_id=01a0ee95-daa4-70e7-b131-bb8e9e998f7d" \
+  http://localhost:3082/admin/tenants/resource-audit/audit; echo
 ```
 
 Only `resource-doc-a`'s own row, not `resource-doc-b`'s:
 
 ```
-{"items":[{"id":"01a0e150-b9fa-7928-8c6c-fffb14508355","occurred_at":"2026-09-27T05:22:39.206Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0e150-9e32-7d69-9f91-82315e2f6bf2","actor_client_id":"01a0dc0c-0130-7dd6-a9d5-c867c3577f62","resource_type":"client","resource_id":"01a0e150-b9ec-70a9-8e34-663280fa0514","request_id":"01a0e150-b9d5-7a65-8c0a-11474588ecf3","ip":"172.20.0.1","detail":{"jwks":{"changed":true},"name":{"after":"resource-doc-a"},"type":{"after":"public"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"none"}}}]}
+{"items":[{"id":"01a0ee95-dab9-7f0d-ad4e-79e72240e973","occurred_at":"2026-09-29T19:13:13.327Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-daa4-70e7-b131-bb8e9e998f7d","request_id":"01a0ee95-da55-71b4-85f3-daf418c61c2c","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"resource-doc-a"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://a.example/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
 ```
 
 `resource_id` alone, with no `resource_type`, is refused — a client, a
@@ -7527,11 +7709,10 @@ _(Not re-run for the `cache-control: no-store` pass: this and the two
 blocks below share one continuous audit-trail narrative — `acme`'s and
 `demo`'s `admin_access` rows accumulate on every real replay, since both
 requests deliberately reuse the literal `x-request-id` values above rather
-than minting fresh ones. Replaying only this block, or the whole
-subsection again, adds another row rather than reproducing the "moments
-before" state the prose describes; there is no way to clear an
-append-only audit trail from the admin API. Restored to the original
-capture.)_
+than minting fresh ones — and there is no way to clear an append-only
+audit trail from the admin API. So the two blocks below were recaptured on
+a stack where neither tenant's trail held anything yet, which is the one
+way to reproduce the state the prose describes.)_
 
 What tells them apart is behind the response. The first names an issuer
 this deployment serves, and its signature verifies against `demo`'s own
@@ -7546,17 +7727,23 @@ The second writes only a `warn` line to the server's log:
 `acme` was created moments before, so its `admin_access` trail holds only
 what this subsection did; `demo`'s holds nothing yet:
 
+Recaptured against the tenth stack, once each row answered `actor_name` and
+`actor_origin`, after the same requests were made there — `acme` created,
+`demo-operator` created in its `demo` with the admin audience and no
+capability, and its token presented at `acme` once — so the ids are that
+run's, not the fourth stack's:
+
 ```bash
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "event_type=admin_access" \
-  http://localhost:3000/admin/tenants/acme/audit
+  http://localhost:3082/admin/tenants/acme/audit; echo
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "event_type=admin_access" \
-  http://localhost:3000/admin/tenants/demo/audit
+  http://localhost:3082/admin/tenants/demo/audit; echo
 ```
 
 ```
-{"items":[{"id":"01a0dc0d-5c73-74df-80e9-a834a955aacc","occurred_at":"2026-09-26T04:50:58.290Z","event_type":"admin_access","action":"token.foreign_issuer","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"foreign-issuer-doc","ip":"172.20.0.1","detail":{"reason":"foreign_issuer"}}]}
+{"items":[{"id":"01a0ee96-113f-7bf0-a878-7fbd1bb8cb47","occurred_at":"2026-09-29T19:13:27.357Z","event_type":"admin_access","action":"token.foreign_issuer","outcome":"refused","actor_tenant_id":"01a0ee8f-032e-718b-b030-be2b154a9e99","actor_subject_id":"01a0ee96-104f-7c7f-b3da-d7049248b038","actor_client_id":"01a0ee96-1084-772b-b51a-848699f7a2e1","actor_name":null,"actor_origin":"other-tenant","resource_type":null,"resource_id":null,"request_id":"foreign-issuer-doc","ip":"172.22.0.1","detail":{"reason":"foreign_issuer"}}]}
 {"items":[]}
 ```
 
@@ -7564,33 +7751,31 @@ The same token at `demo`, where it authenticates but holds no capability,
 is a `403`, and `demo`'s trail now has the `capability.refused` row naming
 what `GET /subjects` needed:
 
+Recaptured against the tenth stack the same way, straight after the block
+above:
+
 ```bash
 curl -sS -D - -H "Authorization: Bearer $DEMO_TOKEN" \
   -H 'x-request-id: capability-refused-doc' \
-  http://localhost:3000/admin/tenants/demo/subjects
+  http://localhost:3082/admin/tenants/demo/subjects; echo
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "event_type=admin_access" \
-  http://localhost:3000/admin/tenants/demo/audit
+  http://localhost:3082/admin/tenants/demo/audit; echo
 ```
 
 ```
 HTTP/1.1 403 Forbidden
 x-request-id: capability-refused-doc
+cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 91
-Date: Sat, 26 Sep 2026 04:51:08 GMT
+Date: Tue, 29 Sep 2026 19:13:28 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"type":"about:blank","title":"Forbidden","status":403,"instance":"capability-refused-doc"}
-{"items":[{"id":"01a0dc0d-82ec-7888-ab05-4e8c931ffd35","occurred_at":"2026-09-26T04:51:08.139Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0db22-1c32-7d17-b351-697d7911033c","actor_subject_id":"01a0dc0c-ec16-7566-adfb-a8bf7681149c","actor_client_id":"01a0dc0c-ec33-7e6a-bd79-339e8682bd86","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.20.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
+{"items":[{"id":"01a0ee96-1551-7830-a44f-fd26a2050e16","occurred_at":"2026-09-29T19:13:28.400Z","event_type":"admin_access","action":"capability.refused","outcome":"refused","actor_tenant_id":"01a0ee8f-032e-718b-b030-be2b154a9e99","actor_subject_id":"01a0ee96-104f-7c7f-b3da-d7049248b038","actor_client_id":"01a0ee96-1084-772b-b51a-848699f7a2e1","actor_name":"demo-operator","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":"capability-refused-doc","ip":"172.22.0.1","detail":{"reason":"missing_capability","capability":"view-users"}}]}
 ```
-
-_(Not re-run for the `cache-control: no-store` pass, for the same reason
-given above the foreign-issuer blocks: `demo`'s `admin_access` trail has
-since accumulated the row a real replay just added, so a fresh capture no
-longer shows the single row this prose describes. Restored to the
-original capture.)_
 
 ## `GET /audit/count` and `GET /audit/export`
 
@@ -7603,14 +7788,14 @@ or, past 10,000 rows, refuses the whole export with `413`
 the whole trail. Each export is itself audited as `audit.export`, since it
 hands the trail over in bulk.
 
-Against the ninth stack, the two rows `POST /subjects/bulk` left under
+Against the tenth stack, the two rows `POST /subjects/bulk` left under
 `uma`'s name; then `uma` deleted, and the same export again:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit/count?action=subject.amend"; echo
 curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit/export?action=subject.amend"
 curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$P/subjects/01a0ee3a-1587-7d73-afca-afda22d02270"
+  "$P/subjects/01a0ee8a-cc42-7dc9-a0bd-7fcd5dc9c35e"
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit/export?action=subject.amend"
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit/count?action=audit.export"; echo
 ```
@@ -7618,19 +7803,19 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit/count?action=audit.ex
 ```
 {"count":2,"capped":false}
 HTTP/1.1 200 OK
-x-request-id: 01a0ee3a-cd3b-791e-b9a9-ba4321fb1730
+x-request-id: 01a0ee8c-6e3f-75fe-8e8e-20a87f45ac41
 cache-control: no-store
 content-type: application/x-ndjson; charset=utf-8
 content-length: 1141
-Date: Tue, 29 Sep 2026 17:33:46 GMT
+Date: Tue, 29 Sep 2026 19:02:55 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a0ee3a-520e-724b-bc0f-e7e89e161a73","occurred_at":"2026-09-29T17:33:14.618Z","event_type":"admin_mutation","action":"subject.amend","outcome":"refused","actor_tenant_id":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","actor_subject_id":"01a0ee3a-1587-7d73-afca-afda22d02270","actor_client_id":"01a0ee36-8264-70d1-b609-23ba4b7469c8","actor_name":"uma","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","request_id":"01a0ee3a-51b2-7c8a-a726-0341c88625fa","ip":"172.21.0.1","detail":{"denied":["manage-tenant"]}}
-{"id":"01a0ee3a-51f6-75b9-98be-988505578cbd","occurred_at":"2026-09-29T17:33:14.587Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","actor_subject_id":"01a0ee3a-1587-7d73-afca-afda22d02270","actor_client_id":"01a0ee36-8264-70d1-b609-23ba4b7469c8","actor_name":"uma","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee3a-2665-7889-8245-6427ca634310","request_id":"01a0ee3a-51b2-7c8a-a726-0341c88625fa","ip":"172.21.0.1","detail":{"enabled":{"after":false,"before":true}}}
+{"id":"01a0ee8c-69d4-7064-bae0-23af3f0d9bf6","occurred_at":"2026-09-29T19:02:54.671Z","event_type":"admin_mutation","action":"subject.amend","outcome":"refused","actor_tenant_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","actor_subject_id":"01a0ee8a-cc42-7dc9-a0bd-7fcd5dc9c35e","actor_client_id":"01a0ee8a-c3a0-7429-ab4a-4ecef6baf694","actor_name":"uma","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee8a-c8f6-7450-b486-861a66a87684","request_id":"01a0ee8c-69b5-7e9b-a23c-621c22a3eb69","ip":"172.22.0.1","detail":{"denied":["manage-tenant"]}}
+{"id":"01a0ee8c-69ce-7674-a090-e64e603e8a49","occurred_at":"2026-09-29T19:02:54.658Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","actor_subject_id":"01a0ee8a-cc42-7dc9-a0bd-7fcd5dc9c35e","actor_client_id":"01a0ee8a-c3a0-7429-ab4a-4ecef6baf694","actor_name":"uma","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee8c-67c6-7752-904b-584bbc614619","request_id":"01a0ee8c-69b5-7e9b-a23c-621c22a3eb69","ip":"172.22.0.1","detail":{"enabled":{"after":false,"before":true}}}
 204
-{"id":"01a0ee3a-520e-724b-bc0f-e7e89e161a73","occurred_at":"2026-09-29T17:33:14.618Z","event_type":"admin_mutation","action":"subject.amend","outcome":"refused","actor_tenant_id":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","actor_subject_id":"01a0ee3a-1587-7d73-afca-afda22d02270","actor_client_id":"01a0ee36-8264-70d1-b609-23ba4b7469c8","actor_name":null,"actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee36-cdd4-7c9f-9ebf-64b9d01ff9c4","request_id":"01a0ee3a-51b2-7c8a-a726-0341c88625fa","ip":"172.21.0.1","detail":{"denied":["manage-tenant"]}}
-{"id":"01a0ee3a-51f6-75b9-98be-988505578cbd","occurred_at":"2026-09-29T17:33:14.587Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"01a0ee36-8257-7555-a7d1-f8cd4a053a33","actor_subject_id":"01a0ee3a-1587-7d73-afca-afda22d02270","actor_client_id":"01a0ee36-8264-70d1-b609-23ba4b7469c8","actor_name":null,"actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee3a-2665-7889-8245-6427ca634310","request_id":"01a0ee3a-51b2-7c8a-a726-0341c88625fa","ip":"172.21.0.1","detail":{"enabled":{"after":false,"before":true}}}
+{"id":"01a0ee8c-69d4-7064-bae0-23af3f0d9bf6","occurred_at":"2026-09-29T19:02:54.671Z","event_type":"admin_mutation","action":"subject.amend","outcome":"refused","actor_tenant_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","actor_subject_id":"01a0ee8a-cc42-7dc9-a0bd-7fcd5dc9c35e","actor_client_id":"01a0ee8a-c3a0-7429-ab4a-4ecef6baf694","actor_name":null,"actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee8a-c8f6-7450-b486-861a66a87684","request_id":"01a0ee8c-69b5-7e9b-a23c-621c22a3eb69","ip":"172.22.0.1","detail":{"denied":["manage-tenant"]}}
+{"id":"01a0ee8c-69ce-7674-a090-e64e603e8a49","occurred_at":"2026-09-29T19:02:54.658Z","event_type":"admin_mutation","action":"subject.amend","outcome":"allowed","actor_tenant_id":"01a0ee8a-c394-7b49-942b-3dea70a962e7","actor_subject_id":"01a0ee8a-cc42-7dc9-a0bd-7fcd5dc9c35e","actor_client_id":"01a0ee8a-c3a0-7429-ab4a-4ecef6baf694","actor_name":null,"actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee8c-67c6-7752-904b-584bbc614619","request_id":"01a0ee8c-69b5-7e9b-a23c-621c22a3eb69","ip":"172.22.0.1","detail":{"enabled":{"after":false,"before":true}}}
 {"count":2,"capped":false}
 ```
 
@@ -7779,7 +7964,7 @@ route above, generated from the same route table the router registers from,
 so the two cannot drift. It takes no `{tenant}` — it describes the API
 rather than reaching into one — and is served without authentication, since
 a client that cannot read it cannot generate against it. Captured against the
-ninth stack:
+tenth stack:
 
 ```bash
 curl -sS -D - -o openapi.json http://localhost:3082/admin/openapi.json
@@ -7788,11 +7973,11 @@ jq '.paths | length' openapi.json
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0ee3b-7b65-7ee9-a611-1db2536a93bf
+x-request-id: 01a0ee9e-a5c8-76ba-a7a0-7749208ccb69
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 295278
-Date: Tue, 29 Sep 2026 17:34:30 GMT
+content-length: 296230
+Date: Tue, 29 Sep 2026 19:22:49 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 

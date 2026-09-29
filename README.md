@@ -120,7 +120,14 @@ select id, name from tenants where name !~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])
 and recreate each one under a valid name — renaming changes a tenant's
 issuer, so the admin API refuses it (ADR 0039) — then remove the old one
 with `DELETE /admin/tenants/{tenant}?confirm=<name>`, which takes every row
-it holds.
+it holds. The tenant must be disabled first (`PATCH /admin/tenants/{tenant}`
+with `{"enabled": false}`), which ends every session it holds and queues a
+Back-Channel Logout Token for each relying party that registered a URI; the
+deletion is refused with `409` while any of those tokens is still to be
+sent. A resource server verifying access tokens against a cached copy of
+the tenant's JWKS still accepts one issued before the disable until it
+expires, at most 3600 seconds later
+([docs/admin-paths.md](docs/admin-paths.md#delete-admintenantstenant)).
 `GET`/`PATCH /admin/tenants/{tenant}/settings` changes the same set through
 the admin API, by the same column names; the ranges the numeric ones accept
 are CHECK constraints either way, so neither door has a way past a policy
