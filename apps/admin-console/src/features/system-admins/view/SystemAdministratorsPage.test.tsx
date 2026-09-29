@@ -156,6 +156,23 @@ it('grants tenant-admin to a subject chosen from system', async () => {
   expect(await screen.findByText('grace is now a system administrator.')).toBeVisible();
 });
 
+it('marks a subject who already holds it, from the list it already read', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(AT, routes());
+  await screen.findByRole('grid', { name: 'System administrators' });
+  const choose = await screen.findByRole('group', { name: 'Subject in system' });
+  const ada = await within(choose).findByRole('option', { name: /ada/u });
+  expect(ada).toHaveAttribute('aria-disabled', 'true');
+  expect(ada).toHaveAccessibleDescription(/already a system administrator/u);
+  const grace = within(choose).getByRole('option', { name: /grace/u });
+  expect(grace).not.toHaveAttribute('aria-disabled');
+  expect(grace).not.toHaveAccessibleDescription(/already a system administrator/u);
+  await user.click(ada);
+  expect(screen.getByRole('button', { name: 'Grant tenant-admin' })).toBeDisabled();
+  const perRow = sent.filter((s) => /\/subjects\/s-[a-z]+$/u.test(s.path));
+  expect(perRow).toEqual([]);
+});
+
 it('revokes behind a typed confirmation, keeping the roles that are not an administrator’s', async () => {
   const user = userEvent.setup();
   let revoked = false;

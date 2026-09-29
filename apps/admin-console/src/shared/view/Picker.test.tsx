@@ -54,6 +54,31 @@ it('offers every option with its detail, and reports the ids chosen', async () =
   expect(onChange).toHaveBeenCalledWith(['s2', 's1']);
 });
 
+it('marks an option that cannot be chosen, says why, and never reports it', async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  render(
+    <Picker
+      label="Scopes"
+      noun={{ one: 'scope', other: 'scopes' }}
+      picker={state()}
+      idOf={(scope) => scope.id}
+      nameOf={(scope) => scope.name}
+      detailOf={() => 'assigned by default'}
+      unavailableOf={(scope) => (scope.id === 's1' ? 'already assigned' : null)}
+      capability="manage-tenant"
+      selected={[]}
+      onChange={onChange}
+    />,
+  );
+  const taken = screen.getByRole('option', { name: 'profile' });
+  expect(taken).toHaveAttribute('aria-disabled', 'true');
+  expect(taken).toHaveAccessibleDescription('assigned by default · already assigned');
+  expect(screen.getByRole('option', { name: 'email' })).not.toHaveAttribute('aria-disabled');
+  await user.click(taken);
+  expect(onChange).not.toHaveBeenCalled();
+});
+
 it('says when the list is loading, and when it failed', async () => {
   const user = userEvent.setup();
   const failed = state({ status: 'failed', options: [] });

@@ -24,6 +24,7 @@ export function Picker<T>({
   nameOf,
   detailOf,
   accessibleNameOf,
+  unavailableOf,
   capability,
   searchBy = 'name',
   selected,
@@ -39,6 +40,8 @@ export function Picker<T>({
   // When the name alone could stand for two options, as a tenant role and
   // a client role of one name can.
   accessibleNameOf?: (item: T) => string;
+  // Why an option cannot be chosen, or null when it can.
+  unavailableOf?: (item: T) => string | null;
   // Named when the list is refused.
   capability: string;
   // The field the search is a prefix of.
@@ -93,6 +96,7 @@ export function Picker<T>({
             nameOf={nameOf}
             detailOf={detailOf}
             {...(accessibleNameOf === undefined ? {} : { accessibleNameOf })}
+            {...(unavailableOf === undefined ? {} : { unavailableOf })}
             selected={selected}
             selectionMode={selectionMode}
             onChange={change}
@@ -111,6 +115,7 @@ function Options<T>({
   nameOf,
   detailOf,
   accessibleNameOf,
+  unavailableOf,
   selected,
   selectionMode,
   onChange,
@@ -122,10 +127,12 @@ function Options<T>({
   nameOf: (item: T) => string;
   detailOf: (item: T) => string;
   accessibleNameOf?: (item: T) => string;
+  unavailableOf?: (item: T) => string | null;
   readonly selected: readonly string[];
   selectionMode: 'single' | 'multiple';
   onChange: (keys: Selection) => void;
 }) {
+  const why = (item: T): string | null => unavailableOf?.(item) ?? null;
   switch (picker.status) {
     case 'loading':
       return <ListSkeleton label={`Loading ${noun.other}`} />;
@@ -158,6 +165,7 @@ function Options<T>({
         items={picker.options.map((item) => ({ id: idOf(item), item }))}
         selectionMode={selectionMode}
         selectedKeys={new Set(selected)}
+        disabledKeys={picker.options.filter((item) => why(item) !== null).map(idOf)}
         onSelectionChange={onChange}
         className={styles.list ?? ''}
       >
@@ -178,7 +186,7 @@ function Options<T>({
                 <span className={styles.name}>{nameOf(item)}</span>
               )}
               <Text slot="description" className={styles.detail ?? ''}>
-                {detailOf(item)}
+                {[detailOf(item), why(item)].filter((part) => part !== null).join(' · ')}
               </Text>
             </span>
           </ListBoxItem>

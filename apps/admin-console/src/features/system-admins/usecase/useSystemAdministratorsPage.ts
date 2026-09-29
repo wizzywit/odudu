@@ -54,6 +54,8 @@ export interface SystemAdministrators {
   readonly changeNeeds: readonly AdminCapability[];
   readonly begin: BeginAdministrator;
   readonly picker: PickerState<Subject>;
+  // Why a subject cannot be granted it, from the holders already listed.
+  readonly unavailableOf: (subject: Subject) => string | null;
   readonly chosen: Subject | null;
   readonly choose: (id: string | null) => void;
   readonly grant: () => void;
@@ -116,6 +118,7 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
   );
   const changeNeeds = lacking(roleChangeNeeds(SYSTEM_TENANT));
   const only = onlyHolderOf(list.rows, enabledHolders);
+  const holders = new Set(list.rows.map((row) => row.id));
 
   const refused = (name: string, verb: string, outcome: Refused): string => {
     refusal.report(outcome.failure, ADMINISTRATOR_REQUEST_NEEDS[outcome.request]);
@@ -134,9 +137,12 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
       },
     },
     picker,
+    unavailableOf: (subject) => (holders.has(subject.id) ? 'already a system administrator' : null),
     chosen,
     choose: (id) => {
-      setChosen(id === null ? null : (picker.options.find((option) => option.id === id) ?? null));
+      const option =
+        id === null || holders.has(id) ? undefined : picker.options.find((o) => o.id === id);
+      setChosen(option ?? null);
     },
     grant: () => {
       if (chosen === null || changeNeeds.length > 0 || change.busy) return;

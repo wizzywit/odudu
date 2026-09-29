@@ -93,6 +93,7 @@ function Grant({ page }: { page: SystemAdministrators }) {
         idOf={(subject) => subject.id}
         nameOf={nameOf}
         detailOf={(subject) => subject.email ?? subject.type}
+        unavailableOf={page.unavailableOf}
         capability="view-users"
         searchBy="username"
         selected={chosen === null ? [] : [chosen.id]}

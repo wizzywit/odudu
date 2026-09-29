@@ -119,6 +119,15 @@
   transform: rotate(45deg);
 }
 
+.option[data-disabled] {
+  cursor: not-allowed;
+}
+
+.option[data-disabled] .box {
+  border-style: dashed;
+  background: var(--surface-sunken);
+}
+
 .text {
   display: grid;
 }
