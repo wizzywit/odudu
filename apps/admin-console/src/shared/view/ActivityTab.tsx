@@ -113,6 +113,11 @@ export function ActivityTab({
         onLoadMore={list.loadMore}
         loadingMore={list.loadingMore}
       />
+      {list.loadMoreFailed ? (
+        <p role="alert" className={styles.failed}>
+          More activity could not be loaded. Load more tries again.
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -59,6 +59,7 @@ function Subjects() {
   return (
     <>
       <p>{`status ${list.status}`}</p>
+      <p>{list.loadMoreFailed ? 'more failed' : 'more ok'}</p>
       <p>{`count ${list.count === null ? 'none' : String(list.count.count)}`}</p>
       <ul aria-label="Subjects">
         {list.rows.map((row) => (
@@ -204,4 +205,21 @@ it('says a read that failed failed', async () => {
     [COUNT]: json({ count: 0, capped: false }),
   });
   expect(await screen.findByText('status failed')).toBeVisible();
+});
+
+it('says when a further page could not be loaded, keeping the rows it has', async () => {
+  const user = userEvent.setup();
+  mount('/console/acme/subjects', {
+    [LIST]: (request) =>
+      request.search.get('cursor') === CURSOR
+        ? problem(500, 'about:blank', 'Internal Server Error')(request)
+        : json({ items: [subject('ada')], next: CURSOR })(request),
+    [COUNT]: json({ count: 2, capped: false }),
+  });
+  await screen.findByText('ada');
+  expect(screen.getByText('more ok')).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Load more' }));
+  expect(await screen.findByText('more failed')).toBeVisible();
+  expect(screen.getByText('ada')).toBeVisible();
+  expect(screen.getByText('status ready')).toBeVisible();
 });

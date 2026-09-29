@@ -74,6 +74,7 @@ export function useListPages<T>({
     rows: loaded.flatMap((page) => page.items),
     next: loaded.at(-1)?.next ?? null,
     loadingMore: pages.isFetchingNextPage,
+    loadMoreFailed: pages.data !== undefined && pages.isFetchNextPageError,
     loadMore: () => {
       if (pages.hasNextPage && !pages.isFetching) pages.fetchNextPage().catch(() => undefined);
     },
@@ -133,6 +134,7 @@ export function useResourceList<T>({
     trail,
     next: pages.next,
     loadingMore: pages.loadingMore,
+    loadMoreFailed: pages.loadMoreFailed,
     setSearch: (next) => {
       narrow({ search: next, filters: narrowing.filters });
     },

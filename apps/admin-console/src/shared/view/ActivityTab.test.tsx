@@ -38,6 +38,7 @@ function state(overrides: Partial<ResourceListState<AuditEvent>> = {}) {
     trail: [],
     next: null,
     loadingMore: false,
+    loadMoreFailed: false,
     setSearch: vi.fn(),
     setFilter: vi.fn(),
     clear: vi.fn(),
@@ -86,6 +87,13 @@ it('pages on through older rows', async () => {
   render(<ActivityTab list={list} noun="client" now={NOW} />);
   await user.click(screen.getByRole('button', { name: 'Load more activity' }));
   expect(list.loadMore).toHaveBeenCalledOnce();
+});
+
+it('says a further page of activity failed', () => {
+  render(<ActivityTab list={state({ loadMoreFailed: true })} noun="client" now={NOW} />);
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'More activity could not be loaded. Load more tries again.',
+  );
 });
 
 it('passes axe in both themes', async () => {

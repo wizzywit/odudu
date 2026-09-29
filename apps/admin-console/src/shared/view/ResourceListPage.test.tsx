@@ -30,6 +30,7 @@ function state(overrides: Partial<ResourceListState<Row>> = {}): ResourceListSta
     trail: [],
     next: 'b2Zmc2V0LTE.dGFnMQ',
     loadingMore: false,
+    loadMoreFailed: false,
     setSearch: vi.fn(),
     setFilter: vi.fn(),
     clear: vi.fn(),
@@ -127,6 +128,14 @@ it('names the capability a refused read needed', () => {
 it('says it is loading while the first page is on its way', () => {
   render(page(state({ status: 'loading', rows: [], count: null })));
   expect(screen.getByRole('status')).toHaveTextContent('Loading clients');
+});
+
+it('says a further page failed beside the pager, keeping the rows', () => {
+  render(page(state({ loadMoreFailed: true })));
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'More clients could not be loaded. Load more tries again.',
+  );
+  expect(screen.getByRole('grid', { name: 'Clients' })).toBeVisible();
 });
 
 it('passes axe in both themes, with rows and with none', async () => {

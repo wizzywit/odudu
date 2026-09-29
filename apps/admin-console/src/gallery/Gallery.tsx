@@ -276,6 +276,7 @@ function ClientList() {
     trail,
     next: search === null ? 'c4' : null,
     loadingMore: false,
+    loadMoreFailed: false,
     setSearch: (next) => {
       setSearch(next.query === '' ? null : next);
     },
@@ -350,6 +351,7 @@ function listOf<T>(rows: readonly T[], next: string | null): ResourceListState<T
     trail: [],
     next,
     loadingMore: false,
+    loadMoreFailed: false,
     setSearch: NOTHING,
     setFilter: NOTHING,
     clear: NOTHING,

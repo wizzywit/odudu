@@ -34,6 +34,8 @@ export interface ResourceListState<T> extends ListNarrowing {
   readonly trail: CursorTrail;
   readonly next: string | null;
   readonly loadingMore: boolean;
+  // A page after the first failed; the rows already shown stay.
+  readonly loadMoreFailed: boolean;
   readonly setSearch: (search: ListSearch) => void;
   readonly setFilter: (name: string, value: string | null) => void;
   readonly clear: () => void;

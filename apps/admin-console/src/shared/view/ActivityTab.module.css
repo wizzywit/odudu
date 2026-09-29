@@ -12,3 +12,8 @@
 .none {
   color: var(--ink-muted);
 }
+
+.failed {
+  font-size: var(--type-13);
+  color: var(--signal-danger-ink);
+}

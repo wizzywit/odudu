@@ -203,6 +203,11 @@ function Body<T>({
         onLoadMore={list.loadMore}
         loadingMore={list.loadingMore}
       />
+      {list.loadMoreFailed ? (
+        <p role="alert" className={styles.failed}>
+          {`More ${noun.other} could not be loaded. Load more tries again.`}
+        </p>
+      ) : null}
     </>
   );
 }
