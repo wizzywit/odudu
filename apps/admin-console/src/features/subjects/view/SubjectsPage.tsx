@@ -9,6 +9,7 @@ import { SelectField } from '#/shared/view/Field.tsx';
 import { ResourceListPage } from '#/shared/view/ResourceListPage.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
 import styles from '#/features/subjects/view/SubjectsPage.module.css';
 
 const COLUMNS: readonly Column<Subject>[] = [
@@ -60,7 +61,7 @@ const NARROWING = [
 ] as const;
 
 function List({ tenant }: { tenant: string }) {
-  const { list, createHref, open } = useSubjectsList(tenant);
+  const { list, createHref, changeNeeds, open } = useSubjectsList(tenant);
   return (
     <ResourceListPage
       list={list}
@@ -77,6 +78,9 @@ function List({ tenant }: { tenant: string }) {
             ),
           })}
       noun={{ one: 'subject', other: 'subjects' }}
+      {...(changeNeeds.length === 0
+        ? {}
+        : { viewOnly: <ViewOnlyNote noun="subjects" needs={changeNeeds} /> })}
       searchFields={SEARCH}
       filters={
         <>

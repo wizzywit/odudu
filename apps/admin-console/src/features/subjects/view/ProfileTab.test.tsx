@@ -61,12 +61,14 @@ it('reads the policy with view-users alone, and shows the username fixed to such
   expect(sent.some((s) => s.path.endsWith('/settings'))).toBe(false);
 });
 
-it('shows the rename read-only to an operator without manage-users while renaming is on', async () => {
+it('shows the username as text to an operator without manage-users while renaming is on', async () => {
   renderConsoleAt(
     ADA_AT,
     subjectRoutes(['view-users'], { [`GET ${POLICY}`]: json({ username_editable: true }) }),
   );
-  expect(await screen.findByRole('textbox', { name: 'Username' })).toBeDisabled();
+  expect(await screen.findByText('ada', { selector: 'dd' })).toBeVisible();
+  expect(screen.getByText('Username', { selector: 'dt' })).toBeVisible();
+  expect(screen.queryByRole('textbox', { name: 'Username' })).toBeNull();
 });
 
 it('says when the policy could not be read, and reads it again on request', async () => {
@@ -125,6 +127,60 @@ it('saves claims on the profile’s own ETag, an emptied claim as none', async (
       body: { name: 'Ada Lovelace', nickname: null },
     });
   });
+});
+
+it('gives each detail the input its shape needs, and saves what the server stores', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, {
+      [`GET ${S}/${ADA_ID}/profile`]: json(
+        profile({ phone_number: '+447700900123', birthdate: '1815-12-10', zoneinfo: 'UTC' }),
+        200,
+        { etag: '"p1"' },
+      ),
+      [`PATCH ${S}/${ADA_ID}/profile`]: json(profile(), 200, { etag: '"p2"' }),
+    }),
+  );
+  const details = await screen.findByRole('region', { name: 'Details' });
+  const phone = within(details).getByRole('group', { name: 'Phone number' });
+  expect(within(phone).getByRole('combobox', { name: 'Country' })).toHaveValue('United Kingdom');
+  const number = within(phone).getByRole('textbox', { name: 'Number' });
+  await user.clear(number);
+  await user.type(number, '07700 900456');
+  const birthdate = within(details).getByRole('group', { name: 'Birthdate' });
+  await user.click(within(birthdate).getByRole('radio', { name: 'Year only' }));
+  expect(within(details).getByRole('combobox', { name: 'Time zone' })).toHaveValue('UTC');
+  expect(within(details).getByRole('combobox', { name: 'Locale' })).toBeVisible();
+  expect(within(details).getByRole('textbox', { name: 'Website' })).toHaveAttribute(
+    'autocomplete',
+    'url',
+  );
+  await user.click(screen.getByRole('button', { name: 'Save Details' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PATCH')?.body).toEqual({
+      phone_number: '+447700900456',
+      birthdate: '1815',
+    });
+  });
+});
+
+it('gives the name and address claims their autocomplete tokens, and the country its list', async () => {
+  renderConsoleAt(ADA_AT, subjectRoutes());
+  const name = await screen.findByRole('region', { name: 'Name' });
+  expect(within(name).getByRole('textbox', { name: 'Given name' })).toHaveAttribute(
+    'autocomplete',
+    'given-name',
+  );
+  const address = screen.getByRole('region', { name: 'Address' });
+  expect(within(address).getByRole('textbox', { name: 'Postal code' })).toHaveAttribute(
+    'autocomplete',
+    'postal-code',
+  );
+  expect(within(address).getByRole('combobox', { name: 'Country' })).toHaveAttribute(
+    'autocomplete',
+    'country-name',
+  );
 });
 
 it('marks the email and the phone number verified in one save', async () => {
@@ -273,13 +329,25 @@ it('deletes only once the username is typed, then goes back to the list', async 
   ).toBe(false);
 });
 
-it('shows an operator who can only look the values, and nothing to change them with', async () => {
-  renderConsoleAt(ADA_AT, subjectRoutes(['view-users']));
-  expect(await screen.findByRole('textbox', { name: 'Full name' })).toBeDisabled();
-  expect(screen.getByRole('textbox', { name: 'Email' })).toBeDisabled();
-  expect(screen.getByRole('note')).toHaveTextContent(/manage-users/u);
-  expect(screen.queryByRole('button', { name: 'Disable ada' })).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Delete ada' })).toBeNull();
+it('shows an operator who can only look the values as text, and nothing to change them with', async () => {
+  renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(['view-users'], {
+      [`GET ${S}/${ADA_ID}/profile`]: json(profile({ name: 'Ada Lovelace' }), 200, {
+        etag: '"p1"',
+      }),
+    }),
+  );
+  expect(await screen.findByText('Ada Lovelace')).toBeVisible();
+  expect(screen.queryByRole('textbox')).toBeNull();
+  expect(screen.queryByRole('combobox')).toBeNull();
+  expect(screen.queryByRole('switch')).toBeNull();
+  expect(screen.getAllByRole('note').map((n) => n.textContent)).toEqual([
+    'You can view subjects but not change them (needs manage-users).',
+  ]);
+  for (const name of [/^Disable/u, /^Delete/u, /^Save/u]) {
+    expect(screen.queryByRole('button', { name })).toBeNull();
+  }
 });
 
 it('says a service subject has no profile to edit', async () => {
@@ -309,7 +377,7 @@ it('passes axe in both themes for an operator who can only look', async () => {
   expect(
     await axeInBothThemes(
       () => consoleAt(ADA_AT, subjectRoutes(['view-users'])).element,
-      () => screen.findByRole('textbox', { name: 'Full name' }),
+      () => screen.findByText('Full name'),
     ),
   ).toEqual({ light: [], dark: [] });
 });

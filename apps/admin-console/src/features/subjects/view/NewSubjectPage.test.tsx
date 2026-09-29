@@ -23,6 +23,8 @@ it('creates a subject and lands on its record, in place of the creation page', a
   expect(await screen.findByRole('heading', { level: 1, name: 'Create a subject' })).toBeVisible();
   const username = screen.getByRole('textbox', { name: 'Username' });
   expect(username).toHaveAccessibleDescription(USERNAME_RULE_TEXT);
+  expect(username).toHaveAttribute('autocomplete', 'username');
+  expect(screen.getByRole('textbox', { name: 'Email' })).toHaveAttribute('autocomplete', 'email');
   await user.type(username, 'ada');
   await user.type(screen.getByRole('textbox', { name: 'Email' }), 'ada@example.test');
   await user.click(screen.getByRole('button', { name: 'Create subject' }));

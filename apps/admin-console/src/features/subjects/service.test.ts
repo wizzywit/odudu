@@ -60,6 +60,37 @@ describe('the claims', () => {
     expect(new Set(names).size).toBe(names.length);
     expect(names).toHaveLength(20);
   });
+
+  it('gives each claim the input its shape needs, and its autocomplete token', () => {
+    const inputs = Object.fromEntries(
+      [...NAME_CLAIMS, ...DETAIL_CLAIMS, ...ADDRESS_CLAIMS].map((c) => [
+        c.id,
+        `${c.input}:${c.autoComplete ?? '-'}`,
+      ]),
+    );
+    expect(inputs).toEqual({
+      name: 'text:name',
+      given_name: 'text:given-name',
+      family_name: 'text:family-name',
+      middle_name: 'text:additional-name',
+      nickname: 'text:nickname',
+      preferred_username: 'text:username',
+      phone_number: 'phone:-',
+      profile: 'url:url',
+      picture: 'picture:photo',
+      website: 'url:url',
+      gender: 'gender:-',
+      birthdate: 'birthdate:-',
+      zoneinfo: 'zone:-',
+      locale: 'locale:-',
+      address_formatted: 'text:-',
+      address_street: 'text:street-address',
+      address_locality: 'text:address-level2',
+      address_region: 'text:address-level1',
+      address_postal_code: 'text:postal-code',
+      address_country: 'country:-',
+    });
+  });
 });
 
 describe('credentials', () => {

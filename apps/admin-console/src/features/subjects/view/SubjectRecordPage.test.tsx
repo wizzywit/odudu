@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { json, problem } from '#/testing/fakeTransport.ts';
-import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
+import { consoleAt, renderConsoleAt, resetConsole, whoami } from '#/testing/renderConsole.tsx';
 import { ADA_AT, ADA_ID, S, subject, subjectRoutes } from '#/testing/subjectsFixtures.ts';
 
 afterEach(() => {
@@ -73,4 +73,34 @@ it('marks the Profile tab while one of its sections holds an edit', async () => 
   await user.type(await screen.findByRole('textbox', { name: 'Full name' }), 'Ada');
   expect(screen.getByRole('tab', { name: 'Profile, unsaved changes' })).toBeVisible();
   expect(screen.getByRole('tab', { name: 'Credentials' })).toBeVisible();
+});
+
+it('follows a whoami re-read after a 403, in the rail and on the page, without a reload', async () => {
+  const user = userEvent.setup();
+  let revoked = false;
+  const refused = problem(403, 'about:blank', 'Forbidden');
+  renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, {
+      'GET /console/api/admin/tenants/acme/whoami': (request) =>
+        whoami(revoked ? ['view-users'] : ['view-users', 'manage-users', 'manage-clients'])(
+          request,
+        ),
+      [`PATCH ${S}/${ADA_ID}/profile`]: (request) => {
+        revoked = true;
+        return refused(request);
+      },
+    }),
+  );
+  const rail = await screen.findByRole('navigation', { name: 'Areas of acme' });
+  expect(within(rail).getByRole('link', { name: 'Clients' })).toBeVisible();
+  await user.type(await screen.findByRole('textbox', { name: 'Nickname' }), 'Countess');
+  await user.click(screen.getByRole('button', { name: 'Save Name' }));
+  expect(await screen.findByRole('note')).toHaveTextContent(
+    'You can view subjects but not change them (needs manage-users).',
+  );
+  expect(within(rail).queryByRole('link', { name: 'Clients' })).toBeNull();
+  expect(within(rail).getByRole('link', { name: 'Subjects' })).toBeVisible();
+  expect(screen.queryByRole('textbox', { name: 'Nickname' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
 });

@@ -26,6 +26,7 @@ function Form({ tenant }: { tenant: string }) {
         value={page.username}
         error={page.usernameError}
         onChange={page.editUsername}
+        autoComplete="username"
         mono
         autoFocus
       />
@@ -35,6 +36,7 @@ function Form({ tenant }: { tenant: string }) {
         type="email"
         value={page.email}
         error={page.emailError}
+        autoComplete="email"
         onChange={page.editEmail}
       />
       <div className={styles.actions}>

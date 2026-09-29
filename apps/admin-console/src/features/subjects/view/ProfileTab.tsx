@@ -5,6 +5,7 @@ import {
   useSubjectAccount,
   type SubjectAccount,
 } from '#/features/subjects/usecase/useSubjectAccount.ts';
+import type { ClaimField } from '#/features/subjects/service.ts';
 import {
   useSubjectClaims,
   useSubjectProfileRead,
@@ -12,10 +13,18 @@ import {
   type SectionSave,
 } from '#/features/subjects/usecase/useSubjectProfile.ts';
 import { Button } from '#/shared/view/Button.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { TextField, ToggleField } from '#/shared/view/Field.tsx';
+import { BirthdateField } from '#/shared/view/BirthdateField.tsx';
+import {
+  CountryField,
+  GenderField,
+  LocaleField,
+  TimeZoneField,
+} from '#/shared/view/ClaimFields.tsx';
+import { TextField, ToggleField, type Chrome } from '#/shared/view/Field.tsx';
+import { PhoneField } from '#/shared/view/PhoneField.tsx';
+import { PictureField, UrlField } from '#/shared/view/UrlField.tsx';
 import { Section } from '#/shared/view/Section.tsx';
 import { SectionNotice } from '#/shared/view/SectionNotice.tsx';
 import { FormSkeleton } from '#/shared/view/Skeleton.tsx';
@@ -48,7 +57,7 @@ function notice<T extends Readonly<Record<string, unknown>>>(title: string, s: S
   );
 }
 
-function Username({ account, canManage }: { account: SubjectAccount; canManage: boolean }) {
+function Username({ account }: { account: SubjectAccount }) {
   const s = account.section;
   const mode = account.username;
   if (mode.kind === 'editable') {
@@ -59,7 +68,7 @@ function Username({ account, canManage }: { account: SubjectAccount; canManage: 
         value={s.values.username}
         error={s.fieldErrors.username}
         changed={s.changed.includes('username')}
-        isDisabled={!canManage}
+        autoComplete="username"
         mono
         onChange={(value) => {
           s.edit('username', value);
@@ -90,7 +99,7 @@ function Username({ account, canManage }: { account: SubjectAccount; canManage: 
   );
 }
 
-function Account({ account, canManage }: { account: SubjectAccount; canManage: boolean }) {
+function Account({ account }: { account: SubjectAccount }) {
   const s = account.section;
   return (
     <Section
@@ -104,7 +113,7 @@ function Account({ account, canManage }: { account: SubjectAccount; canManage: b
       blocked={s.blocked}
       notice={notice('Account', s)}
     >
-      <Username account={account} canManage={canManage} />
+      <Username account={account} />
       <TextField
         label="Email"
         description="Leave it empty for none."
@@ -112,7 +121,7 @@ function Account({ account, canManage }: { account: SubjectAccount; canManage: b
         value={s.values.email}
         error={s.fieldErrors.email}
         changed={s.changed.includes('email')}
-        isDisabled={!canManage}
+        autoComplete="email"
         onChange={(value) => {
           s.edit('email', value);
         }}
@@ -210,7 +219,37 @@ function Deletion({ account, self }: { account: SubjectAccount; self: boolean })
   );
 }
 
-function Claims({ section, canManage }: { section: ClaimSection; canManage: boolean }) {
+type ClaimProps = Chrome & { value: string; onChange: (value: string) => void };
+
+function ClaimInput({ claim, ...props }: ClaimProps & { claim: ClaimField }) {
+  switch (claim.input) {
+    case 'text':
+      return (
+        <TextField
+          {...props}
+          {...(claim.autoComplete === undefined ? {} : { autoComplete: claim.autoComplete })}
+        />
+      );
+    case 'url':
+      return <UrlField {...props} />;
+    case 'picture':
+      return <PictureField {...props} />;
+    case 'phone':
+      return <PhoneField {...props} />;
+    case 'birthdate':
+      return <BirthdateField {...props} />;
+    case 'gender':
+      return <GenderField {...props} />;
+    case 'zone':
+      return <TimeZoneField {...props} />;
+    case 'locale':
+      return <LocaleField {...props} />;
+    case 'country':
+      return <CountryField {...props} />;
+  }
+}
+
+function Claims({ section }: { section: ClaimSection }) {
   const s = section.save;
   return (
     <Section
@@ -225,14 +264,13 @@ function Claims({ section, canManage }: { section: ClaimSection; canManage: bool
     >
       <div className={styles.grid}>
         {section.claims.map((claim) => (
-          <TextField
+          <ClaimInput
             key={claim.id}
+            claim={claim}
             label={claim.label}
-            {...(claim.type === undefined ? {} : { type: claim.type })}
             value={s.values[claim.id] ?? ''}
             error={s.fieldErrors[claim.id]}
             changed={s.changed.includes(claim.id)}
-            isDisabled={!canManage}
             onChange={(value) => {
               s.edit(claim.id, value);
             }}
@@ -249,14 +287,12 @@ function ProfileSections({
   profile,
   etag,
   gone,
-  canManage,
 }: {
   tenant: string;
   id: string;
   profile: Profile;
   etag: string;
   gone: boolean;
-  canManage: boolean;
 }) {
   const {
     sections,
@@ -266,7 +302,7 @@ function ProfileSections({
   return (
     <>
       {sections.map((section) => (
-        <Claims key={section.id} section={section} canManage={canManage} />
+        <Claims key={section.id} section={section} />
       ))}
       <Section
         title="Verification"
@@ -284,7 +320,6 @@ function ProfileSections({
           value={v.values.email_verified}
           error={v.fieldErrors.email_verified}
           changed={v.changed.includes('email_verified')}
-          isDisabled={!canManage}
           onChange={(value) => {
             v.edit('email_verified', value);
           }}
@@ -295,7 +330,6 @@ function ProfileSections({
           value={v.values.phone_number_verified}
           error={v.fieldErrors.phone_number_verified}
           changed={v.changed.includes('phone_number_verified')}
-          isDisabled={!canManage}
           onChange={(value) => {
             v.edit('phone_number_verified', value);
           }}
@@ -309,15 +343,7 @@ function ProfileSections({
   );
 }
 
-function ProfilePanel({
-  tenant,
-  id,
-  canManage,
-}: {
-  tenant: string;
-  id: string;
-  canManage: boolean;
-}) {
+function ProfilePanel({ tenant, id }: { tenant: string; id: string }) {
   const read = useSubjectProfileRead(tenant, id);
   if (read.status === 'loading') return <FormSkeleton label="Loading the profile" fields={4} />;
   if (read.data === undefined || read.etag === null) {
@@ -338,7 +364,6 @@ function ProfilePanel({
       profile={read.data}
       etag={read.etag}
       gone={read.gone}
-      canManage={canManage}
     />
   );
 }
@@ -348,17 +373,14 @@ export function ProfileTab({ tenant, subject, etag, gone, canManage, self }: Tab
   const itself = signsInAsItself(subject);
   return (
     <div className={styles.tab}>
-      {canManage ? null : (
-        <CapabilityNote capability="manage-users">{`Changing ${account.name}`}</CapabilityNote>
-      )}
       {itself ? (
         <p className={styles.text}>
           {`A ${subject.type} subject has no username, email or profile: it signs in as itself, with its client's credentials.`}
         </p>
       ) : (
         <>
-          <Account account={account} canManage={canManage} />
-          <ProfilePanel tenant={tenant} id={subject.id} canManage={canManage} />
+          <Account account={account} />
+          <ProfilePanel tenant={tenant} id={subject.id} />
         </>
       )}
       {canManage ? (

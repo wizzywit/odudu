@@ -43,39 +43,54 @@ export function usernameProblem(username: string): string | null {
 
 type Claim = keyof Omit<Profile, 'email_verified' | 'phone_number_verified' | 'profile_updated_at'>;
 
+// Which typed field a claim is edited with, by the shape OIDC Core §5.1
+// gives it.
+export type ClaimInput =
+  'text' | 'url' | 'picture' | 'phone' | 'birthdate' | 'gender' | 'zone' | 'locale' | 'country';
+
 export interface ClaimField {
   readonly id: Claim;
   readonly label: string;
-  readonly type?: 'url';
+  readonly input: ClaimInput;
+  // The HTML token naming what a text claim holds (WCAG 1.3.5); a typed
+  // field carries its own.
+  readonly autoComplete?: string;
 }
 
 export const NAME_CLAIMS: readonly ClaimField[] = [
-  { id: 'name', label: 'Full name' },
-  { id: 'given_name', label: 'Given name' },
-  { id: 'family_name', label: 'Family name' },
-  { id: 'middle_name', label: 'Middle name' },
-  { id: 'nickname', label: 'Nickname' },
-  { id: 'preferred_username', label: 'Preferred username' },
+  { id: 'name', label: 'Full name', input: 'text', autoComplete: 'name' },
+  { id: 'given_name', label: 'Given name', input: 'text', autoComplete: 'given-name' },
+  { id: 'family_name', label: 'Family name', input: 'text', autoComplete: 'family-name' },
+  { id: 'middle_name', label: 'Middle name', input: 'text', autoComplete: 'additional-name' },
+  { id: 'nickname', label: 'Nickname', input: 'text', autoComplete: 'nickname' },
+  {
+    id: 'preferred_username',
+    label: 'Preferred username',
+    input: 'text',
+    autoComplete: 'username',
+  },
 ];
 
 export const DETAIL_CLAIMS: readonly ClaimField[] = [
-  { id: 'phone_number', label: 'Phone number' },
-  { id: 'profile', label: 'Profile page', type: 'url' },
-  { id: 'picture', label: 'Picture', type: 'url' },
-  { id: 'website', label: 'Website', type: 'url' },
-  { id: 'gender', label: 'Gender' },
-  { id: 'birthdate', label: 'Birthdate' },
-  { id: 'zoneinfo', label: 'Time zone' },
-  { id: 'locale', label: 'Locale' },
+  { id: 'phone_number', label: 'Phone number', input: 'phone' },
+  { id: 'profile', label: 'Profile page', input: 'url', autoComplete: 'url' },
+  { id: 'picture', label: 'Picture', input: 'picture', autoComplete: 'photo' },
+  { id: 'website', label: 'Website', input: 'url', autoComplete: 'url' },
+  { id: 'gender', label: 'Gender', input: 'gender' },
+  { id: 'birthdate', label: 'Birthdate', input: 'birthdate' },
+  { id: 'zoneinfo', label: 'Time zone', input: 'zone' },
+  { id: 'locale', label: 'Locale', input: 'locale' },
 ];
 
+// The formatted address is the whole address as one text; HTML names no
+// autofill purpose for that.
 export const ADDRESS_CLAIMS: readonly ClaimField[] = [
-  { id: 'address_formatted', label: 'Formatted address' },
-  { id: 'address_street', label: 'Street' },
-  { id: 'address_locality', label: 'Locality' },
-  { id: 'address_region', label: 'Region' },
-  { id: 'address_postal_code', label: 'Postal code' },
-  { id: 'address_country', label: 'Country' },
+  { id: 'address_formatted', label: 'Formatted address', input: 'text' },
+  { id: 'address_street', label: 'Street', input: 'text', autoComplete: 'street-address' },
+  { id: 'address_locality', label: 'Locality', input: 'text', autoComplete: 'address-level2' },
+  { id: 'address_region', label: 'Region', input: 'text', autoComplete: 'address-level1' },
+  { id: 'address_postal_code', label: 'Postal code', input: 'text', autoComplete: 'postal-code' },
+  { id: 'address_country', label: 'Country', input: 'country' },
 ];
 
 export interface Credentials {

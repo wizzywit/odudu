@@ -14,7 +14,6 @@ import {
   type SubjectCredentials,
 } from '#/features/subjects/usecase/useSubjectCredentials.ts';
 import { Button } from '#/shared/view/Button.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
@@ -330,9 +329,6 @@ export function CredentialsTab({ tenant, subject, canManage, self }: TabProps) {
   const dialog = page.asking === null ? null : dialogOf(page.asking, page.name, self);
   return (
     <div className={styles.tab}>
-      {canManage ? null : (
-        <CapabilityNote capability="manage-users">{`Changing ${page.name}'s credentials`}</CapabilityNote>
-      )}
       {page.itself ? (
         <p className={styles.text}>
           {`A ${subject.type} subject signs in as itself, with its client's credentials: it has no password, second factor, recovery code or lockout.`}

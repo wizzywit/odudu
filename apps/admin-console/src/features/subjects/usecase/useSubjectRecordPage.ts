@@ -1,10 +1,11 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority, usePrincipal } from '#/features/session/index.ts';
-import { holds } from '#/features/shell/index.ts';
 import { useDirtyRecords } from '#/features/subjects/repository/useDirtyRecords.ts';
 import { useSubjectRecord } from '#/features/subjects/repository/useSubjectRecord.ts';
 import { SUBJECT_TABS, TAB_RECORDS, type SubjectTab } from '#/features/subjects/service.ts';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
+import { lacking } from '#/shared/service/access.ts';
+import type { AdminCapability } from '#/shared/service/principal.ts';
 import type { RecordView } from '#/shared/service/record.ts';
 
 export interface SubjectRecordPage {
@@ -17,6 +18,8 @@ export interface SubjectRecordPage {
   readonly dirty: ReadonlySet<SubjectTab>;
   // False once whoami says a change would be refused; true until it answers.
   readonly canManage: boolean;
+  // What changing the subject needs that whoami says is missing.
+  readonly changeNeeds: readonly AdminCapability[];
   // The principal looking is this subject.
   readonly self: boolean;
 }
@@ -26,6 +29,7 @@ export function useSubjectRecordPage(tenant: string, id: string): SubjectRecordP
   const principal = usePrincipal();
   const authority = useAuthority(tenant);
   const { tab, selectTab } = useRecordTab(SUBJECT_TABS);
+  const changeNeeds = lacking(authority, ['manage-users']);
   const edited = useDirtyRecords(
     tenant,
     SUBJECT_TABS.flatMap((each) => TAB_RECORDS[each](id)),
@@ -43,7 +47,8 @@ export function useSubjectRecordPage(tenant: string, id: string): SubjectRecordP
       if (chosen !== undefined) selectTab(chosen);
     },
     dirty,
-    canManage: authority === undefined || holds(authority, 'manage-users'),
+    canManage: changeNeeds.length === 0,
+    changeNeeds,
     self: principal.tenant === tenant && principal.subjectId === id,
   };
 }

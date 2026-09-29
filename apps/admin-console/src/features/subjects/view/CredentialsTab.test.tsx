@@ -197,7 +197,9 @@ it('shows an operator who can only look every credential, and no action', async 
   );
   expect(await screen.findByText('7 unspent recovery codes')).toBeVisible();
   expect(await screen.findByText(/Locked after 6 failed sign-ins/u)).toBeVisible();
-  expect(screen.getByRole('note')).toHaveTextContent(/manage-users/u);
+  expect(screen.getByRole('note')).toHaveTextContent(
+    'You can view subjects but not change them (needs manage-users).',
+  );
   expect(screen.queryByRole('button', { name: /Issue|Remove|Revoke|Clear/u })).toBeNull();
 });
 

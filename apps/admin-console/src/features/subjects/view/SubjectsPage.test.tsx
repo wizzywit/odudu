@@ -92,6 +92,9 @@ it('offers no creation to an operator who can only look', async () => {
   renderConsoleAt('/console/acme/subjects', routes(['view-users']));
   await screen.findByRole('grid', { name: 'Subjects' });
   expect(screen.queryByRole('link', { name: 'Create a subject' })).toBeNull();
+  expect(screen.getByRole('note')).toHaveTextContent(
+    'You can view subjects but not change them (needs manage-users).',
+  );
 });
 
 it('says which capability a refused list needs', async () => {

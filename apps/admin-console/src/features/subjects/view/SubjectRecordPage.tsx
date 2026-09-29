@@ -13,6 +13,7 @@ import { ProfileTab } from '#/features/subjects/view/ProfileTab.tsx';
 import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
+import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
 
 interface PanelProps {
   readonly tenant: string;
@@ -60,6 +61,9 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
             description: subject.email ?? (subject.type === 'user' ? 'No email' : subject.type),
           })}
       noun="subject"
+      {...(page.changeNeeds.length === 0
+        ? {}
+        : { viewOnly: <ViewOnlyNote noun="subjects" needs={page.changeNeeds} /> })}
       label="Subject sections"
       tab={page.tab}
       onTabChange={page.selectTab}
