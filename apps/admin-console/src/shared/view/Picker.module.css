@@ -53,6 +53,7 @@
 
 .list {
   display: grid;
+  grid-auto-rows: max-content;
   inline-size: min(100%, 28rem);
   max-block-size: 16rem;
   overflow-y: auto;

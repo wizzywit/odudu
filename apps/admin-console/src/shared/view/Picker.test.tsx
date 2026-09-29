@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import type { PickerState } from '#/shared/service/picker.ts';
+import pickerCss from '#/shared/view/Picker.module.css?raw';
 import { Picker } from '#/shared/view/Picker.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
@@ -101,4 +102,8 @@ it('passes axe in both themes', async () => {
     light: [],
     dark: [],
   });
+});
+
+it('sizes each option to its content, so a scrolled list never overlaps its rows', () => {
+  expect(pickerCss).toMatch(/\.list\s*\{[^}]*grid-auto-rows:\s*max-content/u);
 });
