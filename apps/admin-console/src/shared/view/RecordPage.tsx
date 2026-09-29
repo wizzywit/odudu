@@ -4,7 +4,7 @@ import type { Crumb } from '#/shared/view/Breadcrumb.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { RecordSkeleton } from '#/shared/view/Skeleton.tsx';
 import { Tabs, type TabItem } from '#/shared/view/Tabs.tsx';
 import styles from '#/shared/view/RecordPage.module.css';
 
@@ -52,7 +52,7 @@ export function RecordPage({
       return (
         <>
           {head(false)}
-          <Skeleton label={`Loading ${noun}`} lines={5} />
+          <RecordSkeleton label={`Loading ${noun}`} tabs={tabs.map((t) => t.label)} />
         </>
       );
     case 'missing':

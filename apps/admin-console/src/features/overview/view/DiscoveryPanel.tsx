@@ -12,7 +12,7 @@ import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { CopyValue } from '#/shared/view/CopyValue.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { TableSkeleton, TermsSkeleton } from '#/shared/view/Skeleton.tsx';
 import { StatusTag, type StatusTone } from '#/shared/view/StatusTag.tsx';
 import styles from '#/features/overview/view/DiscoveryPanel.module.css';
 
@@ -89,7 +89,7 @@ function Keys({ keys }: { keys: Read<KeysView> }) {
   switch (keys.status) {
     case 'off':
     case 'loading':
-      return <Skeleton label="Loading the published keys" lines={2} />;
+      return <TableSkeleton label="Loading the published keys" columns={COLUMNS} rows={2} />;
     case 'failed':
       return <Failed what="JWKS" onRetry={keys.retry} />;
     case 'ready':
@@ -198,7 +198,7 @@ export function DiscoveryPanel({
   switch (discovery.status) {
     case 'off':
     case 'loading':
-      body = <Skeleton label="Loading the discovery document" lines={4} />;
+      body = <TermsSkeleton label="Loading the discovery document" rows={6} />;
       break;
     case 'failed':
       body = <Failed what="discovery document" onRetry={discovery.retry} />;

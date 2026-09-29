@@ -127,7 +127,12 @@ it('names the capability a refused read needed', () => {
 
 it('says it is loading while the first page is on its way', () => {
   render(page(state({ status: 'loading', rows: [], count: null })));
-  expect(screen.getByRole('status')).toHaveTextContent('Loading clients');
+  const status = screen.getByRole('status');
+  expect(status).toHaveTextContent('Loading clients');
+  const shape = status.querySelector('[data-shape="table"]');
+  expect([...(shape?.querySelectorAll('th') ?? [])].map((th) => th.textContent)).toEqual(
+    COLUMNS.map((column) => column.header),
+  );
 });
 
 it('says a further page failed beside the pager, keeping the rows', () => {

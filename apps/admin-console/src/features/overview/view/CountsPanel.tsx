@@ -1,8 +1,9 @@
-import { Link } from 'react-aria-components';
+import { Link, VisuallyHidden } from 'react-aria-components';
 import type { CountTile } from '#/features/overview/service.ts';
 import { Panel } from '#/features/overview/view/Panel.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { Count } from '#/shared/view/Count.tsx';
+import { SkeletonBar } from '#/shared/view/Skeleton.tsx';
 import styles from '#/features/overview/view/CountsPanel.module.css';
 
 const NUMBER = new Intl.NumberFormat('en');
@@ -12,7 +13,12 @@ function Figure({ tile }: { tile: CountTile }) {
   switch (count.status) {
     case 'off':
     case 'loading':
-      return <span className={styles.quiet}>Counting…</span>;
+      return (
+        <span className={styles.counting}>
+          <SkeletonBar size="label" />
+          <VisuallyHidden>Counting…</VisuallyHidden>
+        </span>
+      );
     case 'needs':
       return (
         <span role="note" className={styles.quiet}>

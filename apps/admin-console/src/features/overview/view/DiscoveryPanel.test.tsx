@@ -95,6 +95,19 @@ it('keeps the raw documents in a disclosure, each with its copy', async () => {
   expect(await navigator.clipboard.readText()).toBe('{\n  "keys": []\n}');
 });
 
+it('draws term-and-value rows while the document loads, and the keys table while they do', () => {
+  const { rerender } = render(
+    <DiscoveryPanel discovery={{ status: 'loading' }} keys={{ status: 'loading' }} />,
+  );
+  expect(screen.getByRole('status').querySelector('[data-shape="terms"]')).not.toBeNull();
+  rerender(<DiscoveryPanel discovery={DISCOVERY} keys={{ status: 'loading' }} />);
+  const keys = screen
+    .getAllByRole('status')
+    .filter((status) => status.textContent.includes('Loading the published keys'));
+  expect(keys).toHaveLength(1);
+  expect(keys[0]?.querySelector('[data-shape="table"] th')).not.toBeNull();
+});
+
 it('says when the document could not be read, and reads it again', async () => {
   const user = userEvent.setup();
   const retry = vi.fn();

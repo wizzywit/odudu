@@ -9,7 +9,7 @@ import type { SelectOption } from '#/shared/view/Field.tsx';
 import { FilterBar } from '#/shared/view/FilterBar.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import { Pager } from '#/shared/view/Pager.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { TableSkeleton } from '#/shared/view/Skeleton.tsx';
 import styles from '#/shared/view/ResourceListPage.module.css';
 
 export function ResourceListPage<T>({
@@ -151,7 +151,7 @@ function Body<T>({
 }) {
   switch (list.status) {
     case 'loading':
-      return <Skeleton label={`Loading ${noun.other}`} lines={4} />;
+      return <TableSkeleton label={`Loading ${noun.other}`} columns={columns} />;
     case 'refused':
       return <CapabilityNote capability={capability}>{title}</CapabilityNote>;
     case 'failed':

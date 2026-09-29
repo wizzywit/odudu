@@ -69,6 +69,7 @@ it('names the capability a count needs, and says when one is still counting', ()
     'Needs the manage-tenant capability.',
   );
   expect(tile('Scopes')).toHaveTextContent('Counting…');
+  expect(tile('Scopes').querySelector('[aria-hidden="true"]')).not.toBeNull();
 });
 
 it('offers to count a failed one again', async () => {

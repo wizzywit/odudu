@@ -39,7 +39,14 @@ import { SaveBar } from '#/shared/view/SaveBar.tsx';
 import { SecretDialog } from '#/shared/view/SecretDialog.tsx';
 import { Section } from '#/shared/view/Section.tsx';
 import { SectionNotice } from '#/shared/view/SectionNotice.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import {
+  FormSkeleton,
+  ListSkeleton,
+  RecordSkeleton,
+  Skeleton,
+  TableSkeleton,
+  TermsSkeleton,
+} from '#/shared/view/Skeleton.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { Tabs } from '#/shared/view/Tabs.tsx';
 import { Timestamp } from '#/shared/view/Timestamp.tsx';
@@ -696,8 +703,25 @@ export function Gallery({
             >
               The gateway did not answer in time.
             </EmptyState>
-            <Skeleton label="Loading clients" lines={4} />
+            <Skeleton label="Checking access to Clients" lines={4} />
             <ChunkFailed onReload={NOTHING} />
+          </div>
+          <Specimen label="Skeleton: a table, its own header over placeholder rows">
+            <TableSkeleton label="Loading clients" columns={COLUMNS} />
+          </Specimen>
+          <Specimen label="Skeleton: a record, its tabs and sections">
+            <RecordSkeleton label="Loading the subject" tabs={['Profile', 'Roles', 'Activity']} />
+          </Specimen>
+          <div className={styles.grid}>
+            <Specimen label="Skeleton: a form">
+              <FormSkeleton label="Loading the profile" />
+            </Specimen>
+            <Specimen label="Skeleton: terms and values">
+              <TermsSkeleton label="Loading the discovery document" />
+            </Specimen>
+            <Specimen label="Skeleton: a list">
+              <ListSkeleton label="Loading subjects" />
+            </Specimen>
           </div>
         </Group>
 

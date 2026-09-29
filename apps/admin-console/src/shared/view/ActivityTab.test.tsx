@@ -71,6 +71,12 @@ it('labels the request id a correlation, not evidence', () => {
   ).toBeVisible();
 });
 
+it('draws the trail it will fill while it loads', () => {
+  render(<ActivityTab list={state({ status: 'loading', rows: [] })} noun="client" now={NOW} />);
+  const shape = screen.getByRole('status').querySelector('[data-shape="table"]');
+  expect(shape).toHaveTextContent('Correlation id');
+});
+
 it('names view-audit when the trail is refused', () => {
   render(<ActivityTab list={state({ status: 'refused', rows: [] })} noun="client" now={NOW} />);
   expect(screen.getByRole('note')).toHaveTextContent('Activity needs the view-audit capability.');

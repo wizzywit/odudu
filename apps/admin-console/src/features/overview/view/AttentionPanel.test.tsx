@@ -45,6 +45,7 @@ it('says when nothing needs attention', () => {
 it('says it is still checking', () => {
   render(<AttentionPanel attention={state({ status: 'checking', items: [] })} />);
   expect(screen.getByRole('status')).toHaveTextContent('Checking what needs attention');
+  expect(screen.getByRole('status').querySelector('[data-shape="list"]')).not.toBeNull();
   expect(screen.queryByText('Nothing needs attention.')).toBeNull();
 });
 

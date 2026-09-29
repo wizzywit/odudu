@@ -10,7 +10,7 @@ import {
 import type { PickerState } from '#/shared/service/picker.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { ListSkeleton } from '#/shared/view/Skeleton.tsx';
 import styles from '#/shared/view/Picker.module.css';
 
 // Sits inside a section's form, so its search is a field and a button and
@@ -128,7 +128,7 @@ function Options<T>({
 }) {
   switch (picker.status) {
     case 'loading':
-      return <Skeleton label={`Loading ${noun.other}`} lines={3} />;
+      return <ListSkeleton label={`Loading ${noun.other}`} />;
     case 'failed':
       return (
         <div role="alert" className={styles.empty}>

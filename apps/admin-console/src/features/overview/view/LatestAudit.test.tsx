@@ -52,6 +52,17 @@ it('names view-audit and offers no link when the trail is not readable', () => {
   expect(screen.queryByRole('grid')).toBeNull();
 });
 
+it('draws the table it will fill while it loads', () => {
+  render(<LatestAudit audit={{ status: 'loading' }} href={HREF} now={NOW} />);
+  const shape = screen.getByRole('status').querySelector('[data-shape="table"]');
+  expect([...(shape?.querySelectorAll('th') ?? [])].map((th) => th.textContent)).toEqual([
+    'When',
+    'Action',
+    'Outcome',
+    'Actor',
+  ]);
+});
+
 it('says when nothing is recorded yet', () => {
   render(<LatestAudit audit={{ status: 'ready', data: [] }} href={HREF} now={NOW} />);
   expect(screen.getByRole('heading', { name: 'Nothing recorded yet' })).toBeVisible();

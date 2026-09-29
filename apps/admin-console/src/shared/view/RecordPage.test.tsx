@@ -110,7 +110,9 @@ it('keeps its tabs when a later read finds the record deleted', () => {
 it('says it is loading, that the record is gone, or that it could not be read', async () => {
   const user = userEvent.setup();
   const { rerender } = render(page(view({ status: 'loading' })));
-  expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Loading client');
+  const status = screen.getByRole('status', { name: '' });
+  expect(status).toHaveTextContent('Loading client');
+  expect(status.querySelector('[data-shape="record"]')).toHaveTextContent('GeneralActivity');
   expect(screen.queryByRole('tablist')).toBeNull();
 
   rerender(page(view({ status: 'missing' })));

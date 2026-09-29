@@ -39,6 +39,12 @@
   gap: 0 var(--space-1);
 }
 
+.counting {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 1.5em;
+}
+
 .quiet {
   font-size: var(--type-13);
   color: var(--ink-muted);

@@ -6,7 +6,7 @@ import { CopyValue } from '#/shared/view/CopyValue.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { Pager } from '#/shared/view/Pager.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { TableSkeleton } from '#/shared/view/Skeleton.tsx';
 import { StatusTag, type StatusTone } from '#/shared/view/StatusTag.tsx';
 import { Timestamp } from '#/shared/view/Timestamp.tsx';
 import styles from '#/shared/view/ActivityTab.module.css';
@@ -70,7 +70,7 @@ export function ActivityTab({
 }) {
   switch (list.status) {
     case 'loading':
-      return <Skeleton label="Loading activity" lines={4} />;
+      return <TableSkeleton label="Loading activity" columns={columns(now)} />;
     case 'refused':
       return <CapabilityNote capability="view-audit">Activity</CapabilityNote>;
     case 'failed':

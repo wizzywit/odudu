@@ -8,7 +8,7 @@ import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { CopyValue } from '#/shared/view/CopyValue.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { TableSkeleton } from '#/shared/view/Skeleton.tsx';
 import { StatusTag, type StatusTone } from '#/shared/view/StatusTag.tsx';
 import { Timestamp } from '#/shared/view/Timestamp.tsx';
 import styles from '#/features/overview/view/LatestAudit.module.css';
@@ -65,7 +65,7 @@ export function LatestAudit({
       break;
     case 'off':
     case 'loading':
-      body = <Skeleton label="Loading the latest audit rows" lines={3} />;
+      body = <TableSkeleton label="Loading the latest audit rows" columns={columns(now)} />;
       break;
     case 'failed':
       body = (

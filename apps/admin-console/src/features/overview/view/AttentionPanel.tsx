@@ -2,7 +2,7 @@ import { Link } from 'react-aria-components';
 import type { AttentionState } from '#/features/overview/service.ts';
 import { Panel } from '#/features/overview/view/Panel.tsx';
 import { Button } from '#/shared/view/Button.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { ListSkeleton } from '#/shared/view/Skeleton.tsx';
 import styles from '#/features/overview/view/AttentionPanel.module.css';
 
 export function AttentionPanel({ attention }: { attention: AttentionState }) {
@@ -10,7 +10,9 @@ export function AttentionPanel({ attention }: { attention: AttentionState }) {
   const clear = status === 'ready' && items.length === 0 && unchecked.length === 0 && !failed;
   return (
     <Panel title="Needs attention">
-      {status === 'checking' ? <Skeleton label="Checking what needs attention" lines={2} /> : null}
+      {status === 'checking' ? (
+        <ListSkeleton label="Checking what needs attention" items={2} />
+      ) : null}
       {items.length > 0 ? (
         <ul aria-label="Needs attention" className={styles.items}>
           {items.map((item) => (

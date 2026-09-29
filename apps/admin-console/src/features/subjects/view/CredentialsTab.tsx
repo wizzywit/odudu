@@ -18,7 +18,7 @@ import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { SecretDialog } from '#/shared/view/SecretDialog.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { FormSkeleton } from '#/shared/view/Skeleton.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { Timestamp } from '#/shared/view/Timestamp.tsx';
 import styles from '#/features/subjects/view/Tab.module.css';
@@ -298,7 +298,7 @@ function Held({ page, canManage }: { page: SubjectCredentials; canManage: boolea
   return (
     <>
       {credentials.status === 'loading' ? (
-        <Skeleton label="Loading credentials" lines={4} />
+        <FormSkeleton label="Loading credentials" />
       ) : credentials.status === 'failed' ? (
         <Failed what="The credentials" retry={credentials.retry} />
       ) : (
@@ -314,7 +314,7 @@ function Held({ page, canManage }: { page: SubjectCredentials; canManage: boolea
         })()
       )}
       {lockout.status === 'loading' ? (
-        <Skeleton label="Loading the lockout" lines={2} />
+        <FormSkeleton label="Loading the lockout" fields={2} />
       ) : lockout.status === 'failed' ? (
         <Failed what="The lockout" retry={lockout.retry} />
       ) : (

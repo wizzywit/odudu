@@ -59,6 +59,7 @@ it('says when the list is loading, and when it failed', async () => {
   const failed = state({ status: 'failed', options: [] });
   const { rerender } = render(scopes(state({ status: 'loading', options: [] })));
   expect(screen.getByRole('status')).toHaveTextContent('Loading scopes');
+  expect(screen.getByRole('status').querySelector('[data-shape="list"]')).not.toBeNull();
   rerender(scopes(failed));
   expect(screen.getByRole('alert')).toHaveTextContent('Scopes could not be loaded.');
   await user.click(screen.getByRole('button', { name: 'Try again' }));

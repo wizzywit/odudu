@@ -7,7 +7,7 @@ import { Count } from '#/shared/view/Count.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { Pager } from '#/shared/view/Pager.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { TableSkeleton } from '#/shared/view/Skeleton.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { Timestamp } from '#/shared/view/Timestamp.tsx';
@@ -65,7 +65,9 @@ export function AdministratorsTab({ tenant }: { tenant: string }) {
           Adding an administrator
         </CapabilityNote>
       ))}
-      {list.status === 'loading' ? <Skeleton label="Loading administrators" lines={3} /> : null}
+      {list.status === 'loading' ? (
+        <TableSkeleton label="Loading administrators" columns={COLUMNS} rows={3} />
+      ) : null}
       {list.status === 'refused' ? (
         <CapabilityNote capability="view-users">{label}</CapabilityNote>
       ) : null}

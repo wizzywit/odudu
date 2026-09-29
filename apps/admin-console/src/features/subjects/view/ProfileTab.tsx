@@ -18,7 +18,7 @@ import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { TextField, ToggleField } from '#/shared/view/Field.tsx';
 import { Section } from '#/shared/view/Section.tsx';
 import { SectionNotice } from '#/shared/view/SectionNotice.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { FormSkeleton } from '#/shared/view/Skeleton.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { Timestamp } from '#/shared/view/Timestamp.tsx';
 import styles from '#/features/subjects/view/Tab.module.css';
@@ -311,7 +311,7 @@ function ProfilePanel({
   canManage: boolean;
 }) {
   const read = useSubjectProfileRead(tenant, id);
-  if (read.status === 'loading') return <Skeleton label="Loading the profile" lines={4} />;
+  if (read.status === 'loading') return <FormSkeleton label="Loading the profile" fields={4} />;
   if (read.data === undefined || read.etag === null) {
     return (
       <EmptyState
