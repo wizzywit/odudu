@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, expectAccessible, signIn, signInAtTenant, test } from './fixtures.ts';
+import { expect, expectAccessible, forgive, signIn, signInAtTenant, test } from './fixtures.ts';
 import { psql, seeded } from './stack.ts';
 
 const { system, systemAdmins } = seeded();
@@ -72,6 +72,10 @@ test('a system administrator is created with a password shown once, and lands in
   await expect(
     page.getByRole('heading', { level: 1, name: 'Add a system administrator' }),
   ).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe(`${AT}/new`);
+  await expect(
+    page.getByRole('navigation', { name: 'Areas of system' }).locator('[aria-current="page"]'),
+  ).toHaveText('System administrators');
   await expectAccessible(page);
   await page.getByRole('textbox', { name: 'Username' }).fill(username);
   await page.getByRole('button', { name: 'Create administrator' }).click();
@@ -116,6 +120,43 @@ test('an existing subject of system is chosen and granted tenant-admin', async (
   await search(page, username);
   await expect(page.getByRole('grid', { name: 'System administrators' })).toContainText(username);
   await expectAccessible(page);
+});
+
+test('a grant that meets roles changed under it says so beside Grant, and changes nothing', async ({
+  page,
+  problems,
+}) => {
+  const { username } = systemAdmins.limited;
+  const before = adminRoles(username);
+  await signIn(page, system);
+  await openSystemAdministrators(page);
+  // Only a race produces a real 412: the ETag is read just before the PUT.
+  await page.route(
+    (url) => /\/subjects\/[^/]+\/roles$/u.test(url.pathname),
+    (route) =>
+      route.request().method() === 'PUT'
+        ? route.fulfill({
+            status: 412,
+            contentType: 'application/problem+json',
+            json: { type: 'about:blank', title: 'Precondition Failed', status: 412 },
+          })
+        : route.fallback(),
+  );
+  const choose = page.getByRole('group', { name: 'Subject in system' });
+  await choose.getByRole('searchbox', { name: 'Search subjects by username' }).fill(username);
+  await choose.getByRole('button', { name: 'Search' }).click();
+  await choose.getByRole('option', { name: new RegExp(username, 'u') }).click();
+  await page.getByRole('button', { name: `Grant tenant-admin to ${username}` }).click();
+  await expect(
+    page
+      .getByRole('region', { name: 'Grant to an existing subject' })
+      .getByRole('status', { name: 'Last grant' }),
+  ).toHaveText(
+    `${username} was not granted tenant-admin: their roles changed while this ran. Try again.`,
+  );
+  expect(adminRoles(username)).toBe(before);
+  await expectAccessible(page);
+  forgive(problems, '/roles');
 });
 
 test('a revoke is typed, by keyboard alone, and your own says so', async ({ page }) => {
@@ -218,5 +259,8 @@ test('the System administrators page fits a phone', async ({ page }) => {
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
   expect(overflow).toBeLessThanOrEqual(0);
+  // Empty, yet in the accessibility tree, so what fills it is announced.
+  await expect(page.getByRole('status', { name: 'Last revoke' })).toBeAttached();
+  await expect(page.getByRole('status', { name: 'Last grant' })).toBeAttached();
   await expectAccessible(page);
 });
