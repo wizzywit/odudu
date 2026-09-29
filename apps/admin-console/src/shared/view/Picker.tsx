@@ -62,8 +62,12 @@ export function Picker<T>({
 }) {
   const heading = useId();
   const [text, setText] = useState(picker.query);
-  const unavailable = new Set(
-    picker.options.filter((item) => (unavailableOf?.(item) ?? null) !== null).map(idOf),
+  // Why each option that cannot be chosen cannot, worked out once a render.
+  const unavailable = new Map(
+    picker.options.flatMap((item) => {
+      const why = unavailableOf?.(item) ?? null;
+      return why === null ? [] : [[idOf(item), why] as const];
+    }),
   );
   // An option that cannot be chosen stays focusable, so its reason is heard;
   // a change that would choose it is not made.
@@ -114,7 +118,7 @@ export function Picker<T>({
             nameOf={nameOf}
             detailOf={detailOf}
             {...(accessibleNameOf === undefined ? {} : { accessibleNameOf })}
-            {...(unavailableOf === undefined ? {} : { unavailableOf })}
+            unavailable={unavailable}
             selected={selected}
             selectionMode={selectionMode}
             onChange={change}
@@ -133,7 +137,7 @@ function Options<T>({
   nameOf,
   detailOf,
   accessibleNameOf,
-  unavailableOf,
+  unavailable,
   selected,
   selectionMode,
   onChange,
@@ -145,12 +149,12 @@ function Options<T>({
   nameOf: (item: T) => string;
   detailOf: (item: T) => string;
   accessibleNameOf?: (item: T) => string;
-  unavailableOf?: (item: T) => string | null;
+  unavailable: ReadonlyMap<string, string>;
   readonly selected: readonly string[];
   selectionMode: 'single' | 'multiple';
   onChange: (keys: Selection) => void;
 }) {
-  const why = (item: T): string | null => unavailableOf?.(item) ?? null;
+  const why = (item: T): string | null => unavailable.get(idOf(item)) ?? null;
   switch (picker.status) {
     case 'loading':
       return <ListSkeleton label={`Loading ${noun.other}`} />;
