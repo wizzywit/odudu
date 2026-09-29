@@ -24,6 +24,24 @@ describe('regions', () => {
     expect(englishCountryName('DE')).toBe('Germany');
   });
 
+  it('stores the ISO 3166-1 short name pinned here, whatever the browser’s CLDR says', () => {
+    expect(englishCountryName('TR')).toBe('Türkiye');
+    expect(englishCountryName('CI')).toBe("Côte d'Ivoire");
+    expect(englishCountryName('GB')).toBe('United Kingdom of Great Britain and Northern Ireland');
+    expect(englishCountryName('HK')).toBe('Hong Kong');
+    const names = REGIONS.map(({ code }) => englishCountryName(code));
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.every((name) => name.length > 2)).toBe(true);
+  });
+
+  it('reads an older or the browser’s own spelling as the same country', () => {
+    for (const name of ['Turkey', 'Czech Republic', 'Swaziland', 'Macedonia', "Cote d'Ivoire"]) {
+      expect(regionOfCountryName(name), name).not.toBeNull();
+    }
+    const cldr = new Intl.DisplayNames(['en'], { type: 'region' });
+    for (const { code } of REGIONS) expect(regionOfCountryName(cldr.of(code) ?? '')).toBe(code);
+  });
+
   it('shows the names in the reader’s language', () => {
     const german = countryOptions('de');
     expect(german.find((o) => o.id === 'DE')?.label).toBe('Deutschland');

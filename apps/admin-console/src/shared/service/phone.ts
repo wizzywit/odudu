@@ -27,8 +27,49 @@ const USUAL: Readonly<Record<string, string>> = {
   '672': 'NF',
 };
 
-// Regions whose numbers keep their leading 0 in international form.
-const KEEPS_LEADING_ZERO = new Set(['IT', 'SM', 'VA', 'CI']);
+// The trunk prefix a number dialled at home starts with and E.164 drops:
+// "0" unless named here. `length` is the digit count the prefixed number
+// has, where a prefix is also a plausible first digit of the number itself.
+interface Trunk {
+  readonly prefix: string;
+  readonly length?: number;
+}
+
+const NONE: Trunk = { prefix: '' };
+const EIGHT: Trunk = { prefix: '8' };
+const TRUNKS: Readonly<Record<string, Trunk>> = {
+  RU: { prefix: '8', length: 11 },
+  KZ: { prefix: '8', length: 11 },
+  BY: { prefix: '80' },
+  LT: EIGHT,
+  TM: EIGHT,
+  TJ: EIGHT,
+  UZ: EIGHT,
+  HU: { prefix: '06' },
+  // Italy and its neighbours, and Côte d'Ivoire, keep the leading 0.
+  IT: NONE,
+  SM: NONE,
+  VA: NONE,
+  CI: NONE,
+};
+
+const NANP: Trunk = { prefix: '1', length: 11 };
+
+function trunkOf(region: string): Trunk {
+  return TRUNKS[region] ?? (callingCodeOf(region) === '1' ? NANP : { prefix: '0' });
+}
+
+// The national significant number: the one step a phone-number library
+// (libphonenumber-js) would take over, since it alone knows each numbering plan.
+export function nationalSignificant(region: string, national: string): string {
+  const digits = national.replace(/[^0-9]/gu, '');
+  const { prefix, length } = trunkOf(region);
+  const prefixed =
+    prefix !== '' &&
+    digits.startsWith(prefix) &&
+    (length === undefined || digits.length === length);
+  return prefixed ? digits.slice(prefix.length) : digits;
+}
 
 const INTERNATIONAL = /^\+([0-9]+)(?:;ext=([0-9]+))?$/u;
 const DIALLED = /^[0-9 ().-]*$/u;
@@ -55,11 +96,6 @@ export function splitPhone(value: string, preferred: string | null = null): Phon
   return { region: null, national: value, extension: null };
 }
 
-function nationalDigits(region: string, national: string): string {
-  const digits = national.replace(/[^0-9]/gu, '');
-  return KEEPS_LEADING_ZERO.has(region) ? digits : digits.replace(/^0/u, '');
-}
-
 // E.164 from a country and a number typed as it is dialled at home: the
 // punctuation goes, and so does the trunk 0 international dialling drops.
 export function composePhone(
@@ -71,7 +107,16 @@ export function composePhone(
   const code = region === null ? null : callingCodeOf(region);
   if (region === null || code === null) return national;
   const ext = extension === null ? '' : `;ext=${extension}`;
-  return `+${code}${nationalDigits(region, national)}${ext}`;
+  return `+${code}${nationalSignificant(region, national)}${ext}`;
+}
+
+export type PhonePart = 'region' | 'number';
+
+// Which control a problem is about, so only that one is marked invalid.
+export function phoneProblemPart(region: string | null, national: string): PhonePart | null {
+  if (national.trim() === '') return null;
+  if (region === null) return 'region';
+  return phoneProblem(region, national) === null ? null : 'number';
 }
 
 export function phoneProblem(region: string | null, national: string): string | null {
@@ -83,4 +128,14 @@ export function phoneProblem(region: string | null, national: string): string | 
   return isValidE164(composePhone(region, national, null))
     ? null
     : 'Too long: a phone number has at most 15 digits, country code included.';
+}
+
+// A number pasted in its international form names its own country.
+export function readTypedNumber(
+  text: string,
+): { readonly region: string; readonly national: string } | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('+')) return null;
+  const { region, national } = splitPhone(`+${trimmed.replace(/[^0-9]/gu, '')}`);
+  return region === null ? null : { region, national };
 }

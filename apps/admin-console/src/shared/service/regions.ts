@@ -1,3 +1,5 @@
+import { COUNTRY_ALIASES, COUNTRY_NAMES } from '#/shared/service/countryNames.ts';
+
 // ISO 3166-1 alpha-2 regions, each with its ITU-T E.164 calling code where
 // it has one; XK is the user-assigned code CLDR names Kosovo.
 const TABLE = `
@@ -47,20 +49,28 @@ export function callingCodeOf(code: string): string | null {
   return BY_CODE.get(code)?.callingCode ?? null;
 }
 
-const ENGLISH = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'code' });
-
-// OIDC Core §5.1.1 gives address.country as a name, so the English one is
-// what is stored, whatever language the list is shown in.
+// OIDC Core §5.1.1 gives address.country as a name, so the pinned English
+// one is what is stored, whatever language the list is shown in.
 export function englishCountryName(code: string): string {
-  return ENGLISH.of(code) ?? code;
+  return COUNTRY_NAMES[code] ?? code;
 }
 
-const BY_ENGLISH = new Map(
-  REGIONS.map(({ code }) => [englishCountryName(code).toLowerCase(), code]),
-);
+const CLDR_ENGLISH = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'code' });
+
+function key(name: string): string {
+  return name.trim().toLowerCase().replaceAll('’', "'");
+}
+
+// A stored name resolves if it is the pinned one, an older spelling, or the
+// name this browser's CLDR gives.
+const BY_NAME = new Map<string, string>([
+  ...REGIONS.map(({ code }): [string, string] => [key(CLDR_ENGLISH.of(code) ?? code), code]),
+  ...Object.entries(COUNTRY_ALIASES).map(([name, code]): [string, string] => [key(name), code]),
+  ...REGIONS.map(({ code }): [string, string] => [key(englishCountryName(code)), code]),
+]);
 
 export function regionOfCountryName(name: string): string | null {
-  return BY_ENGLISH.get(name.trim().toLowerCase()) ?? null;
+  return BY_NAME.get(key(name)) ?? null;
 }
 
 export interface NamedRegion {

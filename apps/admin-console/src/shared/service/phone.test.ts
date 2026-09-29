@@ -1,6 +1,12 @@
 import { isValidE164 } from '@odudu/contracts';
 import { describe, expect, it } from 'vitest';
-import { composePhone, phoneProblem, splitPhone } from '#/shared/service/phone.ts';
+import {
+  composePhone,
+  phoneProblem,
+  phoneProblemPart,
+  readTypedNumber,
+  splitPhone,
+} from '#/shared/service/phone.ts';
 
 describe('splitPhone', () => {
   it('finds the country by the longest calling code', () => {
@@ -79,5 +85,42 @@ describe('phoneProblem', () => {
     expect(phoneProblem('NG', '1234567890123456')).toBe(
       'Too long: a phone number has at most 15 digits, country code included.',
     );
+  });
+});
+
+describe('the national trunk prefix', () => {
+  it.each([
+    ['US', '1 (415) 555-0100', '+14155550100'],
+    ['CA', '1-416-555-0100', '+14165550100'],
+    ['US', '(415) 555-0100', '+14155550100'],
+    ['RU', '8 916 123-45-67', '+79161234567'],
+    ['KZ', '8 701 123 4567', '+77011234567'],
+    ['BY', '8 029 123 45 67', '+375291234567'],
+    ['HU', '06 30 123 4567', '+36301234567'],
+    ['GB', '07700 900123', '+447700900123'],
+    ['NG', '0803 123 4567', '+2348031234567'],
+    ['IT', '06 1234 5678', '+390612345678'],
+  ])('is dropped as %s dials it at home: %s', (region, national, stored) => {
+    expect(composePhone(region, national, null)).toBe(stored);
+  });
+
+  it('is left on a number already written without it', () => {
+    expect(composePhone('RU', '916 123-45-67', null)).toBe('+79161234567');
+    expect(composePhone('HU', '30 123 4567', null)).toBe('+36301234567');
+  });
+});
+
+describe('an international number typed into the number', () => {
+  it('is read for its country and the rest', () => {
+    expect(readTypedNumber('+234 803 123 4567')).toEqual({ region: 'NG', national: '8031234567' });
+    expect(readTypedNumber('0803 123 4567')).toBeNull();
+  });
+});
+
+describe('phoneProblem names the part that is wrong', () => {
+  it('points at the country or at the number', () => {
+    expect(phoneProblemPart(null, '8031234567')).toBe('region');
+    expect(phoneProblemPart('NG', '0803-CALL-ME')).toBe('number');
+    expect(phoneProblemPart('NG', '0803 123 4567')).toBeNull();
   });
 });
