@@ -120,11 +120,11 @@
   transform: rotate(45deg);
 }
 
-.option[data-disabled] {
+.option[data-unavailable] {
   cursor: not-allowed;
 }
 
-.option[data-disabled] .box {
+.option[data-unavailable] .box {
   border-style: dashed;
   background: var(--surface-sunken);
 }

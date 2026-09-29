@@ -5,6 +5,7 @@ import {
   ListBoxItem,
   SearchField,
   Text,
+  type ListBoxItemProps,
   type Selection,
 } from 'react-aria-components';
 import type { PickerState } from '#/shared/service/picker.ts';
@@ -12,6 +13,15 @@ import { Button } from '#/shared/view/Button.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ListSkeleton } from '#/shared/view/Skeleton.tsx';
 import styles from '#/shared/view/Picker.module.css';
+
+// An option that cannot be chosen stays focusable, so its reason is heard,
+// and is said to be unavailable: React Aria's own disabled items are skipped.
+const renderUnavailable: NonNullable<ListBoxItemProps['render']> = (props) =>
+  'href' in props ? (
+    <a {...props} aria-disabled="true" />
+  ) : (
+    <div {...props} aria-disabled="true" data-unavailable />
+  );
 
 // Sits inside a section's form, so its search is a field and a button and
 // never a form of its own. The selection is ids, including ones chosen
@@ -52,12 +62,20 @@ export function Picker<T>({
 }) {
   const heading = useId();
   const [text, setText] = useState(picker.query);
+  const unavailable = new Set(
+    picker.options.filter((item) => (unavailableOf?.(item) ?? null) !== null).map(idOf),
+  );
+  // An option that cannot be chosen stays focusable, so its reason is heard;
+  // a change that would choose it is not made.
   const change = (keys: Selection): void => {
     if (keys === 'all') {
-      onChange([...new Set([...selected, ...picker.options.map(idOf)])]);
+      const every = picker.options.map(idOf).filter((id) => !unavailable.has(id));
+      onChange([...new Set([...selected, ...every])]);
       return;
     }
-    onChange([...keys].map(String));
+    const ids = [...keys].map(String);
+    if (ids.some((id) => unavailable.has(id) && !selected.includes(id))) return;
+    onChange(ids);
   };
   const search = (): void => {
     picker.search(text.trim());
@@ -165,7 +183,6 @@ function Options<T>({
         items={picker.options.map((item) => ({ id: idOf(item), item }))}
         selectionMode={selectionMode}
         selectedKeys={new Set(selected)}
-        disabledKeys={picker.options.filter((item) => why(item) !== null).map(idOf)}
         onSelectionChange={onChange}
         className={styles.list ?? ''}
       >
@@ -174,6 +191,7 @@ function Options<T>({
             id={id}
             textValue={nameOf(item)}
             className={styles.option ?? ''}
+            {...(why(item) === null ? {} : { render: renderUnavailable })}
             {...(accessibleNameOf === undefined ? {} : { 'aria-label': accessibleNameOf(item) })}
           >
             <span className={styles.box} aria-hidden="true" />
