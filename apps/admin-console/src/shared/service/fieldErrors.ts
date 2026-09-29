@@ -29,6 +29,7 @@ function fromDetail(detail: string): FieldError[] | null {
 
 export function fieldErrorsOf(
   problem: {
+    readonly title?: string | undefined;
     readonly detail?: string | undefined;
     readonly errors?: readonly FieldError[] | undefined;
   },
@@ -49,12 +50,11 @@ export function fieldErrorsOf(
     const was = fields[field];
     fields[field] = was === undefined ? text : `${was}; ${text}`;
   }
-  if (
-    problem.errors === undefined &&
-    Object.keys(fields).length === 0 &&
-    problem.detail !== undefined
-  ) {
-    return { fields, other: [problem.detail] };
+  // Nothing placed under a field and nothing left over: the refusal still
+  // says something, in its detail or at least its title.
+  if (Object.keys(fields).length === 0 && (problem.errors === undefined || other.length === 0)) {
+    const said = problem.detail ?? problem.title;
+    return { fields, other: said === undefined ? [] : [said] };
   }
   return { fields, other };
 }

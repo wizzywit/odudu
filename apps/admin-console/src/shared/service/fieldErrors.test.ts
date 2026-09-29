@@ -73,7 +73,14 @@ it('keeps a detail that names no field of the section as a whole-section message
   });
 });
 
-it('says nothing when the refusal says nothing', () => {
+it('falls back to the detail, then the title, when nothing names a field', () => {
+  expect(fieldErrorsOf({ detail: 'the body is not JSON', errors: [] }, FIELDS)).toEqual({
+    fields: {},
+    other: ['the body is not JSON'],
+  });
+  expect(fieldErrorsOf({ title: 'Bad Request', errors: [] }, FIELDS)).toEqual({
+    fields: {},
+    other: ['Bad Request'],
+  });
   expect(fieldErrorsOf({}, FIELDS)).toEqual({ fields: {}, other: [] });
-  expect(fieldErrorsOf({ errors: [] }, FIELDS)).toEqual({ fields: {}, other: [] });
 });

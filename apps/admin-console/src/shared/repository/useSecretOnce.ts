@@ -20,7 +20,8 @@ type Settled<Rest> =
   | { readonly ok: true; readonly rest: Rest }
   | { readonly ok: false; readonly failure: GatewayFailure };
 
-// A write whose answer carries a secret shown once. The secret is split off
+// A write whose answer carries one secret shown once; an answer carrying
+// several, as an import's does, shows them in a dialog of its own. The secret is split off
 // before the mutation settles, so the mutation cache never holds it, and it
 // lives in this hook's state until the dialog showing it closes.
 export function useSecretOnce<A, R, Rest>({
@@ -35,11 +36,15 @@ export function useSecretOnce<A, R, Rest>({
   const inFlight = useRef(false);
   const mutation = useMutation({
     mutationFn: async (args: A): Promise<Settled<Rest>> => {
-      const result = await run(gateway, args);
-      if (!result.ok) return { ok: false, failure: result };
-      const parts = split(result.data);
-      setSecret(parts.secret);
-      return { ok: true, rest: parts.rest };
+      try {
+        const result = await run(gateway, args);
+        if (!result.ok) return { ok: false, failure: result };
+        const parts = split(result.data);
+        setSecret(parts.secret);
+        return { ok: true, rest: parts.rest };
+      } catch {
+        return { ok: false, failure: { ok: false, kind: 'defect' } };
+      }
     },
     onSettled: () => {
       inFlight.current = false;

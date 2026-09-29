@@ -139,3 +139,25 @@ it('leaves nothing of the secret on the page once its dialog closes', async () =
   expect(document.body.innerHTML).not.toContain(SECRET);
   expect(cached(queryClient)).not.toContain(SECRET);
 });
+
+it('reports a write that threw as a console fault, not as nothing at all', async () => {
+  const { wrapper } = harness(json({ client_id: 'billing-portal', client_secret: SECRET }));
+  const { result } = renderHook(
+    () =>
+      useSecretOnce({
+        ...options,
+        split: () => {
+          throw new Error('the answer had no secret');
+        },
+      }),
+    { wrapper },
+  );
+  act(() => {
+    result.current.start('c1');
+  });
+  await waitFor(() => {
+    expect(result.current.failure).toEqual({ ok: false, kind: 'defect' });
+  });
+  expect(result.current.busy).toBe(false);
+  expect(result.current.secret).toBeNull();
+});
