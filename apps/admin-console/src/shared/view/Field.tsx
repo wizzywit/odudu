@@ -1,4 +1,13 @@
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import {
+  createContext,
+  use,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import {
   Button as AriaButton,
   FieldError,
@@ -156,6 +165,14 @@ export function NumberWithUnitField({
   );
 }
 
+// Inside a filter bar a field's label sits beside its control, so every
+// control in the bar keeps one height and one centre line.
+const Inline = createContext(false);
+
+export function InlineFields({ children }: { children: ReactNode }) {
+  return <Inline value>{children}</Inline>;
+}
+
 export interface SelectOption {
   readonly id: string;
   readonly label: string;
@@ -175,6 +192,7 @@ export function SelectField({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const inline = use(Inline);
   return (
     <Select
       {...VALIDATION}
@@ -186,6 +204,7 @@ export function SelectField({
       }}
       className={styles.field ?? ''}
       data-changed={changed === true || undefined}
+      data-inline={inline || undefined}
     >
       <Header label={label} {...(changed === undefined ? {} : { changed })} />
       <AriaButton className={styles.trigger ?? ''}>

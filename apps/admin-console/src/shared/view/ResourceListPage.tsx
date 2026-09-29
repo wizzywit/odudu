@@ -5,7 +5,7 @@ import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { Count } from '#/shared/view/Count.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import type { SelectOption } from '#/shared/view/Field.tsx';
+import { InlineFields, type SelectOption } from '#/shared/view/Field.tsx';
 import { FilterBar } from '#/shared/view/FilterBar.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import { Pager } from '#/shared/view/Pager.tsx';
@@ -99,13 +99,14 @@ function Narrowing<T>({
 }) {
   const [first] = searchFields;
   if (first === undefined) {
-    if (filters === undefined) return <div className={styles.toolbar}>{children}</div>;
+    const count = children === null ? null : <span className={styles.count}>{children}</span>;
+    if (filters === undefined) return <div className={styles.toolbar}>{count}</div>;
     return (
       <div role="group" aria-label={`Filter ${noun.other}`} className={styles.toolbar}>
-        {filters}
-        {children}
+        <InlineFields>{filters}</InlineFields>
+        {count}
         {list.narrowed ? (
-          <Button variant="quiet" size="small" onPress={list.clear}>
+          <Button variant="quiet" onPress={list.clear}>
             Clear filters
           </Button>
         ) : null}
@@ -121,9 +122,9 @@ function Narrowing<T>({
       onSearch={list.setSearch}
       onClear={list.clear}
       active={list.narrowed}
+      count={children}
     >
       {filters}
-      {children}
     </FilterBar>
   );
 }

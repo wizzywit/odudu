@@ -11,7 +11,7 @@ import {
   type Key,
 } from 'react-aria-components';
 import { Button } from '#/shared/view/Button.tsx';
-import type { SelectOption } from '#/shared/view/Field.tsx';
+import { InlineFields, type SelectOption } from '#/shared/view/Field.tsx';
 import styles from '#/shared/view/FilterBar.module.css';
 
 export interface Search {
@@ -29,6 +29,7 @@ export function FilterBar({
   onSearch,
   onClear,
   active = false,
+  count,
   children,
 }: {
   label: string;
@@ -38,6 +39,8 @@ export function FilterBar({
   onSearch: (search: Search) => void;
   onClear?: () => void;
   active?: boolean;
+  // How many the filters leave, said at the end of the row.
+  count?: ReactNode;
   children?: ReactNode;
 }) {
   const shortcut = useId();
@@ -101,9 +104,14 @@ export function FilterBar({
           Enter
         </kbd>
       </div>
-      {children === undefined ? null : <div className={styles.filters}>{children}</div>}
+      {children === undefined ? null : (
+        <div className={styles.filters}>
+          <InlineFields>{children}</InlineFields>
+        </div>
+      )}
+      {count === undefined || count === null ? null : <span className={styles.count}>{count}</span>}
       {active && onClear !== undefined ? (
-        <Button variant="quiet" size="small" onPress={onClear}>
+        <Button variant="quiet" onPress={onClear}>
           Clear filters
         </Button>
       ) : null}

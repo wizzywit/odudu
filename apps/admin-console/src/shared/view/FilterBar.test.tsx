@@ -1,7 +1,12 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
+import buttonCss from '#/shared/view/Button.module.css?raw';
+import fieldCss from '#/shared/view/Field.module.css?raw';
+import { SelectField } from '#/shared/view/Field.tsx';
 import { FilterBar } from '#/shared/view/FilterBar.tsx';
+import filterCss from '#/shared/view/FilterBar.module.css?raw';
+import tokens from '#/shared/view/tokens.css?raw';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 const FIELDS = [
@@ -89,7 +94,66 @@ it('offers to clear only while something is filtered', async () => {
   expect(onClear).toHaveBeenCalledOnce();
 });
 
+const STATUS = [
+  { id: 'any', label: 'Any status' },
+  { id: 'true', label: 'Enabled' },
+];
+
+function withStatus() {
+  return (
+    <FilterBar
+      label="Filter subjects"
+      fields={FIELDS}
+      field="username"
+      query="ada"
+      onSearch={vi.fn()}
+      onClear={vi.fn()}
+      active
+      count={<span>2 subjects</span>}
+    >
+      <SelectField label="Status" options={STATUS} value="true" onChange={vi.fn()} />
+    </FilterBar>
+  );
+}
+
+it('draws a filter with its label beside its trigger, still naming it', () => {
+  render(withStatus());
+  const trigger = screen.getByRole('button', { name: /Status/u });
+  expect(trigger).toHaveTextContent('Enabled');
+  const field = trigger.closest('[data-inline]');
+  expect(field).not.toBeNull();
+  const label = within(field as HTMLElement).getByText('Status');
+  expect(trigger.getAttribute('aria-labelledby')?.split(' ')).toContain(label.id);
+});
+
+it('carries the count in the bar, beside Clear filters', () => {
+  render(withStatus());
+  const bar = screen.getByRole('search', { name: 'Filter subjects' });
+  expect(within(bar).getByText('2 subjects')).toBeVisible();
+  expect(within(bar).getByRole('button', { name: 'Clear filters' })).toBeVisible();
+});
+
+function rule(css: string, selector: string): string {
+  const source = css.replace(/\/\*[\s\S]*?\*\//gu, '');
+  const found = [...source.matchAll(/([^{}]+)\{([^}]*)\}/gu)].find(
+    ([, head = '']) => head.trim() === selector,
+  );
+  return found?.[2] ?? '';
+}
+
+it('gives every control in the bar one height, from one token', () => {
+  expect(tokens).toMatch(/--control-height:\s*32px;/u);
+  const HEIGHT = /block-size:\s*var\(--control-height\)/u;
+  for (const selector of ['.chip', '.input', '.shortcut', '.count']) {
+    expect(rule(filterCss, selector), selector).toMatch(HEIGHT);
+  }
+  expect(rule(buttonCss, '.button')).toMatch(HEIGHT);
+  expect(rule(fieldCss, '.field[data-inline] .trigger')).toMatch(HEIGHT);
+  expect(rule(filterCss, '.bar')).toMatch(/align-items:\s*center/u);
+});
+
 it('passes axe in both themes', async () => {
+  expect(await axeInBothThemes(withStatus)).toEqual({ light: [], dark: [] });
   expect(
     await axeInBothThemes(() => (
       <FilterBar
