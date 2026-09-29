@@ -69,6 +69,15 @@ it('draws a record as a title bar, its tab strip and sections of labelled fields
   }
 });
 
+it('leaves the title bar out beneath a real title', () => {
+  const { container } = render(
+    <RecordSkeleton label="Loading the subject" tabs={['Profile']} title={false} />,
+  );
+  const shape = expectOneStatus(container, 'Loading the subject');
+  expect(shape.querySelector('[data-part="title"]')).toBeNull();
+  expect(shape.querySelector('[data-part="tabs"]')).not.toBeNull();
+});
+
 it('draws a form as label-and-field rows', () => {
   const { container } = render(<FormSkeleton label="Loading the profile" fields={4} />);
   const shape = expectOneStatus(container, 'Loading the profile');

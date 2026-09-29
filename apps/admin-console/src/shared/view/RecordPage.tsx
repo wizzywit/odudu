@@ -52,7 +52,7 @@ export function RecordPage({
       return (
         <>
           {head(false)}
-          <RecordSkeleton label={`Loading ${noun}`} tabs={tabs.map((t) => t.label)} />
+          <RecordSkeleton label={`Loading ${noun}`} tabs={tabs.map((t) => t.label)} title={false} />
         </>
       );
     case 'missing':

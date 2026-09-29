@@ -113,6 +113,7 @@ it('says it is loading, that the record is gone, or that it could not be read', 
   const status = screen.getByRole('status', { name: '' });
   expect(status).toHaveTextContent('Loading client');
   expect(status.querySelector('[data-shape="record"]')).toHaveTextContent('GeneralActivity');
+  expect(status.querySelector('[data-part="title"]')).toBeNull();
   expect(screen.queryByRole('tablist')).toBeNull();
 
   rerender(page(view({ status: 'missing' })));

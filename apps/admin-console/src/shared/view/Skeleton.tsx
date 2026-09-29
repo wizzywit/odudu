@@ -104,16 +104,21 @@ function Fields({ count }: { count: number }) {
 export function RecordSkeleton({
   label,
   tabs,
+  title = true,
 }: {
   label: string;
   readonly tabs: readonly string[];
+  // False beneath a page header that already draws the title.
+  title?: boolean;
 }) {
   return (
     <Frame label={label} shape="record">
-      <div className={styles.title} data-part="title">
-        <span className={styles.bar} data-size="title" />
-        <span className={styles.bar} data-size="tag" />
-      </div>
+      {title ? (
+        <div className={styles.title} data-part="title">
+          <span className={styles.bar} data-size="title" />
+          <span className={styles.bar} data-size="tag" />
+        </div>
+      ) : null}
       <div className={styles.tabs} data-part="tabs">
         {tabs.map((tab) => (
           <span key={tab} className={styles.tab}>
