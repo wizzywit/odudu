@@ -67,7 +67,12 @@ const THEMES = [
   { scheme: 'light', override: 'dark' },
 ] as const;
 
-export async function expectAccessible(page: Page): Promise<void> {
+// `disable` switches off a rule one open state is known to trip, named where
+// it is passed; everything else still runs.
+export async function expectAccessible(
+  page: Page,
+  { disable = [] }: { readonly disable?: readonly string[] } = {},
+): Promise<void> {
   const chosen = await page.evaluate(() => document.documentElement.dataset.theme ?? null);
   const found: string[] = [];
   for (const { scheme, override } of THEMES) {
@@ -76,7 +81,10 @@ export async function expectAccessible(page: Page): Promise<void> {
       if (theme === null) delete document.documentElement.dataset.theme;
       else document.documentElement.dataset.theme = theme;
     }, override);
-    const result = await new AxeBuilder({ page }).withTags(WCAG_22_AA).analyze();
+    const result = await new AxeBuilder({ page })
+      .withTags(WCAG_22_AA)
+      .disableRules([...disable])
+      .analyze();
     const ran = [...result.passes, ...result.violations, ...result.incomplete];
     if (!ran.some((rule) => rule.id === 'color-contrast')) {
       found.push(`${scheme}/${override ?? 'system'} color-contrast did not run`);

@@ -219,6 +219,10 @@ test('a subject’s details are entered through typed fields and stored as the c
   await birthdate.getByText('Year only', { exact: true }).click();
   await birthdate.getByRole('textbox', { name: 'Year' }).fill('1990');
   await details.getByRole('combobox', { name: 'Time zone' }).pressSequentially('Lagos');
+  await expect(page.getByRole('option', { name: 'Africa/Lagos' })).toBeVisible();
+  // React Aria's ariaHideOutside hides the page while a list is open; focus
+  // cannot reach it then, since leaving the input closes the list.
+  await expectAccessible(page, { disable: ['aria-hidden-focus'] });
   await page.getByRole('option', { name: 'Africa/Lagos' }).click();
   await expectAccessible(page);
   await details.getByRole('combobox', { name: 'Locale' }).pressSequentially('English (Nig');
@@ -231,8 +235,8 @@ test('a subject’s details are entered through typed fields and stored as the c
   expect(userColumn(username, 'locale')).toBe('en-NG');
 
   const address = page.getByRole('region', { name: 'Address' });
-  await address.getByRole('combobox', { name: 'Country' }).pressSequentially('Germ');
-  await page.getByRole('option', { name: 'Germany' }).click();
+  // Filled whole, as a paste or autofill does: the list closes on the match.
+  await address.getByRole('combobox', { name: 'Country' }).fill('Germany');
   await page.getByRole('button', { name: 'Save Address' }).click();
   await expect(page.getByRole('button', { name: 'Save Address' })).toHaveCount(0);
   expect(userColumn(username, 'address_country')).toBe('Germany');

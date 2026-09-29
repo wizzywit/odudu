@@ -309,6 +309,18 @@ test('a system administrator holding manage-tenants alone is told what a tenant 
     'Subjects',
     'Switch tenant',
   ]);
+  await rail.getByRole('link', { name: 'Tenants' }).click();
+  const list = page.getByRole('grid', { name: 'Tenants' });
+  await expect(list).toBeVisible();
+  await expect(page.getByRole('note')).toHaveText(
+    'You can view tenants but not open their records (needs manage-tenant).',
+  );
+  await list.getByRole('row', { name: new RegExp(tenants.general, 'u') }).click();
+  await expect(page).toHaveURL('/console/system/tenants');
+  await expect(list.getByRole('link', { name: `Enter ${tenants.general}` })).toBeVisible();
+  await expectAccessible(page);
+
+  // A shared link to the record still opens, and explains.
   await page.goto(`/console/system/tenants/${tenants.general}`);
   await expect(page.getByRole('heading', { level: 1, name: tenants.general })).toBeVisible();
   await expect(page.getByRole('note')).toHaveText(
