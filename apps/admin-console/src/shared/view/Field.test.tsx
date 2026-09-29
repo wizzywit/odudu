@@ -3,8 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  FieldGroup,
   KeyValueField,
   NumberWithUnitField,
+  ReadOnlyFields,
   SelectField,
   TextField,
   ToggleField,
@@ -323,5 +325,83 @@ describe('KeyValueField', () => {
       light: [],
       dark: [],
     });
+  });
+});
+
+describe('ReadOnlyFields', () => {
+  it('shows every field as its label and value, with no control', () => {
+    render(
+      <ReadOnlyFields when>
+        <TextField label="Name" value="Ada" onChange={vi.fn()} />
+        <TextField label="Nickname" value="" onChange={vi.fn()} />
+        <SelectField
+          label="Status"
+          options={[{ id: 'on', label: 'Enabled' }]}
+          value="on"
+          onChange={vi.fn()}
+        />
+        <ToggleField label="Email verified" value onChange={vi.fn()} />
+        <NumberWithUnitField label="Lifetime" unit="seconds" value={900} onChange={vi.fn()} />
+        <UrlListField
+          label="Redirect URIs"
+          itemLabel="Redirect URI"
+          value={['https://a.example/cb']}
+          onChange={vi.fn()}
+        />
+      </ReadOnlyFields>,
+    );
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('switch')).toBeNull();
+    const terms = screen.getAllByRole('term').map((t) => t.textContent);
+    expect(terms).toEqual([
+      'Name',
+      'Nickname',
+      'Status',
+      'Email verified',
+      'Lifetime',
+      'Redirect URIs',
+    ]);
+    const values = screen.getAllByRole('definition').map((d) => d.textContent);
+    expect(values).toEqual([
+      'Ada',
+      'Not set',
+      'Enabled',
+      'On',
+      '900 s · 15 minutes',
+      'https://a.example/cb',
+    ]);
+  });
+
+  it('leaves fields editable when the page can change them', () => {
+    render(
+      <ReadOnlyFields when={false}>
+        <TextField label="Name" value="Ada" onChange={vi.fn()} />
+      </ReadOnlyFields>,
+    );
+    expect(screen.getByRole('textbox', { name: 'Name' })).toBeInTheDocument();
+  });
+
+  it('passes axe in both themes', async () => {
+    expect(
+      await axeInBothThemes(() => (
+        <ReadOnlyFields when>
+          <TextField label="Name" value="Ada" onChange={vi.fn()} />
+          <ToggleField label="Verified" value={false} onChange={vi.fn()} />
+        </ReadOnlyFields>
+      )),
+    ).toEqual({ light: [], dark: [] });
+  });
+});
+
+describe('FieldGroup', () => {
+  it('labels and describes its controls as one field', () => {
+    render(
+      <FieldGroup label="Phone number" description="With its country." error="Too long.">
+        <TextField label="Number" value="" onChange={vi.fn()} />
+      </FieldGroup>,
+    );
+    const group = screen.getByRole('group', { name: 'Phone number' });
+    expect(describedBy(group)).toBe('With its country. | Too long.');
   });
 });

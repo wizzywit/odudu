@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { previewable, urlProblem } from '#/shared/service/profileUrl.ts';
+import { previewable, typingScheme, urlProblem } from '#/shared/service/profileUrl.ts';
 
 describe('urlProblem', () => {
   it('accepts nothing, and an http or https address', () => {
@@ -20,5 +20,14 @@ describe('previewable', () => {
     expect(previewable('https://console.test/a.png', 'https://console.test')).toBe(true);
     expect(previewable('https://cdn.example/a.png', 'https://console.test')).toBe(false);
     expect(previewable('not a url', 'https://console.test')).toBe(false);
+  });
+});
+
+describe('typingScheme', () => {
+  it('holds back while the scheme is still being typed', () => {
+    expect(typingScheme('ht')).toBe(true);
+    expect(typingScheme('https://')).toBe(true);
+    expect(typingScheme('https://a')).toBe(false);
+    expect(typingScheme('ftp')).toBe(false);
   });
 });

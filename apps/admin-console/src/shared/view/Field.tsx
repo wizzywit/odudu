@@ -30,7 +30,7 @@ import { formatDuration } from '#/shared/service/format.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import styles from '#/shared/view/Field.module.css';
 
-interface Chrome {
+export interface Chrome {
   label: string;
   description?: ReactNode;
   // What the problem detail said about this field; shown under it.
@@ -41,13 +41,13 @@ interface Chrome {
 
 // A server-reported error is shown as given; the browser's own constraint
 // validation would otherwise block the form until the next response.
-const VALIDATION = { validationBehavior: 'aria' } as const;
+export const VALIDATION = { validationBehavior: 'aria' } as const;
 
-function invalid(error: string | undefined): { isInvalid: boolean } {
+export function invalid(error: string | undefined): { isInvalid: boolean } {
   return { isInvalid: error !== undefined };
 }
 
-function Header({ label, changed }: { label: string; changed?: boolean }) {
+export function Header({ label, changed }: { label: string; changed?: boolean }) {
   return (
     <div className={styles.header}>
       <Label className={styles.label ?? ''}>{label}</Label>
@@ -56,20 +56,63 @@ function Header({ label, changed }: { label: string; changed?: boolean }) {
   );
 }
 
-function Changed() {
+export function Changed() {
   return <span className={styles.changed}>Changed</span>;
 }
 
-function Message({ error }: { error: string | undefined }) {
+export function Message({ error }: { error: string | undefined }) {
   return <FieldError className={styles.error ?? ''}>{error}</FieldError>;
 }
 
-function Description({ children }: { children: ReactNode }) {
+export function Description({ children }: { children: ReactNode }) {
   if (children === undefined || children === null) return null;
   return (
     <Text slot="description" className={styles.description ?? ''}>
       {children}
     </Text>
+  );
+}
+
+// A page the caller may read but not change shows every field as text: no
+// control is offered that the server would refuse.
+export const FieldsReadOnly = createContext(false);
+
+export function ReadOnlyFields({ children, when }: { children: ReactNode; when: boolean }) {
+  return <FieldsReadOnly value={when}>{children}</FieldsReadOnly>;
+}
+
+export function ReadOnlyValue({
+  label,
+  value,
+  description,
+  mono = false,
+}: {
+  label: string;
+  value: ReactNode;
+  description?: ReactNode;
+  mono?: boolean;
+}) {
+  const empty = value === '' || value === null || value === undefined;
+  return (
+    <dl className={styles.readOnly}>
+      <dt className={styles.label}>{label}</dt>
+      <dd className={styles.readOnlyValue} data-mono={(mono && !empty) || undefined}>
+        {empty ? <span className={styles.unset}>Not set</span> : value}
+      </dd>
+      {description === undefined || description === null ? null : (
+        <dd className={styles.description}>{description}</dd>
+      )}
+    </dl>
+  );
+}
+
+function ReadOnlyList({ items }: { readonly items: readonly string[] }) {
+  return (
+    <ul className={styles.readOnlyList}>
+      {items.map((item, i) => (
+        <li key={`${String(i)}:${item}`}>{item}</li>
+      ))}
+    </ul>
   );
 }
 
@@ -88,11 +131,12 @@ export function TextField({
 }: Chrome & {
   value: string;
   onChange: (value: string) => void;
-  type?: 'text' | 'url' | 'email';
+  type?: 'text' | 'url' | 'email' | 'tel';
   mono?: boolean;
   autoComplete?: string;
   autoFocus?: boolean;
 }) {
+  if (use(FieldsReadOnly)) return <ReadOnlyValue label={label} value={value} mono={mono} />;
   return (
     <AriaTextField
       {...VALIDATION}
@@ -134,6 +178,10 @@ export function NumberWithUnitField({
   minValue?: number;
   maxValue?: number;
 }) {
+  const reading = unit === 'seconds' ? formatDuration(value) : `${String(value)} ${unit}`;
+  if (use(FieldsReadOnly)) {
+    return <ReadOnlyValue label={label} value={reading} mono />;
+  }
   return (
     <AriaNumberField
       {...VALIDATION}
@@ -155,9 +203,7 @@ export function NumberWithUnitField({
         </span>
       </Group>
       <Text slot="description" className={styles.description ?? ''}>
-        <span className={styles.reading}>
-          {unit === 'seconds' ? formatDuration(value) : `${String(value)} ${unit}`}
-        </span>
+        <span className={styles.reading}>{reading}</span>
         {description === undefined ? null : <span>{description}</span>}
       </Text>
       <Message error={error} />
@@ -187,15 +233,24 @@ export function SelectField({
   options,
   value,
   onChange,
+  autoComplete,
 }: Chrome & {
   readonly options: readonly SelectOption[];
   value: string;
   onChange: (value: string) => void;
+  autoComplete?: string;
 }) {
   const inline = use(Inline);
+  const readOnly = use(FieldsReadOnly);
+  if (readOnly && !inline) {
+    return (
+      <ReadOnlyValue label={label} value={options.find((o) => o.id === value)?.label ?? value} />
+    );
+  }
   return (
     <Select
       {...VALIDATION}
+      {...(autoComplete === undefined ? {} : { autoComplete })}
       {...invalid(error)}
       isDisabled={isDisabled ?? false}
       value={value}
@@ -237,6 +292,9 @@ export function ToggleField({
   value,
   onChange,
 }: Chrome & { value: boolean; onChange: (value: boolean) => void }) {
+  if (use(FieldsReadOnly)) {
+    return <ReadOnlyValue label={label} value={value ? 'On' : 'Off'} description={description} />;
+  }
   return (
     <SwitchField
       {...VALIDATION}
@@ -320,6 +378,52 @@ function useRowIds(count: number) {
       setRows((r) => ({ ids: r.ids.filter((_, i) => i !== index), next: r.next }));
     },
   };
+}
+
+// Several controls standing for one value: the group carries the label, the
+// description and the error, as a single field does.
+export function FieldGroup({
+  label,
+  description,
+  error,
+  changed,
+  children,
+}: Chrome & { children: ReactNode }) {
+  const legend = useId();
+  const descriptionId = useId();
+  const errorId = useId();
+  const describedBy = [
+    description === undefined || description === null ? null : descriptionId,
+    error === undefined ? null : errorId,
+  ].filter((id) => id !== null);
+  return (
+    <div
+      role="group"
+      aria-labelledby={legend}
+      {...(describedBy.length === 0 ? {} : { 'aria-describedby': describedBy.join(' ') })}
+      className={styles.field}
+      data-changed={changed === true || undefined}
+      data-invalid={error === undefined ? undefined : true}
+    >
+      <div className={styles.header}>
+        <span id={legend} className={styles.label}>
+          {label}
+        </span>
+        {changed === true ? <Changed /> : null}
+      </div>
+      {children}
+      {description === undefined || description === null ? null : (
+        <p id={descriptionId} className={styles.description}>
+          {description}
+        </p>
+      )}
+      {error === undefined ? null : (
+        <p id={errorId} className={styles.error}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function removeName(noun: string, position: string, shows: string): string {
@@ -442,7 +546,17 @@ export function UrlListField({
 }) {
   const focus = useRowFocus(value.length);
   const rows = useRowIds(value.length);
+  const readOnly = use(FieldsReadOnly);
   const noun = itemLabel.charAt(0).toLowerCase() + itemLabel.slice(1);
+  if (readOnly) {
+    return (
+      <ReadOnlyValue
+        label={label}
+        value={value.length === 0 ? '' : <ReadOnlyList items={value} />}
+        mono
+      />
+    );
+  }
   return (
     <ListGroup
       label={label}
@@ -515,7 +629,23 @@ export function KeyValueField({
 }) {
   const focus = useRowFocus(value.length);
   const rows = useRowIds(value.length);
+  const readOnly = use(FieldsReadOnly);
   const noun = keyLabel.toLowerCase();
+  if (readOnly) {
+    return (
+      <ReadOnlyValue
+        label={label}
+        value={
+          value.length === 0 ? (
+            ''
+          ) : (
+            <ReadOnlyList items={value.map((p) => `${p.key}: ${p.value}`)} />
+          )
+        }
+        mono
+      />
+    );
+  }
   return (
     <ListGroup
       label={label}

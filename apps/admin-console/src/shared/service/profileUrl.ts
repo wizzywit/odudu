@@ -23,3 +23,8 @@ export function previewable(value: string, origin: string): boolean {
     return false;
   }
 }
+
+// "ht" or "https://" is an address still being typed, not a wrong one.
+export function typingScheme(value: string): boolean {
+  return ['https://', 'http://'].some((scheme) => scheme.startsWith(value));
+}

@@ -1,5 +1,6 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { StrictMode, useState, type ReactNode } from 'react';
+import { I18nProvider } from 'react-aria-components';
 import { createQueryClient } from '#/shared/repository/queryClient.ts';
 import { loadThemeChoice } from '#/shared/adapter/themeChoice.ts';
 import { rememberThemeChoice } from '#/shared/repository/themeChoice.ts';
@@ -11,7 +12,8 @@ import type { ThemeChoice } from '#/shared/service/theme.ts';
 import { DialogPresence } from '#/shared/view/dialogPresence.ts';
 
 // What the console keeps in Context rather than a store: the transport, the
-// theme, and the query client the repositories read through.
+// theme, and the query client the repositories read through. Dates, names
+// and lists follow the browser's own locale, which I18nProvider reads.
 export function Providers({
   transport: given,
   queryClient: givenClient,
@@ -36,7 +38,9 @@ export function Providers({
       <TransportContext value={transport}>
         <QueryClientProvider client={queryClient}>
           <ThemeContext value={{ choice, choose: theme.choose }}>
-            <DialogPresence value={opened}>{children}</DialogPresence>
+            <I18nProvider>
+              <DialogPresence value={opened}>{children}</DialogPresence>
+            </I18nProvider>
           </ThemeContext>
         </QueryClientProvider>
       </TransportContext>

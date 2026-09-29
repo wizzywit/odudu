@@ -336,3 +336,225 @@
 .row > :last-child {
   margin-block-start: 6px;
 }
+
+.readOnly {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.readOnlyValue {
+  font-size: var(--type-15);
+  color: var(--ink-primary);
+  overflow-wrap: anywhere;
+}
+
+.readOnlyValue[data-mono] {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+}
+
+.readOnlyList {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0;
+  list-style: none;
+}
+
+.unset {
+  color: var(--ink-muted);
+}
+
+.comboGroup {
+  display: flex;
+  align-items: stretch;
+  max-inline-size: 28rem;
+}
+
+.comboGroup .input {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.comboButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--target-min);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-inline-start: 0;
+  border-start-end-radius: var(--radius-s);
+  border-end-end-radius: var(--radius-s);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+  cursor: pointer;
+}
+
+.comboButton[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.popover .listbox {
+  max-block-size: 20rem;
+  overflow-y: auto;
+}
+
+.optionLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionDetail {
+  margin-inline-start: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.forms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.form {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--target-min);
+  font-size: var(--type-13);
+  color: var(--ink-primary);
+  cursor: pointer;
+}
+
+.form::before {
+  content: '';
+  flex: none;
+  inline-size: 14px;
+  block-size: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface-panel);
+}
+
+.form[data-selected]::before {
+  border: 4px solid var(--signal-active-ink);
+}
+
+.form[data-focus-visible]::before {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.form[data-disabled] {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.part {
+  display: grid;
+  gap: var(--space-1);
+  max-inline-size: 20rem;
+}
+
+.parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.partLabel {
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.dateInput {
+  display: inline-flex;
+  align-items: center;
+  inline-size: fit-content;
+  min-inline-size: 12rem;
+  min-block-size: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: var(--type-15);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+}
+
+.dateInput[data-focus-within] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+  border-color: var(--focus-ring);
+}
+
+.field[data-invalid] .dateInput,
+.dateInput[data-invalid] {
+  border-color: var(--signal-danger-ink);
+}
+
+.field[data-changed] .dateInput {
+  border-inline-start: 3px solid var(--signal-warning-ink);
+}
+
+.segment {
+  padding: 0 1px;
+  border-radius: 2px;
+  outline: none;
+}
+
+.segment[data-placeholder] {
+  color: var(--ink-muted);
+}
+
+.segment[data-type='literal'] {
+  color: var(--ink-muted);
+}
+
+.segment[data-focused] {
+  color: var(--surface-panel);
+  background: var(--focus-ring);
+}
+
+.input[data-year] {
+  max-inline-size: 8rem;
+  font-family: var(--font-mono);
+}
+
+.phone {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+  max-inline-size: 36rem;
+}
+
+@container (inline-size < 30rem) {
+  .phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pictureField {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.picture {
+  inline-size: 64px;
+  block-size: 64px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  object-fit: cover;
+  background: var(--surface-sunken);
+}
+
+.pictureNote {
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+}
