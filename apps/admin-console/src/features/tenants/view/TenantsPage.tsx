@@ -9,6 +9,7 @@ import { SelectField } from '#/shared/view/Field.tsx';
 import { ResourceListPage } from '#/shared/view/ResourceListPage.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
 import styles from '#/features/tenants/view/TenantsPage.module.css';
 
 const COLUMNS: readonly Column<Tenant>[] = [
@@ -58,7 +59,7 @@ const STATUS = [
 ];
 
 function List() {
-  const { list, open } = useTenantsList();
+  const { list, open, recordNeeds } = useTenantsList();
   return (
     <ResourceListPage
       list={list}
@@ -87,7 +88,14 @@ function List() {
       }
       columns={COLUMNS}
       rowKey={(tenant) => tenant.name}
-      onRowAction={open}
+      {...(open === null ? {} : { onRowAction: open })}
+      {...(recordNeeds.length === 0
+        ? {}
+        : {
+            viewOnly: (
+              <ViewOnlyNote noun="tenants" change="open their records" needs={recordNeeds} />
+            ),
+          })}
       capability="manage-tenants"
       nothingYet="Only the system tenant exists until another is created or imported."
     />

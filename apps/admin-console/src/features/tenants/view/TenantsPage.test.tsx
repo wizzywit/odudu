@@ -75,6 +75,22 @@ it("enters a tenant from its row's link, not its record", async () => {
   });
 });
 
+it('opens no record for an operator who cannot read one, and says so once', async () => {
+  const user = userEvent.setup();
+  const { router } = renderConsoleAt('/console/system/tenants', {
+    ...routes(),
+    [`GET ${ADMIN}/system/whoami`]: whoami(['manage-tenants', 'view-users']),
+  });
+  const table = await screen.findByRole('grid', { name: 'Tenants' });
+  expect(await screen.findByRole('note')).toHaveTextContent(
+    'You can view tenants but not open their records (needs manage-tenant).',
+  );
+  await user.click(within(table).getByRole('row', { name: /globex/u }));
+  expect(router.state.location.pathname).toBe('/system/tenants');
+  expect(within(table).getByRole('link', { name: 'Enter acme' })).toBeVisible();
+  expect(screen.getByRole('link', { name: 'Create a tenant' })).toBeVisible();
+});
+
 it('is no page for a tenant administrator', async () => {
   renderConsoleAt('/console/acme/tenants', {
     'GET /console/api/session': json(GRACE),

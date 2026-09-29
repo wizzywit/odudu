@@ -46,7 +46,9 @@ function Record({ name, access }: { name: string; access: TenantRecordAccess }) 
               />
             ),
           })}
-      readOnly={!access.canChange}
+      // Reading the record needs manage-tenant, which is all changing it
+      // needs, so its own fields stay editable whatever the line says.
+      readOnly={false}
       label="Tenant sections"
       tab={page.tab}
       onTabChange={page.selectTab}
@@ -57,13 +59,7 @@ function Record({ name, access }: { name: string; access: TenantRecordAccess }) 
           dirty: page.dirty.has('general'),
           panel:
             tenant === undefined || page.etag === null ? null : (
-              <GeneralTab
-                name={name}
-                tenant={tenant}
-                etag={page.etag}
-                gone={page.record.gone}
-                canChange={access.canChange}
-              />
+              <GeneralTab name={name} tenant={tenant} etag={page.etag} gone={page.record.gone} />
             ),
         },
         {

@@ -24,8 +24,6 @@ export interface TenantRecordPage {
 export interface TenantRecordAccess {
   // What reading the record needs that whoami says is missing.
   readonly readNeeds: readonly AdminCapability[];
-  // Whether whoami lets the caller change the tenant's own fields and status.
-  readonly canChange: boolean;
   // What adding an administrator needs that whoami says is missing.
   readonly addNeeds: readonly AdminCapability[];
   // The changes whoami rules out, for the page's one line.
@@ -58,11 +56,7 @@ export function useTenantRecordAccess(name: string): TenantRecordAccess {
   const readNeeds = lacking(authority, ['manage-tenant']);
   return {
     readNeeds,
-    canChange: readNeeds.length === 0,
     addNeeds: lacking(authority, adding),
-    blocked: blockedChanges(authority, [
-      { change: 'change them', needs: ['manage-tenant'] },
-      { change: 'add their administrators', needs: adding },
-    ]),
+    blocked: blockedChanges(authority, [{ change: 'add their administrators', needs: adding }]),
   };
 }

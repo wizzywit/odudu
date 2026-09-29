@@ -1,21 +1,32 @@
 import type { Tenant } from '@odudu/contracts/admin';
+import { useAuthority } from '#/features/session/index.ts';
 import { useGo } from '#/features/tenants/repository/useGo.ts';
 import { useTenantList } from '#/features/tenants/repository/useTenantList.ts';
 import { tenantHref } from '#/features/tenants/service.ts';
+import { lacking } from '#/shared/service/access.ts';
+import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
 export interface TenantsList {
   readonly list: ResourceListState<Tenant>;
-  readonly open: (name: string) => void;
+  // Null when whoami says a record could not be read: its rows open nothing.
+  readonly open: ((name: string) => void) | null;
+  // What reading a tenant's record needs that whoami says is missing.
+  readonly recordNeeds: readonly AdminCapability[];
 }
 
 export function useTenantsList(): TenantsList {
   const list = useTenantList();
   const go = useGo();
+  const recordNeeds = lacking(useAuthority(SYSTEM_TENANT), ['manage-tenant']);
   return {
     list,
-    open: (name) => {
-      go(tenantHref(name));
-    },
+    recordNeeds,
+    open:
+      recordNeeds.length > 0
+        ? null
+        : (name) => {
+            go(tenantHref(name));
+          },
   };
 }
