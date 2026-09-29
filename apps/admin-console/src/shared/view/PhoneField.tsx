@@ -1,4 +1,4 @@
-import { use, useState } from 'react';
+import { use, useMemo, useState } from 'react';
 import { useLocale } from 'react-aria-components';
 import { composePhone, phoneProblem, splitPhone } from '#/shared/service/phone.ts';
 import { callingCodeOf, countryOptions } from '#/shared/service/regions.ts';
@@ -39,6 +39,7 @@ export function PhoneField({
 }: Chrome & { value: string; onChange: (value: string) => void }) {
   const { locale } = useLocale();
   const readOnly = use(FieldsReadOnly);
+  const options = useMemo(() => callingOptions(locale), [locale]);
   const [typed, setTyped] = useState<Typed>(() => ({ value, ...splitPhone(value) }));
   let current = typed;
   if (typed.value !== value) {
@@ -71,7 +72,7 @@ export function PhoneField({
       <div className={styles.phone}>
         <ComboBoxField
           label="Country"
-          options={callingOptions(locale)}
+          options={options}
           value={current.region ?? ''}
           isDisabled={isDisabled}
           autoComplete="tel-country-code"
