@@ -7696,6 +7696,199 @@ refusal above](#impersonation-gated-by-a-column-no-flag-sets) covers
 `unauthorized_client`'s own oracle: by calling `resolveExchangeToken`
 itself rather than through the client-authentication gate in front of it.
 
+### A subject disabled after a token was issued to it
+
+The same five calls again, for the other half of the same question:
+disabling a **subject** ends nothing it holds either — its grants, its
+session and its client are all untouched — so each of `/userinfo`,
+`/introspect` and the exchange grant reads the token's subject beside its
+client (`subjectIsEnabled`, `packages/domain-identity/src/service/subject-enabled.ts`,
+the same predicate the refresh grant and the admin API ask). Captured
+against a stack of its own: compose project `odudu-t8c` on port 3080,
+built from this branch and brought up from an empty volume, torn down with
+`docker compose down -v` afterwards. Its tenant `subjdoc` is set up exactly
+as `disableddoc` is above, under its own names — `subjdoc-spa`,
+`subjdoc-reader` with secret `subjdoc-reader-secret`, the audience
+`https://api.subjdoc.example`, and `ada` — and `$ACCESS_TOKEN`,
+`$REFRESH_TOKEN` and `$ID_TOKEN` come from one sign-in the same way. The
+`Date`, `Connection` and `Keep-Alive` lines are left out of each header
+block, and each issued `access_token` is cut after its first bytes.
+
+While `ada` is enabled, all five succeed. `/userinfo`, `/introspect`, the
+access-token exchange, the refresh-token exchange and the `id_token`
+self-exchange, in that order:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ACCESS_TOKEN" \
+  "http://localhost:3080/tenants/subjdoc/protocol/openid-connect/userinfo"
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0ed77-6862-70c5-a810-a69d1250e153
+vary: Origin
+content-type: application/json; charset=utf-8
+content-length: 46
+
+{"sub":"01a0ed76-cc3a-7f71-a4ac-2c62b3c966fc"}
+```
+
+```bash
+curl -sS -u subjdoc-reader:subjdoc-reader-secret \
+  -X POST "http://localhost:3080/tenants/subjdoc/protocol/openid-connect/token/introspect" \
+  --data-urlencode "token=$ACCESS_TOKEN"
+```
+
+```
+{"active":true,"scope":"openid offline_access","client_id":"subjdoc-spa","sub":"01a0ed76-cc3a-7f71-a4ac-2c62b3c966fc","aud":["https://api.subjdoc.example","http://localhost:3080/tenants/subjdoc"],"token_type":"Bearer","exp":1790690705,"iat":1790690405}
+```
+
+```bash
+curl -sS -D - -u subjdoc-reader:subjdoc-reader-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$ACCESS_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:access_token' \
+  --data-urlencode 'resource=https://api.subjdoc.example' \
+  'http://localhost:3080/tenants/subjdoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0ed77-68f2-7692-b732-1bdd74b33fda
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+content-length: 1082
+
+{"access_token":"eyJhbGciOiJSUzI1NiI…","token_type":"Bearer","expires_in":284,"scope":"openid offline_access","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+```
+
+```bash
+curl -sS -D - -u subjdoc-reader:subjdoc-reader-secret \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode "subject_token=$REFRESH_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:refresh_token' \
+  --data-urlencode 'resource=https://api.subjdoc.example' \
+  'http://localhost:3080/tenants/subjdoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0ed77-6943-7205-a3ad-1c3345ce296f
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+content-length: 1082
+
+{"access_token":"eyJhbGciOiJSUzI1NiI…","token_type":"Bearer","expires_in":300,"scope":"openid offline_access","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+```
+
+```bash
+curl -sS -D - \
+  --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+  --data-urlencode 'client_id=subjdoc-spa' \
+  --data-urlencode "subject_token=$ID_TOKEN" \
+  --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:id_token' \
+  'http://localhost:3080/tenants/subjdoc/protocol/openid-connect/token'
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a0ed77-6980-7459-9d28-6a9447d257e4
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+content-length: 1029
+
+{"access_token":"eyJhbGciOiJSUzI1NiI…","token_type":"Bearer","expires_in":284,"scope":"","issued_token_type":"urn:ietf:params:oauth:token-type:access_token"}
+```
+
+Disabling `ada` — the precondition every refusal below depends on, shown
+rather than asserted; `PATCH /admin/tenants/subjdoc/subjects/{id}` with
+`{"enabled":false}` writes the same column:
+
+```bash
+docker compose -f infra/docker/compose.yaml exec -T postgres \
+  psql -U odudu -d odudu -c "
+    UPDATE subjects SET disabled_at = now() WHERE id = '01a0ed76-cc3a-7f71-a4ac-2c62b3c966fc';
+    SELECT s.id, u.username, s.disabled_at IS NOT NULL AS disabled FROM subjects s JOIN users u ON u.subject_id = s.id WHERE s.id = '01a0ed76-cc3a-7f71-a4ac-2c62b3c966fc';
+  "
+```
+
+```
+                  id                  | username | disabled
+--------------------------------------+----------+----------
+ 01a0ed76-cc3a-7f71-a4ac-2c62b3c966fc | ada      | t
+(1 row)
+```
+
+The client is still enabled, the grant still live and the session still
+open. The identical five requests now refuse, each the way that door
+already refuses a revoked grant: `/userinfo` with RFC 6750 §3.1's
+`invalid_token`,
+
+```
+HTTP/1.1 401 Unauthorized
+x-request-id: 01a0ed77-6a0e-7eaa-b525-1ca619886b84
+vary: Origin
+www-authenticate: Bearer realm="userinfo", error="invalid_token"
+content-length: 0
+```
+
+`/introspect` with RFC 7662 §2.2's bare `{"active":false}`,
+
+```
+{"active":false}
+```
+
+and each exchange with the `invalid_request` RFC 8693 §2.2.2 gives an
+unacceptable `subject_token` — the access token,
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a0ed77-6a54-7a80-bcf5-e0c47d10c6bb
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+content-length: 27
+
+{"error":"invalid_request"}
+```
+
+the refresh token,
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a0ed77-6a88-770c-90a3-bf9abb37c569
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+content-length: 27
+
+{"error":"invalid_request"}
+```
+
+and the `id_token`, which, unlike the disabled-client case above, reaches
+the resolver: `subjdoc-spa` still authenticates, so this refusal is the
+subject check's own.
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a0ed77-6ab7-7f76-85b8-66552b24f99d
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+content-length: 27
+
+{"error":"invalid_request"}
+```
+
 ## CORS: the preflight and the request differ
 
 A browser single-page client is the reader `## Path A` above walks through,

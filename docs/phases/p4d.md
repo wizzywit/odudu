@@ -1490,7 +1490,11 @@ subject holds, and `authenticateAdmin` checked the grant, the session and
 the client but not the subject, so an access token issued before lived out
 its lifetime at the admin API. It now reads the subject beside the client,
 answering the plain `401` an invalid token gets; the gateway ends a console
-session on it as on any `401` its own tenant's whoami confirms.
+session on it as on any `401` its own tenant's whoami confirms. The same
+gap stood at `/userinfo`, `/introspect` and token exchange, which checked a
+disabled client but not a disabled subject — the one-door defect again —
+so all four, and the refresh grant that already had it, now ask one
+predicate, `subjectIsEnabled` in `@odudu/domain-identity`.
 
 **One view test was not seen red.** `SubjectsPage.test.tsx` was written
 before the page but first run after it; every other test in the feature was

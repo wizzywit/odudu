@@ -567,7 +567,13 @@ makes a logout real inside an access token's hour. **`GET`/`POST
 on the OP's own behalf** — it is itself a resource server, and the one a
 client asks first — so a token presented there after a logout or a
 deliberate `/revoke` is refused with `invalid_token` rather than answering
-with the End-User's claims. A client can also end a
+with the End-User's claims. Both, and a token exchange presenting the token
+as its `subject_token`, also read the token's client and its subject: a
+token whose client or subject has since been disabled is refused the same
+way — `invalid_token`, `{"active":false}`, `invalid_request` — for the rest
+of its lifetime, since disabling either ends nothing it holds
+([docs/request-paths.md](docs/request-paths.md#a-subject-disabled-after-a-token-was-issued-to-it)).
+A client can also end a
 grant deliberately with `POST
 /tenants/{tenant}/protocol/openid-connect/revoke` (RFC 7009) — revoking a
 refresh token invalidates every access token introspection reports for its
