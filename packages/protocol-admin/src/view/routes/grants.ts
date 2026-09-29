@@ -138,15 +138,19 @@ export function revokeClientGrantsHandler(deps: GrantsRouteDeps): AdminRouteHand
         },
       ),
     );
-    if (outcome.kind === 'not_found') {
-      return sendProblem(
-        reply,
-        request,
-        problem(404, 'about:blank', 'Not Found', `no client ${id}`),
-      );
+    switch (outcome.kind) {
+      case 'not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no client ${id}`),
+        );
+      case 'target_ceiling':
+        return targetCeilingProblem(reply, request, outcome.requested);
+      case 'revoked':
+        return reply
+          .code(200)
+          .send({ revoked: outcome.revoked, beyond_ceiling: outcome.beyondCeiling });
     }
-    return reply
-      .code(200)
-      .send({ revoked: outcome.revoked, beyond_ceiling: outcome.beyondCeiling });
   };
 }

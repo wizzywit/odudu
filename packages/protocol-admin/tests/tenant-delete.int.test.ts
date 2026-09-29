@@ -82,8 +82,12 @@ async function populatedTenant(): Promise<{ id: string; name: string }> {
     201,
   );
   expect(
-    (await call(root, 'POST', `${base}/clients`, { client_id: 'app', grant_types: ['client_credentials'] }))
-      .statusCode,
+    (
+      await call(root, 'POST', `${base}/clients`, {
+        client_id: 'app',
+        grant_types: ['client_credentials'],
+      })
+    ).statusCode,
   ).toBe(201);
   expect((await call(root, 'POST', `${base}/roles`, { name: 'reader' })).statusCode).toBe(201);
   expect((await call(root, 'POST', `${base}/groups`, { name: 'staff' })).statusCode).toBe(201);

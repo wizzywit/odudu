@@ -1,9 +1,10 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
-import { clients } from '@odudu/domain-tenant';
+import { clientRepository, clients } from '@odudu/domain-tenant';
 import { refreshTokens, tokenGrantRepository, tokenGrants } from '@odudu/protocol-oidc';
 import { and, asc, count, eq, gt, inArray, isNull, not, sql } from 'drizzle-orm';
 import { subjectsBeyond } from '#/service/capability-ceiling';
+import { refuseOverServiceAccountCeiling } from '#/usecase/clients';
 import { idPage, resumeAfter, type IdPageOutcome } from '#/usecase/id-page';
 import {
   lockSubjectRow,
@@ -147,23 +148,37 @@ export interface RevokeClientGrantsInput {
 }
 
 export type RevokeClientGrantsOutcome =
-  { kind: 'not_found' } | { kind: 'revoked'; revoked: number; beyondCeiling: number };
+  | { kind: 'not_found' }
+  | TargetCeilingRefusal
+  | { kind: 'revoked'; revoked: number; beyondCeiling: number };
 
 // Every live grant issued through the client, whoever holds it, except
 // those of a subject holding an admin capability the caller does not
-// (ADR 0040), which are counted instead. Revoking a grant ends no session:
-// a session still signed in can be issued a fresh one.
+// (ADR 0040), which are counted instead. A client mutation, so it is also
+// held to the ceiling on the client's service account, as every other is.
+// Revoking a grant ends no session: a session still signed in can be
+// issued a fresh one.
 export async function revokeClientGrants(
   tx: TenantScopedDatabase,
   deps: { readonly audit: Audit },
   input: RevokeClientGrantsInput,
 ): Promise<RevokeClientGrantsOutcome> {
-  const client = await tx
+  const known = await clientRepository(tx).byId(input.clientDbId);
+  if (known === null) return { kind: 'not_found' };
+  const refused = await refuseOverServiceAccountCeiling(
+    tx,
+    deps.audit,
+    'client.grants_revoke',
+    known.serviceSubjectId,
+    input,
+    { type: 'client', id: input.clientDbId },
+  );
+  if (refused !== null) return refused;
+  await tx
     .select({ id: clients.id })
     .from(clients)
     .where(eq(clients.id, input.clientDbId))
     .for('no key update');
-  if (client.length === 0) return { kind: 'not_found' };
 
   const live = and(eq(tokenGrants.clientId, input.clientDbId), isNull(tokenGrants.revokedAt));
   const beyond = subjectsBeyond(input.callerCapabilities);

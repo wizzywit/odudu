@@ -91,13 +91,20 @@ async function tenantCaller(): Promise<Caller> {
 describe('a refusal of the request shape names the field', () => {
   const queried = ADMIN_ROUTES.filter((route) => route.querystringSchema !== undefined);
 
+  // A query parameter a route requires, given so the one it does not know
+  // is the only thing wrong with the request.
+  const REQUIRED_QUERY: Readonly<Record<string, string>> = {
+    '/admin/tenants/:tenant/clients/:id/evaluate': `subject=${ABSENT_ID}&`,
+    '/admin/tenants/:tenant': 'confirm=unused&',
+  };
+
   it.each(queried)('$method $pattern names an unknown query parameter', async (route) => {
     const caller = await tenantCaller();
     const system = await fixture.systemAdminToken([MANAGE_TENANTS]);
     const url = route.pattern.replace(':tenant', caller.tenant).replace(/:(\w+)/gu, ABSENT_ID);
     const res = await fixture.http.inject({
-      method: 'GET',
-      url: `${url}?unexpected=1`,
+      method: route.method as Method,
+      url: `${url}?${REQUIRED_QUERY[route.pattern] ?? ''}unexpected=1`,
       headers: {
         authorization: `Bearer ${route.pattern.includes(':tenant') ? caller.token : system}`,
       },
@@ -119,6 +126,12 @@ describe('a refusal of the request shape names the field', () => {
       caller.create('/subjects', { username: `u-${newId()}` }),
     '/admin/tenants/:tenant/scopes/:id/clients': (caller) =>
       caller.create('/scopes', { name: `s-${newId()}` }),
+    '/admin/tenants/:tenant/subjects/:id/grants': (caller) =>
+      caller.create('/subjects', { username: `u-${newId()}` }),
+    '/admin/tenants/:tenant/clients/:id/sessions': (caller) =>
+      caller.create('/clients', { client_id: `c-${newId()}`, grant_types: ['client_credentials'] }),
+    '/admin/tenants/:tenant/clients/:id/logout-deliveries': (caller) =>
+      caller.create('/clients', { client_id: `c-${newId()}`, grant_types: ['client_credentials'] }),
   };
 
   it.each(cursored)('$method $pattern names a cursor it cannot read', async (route) => {

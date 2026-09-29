@@ -287,6 +287,9 @@ const REFUSED_ACTION: Readonly<Record<string, string>> = {
   'PUT /admin/tenants/:tenant/subjects/:id/groups': 'subject.groups_set',
   'DELETE /admin/tenants/:tenant/subjects/:id/sessions': 'session.end_all',
   'DELETE /admin/tenants/:tenant/subjects/:id/sessions/:sid': 'session.end',
+  'POST /admin/tenants/:tenant/subjects/:id/password-reset': 'subject.password_reset_send',
+  'POST /admin/tenants/:tenant/subjects/:id/verification': 'subject.verification_send',
+  'DELETE /admin/tenants/:tenant/subjects/:id/grants/:clientId': 'grant.revoke',
 };
 
 const BODIES: Readonly<Record<string, unknown>> = {
@@ -409,6 +412,7 @@ const CLIENT_REFUSED_ACTION: Readonly<Record<string, string>> = {
   'POST /admin/tenants/:tenant/clients/:id/secret': 'client.rotate_secret',
   'PUT /admin/tenants/:tenant/scopes/:id/clients/:clientId': 'scope.assign_to_client',
   'DELETE /admin/tenants/:tenant/scopes/:id/clients/:clientId': 'scope.unassign_from_client',
+  'DELETE /admin/tenants/:tenant/clients/:id/grants': 'client.grants_revoke',
 };
 
 const CLIENT_BODIES: Readonly<Record<string, unknown>> = {
