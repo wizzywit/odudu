@@ -55,25 +55,42 @@ export async function requestPasswordReset(
   await withTenant(deps.database.db, deps.tenantId, async (tx) => {
     const user = await deps.findByEmail(tx, email);
     if (user === null) return;
-    const { token } = await actionTokenRepository(tx).issue({
-      tenantId: deps.tenantId,
-      subjectId: user.subjectId,
-      type: 'reset_password',
-      email: user.email,
-      ttlSeconds: RESET_PASSWORD_TTL_SECONDS,
-    });
-    const link = `${issuerBase}/tenants/${deps.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
-    await outboxRepository(tx).enqueue({
-      tenantId: deps.tenantId,
-      ...renderResetPassword({
-        to: user.email,
-        link,
-        tenantDisplayName: deps.tenantDisplayName,
-      }),
-    });
+    await enqueueResetLink(tx, { ...deps, issuerBase }, user);
   });
 
   return { kind: 'requested' };
+}
+
+/** Where a link is minted for, and what the mail carrying it names. */
+export interface ActionLinkTenant {
+  readonly tenantId: string;
+  readonly tenantName: string;
+  readonly tenantDisplayName: string;
+  readonly issuerBase: string;
+}
+
+/**
+ * The token and the mail carrying it, in the caller's transaction: the one
+ * write both a self-service reset request and an administrator's make, so
+ * the link either sends is the same link.
+ */
+export async function enqueueResetLink(
+  tx: TenantScopedDatabase,
+  tenant: ActionLinkTenant,
+  user: { readonly subjectId: string; readonly email: string },
+): Promise<void> {
+  const { token } = await actionTokenRepository(tx).issue({
+    tenantId: tenant.tenantId,
+    subjectId: user.subjectId,
+    type: 'reset_password',
+    email: user.email,
+    ttlSeconds: RESET_PASSWORD_TTL_SECONDS,
+  });
+  const link = `${tenant.issuerBase}/tenants/${tenant.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
+  await outboxRepository(tx).enqueue({
+    tenantId: tenant.tenantId,
+    ...renderResetPassword({ to: user.email, link, tenantDisplayName: tenant.tenantDisplayName }),
+  });
 }
 
 export interface CompletePasswordResetDeps {

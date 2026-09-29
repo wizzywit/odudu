@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import formbody from '@fastify/formbody';
-import { actionTokenRepository } from '@odudu/account';
+import { actionTokenRepository, enqueueResetLink, enqueueVerificationLink } from '@odudu/account';
 import {
   generateSigningKey,
   signingKeyRepository,
@@ -248,6 +248,12 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         deploymentSmtp: options.deploymentSmtp ?? false,
         retireResetLinks: (tx, subjectId) =>
           actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
+        sendAccountLink: async (tx, request) => {
+          const tenant = { ...request, issuerBase: FIXTURE_CONSOLE_BASE_URL };
+          if (request.kind === 'reset_password') await enqueueResetLink(tx, tenant, request);
+          else await enqueueVerificationLink(tx, tenant, request);
+          return 'queued';
+        },
       },
       () => {
         if (!failNextAuditWrite) return Promise.resolve();

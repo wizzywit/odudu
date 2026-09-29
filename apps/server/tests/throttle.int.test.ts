@@ -304,6 +304,42 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
     }
   });
 
+  it('holds an administrator’s reset and verification sends to the self-service budget', async () => {
+    const tenantName = `throttle-${newId()}`;
+    await seed({
+      tenant: tenantName,
+      clientId: 'throttle-admin-app',
+      redirectUris: [REDIRECT_URI],
+    });
+    const app = buildTestApp();
+    await app.ready();
+
+    try {
+      const subject = newId();
+      const send = (tail: string, remoteAddress: string) =>
+        app.inject({
+          method: 'POST',
+          url: `/admin/tenants/${tenantName}/subjects/${subject}/${tail}`,
+          headers: { authorization: 'Bearer not-a-token' },
+          remoteAddress,
+        });
+      const answered: number[] = [];
+      for (let attempt = 0; attempt < DEFAULT_THROTTLE.limit; attempt += 1) {
+        answered.push(
+          (await send(attempt % 2 === 0 ? 'password-reset' : 'verification', ORIGIN)).statusCode,
+        );
+      }
+      const refused = await send('password-reset', ORIGIN);
+      const elsewhere = await send('verification', OTHER_ORIGIN);
+
+      expect(answered).toEqual(Array.from({ length: DEFAULT_THROTTLE.limit }, () => 401));
+      expect(refused.statusCode).toBe(429);
+      expect(elsewhere.statusCode).toBe(401);
+    } finally {
+      await app.close();
+    }
+  });
+
   it('leaves the rendered forms alone, throttling only the submissions', async () => {
     const tenantName = `throttle-${newId()}`;
     const seeded = await seed({

@@ -2,6 +2,8 @@ import cookie from '@fastify/cookie';
 import formbody from '@fastify/formbody';
 import {
   actionTokenRepository,
+  enqueueResetLink,
+  enqueueVerificationLink,
   tenantSettingsRepository,
   registerActionTokenRoute,
   registerRegistrationRoute,
@@ -179,6 +181,8 @@ const THROTTLED_POSTS: ReadonlySet<string> = new Set([
   '/tenants/:tenant/login-actions/authenticate',
   '/tenants/:tenant/login-actions/registration',
   '/tenants/:tenant/login-actions/reset-password',
+  '/admin/tenants/:tenant/subjects/:id/password-reset',
+  '/admin/tenants/:tenant/subjects/:id/verification',
 ]);
 
 // The composition-root half of self-registration: @odudu/account never
@@ -297,6 +301,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       deploymentSmtp: deps.deploymentSmtp ?? false,
       retireResetLinks: (tx, subjectId) =>
         actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
+      sendAccountLink: async (tx, request) => {
+        if (deps.publicBaseUrl === undefined) return 'unavailable';
+        const tenant = { ...request, issuerBase: deps.publicBaseUrl };
+        if (request.kind === 'reset_password') await enqueueResetLink(tx, tenant, request);
+        else await enqueueVerificationLink(tx, tenant, request);
+        return 'queued';
+      },
     }),
   );
   app.register(

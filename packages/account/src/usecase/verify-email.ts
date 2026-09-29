@@ -37,19 +37,28 @@ export async function sendVerificationEmail(
   deps: SendVerificationEmailDeps,
   input: SendVerificationEmailInput,
 ): Promise<void> {
-  await withTenant(deps.database.db, deps.tenantId, async (tx) => {
-    const { token } = await actionTokenRepository(tx).issue({
-      tenantId: deps.tenantId,
-      subjectId: input.subjectId,
-      type: 'verify_email',
-      email: input.email,
-      ttlSeconds: VERIFY_EMAIL_TTL_SECONDS,
-    });
-    const link = `${deps.issuerBase}/tenants/${deps.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
-    await outboxRepository(tx).enqueue({
-      tenantId: deps.tenantId,
-      ...renderVerifyEmail({ to: input.email, link, tenantDisplayName: deps.tenantDisplayName }),
-    });
+  await withTenant(deps.database.db, deps.tenantId, (tx) =>
+    enqueueVerificationLink(tx, deps, input),
+  );
+}
+
+/** `sendVerificationEmail`'s write, in the caller's transaction, for an administrator's resend. */
+export async function enqueueVerificationLink(
+  tx: TenantScopedDatabase,
+  tenant: Omit<SendVerificationEmailDeps, 'database'>,
+  input: SendVerificationEmailInput,
+): Promise<void> {
+  const { token } = await actionTokenRepository(tx).issue({
+    tenantId: tenant.tenantId,
+    subjectId: input.subjectId,
+    type: 'verify_email',
+    email: input.email,
+    ttlSeconds: VERIFY_EMAIL_TTL_SECONDS,
+  });
+  const link = `${tenant.issuerBase}/tenants/${tenant.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
+  await outboxRepository(tx).enqueue({
+    tenantId: tenant.tenantId,
+    ...renderVerifyEmail({ to: input.email, link, tenantDisplayName: tenant.tenantDisplayName }),
   });
 }
 

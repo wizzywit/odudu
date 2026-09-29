@@ -168,6 +168,12 @@ import {
 } from '#/view/routes/tenants';
 import { whoamiHandler } from '#/view/routes/whoami';
 import {
+  sendPasswordResetHandler,
+  sendVerificationHandler,
+  type AccountEmailRouteDeps,
+} from '#/view/routes/account-email';
+import { type SendAccountLink } from '#/usecase/account-email';
+import {
   bulkSubjectsHandler,
   clearLockoutsHandler,
   type BulkSubjectsRouteDeps,
@@ -239,6 +245,10 @@ export interface AdminRoutesDeps {
   // administrator issues it a one-time password. The links belong to
   // @odudu/account, which the composition root wires this to.
   retireResetLinks: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
+  // Mints a reset-password or verification link and queues its mail, the
+  // write @odudu/account's self-service doors make; wired at the composition
+  // root with the public base URL a link is addressed under.
+  sendAccountLink: SendAccountLink;
 }
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
@@ -450,6 +460,13 @@ function buildAdminRoutes(
       now: () => clock.now(),
       findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
     };
+    const accountEmailDeps: AccountEmailRouteDeps = {
+      database: deps.database.db,
+      audit: recordAudit,
+      sendLink: deps.sendAccountLink,
+      deploymentSmtp: deps.deploymentSmtp ?? false,
+      callerCapabilities,
+    };
     const tenantSessionsDeps: TenantSessionsRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
@@ -510,6 +527,10 @@ function buildAdminRoutes(
         deleteConsentHandler(consentsDeps),
       'POST /admin/tenants/:tenant/subjects/:id/password':
         issuePasswordHandler(accountRecoveryDeps),
+      'POST /admin/tenants/:tenant/subjects/:id/password-reset':
+        sendPasswordResetHandler(accountEmailDeps),
+      'POST /admin/tenants/:tenant/subjects/:id/verification':
+        sendVerificationHandler(accountEmailDeps),
       'GET /admin/tenants/:tenant/subjects/:id/lockout': readLockoutHandler(accountRecoveryDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/lockout':
         clearLockoutHandler(accountRecoveryDeps),

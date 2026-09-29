@@ -3,6 +3,7 @@ export { actionTokenRepository, type IssueActionToken } from '#/repository/actio
 export { tenantSettingsRepository, type TenantSettings } from '#/repository/tenant-settings';
 export {
   sendVerificationEmail,
+  enqueueVerificationLink,
   completeEmailVerification,
   VERIFY_EMAIL_TTL_SECONDS,
   RESET_PASSWORD_TTL_SECONDS,
@@ -23,6 +24,8 @@ export {
 } from '#/usecase/action-token';
 export {
   requestPasswordReset,
+  enqueueResetLink,
+  type ActionLinkTenant,
   completePasswordReset,
   type RequestPasswordResetDeps,
   type RequestPasswordResetOutcome,

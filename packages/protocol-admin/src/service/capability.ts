@@ -326,6 +326,33 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       TARGET_CEILING,
   },
   {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/subjects/:id/password-reset',
+    capability: 'manage-users',
+    responseSchema: z.void(),
+    successStatus: 202,
+    description:
+      'Queues the reset-password link a self-service request sends, to the subject\u2019s own ' +
+      'address. The link is never in this response or the audit trail. `409` with its own ' +
+      'problem type when the subject has no email (`no-email`), when the tenant\u2019s ' +
+      '`reset_password_allowed` is off so the link would be refused (`reset-password-off`), or ' +
+      'when its mail would only be logged, `GET …/smtp`\u2019s `none` (`no-mail-relay`). ' +
+      'Rate-limited per origin, as the self-service request is.' +
+      TARGET_CEILING,
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/subjects/:id/verification',
+    capability: 'manage-users',
+    responseSchema: z.void(),
+    successStatus: 202,
+    description:
+      'Queues a fresh email-verification link to the subject\u2019s own address. The link is ' +
+      'never in this response or the audit trail. `409` `no-email` or `no-mail-relay` as ' +
+      '`POST …/password-reset` answers them. Rate-limited per origin.' +
+      TARGET_CEILING,
+  },
+  {
     method: 'GET',
     pattern: '/admin/tenants/:tenant/subjects/:id/lockout',
     capability: 'view-users',
