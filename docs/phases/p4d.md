@@ -1430,3 +1430,45 @@ verified: `docker build -t odudu-s3-proxy infra/conformance/proxy`, then
 `curl -sk -o /dev/null -w '%{http_code}' -X POST --data-binary @<file> https://localhost:8643/console/api/admin/tenant-imports`
 for files of 1,048,576, 1,048,577, 16,777,216 and 16,777,217 zero bytes,
 and `docker rm -f`, `docker network rm` and `docker rmi` afterwards
+
+## Part 4 — Overview, Tenants and System administrators
+
+**A tenant that does not exist answers whoami with `401`, not `404`.** The
+admin router refuses an unknown tenant before it authenticates, and the
+gateway passes that through with the session kept. So "Tenant not found" is
+the shell's, shown to a system principal on any area of a tenant other than
+`system`; a session ending is recognised by its own problem type, never by
+a plain `401`, so the two cannot be confused.
+
+**zod's jitless setting has to share a chunk with zod.** A first import is
+not enough once the bundle splits: the tenants chunk made rolldown hoist
+zod into a shared chunk that ran before `zodConfig.ts`, and every page then
+tripped `script-src` on zod's `new Function` probe. `vite.config.ts` now
+puts both in one chunk that imports nothing, and
+`tests/lint/console-zod-chunk.test.ts` reads the built `dist` to hold it.
+
+**"Ready to promote" is bounded, not computed.** Settings carry no token
+lifetime; lifetimes are per client and capped at 3600 s by migration 0013,
+and no signed token outlives an access token. So a `rotating` key is ready
+after 3600 + 300 s, which can be late but never early. A key is offered
+only when its `alg` matches the active key's, since promoting one of
+another algorithm re-signs everything the tenant issues. Nothing records
+when a key was demoted, so a rotating key older than the active one is
+taken to be a demoted one (`shared/service/keyPromotion.ts`).
+
+**Import needs the proxy's body limit raised**, as the spike above found;
+`README.md`'s deployment section now says so, and a `413` on import is
+worded as a body limit rather than a refusal.
+
+**Addresses.** Creation and import sit at `/console/system/new-tenant` and
+`/console/system/import-tenant`, since `new` and `import` are valid tenant
+names; adding a system administrator is `/console/system/system-admins/new`,
+and the tenant rail's area is `export`. The mid-edit session-end test and
+the `beforeunload` prompt, owed by the first editing feature, are in
+`e2e/tenants.spec.ts`.
+
+**A system administrator is granted system's `tenant-admin`**, the same
+grant `odudu seed admin` makes. Revoke removes only the subject's own
+administrator roles; one held through a group or a nested role is pointed
+at, and the holders are asked again afterwards rather than the answer being
+worked out.
