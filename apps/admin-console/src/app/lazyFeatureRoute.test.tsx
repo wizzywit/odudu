@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Component, type ReactNode } from 'react';
+import { Component, useState, type ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { lazyFeatureRoute } from '#/app/lazyFeatureRoute.tsx';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
@@ -53,6 +53,48 @@ it('shows its feature once the chunk arrives, and says it is loading until then'
   expect(await screen.findByRole('status')).toHaveTextContent('Loading clients');
   arrive(Clients);
   expect(await screen.findByRole('heading', { name: 'Clients of acme' })).toBeVisible();
+});
+
+it('draws its feature at once after a preload, fetching the chunk only once', async () => {
+  const load = vi.fn(() => Promise.resolve(Clients));
+  const Route = lazyFeatureRoute(load, 'Loading clients');
+  await Route.preload();
+  await Route.preload();
+  mount(<Route tenant="acme" />);
+  expect(screen.getByRole('heading', { name: 'Clients of acme' })).toBeVisible();
+  expect(screen.queryByRole('status')).toBeNull();
+  expect(load).toHaveBeenCalledOnce();
+});
+
+it('keeps a feature mounted, and its state, once its chunk has arrived', async () => {
+  const user = userEvent.setup();
+  function Counter({ tenant }: { tenant: string }) {
+    const [count, setCount] = useState(0);
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setCount(count + 1);
+        }}
+      >
+        {`${tenant} ${String(count)}`}
+      </button>
+    );
+  }
+  const Route = lazyFeatureRoute(() => Promise.resolve(Counter), 'Loading clients');
+  const fake = fakeTransport({});
+  const { rerender } = render(
+    <TransportContext value={fake.transport}>
+      <Route tenant="acme" />
+    </TransportContext>,
+  );
+  await user.click(await screen.findByRole('button', { name: 'acme 0' }));
+  rerender(
+    <TransportContext value={fake.transport}>
+      <Route tenant="acme" />
+    </TransportContext>,
+  );
+  expect(screen.getByRole('button', { name: 'acme 1' })).toBeVisible();
 });
 
 it('offers a reload when the chunk cannot be fetched, without writing storage', async () => {

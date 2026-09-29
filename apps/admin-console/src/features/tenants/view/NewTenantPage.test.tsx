@@ -353,8 +353,8 @@ it("adds a system administrator as system's own administrator, and leads back to
     'aria-current',
     'page',
   );
+  expect(await screen.findByText(/reaches every tenant/u)).toBeVisible();
   expect(screen.queryByRole('list', { name: 'Steps' })).toBeNull();
-  expect(screen.getByText(/reaches every tenant/u)).toBeVisible();
   const button = screen.getByRole('button', { name: 'Create administrator' });
   await waitFor(() => {
     expect(button).toBeEnabled();
@@ -375,7 +375,7 @@ it("adds a system administrator as system's own administrator, and leads back to
 it('passes axe in both themes adding a system administrator', async () => {
   expect(
     await axeInBothThemes(at({ ...HALFWAY, tenant: 'system' }), () =>
-      screen.findByRole('heading', { level: 1, name: 'Add a system administrator' }),
+      screen.findByText(/reaches every tenant/u),
     ),
   ).toEqual({ light: [], dark: [] });
   expect(

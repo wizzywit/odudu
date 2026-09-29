@@ -215,6 +215,25 @@ const subjectPages = [
 ] as const;
 const subjectRecord = subjectPages[2];
 
+// Every feature chunk the routes load, for a caller that wants them all in
+// hand before the first render.
+export function preloadFeatures(): Promise<void> {
+  const features = [
+    Overview,
+    Tenants,
+    NewTenant,
+    NewSystemAdministrator,
+    ImportTenant,
+    Export,
+    TenantRecord,
+    SystemAdministrators,
+    Subjects,
+    NewSubject,
+    SubjectRecord,
+  ];
+  return Promise.all(features.map((feature) => feature.preload())).then(() => undefined);
+}
+
 const TAKEN = new Set(['tenants', 'export', 'system-admins', 'subjects']);
 
 const areas = EVERY_AREA.filter((area) => area !== OVERVIEW && !TAKEN.has(area.path)).map((area) =>

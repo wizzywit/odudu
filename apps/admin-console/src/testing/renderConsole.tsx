@@ -1,12 +1,21 @@
 import { createMemoryHistory } from '@tanstack/react-router';
 import { render } from '@testing-library/react';
 import { App } from '#/app/App.tsx';
-import { createConsoleRouter } from '#/app/router.tsx';
+import { beforeAll } from 'vitest';
+import { createConsoleRouter, preloadFeatures } from '#/app/router.tsx';
 import { createQueryClient } from '#/shared/repository/queryClient.ts';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 import { fakeTransport, json, type Answer } from '#/testing/fakeTransport.ts';
+
+// A feature's chunk is transformed the first time a file renders it; paid
+// here, against the hook's own timeout, rather than inside a find.
+export function preloadConsoleRoutes(): Promise<void> {
+  return preloadFeatures();
+}
+
+beforeAll(preloadConsoleRoutes);
 
 export const GRACE = { tenant: 'acme', subject_id: 's1', username: 'grace' };
 export const ROOT = { tenant: 'system', subject_id: 's0', username: 'root' };
