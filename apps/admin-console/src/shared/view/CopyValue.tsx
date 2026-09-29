@@ -61,10 +61,11 @@ export function CopyValue({
       )}
     </code>
   );
-  // Focusable, so a keyboard can scroll a document wider or taller than its frame.
+  // Focusable and named, so a keyboard can scroll a document wider or taller
+  // than its frame and a screen reader says what it landed on.
   if (block) {
     shown = (
-      <pre className={styles.block} tabIndex={0}>
+      <pre className={styles.block} tabIndex={0} role="region" aria-label={label}>
         {value}
       </pre>
     );

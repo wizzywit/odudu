@@ -63,9 +63,10 @@ it('shows a document on lines of its own, and copies it whole', async () => {
   const user = userEvent.setup();
   const document = '{\n  "issuer": "https://id.example.com/acme"\n}';
   render(<CopyValue label="discovery document" value={document} block />);
-  const shown = screen.getByText(/"issuer"/u);
+  const shown = screen.getByRole('region', { name: 'discovery document' });
   expect(shown.tagName).toBe('PRE');
   expect(shown).toHaveAttribute('tabindex', '0');
+  expect(shown).toHaveTextContent('"issuer"');
   await user.click(screen.getByRole('button', { name: 'Copy discovery document' }));
   expect(await navigator.clipboard.readText()).toBe(document);
 });
