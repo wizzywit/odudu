@@ -73,7 +73,8 @@ export interface EndDisabledTenantSessionsInput {
 /**
  * One batch of a disabled tenant's live sessions, each ended with its
  * Back-Channel Logout Tokens queued. Held to no ceiling (ADR 0040's
- * amendment of 2026-09-30): the disable already shuts every subject out. Ends nothing once the tenant is enabled again.
+ * amendment of 2026-09-30): the disable already shuts every subject out.
+ * Ends nothing once the tenant is enabled again.
  */
 export async function endDisabledTenantSessions(
   tx: TenantScopedDatabase,

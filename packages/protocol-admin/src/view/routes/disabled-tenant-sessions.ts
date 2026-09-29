@@ -19,8 +19,8 @@ export interface DisabledTenantSessionsDeps {
 
 /**
  * After a disable has committed, ends the tenant's live sessions one batch
- * per transaction, in this request, and answers the problem to send when a
- * batch failed — the disable stands, and the same request ends the rest.
+ * per transaction, in this request, and answers the problem to send when
+ * any is left live — the disable stands, and the same request ends the rest.
  */
 export async function endSessionsAfterDisable(
   deps: DisabledTenantSessionsDeps,
@@ -46,8 +46,12 @@ export async function endSessionsAfterDisable(
       ),
     ),
   );
-  if (ending.failure === undefined) return null;
-  request.log.error({ err: ending.failure }, 'ending a disabled tenant’s sessions failed');
+  // A batch that ends nothing while sessions remain lost them to another
+  // disable running beside it; the answer still has to say they are live.
+  if (ending.failure === undefined && ending.remaining === 0) return null;
+  if (ending.failure !== undefined) {
+    request.log.error({ err: ending.failure }, 'ending a disabled tenant’s sessions failed');
+  }
   return problem(
     500,
     'about:blank#sessions-not-ended',

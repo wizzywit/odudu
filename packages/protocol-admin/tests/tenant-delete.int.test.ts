@@ -11,6 +11,11 @@ import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import {
+  endDisabledTenantSessions,
+  endSessionsWhere,
+  type EndDisabledTenantSessionsDeps,
+} from '#/usecase/end-sessions';
 import { TENANT_SESSIONS_END_LIMIT } from '#/usecase/tenant-sessions';
 import { deleteTenantRows } from '#/usecase/tenants';
 import { createPasswordSubject, createSignInClient, signInForTokens } from '#/testing/sign-in';
@@ -190,6 +195,36 @@ async function endAllRowsOf(tenantId: string): Promise<unknown[]> {
   return rows.map((row) => row.detail).reverse();
 }
 
+const BATCH_DEPS: EndDisabledTenantSessionsDeps = {
+  kek: Buffer.alloc(32, 7),
+  audit: (tx, event) => auditRepository(tx).record({ ...event, eventType: 'admin_mutation' }),
+};
+
+function batchInput(tenantId: string): Parameters<typeof endDisabledTenantSessions>[2] {
+  return {
+    tenantId,
+    now: fixture.clock.now(),
+    issuer: 'http://localhost/tenants/unused',
+    actorSubjectId: newId(),
+    actorTenantId: SYSTEM_TENANT_ID,
+    actorClientId: newId(),
+  };
+}
+
+// Until exactly `n` backends of this database wait on a row lock.
+async function waitForLockWaiters(n: number): Promise<void> {
+  for (let tries = 0; tries < 200; tries += 1) {
+    const rows = countRowsSchema.parse(
+      await fixture.owner.db.execute(sql`
+        SELECT count(*)::int AS n FROM pg_stat_activity
+         WHERE datname = current_database() AND wait_event_type = 'Lock'`),
+    );
+    if ((rows[0]?.n ?? 0) === n) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`never saw ${String(n)} lock waiters`);
+}
+
 describe('disabling a tenant', () => {
   it.each([
     ['PATCH /admin/tenants/{tenant}', (name: string) => `/admin/tenants/${name}`],
@@ -239,11 +274,106 @@ describe('disabling a tenant', () => {
     expect(await liveSessionsOf(t.id)).toBe(0);
   });
 
+  it('says so when an overlapping disable leaves it a session it did not see', async () => {
+    const t = await fixture.createTenant(`overlap-${newId()}`);
+    const ada = await createPasswordSubject(fixture, t.id, 'ada', PASSWORD);
+    await seedLiveSessions(t.id, ada, TENANT_SESSIONS_END_LIMIT);
+    await fixture.owner.db.execute(sql`UPDATE tenants SET enabled = false WHERE id = ${t.id}`);
+    const token = await fixture.systemAdminToken(['tenant-admin']);
+
+    // The first disable's batch ends every session and holds them locked; a
+    // sign-in that raced the disable commits a session beside it. The second
+    // disable's batch waits on the locked ones, finds them gone, and so ends
+    // nothing while one is still live.
+    let release: () => void = () => undefined;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const first = withTenant(fixture.app.db, t.id, async (tx) => {
+      const ended = await endSessionsWhere(
+        tx,
+        BATCH_DEPS.kek,
+        batchInput(t.id),
+        undefined,
+        TENANT_SESSIONS_END_LIMIT,
+      );
+      await tx.execute(sql`
+        INSERT INTO sessions (id, tenant_id, subject_id, expires_at, last_active_at, secret_hash)
+        VALUES (gen_random_uuid(), ${t.id}, ${ada},
+                ${new Date(fixture.clock.now().getTime() + 3_600_000).toISOString()}::timestamptz,
+                ${fixture.clock.now().toISOString()}::timestamptz, md5(${t.id}))`);
+      await released;
+      return ended;
+    });
+    await waitForLockWaiters(0);
+    const second = call(token, 'PATCH', `/admin/tenants/${t.name}`, { enabled: false });
+    await waitForLockWaiters(1);
+    release();
+
+    expect(await first).toBe(TENANT_SESSIONS_END_LIMIT);
+    const res = await second;
+    expect(res.statusCode).toBe(500);
+    expect(res.json<{ type: string; detail: string }>()).toMatchObject({
+      type: 'about:blank#sessions-not-ended',
+      detail: `${t.name} is disabled, but 1 of its sessions are still live: send the same request again to end them`,
+    });
+    expect(await liveSessionsOf(t.id)).toBe(1);
+  });
+
+  it('answers 500 sessions-not-ended when a batch fails, and the disable stands', async () => {
+    const t = await signedInTenant();
+    const token = await fixture.systemAdminToken(['tenant-admin']);
+    await fixture.owner.db.execute(
+      sql.raw(`
+      CREATE FUNCTION refuse_delivery_${t.id.replaceAll('-', '_')}() RETURNS trigger
+        LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'delivery refused'; END $$;
+      CREATE TRIGGER refuse_delivery BEFORE INSERT ON backchannel_logout_deliveries
+        FOR EACH ROW WHEN (NEW.tenant_id = '${t.id}')
+        EXECUTE FUNCTION refuse_delivery_${t.id.replaceAll('-', '_')}();`),
+    );
+    try {
+      const res = await call(token, 'PATCH', `/admin/tenants/${t.name}`, { enabled: false });
+      expect(res.statusCode).toBe(500);
+      expect(res.json<{ type: string; detail: string }>()).toMatchObject({
+        type: 'about:blank#sessions-not-ended',
+        detail: `${t.name} is disabled, but not all of its sessions were ended: send the same request again to end them`,
+      });
+    } finally {
+      await fixture.owner.db.execute(
+        sql`DROP TRIGGER refuse_delivery ON backchannel_logout_deliveries`,
+      );
+    }
+    const enabled = countRowsSchema.parse(
+      await fixture.owner.db.execute(
+        sql`SELECT count(*)::int AS n FROM tenants WHERE id = ${t.id} AND NOT enabled`,
+      ),
+    );
+    expect(enabled[0]?.n).toBe(1);
+    expect(await liveSessionsOf(t.id)).toBe(1);
+
+    const again = await call(token, 'PATCH', `/admin/tenants/${t.name}`, { enabled: false });
+    expect(again.statusCode).toBe(200);
+    expect(await liveSessionsOf(t.id)).toBe(0);
+  });
+
   it('ends nothing when it leaves the tenant as it was', async () => {
     const t = await signedInTenant();
     const token = await fixture.systemAdminToken(['tenant-admin']);
     await call(token, 'PATCH', `/admin/tenants/${t.name}`, { display_name: 'Still on' });
     expect(await liveSessionsOf(t.id)).toBe(1);
+  });
+});
+
+describe('endDisabledTenantSessions', () => {
+  it('ends nothing, and writes nothing, once the tenant is enabled again', async () => {
+    const t = await signedInTenant();
+    const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
+      endDisabledTenantSessions(tx, BATCH_DEPS, batchInput(t.id)),
+    );
+    expect(outcome).toEqual({ ended: 0, remaining: 0 });
+    expect(await liveSessionsOf(t.id)).toBe(1);
+    expect(await queuedDeliveriesOf(t.id)).toBe(0);
+    expect(await endAllRowsOf(t.id)).toEqual([]);
   });
 });
 
