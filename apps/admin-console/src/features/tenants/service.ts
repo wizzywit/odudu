@@ -108,16 +108,33 @@ export function administratorOf(
   };
 }
 
-// Creating a tenant and adding one of system's own administrators are two
-// flows, each kept apart, so a page only ever resumes its own.
-export type CreationFlow = 'tenant' | 'system-administrator';
+// Creating a tenant, adding an administrator to one existing tenant, and
+// adding one of system's own: each flow keeps its own progress, so a page
+// only ever resumes its own.
+export type CreationFlow = 'tenant' | 'system-administrator' | `administrator/${string}`;
 
 export function flowOf(tenant: string): CreationFlow {
-  return tenant === SYSTEM_TENANT ? 'system-administrator' : 'tenant';
+  return tenant === SYSTEM_TENANT ? 'system-administrator' : `administrator/${tenant}`;
+}
+
+function tenantOf(flow: CreationFlow): string | null {
+  if (flow === 'tenant') return null;
+  return flow === 'system-administrator' ? SYSTEM_TENANT : flow.slice('administrator/'.length);
 }
 
 export function freshCreation(flow: CreationFlow): Creation {
-  return flow === 'tenant' ? FRESH_CREATION : administratorOf(SYSTEM_TENANT, 'existing');
+  const tenant = tenantOf(flow);
+  return tenant === null ? FRESH_CREATION : administratorOf(tenant, 'existing');
+}
+
+// A tenant's creation carries on into the administrator of the tenant it created.
+export function belongsTo(flow: CreationFlow, creation: Creation): boolean {
+  const tenant = tenantOf(flow);
+  if (creation.step === 'tenant') return tenant === null;
+  if (tenant !== null) return creation.tenant === tenant;
+  return (
+    creation.tenant !== SYSTEM_TENANT && (creation.step === 'done' || creation.origin === 'created')
+  );
 }
 
 const SYSTEM_BASE = '/console/system';
@@ -134,7 +151,9 @@ export const NEW_SYSTEM_ADMIN_HREF = `${SYSTEM_ADMINS_HREF}/new`;
 // system's administrators are its system administrators, so their guided
 // step sits under that area and the rail keeps the operator's place.
 export function administratorStepHref(tenant: string): string {
-  return tenant === SYSTEM_TENANT ? NEW_SYSTEM_ADMIN_HREF : NEW_TENANT_HREF;
+  return tenant === SYSTEM_TENANT
+    ? NEW_SYSTEM_ADMIN_HREF
+    : `${tenantHref(tenant)}/new-administrator`;
 }
 
 // The rail group, then the list, then the page: the group is a heading, not

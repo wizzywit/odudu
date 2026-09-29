@@ -64,7 +64,12 @@ describe('the rail', () => {
 
   it('lights Tenants on the pages that belong to it beside the list', () => {
     const groups = railGroups('system', true);
-    for (const page of ['new-tenant', 'import-tenant', 'tenants/acme']) {
+    for (const page of [
+      'new-tenant',
+      'import-tenant',
+      'tenants/acme',
+      'tenants/acme/new-administrator',
+    ]) {
       expect(currentHref('system', groups, `/console/system/${page}`), page).toBe(
         '/console/system/tenants',
       );

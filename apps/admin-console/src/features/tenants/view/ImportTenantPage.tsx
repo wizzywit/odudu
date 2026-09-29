@@ -5,7 +5,6 @@ import {
   useImportTenantPage,
   type ImportTenantPage as ImportState,
 } from '#/features/tenants/usecase/useImportTenantPage.ts';
-import { ReplaceUnfinished } from '#/features/tenants/view/ReplaceUnfinished.tsx';
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
@@ -143,7 +142,6 @@ function Import() {
       ) : null}
       <Problems state={state} />
       <Imported state={state} />
-      <ReplaceUnfinished begin={state.begin} />
       <SecretDialog
         secret={state.secret?.secret ?? null}
         title={`Client secret for ${state.secret?.clientId ?? ''}, ${state.secretPlace}`}

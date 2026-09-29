@@ -78,14 +78,27 @@ export interface DoneStep {
   readonly step: 'done';
   readonly tenant: string;
   readonly username: string;
+  // Starting over from a tenant's own administrator adds another to it.
+  readonly again: 'tenant' | 'administrator';
   readonly systemAdminsHref: string | null;
   readonly recordHref: string;
   readonly enterHref: string;
 }
 
+export interface Unfinished {
+  readonly tenant: string;
+  readonly username: string;
+  // Whether tenant-admin landed, leaving only the one-time password.
+  readonly granted: boolean;
+}
+
 export interface NewTenant {
   readonly current: TenantStep | AdministratorStep | DoneStep;
   readonly startOver: () => void;
+  // A subject created but not finished, which starting over would drop.
+  readonly replacing: Unfinished | null;
+  readonly replace: () => void;
+  readonly keep: () => void;
 }
 
 function systemAdminsOf(tenant: string): string | null {
@@ -122,6 +135,7 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
   const [message, setMessage] = useState<string | null>(null);
   const [unconfirmed, setUnconfirmed] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [replacing, setReplacing] = useState<Unfinished | null>(null);
 
   const move = (next: Creation): void => {
     setErrors({});
@@ -160,8 +174,25 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
     setMessage(failureMessage(what, failure, needed));
   };
 
-  const startOver = (): void => {
+  const replace = (): void => {
+    setReplacing(null);
     move(freshCreation(flow));
+  };
+  const restart = {
+    startOver: (): void => {
+      if (creation.step === 'administrator' && creation.subjectId !== null) {
+        setReplacing({
+          tenant: creation.tenant,
+          username: creation.username,
+          granted: creation.granted,
+        });
+      } else replace();
+    },
+    replacing,
+    replace,
+    keep: (): void => {
+      setReplacing(null);
+    },
   };
 
   if (creation.step === 'tenant') {
@@ -170,7 +201,7 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
       move(administratorOf(tenant, 'created'));
     };
     return {
-      startOver,
+      ...restart,
       current: {
         step: 'tenant',
         name,
@@ -237,7 +268,7 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
       update({ ...step, ...done });
     };
     return {
-      startOver,
+      ...restart,
       current: {
         step: 'administrator',
         tenant: step.tenant,
@@ -327,11 +358,12 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
   }
 
   return {
-    startOver,
+    ...restart,
     current: {
       step: 'done',
       tenant: creation.tenant,
       username: creation.username,
+      again: flow === 'tenant' ? 'tenant' : 'administrator',
       systemAdminsHref: systemAdminsOf(creation.tenant),
       recordHref: tenantHref(creation.tenant),
       enterHref: enterHref(creation.tenant),

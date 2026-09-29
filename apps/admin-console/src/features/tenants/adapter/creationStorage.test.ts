@@ -27,13 +27,18 @@ it('keeps a creation in this tab, for the principal that began it and nobody els
   expect(sessionStorage.getItem(KEY)).toBeNull();
 });
 
-it('keeps each flow apart, so one never opens the other', () => {
+it("keeps each flow apart, and each tenant's administrator apart, so none opens another", () => {
   const system: Creation = { ...HALFWAY, tenant: 'system' };
+  const existing: Creation = { ...HALFWAY, origin: 'existing', username: 'ada' };
   storeCreation('system/s0', HALFWAY, 'tenant');
   storeCreation('system/s0', system, 'system-administrator');
+  storeCreation('system/s0', existing, 'administrator/acme');
   expect(loadCreation('system/s0', 'tenant')).toEqual(HALFWAY);
   expect(loadCreation('system/s0', 'system-administrator')).toEqual(system);
+  expect(loadCreation('system/s0', 'administrator/acme')).toEqual(existing);
+  expect(loadCreation('system/s0', 'administrator/globex')).toBeNull();
   storeCreation('system/s0', null, 'system-administrator');
+  storeCreation('system/s0', null, 'administrator/acme');
   expect(loadCreation('system/s0', 'tenant')).toEqual(HALFWAY);
 });
 

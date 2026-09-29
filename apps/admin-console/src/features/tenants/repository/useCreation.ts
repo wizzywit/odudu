@@ -5,6 +5,7 @@ import { loadCreation, storeCreation } from '#/features/tenants/adapter/creation
 import { createTenant, findTenant } from '#/features/tenants/adapter/tenants.ts';
 import {
   administratorOf,
+  belongsTo,
   flowOf,
   freshCreation,
   type Creation,
@@ -31,10 +32,15 @@ export interface CreationProgress {
   readonly update: (creation: Creation) => void;
 }
 
+function ownCreation(owner: string, flow: CreationFlow): Creation | null {
+  const stored = loadCreation(owner, flow);
+  return stored !== null && belongsTo(flow, stored) ? stored : null;
+}
+
 // Kept in this tab's storage on every change, so a reload resumes it.
 export function useCreationProgress(owner: string, flow: CreationFlow): CreationProgress {
   const [creation, setCreation] = useState<Creation>(
-    () => loadCreation(owner, flow) ?? freshCreation(flow),
+    () => ownCreation(owner, flow) ?? freshCreation(flow),
   );
   // A finished creation survives a reload, which runs no cleanup, but not
   // leaving the page: the next "Create a tenant" starts a new one.
@@ -42,7 +48,7 @@ export function useCreationProgress(owner: string, flow: CreationFlow): Creation
     if (creation.step !== 'done') return undefined;
     storeCreation(owner, creation, flow);
     return () => {
-      if (loadCreation(owner, flow)?.step === 'done') storeCreation(owner, null, flow);
+      if (ownCreation(owner, flow)?.step === 'done') storeCreation(owner, null, flow);
     };
   }, [owner, flow, creation]);
   return {
@@ -55,7 +61,7 @@ export function useCreationProgress(owner: string, flow: CreationFlow): Creation
 }
 
 export function storedCreation(owner: string, tenant: string): Creation | null {
-  return loadCreation(owner, flowOf(tenant));
+  return ownCreation(owner, flowOf(tenant));
 }
 
 export function beginAdministrator(

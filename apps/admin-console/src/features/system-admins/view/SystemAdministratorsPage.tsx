@@ -6,7 +6,7 @@ import {
   type RevokeProblem,
   type SystemAdministrators,
 } from '#/features/system-admins/usecase/useSystemAdministratorsPage.ts';
-import { ReplaceUnfinished, SystemGate } from '#/features/tenants/index.ts';
+import { SystemGate } from '#/features/tenants/index.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
@@ -202,7 +202,6 @@ function Administrators() {
         onConfirm={page.confirmRevoke}
         onCancel={page.cancelRevoke}
       />
-      <ReplaceUnfinished begin={begin} />
     </>
   );
 }

@@ -1,7 +1,6 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { Link } from 'react-aria-components';
 import { useTenantAdministrators } from '#/features/tenants/usecase/useTenantAdministrators.ts';
-import { ReplaceUnfinished } from '#/features/tenants/view/ReplaceUnfinished.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { Count } from '#/shared/view/Count.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
@@ -98,7 +97,6 @@ export function AdministratorsTab({ tenant }: { tenant: string }) {
           />
         </>
       ) : null}
-      <ReplaceUnfinished begin={begin} />
     </div>
   );
 }

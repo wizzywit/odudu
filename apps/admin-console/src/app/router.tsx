@@ -95,6 +95,10 @@ function tenantsPage(
 const Tenants = tenantsPage('TenantsPage');
 const NewTenant = tenantsPage('NewTenantPage');
 const NewSystemAdministrator = tenantsPage('NewSystemAdministratorPage');
+const NewAdministrator = lazyFeatureRoute(
+  () => import('#/features/tenants/index.ts').then((feature) => feature.NewAdministratorPage),
+  'Loading tenants',
+);
 const ImportTenant = tenantsPage('ImportTenantPage');
 const Export = tenantsPage('ExportPage');
 const TenantRecord = lazyFeatureRoute(
@@ -123,6 +127,15 @@ const tenantPages = [
   }),
   createRoute({
     getParentRoute: () => tenant,
+    path: 'tenants/$name/new-administrator',
+    component: function AdministratorCreation() {
+      const { tenant: name } = tenant.useParams();
+      const { name: record } = tenantAdministrator.useParams();
+      return <NewAdministrator key={`${name}/${record}`} tenant={name} name={record} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
     path: 'new-tenant',
     component: function TenantCreation() {
       const { tenant: name } = tenant.useParams();
@@ -147,6 +160,7 @@ const tenantPages = [
   }),
 ] as const;
 const tenantRecord = tenantPages[1];
+const tenantAdministrator = tenantPages[2];
 
 const SystemAdministrators = lazyFeatureRoute(
   () =>

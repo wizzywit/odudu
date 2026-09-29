@@ -6,7 +6,13 @@ import {
   type DoneStep,
   type TenantStep,
 } from '#/features/tenants/usecase/useNewTenant.ts';
-import { systemAdminsTrail, tenantsTrail, type CreationFlow } from '#/features/tenants/service.ts';
+import {
+  flowOf,
+  systemAdminsTrail,
+  tenantsTrail,
+  type CreationFlow,
+} from '#/features/tenants/service.ts';
+import { ReplaceUnfinished } from '#/features/tenants/view/ReplaceUnfinished.tsx';
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
@@ -206,7 +212,7 @@ function Done({ step, onStartOver }: { step: DoneStep; onStartOver: () => void }
         </ButtonLink>
         <ButtonLink href={step.enterHref}>{`Enter ${step.tenant}`}</ButtonLink>
         <Button variant="quiet" onPress={onStartOver}>
-          Create another tenant
+          {step.again === 'tenant' ? 'Create another tenant' : 'Add another administrator'}
         </Button>
       </div>
     </div>
@@ -214,7 +220,7 @@ function Done({ step, onStartOver }: { step: DoneStep; onStartOver: () => void }
 }
 
 function Creation({ flow }: { flow: CreationFlow }) {
-  const { current, startOver } = useNewTenant(flow);
+  const { current, startOver, replacing, replace, keep } = useNewTenant(flow);
   const at = current.step === 'tenant' ? 0 : current.step === 'administrator' ? 1 : 2;
   const systemAdmins = current.step === 'tenant' ? null : current.systemAdminsHref;
   const title =
@@ -243,6 +249,7 @@ function Creation({ flow }: { flow: CreationFlow }) {
       {current.step === 'tenant' ? <Tenant step={current} /> : null}
       {current.step === 'administrator' ? <Administrator step={current} /> : null}
       {current.step === 'done' ? <Done step={current} onStartOver={startOver} /> : null}
+      <ReplaceUnfinished unfinished={replacing} onReplace={replace} onKeep={keep} />
     </>
   );
 }
@@ -269,6 +276,18 @@ export function NewSystemAdministratorPage({ tenant }: { tenant: string }) {
       breadcrumb={systemAdminsTrail('Add a system administrator')}
     >
       <Creation flow="system-administrator" />
+    </SystemGate>
+  );
+}
+
+export function NewAdministratorPage({ tenant, name }: { tenant: string; name: string }) {
+  return (
+    <SystemGate
+      tenant={tenant}
+      title="Add an administrator"
+      breadcrumb={tenantsTrail('Add an administrator')}
+    >
+      <Creation flow={flowOf(name)} />
     </SystemGate>
   );
 }

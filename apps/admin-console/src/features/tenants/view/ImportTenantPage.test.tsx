@@ -99,7 +99,7 @@ it('shows each client secret once, one at a time, then offers the first administ
   expect(screen.queryByText(new RegExp(SECRET, 'u'))).toBeNull();
   await user.click(await screen.findByRole('button', { name: 'Create the first administrator' }));
   await waitFor(() => {
-    expect(router.state.location.pathname).toBe('/system/new-tenant');
+    expect(router.state.location.pathname).toBe('/system/tenants/acme/new-administrator');
   });
   expect(
     await screen.findByRole('heading', { level: 1, name: 'First administrator of acme' }),

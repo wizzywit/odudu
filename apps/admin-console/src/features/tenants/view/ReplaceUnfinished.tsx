@@ -1,8 +1,15 @@
-import type { BeginAdministrator } from '#/features/tenants/usecase/useBeginAdministrator.ts';
+import type { Unfinished } from '#/features/tenants/usecase/useNewTenant.ts';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 
-export function ReplaceUnfinished({ begin }: { begin: BeginAdministrator }) {
-  const unfinished = begin.replacing;
+export function ReplaceUnfinished({
+  unfinished,
+  onReplace,
+  onKeep,
+}: {
+  unfinished: Unfinished | null;
+  onReplace: () => void;
+  onKeep: () => void;
+}) {
   return (
     <ConfirmDialog
       isOpen={unfinished !== null}
@@ -10,12 +17,12 @@ export function ReplaceUnfinished({ begin }: { begin: BeginAdministrator }) {
       consequence={
         unfinished === null
           ? ''
-          : `${unfinished.username} was created in ${unfinished.tenant}, but has not yet been given ${unfinished.granted ? 'a one-time password' : 'tenant-admin and a one-time password'}. Replacing that creation leaves ${unfinished.username} as they are; keep it to finish them first from Create a tenant.`
+          : `${unfinished.username} was created in ${unfinished.tenant}, but has not yet been given ${unfinished.granted ? 'a one-time password' : 'tenant-admin and a one-time password'}. Starting over leaves ${unfinished.username} as they are; keep it to finish them first.`
       }
       confirmLabel="Replace it"
       tone="danger"
-      onConfirm={begin.replace}
-      onCancel={begin.keep}
+      onConfirm={onReplace}
+      onCancel={onKeep}
     />
   );
 }

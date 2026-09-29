@@ -48,7 +48,7 @@ it('adds an administrator through the guided step, resumed for this tenant', asy
   const { router } = renderConsoleAt(AT, routes());
   await user.click(await screen.findByRole('button', { name: 'Add an administrator' }));
   await waitFor(() => {
-    expect(router.state.location.pathname).toBe('/system/new-tenant');
+    expect(router.state.location.pathname).toBe('/system/tenants/acme/new-administrator');
   });
   expect(
     await screen.findByRole('heading', { level: 1, name: 'First administrator of acme' }),
@@ -101,14 +101,15 @@ it('names manage-tenants for system, which its last-administrator guard counts',
 });
 
 const KEY = 'odudu.console.tenant-creation';
+const ACME_KEY = 'odudu.console.administrator/acme';
 
-function halfway(tenantName: string) {
+function halfway(tenantName: string, origin = 'existing') {
   return JSON.stringify({
     owner: 'system/s0',
     creation: {
       step: 'administrator',
       tenant: tenantName,
-      origin: 'created',
+      origin,
       username: 'ada',
       email: '',
       subjectId: '01a0e72d-7fc7-7950-a1e7-1d079588f8b9',
@@ -117,30 +118,37 @@ function halfway(tenantName: string) {
   });
 }
 
-it('asks before replacing an administrator left half made in another tenant', async () => {
-  sessionStorage.setItem(KEY, halfway('globex'));
+it("leaves a tenant creation half made elsewhere alone, and opens this tenant's own step", async () => {
+  sessionStorage.setItem(KEY, halfway('globex', 'created'));
   const user = userEvent.setup();
   const { router } = renderConsoleAt(AT, routes());
   await user.click(await screen.findByRole('button', { name: 'Add an administrator' }));
-  const dialog = await screen.findByRole('alertdialog', {
-    name: 'Replace the unfinished administrator?',
-  });
-  expect(dialog).toHaveTextContent('ada was created in globex');
-  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-  expect(sessionStorage.getItem(KEY)).toBe(halfway('globex'));
-  expect(router.state.location.pathname).toBe('/system/tenants/acme');
-
-  await user.click(screen.getByRole('button', { name: 'Add an administrator' }));
-  await user.click(
-    within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Replace it' }),
-  );
   expect(
     await screen.findByRole('heading', { level: 1, name: 'First administrator of acme' }),
   ).toBeVisible();
+  expect(screen.getByRole('textbox', { name: 'Username' })).toHaveValue('');
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+  expect(sessionStorage.getItem(KEY)).toBe(halfway('globex', 'created'));
+
+  await router.navigate({ href: '/system/new-tenant' });
+  expect(await screen.findByText(/, created\. What is left/u)).toBeVisible();
+  expect(router.state.location.pathname).toBe('/system/new-tenant');
+});
+
+it('opens Create a tenant at the tenant step once an administrator was begun here', async () => {
+  const user = userEvent.setup();
+  const { router } = renderConsoleAt(AT, routes());
+  await user.click(await screen.findByRole('button', { name: 'Add an administrator' }));
+  await user.type(await screen.findByRole('textbox', { name: 'Username' }), 'grace');
+  await router.navigate({ href: '/system/new-tenant' });
+  expect(await screen.findByRole('heading', { level: 1, name: 'Create a tenant' })).toBeVisible();
+  expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('');
+  expect(router.state.location.pathname).toBe('/system/new-tenant');
+  expect(sessionStorage.getItem(ACME_KEY)).toContain('"username":"grace"');
 });
 
 it('resumes, rather than replaces, one left half made in this tenant', async () => {
-  sessionStorage.setItem(KEY, halfway('acme'));
+  sessionStorage.setItem(ACME_KEY, halfway('acme'));
   const user = userEvent.setup();
   renderConsoleAt(AT, routes());
   await user.click(await screen.findByRole('button', { name: 'Add an administrator' }));

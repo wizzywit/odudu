@@ -128,6 +128,31 @@ test('a creation carries on after a reload, from what was typed and what landed'
   await expect(page.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('');
 });
 
+test('an administrator begun on a tenant leaves Create a tenant at its tenant step', async ({
+  page,
+}) => {
+  await signInToSystem(page);
+  await page.goto(`/console/system/tenants/${tenants.general}?tab=administrators`);
+  await page.getByRole('button', { name: 'Add an administrator' }).click();
+  await expect(page).toHaveURL(`/console/system/tenants/${tenants.general}/new-administrator`);
+  const username = page.getByRole('textbox', { name: 'Username' });
+  await username.fill('begun');
+  await expectAccessible(page);
+
+  await page
+    .getByRole('navigation', { name: 'Areas of system' })
+    .getByRole('link', { name: 'Tenants' })
+    .click();
+  await page.getByRole('link', { name: 'Create a tenant' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Create a tenant' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('');
+  await expect(page).toHaveURL('/console/system/new-tenant');
+  await expectAccessible(page);
+
+  await page.goto(`/console/system/tenants/${tenants.general}/new-administrator`);
+  await expect(username).toHaveValue('begun');
+});
+
 test('a display name saves on its ETag and focus lands on the section, and a disable is typed', async ({
   page,
 }) => {
@@ -287,6 +312,7 @@ test('the tenant pages fit a phone', async ({ page }) => {
     '/console/system/new-tenant',
     '/console/system/import-tenant',
     `/console/system/tenants/${tenants.general}`,
+    `/console/system/tenants/${tenants.general}/new-administrator`,
   ]) {
     await page.goto(path);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

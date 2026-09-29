@@ -12,6 +12,8 @@ const PASSWORD = 'one-time-Qm9vYmFyYmF6';
 const KEY = 'odudu.console.tenant-creation';
 const SYSTEM_KEY = 'odudu.console.system-administrator';
 const SYSTEM_AT = '/console/system/system-admins/new';
+const ACME_KEY = 'odudu.console.administrator/acme';
+const ACME_AT = '/console/system/tenants/acme/new-administrator';
 
 beforeEach(() => {
   sessionStorage.clear();
@@ -153,7 +155,7 @@ it('never sends a creation twice whose answer was lost, and looks for the tenant
 
 function at(creation: unknown, where = AT) {
   return () => {
-    const key = where === SYSTEM_AT ? SYSTEM_KEY : KEY;
+    const key = where === SYSTEM_AT ? SYSTEM_KEY : where === ACME_AT ? ACME_KEY : KEY;
     sessionStorage.setItem(key, JSON.stringify({ owner: 'system/s0', creation }));
     return consoleAt(where, routes()).element;
   };
@@ -176,7 +178,7 @@ it('passes axe in both themes at each step', { timeout: 20_000 }, async () => {
     granted: false,
   };
   expect(
-    await axeInBothThemes(at(imported), async () => {
+    await axeInBothThemes(at(imported, ACME_AT), async () => {
       await user.click(await screen.findByRole('button', { name: 'Create administrator' }));
       await screen.findByRole('dialog');
     }),
@@ -423,4 +425,127 @@ it('resumes a system administrator after a reload, beside a tenant of its own', 
   );
   renderConsoleAt(SYSTEM_AT, systemRoutes(administratorRoutes('system', SUBJECT_ID, PASSWORD)));
   expect(await screen.findByText(/ada/u, { selector: 'code' })).toBeVisible();
+});
+
+const FLOWS = [
+  { flow: 'Create a tenant', at: AT, first: 'Name', heading: 'Create a tenant' },
+  {
+    flow: 'Add an administrator to acme',
+    at: ACME_AT,
+    first: 'Username',
+    heading: 'First administrator of acme',
+  },
+  {
+    flow: 'Add a system administrator',
+    at: SYSTEM_AT,
+    first: 'Username',
+    heading: 'Add a system administrator',
+  },
+] as const;
+
+const PAIRS = FLOWS.flatMap((started) =>
+  FLOWS.filter((opened) => opened !== started).map((opened) => ({ started, opened })),
+);
+
+it.each(PAIRS)(
+  'opens $opened.flow at its own first step after $started.flow was started',
+  async ({ started, opened }) => {
+    const user = userEvent.setup();
+    const { router } = renderConsoleAt(started.at, routes());
+    await user.type(await screen.findByRole('textbox', { name: started.first }), 'begun');
+    await router.navigate({ href: opened.at.replace('/console', '') });
+    expect(await screen.findByRole('heading', { level: 1, name: opened.heading })).toBeVisible();
+    expect(screen.getByRole('textbox', { name: opened.first })).toHaveValue('');
+    expect(`/console${router.state.location.pathname}`).toBe(opened.at);
+
+    await router.navigate({ href: started.at.replace('/console', '') });
+    expect(await screen.findByRole('textbox', { name: started.first })).toHaveValue('begun');
+    expect(`/console${router.state.location.pathname}`).toBe(started.at);
+  },
+);
+
+it('adds an administrator to an existing tenant under its record, and offers another', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(ACME_AT, routes());
+  expect(await screen.findByText(/gets another administrator/u)).toBeVisible();
+  const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+  expect(within(trail).getByRole('link', { name: 'Tenants' })).toHaveAttribute(
+    'href',
+    '/console/system/tenants',
+  );
+  await user.type(screen.getByRole('textbox', { name: 'Username' }), 'grace');
+  const button = screen.getByRole('button', { name: 'Create administrator' });
+  await waitFor(() => {
+    expect(button).toBeEnabled();
+  });
+  await user.click(button);
+  const dialog = await screen.findByRole('dialog', { name: "grace's one-time password" });
+  expect(sessionStorage.getItem(ACME_KEY)).not.toContain(PASSWORD);
+  await user.click(within(dialog).getByRole('checkbox'));
+  await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+  expect(await screen.findByRole('link', { name: 'Open acme' })).toBeVisible();
+  expect(sent.some((s) => s.path === ADMIN && s.method === 'POST')).toBe(false);
+  expect(screen.queryByRole('button', { name: 'Create another tenant' })).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Add another administrator' }));
+  expect(await screen.findByRole('textbox', { name: 'Username' })).toHaveValue('');
+});
+
+it("resumes a tenant's administrator after a reload, and only that tenant's", async () => {
+  sessionStorage.setItem(
+    ACME_KEY,
+    JSON.stringify({
+      owner: 'system/s0',
+      creation: { ...HALFWAY, origin: 'existing', username: 'ada', subjectId: SUBJECT_ID },
+    }),
+  );
+  const { router } = renderConsoleAt(ACME_AT, routes());
+  expect(await screen.findByText(/ada/u, { selector: 'code' })).toBeVisible();
+  expect(screen.getByText(/, created\. What is left/u)).toBeVisible();
+  await router.navigate({ href: '/system/tenants/globex/new-administrator' });
+  expect(
+    await screen.findByRole('heading', { level: 1, name: 'First administrator of globex' }),
+  ).toBeVisible();
+  expect(screen.getByRole('textbox', { name: 'Username' })).toHaveValue('');
+  expect(sessionStorage.getItem(ACME_KEY)).toContain(SUBJECT_ID);
+});
+
+it('asks before starting over from an administrator already created, and keeps it if told to', async () => {
+  const created = { ...HALFWAY, username: 'ada', subjectId: SUBJECT_ID };
+  sessionStorage.setItem(KEY, JSON.stringify({ owner: 'system/s0', creation: created }));
+  const user = userEvent.setup();
+  renderConsoleAt(AT, routes());
+  await user.click(await screen.findByRole('button', { name: 'Start over' }));
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Replace the unfinished administrator?',
+  });
+  expect(dialog).toHaveTextContent('ada was created in acme');
+  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  expect(screen.getByText(/, created\. What is left/u)).toBeVisible();
+  expect(sessionStorage.getItem(KEY)).toContain(SUBJECT_ID);
+
+  await user.click(screen.getByRole('button', { name: 'Start over' }));
+  await user.click(
+    within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Replace it' }),
+  );
+  expect(await screen.findByRole('textbox', { name: 'Name' })).toHaveValue('');
+  expect(sessionStorage.getItem(KEY)).not.toContain(SUBJECT_ID);
+});
+
+it('starts over without asking while nothing has been created', async () => {
+  sessionStorage.setItem(KEY, JSON.stringify({ owner: 'system/s0', creation: HALFWAY }));
+  const user = userEvent.setup();
+  renderConsoleAt(AT, routes());
+  await user.click(await screen.findByRole('button', { name: 'Start over' }));
+  expect(await screen.findByRole('textbox', { name: 'Name' })).toHaveValue('');
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+});
+
+it('passes axe in both themes asking before a start over', async () => {
+  const user = userEvent.setup();
+  expect(
+    await axeInBothThemes(at({ ...HALFWAY, subjectId: SUBJECT_ID }, ACME_AT), async () => {
+      await user.click(await screen.findByRole('button', { name: 'Start over' }));
+      await screen.findByRole('alertdialog');
+    }),
+  ).toEqual({ light: [], dark: [] });
 });
