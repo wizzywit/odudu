@@ -9154,30 +9154,42 @@ shows for a `client_id` it does not know — so a probe cannot tell a missing
 tenant from a missing client.
 
 A disabled tenant takes the same branch in the same lookup, so it is never
-distinguishable from one that never existed. Captured on 2026-09-29
-against the console's browser-test stack (compose project `odudu-e2e`, on
-port 3080, which is why the port differs): a tenant `lapsed` was seeded
-and answered, then disabled through `psql` — the column
+distinguishable from one that never existed. Captured on 2026-09-29 from
+the repository root against the console's browser-test stack, which
+`apps/admin-console/e2e/run.sh` starts as compose project `odudu-e2e` on
+port 3080 (hence the project name and the port). A tenant `lapsed` is
+seeded and answers, then is disabled through `psql`, in the column
 `PATCH /admin/tenants/{tenant}` with `enabled: false` and the console's
-Disable both write — and asked again beside `nope`:
+Disable both write, and is asked again beside `nope`. The two `diff`s
+compare `lapsed`'s and `nope`'s discovery answer and rendered `/auth`
+page, headers included but for `date` and `x-request-id`; each printed
+nothing and exited 0:
 
 ```bash
-node dist/main.js seed tenant --name lapsed
+export COMPOSE_PROJECT_NAME=odudu-e2e
+odudu() { docker compose -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
+pg() { docker compose -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -tA -c "$1"; }
 ask() {
   for p in "$@"; do
     printf '%-50s %s\n' "/tenants/$t/$p" \
       "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:3080/tenants/$t/$p")"
   done
 }
+odudu seed tenant --name lapsed
 t=lapsed ask .well-known/openid-configuration protocol/openid-connect/certs
-psql -tA -c "update tenants set enabled = false where name = 'lapsed' returning name, enabled"
+pg "update tenants set enabled = false where name = 'lapsed' returning name, enabled"
 for t in lapsed nope; do
   ask .well-known/openid-configuration protocol/openid-connect/{certs,token,userinfo,auth}
 done
+answer() { curl -s -D - "http://localhost:3080/tenants/$1/$2" | grep -iv '^date:\|^x-request-id:'; }
+diff <(answer lapsed .well-known/openid-configuration) <(answer nope .well-known/openid-configuration)
+echo "diff exit $?"
+diff <(answer lapsed protocol/openid-connect/auth) <(answer nope protocol/openid-connect/auth)
+echo "diff exit $?"
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"lapsed","tenantId":"01a0eba8-8cbf-7449-85bc-b5b3fff43b72"}
+{"command":"tenant","created":true,"tenant":"lapsed","tenantId":"01a0ebb2-585c-7c91-917e-343998f82358"}
 /tenants/lapsed/.well-known/openid-configuration   200
 /tenants/lapsed/protocol/openid-connect/certs      200
 lapsed|f
@@ -9192,11 +9204,12 @@ UPDATE 1
 /tenants/nope/protocol/openid-connect/token        404
 /tenants/nope/protocol/openid-connect/userinfo     404
 /tenants/nope/protocol/openid-connect/auth         400
+diff exit 0
+diff exit 0
 ```
 
-The discovery responses of `lapsed` and `nope`, headers included but for
-`date` and `x-request-id`, and the two rendered `/auth` pages each
-compared byte for byte with `diff`, which printed nothing.
+`odudu seed` also wrote Node's `ExperimentalWarning` for Web Crypto to
+stderr, which is left out above.
 
 Tenant isolation goes further than the URL, and the credentials prove it:
 an authorization code, a refresh token, an access token and an
