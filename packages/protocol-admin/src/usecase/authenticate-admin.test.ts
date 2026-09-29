@@ -53,6 +53,7 @@ function deps(key: SigningKeyRecord, overrides: Partial<AuthenticateAdminDeps>) 
     loadGrant: () => Promise.resolve(null),
     isSessionLive: () => Promise.resolve(false),
     isClientEnabled: () => Promise.resolve(false),
+    isSubjectEnabled: () => Promise.resolve(false),
   };
   return { ...base, ...overrides };
 }

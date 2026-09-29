@@ -932,6 +932,21 @@ describe('an ended session or grant', () => {
     );
   });
 
+  it('ends the session once its subject is disabled, before the access token runs out', async () => {
+    await withStack(async (stack) => {
+      const jar = new Jar();
+      const { subjectId } = await signIn(stack, jar);
+      expect((await call(stack, jar, SCOPES)).statusCode).toBe(200);
+      await owner.db.execute(sql`UPDATE subjects SET disabled_at = now() WHERE id = ${subjectId}`);
+
+      const res = await call(stack, jar, SCOPES);
+
+      expectEnded(res);
+      expect(String(res.headers['set-cookie'])).toMatch(/^odudu-console=;.*Max-Age=0/u);
+      expect(await sessionOf(subjectId)).toBeUndefined();
+    });
+  });
+
   // Two 401s that say nothing about the token: a tenant that does not exist,
   // and a path whose tenant is not the one the token was issued by.
   it('passes through a system admin’s 401 for a tenant that does not exist, keeping the session', async () => {

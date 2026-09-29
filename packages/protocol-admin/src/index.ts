@@ -3,7 +3,7 @@ import { signingKeyRepository } from '@odudu/crypto';
 import { type DatabaseHandle, type TenantScopedDatabase, withTenant } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import { effectiveRoles } from '@odudu/domain-authz';
-import { hashPassword } from '@odudu/domain-identity';
+import { hashPassword, subjectRepository } from '@odudu/domain-identity';
 import { ADMIN_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
 import { type Clock, type Logger, systemClock } from '@odudu/kernel';
 import { tenantLookupRepository, tokenGrantRepository } from '@odudu/protocol-oidc';
@@ -556,6 +556,11 @@ function buildAdminRoutes(
         withTenant(deps.database.db, tenantId, async (tx) => {
           const client = await clientRepository(tx).byId(clientDbId);
           return client?.enabled === true;
+        }),
+      isSubjectEnabled: (tenantId, subjectId) =>
+        withTenant(deps.database.db, tenantId, async (tx) => {
+          const subject = await subjectRepository(tx).byId(subjectId);
+          return subject !== null && subject.disabledAt === null;
         }),
     };
 

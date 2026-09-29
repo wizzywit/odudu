@@ -41,6 +41,7 @@ export interface AuthenticateAdminDeps {
     now: Date,
   ): Promise<boolean>;
   isClientEnabled(tenantId: string, clientDbId: string): Promise<boolean>;
+  isSubjectEnabled(tenantId: string, subjectId: string): Promise<boolean>;
 }
 
 export interface AuthenticateAdminInput {
@@ -223,6 +224,12 @@ export async function authenticateAdmin(
 
   const enabled = await deps.isClientEnabled(matched.id, grant.clientId);
   if (!enabled) return unauthenticated('client_disabled');
+
+  // Disabling a subject ends nothing it holds, so an access token issued
+  // before is refused here rather than living out its lifetime.
+  if (!(await deps.isSubjectEnabled(matched.id, payload.sub))) {
+    return unauthenticated('subject_disabled');
+  }
 
   return {
     kind: 'authenticated',
