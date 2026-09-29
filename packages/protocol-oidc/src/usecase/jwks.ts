@@ -16,8 +16,10 @@ export async function resolveJwks(
   deps: JwksUsecaseDeps,
   tenantName: string,
 ): Promise<{ keys: Record<string, unknown>[] } | null> {
+  // A disabled tenant still publishes its keys: its relying parties hold
+  // queued Logout Tokens to validate (Back-Channel Logout 1.0 §2.6).
   const tenant = await deps.findTenant(tenantName);
-  if (!tenant?.enabled) return null;
+  if (tenant === null) return null;
   const keys = await deps.listPublishableKeys(tenant.id);
   return assembleJwks(keys);
 }

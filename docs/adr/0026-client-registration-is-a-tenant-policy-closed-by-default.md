@@ -86,3 +86,12 @@ share one code path (`registerClient`,
 `packages/protocol-oidc/src/usecase/client-registration.ts`), which is what
 keeps the two indistinguishable by construction rather than by two branches
 that happen to return the same status today.
+
+## Amendment, 2026-09-30
+
+The comparison above with a disabled tenant no longer holds: a disabled
+tenant keeps serving `/certs` and discovery, since the Back-Channel Logout
+Tokens its disable queued are signed with its keys and its relying parties
+must validate them (Back-Channel Logout 1.0 §2.6). Its `registration_endpoint`
+is still refused, with every other protocol request. The reasoning for
+`disabled` registration is unchanged.

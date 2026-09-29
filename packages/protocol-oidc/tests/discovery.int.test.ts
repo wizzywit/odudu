@@ -82,6 +82,15 @@ beforeAll(async () => {
   const disabledId = newId();
   await withTenant(app.db, disabledId, async (tx) => {
     await seedTenant(tx, disabledId, { name: 'disabled-tenant', enabled: false });
+    await tx.insert(signingKeys).values({
+      id: newId(),
+      tenantId: disabledId,
+      kid: 'disabled-k1',
+      alg: 'RS256',
+      status: 'active',
+      publicJwk: PUBLIC_JWK,
+      privateJwkEncrypted: 'ciphertext-placeholder',
+    });
   });
 }, 120_000);
 
@@ -92,10 +101,49 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-describe('[ODUDU-DISCOVERY-TENANT-404-01] unknown and disabled tenants are indistinguishable', () => {
-  it.each(['no-such-tenant', 'disabled-tenant'])('returns 404 for %s', async (tenant) => {
-    const res = await http.inject({ url: `/tenants/${tenant}/.well-known/openid-configuration` });
+describe('[ODUDU-DISCOVERY-TENANT-404-01] an unknown tenant has no discovery document', () => {
+  it('returns 404 for a tenant that does not exist', async () => {
+    const res = await http.inject({
+      url: '/tenants/no-such-tenant/.well-known/openid-configuration',
+    });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+// A disabled tenant's relying parties still have queued Logout Tokens to
+// validate (Back-Channel Logout 1.0 §2.6), signed with its keys; public keys
+// and the document naming them are not secret. Everything else is refused.
+describe('[ODUDU-DISCOVERY-TENANT-DISABLED-01] a disabled tenant still publishes its keys', () => {
+  it('serves discovery and the key set', async () => {
+    const discovery = await http.inject({
+      url: '/tenants/disabled-tenant/.well-known/openid-configuration',
+    });
+    expect(discovery.statusCode).toBe(200);
+    expect(discovery.json<{ issuer: string }>().issuer).toMatch(/\/tenants\/disabled-tenant$/);
+
+    const certs = await http.inject({
+      url: '/tenants/disabled-tenant/protocol/openid-connect/certs',
+    });
+    expect(certs.statusCode).toBe(200);
+    expect(certs.json<{ keys: { kid: string }[] }>().keys.map((key) => key.kid)).toEqual([
+      'disabled-k1',
+    ]);
+  });
+
+  it('refuses every other protocol request as an unknown tenant is refused', async () => {
+    for (const tenant of ['disabled-tenant', 'no-such-tenant']) {
+      const base = `/tenants/${tenant}/protocol/openid-connect`;
+      const token = await http.inject({ url: `${base}/token` });
+      const userinfo = await http.inject({ url: `${base}/userinfo` });
+      const auth = await http.inject({ url: `${base}/auth?client_id=anyone` });
+      expect([tenant, token.statusCode, userinfo.statusCode, auth.statusCode]).toEqual([
+        tenant,
+        404,
+        404,
+        400,
+      ]);
+      expect(auth.body).toContain('Unknown or disabled client');
+    }
   });
 });
 

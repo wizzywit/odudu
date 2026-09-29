@@ -397,7 +397,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 `client_registration_policy` is `disabled` on every tenant by default (ADR
 0026). Registering before it is opened, or against a tenant that does not
 exist, answers the same way — an enumeration oracle costs nothing to close
-here, the same reasoning discovery and JWKS already apply to a disabled
+here, the same reasoning `/token` and `/userinfo` apply to a disabled
 tenant. The discovery `200` above is what tells the two apart: the first
 refusal below is the closed policy, not an absent tenant.
 
@@ -9362,26 +9362,32 @@ do not, and its page is the same "Unknown or disabled client" a live tenant
 shows for a `client_id` it does not know — so a probe cannot tell a missing
 tenant from a missing client.
 
-A disabled tenant takes the same branch in the same lookup, so it is never
-distinguishable from one that never existed. Captured on 2026-09-29 from
-the repository root against the console's browser-test stack, which
-`apps/admin-console/e2e/run.sh` starts as compose project `odudu-e2e` on
-port 3080 (hence the project name and the port). A tenant `lapsed` is
-seeded and answers, then is disabled through `psql`, in the column
-`PATCH /admin/tenants/{tenant}` with `enabled: false` and the console's
-Disable both write, and is asked again beside `nope`. The two `diff`s
-compare `lapsed`'s and `nope`'s discovery answer and rendered `/auth`
-page, headers included but for `date` and `x-request-id`; each printed
-nothing and exited 0:
+A disabled tenant is refused everywhere an unknown one is but two places:
+its discovery document and `/certs` still answer `200`. Public keys are not
+secret, and the relying parties the disable queued Back-Channel Logout Tokens
+for need them to validate those tokens (Back-Channel Logout 1.0 §2.6); a
+tenant that stopped publishing its keys at the moment it queued them would
+have every one rejected. Deleting the tenant removes its keys, and both then
+answer `404`. Everything else — `/token`, `/userinfo`, and `/authorize`'s
+rendered page — cannot tell a disabled tenant from one that never existed.
+Captured on 2026-09-29 from the repository root against compose project
+`odudu-t8b2` on port 3082, brought up from an empty volume for
+[docs/admin-paths.md](admin-paths.md)'s `DELETE /admin/tenants/{tenant}`. A
+tenant `lapsed` is seeded and answers, then is disabled through `psql`, in
+the column `PATCH /admin/tenants/{tenant}` with `enabled: false` and the
+console's Disable both write, and is asked again beside `nope`. The `diff`
+compares `lapsed`'s and `nope`'s rendered `/auth` page, headers included but
+for `date` and `x-request-id`; it printed nothing and exited 0. The last
+line counts the keys `lapsed` still publishes:
 
 ```bash
-export COMPOSE_PROJECT_NAME=odudu-e2e
+export COMPOSE_PROJECT_NAME=odudu-t8b2
 odudu() { docker compose -f infra/docker/compose.yaml exec -T odudu node dist/main.js "$@"; }
 pg() { docker compose -f infra/docker/compose.yaml exec -T postgres psql -U odudu -d odudu -tA -c "$1"; }
 ask() {
   for p in "$@"; do
     printf '%-50s %s\n' "/tenants/$t/$p" \
-      "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:3080/tenants/$t/$p")"
+      "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:3082/tenants/$t/$p")"
   done
 }
 odudu seed tenant --name lapsed
@@ -9390,21 +9396,21 @@ pg "update tenants set enabled = false where name = 'lapsed' returning name, ena
 for t in lapsed nope; do
   ask .well-known/openid-configuration protocol/openid-connect/{certs,token,userinfo,auth}
 done
-answer() { curl -s -D - "http://localhost:3080/tenants/$1/$2" | grep -iv '^date:\|^x-request-id:'; }
-diff <(answer lapsed .well-known/openid-configuration) <(answer nope .well-known/openid-configuration)
-echo "diff exit $?"
+answer() { curl -s -D - "http://localhost:3082/tenants/$1/$2" | grep -iv '^date:\|^x-request-id:'; }
 diff <(answer lapsed protocol/openid-connect/auth) <(answer nope protocol/openid-connect/auth)
 echo "diff exit $?"
+curl -s http://localhost:3082/tenants/lapsed/protocol/openid-connect/certs \
+  | python3 -c 'import json,sys;print(len(json.load(sys.stdin)["keys"]), "key")'
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"lapsed","tenantId":"01a0ebb2-585c-7c91-917e-343998f82358"}
+{"command":"tenant","created":true,"tenant":"lapsed","tenantId":"01a0eed8-ac8d-77e9-aa8f-55f949965673"}
 /tenants/lapsed/.well-known/openid-configuration   200
 /tenants/lapsed/protocol/openid-connect/certs      200
 lapsed|f
 UPDATE 1
-/tenants/lapsed/.well-known/openid-configuration   404
-/tenants/lapsed/protocol/openid-connect/certs      404
+/tenants/lapsed/.well-known/openid-configuration   200
+/tenants/lapsed/protocol/openid-connect/certs      200
 /tenants/lapsed/protocol/openid-connect/token      404
 /tenants/lapsed/protocol/openid-connect/userinfo   404
 /tenants/lapsed/protocol/openid-connect/auth       400
@@ -9414,7 +9420,7 @@ UPDATE 1
 /tenants/nope/protocol/openid-connect/userinfo     404
 /tenants/nope/protocol/openid-connect/auth         400
 diff exit 0
-diff exit 0
+1 key
 ```
 
 `odudu seed` also wrote Node's `ExperimentalWarning` for Web Crypto to
