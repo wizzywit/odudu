@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { type PgInsertValue } from 'drizzle-orm/pg-core';
 import { auditEvents, type AuditEventRecord } from '#/schema/audit-events';
 import {
@@ -17,7 +17,8 @@ export interface AuditCursorPosition {
   readonly id: string;
 }
 
-export interface AuditEventFilter {
+/** Which rows a listing, a count or an export of the trail reads. */
+export interface AuditEventCriteria {
   readonly eventType?: AuditEventType | undefined;
   readonly actorSubjectId?: string | undefined;
   readonly resourceType?: string | undefined;
@@ -26,9 +27,41 @@ export interface AuditEventFilter {
   readonly outcome?: 'allowed' | 'refused' | 'failed' | undefined;
   readonly from?: Date | undefined;
   readonly to?: Date | undefined;
+}
+
+export interface AuditEventFilter extends AuditEventCriteria {
   readonly after?: AuditCursorPosition | undefined;
   /** Fetched as `limit + 1` by the caller, to learn whether another page follows. */
   readonly limit: number;
+}
+
+function criteriaConditions(filter: AuditEventCriteria): SQL[] {
+  const conditions: SQL[] = [];
+  if (filter.eventType !== undefined) {
+    conditions.push(eq(auditEvents.eventType, filter.eventType));
+  }
+  if (filter.actorSubjectId !== undefined) {
+    conditions.push(eq(auditEvents.actorSubjectId, filter.actorSubjectId));
+  }
+  if (filter.resourceType !== undefined) {
+    conditions.push(eq(auditEvents.resourceType, filter.resourceType));
+  }
+  if (filter.resourceId !== undefined) {
+    conditions.push(eq(auditEvents.resourceId, filter.resourceId));
+  }
+  if (filter.action !== undefined) {
+    conditions.push(eq(auditEvents.action, filter.action));
+  }
+  if (filter.outcome !== undefined) {
+    conditions.push(eq(auditEvents.outcome, filter.outcome));
+  }
+  if (filter.from !== undefined) {
+    conditions.push(sql`${auditEvents.occurredAt} >= ${filter.from.toISOString()}::timestamptz`);
+  }
+  if (filter.to !== undefined) {
+    conditions.push(sql`${auditEvents.occurredAt} <= ${filter.to.toISOString()}::timestamptz`);
+  }
+  return conditions;
 }
 
 // A writer that names no actor tenant is recording an actor of the row's
@@ -85,33 +118,7 @@ export function auditRepository(tx: TenantScopedDatabase) {
     // Postgres uses to answer "strictly before the last row of the
     // previous page" without a second OR-of-conditions branch.
     async list(filter: AuditEventFilter): Promise<AuditEventRecord[]> {
-      const conditions: SQL[] = [];
-      if (filter.eventType !== undefined) {
-        conditions.push(eq(auditEvents.eventType, filter.eventType));
-      }
-      if (filter.actorSubjectId !== undefined) {
-        conditions.push(eq(auditEvents.actorSubjectId, filter.actorSubjectId));
-      }
-      if (filter.resourceType !== undefined) {
-        conditions.push(eq(auditEvents.resourceType, filter.resourceType));
-      }
-      if (filter.resourceId !== undefined) {
-        conditions.push(eq(auditEvents.resourceId, filter.resourceId));
-      }
-      if (filter.action !== undefined) {
-        conditions.push(eq(auditEvents.action, filter.action));
-      }
-      if (filter.outcome !== undefined) {
-        conditions.push(eq(auditEvents.outcome, filter.outcome));
-      }
-      if (filter.from !== undefined) {
-        conditions.push(
-          sql`${auditEvents.occurredAt} >= ${filter.from.toISOString()}::timestamptz`,
-        );
-      }
-      if (filter.to !== undefined) {
-        conditions.push(sql`${auditEvents.occurredAt} <= ${filter.to.toISOString()}::timestamptz`);
-      }
+      const conditions = criteriaConditions(filter);
       if (filter.after !== undefined) {
         conditions.push(
           sql`(${auditEvents.occurredAt}, ${auditEvents.id}) < (${filter.after.occurredAt.toISOString()}::timestamptz, ${filter.after.id})`,
@@ -124,6 +131,25 @@ export function auditRepository(tx: TenantScopedDatabase) {
         .where(conditions.length === 0 ? undefined : and(...conditions))
         .orderBy(desc(auditEvents.occurredAt), desc(auditEvents.id))
         .limit(filter.limit);
+    },
+
+    // The listing's own statement with a LIMIT of `cap + 1`, so a count reads
+    // at most that many rows however long the trail, and says so when capped.
+    async count(
+      filter: AuditEventCriteria,
+      cap: number,
+    ): Promise<{ count: number; capped: boolean }> {
+      const conditions = criteriaConditions(filter);
+      const matching = tx
+        .select({ one: sql<number>`1`.as('one') })
+        .from(auditEvents)
+        .where(conditions.length === 0 ? undefined : and(...conditions))
+        .orderBy(desc(auditEvents.occurredAt), desc(auditEvents.id))
+        .limit(cap + 1)
+        .as('matching');
+      const rows = await tx.select({ n: count() }).from(matching);
+      const n = rows[0]?.n ?? 0;
+      return { count: Math.min(n, cap), capped: n > cap };
     },
   };
 }

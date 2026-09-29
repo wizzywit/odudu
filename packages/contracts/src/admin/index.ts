@@ -14,6 +14,12 @@ export {
 export {
   listAuditQuerySchema,
   type ListAuditQuery,
+  countAuditQuerySchema,
+  type CountAuditQuery,
+  exportAuditQuerySchema,
+  type ExportAuditQuery,
+  AUDIT_EXPORT_MEDIA_TYPE,
+  AUDIT_EXPORT_CAP,
   auditEventSchema,
   type AuditEvent,
   listAuditResponseSchema,

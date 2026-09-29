@@ -84,7 +84,12 @@ import {
   retireKeyHandler,
   type KeysRouteDeps,
 } from '#/view/routes/keys';
-import { listAuditHandler, type AuditRouteDeps } from '#/view/routes/audit';
+import {
+  countAuditHandler,
+  exportAuditHandler,
+  listAuditHandler,
+  type AuditRouteDeps,
+} from '#/view/routes/audit';
 import {
   countClientsHandler,
   countGroupsHandler,
@@ -515,6 +520,7 @@ function buildAdminRoutes(
     const auditDeps: AuditRouteDeps = {
       database: deps.database.db,
       cursorKey: deps.cursorKey,
+      audit: recordAudit,
     };
     const countsDeps: CountsRouteDeps = {
       database: deps.database.db,
@@ -648,6 +654,8 @@ function buildAdminRoutes(
       'GET /admin/tenants/:tenant/flow/executions': listFlowHandler(flowDeps),
       'PUT /admin/tenants/:tenant/flow/executions': replaceFlowHandler(flowDeps),
       'GET /admin/tenants/:tenant/audit': listAuditHandler(auditDeps),
+      'GET /admin/tenants/:tenant/audit/count': countAuditHandler(auditDeps),
+      'GET /admin/tenants/:tenant/audit/export': exportAuditHandler(auditDeps),
     };
 
     const authDeps: AuthenticateAdminDeps = {

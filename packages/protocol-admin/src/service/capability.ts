@@ -5,6 +5,10 @@ import {
   amendClientRequestSchema,
   listAuditQuerySchema,
   listAuditResponseSchema,
+  countAuditQuerySchema,
+  exportAuditQuerySchema,
+  auditEventSchema,
+  AUDIT_EXPORT_MEDIA_TYPE,
   amendGroupRequestSchema,
   amendRoleRequestSchema,
   amendScopeRequestSchema,
@@ -1184,6 +1188,24 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'view-audit',
     responseSchema: listAuditResponseSchema,
     querystringSchema: listAuditQuerySchema,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/audit/count',
+    capability: 'view-audit',
+    responseSchema: countResponseSchema,
+    querystringSchema: countAuditQuerySchema,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/audit/export',
+    capability: 'view-audit',
+    responseSchema: auditEventSchema,
+    successMediaType: AUDIT_EXPORT_MEDIA_TYPE,
+    querystringSchema: exportAuditQuerySchema,
+    description:
+      'Every row the same filters list, newest first, one JSON object per line. Refused whole ' +
+      'with `413` past 10,000 rows rather than cut short. Audited as `audit.export`.',
   },
 ];
 
