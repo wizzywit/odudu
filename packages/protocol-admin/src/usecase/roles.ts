@@ -549,11 +549,12 @@ async function lockRolesForComposite(
 
 // A default role is handed to every subject created afterwards — through
 // self-registration too, where the tenant allows it — so nothing it reaches
-// may be an admin capability, whoever the caller is. Every composite write
+// may be an admin capability, whoever the caller is. Every composite added
 // and every `true` default takes this lock, after its row locks and before
 // it reads the graph: an edge that reaches no capability yet can still
 // connect a default to one another writer is adding deeper down, so the
 // lock must serialise all of them, not only those whose child reaches one.
+// Removing an edge only shrinks what a default reaches, so it goes without.
 async function lockDefaultRoleReach(tx: TenantScopedDatabase): Promise<void> {
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtext('role_default_reach'), hashtext(current_setting('app.tenant_id')))`,
