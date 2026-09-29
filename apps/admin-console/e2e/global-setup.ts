@@ -7,7 +7,7 @@ function password(): string {
   return randomBytes(18).toString('base64url');
 }
 
-function administrator(account: Account, ...extra: string[]): void {
+function subject(account: Account, ...extra: string[]): void {
   seed([
     'user',
     '--tenant',
@@ -19,15 +19,15 @@ function administrator(account: Account, ...extra: string[]): void {
     `--password=${account.password}`,
     ...extra,
   ]);
-  seed([
-    'grant-role',
-    '--tenant',
-    account.tenant,
-    '--username',
-    account.username,
-    '--role',
-    TENANT_ADMIN,
-  ]);
+}
+
+function grant(account: Account, role: string): void {
+  seed(['grant-role', '--tenant', account.tenant, '--username', account.username, '--role', role]);
+}
+
+function administrator(account: Account, ...extra: string[]): void {
+  subject(account, ...extra);
+  grant(account, TENANT_ADMIN);
 }
 
 // Names are fresh each run, so a stack kept up between runs seeds again.
@@ -38,16 +38,22 @@ export default function globalSetup(): void {
   const expiring = { tenant: admin.tenant, username: 'lovelace', password: password() };
   const other = { tenant: `${run}-b`, username: 'ada', password: password() };
   const system = { tenant: 'system', username: `root-${run}`, password: password() };
+  const limited = { tenant: admin.tenant, username: 'babbage', password: password() };
+  const overview = { tenant: `${run}-c`, username: 'turing', password: password() };
 
   seed(['tenant', '--name', admin.tenant]);
   seed(['tenant', '--name', other.tenant]);
+  seed(['tenant', '--name', overview.tenant]);
   administrator(admin);
   administrator(forced, '--require-password-change');
   administrator(expiring);
   administrator(other);
+  administrator(overview);
+  subject(limited);
+  grant(limited, 'odudu-admin:manage-tenant');
   // Creates the system tenant; its own generated password is not used.
   seed(['admin', '--username', `boot-${run}`]);
   administrator(system);
 
-  publish({ admin, forced, expiring, other, system });
+  publish({ admin, forced, expiring, other, system, limited, overview });
 }

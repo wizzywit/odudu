@@ -118,7 +118,10 @@ test('a session that ends on the server signs in again and comes back to the pag
   problems,
 }) => {
   await signIn(page, expiring);
-  await page.getByRole('link', { name: 'Clients' }).click();
+  await page
+    .getByRole('navigation', { name: `Areas of ${expiring.tenant}` })
+    .getByRole('link', { name: 'Clients' })
+    .click();
   await expect(page.getByRole('heading', { level: 1, name: 'Clients' })).toBeVisible();
   const signIns: string[] = [];
   page.on('request', (request) => {

@@ -43,6 +43,10 @@ const seededSchema = z.object({
   other: account,
   // A system administrator, signed in to `system`.
   system: account,
+  // An operator of `admin`'s tenant holding manage-tenant alone.
+  limited: account,
+  // A tenant administrator of a tenant of its own, whose settings a test changes.
+  overview: account,
 });
 
 export type Account = z.infer<typeof account>;
