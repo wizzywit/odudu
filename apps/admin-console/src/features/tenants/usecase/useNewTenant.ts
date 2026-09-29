@@ -154,12 +154,16 @@ export function useNewTenant(): NewTenant {
       const placed = fieldErrorsOf(failure.problem, fields);
       const [first] = fields;
       const other = placed.other.join(' ');
-      setErrors(
-        Object.keys(placed.fields).length === 0 && first !== undefined && other !== ''
-          ? { [first]: other }
-          : placed.fields,
-      );
-      setMessage(null);
+      if (Object.keys(placed.fields).length > 0) {
+        setErrors(placed.fields);
+        setMessage(null);
+      } else if (first !== undefined && other !== '') {
+        setErrors({ [first]: other });
+        setMessage(null);
+      } else {
+        setErrors({});
+        setMessage(other === '' ? failureMessage(what, failure, needed) : other);
+      }
       return;
     }
     setMessage(failureMessage(what, failure, needed));

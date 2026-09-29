@@ -248,6 +248,30 @@ it('names the capability of the one call the server refused, and reads whoami ag
   });
 });
 
+it('shows the detail of a grant refusal that names no field, as the page message', async () => {
+  sessionStorage.setItem(
+    KEY,
+    JSON.stringify({ owner: 'system/s0', creation: { ...HALFWAY, subjectId: SUBJECT_ID } }),
+  );
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    routes({
+      [`PUT ${ADMIN}/acme/subjects/${SUBJECT_ID}/roles`]: problem(409, 'about:blank', 'Conflict', {
+        detail: 'acme already holds every role tenant-admin carries',
+      }),
+    }),
+  );
+  const button = await screen.findByRole('button', { name: 'Continue' });
+  await waitFor(() => {
+    expect(button).toBeEnabled();
+  });
+  await user.click(button);
+  expect(
+    await screen.findByText('acme already holds every role tenant-admin carries'),
+  ).toBeVisible();
+});
+
 it('names view-users when the lookup for an unconfirmed administrator is refused', async () => {
   sessionStorage.setItem(KEY, JSON.stringify({ owner: 'system/s0', creation: HALFWAY }));
   const user = userEvent.setup();
