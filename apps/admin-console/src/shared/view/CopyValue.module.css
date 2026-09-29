@@ -16,6 +16,27 @@
   overflow-wrap: anywhere;
 }
 
+.copy[data-block] {
+  display: grid;
+  justify-items: start;
+}
+
+.block {
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-block-size: 24rem;
+  margin: 0;
+  padding: var(--space-3);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  color: var(--ink-primary);
+  background: var(--surface-sunken);
+  white-space: pre;
+}
+
 .outcome {
   font-family: var(--font-mono);
   font-size: var(--type-12);

@@ -12,10 +12,13 @@ export function CopyValue({
   label,
   value,
   short = false,
+  block = false,
 }: {
   label: string;
   value: string;
   short?: boolean;
+  // A document of several lines, shown as it is laid out.
+  block?: boolean;
 }) {
   const [outcome, setOutcome] = useState<Outcome>('idle');
 
@@ -46,18 +49,23 @@ export function CopyValue({
   };
 
   const shortened = short && value.length > SHORT_LENGTH;
+  let shown = (
+    <code className={styles.value}>
+      {shortened ? (
+        <>
+          <span aria-hidden="true">{`${value.slice(0, SHORT_LENGTH)}…`}</span>
+          <VisuallyHidden elementType="span">{value}</VisuallyHidden>
+        </>
+      ) : (
+        value
+      )}
+    </code>
+  );
+  if (block) shown = <pre className={styles.block}>{value}</pre>;
+  const Frame = block ? 'div' : 'span';
   return (
-    <span className={styles.copy}>
-      <code className={styles.value}>
-        {shortened ? (
-          <>
-            <span aria-hidden="true">{`${value.slice(0, SHORT_LENGTH)}…`}</span>
-            <VisuallyHidden elementType="span">{value}</VisuallyHidden>
-          </>
-        ) : (
-          value
-        )}
-      </code>
+    <Frame className={styles.copy} data-block={block || undefined}>
+      {shown}
       <Button size="small" variant="quiet" onPress={copy} aria-label={`Copy ${label}`}>
         Copy
       </Button>
@@ -65,6 +73,6 @@ export function CopyValue({
         {outcome === 'copied' ? `Copied ${label}` : null}
         {outcome === 'failed' ? `Could not copy ${label}` : null}
       </span>
-    </span>
+    </Frame>
   );
 }

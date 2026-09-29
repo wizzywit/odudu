@@ -59,6 +59,15 @@ it('shortens an id it shows, and copies it whole', async () => {
   expect(await navigator.clipboard.readText()).toBe(id);
 });
 
+it('shows a document on lines of its own, and copies it whole', async () => {
+  const user = userEvent.setup();
+  const document = '{\n  "issuer": "https://id.example.com/acme"\n}';
+  render(<CopyValue label="discovery document" value={document} block />);
+  expect(screen.getByText(/"issuer"/u).tagName).toBe('PRE');
+  await user.click(screen.getByRole('button', { name: 'Copy discovery document' }));
+  expect(await navigator.clipboard.readText()).toBe(document);
+});
+
 it('passes axe in both themes', async () => {
   expect(await axeInBothThemes(() => <CopyValue label="issuer" value={ISSUER} />)).toEqual({
     light: [],
