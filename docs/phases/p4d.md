@@ -1291,16 +1291,19 @@ Their styling is P4b's, whose criterion themes every page the server
 renders. `signin.spec.ts` holds the check as a `test.fixme`, to be switched
 on when it passes.
 
-**Owed by P4d's fourth part, with its first editing feature:** the e2e test
-of a session expiring mid-edit, which restores the draft after sign-in and
-saves nothing, and the `beforeunload` prompt a dirty section registers.
-Every area is still a placeholder, so no real section can be edited, and a
-fake one will not be built into the production app for the test.
-`signin.spec.ts` names the test as skipped, with that reason. What can be
-covered now is covered. The spec deletes the administrator's
-`console_sessions` row through psql, and the next navigation goes through
-`/console/auth/login` and comes back to the same page. The draft
-round-trip is covered by the component tests in `app/draftRestore.test.tsx`.
+**Owed by P4d's fourth part, with its first editing feature, and done
+there:** the e2e test of a session expiring mid-edit, which restores the
+draft after sign-in and saves nothing, and the `beforeunload` prompt a
+dirty section registers. When this part closed every area was still a
+placeholder, so the test waited, as a skip in `signin.spec.ts`, for a real
+section rather than a fake one built into the production app. Tenants
+brought one: "a session that ends mid-edit restores the draft after
+sign-in and saves nothing" in `apps/admin-console/e2e/tenants.spec.ts`
+edits a tenant's display name, deletes the principal's `console_sessions`
+row through psql, saves, comes back through `/console/auth/login` to the
+restored draft with nothing saved, and closes the page to the
+`beforeunload` prompt. The skip is gone. The draft round-trip is also
+covered by the component tests in `app/draftRestore.test.tsx`.
 
 Two seeded accounts are single-use per run, so `--repeat-each` fails on
 them by construction: the forced password change is spent once, and the

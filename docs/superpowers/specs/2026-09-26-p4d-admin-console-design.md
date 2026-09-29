@@ -887,12 +887,13 @@ a pushed commit and the review it attracted answered.
    Roles; Clients (about three); Scopes; Registration tokens; Sign-in flow;
    Signing keys; Settings and Email; Audit. Import and export came with
    Tenants, where import's `manage-tenants` puts it.
-   Part 3 left four things on this part: the e2e test of a session ending
-   mid-edit, which restores the draft and saves nothing, and the
-   `beforeunload` prompt a dirty section registers, both with the first
-   editing feature; route-level code splitting, once the feature routes
-   exist to split along; and §9's accessibility duties for every feature,
-   ending in the VoiceOver pass. The tenant shell also renders `whoami`'s
+   Part 3 left four things on this part. Two are done, with Tenants, the
+   first editing feature: the e2e test of a session ending mid-edit, which
+   restores the draft and saves nothing, and the `beforeunload` prompt a
+   dirty section registers, both in `apps/admin-console/e2e/tenants.spec.ts`
+   ("a session that ends mid-edit…"). Still owed are route-level code
+   splitting, once the feature routes exist to split along, and §9's
+   accessibility duties for every feature, ending in the VoiceOver pass. The tenant shell also renders `whoami`'s
    answer for a tenant that does not exist as a not-found page, since a
    system administrator reaches any well-formed tenant name. That answer
    is a plain `401`, not a `404`: the admin router refuses a tenant it
