@@ -15,6 +15,7 @@ import {
   issuerPreview,
   NAME_RULE,
   nameProblem,
+  SYSTEM_ADMINS_HREF,
   tenantHref,
   type Creation,
 } from '#/features/tenants/service.ts';
@@ -50,6 +51,8 @@ export interface AdministratorStep {
   readonly step: 'administrator';
   readonly tenant: string;
   readonly origin: Step<'administrator'>['origin'];
+  // system's administrators are the system administrators, managed elsewhere.
+  readonly systemAdminsHref: string | null;
   readonly issuer: string | null;
   readonly username: string;
   readonly email: string;
@@ -74,6 +77,7 @@ export interface DoneStep {
   readonly step: 'done';
   readonly tenant: string;
   readonly username: string;
+  readonly systemAdminsHref: string | null;
   readonly recordHref: string;
   readonly enterHref: string;
 }
@@ -81,6 +85,10 @@ export interface DoneStep {
 export interface NewTenant {
   readonly current: TenantStep | AdministratorStep | DoneStep;
   readonly startOver: () => void;
+}
+
+function systemAdminsOf(tenant: string): string | null {
+  return tenant === SYSTEM_TENANT ? SYSTEM_ADMINS_HREF : null;
 }
 
 function failureMessage(what: string, failure: GatewayFailure, needed: AdminCapability): string {
@@ -227,6 +235,7 @@ export function useNewTenant(): NewTenant {
         step: 'administrator',
         tenant: step.tenant,
         origin: step.origin,
+        systemAdminsHref: systemAdminsOf(step.tenant),
         issuer: issuerPreview(systemIssuer, step.tenant),
         username: step.username,
         email: step.email,
@@ -316,6 +325,7 @@ export function useNewTenant(): NewTenant {
       step: 'done',
       tenant: creation.tenant,
       username: creation.username,
+      systemAdminsHref: systemAdminsOf(creation.tenant),
       recordHref: tenantHref(creation.tenant),
       enterHref: enterHref(creation.tenant),
     },

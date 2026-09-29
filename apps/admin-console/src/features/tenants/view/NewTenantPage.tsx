@@ -106,8 +106,18 @@ function Administrator({ step }: { step: AdministratorStep }) {
   return (
     <>
       <p className={styles.lead}>
-        <code>{step.tenant}</code> {ORIGIN[step.origin]} The administrator is created with a
-        one-time password, shown once, and is asked to change it at their first sign-in.
+        {step.systemAdminsHref === null ? (
+          <>
+            <code>{step.tenant}</code> {ORIGIN[step.origin]}
+          </>
+        ) : (
+          <>
+            A system administrator holds tenant-admin in <code>system</code>, which carries every
+            capability and reaches every tenant.
+          </>
+        )}{' '}
+        The administrator is created with a one-time password, shown once, and is asked to change it
+        at their first sign-in.
       </p>
       <form noValidate onSubmit={submitted(step.submit)} className={styles.form}>
         {step.created ? (
@@ -169,6 +179,21 @@ function Administrator({ step }: { step: AdministratorStep }) {
 }
 
 function Done({ step, onStartOver }: { step: DoneStep; onStartOver: () => void }) {
+  if (step.systemAdminsHref !== null) {
+    return (
+      <div className={styles.form}>
+        <p className={styles.lead}>
+          <code>{step.username}</code> is a system administrator, holding tenant-admin in{' '}
+          <code>system</code>, and changes the one-time password at their first sign-in.
+        </p>
+        <div className={styles.actions}>
+          <ButtonLink href={step.systemAdminsHref} variant="primary">
+            Back to System administrators
+          </ButtonLink>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={styles.form}>
       <p className={styles.lead}>
@@ -191,12 +216,23 @@ function Done({ step, onStartOver }: { step: DoneStep; onStartOver: () => void }
 function Creation() {
   const { current, startOver } = useNewTenant();
   const at = current.step === 'tenant' ? 0 : current.step === 'administrator' ? 1 : 2;
+  const systemAdmins = current.step === 'tenant' ? null : current.systemAdminsHref;
   return (
     <>
       <PageHeader
-        kicker={<Link href={TENANTS_HREF}>Tenants</Link>}
+        kicker={
+          systemAdmins === null ? (
+            <Link href={TENANTS_HREF}>Tenants</Link>
+          ) : (
+            <Link href={systemAdmins}>System administrators</Link>
+          )
+        }
         title={
-          current.step === 'tenant' ? 'Create a tenant' : `First administrator of ${current.tenant}`
+          current.step === 'tenant'
+            ? 'Create a tenant'
+            : systemAdmins === null
+              ? `First administrator of ${current.tenant}`
+              : 'Add a system administrator'
         }
         description="Where it has got to is kept in this tab, so a reload carries on from the last request that landed."
         {...(current.step === 'administrator'
@@ -209,7 +245,7 @@ function Creation() {
             }
           : {})}
       />
-      <Steps at={at} />
+      {systemAdmins === null ? <Steps at={at} /> : null}
       {current.step === 'tenant' ? <Tenant step={current} /> : null}
       {current.step === 'administrator' ? <Administrator step={current} /> : null}
       {current.step === 'done' ? <Done step={current} onStartOver={startOver} /> : null}

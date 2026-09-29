@@ -287,3 +287,47 @@ it('asks only for what the steps still to run need, when a creation is resumed',
   });
   expect(screen.queryAllByRole('note')).toEqual([]);
 });
+
+it("adds a system administrator as system's own administrator, and leads back to them", async () => {
+  const user = userEvent.setup();
+  sessionStorage.setItem(
+    KEY,
+    JSON.stringify({ owner: 'system/s0', creation: { ...HALFWAY, tenant: 'system' } }),
+  );
+  renderConsoleAt(AT, systemRoutes(administratorRoutes('system', SUBJECT_ID, PASSWORD)));
+  expect(
+    await screen.findByRole('heading', { level: 1, name: 'Add a system administrator' }),
+  ).toBeVisible();
+  expect(
+    within(screen.getByRole('main')).getByRole('link', { name: 'System administrators' }),
+  ).toHaveAttribute('href', '/console/system/system-admins');
+  expect(screen.queryByRole('list', { name: 'Steps' })).toBeNull();
+  expect(screen.getByText(/reaches every tenant/u)).toBeVisible();
+  const button = screen.getByRole('button', { name: 'Create administrator' });
+  await waitFor(() => {
+    expect(button).toBeEnabled();
+  });
+  await user.click(button);
+  const dialog = await screen.findByRole('dialog', { name: "grace's one-time password" });
+  await user.click(within(dialog).getByRole('checkbox'));
+  await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+  expect(await screen.findByText(/is a system administrator/u)).toBeVisible();
+  expect(screen.getByRole('link', { name: 'Back to System administrators' })).toHaveAttribute(
+    'href',
+    '/console/system/system-admins',
+  );
+  expect(screen.queryByRole('link', { name: 'Enter system' })).toBeNull();
+});
+
+it('passes axe in both themes adding a system administrator', async () => {
+  expect(
+    await axeInBothThemes(at({ ...HALFWAY, tenant: 'system' }), () =>
+      screen.findByRole('heading', { level: 1, name: 'Add a system administrator' }),
+    ),
+  ).toEqual({ light: [], dark: [] });
+  expect(
+    await axeInBothThemes(at({ step: 'done', tenant: 'system', username: 'grace' }), () =>
+      screen.findByRole('link', { name: 'Back to System administrators' }),
+    ),
+  ).toEqual({ light: [], dark: [] });
+});
