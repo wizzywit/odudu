@@ -3,6 +3,7 @@ import { advance, type CursorTrail } from '#/shared/service/cursorTrail.ts';
 import type { ListSearch, ResourceListState } from '#/shared/service/resourceList.ts';
 import { current, dirtyFields, discard, edit, startDraft } from '#/shared/service/dirty.ts';
 import type { Toast } from '#/shared/service/toast.ts';
+import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
 import { AppShell } from '#/shared/view/AppShell.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
@@ -44,6 +45,7 @@ import {
   CLIENT_FIELDS,
   CLIENTS,
   CONFLICTS,
+  EVENTS,
   NOW,
   RAIL_GROUPS,
   REDIRECT_URIS,
@@ -317,10 +319,34 @@ function SubjectRecord() {
       tabs={[
         { id: 'profile', label: 'Profile', panel: <p>Claims and verification</p> },
         { id: 'roles', label: 'Roles', panel: <p>Roles held directly</p> },
-        { id: 'activity', label: 'Activity', panel: <p>Audit rows for ada</p> },
+        {
+          id: 'activity',
+          label: 'Activity',
+          panel: <ActivityTab list={listOf(EVENTS, 'c2')} noun="subject" now={NOW} />,
+        },
       ]}
     />
   );
+}
+
+function listOf<T>(rows: readonly T[], next: string | null): ResourceListState<T> {
+  return {
+    status: 'ready',
+    rows,
+    count: null,
+    search: null,
+    filters: {},
+    narrowed: false,
+    trail: [],
+    next,
+    loadingMore: false,
+    setSearch: NOTHING,
+    setFilter: NOTHING,
+    clear: NOTHING,
+    setTrail: NOTHING,
+    loadMore: NOTHING,
+    retry: NOTHING,
+  };
 }
 
 function Dialogs({ initial }: { initial: GalleryDialog | null }) {
@@ -533,6 +559,9 @@ export function Gallery({
                 onChange={() => undefined}
               />
             </Section>
+          </Specimen>
+          <Specimen label="ActivityTab: the audit trail for one record">
+            <ActivityTab list={listOf(EVENTS, 'c2')} noun="client" now={NOW} />
           </Specimen>
           <Specimen label="RecordPage: updated since you opened it">
             <SubjectRecord />

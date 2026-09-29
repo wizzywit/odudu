@@ -1,3 +1,4 @@
+import type { AuditEvent } from '@odudu/contracts/admin';
 import type { Conflict } from '#/shared/service/conflict.ts';
 import type { KeyValuePair } from '#/shared/view/Field.tsx';
 
@@ -122,5 +123,33 @@ export const CONFLICTS: readonly Conflict[] = [
     theirs: 900,
     yours: 600,
     secret: false,
+  },
+];
+
+const EVENT: AuditEvent = {
+  id: 'a1',
+  occurred_at: '2026-09-28T13:41:05Z',
+  event_type: 'admin_mutation',
+  action: 'client.update',
+  outcome: 'allowed',
+  actor_tenant_id: 't1',
+  actor_subject_id: '0192f7a4-9e21-7d40-8c3b-5a6f1e2d3c4b',
+  actor_client_id: null,
+  resource_type: 'client',
+  resource_id: '0192f7a4-5c1e-7b3a-9d2e-6f8a1b2c3d4e',
+  request_id: '7f3a9c1e-2b4d-4e6f-8a0b-1c2d3e4f5a6b',
+  ip: '203.0.113.9',
+  detail: {},
+};
+
+export const EVENTS: readonly AuditEvent[] = [
+  EVENT,
+  { ...EVENT, id: 'a2', occurred_at: '2026-09-28T12:02:40Z', outcome: 'refused' },
+  {
+    ...EVENT,
+    id: 'a3',
+    occurred_at: '2026-09-21T08:12:44Z',
+    action: 'client.create',
+    request_id: null,
   },
 ];

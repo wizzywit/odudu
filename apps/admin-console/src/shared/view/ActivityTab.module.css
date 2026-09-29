@@ -1,0 +1,14 @@
+.activity {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.note {
+  max-inline-size: 68ch;
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+}
+
+.none {
+  color: var(--ink-muted);
+}
