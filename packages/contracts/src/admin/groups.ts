@@ -33,8 +33,8 @@ export type CreateGroupRequest = z.infer<typeof createGroupRequestSchema>;
 
 // `parent_id` is the only field a general amendment reaches: reparenting,
 // through groupRepository.reparent, which is what recomputes `path` for
-// the group and every descendant and refuses a cycle. `name` and `path`
-// have no amendment door of their own yet — see group-patch.ts.
+// the group and every descendant and refuses a cycle. `name` is never
+// amended, by ADR 0039, and `path` follows from it and the parent.
 export const amendGroupRequestSchema = z.record(z.string(), z.unknown());
 export type AmendGroupRequest = z.infer<typeof amendGroupRequestSchema>;
 

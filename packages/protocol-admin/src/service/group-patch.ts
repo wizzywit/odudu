@@ -9,7 +9,7 @@ export const GROUP_FIELDS: readonly string[] = Object.keys(groupSchema.shape);
 
 const REFUSALS: Readonly<Record<string, string>> = {
   id: 'identity: changing it breaks every group_roles and subject_groups edge naming this group',
-  name: 'name is embedded in every descendant path; renaming it needs its own operation, not a general amendment',
+  name: 'name is embedded in every descendant path and in the groups claim a relying party matches on; a rename is not offered, by ADR 0039: create a new group and move its members',
   // `parent_id` is amended through `groupRepository.reparent`
   // (@odudu/domain-authz), the same write reparenting has always used —
   // never a plain column set, since it is what recomputes `path` for this

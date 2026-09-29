@@ -9,7 +9,7 @@ export const SCOPE_FIELDS: readonly string[] = Object.keys(clientScopeSchema.sha
 
 const REFUSALS: Readonly<Record<string, string>> = {
   id: 'identity: changing it breaks every client_scope_assignments and client_scope_roles edge naming this scope',
-  name: 'name is the scope token a client requests and a token carries; renaming it needs its own operation, not a general amendment',
+  name: 'name is the scope token a client requests and a token carries; a rename is not offered, by ADR 0039: create a new scope and assign it instead',
   created_at: 'created_at is history',
 };
 

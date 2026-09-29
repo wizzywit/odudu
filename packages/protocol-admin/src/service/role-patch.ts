@@ -9,7 +9,7 @@ export const ROLE_FIELDS: readonly string[] = Object.keys(roleSchema.shape);
 
 const REFUSALS: Readonly<Record<string, string>> = {
   id: 'identity: changing it breaks every subject_roles and role_composites edge naming this role',
-  name: 'name is what a token qualifies into a capability string; renaming it needs its own operation, not a general amendment',
+  name: 'name is what a token qualifies into a capability string, and what a relying party matches the roles claim on; a rename is not offered, by ADR 0039: create a new role and move its assignments',
   client_id:
     'client_id decides whether this role is tenant-wide or scoped to one client; changing it after creation needs its own operation',
   default_for_new_subjects:

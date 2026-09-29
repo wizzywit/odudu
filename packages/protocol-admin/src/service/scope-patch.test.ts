@@ -37,4 +37,10 @@ describe('the client scope amendment allowlist', () => {
       expect(known, field).toBe(true);
     }
   });
+  it('refuses a rename as permanent, pointing at no operation that could do it', () => {
+    const reason = refusalFor('name');
+    expect(reason).toContain('ADR 0039');
+    expect(reason).toMatch(/is not offered/u);
+    expect(reason).not.toMatch(/own operation/u);
+  });
 });
