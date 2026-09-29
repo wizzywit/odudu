@@ -106,7 +106,12 @@ async function seedSession(
   tenantId: string,
   subjectId: string,
   client: ClientRecord,
-  options: { lastActiveAt?: Date; remembered?: boolean; offlineGrant?: boolean } = {},
+  options: {
+    lastActiveAt?: Date;
+    remembered?: boolean;
+    offlineGrant?: boolean;
+    sessionless?: boolean;
+  } = {},
 ): Promise<SeededSession> {
   return withTenant(fixture.app.db, tenantId, async (tx) => {
     const now = fixture.clock.now();
@@ -132,9 +137,9 @@ async function seedSession(
       tenantId,
       clientId: client.id,
       subjectId,
-      scope: 'openid',
+      scope: options.offlineGrant === true ? 'openid offline_access' : 'openid',
       audience: [],
-      sessionId: options.offlineGrant === true ? null : sessionId,
+      sessionId: options.offlineGrant === true || options.sessionless === true ? null : sessionId,
     });
     return { sessionId, grantId };
   });
@@ -326,6 +331,24 @@ describe('GET /subjects/:id/grants and DELETE /subjects/:id/grants/:clientId', (
     expect(after.json<{ items: { id: string }[] }>().items.map((item) => item.id)).toEqual([
       elsewhere.grantId,
     ]);
+  });
+
+  it('marks offline only a grant carrying offline_access, not any grant with no session', async () => {
+    const t = await fixture.createTenant(`gr-${newId()}`);
+    const client = await withTenant(fixture.app.db, t.id, (tx) => seedClient(tx, t.id));
+    const ada = await seedUser(t.id, 'ada');
+    const offline = await seedSession(t.id, ada, client, { offlineGrant: true });
+    const sessionless = await seedSession(t.id, ada, client, { sessionless: true });
+    const token = await fixture.adminToken(t.name, ['manage-sessions']);
+
+    const items = (await call('GET', t.name, token, `subjects/${ada}/grants`)).json<{
+      items: { id: string; offline: boolean; session_id: string | null }[];
+    }>().items;
+    expect(items.find((item) => item.id === offline.grantId)?.offline).toBe(true);
+    expect(items.find((item) => item.id === sessionless.grantId)).toMatchObject({
+      offline: false,
+      session_id: null,
+    });
   });
 
   it('refuses a caller below the subject’s capabilities, with a refused row', async () => {

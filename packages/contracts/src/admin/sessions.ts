@@ -54,8 +54,9 @@ export const endTenantSessionsResponseSchema = z.object({
 });
 export type EndTenantSessionsResponse = z.infer<typeof endTenantSessionsResponseSchema>;
 
-// A token grant a subject still holds: `offline` when no session bounds it,
-// which ending sessions leaves alone. `refresh_expires_at` is when its
+// A token grant a subject still holds: `offline` when its scope carries
+// `offline_access`, which ending sessions leaves alone. A grant can be bound
+// to no session without being offline: a `client_credentials` token's is. `refresh_expires_at` is when its
 // newest unspent refresh token lapses, null when it has none.
 export const grantSchema = z.object({
   id: idSchema,

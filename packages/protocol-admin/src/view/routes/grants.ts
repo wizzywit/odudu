@@ -32,7 +32,7 @@ function grantWireShape(view: GrantView): Grant {
     scope: view.scope,
     created_at: view.createdAt.toISOString(),
     session_id: view.sessionId,
-    offline: view.sessionId === null,
+    offline: view.scope.split(' ').includes('offline_access'),
     refresh_expires_at: view.refreshExpiresAt?.toISOString() ?? null,
   };
 }

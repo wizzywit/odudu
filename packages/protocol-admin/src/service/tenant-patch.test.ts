@@ -28,4 +28,8 @@ describe('the tenant amendment allowlist', () => {
     expect(reason).toMatch(/is not offered/u);
     expect(reason).not.toMatch(/own operation/u);
   });
+
+  it('says what to do instead of a rename', () => {
+    expect(refusalFor('name')).toContain('export this one and import it under the new name');
+  });
 });

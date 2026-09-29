@@ -513,8 +513,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: listGrantsResponseSchema,
     querystringSchema: cursorQuerySchema,
     description:
-      'Every grant the subject holds that nothing has revoked, session-bound or offline: ' +
-      '`offline` is true for an `offline_access` grant, which ending sessions leaves alone. ' +
+      'Every grant the subject holds that nothing has revoked, session-bound or not: ' +
+      '`offline` is true for a grant whose scope carries `offline_access`, which ending ' +
+      'sessions leaves alone; a `client_credentials` grant has no session and is not offline. ' +
       'Never a token.',
   },
   {

@@ -9,7 +9,7 @@ export const TENANT_FIELDS: readonly string[] = Object.keys(tenantSchema.shape);
 
 const REFUSALS: Readonly<Record<string, string>> = {
   id: 'identity: changing it orphans every row in the tenant and every cursor minted against it',
-  name: 'name is already in the issuer URL of every token this tenant has minted, and in the path of every admin and protocol request addressed to it; a rename is not offered, by ADR 0039',
+  name: 'name is already in the issuer URL of every token this tenant has minted, and in the path of every admin and protocol request addressed to it; a rename is not offered, by ADR 0039: create a new tenant, export this one and import it under the new name',
   created_at: 'created_at is history',
 };
 
