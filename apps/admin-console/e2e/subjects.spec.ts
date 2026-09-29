@@ -218,10 +218,10 @@ test('a subject’s details are entered through typed fields and stored as the c
   const birthdate = details.getByRole('group', { name: 'Birthdate' });
   await birthdate.getByText('Year only', { exact: true }).click();
   await birthdate.getByRole('textbox', { name: 'Year' }).fill('1990');
-  await details.getByRole('combobox', { name: 'Time zone' }).fill('Lagos');
+  await details.getByRole('combobox', { name: 'Time zone' }).pressSequentially('Lagos');
   await page.getByRole('option', { name: 'Africa/Lagos' }).click();
   await expectAccessible(page);
-  await details.getByRole('combobox', { name: 'Locale' }).fill('English (Nig');
+  await details.getByRole('combobox', { name: 'Locale' }).pressSequentially('English (Nig');
   await page.getByRole('option', { name: 'English (Nigeria)' }).click();
   await page.getByRole('button', { name: 'Save Details' }).click();
   await expect(page.getByRole('button', { name: 'Save Details' })).toHaveCount(0);
@@ -231,7 +231,7 @@ test('a subject’s details are entered through typed fields and stored as the c
   expect(userColumn(username, 'locale')).toBe('en-NG');
 
   const address = page.getByRole('region', { name: 'Address' });
-  await address.getByRole('combobox', { name: 'Country' }).fill('Germ');
+  await address.getByRole('combobox', { name: 'Country' }).pressSequentially('Germ');
   await page.getByRole('option', { name: 'Germany' }).click();
   await page.getByRole('button', { name: 'Save Address' }).click();
   await expect(page.getByRole('button', { name: 'Save Address' })).toHaveCount(0);
