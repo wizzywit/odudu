@@ -30,7 +30,7 @@ describe('PhoneField', () => {
     await user.click(await screen.findByRole('option', { name: 'Nigeria' }));
     await user.type(within(group).getByRole('textbox', { name: 'Number' }), '0803 123 4567');
     expect(stored()).toBe('+2348031234567');
-    expect(group).toHaveTextContent('Stored as +2348031234567');
+    expect(group).toHaveTextContent('Stored as +2348031234567, which reads +234 803 123 4567.');
   });
 
   it('opens a stored number under its country', () => {
@@ -57,6 +57,24 @@ describe('PhoneField', () => {
     expect(number).toHaveAttribute('aria-invalid', 'true');
     expect(number).toHaveAccessibleDescription(/Use digits only/u);
     expect(screen.getByRole('combobox', { name: 'Country' })).not.toHaveAttribute('aria-invalid');
+  });
+
+  it('judges nothing while a calling code is still being typed', async () => {
+    const user = userEvent.setup();
+    render(<Controlled />);
+    const number = screen.getByRole('textbox', { name: 'Number' });
+    await user.type(number, '+23');
+    expect(number).not.toHaveAttribute('aria-invalid');
+  });
+
+  it('says on the number when it is too short for its country', async () => {
+    const user = userEvent.setup();
+    render(<Controlled start="+2348031234567" />);
+    const number = screen.getByRole('textbox', { name: 'Number' });
+    await user.clear(number);
+    await user.type(number, '0803');
+    expect(number).toHaveAttribute('aria-invalid', 'true');
+    expect(number).toHaveAccessibleDescription(/Too short for a phone number in this country\./u);
   });
 
   it('reads a pasted international number for its country', async () => {
@@ -107,7 +125,7 @@ describe('PhoneField', () => {
       </ReadOnlyFields>,
     );
     expect(screen.queryByRole('textbox')).toBeNull();
-    expect(screen.getByText('+2348031234567')).toBeInTheDocument();
+    expect(screen.getByText('+234 803 123 4567')).toBeInTheDocument();
   });
 
   it('passes axe in both themes', async () => {

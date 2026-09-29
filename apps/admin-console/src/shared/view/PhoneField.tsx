@@ -1,13 +1,16 @@
 import { use, useMemo, useState } from 'react';
 import { useLocale } from 'react-aria-components';
 import {
+  callingCodeOf,
   composePhone,
+  formatPhone,
   phoneProblem,
   phoneProblemPart,
   readTypedNumber,
   splitPhone,
+  typingInternational,
 } from '#/shared/service/phone.ts';
-import { callingCodeOf, countryOptions } from '#/shared/service/regions.ts';
+import { countryOptions } from '#/shared/service/regions.ts';
 import { ComboBoxField, type ComboOption } from '#/shared/view/ComboBoxField.tsx';
 import {
   FieldGroup,
@@ -52,7 +55,9 @@ export function PhoneField({
     current = { value, ...splitPhone(value, typed.region) };
     setTyped(current);
   }
-  if (readOnly) return <ReadOnlyValue label={label} value={value} mono changed={changed} />;
+  if (readOnly) {
+    return <ReadOnlyValue label={label} value={formatPhone(value)} mono changed={changed} />;
+  }
   const change = (region: string | null, national: string, extension = current.extension): void => {
     const pasted = readTypedNumber(national);
     const parts = pasted ?? { region, national };
@@ -60,10 +65,19 @@ export function PhoneField({
     setTyped({ value: next, region: parts.region, national: parts.national, extension });
     if (next !== value) onChange(next);
   };
-  const problem = phoneProblem(current.region, current.national);
+  const typing = typingInternational(current.national);
+  const problem = typing ? null : phoneProblem(current.region, current.national);
   // The server's own error is about the number as a whole, so the number carries it.
-  const part = error === undefined ? phoneProblemPart(current.region, current.national) : 'number';
-  const preview = problem === null && value !== '' ? `Stored as ${value}.` : null;
+  const part =
+    error !== undefined
+      ? 'number'
+      : typing
+        ? null
+        : phoneProblemPart(current.region, current.national);
+  const preview =
+    problem === null && value !== '' && !typing
+      ? `Stored as ${value}, which reads ${formatPhone(value)}.`
+      : null;
   return (
     <FieldGroup
       label={label}

@@ -79,14 +79,15 @@ module.exports = {
       comment:
         'A console service is pure: it imports other services, its own or shared/service, and ' +
         '@odudu/contracts, and nothing else. A feature index.ts is refused too, since it ' +
-        'reaches views and usecases, and through them the stores.',
+        'reaches views and usecases, and through them the stores. libphonenumber-js is admitted ' +
+        'as the one pure library a service computes with: numbering plans are data, not I/O.',
       from: {
         path: '(^|/)apps/admin-console/src/(?:service|.*/service)(?:/|\\.tsx?$)',
         pathNot: '\\.test\\.tsx?$',
       },
       to: {
         pathNot:
-          '(^|/)apps/admin-console/src/(?:service|.*/service)(?:/|\\.tsx?$)|(^|/)packages/contracts/',
+          '(^|/)apps/admin-console/src/(?:service|.*/service)(?:/|\\.tsx?$)|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
       },
     },
     {

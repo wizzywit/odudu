@@ -1,29 +1,30 @@
 import { isValidE164 } from '@odudu/contracts';
 import { describe, expect, it } from 'vitest';
 import {
+  callingCodeOf,
   composePhone,
+  formatPhone,
   phoneProblem,
   phoneProblemPart,
+  phoneRegions,
   readTypedNumber,
   splitPhone,
+  typingInternational,
 } from '#/shared/service/phone.ts';
 
 describe('splitPhone', () => {
-  it('finds the country by the longest calling code', () => {
+  it('finds the country a stored number belongs to', () => {
     expect(splitPhone('+2348031234567')).toEqual({
       region: 'NG',
       national: '8031234567',
       extension: null,
     });
-  });
-
-  it('names the usual country of a shared code', () => {
-    expect(splitPhone('+14155550100').region).toBe('US');
+    expect(splitPhone('+14165550100').region).toBe('CA');
     expect(splitPhone('+447700900123').region).toBe('GB');
   });
 
   it('keeps the country chosen before when it shares the code', () => {
-    expect(splitPhone('+14165550100', 'CA').region).toBe('CA');
+    expect(splitPhone('+14155550100', 'CA').region).toBe('CA');
     expect(splitPhone('+2348031234567', 'CA').region).toBe('NG');
   });
 
@@ -41,17 +42,28 @@ describe('splitPhone', () => {
   });
 });
 
-describe('composePhone', () => {
-  it('writes E.164 from a country and a number as it is dialled at home', () => {
-    expect(composePhone('NG', '0803 123 4567', null)).toBe('+2348031234567');
+describe('composePhone, from a number dialled at home', () => {
+  it.each([
+    ['US', '1 (415) 555-0100', '+14155550100'],
+    ['US', '(415) 555-0100', '+14155550100'],
+    ['RU', '8 916 123-45-67', '+79161234567'],
+    ['RU', '800 555 35 35', '+78005553535'],
+    ['HU', '06 30 123 4567', '+36301234567'],
+    ['LT', '8 612 34567', '+37061234567'],
+    ['LT', '800 12345', '+37080012345'],
+    ['TJ', '88 123 4567', '+992881234567'],
+    ['UZ', '88 123 45 67', '+998881234567'],
+    ['CG', '06 612 3456', '+242066123456'],
+    ['GA', '06 12 34 56', '+24106123456'],
+    ['NG', '0803 123 4567', '+2348031234567'],
+    ['IT', '06 1234 5678', '+390612345678'],
+  ])('stores %s %s as %s, which the server takes', (region, national, stored) => {
+    expect(composePhone(region, national, null)).toBe(stored);
+    expect(isValidE164(stored)).toBe(true);
+  });
+
+  it('adds an extension, and stores nothing for an empty number', () => {
     expect(composePhone('US', '(415) 555-0100', '12')).toBe('+14155550100;ext=12');
-  });
-
-  it('keeps the leading 0 where it is part of the number', () => {
-    expect(composePhone('IT', '06 1234 5678', null)).toBe('+390612345678');
-  });
-
-  it('stores nothing for an empty number, and the text as typed with no country', () => {
     expect(composePhone('NG', '', null)).toBe('');
     expect(composePhone(null, '555-2671', null)).toBe('555-2671');
   });
@@ -61,10 +73,6 @@ describe('composePhone', () => {
       const { region, national, extension } = splitPhone(value);
       expect(composePhone(region, national, extension)).toBe(value);
     }
-  });
-
-  it('produces what the server accepts as E.164', () => {
-    expect(isValidE164(composePhone('GB', '07700 900123', null))).toBe(true);
   });
 });
 
@@ -76,37 +84,21 @@ describe('phoneProblem', () => {
 
   it('asks for the country of a number without one', () => {
     expect(phoneProblem(null, '8031234567')).toBe('Choose the country the number is in.');
+    expect(phoneProblemPart(null, '8031234567')).toBe('region');
   });
 
-  it('refuses letters, and more digits than E.164 holds', () => {
+  it('refuses a number too short or too long for its country', () => {
+    expect(phoneProblem('NG', '0803')).toBe('Too short for a phone number in this country.');
+    expect(phoneProblem('TJ', '8 88 123 4567')).toBe(
+      'Too long for a phone number in this country.',
+    );
+    expect(phoneProblemPart('NG', '0803')).toBe('number');
+  });
+
+  it('refuses letters', () => {
     expect(phoneProblem('NG', '0803-CALL-ME')).toBe(
       'Use digits only; spaces, dashes, dots and brackets are ignored.',
     );
-    expect(phoneProblem('NG', '1234567890123456')).toBe(
-      'Too long: a phone number has at most 15 digits, country code included.',
-    );
-  });
-});
-
-describe('the national trunk prefix', () => {
-  it.each([
-    ['US', '1 (415) 555-0100', '+14155550100'],
-    ['CA', '1-416-555-0100', '+14165550100'],
-    ['US', '(415) 555-0100', '+14155550100'],
-    ['RU', '8 916 123-45-67', '+79161234567'],
-    ['KZ', '8 701 123 4567', '+77011234567'],
-    ['BY', '8 029 123 45 67', '+375291234567'],
-    ['HU', '06 30 123 4567', '+36301234567'],
-    ['GB', '07700 900123', '+447700900123'],
-    ['NG', '0803 123 4567', '+2348031234567'],
-    ['IT', '06 1234 5678', '+390612345678'],
-  ])('is dropped as %s dials it at home: %s', (region, national, stored) => {
-    expect(composePhone(region, national, null)).toBe(stored);
-  });
-
-  it('is left on a number already written without it', () => {
-    expect(composePhone('RU', '916 123-45-67', null)).toBe('+79161234567');
-    expect(composePhone('HU', '30 123 4567', null)).toBe('+36301234567');
   });
 });
 
@@ -115,12 +107,29 @@ describe('an international number typed into the number', () => {
     expect(readTypedNumber('+234 803 123 4567')).toEqual({ region: 'NG', national: '8031234567' });
     expect(readTypedNumber('0803 123 4567')).toBeNull();
   });
+
+  it('is left alone, and unjudged, while its calling code is still being typed', () => {
+    expect(typingInternational('+2')).toBe(true);
+    expect(typingInternational('+23')).toBe(true);
+    expect(typingInternational('+2a')).toBe(false);
+    expect(typingInternational('0803')).toBe(false);
+  });
 });
 
-describe('phoneProblem names the part that is wrong', () => {
-  it('points at the country or at the number', () => {
-    expect(phoneProblemPart(null, '8031234567')).toBe('region');
-    expect(phoneProblemPart('NG', '0803-CALL-ME')).toBe('number');
-    expect(phoneProblemPart('NG', '0803 123 4567')).toBeNull();
+describe('formatPhone', () => {
+  it('writes a stored number as it is read aloud', () => {
+    expect(formatPhone('+2348031234567')).toBe('+234 803 123 4567');
+    expect(formatPhone('+14155550100;ext=12')).toBe('+1 415 555 0100 ext. 12');
+    expect(formatPhone('555-2671')).toBe('555-2671');
+  });
+});
+
+describe('phoneRegions', () => {
+  it('names the calling code of every region a number can be in', () => {
+    expect(callingCodeOf('NG')).toBe('234');
+    expect(callingCodeOf('US')).toBe('1');
+    expect(callingCodeOf('AQ')).toBeNull();
+    expect(phoneRegions()).toContain('NG');
+    expect(phoneRegions()).not.toContain('AQ');
   });
 });
