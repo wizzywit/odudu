@@ -327,11 +327,11 @@ it('changes nothing for a holder who holds it only through a group or another ro
   await user.type(within(dialog).getByRole('textbox'), 'ada{Enter}');
   const alert = await within(dialog).findByRole('alert');
   expect(alert).toHaveTextContent(
-    'Nothing was changed: ada holds manage-tenants only through a group or a role that nests it. Change it on ada’s Groups and Roles tabs, under Subjects.',
+    'Nothing was changed: ada holds manage-tenants only through a group or a role that nests it. Change that group or role from ada’s record.',
   );
-  expect(within(alert).getByRole('link', { name: 'Subjects' })).toHaveAttribute(
+  expect(within(alert).getByRole('link', { name: 'ada’s record' })).toHaveAttribute(
     'href',
-    '/console/system/subjects',
+    '/console/system/subjects/s-ada',
   );
   expect(sent.some((s) => s.method === 'PUT')).toBe(false);
   // Pressing it again would change nothing again.

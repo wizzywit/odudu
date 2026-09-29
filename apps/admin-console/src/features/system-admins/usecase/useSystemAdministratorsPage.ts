@@ -6,7 +6,8 @@ import {
   useRefusal,
   useRereadAuthority,
 } from '#/features/session/index.ts';
-import { areaAt, areaHref, holds } from '#/features/shell/index.ts';
+import { holds } from '#/features/shell/index.ts';
+import { subjectHref } from '#/features/subjects/index.ts';
 import { useAdministratorChange } from '#/features/system-admins/repository/useAdministratorChange.ts';
 import { useSubjectPicker } from '#/features/system-admins/repository/useSubjectPicker.ts';
 import {
@@ -36,7 +37,7 @@ import type { ResourceListState } from '#/shared/service/resourceList.ts';
 export type RevokeProblem =
   | { readonly kind: 'refused'; readonly text: string }
   // Held only indirectly; the subject's own tabs are where it can be changed.
-  | { readonly kind: 'not-direct'; readonly name: string; readonly subjectsHref: string };
+  | { readonly kind: 'not-direct'; readonly name: string; readonly subjectHref: string };
 
 export interface RevokeDialog {
   readonly title: string;
@@ -90,8 +91,6 @@ function refusalText(name: string, verb: string, refused: Refused): string {
     }
   }
 }
-
-const SUBJECTS_HREF = areaHref(SYSTEM_TENANT, areaAt('subjects'));
 
 export function useSystemAdministratorsPage(): SystemAdministrators {
   const principal = usePrincipal();
@@ -190,7 +189,11 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
             return;
           }
           if (outcome.kind === 'not-direct') {
-            setProblem({ kind: 'not-direct', name, subjectsHref: SUBJECTS_HREF });
+            setProblem({
+              kind: 'not-direct',
+              name,
+              subjectHref: subjectHref(SYSTEM_TENANT, target.id),
+            });
             return;
           }
           setTarget(null);

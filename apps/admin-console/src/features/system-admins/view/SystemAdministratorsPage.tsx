@@ -121,8 +121,8 @@ function Problem({ problem }: { problem: RevokeProblem }) {
   if (problem.kind === 'refused') return problem.text;
   return (
     <>
-      {`Nothing was changed: ${problem.name} holds manage-tenants only through a group or a role that nests it. Change it on ${problem.name}’s Groups and Roles tabs, under `}
-      <Link href={problem.subjectsHref}>Subjects</Link>.
+      {`Nothing was changed: ${problem.name} holds manage-tenants only through a group or a role that nests it. Change that group or role from `}
+      <Link href={problem.subjectHref}>{`${problem.name}’s record`}</Link>.
     </>
   );
 }
