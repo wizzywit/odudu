@@ -29,17 +29,18 @@ Whether a refusal becomes a row is decided by what the refused request
 **names**, and a row is written only where something bounds how many a
 caller can cause:
 
-| Refusal                                                                  | Row                     | What bounds it                                                  |
-| ------------------------------------------------------------------------ | ----------------------- | --------------------------------------------------------------- |
-| Login failure: bad credential, locked out, unknown subject               | yes                     | the per-IP throttle on `login-actions/authenticate`             |
-| Client authentication failure naming a **registered** client, any method | yes, while under budget | `auditRefusalBudget`, below                                     |
-| Client authentication failure naming an **unregistered** `client_id`     | no, a `warn` line       | nothing needed: no row                                          |
-| Refusal after the client authenticated                                   | yes, while under budget | `auditRefusalBudget`: a public client proves nothing but a name |
-| Admin `401`                                                              | no, a `warn` line       | nothing needed                                                  |
-| Admin `403` to an authenticated caller                                   | yes                     | the caller is authenticated, and the row names it               |
-| Admin `409` guarding the built-in admin surface (amendment, 2026-09-28)  | yes                     | the caller is authenticated, and the row names it               |
-| Foreign-issuer admin token, signature valid                              | yes                     | the caller holds a genuine token, and the row names its subject |
-| Foreign-issuer admin token, forged or issuer not served here             | no, a `warn` line       | nothing needed                                                  |
+| Refusal                                                                             | Row                                          | What bounds it                                                  |
+| ----------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------- |
+| Login failure: bad credential, locked out, unknown subject                          | yes                                          | the per-IP throttle on `login-actions/authenticate`             |
+| Client authentication failure naming a **registered** client, any method            | yes, while under budget                      | `auditRefusalBudget`, below                                     |
+| Client authentication failure naming an **unregistered** `client_id`                | no, a `warn` line                            | nothing needed: no row                                          |
+| Refusal after the client authenticated                                              | yes, while under budget                      | `auditRefusalBudget`: a public client proves nothing but a name |
+| Admin `401`                                                                         | no, a `warn` line                            | nothing needed                                                  |
+| Admin `403` to an authenticated caller                                              | yes                                          | the caller is authenticated, and the row names it               |
+| Admin `409` guarding the built-in admin surface (amendment, 2026-09-28)             | yes                                          | the caller is authenticated, and the row names it               |
+| A subject a tenant-wide admin door leaves beyond the ceiling (ADR 0040, 2026-09-30) | no refused row; counted on the `allowed` row | the one row the door writes carries the count                   |
+| Foreign-issuer admin token, signature valid                                         | yes                                          | the caller holds a genuine token, and the row names its subject |
+| Foreign-issuer admin token, forged or issuer not served here                        | no, a `warn` line                            | nothing needed                                                  |
 
 `auditRefusalBudget` is an in-memory sliding window keyed on
 `(tenant, client)`, built from the same `slidingWindow` helper as the

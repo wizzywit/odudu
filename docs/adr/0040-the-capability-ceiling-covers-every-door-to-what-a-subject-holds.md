@@ -81,3 +81,23 @@ and inside a savepoint, under a per-tenant lock taken before anything else,
 so two concurrent removals cannot each leave the other as the last. A
 tenant with no holder to begin with is not refused: there is nothing to
 lose. Every new door to these rows is reviewed against this list too.
+
+## Amendment, 2026-09-30 — doors over the whole tenant
+
+Three doors act on every subject of a tenant at once rather than one:
+`DELETE …/sessions`, `DELETE …/lockouts` and `DELETE …/clients/{id}/grants`.
+Each is held to the target ceiling as a set: `subjectsBeyond`
+(`service/capability-ceiling.ts`) is the only computation of it, the union of
+every holder of an admin capability the caller lacks, excluded from the write
+in the same statement that makes it. A subject it excludes is not refused but
+**left as it was and counted**, under `beyond_ceiling` in the response and in
+the one `allowed` row the door writes; the lockout clear's row also names the
+subjects it cleared. The subjects skipped are exactly those the per-subject
+door would refuse, so nothing the single door forbids is reached.
+
+Refusing the whole request instead was rejected. Every tenant has a holder of
+`tenant-admin`, so a refusal would leave these doors to callers holding every
+capability, which is the opposite of what `manage-sessions` exists for in an
+incident. Who was left alone stays readable through the doors the caller
+already has: `GET …/sessions`, `?locked=true` and `GET …/subjects/{id}/grants`.
+A new door over the whole tenant takes this outcome, not a refusal.
