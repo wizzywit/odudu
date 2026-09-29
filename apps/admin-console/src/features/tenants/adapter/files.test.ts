@@ -16,10 +16,12 @@ it('saves text as a file under the name given, and lets the object URL go after'
   const revoke = vi.fn();
   vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }));
   const clicked: HTMLAnchorElement[] = [];
+  const attached: boolean[] = [];
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
     this: HTMLAnchorElement,
   ) {
     clicked.push(this);
+    attached.push(this.isConnected);
   });
 
   saveFile('acme-2026-09-29.odudu-tenant.json', '{"ü":"𝄞"}', 'application/vnd.odudu.tenant+json');
@@ -27,11 +29,14 @@ it('saves text as a file under the name given, and lets the object URL go after'
   expect(clicked).toHaveLength(1);
   expect(clicked[0]?.download).toBe('acme-2026-09-29.odudu-tenant.json');
   expect(clicked[0]?.href).toBe('blob:http://localhost/1');
+  expect(attached).toEqual([true]);
   expect(clicked[0]?.isConnected).toBe(false);
   expect(made[0]?.type).toBe('application/vnd.odudu.tenant+json');
   expect(await made[0]?.text()).toBe('{"ü":"𝄞"}');
   expect(revoke).not.toHaveBeenCalled();
-  await vi.runAllTimersAsync();
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(revoke).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(60_000);
   expect(revoke).toHaveBeenCalledWith('blob:http://localhost/1');
 });
 
