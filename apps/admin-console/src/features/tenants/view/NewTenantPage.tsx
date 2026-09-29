@@ -7,13 +7,14 @@ import {
   type TenantStep,
 } from '#/features/tenants/usecase/useNewTenant.ts';
 import {
-  addAdministratorTitle,
+  administratorTitle,
   flowOf,
   systemAdminsTrail,
   tenantAdministratorTrail,
   tenantsTrail,
   type CreationFlow,
 } from '#/features/tenants/service.ts';
+import { useAdministratorTitle } from '#/features/tenants/usecase/useAdministratorTitle.ts';
 import { ReplaceUnfinished } from '#/features/tenants/view/ReplaceUnfinished.tsx';
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
 import { Button } from '#/shared/view/Button.tsx';
@@ -225,17 +226,15 @@ function Creation({ flow }: { flow: CreationFlow }) {
   const { current, startOver, replacing, replace, keep } = useNewTenant(flow);
   const at = current.step === 'tenant' ? 0 : current.step === 'administrator' ? 1 : 2;
   const systemAdmins = current.step === 'tenant' ? null : current.systemAdminsHref;
-  // A created or imported tenant has no administrator yet, so this is its first.
-  const first =
-    flow === 'tenant' || (current.step === 'administrator' && current.origin !== 'existing');
   const title =
     current.step === 'tenant'
       ? 'Create a tenant'
       : systemAdmins !== null
         ? 'Add a system administrator'
-        : first
-          ? `First administrator of ${current.tenant}`
-          : addAdministratorTitle(current.tenant);
+        : administratorTitle(
+            current.tenant,
+            flow === 'tenant' ? 'created' : current.step === 'done' ? 'existing' : current.origin,
+          );
   const breadcrumb =
     systemAdmins !== null
       ? systemAdminsTrail(title)
@@ -294,10 +293,11 @@ export function NewSystemAdministratorPage({ tenant }: { tenant: string }) {
 }
 
 export function NewAdministratorPage({ tenant, name }: { tenant: string; name: string }) {
+  const title = useAdministratorTitle(name);
   return (
     <SystemGate
       tenant={tenant}
-      title={addAdministratorTitle(name)}
+      title={title}
       breadcrumb={tenantAdministratorTrail(name)}
     >
       <Creation flow={flowOf(name)} />

@@ -62,6 +62,35 @@ it("names adding an administrator to a tenant, under that tenant's record, while
   expect(within(trail).getByText('Add an administrator')).toHaveAttribute('aria-current', 'page');
 });
 
+it('names the first administrator of an imported tenant so while it checks', async () => {
+  sessionStorage.setItem(
+    'odudu.console.administrator/acme',
+    JSON.stringify({
+      owner: 'system/s0',
+      creation: {
+        step: 'administrator',
+        tenant: 'acme',
+        origin: 'imported',
+        username: '',
+        email: '',
+        subjectId: null,
+        granted: false,
+      },
+    }),
+  );
+  renderConsoleAt('/console/system/tenants/acme/new-administrator', {
+    'GET /console/api/session': json(ROOT),
+    [`GET ${ADMIN}/system/whoami`]: pending(),
+  });
+  expect(
+    await screen.findByText('Checking access to First administrator of acme'),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'First administrator of acme' }),
+  ).toBeVisible();
+  sessionStorage.clear();
+});
+
 it('is no page for a system principal whom whoami gives no manage-tenants', async () => {
   renderConsoleAt('/console/system/import-tenant', {
     'GET /console/api/session': json(ROOT),

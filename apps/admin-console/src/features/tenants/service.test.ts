@@ -11,6 +11,7 @@ import {
   tenantsTrail,
   administratorOf,
   administratorStepHref,
+  administratorTitle,
   belongsTo,
   flowOf,
   FRESH_CREATION,
@@ -163,6 +164,12 @@ describe('the three guided flows', () => {
     expect(belongsTo('system-administrator', administratorOf('system', 'existing'))).toBe(true);
     expect(belongsTo('system-administrator', administratorOf('acme', 'existing'))).toBe(false);
     expect(belongsTo('tenant', { step: 'done', tenant: 'system', username: 'ada' })).toBe(false);
+  });
+
+  it('titles a first administrator apart from another one', () => {
+    expect(administratorTitle('acme', 'created')).toBe('First administrator of acme');
+    expect(administratorTitle('acme', 'imported')).toBe('First administrator of acme');
+    expect(administratorTitle('acme', 'existing')).toBe('Add an administrator to acme');
   });
 
   it("puts each tenant's administrator step under its record", () => {
