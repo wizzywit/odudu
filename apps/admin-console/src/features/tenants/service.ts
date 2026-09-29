@@ -115,6 +115,13 @@ export const NEW_TENANT_HREF = `${SYSTEM_BASE}/new-tenant`;
 export const IMPORT_TENANT_HREF = `${SYSTEM_BASE}/import-tenant`;
 
 export const SYSTEM_ADMINS_HREF = `${SYSTEM_BASE}/system-admins`;
+export const NEW_SYSTEM_ADMIN_HREF = `${SYSTEM_ADMINS_HREF}/new`;
+
+// system's administrators are its system administrators, so their guided
+// step sits under that area and the rail keeps the operator's place.
+export function administratorStepHref(tenant: string): string {
+  return tenant === 'system' ? NEW_SYSTEM_ADMIN_HREF : NEW_TENANT_HREF;
+}
 
 export function tenantHref(name: string): string {
   return `${TENANTS_HREF}/${encodeURIComponent(name)}`;

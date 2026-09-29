@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { usePrincipal } from '#/features/session/index.ts';
 import { beginAdministrator, storedCreation } from '#/features/tenants/repository/useCreation.ts';
 import { useGo } from '#/features/tenants/repository/useGo.ts';
-import { NEW_TENANT_HREF } from '#/features/tenants/service.ts';
+import { administratorStepHref } from '#/features/tenants/service.ts';
 
 export interface Unfinished {
   readonly tenant: string;
@@ -30,10 +30,11 @@ export function useBeginAdministrator(
   const owner = `${principal.tenant}/${principal.subjectId}`;
   const go = useGo();
   const [replacing, setReplacing] = useState<Unfinished | null>(null);
+  const destination = administratorStepHref(tenant);
   const begin = (): void => {
     setReplacing(null);
     beginAdministrator(owner, tenant, origin);
-    go(NEW_TENANT_HREF);
+    go(destination);
   };
   return {
     start: () => {
@@ -41,7 +42,7 @@ export function useBeginAdministrator(
       if (stored?.step !== 'administrator' || stored.subjectId === null) {
         begin();
       } else if (stored.tenant === tenant) {
-        go(NEW_TENANT_HREF);
+        go(destination);
       } else {
         setReplacing({
           tenant: stored.tenant,

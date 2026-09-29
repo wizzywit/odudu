@@ -126,7 +126,12 @@ it("creates one through system's guided administrator step", async () => {
   expect(
     await screen.findByRole('heading', { level: 1, name: 'Add a system administrator' }),
   ).toBeVisible();
-  expect(router.state.location.pathname).toBe('/system/new-tenant');
+  expect(router.state.location.pathname).toBe('/system/system-admins/new');
+  expect(
+    screen
+      .getByRole('navigation', { name: 'Areas of system' })
+      .querySelector('[aria-current="page"]'),
+  ).toHaveTextContent('System administrators');
   expect(sessionStorage.getItem(KEY)).toContain('"tenant":"system"');
 });
 

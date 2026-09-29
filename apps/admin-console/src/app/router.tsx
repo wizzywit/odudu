@@ -155,6 +155,15 @@ const systemAdmins = createRoute({
   },
 });
 
+const newSystemAdmin = createRoute({
+  getParentRoute: () => tenant,
+  path: 'system-admins/new',
+  component: function SystemAdminCreation() {
+    const { tenant: name } = tenant.useParams();
+    return <NewTenant key={name} tenant={name} />;
+  },
+});
+
 const TAKEN = new Set(['tenants', 'export', 'system-admins']);
 
 const areas = EVERY_AREA.filter((area) => area !== OVERVIEW && !TAKEN.has(area.path)).map((area) =>
@@ -170,7 +179,7 @@ const areas = EVERY_AREA.filter((area) => area !== OVERVIEW && !TAKEN.has(area.p
 
 const routeTree = root.addChildren([
   home,
-  tenant.addChildren([overview, ...tenantPages, systemAdmins, ...areas]),
+  tenant.addChildren([overview, ...tenantPages, systemAdmins, newSystemAdmin, ...areas]),
 ]);
 
 export function createConsoleRouter(history: RouterHistory = createBrowserHistory()) {
