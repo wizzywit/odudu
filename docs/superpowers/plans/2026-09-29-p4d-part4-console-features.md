@@ -332,6 +332,73 @@ open.
   OTP, recovery codes as a count with a revoke-all option (they have no ids,
   per facts), and lockout clear (UNCOVERED, now placed here).
 
+### Task 8a: Typed fields (added after the user tried the console)
+
+- Shared `shared/view` fields built on React Aria:
+  - DateField in the browser's locale, storing the OIDC form (including year only);
+  - ComboBox with type-to-filter, and Select;
+  - PhoneField (country plus national number, stored as E.164);
+  - CountryField, which stores the English country name per OIDC Core §5.1.1;
+  - TimeZoneField (`Intl.supportedValuesOf`) and LocaleField (BCP 47, shown by name);
+  - GenderField (standard values plus free text);
+  - UrlField, with a picture preview.
+- Each field carries its HTML `autocomplete` token (WCAG 1.3.5).
+- Subject create and Profile move onto them. Later tasks use them for grant
+  types, settings enums and URL lists.
+
+### Task 8b: Admin API gaps II (from the gap audit)
+
+The server has each of these, but no admin route reaches it:
+
+1. a subject's grants and offline tokens, listed and revoked;
+2. delete a tenant;
+3. a tenant-wide session list;
+4. end every session in a tenant;
+5. outgoing mail status (`email_outbox`);
+6. revoke every grant a client holds;
+7. a subject's effective roles;
+8. evaluate a client's claims for a subject and scope;
+9. a client's sessions;
+10. session counts;
+11. back-channel logout delivery status;
+12. a list of locked subjects;
+13. clear every lockout;
+14. a group's children;
+15. filter subjects by type;
+16. search subjects by name and other claims;
+17. bulk subject operations;
+18. count and export audit events;
+19. delete a retired key;
+20. a client's installation config.
+
+Also in this task:
+
+- `POST …/subjects/:id/password-reset` and `POST …/subjects/:id/verification`;
+- the refusal texts that ADR 0039 made permanent (`group-patch.ts`,
+  `role-patch.ts`, `scope-patch.ts`, `tenant-patch.ts`, and the
+  `contracts/admin/groups.ts:34-37` comment).
+
+Each item needs the capability, the ceiling, audit, a foreign-tenant probe,
+OpenAPI and a real transcript.
+
+### Task 8c: Admin configuration placed in P4d (from the gap audit)
+
+- Client `description`, `client_uri`, `policy_uri` and `tos_uri`.
+- Per-client ID token `alg`, `default_max_age` and `require_auth_time`.
+- Secret rotation with a grace period.
+- Group and role description.
+- Default groups.
+- The tenant's default client scopes.
+- Scope consent text and order.
+- Tenant-wide default lifetimes, and code, login and action-token lifetimes.
+- Choice of stored audit event types.
+- Sign in with email.
+- An admin "email required actions" action, which the two email routes above
+  become part of.
+
+Each needs a migration where storage is new, and the protocol behaviour it
+drives, with tests at the protocol layer.
+
 ### Task 9: Subjects — groups, roles, required actions, sessions, consents, activity
 
 - Groups and Roles use the pickers, with the ADR 0040 ceilings shown as
