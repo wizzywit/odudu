@@ -223,16 +223,21 @@ it('leaves focus alone when it was never in the section', () => {
   expect(screen.getByRole('button', { name: 'elsewhere' })).toHaveFocus();
 });
 
-it('offers no save on a page that cannot change it, and says an edit it holds was not saved', () => {
+it('offers only Discard on a page that cannot change it, for an edit it holds', async () => {
+  const user = userEvent.setup();
+  const onDiscard = vi.fn();
   render(
     <ReadOnlyFields when>
-      <General dirty />
+      <General dirty onDiscard={onDiscard} />
     </ReadOnlyFields>,
   );
-  expect(screen.queryByRole('button', { name: /Save|Discard/u })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Save/u })).toBeNull();
   expect(screen.getByRole('status')).toHaveTextContent(
-    'Your change here was not saved and cannot be saved now. It stays until you leave the page.',
+    'Your change here was not saved and cannot be saved now.',
   );
+  expect(screen.getByRole('status')).not.toHaveTextContent(/leave/u);
+  await user.click(screen.getByRole('button', { name: 'Discard your change to General' }));
+  expect(onDiscard).toHaveBeenCalledOnce();
 });
 
 it('says nothing of the sort while it holds no edit', () => {

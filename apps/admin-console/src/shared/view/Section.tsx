@@ -7,6 +7,7 @@ import {
   type SubmitEvent,
   type ReactNode,
 } from 'react';
+import { Button } from '#/shared/view/Button.tsx';
 import { FieldsReadOnly } from '#/shared/view/Field.tsx';
 import { SaveBar } from '#/shared/view/SaveBar.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
@@ -44,7 +45,7 @@ export function Section({
 }) {
   const heading = useId();
   // On a page the caller cannot change there is no save; an edit held from
-  // before whoami said so stays, marked, until the page is left.
+  // before whoami said so stays, marked, until it is discarded.
   const readOnly = use(FieldsReadOnly);
   // Holds between a submit and the render that shows it saving, which a
   // second quick submit would otherwise slip through.
@@ -99,10 +100,12 @@ export function Section({
         <div className={styles.fields}>{children}</div>
         {notice === undefined || readOnly ? null : <div className={styles.notice}>{notice}</div>}
         {readOnly && dirty ? (
-          <p role="status" className={styles.held}>
-            Your change here was not saved and cannot be saved now. It stays until you leave the
-            page.
-          </p>
+          <div className={styles.held}>
+            <p role="status">Your change here was not saved and cannot be saved now.</p>
+            <Button size="small" variant="quiet" onPress={onDiscard}>
+              {`Discard your change to ${title}`}
+            </Button>
+          </div>
         ) : null}
         {dirty && !readOnly ? (
           <div className={styles.saveBar}>
