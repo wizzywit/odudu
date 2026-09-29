@@ -13,13 +13,15 @@ export function OverviewPage({ tenant }: { tenant: string }) {
       <PageHeader kicker={tenant} title="Overview" />
       <div className={styles.grid}>
         <AttentionPanel attention={overview.attention} />
-        <CountsPanel tiles={overview.tiles} />
+        {overview.tiles.length === 0 ? null : <CountsPanel tiles={overview.tiles} />}
         <div className={styles.wide}>
           <DiscoveryPanel discovery={overview.discovery} keys={overview.keys} />
         </div>
-        <div className={styles.wide}>
-          <LatestAudit audit={overview.audit} href={overview.auditHref} />
-        </div>
+        {overview.audit === null ? null : (
+          <div className={styles.wide}>
+            <LatestAudit audit={overview.audit} href={overview.auditHref} />
+          </div>
+        )}
       </div>
     </>
   );

@@ -33,8 +33,10 @@ const COLUMNS: readonly Column<Subject>[] = [
   },
 ];
 
-export function AdministratorsTab({ tenant }: { tenant: string }) {
-  const { list, begin, addNeeds, counted, systemAdminsHref } = useTenantAdministrators(tenant);
+// `canAdd` is false once whoami says adding would be refused; the page says
+// what it needs, and no add is offered.
+export function AdministratorsTab({ tenant, canAdd }: { tenant: string; canAdd: boolean }) {
+  const { list, begin, counted, systemAdminsHref } = useTenantAdministrators(tenant);
   const label = `Administrators of ${tenant}`;
   return (
     <div className={styles.tab}>
@@ -48,9 +50,7 @@ export function AdministratorsTab({ tenant }: { tenant: string }) {
         )}
       </p>
       <div className={styles.actions}>
-        <Button onPress={begin.start} isDisabled={addNeeds.length > 0}>
-          Add an administrator
-        </Button>
+        {canAdd ? <Button onPress={begin.start}>Add an administrator</Button> : null}
         {list.count === null ? null : (
           <Count
             count={list.count.count}
@@ -59,11 +59,6 @@ export function AdministratorsTab({ tenant }: { tenant: string }) {
           />
         )}
       </div>
-      {addNeeds.map((capability) => (
-        <CapabilityNote key={capability} capability={capability}>
-          Adding an administrator
-        </CapabilityNote>
-      ))}
       {list.status === 'loading' ? (
         <TableSkeleton label="Loading administrators" columns={COLUMNS} rows={3} />
       ) : null}

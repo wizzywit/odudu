@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { holds, lacking, readable } from '#/shared/service/access.ts';
+import { blockedChanges, holds, lacking, readable } from '#/shared/service/access.ts';
 
 const VIEWER = { capabilities: ['view-users'] as const, crossTenant: false };
 
@@ -30,5 +30,31 @@ describe('readable', () => {
 
   it('keeps every area until whoami answers, since the server decides regardless', () => {
     expect(readable(undefined, 'manage-keys')).toBe(true);
+  });
+});
+
+describe('blockedChanges', () => {
+  const viewer = { capabilities: ['view-users', 'manage-tenant'] as const, crossTenant: false };
+
+  it('names the changes whoami rules out, and every capability they need', () => {
+    expect(
+      blockedChanges(viewer, [
+        { change: 'change them', needs: ['manage-tenant'] },
+        { change: 'add their administrators', needs: ['manage-users', 'manage-clients'] },
+        { change: 'export them', needs: ['manage-tenant', 'manage-clients'] },
+      ]),
+    ).toEqual({
+      change: 'add their administrators or export them',
+      needs: ['manage-users', 'manage-clients'],
+    });
+  });
+
+  it('is nothing when every change is open, or whoami has not answered', () => {
+    expect(
+      blockedChanges(viewer, [{ change: 'change them', needs: ['manage-tenant'] }]),
+    ).toBeNull();
+    expect(
+      blockedChanges(undefined, [{ change: 'change them', needs: ['manage-users'] }]),
+    ).toBeNull();
   });
 });

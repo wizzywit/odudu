@@ -6,7 +6,6 @@ import {
   useRefusal,
   useRereadAuthority,
 } from '#/features/session/index.ts';
-import { holds } from '#/features/shell/index.ts';
 import { subjectHref } from '#/features/subjects/index.ts';
 import { useAdministratorChange } from '#/features/system-admins/repository/useAdministratorChange.ts';
 import { usePickerHolders } from '#/features/system-admins/repository/usePickerHolders.ts';
@@ -30,6 +29,7 @@ import {
   administratorNeeds,
   roleChangeNeeds,
 } from '#/shared/service/administrators.ts';
+import { blockedChanges, lacking, type Change } from '#/shared/service/access.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
@@ -53,6 +53,8 @@ export interface SystemAdministrators {
   readonly onlyHolder: { readonly id: string; readonly reason: string } | null;
   readonly createNeeds: readonly AdminCapability[];
   readonly changeNeeds: readonly AdminCapability[];
+  // The changes whoami rules out, for the page's one line.
+  readonly blocked: Change | null;
   readonly begin: BeginAdministrator;
   readonly picker: PickerState<Subject>;
   // Why a subject cannot be granted it, from the holders already listed.
@@ -112,12 +114,14 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
   const [revokeNotice, setRevokeNotice] = useState<string | null>(null);
   const [problem, setProblem] = useState<RevokeProblem | null>(null);
 
-  const lacking = (needs: readonly AdminCapability[]): readonly AdminCapability[] =>
-    authority === undefined ? [] : needs.filter((capability) => !holds(authority, capability));
-  const createNeeds = lacking(
-    administratorNeeds(SYSTEM_TENANT, { subjectId: null, granted: false }),
-  );
-  const changeNeeds = lacking(roleChangeNeeds(SYSTEM_TENANT));
+  const creating = administratorNeeds(SYSTEM_TENANT, { subjectId: null, granted: false });
+  const changing = roleChangeNeeds(SYSTEM_TENANT);
+  const createNeeds = lacking(authority, creating);
+  const changeNeeds = lacking(authority, changing);
+  const blocked = blockedChanges(authority, [
+    { change: 'create them', needs: creating },
+    { change: 'grant or revoke tenant-admin', needs: changing },
+  ]);
   const only = onlyHolderOf(list.rows, enabledHolders);
   const picked = usePickerHolders(picker.query);
   // Until the picker's own read answers, what the list shows still counts.
@@ -133,6 +137,7 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
     onlyHolder: only === null ? null : { id: only.id, reason: onlyHolderReason(only) },
     createNeeds,
     changeNeeds,
+    blocked,
     begin: {
       ...begin,
       start: () => {

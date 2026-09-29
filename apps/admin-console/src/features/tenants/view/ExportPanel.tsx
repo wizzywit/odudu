@@ -24,21 +24,24 @@ export function ExportPanel({ tenant, authority }: { tenant: string; authority: 
           An export
         </CapabilityNote>
       ))}
-      <ToggleField
-        label="Include subjects"
-        description="Their profiles, roles, groups and required actions, up to 10,000; never a credential."
-        value={state.includeSubjects}
-        isDisabled={blocked || state.subjectsNeed !== null}
-        onChange={state.setIncludeSubjects}
-      />
-      {state.subjectsNeed === null ? null : (
+      {blocked || state.subjectsNeed !== null ? null : (
+        <ToggleField
+          label="Include subjects"
+          description="Their profiles, roles, groups and required actions, up to 10,000; never a credential."
+          value={state.includeSubjects}
+          onChange={state.setIncludeSubjects}
+        />
+      )}
+      {blocked || state.subjectsNeed === null ? null : (
         <CapabilityNote capability={state.subjectsNeed}>Including subjects</CapabilityNote>
       )}
-      <div className={styles.actions}>
-        <Button variant="primary" isDisabled={blocked || state.busy} onPress={state.start}>
-          {state.busy ? 'Exporting…' : 'Export to a file'}
-        </Button>
-      </div>
+      {blocked ? null : (
+        <div className={styles.actions}>
+          <Button variant="primary" isDisabled={state.busy} onPress={state.start}>
+            {state.busy ? 'Exporting…' : 'Export to a file'}
+          </Button>
+        </div>
+      )}
       <p role="status" className={styles.message}>
         {state.message ??
           (state.saved === null ? '' : `Saved ${state.saved.fileName}, ${state.saved.size}.`)}

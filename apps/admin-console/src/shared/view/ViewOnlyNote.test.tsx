@@ -18,6 +18,19 @@ describe('ViewOnlyNote', () => {
     );
   });
 
+  it('names what cannot be done, when some of a page can be changed', () => {
+    render(
+      <ViewOnlyNote
+        noun="system administrators"
+        change="create them, or grant or revoke tenant-admin"
+        needs={['manage-users']}
+      />,
+    );
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'You can view system administrators but not create them, or grant or revoke tenant-admin (needs manage-users).',
+    );
+  });
+
   it('passes axe in both themes', async () => {
     expect(
       await axeInBothThemes(() => <ViewOnlyNote noun="subjects" needs={['manage-users']} />),

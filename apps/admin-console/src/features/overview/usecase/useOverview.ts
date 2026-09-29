@@ -18,6 +18,7 @@ import {
   type KeysView,
   type Read,
 } from '#/features/overview/service.ts';
+import { readable } from '#/shared/service/access.ts';
 import type { AdminCapability, Authority } from '#/shared/service/principal.ts';
 
 export interface Overview {
@@ -25,7 +26,8 @@ export interface Overview {
   readonly keys: Read<KeysView>;
   readonly tiles: readonly CountTile[];
   readonly attention: AttentionState;
-  readonly audit: Gated<readonly AuditEvent[]>;
+  // Null when whoami says the audit trail is not the operator's to read.
+  readonly audit: Gated<readonly AuditEvent[]> | null;
   readonly auditHref: string;
 }
 
@@ -152,7 +154,9 @@ export function useOverview(tenant: string): Overview {
   );
   const settings = readyData(reads.settings);
   const cap = settings?.max_clients;
-  const tiles = COUNTED.map(({ id, noun }): CountTile => {
+  // A tile links to its area, so one the rail leaves out is left out here.
+  const shown = COUNTED.filter(({ id }) => readable(authority, areaAt(id).capability));
+  const tiles = shown.map(({ id, noun }): CountTile => {
     const area = areaAt(id);
     return {
       id,
@@ -168,10 +172,7 @@ export function useOverview(tenant: string): Overview {
     keys: keysView(reads, authority),
     tiles,
     attention: attentionState(tenant, reads, authority),
-    audit:
-      auditAccess.kind === 'refused'
-        ? { status: 'needs', capability: auditAccess.capability }
-        : gate(reads.audit, authority, 'view-audit'),
+    audit: auditAccess.kind === 'refused' ? null : gate(reads.audit, authority, 'view-audit'),
     auditHref: areaHref(tenant, auditArea),
   };
 }

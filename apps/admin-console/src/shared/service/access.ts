@@ -26,3 +26,23 @@ export function readable(
 ): boolean {
   return capability === null || authority === undefined || holds(authority, capability);
 }
+
+export interface Change {
+  // As the page's one line says it: "change them", "export them".
+  readonly change: string;
+  readonly needs: readonly AdminCapability[];
+}
+
+// The page's changes whoami rules out, joined into the one line that
+// stands in for their absent controls.
+export function blockedChanges(
+  authority: Authority | undefined,
+  changes: readonly Change[],
+): Change | null {
+  const blocked = changes.filter((c) => lacking(authority, c.needs).length > 0);
+  if (blocked.length === 0) return null;
+  const needs = [...new Set(blocked.flatMap((c) => lacking(authority, c.needs)))];
+  const phrases = blocked.map((c) => c.change);
+  const last = phrases.pop() ?? '';
+  return { change: phrases.length === 0 ? last : `${phrases.join(', ')} or ${last}`, needs };
+}

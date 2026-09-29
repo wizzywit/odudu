@@ -8,7 +8,6 @@ import {
 } from '#/features/system-admins/usecase/useSystemAdministratorsPage.ts';
 import { SystemGate } from '#/features/tenants/index.ts';
 import { Button } from '#/shared/view/Button.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import type { Column } from '#/shared/view/DataTable.tsx';
 import { SelectField } from '#/shared/view/Field.tsx';
@@ -16,6 +15,7 @@ import { Picker } from '#/shared/view/Picker.tsx';
 import { ResourceListPage } from '#/shared/view/ResourceListPage.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
 import styles from '#/features/system-admins/view/SystemAdministratorsPage.module.css';
 
 const TITLE = 'System administrators';
@@ -32,7 +32,7 @@ function nameOf(subject: Subject): string {
 }
 
 function columns(page: SystemAdministrators, reasonId: string): readonly Column<Subject>[] {
-  return [
+  const shown: Column<Subject>[] = [
     { id: 'username', header: 'Username', isRowHeader: true, cell: nameOf },
     { id: 'email', header: 'Email', cell: (s) => s.email ?? '—' },
     {
@@ -51,27 +51,32 @@ function columns(page: SystemAdministrators, reasonId: string): readonly Column<
       secondary: true,
       cell: (s) => <Timestamp value={s.created_at} />,
     },
-    {
-      id: 'revoke',
-      header: 'Action',
-      cell: (s) => {
-        const only = page.onlyHolder?.id === s.id;
-        return (
-          <Button
-            size="small"
-            aria-label={`Revoke ${nameOf(s)}`}
-            isDisabled={only || page.changeNeeds.length > 0 || page.busy}
-            onPress={() => {
-              page.startRevoke(s);
-            }}
-            {...(only ? { 'aria-describedby': reasonId } : {})}
-          >
-            Revoke
-          </Button>
-        );
-      },
-    },
   ];
+  return page.changeNeeds.length > 0
+    ? shown
+    : [
+        ...shown,
+        {
+          id: 'revoke',
+          header: 'Action',
+          cell: (s) => {
+            const only = page.onlyHolder?.id === s.id;
+            return (
+              <Button
+                size="small"
+                aria-label={`Revoke ${nameOf(s)}`}
+                isDisabled={only || page.busy}
+                onPress={() => {
+                  page.startRevoke(s);
+                }}
+                {...(only ? { 'aria-describedby': reasonId } : {})}
+              >
+                Revoke
+              </Button>
+            );
+          },
+        },
+      ];
 }
 
 function Grant({ page }: { page: SystemAdministrators }) {
@@ -103,11 +108,7 @@ function Grant({ page }: { page: SystemAdministrators }) {
         selectionMode="single"
       />
       <div className={styles.actions}>
-        <Button
-          variant="primary"
-          isDisabled={chosen === null || page.changeNeeds.length > 0 || page.busy}
-          onPress={page.grant}
-        >
+        <Button variant="primary" isDisabled={chosen === null || page.busy} onPress={page.grant}>
           {chosen === null ? 'Grant tenant-admin' : `Grant tenant-admin to ${nameOf(chosen)}`}
         </Button>
         <p role="status" aria-label="Last grant" className={styles.message}>
@@ -144,11 +145,26 @@ function Administrators() {
         kicker="System"
         title={TITLE}
         description="Everybody in system who holds manage-tenants, directly, through a group or under another role, and so reaches every tenant. A change that would leave system with no enabled one is refused."
-        actions={
-          <Button variant="primary" onPress={begin.start} isDisabled={page.createNeeds.length > 0}>
-            Create a system administrator
-          </Button>
-        }
+        {...(page.createNeeds.length > 0
+          ? {}
+          : {
+              actions: (
+                <Button variant="primary" onPress={begin.start}>
+                  Create a system administrator
+                </Button>
+              ),
+            })}
+        {...(page.blocked === null
+          ? {}
+          : {
+              viewOnly: (
+                <ViewOnlyNote
+                  noun="system administrators"
+                  change={page.blocked.change}
+                  needs={page.blocked.needs}
+                />
+              ),
+            })}
         noun={NOUN}
         searchFields={SEARCH}
         filters={
@@ -177,17 +193,7 @@ function Administrators() {
             {page.onlyHolder.reason}
           </p>
         )}
-        {page.createNeeds.map((capability) => (
-          <CapabilityNote key={capability} capability={capability}>
-            Creating a system administrator
-          </CapabilityNote>
-        ))}
-        {page.changeNeeds.map((capability) => (
-          <CapabilityNote key={capability} capability={capability}>
-            Granting or revoking tenant-admin
-          </CapabilityNote>
-        ))}
-        {list.status === 'ready' ? <Grant page={page} /> : null}
+        {list.status === 'ready' && page.changeNeeds.length === 0 ? <Grant page={page} /> : null}
       </div>
       <ConfirmDialog
         isOpen={revoking !== null}

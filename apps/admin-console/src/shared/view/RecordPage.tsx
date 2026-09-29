@@ -24,6 +24,7 @@ export function RecordPage({
   tab,
   onTabChange,
   viewOnly,
+  readOnly = viewOnly !== undefined,
 }: {
   record: RecordView;
   // Up to the list the record sits in, ending with the record itself.
@@ -39,9 +40,10 @@ export function RecordPage({
   readonly tabs: readonly TabItem[];
   tab: string;
   onTabChange: (id: string) => void;
-  // The one line saying what the caller may not change; given, every field
-  // in the tabs shows as text.
+  // The one line saying what the caller may not change.
   viewOnly?: ReactNode;
+  // Every field in the tabs shows as text; by default, whenever the line is given.
+  readOnly?: boolean;
 }) {
   const head = (ready: boolean) => (
     <PageHeader
@@ -119,7 +121,7 @@ export function RecordPage({
             ) : null}
           </div>
           {viewOnly}
-          <ReadOnlyFields when={viewOnly !== undefined}>
+          <ReadOnlyFields when={readOnly}>
             <Tabs label={label} tabs={tabs} selectedKey={tab} onSelectionChange={onTabChange} />
           </ReadOnlyFields>
         </>

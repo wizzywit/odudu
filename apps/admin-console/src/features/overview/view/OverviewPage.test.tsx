@@ -135,13 +135,16 @@ it("shows a tenant administrator the tenant's issuer, counts, attention and late
   );
 });
 
-it('asks nothing of a read whoami says the operator may not make, and says what it needs', async () => {
+it('leaves out what the operator cannot read, as the rail does, and asks nothing of it', async () => {
   const { calls } = renderConsoleAt('/console/acme', routes(['manage-tenant']));
-  const region = await screen.findByRole('region', { name: 'Latest activity' });
-  expect(await within(region).findByRole('note')).toHaveTextContent(
-    'The audit trail needs the view-audit capability.',
-  );
   await screen.findByText(ISSUER);
+  const counts = await screen.findByRole('region', { name: 'Counts' });
+  expect(
+    within(counts)
+      .getAllByRole('link')
+      .map((l) => l.textContent),
+  ).toEqual(['Groups', 'Roles', 'Scopes']);
+  expect(screen.queryByRole('region', { name: 'Latest activity' })).toBeNull();
   expect(await screen.findByText(/Some checks need a capability/u)).toHaveTextContent(
     'manage-keys, manage-clients',
   );

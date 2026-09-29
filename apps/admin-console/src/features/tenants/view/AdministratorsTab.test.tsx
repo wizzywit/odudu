@@ -55,24 +55,18 @@ it('adds an administrator through the guided step, resumed for this tenant', asy
   ).toBeVisible();
 });
 
-it('names what adding an administrator needs, rather than offering it, to manage-tenants alone', async () => {
+it('offers no add to manage-tenants alone, and says once on the page what it needs', async () => {
   renderConsoleAt(AT, {
     ...routes(),
     [`GET ${ADMIN}/system/whoami`]: whoami(['manage-tenants', 'view-users']),
   });
-  const add = await screen.findByRole('button', { name: 'Add an administrator' });
-  await waitFor(() => {
-    expect(add).toBeDisabled();
-  });
-  expect(screen.getAllByRole('note').map((note) => note.textContent)).toEqual([
-    'Adding an administrator needs the manage-users capability.',
-    'Adding an administrator needs the manage-clients capability.',
-    // Granting tenant-admin is held to every capability the role carries.
-    'Adding an administrator needs the manage-tenant capability.',
-    'Adding an administrator needs the manage-keys capability.',
-    'Adding an administrator needs the manage-sessions capability.',
-    'Adding an administrator needs the view-audit capability.',
-  ]);
+  // Granting tenant-admin is held to every capability the role carries.
+  expect(await screen.findByRole('note')).toHaveTextContent(
+    'You can view tenants but not change them or add their administrators (needs manage-tenant, manage-users, manage-clients, manage-keys, manage-sessions and view-audit).',
+  );
+  await screen.findByRole('grid', { name: 'Administrators of acme' });
+  expect(screen.queryByRole('button', { name: 'Add an administrator' })).toBeNull();
+  expect(screen.getAllByRole('note')).toHaveLength(1);
 });
 
 it('names manage-tenants for system, which its last-administrator guard counts', async () => {

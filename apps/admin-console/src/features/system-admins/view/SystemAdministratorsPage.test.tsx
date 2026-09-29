@@ -377,19 +377,22 @@ it('changes nothing for a holder who holds it only through a group or another ro
   expect(within(dialog).getByRole('button', { name: 'Revoke' })).toBeDisabled();
 });
 
-it('names what a limited operator lacks, rather than offering what the server would refuse', async () => {
+it('offers a limited operator none of the changes the server would refuse, and says so once', async () => {
   const { sent } = renderConsoleAt(
     AT,
     routes({ [`GET ${S}/whoami`]: whoami(['manage-tenants', 'view-users']) }),
   );
   await screen.findByRole('grid', { name: 'System administrators' });
   await waitFor(() => {
-    expect(screen.getByRole('button', { name: 'Create a system administrator' })).toBeDisabled();
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'You can view system administrators but not create them or grant or revoke tenant-admin (needs manage-users, manage-clients, manage-tenant, manage-keys, manage-sessions and view-audit).',
+    );
   });
-  expect(screen.getByRole('button', { name: 'Revoke ada' })).toBeDisabled();
-  const notes = screen.getAllByRole('note').map((note) => note.textContent);
-  expect(notes).toContain('Creating a system administrator needs the manage-users capability.');
-  expect(notes).toContain('Granting or revoking tenant-admin needs the manage-keys capability.');
+  expect(screen.getAllByRole('note')).toHaveLength(1);
+  expect(screen.queryByRole('button', { name: 'Create a system administrator' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Revoke/u })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Grant/u })).toBeNull();
+  expect(screen.queryByRole('columnheader', { name: 'Action' })).toBeNull();
   expect(sent.filter((s) => s.method !== 'GET')).toHaveLength(0);
 });
 

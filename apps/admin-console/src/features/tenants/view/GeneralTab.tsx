@@ -14,11 +14,15 @@ export function GeneralTab({
   tenant,
   etag,
   gone,
+  canChange,
 }: {
   name: string;
   tenant: Tenant;
   etag: string;
   gone: boolean;
+  // False once whoami says a change would be refused: the status is shown
+  // with no control.
+  canChange: boolean;
 }) {
   const { general: s, enabled } = useTenantGeneral(name, tenant, etag, gone);
   const status = useId();
@@ -78,7 +82,9 @@ export function GeneralTab({
             ? `${name} is in service.`
             : `${name} answers as a tenant that does not exist until it is enabled again.`}
         </p>
-        {enabled.fixed === null ? (
+        {enabled.fixed !== null ? (
+          <p className={styles.fixedRule}>{enabled.fixed}</p>
+        ) : canChange ? (
           <div className={styles.actions}>
             {/* One button whose label turns, so focus stays on it across the change. */}
             <Button
@@ -88,9 +94,7 @@ export function GeneralTab({
               {enabled.enabled ? `Disable ${name}` : enabled.busy ? 'Enabling…' : `Enable ${name}`}
             </Button>
           </div>
-        ) : (
-          <p className={styles.fixedRule}>{enabled.fixed}</p>
-        )}
+        ) : null}
         <p role="status" className={styles.message}>
           {enabled.message}
         </p>

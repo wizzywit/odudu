@@ -7,6 +7,7 @@ import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
+import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
 
 function Record({ name }: { name: string }) {
   const page = useTenantRecordPage(name);
@@ -28,6 +29,18 @@ function Record({ name }: { name: string }) {
           })}
       actions={<ButtonLink href={enterHref(name)}>{`Enter ${name}`}</ButtonLink>}
       noun="tenant"
+      {...(page.blocked === null
+        ? {}
+        : {
+            viewOnly: (
+              <ViewOnlyNote
+                noun="tenants"
+                change={page.blocked.change}
+                needs={page.blocked.needs}
+              />
+            ),
+          })}
+      readOnly={!page.canChange}
       label="Tenant sections"
       tab={page.tab}
       onTabChange={page.selectTab}
@@ -38,13 +51,19 @@ function Record({ name }: { name: string }) {
           dirty: page.dirty.has('general'),
           panel:
             tenant === undefined || page.etag === null ? null : (
-              <GeneralTab name={name} tenant={tenant} etag={page.etag} gone={page.record.gone} />
+              <GeneralTab
+                name={name}
+                tenant={tenant}
+                etag={page.etag}
+                gone={page.record.gone}
+                canChange={page.canChange}
+              />
             ),
         },
         {
           id: 'administrators',
           label: 'Administrators',
-          panel: <AdministratorsTab tenant={name} />,
+          panel: <AdministratorsTab tenant={name} canAdd={page.addNeeds.length === 0} />,
         },
         {
           id: 'export',

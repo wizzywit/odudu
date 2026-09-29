@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { json, problem } from '#/testing/fakeTransport.ts';
-import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
+import { consoleAt, renderConsoleAt, resetConsole, whoami } from '#/testing/renderConsole.tsx';
 import { ADMIN, systemRoutes, tenant } from '#/testing/tenantsFixtures.ts';
 
 afterEach(() => {
@@ -27,6 +27,20 @@ it('shows a tenant by name, with its status, its tabs and a way into it', async 
   expect(tabs).toHaveTextContent('Administrators');
   expect(tabs).toHaveTextContent('Export');
   expect(await screen.findByRole('heading', { level: 2, name: 'General' })).toBeVisible();
+});
+
+it('shows an operator who cannot change the tenant its values as text, with no action', async () => {
+  renderConsoleAt('/console/system/tenants/acme', {
+    ...routes(),
+    [`GET ${ADMIN}/system/whoami`]: whoami(['manage-tenants', 'view-users']),
+  });
+  expect(await screen.findByText('Acme Corp', { selector: 'dd' })).toBeVisible();
+  expect(screen.getByRole('note')).toHaveTextContent(
+    /^You can view tenants but not change them or add their administrators \(needs manage-tenant, /u,
+  );
+  expect(screen.queryByRole('textbox', { name: 'Display name' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^(Disable|Enable) acme$/u })).toBeNull();
+  expect(screen.getByRole('link', { name: 'Enter acme' })).toBeVisible();
 });
 
 it('climbs back to Tenants through a breadcrumb, with the status beside the name', async () => {

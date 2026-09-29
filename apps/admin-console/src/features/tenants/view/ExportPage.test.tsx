@@ -33,11 +33,11 @@ it("offers a tenant administrator their own tenant's export, and no import", asy
   expect(screen.queryByRole('link', { name: /Import/u })).toBeNull();
 });
 
-it('names what a limited operator lacks, rather than offering an export the server refuses', async () => {
+it('names what a limited operator lacks, and offers no export the server would refuse', async () => {
   renderConsoleAt('/console/acme/export', routes(['manage-tenant']));
   expect(await screen.findByText(/An export needs the/u)).toHaveTextContent('manage-clients');
-  expect(screen.getByText(/Including subjects needs the/u)).toHaveTextContent('view-users');
-  expect(screen.getByRole('button', { name: 'Export to a file' })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Export to a file' })).toBeNull();
+  expect(screen.queryByRole('switch', { name: 'Include subjects' })).toBeNull();
 });
 
 it('passes axe in both themes', async () => {
