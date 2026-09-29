@@ -201,10 +201,16 @@ describe('GET /audit/export', () => {
   it('refuses more rows than it will write with 413, and writes none', async () => {
     const t = await fixture.createTenant(`aud-${newId()}`);
     for (let i = 0; i < 3; i += 1) await record(t.id, 'probe.big', { subjectId: newId() });
+    const recorded: string[] = [];
     const outcome = await withTenant(fixture.app.db, t.id, (tx) =>
       exportAudit(
         tx,
-        { audit: () => Promise.resolve() },
+        {
+          audit: (_tx, event) => {
+            recorded.push(event.action);
+            return Promise.resolve();
+          },
+        },
         {
           tenantId: t.id,
           revealNames: true,
@@ -217,6 +223,7 @@ describe('GET /audit/export', () => {
       ),
     );
     expect(outcome).toEqual({ kind: 'too_many', cap: 2 });
+    expect(recorded).toEqual([]);
   });
 
   it('is refused without view-audit', async () => {

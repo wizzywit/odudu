@@ -137,6 +137,8 @@ describe('GET /clients/:id/evaluate', () => {
     expect((await evaluate(t.name, both, newId(), `subject=${subject}`)).statusCode).toBe(404);
     expect((await evaluate(t.name, both, client.id, `subject=${newId()}`)).statusCode).toBe(404);
     expect((await evaluate(t.name, both, client.id, 'scope=openid')).statusCode).toBe(400);
+    const tooLong = `subject=${subject}&scope=${'a'.repeat(2049)}`;
+    expect((await evaluate(t.name, both, client.id, tooLong)).statusCode).toBe(400);
   });
 
   it('reads no client or subject across tenants, probed with a foreign tenant_id', async () => {

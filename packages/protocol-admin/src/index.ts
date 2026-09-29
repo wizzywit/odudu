@@ -268,7 +268,7 @@ export interface AdminRoutesDeps {
   sendAccountLink: SendAccountLink;
   // `ODUDU_OUTBOX_MAX_ATTEMPTS`, the attempts the mail sender makes before it
   // stops offering a message: what `GET …/mail` reports as `failed`.
-  outboxMaxAttempts?: number;
+  outboxMaxAttempts: number;
 }
 
 export function adminRoutes(deps: AdminRoutesDeps): FastifyPluginAsync {
@@ -496,7 +496,7 @@ function buildAdminRoutes(
       claimMappers: deps.claimMappers,
       audit: recordAudit,
       cursorKey: deps.cursorKey,
-      outboxMaxAttempts: deps.outboxMaxAttempts ?? 5,
+      outboxMaxAttempts: deps.outboxMaxAttempts,
       callerCapabilities,
     };
     const tenantSessionsDeps: TenantSessionsRouteDeps = {

@@ -160,9 +160,11 @@ export const clientInstallationSchema = z.object({
 export type ClientInstallation = z.infer<typeof clientInstallationSchema>;
 
 // `scope` as a request carries it, space-separated; absent, the client's
-// default scopes. `subject` is the subject a token would be issued to.
+// default scopes. `subject` is the subject a token would be issued to. The
+// bound is on what a caller can make the server split and look up.
+export const EVALUATE_SCOPE_MAX = 2048;
 export const evaluateClaimsQuerySchema = z
-  .object({ subject: z.uuid(), scope: z.string().optional() })
+  .object({ subject: z.uuid(), scope: z.string().max(EVALUATE_SCOPE_MAX).optional() })
   .strict();
 export type EvaluateClaimsQuery = z.infer<typeof evaluateClaimsQuerySchema>;
 

@@ -737,7 +737,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'the ID token, the access token and the UserInfo response, computed by the functions ' +
       'issuance calls, with none of the envelope a signer adds. `scope` is resolved against ' +
       'the client\u2019s assignments, as issuance resolves it; absent, the client\u2019s ' +
-      'default scopes. Signs nothing. Additionally requires `view-users`, refused with `403` ' +
+      'default scopes. It assumes consent is granted: for a `consent_required` client a real ' +
+      'code carries only the scopes consented to. Signs nothing. Additionally requires ' +
+      '`view-users`, refused with `403` ' +
       'otherwise, since the claims are the subject\u2019s. Audited as `client.evaluate`.',
   },
   {
@@ -1245,8 +1247,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     successMediaType: AUDIT_EXPORT_MEDIA_TYPE,
     querystringSchema: exportAuditQuerySchema,
     description:
-      'Every row the same filters list, newest first, one JSON object per line. Refused whole ' +
-      'with `413` past 10,000 rows rather than cut short. Audited as `audit.export`.',
+      'Every row the same filters list, newest first, one JSON object per line, built in full ' +
+      'before it is sent rather than streamed. Refused whole with `413` past 10,000 rows ' +
+      'rather than cut short. Audited as `audit.export`.',
   },
 ];
 

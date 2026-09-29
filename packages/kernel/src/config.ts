@@ -74,6 +74,9 @@ const publicBaseUrl = z
 
 // The container image's own layout for the built console; shared with
 // `apps/server/src/app.ts`'s own default so the two can never drift apart.
+/** `ODUDU_OUTBOX_MAX_ATTEMPTS` when unset. */
+export const DEFAULT_OUTBOX_MAX_ATTEMPTS = 5;
+
 export const DEFAULT_CONSOLE_DIR = '/app/console';
 
 const schema = z.object({
@@ -213,7 +216,12 @@ const schema = z.object({
   // messages already queued: one that has spent the new ceiling stops
   // being retried and starts its retention window, without anything
   // having happened to it.
-  ODUDU_OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(5),
+  ODUDU_OUTBOX_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(DEFAULT_OUTBOX_MAX_ATTEMPTS),
   // The first retry's delay; each further attempt doubles it.
   ODUDU_OUTBOX_RETRY_BACKOFF_SECONDS: z.coerce.number().int().min(1).max(86_400).default(60),
   // A back-channel logout is enqueued the instant a session ends, so this

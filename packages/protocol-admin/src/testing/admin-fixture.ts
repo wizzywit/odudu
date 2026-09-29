@@ -30,7 +30,7 @@ import {
   TENANT_CAPABILITIES,
   type ClientRecord,
 } from '@odudu/domain-tenant';
-import { FakeClock, newId } from '@odudu/kernel';
+import { DEFAULT_OUTBOX_MAX_ATTEMPTS, FakeClock, newId } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
   NO_CLIENT_KEY_FETCHER,
@@ -248,6 +248,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         consoleBaseUrl: FIXTURE_CONSOLE_BASE_URL,
         claimMappers,
         deploymentSmtp: options.deploymentSmtp ?? false,
+        outboxMaxAttempts: DEFAULT_OUTBOX_MAX_ATTEMPTS,
         retireResetLinks: (tx, subjectId) =>
           actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
         sendAccountLink: async (tx, request) => {

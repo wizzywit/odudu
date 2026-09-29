@@ -320,6 +320,33 @@ describe('DELETE /keys/:id', () => {
     });
   });
 
+  it('refuses the active key, and a stale If-Match, deleting neither', async () => {
+    const t = await fixture.createTenant(`keys-${newId()}`);
+    const active = await withTenant(
+      fixture.app.db,
+      t.id,
+      async (tx) => (await signingKeyRepository(tx).active()).id,
+    );
+    const retired = await stageKey(t.id, 'retired');
+    const token = await fixture.adminToken(t.name, ['manage-keys']);
+    const refusedActive = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/keys/${active}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(refusedActive.statusCode).toBe(409);
+    const stale = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/keys/${retired}`,
+      headers: { authorization: `Bearer ${token}`, 'if-match': '"not-its-etag"' },
+    });
+    expect(stale.statusCode).toBe(412);
+    await withTenant(fixture.app.db, t.id, async (tx) => {
+      const left = (await tx.select({ id: signingKeys.id }).from(signingKeys)).map((row) => row.id);
+      expect(left).toEqual(expect.arrayContaining([active, retired]));
+    });
+  });
+
   it('deletes nothing across tenants, probed with a foreign tenant_id', async () => {
     await expectCrossTenantMethodProbe(fixture.app.db, {
       seed: async (tx, tenantId) => {

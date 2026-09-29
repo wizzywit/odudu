@@ -22,7 +22,7 @@ import {
   userRepository,
   verifyPassword,
 } from '@odudu/domain-identity';
-import { DEFAULT_CONSOLE_DIR, newId } from '@odudu/kernel';
+import { DEFAULT_CONSOLE_DIR, DEFAULT_OUTBOX_MAX_ATTEMPTS, newId } from '@odudu/kernel';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -301,9 +301,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       claimMappers,
       allowPrivateSmtpHosts: deps.allowPrivateSmtpHosts ?? false,
       deploymentSmtp: deps.deploymentSmtp ?? false,
-      ...(deps.outboxMaxAttempts === undefined
-        ? {}
-        : { outboxMaxAttempts: deps.outboxMaxAttempts }),
+      outboxMaxAttempts: deps.outboxMaxAttempts ?? DEFAULT_OUTBOX_MAX_ATTEMPTS,
       retireResetLinks: (tx, subjectId) =>
         actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
       sendAccountLink: async (tx, request) => {
