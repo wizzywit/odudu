@@ -9177,7 +9177,7 @@ done
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"lapsed","tenantId":"01a0eba0-1ade-78f4-93ec-250f727f0004"}
+{"command":"tenant","created":true,"tenant":"lapsed","tenantId":"01a0eba8-8cbf-7449-85bc-b5b3fff43b72"}
 /tenants/lapsed/.well-known/openid-configuration   200
 /tenants/lapsed/protocol/openid-connect/certs      200
 lapsed|f
