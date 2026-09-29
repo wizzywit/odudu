@@ -1,5 +1,6 @@
 import { isTenantName, TENANT_NAME_RULE } from '@odudu/contracts';
 import { TENANT_IMPORT_BODY_LIMIT, type Tenant } from '@odudu/contracts/admin';
+import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 
 export type { Tenant };
 
@@ -120,7 +121,7 @@ export const NEW_SYSTEM_ADMIN_HREF = `${SYSTEM_ADMINS_HREF}/new`;
 // system's administrators are its system administrators, so their guided
 // step sits under that area and the rail keeps the operator's place.
 export function administratorStepHref(tenant: string): string {
-  return tenant === 'system' ? NEW_SYSTEM_ADMIN_HREF : NEW_TENANT_HREF;
+  return tenant === SYSTEM_TENANT ? NEW_SYSTEM_ADMIN_HREF : NEW_TENANT_HREF;
 }
 
 export function tenantHref(name: string): string {

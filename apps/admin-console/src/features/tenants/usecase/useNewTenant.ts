@@ -8,12 +8,16 @@ import {
   useTenantCreate,
 } from '#/features/tenants/repository/useCreation.ts';
 import { useSystemIssuer } from '#/features/tenants/repository/useSystemIssuer.ts';
+import { useAddress } from '#/features/tenants/repository/useAddress.ts';
 import {
   administratorOf,
+  administratorStepHref,
   enterHref,
   FRESH_CREATION,
   issuerPreview,
   NAME_RULE,
+  NEW_SYSTEM_ADMIN_HREF,
+  NEW_TENANT_HREF,
   nameProblem,
   SYSTEM_ADMINS_HREF,
   tenantHref,
@@ -87,6 +91,8 @@ export interface NewTenant {
   readonly startOver: () => void;
 }
 
+const CREATION_HREFS = [NEW_TENANT_HREF, NEW_SYSTEM_ADMIN_HREF];
+
 function systemAdminsOf(tenant: string): string | null {
   return tenant === SYSTEM_TENANT ? SYSTEM_ADMINS_HREF : null;
 }
@@ -109,6 +115,12 @@ export function useNewTenant(): NewTenant {
   const principal = usePrincipal();
   const owner = `${principal.tenant}/${principal.subjectId}`;
   const { creation, update } = useCreationProgress(owner);
+  // One creation is kept per tab, and two addresses show it: the one shown
+  // is the one its step belongs at.
+  useAddress(
+    creation.step === 'tenant' ? NEW_TENANT_HREF : administratorStepHref(creation.tenant),
+    CREATION_HREFS,
+  );
   const systemIssuer = useSystemIssuer();
   const tenantCreate = useTenantCreate();
   const administrator = useFirstAdministrator();

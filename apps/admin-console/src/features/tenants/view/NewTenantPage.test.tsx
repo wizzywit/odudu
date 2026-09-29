@@ -302,7 +302,10 @@ it("adds a system administrator as system's own administrator, and leads back to
     KEY,
     JSON.stringify({ owner: 'system/s0', creation: { ...HALFWAY, tenant: 'system' } }),
   );
-  renderConsoleAt(AT, systemRoutes(administratorRoutes('system', SUBJECT_ID, PASSWORD)));
+  renderConsoleAt(
+    '/console/system/system-admins/new',
+    systemRoutes(administratorRoutes('system', SUBJECT_ID, PASSWORD)),
+  );
   expect(
     await screen.findByRole('heading', { level: 1, name: 'Add a system administrator' }),
   ).toBeVisible();
@@ -338,4 +341,31 @@ it('passes axe in both themes adding a system administrator', async () => {
       screen.findByRole('link', { name: 'Back to System administrators' }),
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('moves to the address of the step it shows, in place, so the rail matches it', async () => {
+  sessionStorage.setItem(
+    KEY,
+    JSON.stringify({ owner: 'system/s0', creation: { ...HALFWAY, tenant: 'system' } }),
+  );
+  const { router } = renderConsoleAt(
+    AT,
+    systemRoutes(administratorRoutes('system', SUBJECT_ID, PASSWORD)),
+  );
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/system/system-admins/new');
+  });
+  expect(router.history.length).toBe(1);
+  expect(
+    await screen.findByRole('heading', { level: 1, name: 'Add a system administrator' }),
+  ).toBeVisible();
+});
+
+it("moves a tenant's administrator step back beside Tenants when opened under System administrators", async () => {
+  sessionStorage.setItem(KEY, JSON.stringify({ owner: 'system/s0', creation: HALFWAY }));
+  const { router } = renderConsoleAt('/console/system/system-admins/new', routes());
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/system/new-tenant');
+  });
+  expect(router.history.length).toBe(1);
 });
