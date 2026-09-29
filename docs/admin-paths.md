@@ -1091,17 +1091,17 @@ needed is gone and it writes nothing.
 
 Against an eleventh stack — compose project `odudu-t8b2` again, on 3082 and
 5464, brought up from an empty volume with the tenth's settings and
-`ada-t8b2` seeded in `system`, from this branch as it stood after the batched
-disable — a tenant `doomed` created through `POST /admin/tenants`, given a
+`ada-t8b2` seeded in `system`, its image built from this branch at `cd930b59`
+— a tenant `doomed` created through `POST /admin/tenants`, given a
 client through `POST /clients`, its id
-`01a0eed4-542b-78ed-b7f3-77aeb1ff6d64`. `count-rows.sql` counts that id's rows
+`01a0ef1f-415e-75a4-b079-953dc3de7ae0`. `count-rows.sql` counts that id's rows
 in every table with a `tenant_id` column, as the database's owner:
 
 ```
 SELECT table_name,
        (xpath('/row/n/text()', query_to_xml(format(
          'select count(*) as n from %I where tenant_id = %L',
-         table_name, '01a0eed4-542b-78ed-b7f3-77aeb1ff6d64'), false, true, '')))[1]::text::int AS n
+         table_name, '01a0ef1f-415e-75a4-b079-953dc3de7ae0'), false, true, '')))[1]::text::int AS n
   FROM information_schema.columns
  WHERE table_schema = 'public' AND column_name = 'tenant_id'
  ORDER BY n DESC, table_name;
@@ -1139,7 +1139,7 @@ done
 curl -sS "$O/protocol/openid-connect/certs" | python3 -c 'import json,sys;print([k["kid"] for k in json.load(sys.stdin)["keys"]])'
 echo "INSERT INTO sessions (id, tenant_id, subject_id, expires_at, last_active_at, secret_hash)
   SELECT gen_random_uuid(), tenant_id, subject_id, now() + interval '1 hour', now(), md5('late')
-    FROM users WHERE tenant_id = '01a0eed4-542b-78ed-b7f3-77aeb1ff6d64' AND username = 'ada';" | pg
+    FROM users WHERE tenant_id = '01a0ef1f-415e-75a4-b079-953dc3de7ae0' AND username = 'ada';" | pg
 curl -sS -X DELETE -H "$A" "$T/doomed?confirm=doomed"; echo
 curl -sS -o /dev/null -w '%{http_code}\n' -X PATCH -H "$A" -H 'content-type: application/json' \
   -d '{"enabled":false}' "$T/doomed"
@@ -1154,7 +1154,7 @@ for p in .well-known/openid-configuration protocol/openid-connect/certs; do
   printf '%-40s %s\n' "$p" "$(curl -s -o /dev/null -w '%{http_code}' "$O/$p")"
 done
 pg < count-rows.sql
-curl -sS -H "$A" "$T/system/audit?action=tenant.delete&resource_type=tenant&resource_id=01a0eed4-542b-78ed-b7f3-77aeb1ff6d64" \
+curl -sS -H "$A" "$T/system/audit?action=tenant.delete&resource_type=tenant&resource_id=01a0ef1f-415e-75a4-b079-953dc3de7ae0" \
   | python3 -c 'import json,sys;[print(json.dumps({k:i[k] for k in ("action","outcome","actor_name","resource_id","detail")})) for i in json.load(sys.stdin)["items"]]'
 curl -sS -H "$A" "$T/system/audit?action=tenant.delete&outcome=refused&limit=1" \
   | python3 -c 'import json,sys;[print(json.dumps({k:i[k] for k in ("action","outcome","actor_name","resource_id","detail")})) for i in json.load(sys.stdin)["items"]]'
@@ -1200,33 +1200,33 @@ curl -sS -H "$A" "$T/system/audit?action=tenant.delete&outcome=refused&limit=1" 
  user_required_actions         |  0
 (35 rows)
 
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring must have required property 'confirm'","errors":[{"path":"confirm","message":"must have required property 'confirm'"}],"instance":"01a0eed4-5980-7e21-ab86-2d5ab304c04f"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"confirm: must be the tenant’s own name, doomed","errors":[{"path":"confirm","message":"must be the tenant’s own name, doomed"}],"instance":"01a0eed4-598e-7117-bc78-737af44782ec"}
-{"type":"about:blank","title":"Conflict","status":409,"detail":"the system tenant is where every cross-tenant administrator authenticates, and is never deleted","instance":"01a0eed4-59a9-7e87-b1e9-e3e8f7d3bb15"}
-{"type":"about:blank#tenant-enabled","title":"Conflict","status":409,"detail":"doomed is enabled: disable it first, which ends its sessions and tells their relying parties","instance":"01a0eed4-59c2-73d4-b091-7ae7a47c85c2"}
-{"id":"01a0eed4-542b-78ed-b7f3-77aeb1ff6d64","name":"doomed","display_name":null,"enabled":false,"created_at":"2026-09-29T20:21:27.724Z"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must have required property 'confirm'","errors":[{"path":"confirm","message":"must have required property 'confirm'"}],"instance":"01a0ef1f-51b7-77cc-a683-bf9043781642"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"confirm: must be the tenant’s own name, doomed","errors":[{"path":"confirm","message":"must be the tenant’s own name, doomed"}],"instance":"01a0ef1f-51ce-7b10-a100-eebf1c4fe3c9"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"the system tenant is where every cross-tenant administrator authenticates, and is never deleted","instance":"01a0ef1f-5203-727b-ae1d-079ca4810cfb"}
+{"type":"about:blank#tenant-enabled","title":"Conflict","status":409,"detail":"doomed is enabled: disable it first, which ends its sessions and tells their relying parties","instance":"01a0ef1f-523a-78db-b44d-9c982b92a47f"}
+{"id":"01a0ef1f-415e-75a4-b079-953dc3de7ae0","name":"doomed","display_name":null,"enabled":false,"created_at":"2026-09-29T21:43:18.111Z"}
 {"action": "session.end_all", "actor_name": null, "detail": {"via": "tenant_disabled", "ended": 1, "remaining": 0}}
 .well-known/openid-configuration         200
 protocol/openid-connect/certs            200
 protocol/openid-connect/token            404
-['01a0eed4-5474-7289-b049-4826f3b02344']
+['01a0ef1f-41e5-7509-b721-b3a12b2168e4']
 INSERT 0 1
-{"type":"about:blank#sessions-live","title":"Conflict","status":409,"detail":"sessions still live: 1; disable doomed again to end them and tell their relying parties","instance":"01a0eed4-5b98-7e70-8d43-aa35ffa3640d"}
+{"type":"about:blank#sessions-live","title":"Conflict","status":409,"detail":"sessions still live: 1; disable doomed again to end them and tell their relying parties","instance":"01a0ef1f-54d2-7a78-b158-df25a7400b30"}
 200
-{"type":"about:blank#logout-deliveries-pending","title":"Conflict","status":409,"detail":"Back-Channel Logout Tokens still to be sent: 1; deleting the tenant would discard them","instance":"01a0eed4-5bff-735f-81a8-a849f6b697a5"}
+{"type":"about:blank#logout-deliveries-pending","title":"Conflict","status":409,"detail":"Back-Channel Logout Tokens still to be sent: 1; deleting the tenant would discard them","instance":"01a0ef1f-554e-7188-ae9b-a2ca513aa10b"}
 {"ran":true,"delivered":0,"failed":1}
 {"ran":true,"delivered":0,"failed":1}
 {"ran":true,"delivered":0,"failed":1}
 {"ran":true,"delivered":0,"failed":1}
 {"ran":true,"delivered":0,"failed":1}
 HTTP/1.1 204 No Content
-x-request-id: 01a0eed8-29ff-7666-b2bb-fe4a75ea7aa3
+x-request-id: 01a0ef23-1f57-7e1f-8774-24782c430191
 cache-control: no-store
-Date: Tue, 29 Sep 2026 20:25:39 GMT
+Date: Tue, 29 Sep 2026 21:47:31 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0eed8-2a53-76fc-91f1-82685e8e8b25"}
+{"type":"about:blank","title":"Unauthorized","status":401,"instance":"01a0ef23-1fad-7791-9255-113e6c46a30e"}
 .well-known/openid-configuration         404
 protocol/openid-connect/certs            404
           table_name           | n
@@ -1268,7 +1268,7 @@ protocol/openid-connect/certs            404
  users                         | 0
 (35 rows)
 
-{"action": "tenant.delete", "outcome": "allowed", "actor_name": "ada-t8b2", "resource_id": "01a0eed4-542b-78ed-b7f3-77aeb1ff6d64", "detail": {"name": "doomed"}}
+{"action": "tenant.delete", "outcome": "allowed", "actor_name": "ada-t8b2", "resource_id": "01a0ef1f-415e-75a4-b079-953dc3de7ae0", "detail": {"name": "doomed"}}
 {"action": "tenant.delete", "outcome": "refused", "actor_name": "ada-t8b2", "resource_id": "0199aa00-0000-7000-8000-000000000001", "detail": {"name": "system", "reason": "system_tenant_guarded"}}
 ```
 

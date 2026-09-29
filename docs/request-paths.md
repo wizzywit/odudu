@@ -9371,7 +9371,8 @@ have every one rejected. Deleting the tenant removes its keys, and both then
 answer `404`. Everything else — `/token`, `/userinfo`, and `/authorize`'s
 rendered page — cannot tell a disabled tenant from one that never existed.
 Captured on 2026-09-29 from the repository root against compose project
-`odudu-t8b2` on port 3082, brought up from an empty volume for
+`odudu-t8b2` on port 3082, its image built from this branch at `cd930b59` and
+brought up from an empty volume for
 [docs/admin-paths.md](admin-paths.md)'s `DELETE /admin/tenants/{tenant}`. A
 tenant `lapsed` is seeded and answers, then is disabled through `psql`, in
 the column `PATCH /admin/tenants/{tenant}` with `enabled: false` and the
@@ -9404,7 +9405,7 @@ curl -s http://localhost:3082/tenants/lapsed/protocol/openid-connect/certs \
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"lapsed","tenantId":"01a0eed8-ac8d-77e9-aa8f-55f949965673"}
+{"command":"tenant","created":true,"tenant":"lapsed","tenantId":"01a0ef23-23c9-791b-9733-189c42be5382"}
 /tenants/lapsed/.well-known/openid-configuration   200
 /tenants/lapsed/protocol/openid-connect/certs      200
 lapsed|f
