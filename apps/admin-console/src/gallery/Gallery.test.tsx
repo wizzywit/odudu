@@ -4,8 +4,9 @@ import { expect, it } from 'vitest';
 import { Gallery } from '#/gallery/Gallery.tsx';
 import gallerySource from '#/gallery/Gallery.tsx?raw';
 
-// Drawn by every dialog rather than used on its own.
-const PARTS = new Set(['DialogFrame']);
+// Drawn by other components rather than used on their own: every dialog,
+// and every picker.
+const PARTS = new Set(['DialogFrame', 'Picker']);
 
 const components = Object.keys(
   import.meta.glob(['../shared/view/*.tsx', '!../shared/view/*.test.tsx']),

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { advance, type CursorTrail } from '#/shared/service/cursorTrail.ts';
+import type { PickerState } from '#/shared/service/picker.ts';
 import type { ListSearch, ResourceListState } from '#/shared/service/resourceList.ts';
 import { current, dirtyFields, discard, edit, startDraft } from '#/shared/service/dirty.ts';
 import type { Toast } from '#/shared/service/toast.ts';
@@ -24,11 +25,13 @@ import {
   UrlListField,
 } from '#/shared/view/Field.tsx';
 import { FilterBar } from '#/shared/view/FilterBar.tsx';
+import { GroupPicker } from '#/shared/view/GroupPicker.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import { Pager } from '#/shared/view/Pager.tsx';
 import { Rail } from '#/shared/view/Rail.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { ResourceListPage } from '#/shared/view/ResourceListPage.tsx';
+import { RolePicker } from '#/shared/view/RolePicker.tsx';
 import { SaveBar } from '#/shared/view/SaveBar.tsx';
 import { SecretDialog } from '#/shared/view/SecretDialog.tsx';
 import { Section } from '#/shared/view/Section.tsx';
@@ -46,9 +49,11 @@ import {
   CLIENTS,
   CONFLICTS,
   EVENTS,
+  GROUPS,
   NOW,
   RAIL_GROUPS,
   REDIRECT_URIS,
+  ROLES,
   STEP_REQUIREMENTS,
   SUBJECT_FIELDS,
   TENANT,
@@ -349,6 +354,40 @@ function listOf<T>(rows: readonly T[], next: string | null): ResourceListState<T
   };
 }
 
+function pickerOf<T>(options: readonly T[], more: boolean): PickerState<T> {
+  return {
+    status: 'ready',
+    options,
+    query: '',
+    search: NOTHING,
+    more,
+    loadingMore: false,
+    loadMore: NOTHING,
+    retry: NOTHING,
+  };
+}
+
+function Pickers() {
+  const [roles, setRoles] = useState<readonly string[]>(['r2']);
+  const [groups, setGroups] = useState<readonly string[]>([]);
+  return (
+    <div className={styles.grid}>
+      <RolePicker
+        label="Roles"
+        picker={pickerOf(ROLES, true)}
+        selected={roles}
+        onChange={setRoles}
+      />
+      <GroupPicker
+        label="Groups"
+        picker={pickerOf(GROUPS, false)}
+        selected={groups}
+        onChange={setGroups}
+      />
+    </div>
+  );
+}
+
 function Dialogs({ initial }: { initial: GalleryDialog | null }) {
   const [open, setOpen] = useState<GalleryDialog | null>(initial);
   const close = (): void => {
@@ -574,6 +613,9 @@ export function Gallery({
               onChange={() => undefined}
               error="The only required step of the flow cannot be disabled."
             />
+          </Specimen>
+          <Specimen label="RolePicker and GroupPicker: searched, paged, each role's owner named">
+            <Pickers />
           </Specimen>
           <Specimen label="SaveBar on its own">
             <SaveBar section="Tokens" saving={false} onDiscard={() => undefined} />

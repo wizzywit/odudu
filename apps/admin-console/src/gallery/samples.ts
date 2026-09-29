@@ -1,4 +1,4 @@
-import type { AuditEvent } from '@odudu/contracts/admin';
+import type { AuditEvent, Group, Role } from '@odudu/contracts/admin';
 import type { Conflict } from '#/shared/service/conflict.ts';
 import type { KeyValuePair } from '#/shared/view/Field.tsx';
 
@@ -151,5 +151,40 @@ export const EVENTS: readonly AuditEvent[] = [
     occurred_at: '2026-09-21T08:12:44Z',
     action: 'client.create',
     request_id: null,
+  },
+];
+
+function role(id: string, name: string, clientKey: string | null, description: string): Role {
+  return {
+    id,
+    name,
+    description,
+    client_id: clientKey === null ? null : '0192f7a4-5c1e-7b3a-9d2e-6f8a1b2c3d4e',
+    client_key: clientKey,
+    default_for_new_subjects: false,
+    created_at: '2026-09-28T13:41:05Z',
+  };
+}
+
+export const ROLES: readonly Role[] = [
+  role('r1', 'auditor', null, 'Reads the audit trail'),
+  role('r2', 'admin', 'billing-portal', 'Administers billing'),
+  role('r3', 'admin', null, 'Administers the tenant'),
+];
+
+export const GROUPS: readonly Group[] = [
+  {
+    id: 'g1',
+    name: 'engineering',
+    parent_id: null,
+    path: '/engineering',
+    created_at: '2026-09-28T13:41:05Z',
+  },
+  {
+    id: 'g2',
+    name: 'platform',
+    parent_id: 'g1',
+    path: '/engineering/platform',
+    created_at: '2026-09-28T13:41:05Z',
   },
 ];
