@@ -496,6 +496,9 @@ importers:
       '@node-rs/argon2':
         specifier: 2.2.1
         version: 2.2.1
+      '@odudu/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@odudu/db':
         specifier: workspace:*
         version: link:../db

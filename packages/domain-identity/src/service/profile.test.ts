@@ -1,3 +1,4 @@
+import * as contract from '@odudu/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   isValidBirthdate,
@@ -56,5 +57,17 @@ describe('E.164 phone number', () => {
     [''],
   ])('refuses %s', (v) => {
     expect(isValidE164(v)).toBe(false);
+  });
+});
+
+// The console checks a claim with the contract's predicates before it
+// sends it, so the ones the server refuses with must be those same ones.
+describe('the claim shapes', () => {
+  it('are the ones @odudu/contracts states, not copies of them', () => {
+    expect(isValidBirthdate).toBe(contract.isValidBirthdate);
+    expect(isValidZoneinfo).toBe(contract.isValidZoneinfo);
+    expect(isValidLocale).toBe(contract.isValidLocale);
+    expect(isValidProfileUrl).toBe(contract.isValidProfileUrl);
+    expect(isValidE164).toBe(contract.isValidE164);
   });
 });

@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@node-rs/argon2": "2.2.1",
+    "@odudu/contracts": "workspace:*",
     "@odudu/db": "workspace:*",
     "@odudu/kernel": "workspace:*",
     "drizzle-orm": "0.45.2",
