@@ -17,7 +17,10 @@ function subjectId(username: string): string {
   );
 }
 
-function userColumn(username: string, column: 'name' | 'email'): string {
+type Column =
+  'name' | 'email' | 'phone_number' | 'birthdate' | 'zoneinfo' | 'locale' | 'address_country';
+
+function userColumn(username: string, column: Column): string {
   return psql(
     `select coalesce(u.${column}, '<null>') from users u join tenants t on t.id = u.tenant_id where t.name = ${sqlText(TENANT)} and u.username = ${sqlText(username)}`,
   );
@@ -165,15 +168,21 @@ test('a lockout is shown and cleared', async ({ page }) => {
   await expectAccessible(page);
 });
 
-test('an operator holding view-users alone sees a subject, and nothing to change it with', async ({
+test('an operator holding view-users alone sees a subject as text, and nothing to change it with', async ({
   page,
 }) => {
   await signIn(page, viewer);
+  const rail = page.getByRole('navigation', { name: `Areas of ${TENANT}` });
+  await expect(rail.getByRole('link')).toHaveText(['Overview', 'Subjects']);
   await openSubject(page, subjects.edited);
-  await expect(page.getByRole('textbox', { name: 'Full name' })).toBeDisabled();
-  await expect(page.getByRole('textbox', { name: 'Email' })).toBeDisabled();
-  await expect(page.getByRole('note')).toContainText('manage-users');
-  await expect(page.getByRole('button', { name: /^(Disable|Delete) /u })).toHaveCount(0);
+  await expect(page.getByRole('note')).toHaveText(
+    'You can view subjects but not change them (needs manage-users).',
+  );
+  await expect(page.getByText('Full name', { exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox')).toHaveCount(0);
+  await expect(page.getByRole('combobox')).toHaveCount(0);
+  await expect(page.getByRole('switch')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^(Disable|Delete|Save) /u })).toHaveCount(0);
   await expectAccessible(page);
 
   await page.getByRole('tab', { name: 'Credentials' }).click();
@@ -184,7 +193,82 @@ test('an operator holding view-users alone sees a subject, and nothing to change
   await page.goto(`/console/${TENANT}/subjects`);
   await expect(page.getByRole('grid', { name: 'Subjects' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Create a subject' })).toHaveCount(0);
+  await expect(page.getByRole('note')).toHaveText(
+    'You can view subjects but not change them (needs manage-users).',
+  );
   await expectAccessible(page);
+
+  // A shared link to an area the rail leaves out still opens, and explains.
+  await page.goto(`/console/${TENANT}/clients`);
+  await expect(page.getByText('Clients needs the manage-clients capability.')).toBeVisible();
+});
+
+test('a subject’s details are entered through typed fields and stored as the claims say', async ({
+  page,
+}) => {
+  const username = subjects.typed;
+  await signIn(page, admin);
+  await openSubject(page, username);
+  const details = page.getByRole('region', { name: 'Details' });
+  const phone = details.getByRole('group', { name: 'Phone number' });
+  await phone.getByRole('combobox', { name: 'Country' }).fill('Nigeria');
+  await page.getByRole('option', { name: 'Nigeria' }).click();
+  await phone.getByRole('textbox', { name: 'Number' }).fill('0803 123 4567');
+  await expect(phone).toContainText('Stored as +2348031234567.');
+  const birthdate = details.getByRole('group', { name: 'Birthdate' });
+  await birthdate.getByRole('radio', { name: 'Year only' }).check();
+  await birthdate.getByRole('textbox', { name: 'Year' }).fill('1990');
+  await details.getByRole('combobox', { name: 'Time zone' }).fill('Lagos');
+  await expect(page.getByRole('option', { name: 'Africa/Lagos' })).toBeVisible();
+  await expectAccessible(page);
+  await page.getByRole('option', { name: 'Africa/Lagos' }).click();
+  await details.getByRole('combobox', { name: 'Locale' }).fill('English (Nig');
+  await page.getByRole('option', { name: 'English (Nigeria)' }).click();
+  await page.getByRole('button', { name: 'Save Details' }).click();
+  await expect(page.getByRole('button', { name: 'Save Details' })).toHaveCount(0);
+  expect(userColumn(username, 'phone_number')).toBe('+2348031234567');
+  expect(userColumn(username, 'birthdate')).toBe('1990');
+  expect(userColumn(username, 'zoneinfo')).toBe('Africa/Lagos');
+  expect(userColumn(username, 'locale')).toBe('en-NG');
+
+  const address = page.getByRole('region', { name: 'Address' });
+  await address.getByRole('combobox', { name: 'Country' }).fill('Germ');
+  await page.getByRole('option', { name: 'Germany' }).click();
+  await page.getByRole('button', { name: 'Save Address' }).click();
+  await expect(page.getByRole('button', { name: 'Save Address' })).toHaveCount(0);
+  expect(userColumn(username, 'address_country')).toBe('Germany');
+  await expectAccessible(page);
+});
+
+test('a full birthdate is entered by keyboard alone', async ({ page }) => {
+  const username = subjects.keyed;
+  await signIn(page, admin);
+  await openSubject(page, username);
+  const birthdate = page.getByRole('group', { name: 'Birthdate' });
+  const full = birthdate.getByRole('radio', { name: 'Full date' });
+  for (let pressed = 0; pressed < 80; pressed += 1) {
+    if (await full.evaluate((node) => node === document.activeElement)) break;
+    await page.keyboard.press('Tab');
+  }
+  await page.keyboard.press('Space');
+  await expect(full).toBeChecked();
+  await page.keyboard.press('Tab');
+  await expect(birthdate.getByRole('spinbutton').first()).toBeFocused();
+  // The browser's locale here is en-US: month, day, year.
+  await page.keyboard.type('12101815');
+  await expect(birthdate).toContainText('12/10/1815');
+  for (let pressed = 0; pressed < 80; pressed += 1) {
+    const save = page.getByRole('button', { name: 'Save Details' });
+    if (
+      (await save.count()) > 0 &&
+      (await save.evaluate((node) => node === document.activeElement))
+    )
+      break;
+    await page.keyboard.press('Tab');
+  }
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Save Details' })).toHaveCount(0);
+  expect(userColumn(username, 'birthdate')).toBe('1815-12-10');
 });
 
 test('the list and a record work at 390 px', async ({ page }) => {

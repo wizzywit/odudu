@@ -104,7 +104,7 @@ test('the issuer can be copied by keyboard alone', async ({ page, context }) => 
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(issuer);
 });
 
-test('an operator without view-audit is told what the audit panel needs, and asks nothing of it', async ({
+test('an operator without view-audit sees neither the audit rows nor the areas it cannot read', async ({
   page,
 }) => {
   const asked: string[] = [];
@@ -112,11 +112,24 @@ test('an operator without view-audit is told what the audit panel needs, and ask
     asked.push(new URL(request.url()).pathname);
   });
   await signIn(page, limited);
-  const activity = page.getByRole('region', { name: 'Latest activity' });
-  await expect(activity.getByRole('note')).toHaveText(
-    'The audit trail needs the view-audit capability.',
-  );
-  await expect(activity.getByRole('link')).toHaveCount(0);
+  const rail = page.getByRole('navigation', { name: `Areas of ${limited.tenant}` });
+  await expect(rail.getByRole('link')).toHaveText([
+    'Overview',
+    'Groups',
+    'Roles',
+    'Scopes',
+    'Sign-in flow',
+    'Settings',
+    'Email',
+    'Export',
+  ]);
+  await expect(page.getByRole('region', { name: 'Counts' }).getByRole('link')).toHaveText([
+    'Groups',
+    'Roles',
+    'Scopes',
+  ]);
+  await expect(page.getByRole('region', { name: 'Latest activity' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^(Create|Delete|Save)/u })).toHaveCount(0);
   await expect(
     page.getByRole('region', { name: 'Needs attention' }).getByRole('note'),
   ).toContainText('manage-keys');

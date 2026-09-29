@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { expect, expectAccessible, forgive, signIn, signInAtTenant, test } from './fixtures.ts';
 import { psql, seeded, type Account } from './stack.ts';
 
-const { admin, limited, resumer, system, tenants } = seeded();
+const { admin, limited, resumer, system, systemAdmins, tenants } = seeded();
 const PHONE = { width: 390, height: 844 };
 
 function sqlText(value: string): string {
@@ -288,10 +288,40 @@ test('an operator without the capabilities an export needs is told which, and se
   await page.goto(`/console/${limited.tenant}/export`);
   await expect(page.getByRole('heading', { level: 1, name: 'Export' })).toBeVisible();
   await expect(page.getByText(/An export needs the/u)).toContainText('manage-clients');
-  await expect(page.getByRole('button', { name: 'Export to a file' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Export to a file' })).toHaveCount(0);
+  await expect(
+    page.getByRole('navigation', { name: `Areas of ${limited.tenant}` }).getByRole('link'),
+  ).not.toContainText(['Clients']);
   await expectAccessible(page);
   await page.goto(`/console/${limited.tenant}/tenants`);
   await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+});
+
+test('a system administrator holding manage-tenants alone sees a tenant, and nothing to change it with', async ({
+  page,
+}) => {
+  await signIn(page, systemAdmins.limited);
+  const rail = page.getByRole('navigation', { name: 'Areas of system' });
+  await expect(rail.getByRole('link')).toHaveText([
+    'Tenants',
+    'System administrators',
+    'Overview',
+    'Subjects',
+  ]);
+  await page.goto(`/console/system/tenants/${tenants.general}`);
+  await expect(page.getByRole('heading', { level: 1, name: tenants.general })).toBeVisible();
+  await expect(page.getByRole('note')).toContainText(
+    'You can view tenants but not change them or add their administrators (needs manage-tenant',
+  );
+  await expect(page.getByRole('textbox')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^(Disable|Enable) /u })).toHaveCount(0);
+  await expectAccessible(page);
+  await page.getByRole('tab', { name: 'Administrators' }).click();
+  await expect(
+    page.getByRole('grid', { name: `Administrators of ${tenants.general}` }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add an administrator' })).toHaveCount(0);
+  await expectAccessible(page);
 });
 
 test('a tenant administrator exports their own tenant from its Export area', async ({ page }) => {

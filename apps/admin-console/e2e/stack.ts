@@ -84,6 +84,10 @@ const seededSchema = z.object({
     // Usernames of subjects whose profiles a test edits, one per test.
     edited: z.string(),
     conflict: z.string(),
+    // Whose details a test enters through the typed fields, and whose
+    // birthdate another enters by keyboard alone.
+    typed: z.string(),
+    keyed: z.string(),
     // Locked out by a test, then cleared.
     locked: account,
     // Issued a one-time password, which then signs in.

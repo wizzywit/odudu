@@ -242,22 +242,20 @@ test('the only enabled holder cannot be revoked, and the page says why beforehan
   await expectAccessible(page);
 });
 
-test('an operator holding manage-tenants and view-users alone is told what else it needs', async ({
+test('an operator holding manage-tenants and view-users alone is offered none of the changes', async ({
   page,
 }) => {
   await signIn(page, systemAdmins.limited);
+  await expect(
+    page.getByRole('navigation', { name: 'Areas of system' }).getByRole('link'),
+  ).toHaveText(['Tenants', 'System administrators', 'Overview', 'Subjects']);
   await openSystemAdministrators(page);
-  await expect(page.getByRole('button', { name: 'Create a system administrator' })).toBeDisabled();
-  await expect(
-    page.getByRole('button', { name: `Revoke ${systemAdmins.limited.username}` }),
-  ).toBeDisabled();
-  await expect(
-    page.getByText('Creating a system administrator needs the manage-users capability.'),
-  ).toBeVisible();
-  await expect(
-    page.getByText('Granting or revoking tenant-admin needs the manage-clients capability.'),
-  ).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Grant tenant-admin/u })).toBeDisabled();
+  await expect(page.getByRole('note')).toContainText(
+    'You can view system administrators but not create them or grant or revoke tenant-admin (needs manage-users',
+  );
+  await expect(page.getByRole('button', { name: 'Create a system administrator' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Revoke /u })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Grant tenant-admin/u })).toHaveCount(0);
   await expectAccessible(page);
 });
 
