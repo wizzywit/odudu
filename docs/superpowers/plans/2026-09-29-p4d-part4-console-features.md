@@ -505,6 +505,11 @@ drives, with tests at the protocol layer.
 - [ ] README: the console section describes the working console. The "not
       built yet" P4d row goes.
 - [ ] `docs/request-paths.md`: the not-implemented console entry closes.
+- [ ] `docs/console-paths.md`: recapture the four gateway walkthroughs whose
+      audit blocks are labelled as predating `actor_name` and `actor_origin`
+      (a proxied PATCH, the principal-changed refusal, a refresh, a refresh
+      that cannot take the lock), each run whole on one stack, and remove
+      the labels.
 - [ ] `docs/NEXT.md`: record where P4d stands.
 - [ ] The phase-closing pass from `CLAUDE.md`, sections 1–4, for all of P4d.
 - [ ] Commit: `Close the console's features`.
