@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { json } from '#/testing/fakeTransport.ts';
-import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
+import { consoleAt, renderConsoleAt, resetConsole, whoami } from '#/testing/renderConsole.tsx';
 import { ADMIN, systemRoutes, tenant } from '#/testing/tenantsFixtures.ts';
 
 afterEach(() => {
@@ -53,6 +53,21 @@ it('adds an administrator through the guided step, resumed for this tenant', asy
   expect(
     await screen.findByRole('heading', { level: 1, name: 'First administrator of acme' }),
   ).toBeVisible();
+});
+
+it('names what adding an administrator needs, rather than offering it, to manage-tenants alone', async () => {
+  renderConsoleAt(AT, {
+    ...routes(),
+    [`GET ${ADMIN}/system/whoami`]: whoami(['manage-tenants', 'view-users']),
+  });
+  const add = await screen.findByRole('button', { name: 'Add an administrator' });
+  await waitFor(() => {
+    expect(add).toBeDisabled();
+  });
+  expect(screen.getAllByRole('note').map((note) => note.textContent)).toEqual([
+    'Adding an administrator needs the manage-users capability.',
+    'Adding an administrator needs the manage-clients capability.',
+  ]);
 });
 
 it('passes axe in both themes', async () => {

@@ -16,6 +16,7 @@ import {
   administratorCalls,
   administratorOf,
   type AdministratorCall,
+  type AdministratorRequest,
   builtinAdminClient,
   FRESH_CREATION,
   TENANT_ADMIN,
@@ -86,7 +87,11 @@ export interface AdministratorRun {
   // Told as each call lands, so a reload between two resumes at the next.
   readonly onProgress: (done: { readonly subjectId: string; readonly granted: boolean }) => void;
   // Told once of the call that failed, as it fails.
-  readonly onFailure: (failure: GatewayFailure, call: AdministratorCall) => void;
+  readonly onFailure: (
+    failure: GatewayFailure,
+    call: AdministratorCall,
+    request: AdministratorRequest,
+  ) => void;
 }
 
 function defect(message: string): GatewayFailure {
@@ -94,46 +99,84 @@ function defect(message: string): GatewayFailure {
   return { ok: false, kind: 'defect' };
 }
 
+interface Refused {
+  readonly failure: GatewayFailure;
+  readonly request: AdministratorRequest;
+}
+
+function refusedAt(failure: GatewayFailure, request: AdministratorRequest): Refused {
+  return { failure, request };
+}
+
 async function grantTenantAdmin(
   gateway: Gateway,
   tenant: string,
   subjectId: string,
-): Promise<GatewayResult<unknown>> {
+): Promise<Refused | null> {
   const clients = await readAdminClients(gateway, tenant);
-  if (!clients.ok) return clients;
+  if (!clients.ok) return refusedAt(clients, 'clients');
   const client = builtinAdminClient(clients.data.items);
-  if (client === null)
-    return defect(`console defect: ${tenant} lists no built-in odudu-admin client`);
+  if (client === null) {
+    return refusedAt(
+      defect(`console defect: ${tenant} lists no built-in odudu-admin client`),
+      'clients',
+    );
+  }
   const roles = await readClientRoles(gateway, tenant, client, TENANT_ADMIN);
-  if (!roles.ok) return roles;
+  if (!roles.ok) return refusedAt(roles, 'roles');
   const role = tenantAdminRole(roles.data.items, client);
-  if (role === null)
-    return defect(`console defect: ${tenant}'s odudu-admin has no ${TENANT_ADMIN}`);
+  if (role === null) {
+    return refusedAt(
+      defect(`console defect: ${tenant}'s odudu-admin has no ${TENANT_ADMIN}`),
+      'roles',
+    );
+  }
   const held = await readSubjectRoles(gateway, tenant, subjectId);
-  if (!held.ok) return held;
-  if (held.etag === null)
-    return defect(`console defect: ${tenant} answered a subject's roles without an ETag`);
+  if (!held.ok) return refusedAt(held, 'subject-roles');
+  if (held.etag === null) {
+    return refusedAt(
+      defect(`console defect: ${tenant} answered a subject's roles without an ETag`),
+      'subject-roles',
+    );
+  }
   const ids = held.data.items.map((assigned) => assigned.id);
-  return setSubjectRoles(gateway, tenant, subjectId, withRole(ids, role), held.etag);
+  const set = await setSubjectRoles(gateway, tenant, subjectId, withRole(ids, role), held.etag);
+  return set.ok ? null : refusedAt(set, 'set-roles');
 }
+
+type CallResult =
+  | { readonly ok: true; readonly subjectId?: string; readonly password?: string }
+  | { readonly ok: false; readonly refused: Refused };
 
 async function runCall(
   gateway: Gateway,
   run: AdministratorRun,
   call: AdministratorCall,
   subjectId: string | null,
-): Promise<GatewayResult<{ readonly subjectId?: string; readonly password?: string }>> {
+): Promise<CallResult> {
   if (call === 'create') {
     const created = await createSubject(gateway, run.tenant, run);
-    return created.ok ? { ...created, data: { subjectId: created.data.id } } : created;
+    return created.ok
+      ? { ok: true, subjectId: created.data.id }
+      : { ok: false, refused: refusedAt(created, 'create') };
   }
-  if (subjectId === null)
-    return defect('console defect: an administrator step ran with no subject');
+  if (subjectId === null) {
+    return {
+      ok: false,
+      refused: refusedAt(
+        defect('console defect: an administrator step ran with no subject'),
+        call === 'grant' ? 'set-roles' : 'password',
+      ),
+    };
+  }
   if (call === 'grant') {
-    const granted = await grantTenantAdmin(gateway, run.tenant, subjectId);
-    return granted.ok ? { ...granted, data: {} } : granted;
+    const refused = await grantTenantAdmin(gateway, run.tenant, subjectId);
+    return refused === null ? { ok: true } : { ok: false, refused };
   }
-  return issuePassword(gateway, run.tenant, subjectId);
+  const issued = await issuePassword(gateway, run.tenant, subjectId);
+  return issued.ok
+    ? { ok: true, password: issued.data.password }
+    : { ok: false, refused: refusedAt(issued, 'password') };
 }
 
 async function runAdministrator(
@@ -145,17 +188,18 @@ async function runAdministrator(
   for (const call of administratorCalls({ subjectId, granted })) {
     const result = await runCall(gateway, run, call, subjectId);
     if (!result.ok) {
-      run.onFailure(result, call);
-      return result;
+      run.onFailure(result.refused.failure, call, result.refused.request);
+      return result.refused.failure;
     }
-    if (result.data.password !== undefined)
-      return { ...result, data: { password: result.data.password } };
-    if (call === 'create') subjectId = result.data.subjectId ?? null;
+    if (result.password !== undefined) {
+      return { ok: true, status: 201, data: { password: result.password }, etag: null, next: null };
+    }
+    if (call === 'create') subjectId = result.subjectId ?? null;
     if (call === 'grant') granted = true;
     if (subjectId !== null) run.onProgress({ subjectId, granted });
   }
   const failure = defect('console defect: an administrator step issued no password');
-  run.onFailure(failure, 'password');
+  run.onFailure(failure, 'password', 'password');
   return failure;
 }
 

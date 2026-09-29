@@ -135,7 +135,7 @@ it('stops at a refused call, reporting it, with what landed already told', async
   expect(result.current.secret).toBeNull();
   expect(progress.mock.calls).toEqual([[{ subjectId: SUBJECT_ID, granted: false }]]);
   expect(failed).toHaveBeenCalledTimes(1);
-  expect(failed.mock.calls[0]?.[1]).toBe('grant');
+  expect(failed.mock.calls[0]?.slice(1)).toEqual(['grant', 'set-roles']);
   expect(sent.some((s) => s.path.endsWith('/password'))).toBe(false);
 });
 

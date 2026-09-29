@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { inTurn, json, offline, problem } from '#/testing/fakeTransport.ts';
-import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
+import { consoleAt, renderConsoleAt, resetConsole, whoami } from '#/testing/renderConsole.tsx';
 import { ADMIN, administratorRoutes, systemRoutes, tenant } from '#/testing/tenantsFixtures.ts';
 
 const AT = '/console/system/new-tenant';
@@ -172,4 +172,54 @@ it('passes axe in both themes at each step', { timeout: 20_000 }, async () => {
       screen.findByRole('link', { name: 'Open acme' }),
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+const HALFWAY = {
+  step: 'administrator',
+  tenant: 'acme',
+  origin: 'created',
+  username: 'grace',
+  email: '',
+  subjectId: null,
+  granted: false,
+};
+
+it('names what the first administrator needs to a holder of manage-tenants alone, and sends nothing', async () => {
+  sessionStorage.setItem(KEY, JSON.stringify({ owner: 'system/s0', creation: HALFWAY }));
+  const { sent } = renderConsoleAt(
+    AT,
+    routes({ [`GET ${ADMIN}/system/whoami`]: whoami(['manage-tenants']) }),
+  );
+  const notes = await screen.findAllByRole('note');
+  expect(notes.map((note) => note.textContent)).toEqual([
+    'Creating the administrator needs the manage-users capability.',
+    'Creating the administrator needs the manage-clients capability.',
+    'Creating the administrator needs the view-users capability.',
+  ]);
+  expect(screen.getByRole('button', { name: 'Create administrator' })).toBeDisabled();
+  expect(sent.filter((s) => s.method !== 'GET')).toHaveLength(0);
+});
+
+it('names the capability of the one call the server refused, and reads whoami again', async () => {
+  sessionStorage.setItem(KEY, JSON.stringify({ owner: 'system/s0', creation: HALFWAY }));
+  const user = userEvent.setup();
+  const { calls } = renderConsoleAt(
+    AT,
+    routes({
+      [`GET ${ADMIN}/acme/clients`]: problem(403, 'about:blank', 'Forbidden'),
+    }),
+  );
+  const whoamis = () => calls.filter((call) => call.path === `${ADMIN}/system/whoami`).length;
+  const button = await screen.findByRole('button', { name: 'Create administrator' });
+  await waitFor(() => {
+    expect(button).toBeEnabled();
+  });
+  const before = whoamis();
+  await user.click(button);
+  expect(
+    await screen.findByText('Refused: finishing grace needs the manage-clients capability.'),
+  ).toBeVisible();
+  await waitFor(() => {
+    expect(whoamis()).toBe(before + 1);
+  });
 });

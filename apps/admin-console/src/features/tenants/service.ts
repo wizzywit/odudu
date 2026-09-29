@@ -1,5 +1,6 @@
 import { isTenantName, TENANT_NAME_RULE } from '@odudu/contracts';
 import { TENANT_IMPORT_BODY_LIMIT, type Tenant } from '@odudu/contracts/admin';
+import type { AdminCapability } from '#/shared/service/principal.ts';
 
 export type { Tenant };
 
@@ -164,3 +165,24 @@ export function tenantHref(name: string): string {
 export function enterHref(name: string): string {
   return `/console/${encodeURIComponent(name)}`;
 }
+
+// Each request the first administrator's steps make, by what its route
+// needs (ADMIN_ROUTES in @odudu/protocol-admin). A cross-tenant caller's
+// capabilities are its own tenant's, so `system`'s whoami answers for them.
+export type AdministratorRequest =
+  'create' | 'clients' | 'roles' | 'subject-roles' | 'set-roles' | 'password';
+
+// The roles list admits manage-tenant too; view-users is the lesser.
+export const ADMINISTRATOR_REQUEST_NEEDS: Readonly<Record<AdministratorRequest, AdminCapability>> =
+  {
+    create: 'manage-users',
+    clients: 'manage-clients',
+    roles: 'view-users',
+    'subject-roles': 'view-users',
+    'set-roles': 'manage-users',
+    password: 'manage-users',
+  };
+
+export const ADMINISTRATOR_NEEDS: readonly AdminCapability[] = [
+  ...new Set(Object.values(ADMINISTRATOR_REQUEST_NEEDS)),
+];

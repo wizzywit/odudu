@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { usePrincipal, useRefusal } from '#/features/session/index.ts';
+import { useAuthority, usePrincipal, useRefusal } from '#/features/session/index.ts';
+import { holds } from '#/features/shell/index.ts';
 import {
   useCreationProgress,
   useFindSubject,
@@ -8,6 +9,8 @@ import {
 } from '#/features/tenants/repository/useCreation.ts';
 import { useSystemIssuer } from '#/features/tenants/repository/useSystemIssuer.ts';
 import {
+  ADMINISTRATOR_NEEDS,
+  ADMINISTRATOR_REQUEST_NEEDS,
   administratorOf,
   enterHref,
   FRESH_CREATION,
@@ -18,7 +21,7 @@ import {
   type Creation,
 } from '#/features/tenants/service.ts';
 import { fieldErrorsOf } from '#/shared/service/fieldErrors.ts';
-import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
+import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
 import type { GatewayFailure } from '#/shared/transport/gateway.ts';
 
 type Step<S extends Creation['step']> = Extract<Creation, { step: S }>;
@@ -55,6 +58,8 @@ export interface AdministratorStep {
   readonly message: string | null;
   readonly unconfirmed: boolean;
   readonly busy: boolean;
+  // What whoami says is missing for the steps' requests, named before any is sent.
+  readonly needs: readonly AdminCapability[];
   readonly secret: string | null;
   readonly editUsername: (username: string) => void;
   readonly editEmail: (email: string) => void;
@@ -76,7 +81,7 @@ export interface NewTenant {
   readonly startOver: () => void;
 }
 
-function failureMessage(what: string, failure: GatewayFailure): string {
+function failureMessage(what: string, failure: GatewayFailure, needed: AdminCapability): string {
   switch (failure.kind) {
     case 'network':
       return `Could not confirm that ${what}. Nothing was sent again; check before trying again.`;
@@ -85,8 +90,7 @@ function failureMessage(what: string, failure: GatewayFailure): string {
     case 'defect':
       return `The console could not finish: ${what} did not happen. This is a fault in the console, not something you did.`;
     case 'problem':
-      if (failure.problem.status === 403)
-        return `Refused: ${what} needs a capability you do not hold.`;
+      if (failure.problem.status === 403) return `Refused: ${what} needs the ${needed} capability.`;
       return failure.problem.detail ?? failure.problem.title;
   }
 }
@@ -100,6 +104,9 @@ export function useNewTenant(): NewTenant {
   const administrator = useFirstAdministrator();
   const findSubject = useFindSubject();
   const refusal = useRefusal(SYSTEM_TENANT);
+  const authority = useAuthority(SYSTEM_TENANT);
+  const needs =
+    authority === undefined ? [] : ADMINISTRATOR_NEEDS.filter((c) => !holds(authority, c));
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [unconfirmed, setUnconfirmed] = useState(false);
@@ -112,8 +119,13 @@ export function useNewTenant(): NewTenant {
     update(next);
   };
 
-  const refused = (what: string, failure: GatewayFailure, fields: readonly string[]): void => {
-    refusal.report(failure, 'manage-tenants');
+  const refused = (
+    what: string,
+    failure: GatewayFailure,
+    fields: readonly string[],
+    needed: AdminCapability,
+  ): void => {
+    refusal.report(failure, needed);
     setUnconfirmed(failure.kind === 'network');
     if (
       failure.kind === 'problem' &&
@@ -130,7 +142,7 @@ export function useNewTenant(): NewTenant {
       setMessage(null);
       return;
     }
-    setMessage(failureMessage(what, failure));
+    setMessage(failureMessage(what, failure, needed));
   };
 
   const startOver = (): void => {
@@ -173,10 +185,11 @@ export function useNewTenant(): NewTenant {
             .create({ name, displayName })
             .then((result) => {
               if (result.ok) created(result.data.name);
-              else refused(`${name} was created`, result, ['name', 'display_name']);
+              else
+                refused(`${name} was created`, result, ['name', 'display_name'], 'manage-tenants');
             })
             .catch(() => {
-              refused(`${name} was created`, { ok: false, kind: 'defect' }, []);
+              refused(`${name} was created`, { ok: false, kind: 'defect' }, [], 'manage-tenants');
             });
         },
         check: () => {
@@ -184,7 +197,7 @@ export function useNewTenant(): NewTenant {
           tenantCreate
             .find(name)
             .then((result) => {
-              if (!result.ok) refused(`${name} exists`, result, []);
+              if (!result.ok) refused(`${name} exists`, result, [], 'manage-tenants');
               else if (result.data === null) {
                 setUnconfirmed(false);
                 setMessage(`${name} was not created. Create it again.`);
@@ -219,6 +232,7 @@ export function useNewTenant(): NewTenant {
         message,
         unconfirmed,
         busy: administrator.busy || checking,
+        needs,
         secret: administrator.secret,
         editUsername: (next) => {
           if (step.subjectId === null) update({ ...step, username: next.trim() });
@@ -227,6 +241,7 @@ export function useNewTenant(): NewTenant {
           if (step.subjectId === null) update({ ...step, email: next.trim() });
         },
         submit: () => {
+          if (needs.length > 0) return;
           if (step.username === '') {
             setErrors({ username: 'Enter a username for the administrator.' });
             return;
@@ -237,9 +252,10 @@ export function useNewTenant(): NewTenant {
           administrator.start({
             ...step,
             onProgress: record,
-            onFailure: (failure, call) => {
+            onFailure: (failure, call, request) => {
+              const needed = ADMINISTRATOR_REQUEST_NEEDS[request];
               if (failure.kind === 'network' && call === 'create') {
-                refused(`${step.username} was created`, failure, []);
+                refused(`${step.username} was created`, failure, [], needed);
                 return;
               }
               if (failure.kind === 'network') {
@@ -252,6 +268,7 @@ export function useNewTenant(): NewTenant {
                 call === 'create' ? `creating ${step.username}` : `finishing ${step.username}`,
                 failure,
                 call === 'create' ? ['username', 'email'] : [],
+                needed,
               );
             },
           });
@@ -260,8 +277,9 @@ export function useNewTenant(): NewTenant {
           setChecking(true);
           findSubject(step.tenant, step.username)
             .then((result) => {
-              if (!result.ok) refused(`${step.username} exists`, result, []);
-              else if (result.data === null) {
+              if (!result.ok) {
+                refused(`${step.username} exists`, result, [], ADMINISTRATOR_REQUEST_NEEDS.create);
+              } else if (result.data === null) {
                 setUnconfirmed(false);
                 setMessage(`${step.username} was not created. Create the administrator again.`);
               } else {

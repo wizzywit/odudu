@@ -33,7 +33,7 @@ const COLUMNS: readonly Column<Subject>[] = [
 ];
 
 export function AdministratorsTab({ tenant }: { tenant: string }) {
-  const { list, add } = useTenantAdministrators(tenant);
+  const { list, add, addNeeds } = useTenantAdministrators(tenant);
   const label = `Administrators of ${tenant}`;
   return (
     <div className={styles.tab}>
@@ -41,7 +41,9 @@ export function AdministratorsTab({ tenant }: { tenant: string }) {
         {`Everybody who holds tenant-admin in ${tenant}, directly, through a group or under another role. A change that would leave ${tenant} with no enabled administrator is refused: the last one cannot be disabled, deleted, or lose tenant-admin.`}
       </p>
       <div className={styles.actions}>
-        <Button onPress={add}>Add an administrator</Button>
+        <Button onPress={add} isDisabled={addNeeds.length > 0}>
+          Add an administrator
+        </Button>
         {list.count === null ? null : (
           <Count
             count={list.count.count}
@@ -50,6 +52,11 @@ export function AdministratorsTab({ tenant }: { tenant: string }) {
           />
         )}
       </div>
+      {addNeeds.map((capability) => (
+        <CapabilityNote key={capability} capability={capability}>
+          Adding an administrator
+        </CapabilityNote>
+      ))}
       {list.status === 'loading' ? <Skeleton label="Loading administrators" lines={3} /> : null}
       {list.status === 'refused' ? (
         <CapabilityNote capability="view-users">{label}</CapabilityNote>

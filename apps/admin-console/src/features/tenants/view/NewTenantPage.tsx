@@ -10,6 +10,7 @@ import { TENANTS_HREF } from '#/features/tenants/service.ts';
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
+import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { TextField } from '#/shared/view/Field.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import { SecretDialog } from '#/shared/view/SecretDialog.tsx';
@@ -137,6 +138,11 @@ function Administrator({ step }: { step: AdministratorStep }) {
             />
           </>
         )}
+        {step.needs.map((capability) => (
+          <CapabilityNote key={capability} capability={capability}>
+            Creating the administrator
+          </CapabilityNote>
+        ))}
         <Message text={step.message} />
         <div className={styles.actions}>
           {step.unconfirmed ? (
@@ -144,7 +150,7 @@ function Administrator({ step }: { step: AdministratorStep }) {
               {`Check whether ${step.username} was created`}
             </Button>
           ) : (
-            <Button type="submit" variant="primary" isDisabled={step.busy}>
+            <Button type="submit" variant="primary" isDisabled={step.busy || step.needs.length > 0}>
               {step.busy ? 'Working…' : step.created ? 'Continue' : 'Create administrator'}
             </Button>
           )}
