@@ -126,6 +126,8 @@ export function roleChangeNeeds(tenant: string): readonly AdminCapability[] {
 }
 
 // What the calls still to make need, so a resumed step asks for no more.
+// The grant and the password each need all that tenant-admin carries: one
+// hands the role out, the other writes to a subject who holds it (ADR 0040).
 export function administratorNeeds(
   tenant: string,
   done: { readonly subjectId: string | null; readonly granted: boolean },
@@ -135,7 +137,7 @@ export function administratorNeeds(
   return [
     ...new Set([
       ...requests.map((request) => ADMINISTRATOR_REQUEST_NEEDS[request]),
-      ...(calls.includes('grant') ? tenantAdminCarries(tenant) : []),
+      ...tenantAdminCarries(tenant),
     ]),
   ];
 }

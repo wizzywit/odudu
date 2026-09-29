@@ -269,18 +269,26 @@ it('names view-users when the lookup for an unconfirmed administrator is refused
   ).toBeVisible();
 });
 
-it('asks only for what the steps still to run need, when a creation is resumed', async () => {
-  sessionStorage.setItem(
-    KEY,
-    JSON.stringify({
-      owner: 'system/s0',
-      creation: { ...HALFWAY, subjectId: SUBJECT_ID, granted: true },
-    }),
-  );
-  renderConsoleAt(
+it('asks a resumed step for all that tenant-admin carries, since the password is for a holder of it', async () => {
+  const resumed = JSON.stringify({
+    owner: 'system/s0',
+    creation: { ...HALFWAY, subjectId: SUBJECT_ID, granted: true },
+  });
+  sessionStorage.setItem(KEY, resumed);
+  const { unmount } = renderConsoleAt(
     AT,
     routes({ [`GET ${ADMIN}/system/whoami`]: whoami(['manage-tenants', 'manage-users']) }),
   );
+  const notes = await screen.findAllByRole('note');
+  expect(notes.map((note) => note.textContent)).toContain(
+    'Creating the administrator needs the manage-keys capability.',
+  );
+  expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  unmount();
+  resetConsole();
+
+  sessionStorage.setItem(KEY, resumed);
+  renderConsoleAt(AT, routes());
   const button = await screen.findByRole('button', { name: 'Continue' });
   await waitFor(() => {
     expect(button).toBeEnabled();

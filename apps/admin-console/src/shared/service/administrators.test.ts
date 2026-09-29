@@ -89,9 +89,11 @@ describe('what adding an administrator needs', () => {
     expect(administratorNeeds('system', { subjectId: 's1', granted: false })).toContain(
       'manage-tenants',
     );
-    expect(administratorNeeds('acme', { subjectId: 's1', granted: true })).toEqual([
-      'manage-users',
-    ]);
+    // The password is issued to a subject already holding tenant-admin, and
+    // a write to a subject is held to what the subject holds (ADR 0040).
+    const resumed = administratorNeeds('acme', { subjectId: 's1', granted: true });
+    expect(resumed[0]).toBe('manage-users');
+    expect([...resumed].sort()).toEqual([...tenantAdminCarries('acme')].sort());
   });
 });
 
