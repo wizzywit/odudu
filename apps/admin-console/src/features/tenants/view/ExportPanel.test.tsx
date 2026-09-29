@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { json, problem, type Answer } from '#/testing/fakeTransport.ts';
-import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
-import { ADMIN, systemRoutes, tenant } from '#/testing/tenantsFixtures.ts';
+import { consoleAt, renderConsoleAt, resetConsole, whoami } from '#/testing/renderConsole.tsx';
+import { ADMIN, EVERY_CAPABILITY, systemRoutes, tenant } from '#/testing/tenantsFixtures.ts';
 
 const saved: string[] = [];
 
@@ -73,6 +73,38 @@ it("says why an export was refused, in the server's words", async () => {
   await user.click(await screen.findByRole('button', { name: 'Export to a file' }));
   expect(await screen.findByText('acme has more than 10000 subjects')).toBeVisible();
   expect(saved).toEqual([]);
+});
+
+it('names the capabilities of the request it sent, not of a toggle it could not send', async () => {
+  const user = userEvent.setup();
+  let refused = false;
+  const full = whoami(EVERY_CAPABILITY);
+  const lessened = whoami(
+    EVERY_CAPABILITY.filter((c) => c !== 'view-users' && c !== 'manage-users'),
+  );
+  const { sent } = renderConsoleAt(AT, {
+    ...routes((request) => {
+      refused = true;
+      return problem(403, 'about:blank', 'Forbidden')(request);
+    }),
+    [`GET ${ADMIN}/system/whoami`]: (request) => (refused ? lessened : full)(request),
+  });
+  await user.click(await screen.findByRole('switch', { name: 'Include subjects' }));
+  await user.click(screen.getByRole('button', { name: 'Export to a file' }));
+  expect(
+    await screen.findByText(
+      'The export needs manage-tenant and manage-clients, and view-users with subjects.',
+    ),
+  ).toBeVisible();
+  await screen.findByText(/Including subjects needs the/u);
+  await user.click(screen.getByRole('button', { name: 'Export to a file' }));
+  await waitFor(() => {
+    expect(sent.filter((s) => s.path.endsWith('/export'))).toHaveLength(2);
+  });
+  expect(sent.filter((s) => s.path.endsWith('/export'))[1]?.search.get('include')).toBeNull();
+  expect(
+    await screen.findByText('The export needs manage-tenant and manage-clients.'),
+  ).toBeVisible();
 });
 
 it('passes axe in both themes, before and after an export', async () => {

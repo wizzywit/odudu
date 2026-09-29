@@ -34,8 +34,9 @@ export function useTenantExport(target: string, authority: string): TenantExport
   const subjectsNeed = held !== undefined && !holds(held, 'view-users') ? 'view-users' : null;
   const start = (): void => {
     setMessage(null);
+    const withSubjects = includeSubjects && subjectsNeed === null;
     exporter
-      .start(includeSubjects && subjectsNeed === null)
+      .start(withSubjects)
       .then((result) => {
         if (result.ok) {
           const size = fileSize(result.data.bytes);
@@ -44,9 +45,9 @@ export function useTenantExport(target: string, authority: string): TenantExport
           return;
         }
         setSaved(null);
-        if (refusal.report(result, includeSubjects ? 'view-users' : 'manage-clients')) {
+        if (refusal.report(result, withSubjects ? 'view-users' : 'manage-clients')) {
           setMessage(
-            `The export needs manage-tenant and manage-clients${includeSubjects ? ', and view-users with subjects' : ''}.`,
+            `The export needs manage-tenant and manage-clients${withSubjects ? ', and view-users with subjects' : ''}.`,
           );
           return;
         }
