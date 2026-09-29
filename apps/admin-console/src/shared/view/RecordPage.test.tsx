@@ -63,7 +63,8 @@ it('announces a record somebody else changed, until it is acknowledged', async (
   const updated = view({ updated: true });
   rerender(page(updated));
   expect(live).toHaveTextContent('Updated since you opened it');
-  await user.click(within(live).getByRole('button', { name: 'Dismiss' }));
+  expect(within(live).queryByRole('button')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Dismiss' }));
   expect(updated.acknowledge).toHaveBeenCalledOnce();
 });
 
@@ -76,7 +77,8 @@ it('keeps its tabs when a later read fails, and offers to check again', async ()
     'Could not check this client for changes. What you see may be out of date; your edits are kept.',
   );
   expect(screen.getByRole('tablist', { name: 'Client sections' })).toBeVisible();
-  await user.click(within(live).getByRole('button', { name: 'Check again' }));
+  expect(within(live).queryByRole('button')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Check again' }));
   expect(record.retry).toHaveBeenCalledOnce();
 });
 

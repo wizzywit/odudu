@@ -76,31 +76,36 @@ export function RecordPage({
       return (
         <>
           {head(true)}
-          <div role="status" aria-label="Record changes" className={styles.updated}>
-            {record.refreshFailed ? (
-              <p className={styles.notice}>
-                <span>
+          <div className={styles.updated}>
+            {/* Only the sentences are announced; the buttons sit beside them. */}
+            <div role="status" aria-label="Record changes" className={styles.messages}>
+              {record.refreshFailed ? (
+                <p className={styles.notice}>
                   {record.gone
                     ? `This ${noun} was deleted since you opened it. Your edits are still shown, but cannot be saved.`
                     : `Could not check this ${noun} for changes. What you see may be out of date; your edits are kept.`}
-                </span>
-                {record.gone ? null : (
+                </p>
+              ) : null}
+              {record.updated ? (
+                <p className={styles.notice}>
+                  <strong>Updated since you opened it.</strong> Fields you have not changed show the
+                  new values; fields you changed keep yours.
+                </p>
+              ) : null}
+            </div>
+            {(record.refreshFailed && !record.gone) || record.updated ? (
+              <div className={styles.actions}>
+                {record.refreshFailed && !record.gone ? (
                   <Button size="small" variant="quiet" onPress={record.retry}>
                     Check again
                   </Button>
-                )}
-              </p>
-            ) : null}
-            {record.updated ? (
-              <p className={styles.notice}>
-                <span>
-                  <strong>Updated since you opened it.</strong> Fields you have not changed show the
-                  new values; fields you changed keep yours.
-                </span>
-                <Button size="small" variant="quiet" onPress={record.acknowledge}>
-                  Dismiss
-                </Button>
-              </p>
+                ) : null}
+                {record.updated ? (
+                  <Button size="small" variant="quiet" onPress={record.acknowledge}>
+                    Dismiss
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
           </div>
           <Tabs label={label} tabs={tabs} selectedKey={tab} onSelectionChange={onTabChange} />

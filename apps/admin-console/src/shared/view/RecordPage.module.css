@@ -1,17 +1,30 @@
-.updated:not(:empty) {
+.updated {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+
+.updated:has(.notice) {
   margin-block-end: var(--space-4);
 }
 
+.messages {
+  display: grid;
+  gap: var(--space-2);
+  justify-self: stretch;
+}
+
 .notice {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--signal-warning-ink);
   border-inline-start-width: 4px;
   border-radius: var(--radius-s);
   font-size: var(--type-13);
   background: var(--surface-panel);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
