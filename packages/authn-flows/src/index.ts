@@ -95,7 +95,11 @@ export {
   type PasskeyEnrolmentOffer,
 } from '#/view/passkey-enrolment-html';
 export { authenticationSessionRepository } from '#/repository/authentication-sessions';
-export { sessionRepository, type PresentedSession } from '#/repository/sessions';
+export {
+  liveSessionCondition,
+  sessionRepository,
+  type PresentedSession,
+} from '#/repository/sessions';
 export {
   authenticationSessions,
   type AuthenticationSessionRecord,

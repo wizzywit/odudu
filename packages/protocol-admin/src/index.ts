@@ -25,6 +25,8 @@ import { type Audit as SmtpAudit } from '#/usecase/smtp';
 import { type Audit as AccountRecoveryAudit } from '#/usecase/account-recovery';
 import { type Audit as ConsentAudit } from '#/usecase/consents';
 import { type Audit as SessionAudit } from '#/usecase/sessions';
+import { type Audit as GrantAudit } from '#/usecase/grants';
+import { type EndTenantSessionsDeps } from '#/usecase/tenant-sessions';
 import { type Audit as SubjectAudit } from '#/usecase/subjects';
 import { type Audit } from '#/usecase/tenants';
 import { resolveHostAddresses } from '#/adapter/host-addresses';
@@ -165,6 +167,19 @@ import {
   type TenantsRouteDeps,
 } from '#/view/routes/tenants';
 import { whoamiHandler } from '#/view/routes/whoami';
+import {
+  listSubjectGrantsHandler,
+  revokeClientGrantsHandler,
+  revokeSubjectGrantsHandler,
+  type GrantsRouteDeps,
+} from '#/view/routes/grants';
+import {
+  countTenantSessionsHandler,
+  endTenantSessionsHandler,
+  listClientSessionsHandler,
+  listTenantSessionsHandler,
+  type TenantSessionsRouteDeps,
+} from '#/view/routes/tenant-sessions';
 
 export { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 export { composeUserSubject, type ComposeUserSubjectInput } from '#/usecase/subjects';
@@ -289,6 +304,8 @@ function buildAdminRoutes(
     const registrationTokenAudit: RegistrationTokenAudit = recordAudit;
     const subjectAudit: SubjectAudit = recordAudit;
     const sessionAudit: SessionAudit = recordAudit;
+    const grantAudit: GrantAudit = recordAudit;
+    const tenantSessionsAudit: EndTenantSessionsDeps['audit'] = recordAudit;
     const consentAudit: ConsentAudit = recordAudit;
     const accountRecoveryAudit: AccountRecoveryAudit = recordAudit;
     const roleAudit: RoleAudit = recordAudit;
@@ -418,6 +435,22 @@ function buildAdminRoutes(
       now: () => clock.now(),
       findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
     };
+    const tenantSessionsDeps: TenantSessionsRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      kek: deps.kek,
+      audit: tenantSessionsAudit,
+      callerCapabilities,
+      now: () => clock.now(),
+      findTenant: (name) => tenantLookupRepository(deps.ownerDatabase.db).byName(name),
+    };
+    const grantsDeps: GrantsRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      audit: grantAudit,
+      callerCapabilities,
+      now: () => clock.now(),
+    };
     const consentsDeps: ConsentsRouteDeps = {
       database: deps.database.db,
       audit: consentAudit,
@@ -479,6 +512,15 @@ function buildAdminRoutes(
       'DELETE /admin/tenants/:tenant/subjects/:id/sessions': deleteAllSessionsHandler(sessionsDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/sessions/:sid':
         deleteSessionHandler(sessionsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/grants': listSubjectGrantsHandler(grantsDeps),
+      'DELETE /admin/tenants/:tenant/subjects/:id/grants/:clientId':
+        revokeSubjectGrantsHandler(grantsDeps),
+      'GET /admin/tenants/:tenant/sessions': listTenantSessionsHandler(tenantSessionsDeps),
+      'GET /admin/tenants/:tenant/sessions/count': countTenantSessionsHandler(tenantSessionsDeps),
+      'DELETE /admin/tenants/:tenant/sessions': endTenantSessionsHandler(tenantSessionsDeps),
+      'GET /admin/tenants/:tenant/clients/:id/sessions':
+        listClientSessionsHandler(tenantSessionsDeps),
+      'DELETE /admin/tenants/:tenant/clients/:id/grants': revokeClientGrantsHandler(grantsDeps),
       'GET /admin/tenants': listTenantsHandler(tenantsDeps),
       'GET /admin/tenants/count': countTenantsHandler(countsDeps),
       'POST /admin/tenants': createTenantHandler(tenantsDeps),

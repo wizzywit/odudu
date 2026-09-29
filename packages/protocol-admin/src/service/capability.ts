@@ -51,6 +51,13 @@ import {
   listScopeClientsResponseSchema,
   listSessionsResponseSchema,
   endSessionsResponseSchema,
+  listGrantsResponseSchema,
+  revokeGrantsResponseSchema,
+  revokeClientGrantsResponseSchema,
+  listTenantSessionsResponseSchema,
+  listTenantSessionsQuerySchema,
+  countSessionsQuerySchema,
+  endTenantSessionsResponseSchema,
   issuePasswordResponseSchema,
   lockoutSchema,
   listSubjectsQuerySchema,
@@ -440,6 +447,57 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'here to render its iframes in.' +
       TARGET_CEILING,
   },
+  // A grant is what a token is presented under, so it is a session's
+  // concern: `manage-sessions`, as ending a session is.
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/grants',
+    capability: 'manage-sessions',
+    responseSchema: listGrantsResponseSchema,
+    querystringSchema: cursorQuerySchema,
+    description:
+      'Every grant the subject holds that nothing has revoked, session-bound or offline: ' +
+      '`offline` is true for an `offline_access` grant, which ending sessions leaves alone. ' +
+      'Never a token.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/subjects/:id/grants/:clientId',
+    capability: 'manage-sessions',
+    responseSchema: revokeGrantsResponseSchema,
+    description:
+      'Revokes every grant the subject holds through the client, offline ones included, so ' +
+      'no refresh token issued under them is honoured again. Withdraws no consent and ends ' +
+      'no session. Answers how many were revoked.' +
+      TARGET_CEILING,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/sessions',
+    capability: 'manage-sessions',
+    responseSchema: listTenantSessionsResponseSchema,
+    querystringSchema: listTenantSessionsQuerySchema,
+    description:
+      'Every live session in the tenant, whoever holds it, in id order; `?client=` narrows ' +
+      'it to the sessions holding a grant through that client (its row id).',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/sessions/count',
+    capability: 'manage-sessions',
+    responseSchema: countResponseSchema,
+    querystringSchema: countSessionsQuerySchema,
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/sessions',
+    capability: 'manage-sessions',
+    responseSchema: endTenantSessionsResponseSchema,
+    description:
+      'Ends every live session in the tenant, each as `DELETE …/subjects/{id}/sessions/{sid}` ' +
+      'ends one. A session whose subject holds an admin capability the caller does not is ' +
+      'left alone and counted under `beyond_ceiling` (the target ceiling, run over the tenant).',
+  },
   {
     method: 'GET',
     pattern: '/admin/tenants',
@@ -575,6 +633,27 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-clients',
     responseSchema: rotateClientSecretResponseSchema,
     description: SERVICE_ACCOUNT_CEILING,
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/clients/:id/sessions',
+    capability: 'manage-sessions',
+    responseSchema: listTenantSessionsResponseSchema,
+    querystringSchema: cursorQuerySchema,
+    description:
+      'The live sessions holding a grant through the client: `GET …/sessions?client={id}`, ' +
+      'answering `404` for a client that does not exist.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/clients/:id/grants',
+    capability: 'manage-sessions',
+    responseSchema: revokeClientGrantsResponseSchema,
+    description:
+      'Revokes every grant issued through the client that nothing has revoked, whoever holds ' +
+      'it, so no refresh token the client holds is honoured again. Ends no session. A grant ' +
+      'whose subject holds an admin capability the caller does not is left alone and counted ' +
+      'under `beyond_ceiling`.',
   },
   // RFC 7591 §3 initial access tokens, gated the same way clients above are —
   // `manage-clients`, since a token that mints a client is configuration for

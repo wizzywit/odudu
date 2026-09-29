@@ -84,7 +84,8 @@ describe('the published OpenAPI document', () => {
 
   it.each([
     ['/admin/tenants/{tenant}/roles', ['limit', 'cursor', 'name', 'client']],
-    ['/admin/tenants/{tenant}/groups', ['limit', 'cursor', 'name']],
+    ['/admin/tenants/{tenant}/groups', ['limit', 'cursor', 'name', 'parent']],
+    ['/admin/tenants/{tenant}/sessions', ['limit', 'cursor', 'client']],
     ['/admin/tenants/{tenant}/scopes', ['limit', 'cursor', 'name']],
     ['/admin/tenants/{tenant}/keys', ['limit', 'cursor', 'status', 'alg']],
   ])('documents the %s listing filters as query parameters', async (path, expected) => {

@@ -126,11 +126,12 @@ const TENANT_PATH_PREFIX = '/admin/tenants/:tenant/';
 
 // The resource a route's own path names, read from its static segments
 // alone — never from `capability`, so this is an oracle the table cannot
-// agree with itself. `sessions` nested under a subject is the one
-// resource that is not a sub-action of its parent (see its own
-// ADMIN_ROUTES entry, "No view-sessions..."); every other nested static
-// segment (`credentials`, `roles`, `composites`, `mappers`, `secret`,
-// `promote`, `retire`, `test`, `clients`) is one.
+// agree with itself. `sessions` and `grants` nested under a subject or a
+// client are the resources that are not sub-actions of their parent: they
+// are the tenant's `sessions` family, whose own ADMIN_ROUTES entries say
+// why ("No view-sessions..."). Every other nested static segment
+// (`credentials`, `roles`, `composites`, `mappers`, `secret`, `promote`,
+// `retire`, `test`, `clients`) is one.
 function resourceFamilyOf(route: AdminRoute): string {
   // The tenant resource itself carries no segment after `:tenant`, so it
   // is its own family rather than a sub-resource of one.
@@ -146,7 +147,7 @@ function resourceFamilyOf(route: AdminRoute): string {
   if (first === undefined) {
     throw new Error(`capability-matrix: ${routeKey(route)} names no resource segment`);
   }
-  return second === 'sessions' ? second : first;
+  return second === 'sessions' || second === 'grants' ? 'sessions' : first;
 }
 
 // Every other bodySchema in ADMIN_ROUTES (the amend* endpoints) is a

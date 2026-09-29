@@ -944,6 +944,9 @@ export {
 // (packages/protocol-admin/src/testing/admin-fixture.ts and the
 // authentication chain it exists to test).
 export { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
+export { tokenGrants } from '#/schema/token-grants';
+export { refreshTokens } from '#/schema/refresh-tokens';
+export { backchannelLogoutDeliveries } from '#/schema/logout-deliveries';
 export { endSession, type EndSessionDeps, type EndSessionInput } from '#/usecase/end-session';
 export {
   auditRefusalBudgetKey,

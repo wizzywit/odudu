@@ -151,6 +151,18 @@ export function holdersOf(name: string): SQL {
   )`;
 }
 
+/**
+ * The subjects a caller holding `held` may not touch: every holder of an
+ * admin capability outside it, the target ceiling run as a set rather than
+ * one subject at a time. Null when `held` covers every capability, so a
+ * tenant-wide write excludes nobody.
+ */
+export function subjectsBeyond(held: ReadonlySet<string>): SQL | null {
+  const missing = [...CAPABILITY_NAMES].filter((name) => !held.has(name));
+  if (missing.length === 0) return null;
+  return sql`(${sql.join(missing.map(holdersOf), sql` UNION `)})`;
+}
+
 const existsRowsSchema = z.array(z.object({ held: z.boolean() }));
 
 /** Whether any subject that is not disabled holds `name` effectively. */
