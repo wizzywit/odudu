@@ -121,15 +121,15 @@ function basic(client: SignInClient): string {
   return `Basic ${Buffer.from(`${client.clientId}:${client.secret}`).toString('base64')}`;
 }
 
-// Signs in and redeems the code, answering the refresh token it bought.
-export async function signInForRefreshToken(
+// Signs in and redeems the code, answering the token response it bought.
+export async function signInForTokens(
   fixture: AdminFixture,
   tenantName: string,
   client: SignInClient,
   username: string,
   password: string,
   scope = 'openid',
-): Promise<string> {
+): Promise<Record<string, unknown>> {
   const login = await submitPassword(
     fixture,
     tenantName,
@@ -158,7 +158,20 @@ export async function signInForRefreshToken(
   if (redeemed.statusCode !== 200) {
     throw new Error(`the code redemption answered ${String(redeemed.statusCode)}`);
   }
-  const refreshToken = redeemed.json<{ refresh_token?: unknown }>().refresh_token;
+  return redeemed.json<Record<string, unknown>>();
+}
+
+// Signs in and redeems the code, answering the refresh token it bought.
+export async function signInForRefreshToken(
+  fixture: AdminFixture,
+  tenantName: string,
+  client: SignInClient,
+  username: string,
+  password: string,
+  scope = 'openid',
+): Promise<string> {
+  const tokens = await signInForTokens(fixture, tenantName, client, username, password, scope);
+  const refreshToken = tokens.refresh_token;
   if (typeof refreshToken !== 'string') throw new Error('the code bought no refresh token');
   return refreshToken;
 }

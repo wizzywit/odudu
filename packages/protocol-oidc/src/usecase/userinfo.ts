@@ -19,7 +19,7 @@ import {
   type LiveClientLookup,
   type LiveSubjectLookup,
 } from '#/service/client-enabled';
-import { narrowByScopeMappings } from '#/service/scope-mapping';
+import { mappedClaims } from '#/service/issued-claims';
 import { type ClientKeySet } from '#/repository/client-keys';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 
@@ -249,11 +249,10 @@ export async function resolveUserinfo(
     clientId,
     scope,
   );
-  const narrowedCtx: ClaimContext = {
-    ...ctx.context,
-    roles: narrowByScopeMappings(ctx.context.roles, reachableRoleIds, fullScopeAllowed),
-  };
-  const assembled = await deps.claimMappers.assemble(scope, narrowedCtx, ctx.bindings);
+  const assembled = await mappedClaims(deps.claimMappers, scope, ctx, {
+    reachableRoleIds,
+    fullScopeAllowed,
+  });
   // `sub` is kept regardless of what was requested — OIDC Core §5.3.2's own
   // response, not a claim `narrowToRequestedClaims` was ever meant to cut.
   const requested = requestedClaimsOf(payload.requested_userinfo_claims);

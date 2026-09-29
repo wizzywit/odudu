@@ -44,6 +44,8 @@ import {
   listLogoutDeliveriesResponseSchema,
   listLogoutDeliveriesQuerySchema,
   clientInstallationSchema,
+  evaluateClaimsResponseSchema,
+  evaluateClaimsQuerySchema,
   listMailResponseSchema,
   listMailQuerySchema,
   listConsentsResponseSchema,
@@ -698,6 +700,20 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'The Back-Channel Logout Tokens queued for the client, most recent first: `pending`, ' +
       '`delivered`, or `failed` once every attempt is spent, with the last error. Never the ' +
       'token itself.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/clients/:id/evaluate',
+    capability: 'manage-clients',
+    responseSchema: evaluateClaimsResponseSchema,
+    querystringSchema: evaluateClaimsQuerySchema,
+    description:
+      'The claims an authorization-code exchange for this client and `subject` would put in ' +
+      'the ID token, the access token and the UserInfo response, computed by the functions ' +
+      'issuance calls, with none of the envelope a signer adds. `scope` is resolved against ' +
+      'the client\u2019s assignments, as issuance resolves it; absent, the client\u2019s ' +
+      'default scopes. Signs nothing. Additionally requires `view-users`, refused with `403` ' +
+      'otherwise, since the claims are the subject\u2019s. Audited as `client.evaluate`.',
   },
   {
     method: 'GET',

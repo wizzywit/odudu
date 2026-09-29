@@ -158,3 +158,20 @@ export const clientInstallationSchema = z.object({
   default_scope: z.string(),
 });
 export type ClientInstallation = z.infer<typeof clientInstallationSchema>;
+
+// `scope` as a request carries it, space-separated; absent, the client's
+// default scopes. `subject` is the subject a token would be issued to.
+export const evaluateClaimsQuerySchema = z
+  .object({ subject: z.uuid(), scope: z.string().optional() })
+  .strict();
+export type EvaluateClaimsQuery = z.infer<typeof evaluateClaimsQuerySchema>;
+
+// The claims each artefact would carry, mapped as issuance maps them, with
+// none of the envelope a signer adds. `id_token` is null without `openid`.
+export const evaluateClaimsResponseSchema = z.object({
+  scope: z.string(),
+  id_token: z.record(z.string(), z.unknown()).nullable(),
+  access_token: z.record(z.string(), z.unknown()),
+  userinfo: z.record(z.string(), z.unknown()),
+});
+export type EvaluateClaimsResponse = z.infer<typeof evaluateClaimsResponseSchema>;

@@ -5,8 +5,12 @@ import { auditRepository } from '@odudu/domain-audit';
 import { effectiveRoles } from '@odudu/domain-authz';
 import { hashPassword, subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
 import { ADMIN_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
-import { type Clock, type Logger, systemClock } from '@odudu/kernel';
-import { tenantLookupRepository, tokenGrantRepository } from '@odudu/protocol-oidc';
+import { type ClaimMapperRegistry, type Clock, type Logger, systemClock } from '@odudu/kernel';
+import {
+  tenantLookupRepository,
+  tokenGrantRepository,
+  type ClaimContext,
+} from '@odudu/protocol-oidc';
 import { type FastifyPluginAsync } from 'fastify';
 import { type AuthenticateAdminDeps } from '#/usecase/authenticate-admin';
 import { type AuthorizeAdminDeps } from '#/usecase/authorize-admin';
@@ -17,7 +21,7 @@ import { type Audit as KeyAudit } from '#/usecase/keys';
 import { type Audit as RegistrationTokenAudit } from '#/usecase/registration-tokens';
 import { type Audit as RoleAudit } from '#/usecase/roles';
 import { type Audit as ScopeAudit } from '#/usecase/scopes';
-import { type Audit as ScopeMapperAudit, type MapperCatalogue } from '#/usecase/scope-mappers';
+import { type Audit as ScopeMapperAudit } from '#/usecase/scope-mappers';
 import { type Audit as SettingsAudit } from '#/usecase/settings';
 import { type Audit as TenantExportAudit } from '#/usecase/tenant-export';
 import { type Audit as TenantImportAudit } from '#/usecase/tenant-import';
@@ -174,6 +178,7 @@ import {
 } from '#/view/routes/tenants';
 import { whoamiHandler } from '#/view/routes/whoami';
 import {
+  evaluateClaimsHandler,
   listLogoutDeliveriesHandler,
   listMailHandler,
   readInstallationHandler,
@@ -241,10 +246,9 @@ export interface AdminRoutesDeps {
   // client is unauthenticatable with no proxy in front of this server.
   trustProxy?: boolean;
   // The same `ClaimMapperRegistry` @odudu/protocol-oidc assembles claims
-  // from, shared rather than re-instantiated — see `MapperCatalogue`
-  // (#/usecase/scope-mappers.ts) for why this package types it that way
-  // instead of importing protocol-oidc's own `ClaimContext`.
-  claimMappers: MapperCatalogue;
+  // from, shared rather than re-instantiated, so a mapper bound here and a
+  // claim evaluated here are the ones issuance runs.
+  claimMappers: ClaimMapperRegistry<ClaimContext>;
   // Whether a tenant may point its own SMTP host at a private address —
   // ADR 0028's escape hatch, applied to the relay a tenant configures for
   // itself. Off by default; loopback stays refused either way.
@@ -484,6 +488,8 @@ function buildAdminRoutes(
     };
     const operationsDeps: OperationsRouteDeps = {
       database: deps.database.db,
+      claimMappers: deps.claimMappers,
+      audit: recordAudit,
       cursorKey: deps.cursorKey,
       outboxMaxAttempts: deps.outboxMaxAttempts ?? 5,
       callerCapabilities,
@@ -651,6 +657,7 @@ function buildAdminRoutes(
         listLogoutDeliveriesHandler(operationsDeps),
       'GET /admin/tenants/:tenant/clients/:id/installation':
         readInstallationHandler(operationsDeps),
+      'GET /admin/tenants/:tenant/clients/:id/evaluate': evaluateClaimsHandler(operationsDeps),
       'GET /admin/tenants/:tenant/flow/executions': listFlowHandler(flowDeps),
       'PUT /admin/tenants/:tenant/flow/executions': replaceFlowHandler(flowDeps),
       'GET /admin/tenants/:tenant/audit': listAuditHandler(auditDeps),

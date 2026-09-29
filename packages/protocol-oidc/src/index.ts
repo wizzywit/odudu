@@ -27,7 +27,6 @@ import {
   type SessionLifespans,
 } from '@odudu/authn-flows';
 import { JWE_ALGS_PERMITTED, signingKeyRepository } from '@odudu/crypto';
-import { effectiveGroupPaths, effectiveRoles } from '@odudu/domain-authz';
 import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import {
@@ -46,6 +45,7 @@ import {
 import { systemClock, type ClaimMapperRegistry, type Clock } from '@odudu/kernel';
 import { type FastifyPluginAsync } from 'fastify';
 import { type ClientKeySet } from '#/repository/client-keys';
+import { loadClaimContextIn } from '#/usecase/evaluate-claims';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
 import { tenantLookupRepository } from '#/repository/tenant-lookup';
@@ -163,21 +163,8 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // way, and the admin API can never list a mapper this registry does
     // not itself run.
     const claimMappers = deps.claimMappers ?? standardClaimMappers();
-    // Roles need a recursive CTE (effectiveRoles), which a claim mapper must
-    // never run itself — resolved here, once per issuance, alongside the
-    // user row, the subject's direct group memberships, and the tenant's
-    // own scope-mapper bindings. `bindings` travels beside `context`, never
-    // inside it, so nothing a mapper receives can read it.
     const loadClaimContext = (tenantId: string, subjectId: string): Promise<LoadedClaimContext> =>
-      withTenant(deps.database.db, tenantId, async (tx) => ({
-        context: {
-          subjectId,
-          user: await userRepository(tx).bySubjectId(subjectId),
-          roles: await effectiveRoles(tx, subjectId),
-          groups: await effectiveGroupPaths(tx, subjectId),
-        },
-        bindings: await clientScopeMapperRepository(tx).bindingsByScopeName(tenantId),
-      }));
+      withTenant(deps.database.db, tenantId, (tx) => loadClaimContextIn(tx, tenantId, subjectId));
 
     // The keys /jwks publishes, and the ones an `id_token_hint` is checked
     // against at /authorize — one definition, so a client trusting the
@@ -958,3 +945,9 @@ export {
   type ClientSecretLimiter,
 } from '#/service/client-secret-throttle';
 export { standardClaimMappers, type ClaimContext, type LoadedClaimContext } from '#/service/claims';
+export {
+  evaluateClaims,
+  loadClaimContextIn,
+  type EvaluateClaimsInput,
+  type EvaluateClaimsOutcome,
+} from '#/usecase/evaluate-claims';

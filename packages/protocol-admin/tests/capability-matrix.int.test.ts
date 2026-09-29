@@ -75,6 +75,12 @@ const SAMPLE_BODIES: Readonly<Partial<Record<string, unknown>>> = {
   'PUT /admin/tenants/:tenant/flow/executions': [],
 };
 
+// A route whose querystring names a required parameter is refused by ajv
+// before authorization, as a missing body is; each entry only satisfies it.
+const SAMPLE_QUERIES: Readonly<Partial<Record<string, string>>> = {
+  'GET /admin/tenants/:tenant/clients/:id/evaluate': 'subject=0199aa00-0000-7000-8000-0000000000fd',
+};
+
 function routeKey(route: AdminRoute): string {
   return `${route.method} ${route.pattern}`;
 }
@@ -101,9 +107,11 @@ function methodOf(route: AdminRoute): RouteMethod {
 // `tenantScopedRoutes`/`systemRoutes` are filtered to `capability !== null`,
 // which `Array.prototype.filter` does not carry into the element type.
 // A route its handler holds to a further capability beside its own: export
-// carries every client, which every other route reads with manage-clients.
+// carries every client, which every other route reads with manage-clients,
+// and an evaluation carries a subject's claims, which reading takes view-users.
 const ALSO_REQUIRED: Readonly<Record<string, readonly AdminCapability[]>> = {
   'GET /admin/tenants/:tenant/export': ['manage-clients'],
+  'GET /admin/tenants/:tenant/clients/:id/evaluate': ['view-users'],
 };
 
 function requiredCapabilityOf(route: AdminRoute): AdminCapability {
@@ -168,7 +176,9 @@ function bodyFor(route: AdminRoute): unknown {
 const ABSENT_ID = '0199aa00-0000-7000-8000-0000000000ff';
 
 function urlFor(route: AdminRoute, tenantName: string): string {
-  return route.pattern.replace(':tenant', tenantName).replace(/:(\w+)/gu, ABSENT_ID);
+  const path = route.pattern.replace(':tenant', tenantName).replace(/:(\w+)/gu, ABSENT_ID);
+  const query = SAMPLE_QUERIES[routeKey(route)];
+  return query === undefined ? path : `${path}?${query}`;
 }
 
 async function callWith(

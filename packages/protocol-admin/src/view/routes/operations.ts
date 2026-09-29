@@ -1,20 +1,36 @@
 import {
+  evaluateClaimsQuerySchema,
   listLogoutDeliveriesQuerySchema,
   listMailQuerySchema,
   type ClientInstallation,
 } from '@odudu/contracts/admin';
-import { type Database } from '@odudu/db';
-import { tenantIssuerFor } from '@odudu/protocol-oidc';
+import { type Database, type TenantScopedDatabase } from '@odudu/db';
+import { evaluateClaims, tenantIssuerFor, type ClaimContext } from '@odudu/protocol-oidc';
+import { type ClaimMapperRegistry } from '@odudu/kernel';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
+import { recordCapabilityRefused } from '#/usecase/access-audit';
 import { readClient } from '#/usecase/clients';
 import { listLogoutDeliveries } from '#/usecase/logout-deliveries';
 import { listMail } from '#/usecase/mail';
 import { cursorProblem, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
-import { type AdminRouteHandler } from '#/view/routes/router';
+import { recordRefusal, type AdminRouteHandler } from '#/view/routes/router';
+
+export interface ClientEvaluationAuditEvent {
+  readonly action: 'client.evaluate';
+  readonly resourceType: 'client';
+  readonly resourceId: string;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+  readonly outcome: 'allowed';
+  readonly detail: Record<string, unknown>;
+}
 
 export interface OperationsRouteDeps {
   readonly database: Database;
+  readonly claimMappers: ClaimMapperRegistry<ClaimContext>;
+  readonly audit: (tx: TenantScopedDatabase, event: ClientEvaluationAuditEvent) => Promise<void>;
   readonly cursorKey: Uint8Array;
   readonly outboxMaxAttempts: number;
   readonly callerCapabilities: (
@@ -129,5 +145,63 @@ export function readInstallationHandler(deps: OperationsRouteDeps): AdminRouteHa
         .join(' '),
     };
     return reply.code(200).send(installation);
+  };
+}
+
+// Claims are a subject's data, which reading takes `view-users` everywhere
+// else, so the evaluation is held to it beside the route's `manage-clients`.
+export function evaluateClaimsHandler(deps: OperationsRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) throw new Error('protocol-admin: evaluate route received no :id');
+    const query = evaluateClaimsQuerySchema.parse(request.query);
+    const held = await deps.callerCapabilities(principal.issuerTenantId, principal.subjectId);
+    if (!held.has('view-users')) {
+      await recordRefusal(deps.database, request, targetTenantId, (tx) =>
+        recordCapabilityRefused(tx, principal, 'view-users'),
+      );
+      return sendProblem(reply, request, problem(403, 'about:blank', 'Forbidden'));
+    }
+    const outcome = await adminTx(deps.database, request, targetTenantId, async (tx) => {
+      const evaluated = await evaluateClaims(
+        tx,
+        { claimMappers: deps.claimMappers },
+        { tenantId: targetTenantId, clientDbId: id, subjectId: query.subject, scope: query.scope },
+      );
+      if (evaluated.kind === 'ok') {
+        await deps.audit(tx, {
+          action: 'client.evaluate',
+          resourceType: 'client',
+          resourceId: id,
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+          outcome: 'allowed',
+          detail: { subject_id: query.subject, scope: evaluated.scope.join(' ') },
+        });
+      }
+      return evaluated;
+    });
+    switch (outcome.kind) {
+      case 'client_not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no client ${id}`),
+        );
+      case 'subject_not_found':
+        return sendProblem(
+          reply,
+          request,
+          problem(404, 'about:blank', 'Not Found', `no subject ${query.subject}`),
+        );
+      case 'ok':
+        return reply.code(200).send({
+          scope: outcome.scope.join(' '),
+          id_token: outcome.idToken,
+          access_token: outcome.accessToken,
+          userinfo: outcome.userinfo,
+        });
+    }
   };
 }

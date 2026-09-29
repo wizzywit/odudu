@@ -49,7 +49,7 @@ import {
 import { evaluateRefreshGrant, generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { parseResource } from '#/service/resource-indicator';
 import { resolveScope } from '#/service/scope';
-import { narrowByScopeMappings } from '#/service/scope-mapping';
+import { idTokenScopeOf, mappedClaims } from '#/service/issued-claims';
 import {
   attenuateScope,
   buildActChain,
@@ -445,19 +445,10 @@ async function mintAccessToken(
     ? [...input.audience]
     : [...input.audience, deps.issuer];
 
-  const narrowedContext: ClaimContext = {
-    ...input.claimContext.context,
-    roles: narrowByScopeMappings(
-      input.claimContext.context.roles,
-      input.reachableRoleIds,
-      input.fullScopeAllowed,
-    ),
-  };
-  const mapped = await deps.claimMappers.assemble(
-    input.accessTokenScope,
-    narrowedContext,
-    input.claimContext.bindings,
-  );
+  const mapped = await mappedClaims(deps.claimMappers, input.accessTokenScope, input.claimContext, {
+    reachableRoleIds: input.reachableRoleIds,
+    fullScopeAllowed: input.fullScopeAllowed,
+  });
 
   const accessTokenClaims = withRegisteredClaimsWinning(mapped, {
     iss: deps.issuer,
@@ -562,25 +553,15 @@ async function issueAuthorizationCodeTokens(
   // carry.
   let idToken: string | undefined;
   if (scope.includes('openid')) {
-    // A scope granted on the request reaches the ID token only if its own
-    // definition says so (`client_scopes.include_in_id_token`) — `roles`
-    // and `groups` ship with that off, since the ID token reaches the
-    // browser and a client cannot opt out of what lands there.
-    const idTokenScope = assigned
-      .filter((clientScope) => scope.includes(clientScope.name) && clientScope.includeInIdToken)
-      .map((clientScope) => clientScope.name);
-    const narrowedContext: ClaimContext = {
-      ...claimContext.context,
-      roles: narrowByScopeMappings(claimContext.context.roles, reachable, client.fullScopeAllowed),
-    };
     // The same claim mapper registry /userinfo assembles from — `sub`
     // arrives through it too, so there is exactly one place that decides
     // what a subject's `openid`/`profile`/`email` scopes produce, not one
     // for the ID token and a second for /userinfo.
-    const assembledClaims = await deps.claimMappers.assemble(
-      idTokenScope,
-      narrowedContext,
-      claimContext.bindings,
+    const assembledClaims = await mappedClaims(
+      deps.claimMappers,
+      idTokenScopeOf(assigned, scope),
+      claimContext,
+      { reachableRoleIds: reachable, fullScopeAllowed: client.fullScopeAllowed },
     );
     // `auth_time` never comes from `standardClaimMappers` (the envelope
     // sets it below), so it is excluded here — otherwise a `max_age`-only
@@ -1302,23 +1283,12 @@ async function issueExchangedTokens(
 
   if (issuedType === 'id_token') {
     const key = await signingKeyRepository(tx).active();
-    // A scope reaches this ID token only if its own definition says so
-    // (`client_scopes.include_in_id_token`) — `roles`/`groups` ship with
-    // that off, the same rule `issueAuthorizationCodeTokens` applies,
-    // because the ID token reaches the browser and a client cannot opt
-    // out of what lands there.
     const assigned = await clientScopeRepository(tx).forClient(client.id);
-    const idTokenScope = assigned
-      .filter((clientScope) => scope.includes(clientScope.name) && clientScope.includeInIdToken)
-      .map((clientScope) => clientScope.name);
-    const narrowedContext: ClaimContext = {
-      ...claimContext.context,
-      roles: narrowByScopeMappings(claimContext.context.roles, reachable, client.fullScopeAllowed),
-    };
-    const mapped = await deps.claimMappers.assemble(
-      idTokenScope,
-      narrowedContext,
-      claimContext.bindings,
+    const mapped = await mappedClaims(
+      deps.claimMappers,
+      idTokenScopeOf(assigned, scope),
+      claimContext,
+      { reachableRoleIds: reachable, fullScopeAllowed: client.fullScopeAllowed },
     );
     const iat = Math.floor(now.getTime() / 1000);
     const ttlExp = iat + config.accessTokenTtlSeconds;

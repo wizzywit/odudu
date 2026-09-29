@@ -80,6 +80,10 @@ export {
   type ListLogoutDeliveriesResponse,
   clientInstallationSchema,
   type ClientInstallation,
+  evaluateClaimsQuerySchema,
+  type EvaluateClaimsQuery,
+  evaluateClaimsResponseSchema,
+  type EvaluateClaimsResponse,
 } from '#/admin/clients';
 export {
   OUTBOX_STATUSES,

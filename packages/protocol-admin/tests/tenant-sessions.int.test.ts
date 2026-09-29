@@ -28,7 +28,7 @@ import {
   listSubjectGrants,
   revokeClientGrants,
   revokeSubjectGrants,
-  type GrantAuditEvent,
+  type Audit,
 } from '#/usecase/grants';
 import {
   countTenantSessions,
@@ -476,8 +476,7 @@ describe('the tenant-wide session and grant reads and writes, probed with a fore
   });
 
   it('lists and revokes no grant across tenants', async () => {
-    const audit = (_tx: TenantScopedDatabase, _event: GrantAuditEvent): Promise<void> =>
-      Promise.resolve();
+    const audit: Audit = () => Promise.resolve();
     await expectCrossTenantMethodProbe(fixture.app.db, {
       seed: seedProbeTenant,
       verifySeeded: async (tx, seeded) => {
