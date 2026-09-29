@@ -49,6 +49,8 @@ const EVENT = {
   actor_tenant_id: 't1',
   actor_subject_id: null,
   actor_client_id: null,
+  actor_name: null,
+  actor_origin: 'tenant',
   resource_type: 'client',
   resource_id: 'c1',
   request_id: null,

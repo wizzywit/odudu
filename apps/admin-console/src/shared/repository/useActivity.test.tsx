@@ -34,6 +34,8 @@ it('reads the audit trail narrowed to the record, from the cursor the address ho
           actor_tenant_id: null,
           actor_subject_id: null,
           actor_client_id: null,
+          actor_name: null,
+          actor_origin: 'tenant',
           resource_type: 'client',
           resource_id: 'c1',
           request_id: null,
