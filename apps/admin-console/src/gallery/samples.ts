@@ -190,3 +190,22 @@ export const GROUPS: readonly Group[] = [
     created_at: '2026-09-28T13:41:05Z',
   },
 ];
+
+// A published key set as the Discovery panel shows it raw.
+export const JWKS_SAMPLE = JSON.stringify(
+  {
+    keys: [
+      {
+        kty: 'EC',
+        crv: 'P-256',
+        x: 'f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU',
+        y: 'x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0',
+        kid: '0192f7a4-5c1e-7b3a-9d2e-6f8a1b2c3d4e',
+        alg: 'ES256',
+        use: 'sig',
+      },
+    ],
+  },
+  null,
+  2,
+);

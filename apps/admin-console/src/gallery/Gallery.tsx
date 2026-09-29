@@ -52,6 +52,7 @@ import {
   CONFLICTS,
   EVENTS,
   GROUPS,
+  JWKS_SAMPLE,
   NOW,
   RAIL_GROUPS,
   REDIRECT_URIS,
@@ -554,6 +555,7 @@ export function Gallery({
             <div className={styles.stack}>
               <CopyValue label="issuer" value="https://id.acme.example/acme" />
               <CopyValue label="client id" value={CLIENTS[0]?.id ?? ''} short />
+              <CopyValue label="JWKS" value={JWKS_SAMPLE} block />
             </div>
           </Specimen>
           <Specimen label="Timestamp · Duration · Count">

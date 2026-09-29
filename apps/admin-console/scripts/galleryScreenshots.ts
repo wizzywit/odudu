@@ -15,6 +15,7 @@ const PATTERNS = {
   activity: 'ActivityTab: the audit trail for one record',
   pickers: "RolePicker and GroupPicker: searched, paged, each role's owner named",
   list: 'ResourceListPage: a whole list, searched, counted and paged',
+  copy: 'CopyValue',
 } as const;
 
 type Theme = (typeof THEMES)[number];
