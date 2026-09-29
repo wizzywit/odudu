@@ -201,6 +201,8 @@ export const FIXTURE_CONSOLE_BASE_URL = 'http://console.test';
 export interface AdminFixtureOptions {
   /** Whether the deployment has a sender of its own for a tenant without one. */
   readonly deploymentSmtp?: boolean;
+  /** Whether the deployment has a public base URL to put in a mailed link. */
+  readonly publicBaseUrl?: boolean;
 }
 
 export async function startAdminFixture(options: AdminFixtureOptions = {}): Promise<AdminFixture> {
@@ -249,6 +251,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         retireResetLinks: (tx, subjectId) =>
           actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
         sendAccountLink: async (tx, request) => {
+          if (options.publicBaseUrl === false) return 'unavailable';
           const tenant = { ...request, issuerBase: FIXTURE_CONSOLE_BASE_URL };
           if (request.kind === 'reset_password') await enqueueResetLink(tx, tenant, request);
           else await enqueueVerificationLink(tx, tenant, request);

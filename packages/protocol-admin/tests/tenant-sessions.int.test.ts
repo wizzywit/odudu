@@ -25,12 +25,19 @@ import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import {
+  createPasswordSubject,
+  createSignInClient,
+  refresh,
+  signInForRefreshToken,
+} from '#/testing/sign-in';
+import {
   listSubjectGrants,
   revokeClientGrants,
   revokeSubjectGrants,
   type Audit,
 } from '#/usecase/grants';
 import {
+  clientKeyOf,
   countTenantSessions,
   endTenantSessions,
   listTenantSessions,
@@ -295,6 +302,122 @@ async function seedManySessions(tenantId: string, subjectId: string, count: numb
   );
 }
 
+describe('liveSessionCondition agrees with the per-row liveness read at every boundary', () => {
+  it('lists exactly the sessions liveById calls live', async () => {
+    const t = await fixture.createTenant(`live-${newId()}`);
+    const ada = await seedUser(t.id, 'ada');
+    const now = fixture.clock.now().getTime();
+    const second = 1000;
+    const cases = [
+      { label: 'ceiling exactly now', expiresAt: now, lastActiveAt: now, remembered: false },
+      {
+        label: 'ceiling just ahead',
+        expiresAt: now + second,
+        lastActiveAt: now,
+        remembered: false,
+      },
+      {
+        label: 'idle window closing exactly now',
+        lastActiveAt: now - LIFESPANS.ssoSessionIdleSeconds * second,
+        remembered: false,
+      },
+      {
+        label: 'idle window a second from closing',
+        lastActiveAt: now - (LIFESPANS.ssoSessionIdleSeconds - 1) * second,
+        remembered: false,
+      },
+      {
+        label: 'remembered, past the ordinary window',
+        lastActiveAt: now - (LIFESPANS.ssoSessionIdleSeconds + 1) * second,
+        remembered: true,
+      },
+      {
+        label: 'remembered, its own window closing exactly now',
+        lastActiveAt: now - LIFESPANS.rememberMeIdleSeconds * second,
+        remembered: true,
+      },
+      { label: 'no secret hash', lastActiveAt: now, remembered: false, secretless: true },
+    ];
+    const ids = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const seeded: string[] = [];
+      for (const each of cases) {
+        const id = newId();
+        await tx.insert(sessions).values({
+          id,
+          tenantId: t.id,
+          subjectId: ada,
+          expiresAt: new Date(each.expiresAt ?? now + 30 * 24 * 3_600_000),
+          lastActiveAt: new Date(each.lastActiveAt),
+          remembered: each.remembered,
+          secretHash: each.secretless === true ? null : SessionEntry.issue(id).secretHash(),
+        });
+        seeded.push(id);
+      }
+      return seeded;
+    });
+
+    const { listed, expected } = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const page = await listTenantSessions(tx, {
+        tenantId: t.id,
+        lifespans: LIFESPANS,
+        now: fixture.clock.now(),
+        limit: 50,
+        cursor: undefined,
+        cursorKey: CURSOR_KEY,
+      });
+      const live: string[] = [];
+      for (const id of ids) {
+        if ((await sessionRepository(tx).liveById(id, LIFESPANS, fixture.clock.now())) !== null) {
+          live.push(id);
+        }
+      }
+      return {
+        listed: page.kind === 'ok' ? page.items.map((item) => item.id) : [],
+        expected: live,
+      };
+    });
+    expect(expected.map((id) => cases[ids.indexOf(id)]?.label)).toEqual([
+      'ceiling just ahead',
+      'idle window a second from closing',
+      'remembered, past the ordinary window',
+    ]);
+    expect([...listed].sort()).toEqual([...expected].sort());
+  });
+});
+
+describe('a revoked grant’s refresh token, presented at /token', () => {
+  const PASSWORD = 'correct horse battery staple';
+
+  it.each([
+    [
+      'DELETE /subjects/:id/grants/:clientId',
+      (subject: string, client: string) => `subjects/${subject}/grants/${client}`,
+    ],
+    [
+      'DELETE /clients/:id/grants',
+      (_subject: string, client: string) => `clients/${client}/grants`,
+    ],
+  ])('is refused after %s', async (_route, tail) => {
+    const t = await fixture.createTenant(`rt-${newId()}`);
+    const client = await createSignInClient(fixture, t.id);
+    const subject = await createPasswordSubject(fixture, t.id, 'ada', PASSWORD);
+    const refreshToken = await signInForRefreshToken(
+      fixture,
+      t.name,
+      client,
+      'ada',
+      PASSWORD,
+      'openid offline_access',
+    );
+    const token = await fixture.adminToken(t.name, ['manage-sessions']);
+
+    expect((await call('DELETE', t.name, token, tail(subject, client.id))).statusCode).toBe(200);
+    const refused = await refresh(fixture, t.name, client, refreshToken);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json<{ error: string }>().error).toBe('invalid_grant');
+  });
+});
+
 describe('DELETE /sessions, bounded per call', () => {
   it(`ends ${String(TENANT_SESSIONS_END_LIMIT)} when that is all there are, and none remain`, async () => {
     const t = await fixture.createTenant(`cap-${newId()}`);
@@ -543,6 +666,19 @@ describe('the tenant-wide session and grant reads and writes, probed with a fore
           fixture.clock.now(),
         );
         expect(live).not.toBeNull();
+      },
+    });
+  });
+
+  it('finds no client across tenants', async () => {
+    await expectCrossTenantMethodProbe(fixture.app.db, {
+      seed: seedProbeTenant,
+      verifySeeded: async (tx, seeded) => {
+        expect(await clientKeyOf(tx, seeded.client.id)).toBe(seeded.client.clientId);
+      },
+      attempt: (tx, seeded) => clientKeyOf(tx, seeded.client.id),
+      expectBlocked: (result) => {
+        expect(result).toBeNull();
       },
     });
   });

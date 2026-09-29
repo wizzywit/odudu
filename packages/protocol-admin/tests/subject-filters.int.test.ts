@@ -1,4 +1,5 @@
-import { withTenant } from '@odudu/db';
+import { tenants, withTenant } from '@odudu/db';
+import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { groupRepository } from '@odudu/domain-authz';
 import { loginFailures, subjectRepository, userRepository, users } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
@@ -6,6 +7,8 @@ import { eq } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import { listGroups } from '#/usecase/groups';
+import { listSubjects } from '#/usecase/subjects';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -198,4 +201,67 @@ describe('GET /groups?parent=', () => {
     const res = await get(t.name, token, 'groups?parent=nope');
     expect(res.statusCode).toBe(400);
   });
+});
+
+describe('the new filters, probed with a foreign tenant_id', () => {
+  const CURSOR_KEY = Buffer.alloc(32, 7);
+
+  it('finds no locked subject of another tenant', async () => {
+    await expectCrossTenantMethodProbe(fixture.app.db, {
+      seed: async (tx, tenantId) => {
+        await tx.insert(tenants).values({ id: tenantId, name: `probe-${newId()}` });
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        const until = new Date(fixture.clock.now().getTime() + 60_000);
+        await tx.insert(loginFailures).values({
+          tenantId,
+          subjectId: subject.id,
+          failureCount: 5,
+          lockedUntil: until,
+        });
+        return tenantId;
+      },
+      verifySeeded: async (tx, tenantId) => {
+        const outcome = await listSubjects(tx, lockedPage(tenantId));
+        expect(outcome.kind === 'ok' ? outcome.items.length : 0).toBe(1);
+      },
+      attempt: (tx) => listSubjects(tx, lockedPage(newId())),
+      expectBlocked: (result) => {
+        expect(result).toEqual({ kind: 'ok', items: [], next: null });
+      },
+    });
+  });
+
+  it('finds no child of another tenant’s group', async () => {
+    await expectCrossTenantMethodProbe(fixture.app.db, {
+      seed: async (tx, tenantId) => {
+        await tx.insert(tenants).values({ id: tenantId, name: `probe-${newId()}` });
+        const parent = await groupRepository(tx).create({ tenantId, name: 'p', parentId: null });
+        await groupRepository(tx).create({ tenantId, name: 'c', parentId: parent.id });
+        return { tenantId, parent: parent.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const outcome = await listGroups(tx, parentPage(seeded.tenantId, seeded.parent));
+        expect(outcome.kind === 'ok' ? outcome.items.length : 0).toBe(1);
+      },
+      attempt: (tx, seeded) => listGroups(tx, parentPage(newId(), seeded.parent)),
+      expectBlocked: (result) => {
+        expect(result).toEqual({ kind: 'ok', items: [], next: null });
+      },
+    });
+  });
+
+  function lockedPage(tenantId: string) {
+    return {
+      limit: 50,
+      cursor: undefined,
+      cursorKey: CURSOR_KEY,
+      tenantId,
+      filters: { locked: 'true' as const },
+      now: fixture.clock.now(),
+    };
+  }
+
+  function parentPage(tenantId: string, parent: string) {
+    return { limit: 50, cursor: undefined, cursorKey: CURSOR_KEY, tenantId, filters: { parent } };
+  }
 });

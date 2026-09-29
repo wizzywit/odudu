@@ -214,3 +214,23 @@ describe('sendAccountEmail, probed with a foreign tenant_id', () => {
     });
   });
 });
+
+describe('a deployment with no public base URL', () => {
+  it('answers 503, queues nothing and records nothing', async () => {
+    const baseless = await startAdminFixture({ deploymentSmtp: true, publicBaseUrl: false });
+    try {
+      const t = await baseless.createTenant(`mail-${newId()}`);
+      const ada = await seedUser(baseless, t.id, 'ada', 'ada@example.com');
+      const token = await baseless.adminToken(t.name, ['manage-users']);
+      const res = await post(baseless, t.name, token, `${ada}/verification`);
+      expect(res.statusCode).toBe(503);
+      expect(await outboxOf(baseless, t.id)).toEqual([]);
+      const rows = await withTenant(baseless.app.db, t.id, (tx) =>
+        auditRepository(tx).list({ action: 'subject.verification_send', limit: 5 }),
+      );
+      expect(rows).toEqual([]);
+    } finally {
+      await baseless.stop();
+    }
+  }, 180_000);
+});
