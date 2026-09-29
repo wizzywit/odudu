@@ -8,6 +8,7 @@ import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
 import { AppShell } from '#/shared/view/AppShell.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
+import { ChunkFailed } from '#/shared/view/ChunkBoundary.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { ConflictPanel } from '#/shared/view/ConflictPanel.tsx';
 import { ContextBar } from '#/shared/view/ContextBar.tsx';
@@ -649,6 +650,7 @@ export function Gallery({
               The gateway did not answer in time.
             </EmptyState>
             <Skeleton label="Loading clients" lines={4} />
+            <ChunkFailed onReload={NOTHING} />
           </div>
         </Group>
 
