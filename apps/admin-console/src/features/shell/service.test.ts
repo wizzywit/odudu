@@ -46,6 +46,21 @@ describe('the rail', () => {
     expect(groups[1]?.items[0]?.href).toBe('/console/acme/subjects');
   });
 
+  it('lists only the areas whoami says the caller can read, leaving out an empty group', () => {
+    const viewer = { capabilities: ['view-users', 'view-audit'] as const, crossTenant: false };
+    const groups = railGroups('acme', false, viewer);
+    expect(groups.map((g) => g.heading ?? '')).toEqual(['', 'Identity', 'Observe']);
+    expect(groups.flatMap((g) => g.items.map((i) => i.label))).toEqual([
+      'Overview',
+      'Subjects',
+      'Audit trail',
+    ]);
+  });
+
+  it('lists every area until whoami has answered', () => {
+    expect(railGroups('acme', false, undefined).flatMap((g) => g.items)).toHaveLength(13);
+  });
+
   it('puts the System area first when it is shown', () => {
     const [system] = railGroups('system', true);
     expect(system?.heading).toBe('System');

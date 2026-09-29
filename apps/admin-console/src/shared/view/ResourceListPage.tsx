@@ -28,6 +28,7 @@ export function ResourceListPage<T>({
   nothingYet,
   nothingYetAction,
   notice,
+  viewOnly,
 }: {
   list: ResourceListState<T>;
   title: string;
@@ -47,6 +48,8 @@ export function ResourceListPage<T>({
   nothingYetAction?: ReactNode;
   // What the last action on a row came to, drawn between the filters and the rows.
   notice?: ReactNode;
+  // The one line saying what the caller may not change here.
+  viewOnly?: ReactNode;
 }) {
   const count =
     list.count === null ? null : (
@@ -62,6 +65,7 @@ export function ResourceListPage<T>({
         {...(actions === undefined || refused ? {} : { actions })}
       />
       <div className={styles.page}>
+        {refused ? null : viewOnly}
         {refused ? null : (
           <Narrowing list={list} noun={noun} searchFields={searchFields} filters={filters}>
             {count}

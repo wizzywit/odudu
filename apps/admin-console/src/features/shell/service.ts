@@ -1,3 +1,4 @@
+import { holds, readable } from '#/shared/service/access.ts';
 import {
   SYSTEM_TENANT,
   type AdminCapability,
@@ -102,9 +103,7 @@ export function areaAt(path: string): Area {
   return found;
 }
 
-export function holds(authority: Authority | undefined, capability: AdminCapability): boolean {
-  return authority?.capabilities.includes(capability) === true;
-}
+export { holds };
 
 export function showsSystemArea(
   principal: Principal,
@@ -140,16 +139,28 @@ export function systemRecordHref(tenant: string): string {
   return `${areaHref(SYSTEM_TENANT, areaAt('tenants'))}/${encodeURIComponent(tenant)}`;
 }
 
-export function railGroups(tenant: string, withSystem: boolean): readonly RailSection[] {
+// The rail lists only what the caller can read; an address to any other
+// area still opens, and says what it needs, since links get shared.
+export function railGroups(
+  tenant: string,
+  withSystem: boolean,
+  authority?: Authority,
+): readonly RailSection[] {
   const groups = withSystem ? [SYSTEM_AREAS, ...TENANT_AREAS] : TENANT_AREAS;
-  return groups.map((group) => ({
-    ...(group.heading === undefined ? {} : { heading: group.heading }),
-    items: group.areas.map((a) => ({
-      href: areaHref(tenant, a),
-      label: a.label,
-      pages: a.pages.map((page) => `${areaHref(tenant, OVERVIEW)}/${page}`),
-    })),
-  }));
+  return groups.flatMap((group) => {
+    const areas = group.areas.filter((a) => readable(authority, a.capability));
+    if (areas.length === 0) return [];
+    return [
+      {
+        ...(group.heading === undefined ? {} : { heading: group.heading }),
+        items: areas.map((a) => ({
+          href: areaHref(tenant, a),
+          label: a.label,
+          pages: a.pages.map((page) => `${areaHref(tenant, OVERVIEW)}/${page}`),
+        })),
+      },
+    ];
+  });
 }
 
 // The deepest rail entry the page sits under, a segment at a time, so a

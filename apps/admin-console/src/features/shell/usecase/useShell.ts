@@ -40,7 +40,7 @@ export function useShell(tenant: string, principal: Principal): Shell {
   const openDialogs = useDialogHost((host) => host.open);
   // The guard's own dialog is left out of the host's count, so it is asked too.
   const asking = useUnsavedGuard((guard) => guard.pending !== null);
-  const groups = railGroups(tenant, showsSystemArea(principal, tenant, authority));
+  const groups = railGroups(tenant, showsSystemArea(principal, tenant, authority), authority);
   const pathname = new URL(publicHref, globalThis.location.origin).pathname;
 
   return {

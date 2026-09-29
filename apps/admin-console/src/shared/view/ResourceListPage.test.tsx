@@ -188,3 +188,21 @@ it('says what happened to a row just above the rows, from a notice the page give
   expect(notice).toHaveTextContent('Billing portal still holds a secret.');
   expect(notice.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
+
+it('carries the page’s view-only line under its header, above the search', () => {
+  render(
+    <ResourceListPage
+      list={state()}
+      title="Subjects"
+      noun={{ one: 'subject', other: 'subjects' }}
+      searchFields={[{ id: 'username', label: 'username' }]}
+      columns={COLUMNS}
+      rowKey={(row) => row.id}
+      capability="view-users"
+      viewOnly={<p role="note">You can view subjects but not change them.</p>}
+    />,
+  );
+  const note = screen.getByRole('note');
+  const search = screen.getByRole('searchbox');
+  expect(note.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});

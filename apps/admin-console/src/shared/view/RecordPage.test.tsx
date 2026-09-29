@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import type { RecordView } from '#/shared/service/record.ts';
 import { Button } from '#/shared/view/Button.tsx';
+import { TextField } from '#/shared/view/Field.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
@@ -125,6 +126,31 @@ it('says it is loading, that the record is gone, or that it could not be read', 
   expect(screen.getByRole('alert')).toHaveTextContent('This client could not be loaded');
   await user.click(screen.getByRole('button', { name: 'Try again' }));
   expect(failed.retry).toHaveBeenCalledOnce();
+});
+
+it('says once what the caller cannot change, and shows every field in its tabs as text', () => {
+  render(
+    <RecordPage
+      record={view()}
+      breadcrumb={[{ label: 'Subjects', href: '/console/acme/subjects' }, { label: 'ada' }]}
+      title="ada"
+      noun="subject"
+      label="Subject sections"
+      tab="profile"
+      onTabChange={vi.fn()}
+      viewOnly={<p role="note">You can view subjects but not change them.</p>}
+      tabs={[
+        {
+          id: 'profile',
+          label: 'Profile',
+          panel: <TextField label="Nickname" value="Countess" onChange={vi.fn()} />,
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByRole('note')).toHaveTextContent('You can view subjects but not change them.');
+  expect(screen.queryByRole('textbox', { name: 'Nickname' })).toBeNull();
+  expect(screen.getByText('Countess')).toBeVisible();
 });
 
 it('passes axe in both themes', async () => {

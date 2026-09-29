@@ -3,6 +3,7 @@ import type { RecordView } from '#/shared/service/record.ts';
 import type { Crumb } from '#/shared/view/Breadcrumb.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
+import { ReadOnlyFields } from '#/shared/view/Field.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import { RecordSkeleton } from '#/shared/view/Skeleton.tsx';
 import { Tabs, type TabItem } from '#/shared/view/Tabs.tsx';
@@ -22,6 +23,7 @@ export function RecordPage({
   tabs,
   tab,
   onTabChange,
+  viewOnly,
 }: {
   record: RecordView;
   // Up to the list the record sits in, ending with the record itself.
@@ -37,6 +39,9 @@ export function RecordPage({
   readonly tabs: readonly TabItem[];
   tab: string;
   onTabChange: (id: string) => void;
+  // The one line saying what the caller may not change; given, every field
+  // in the tabs shows as text.
+  viewOnly?: ReactNode;
 }) {
   const head = (ready: boolean) => (
     <PageHeader
@@ -113,7 +118,10 @@ export function RecordPage({
               </div>
             ) : null}
           </div>
-          <Tabs label={label} tabs={tabs} selectedKey={tab} onSelectionChange={onTabChange} />
+          {viewOnly}
+          <ReadOnlyFields when={viewOnly !== undefined}>
+            <Tabs label={label} tabs={tabs} selectedKey={tab} onSelectionChange={onTabChange} />
+          </ReadOnlyFields>
         </>
       );
   }
