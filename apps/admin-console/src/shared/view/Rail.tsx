@@ -1,6 +1,5 @@
 import { useId, type ReactNode } from 'react';
 import { Link } from 'react-aria-components';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
 import styles from '#/shared/view/Rail.module.css';
 
 export interface RailItem {
@@ -67,7 +66,18 @@ export function Rail({
             {...(currentHref === undefined ? {} : { currentHref })}
           />
         ))}
-        {checking ? <Skeleton label="Checking which areas you can reach" lines={5} /> : null}
+        {checking ? (
+          <div className={styles.checking}>
+            <p role="status" className={styles.checkingLabel}>
+              Checking which areas you can reach
+            </p>
+            <span aria-hidden="true" className={styles.checkingBars}>
+              {[0, 1, 2, 3].map((bar) => (
+                <span key={bar} className={styles.checkingBar} />
+              ))}
+            </span>
+          </div>
+        ) : null}
       </div>
       {footer === undefined ? null : <div className={styles.footer}>{footer}</div>}
     </nav>
