@@ -13,6 +13,11 @@ export function useAuthority(tenant: string): Authority | undefined {
   return useWhoami(tenant).authority;
 }
 
+// For a change to what the principal holds, which whoami has not seen.
+export function useRereadAuthority(tenant: string): () => void {
+  return useWhoami(tenant).reread;
+}
+
 // Whether the tenant in the address exists, as far as whoami can say:
 // undefined until it answers. Only a system administrator reaches a tenant
 // other than their own, so only their 401 can mean that none has the name.

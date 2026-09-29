@@ -10,5 +10,6 @@ export { useTenantAccess, type TenantAccess } from '#/features/session/usecase/u
 export {
   useAuthority,
   useRefusal,
+  useRereadAuthority,
   useTenantMissing,
 } from '#/features/session/usecase/useAuthority.ts';

@@ -1477,15 +1477,15 @@ A real deployment today looks like:
 Being straight about this, because "self-hostable" should mean something.
 Every row says where it stands, and every row has a phase:
 
-|                                                                                                              | Where it stands |
-| ------------------------------------------------------------------------------------------------------------ | --------------- |
-| Self-service for an End-User: a "me" API and application-initiated actions for credential ceremonies         | P4f             |
-| An admin **console** — Overview, System › Tenants and a tenant's Export are built; the rest are placeholders | P4d             |
-| Published images and a release process                                                                       | P12             |
-| Secret management beyond environment variables                                                               | P12             |
-| Backup and restore guidance                                                                                  | P12             |
-| Multi-replica support: migration locking, shared session cache, HA                                           | P11             |
-| Helm chart or Kubernetes manifests                                                                           | P11             |
+|                                                                                                                                         | Where it stands |
+| --------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Self-service for an End-User: a "me" API and application-initiated actions for credential ceremonies                                    | P4f             |
+| An admin **console** — Overview, System › Tenants and System administrators, and a tenant's Export are built; the rest are placeholders | P4d             |
+| Published images and a release process                                                                                                  | P12             |
+| Secret management beyond environment variables                                                                                          | P12             |
+| Backup and restore guidance                                                                                                             | P12             |
+| Multi-replica support: migration locking, shared session cache, HA                                                                      | P11             |
+| Helm chart or Kubernetes manifests                                                                                                      | P11             |
 
 The three P12 rows had no phase at all until 2026-09-14. They are
 operational rather than protocol work, and the roadmap — written outward

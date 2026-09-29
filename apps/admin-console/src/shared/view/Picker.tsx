@@ -25,6 +25,7 @@ export function Picker<T>({
   detailOf,
   accessibleNameOf,
   capability,
+  searchBy = 'name',
   selected,
   onChange,
   selectionMode = 'multiple',
@@ -40,6 +41,8 @@ export function Picker<T>({
   accessibleNameOf?: (item: T) => string;
   // Named when the list is refused.
   capability: string;
+  // The field the search is a prefix of.
+  searchBy?: string;
   readonly selected: readonly string[];
   onChange: (ids: string[]) => void;
   selectionMode?: 'single' | 'multiple';
@@ -70,7 +73,7 @@ export function Picker<T>({
         <>
           <div role="search" aria-label={`Search ${noun.other}`} className={styles.search}>
             <SearchField
-              aria-label={`Search ${noun.other} by name`}
+              aria-label={`Search ${noun.other} by ${searchBy}`}
               value={text}
               onChange={setText}
               onSubmit={search}

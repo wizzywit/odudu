@@ -9563,8 +9563,9 @@ session lifecycle. A citation of either half here means that half.
   Beyond signing in, the rail, the tenant switch and sign-out, the
   Overview and System › Tenants work — the tenant list, guided creation
   with a first administrator, the tenant record, import, and export,
-  which is also a tenant's own Export area — and every other area is a
-  placeholder that reads and changes nothing. Planned: **P4d**, whose
+  which is also a tenant's own Export area — and System › System
+  administrators, which lists, grants and revokes them. Every other area
+  is a placeholder that reads and changes nothing. Planned: **P4d**, whose
   fourth part adds the rest one at a time.
 - **The tenant's sign-in pages do not pass WCAG 2.2 AA.** They are
   unstyled, and axe reports `target-size` on `#passkey-submit`; the

@@ -1,0 +1,40 @@
+.after {
+  display: grid;
+  gap: var(--space-4);
+  margin-block-start: var(--space-4);
+}
+
+.message:empty {
+  display: none;
+}
+
+.message,
+.reason,
+.lead {
+  margin: 0;
+  max-inline-size: 72ch;
+}
+
+.reason,
+.lead {
+  color: var(--ink-muted);
+}
+
+.grant {
+  display: grid;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: var(--hairline);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--type-15);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}

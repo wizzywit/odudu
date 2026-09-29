@@ -140,7 +140,22 @@ const tenantPages = [
 ] as const;
 const tenantRecord = tenantPages[1];
 
-const TAKEN = new Set(['tenants', 'export']);
+const SystemAdministrators = lazyFeatureRoute(
+  () =>
+    import('#/features/system-admins/index.ts').then((feature) => feature.SystemAdministratorsPage),
+  'Loading system administrators',
+);
+
+const systemAdmins = createRoute({
+  getParentRoute: () => tenant,
+  path: 'system-admins',
+  component: function SystemAdmins() {
+    const { tenant: name } = tenant.useParams();
+    return <SystemAdministrators key={name} tenant={name} />;
+  },
+});
+
+const TAKEN = new Set(['tenants', 'export', 'system-admins']);
 
 const areas = EVERY_AREA.filter((area) => area !== OVERVIEW && !TAKEN.has(area.path)).map((area) =>
   createRoute({
@@ -155,7 +170,7 @@ const areas = EVERY_AREA.filter((area) => area !== OVERVIEW && !TAKEN.has(area.p
 
 const routeTree = root.addChildren([
   home,
-  tenant.addChildren([overview, ...tenantPages, ...areas]),
+  tenant.addChildren([overview, ...tenantPages, systemAdmins, ...areas]),
 ]);
 
 export function createConsoleRouter(history: RouterHistory = createBrowserHistory()) {
