@@ -18,6 +18,8 @@ export function SaveBar({
   const shortcut = useId();
   const reason = useId();
   const verb = saving ? 'Saving…' : 'Save';
+  // Enter does nothing while Save cannot run, so no key is offered then.
+  const held = saving || blocked !== undefined;
   return (
     <div className={styles.bar}>
       <p className={styles.status}>
@@ -41,13 +43,17 @@ export function SaveBar({
         <Button
           type="submit"
           variant="primary"
-          isDisabled={saving || blocked !== undefined}
-          aria-describedby={blocked === undefined ? shortcut : `${reason} ${shortcut}`}
+          isDisabled={held}
+          {...(blocked !== undefined
+            ? { 'aria-describedby': reason }
+            : saving
+              ? {}
+              : { 'aria-describedby': shortcut })}
           aria-label={`${verb} ${section}`}
         >
           {verb}
         </Button>
-        <KeyHint id={shortcut} lead="or press" keys={['Enter']} />
+        {held ? null : <KeyHint id={shortcut} lead="or press" keys={['Enter']} />}
       </div>
     </div>
   );

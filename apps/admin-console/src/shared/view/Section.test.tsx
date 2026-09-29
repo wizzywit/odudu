@@ -178,9 +178,8 @@ it('holds Save, saying why, while something has to be decided first', () => {
   );
   const save = screen.getByRole('button', { name: 'Save General' });
   expect(save).toBeDisabled();
-  expect(save).toHaveAccessibleDescription(
-    'Keep yours or take theirs before saving. or press Enter',
-  );
+  expect(save).toHaveAccessibleDescription('Keep yours or take theirs before saving.');
+  expect(screen.queryByText(/or press/u)).toBeNull();
 });
 
 it('puts focus on its heading when the control holding it goes with the save bar', async () => {

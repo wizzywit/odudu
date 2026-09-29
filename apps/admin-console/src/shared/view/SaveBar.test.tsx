@@ -30,3 +30,15 @@ it('passes axe in both themes', async () => {
     )),
   ).toEqual({ light: [], dark: [] });
 });
+
+it('offers no key while the save cannot run', () => {
+  const { rerender } = render(<SaveBar section="General" saving onDiscard={vi.fn()} />);
+  expect(screen.queryByText(/or press/u)).toBeNull();
+  rerender(
+    <SaveBar section="General" saving={false} blocked="Load it first." onDiscard={vi.fn()} />,
+  );
+  expect(screen.queryByText(/or press/u)).toBeNull();
+  expect(screen.getByRole('button', { name: 'Save General' })).toHaveAccessibleDescription(
+    'Load it first.',
+  );
+});

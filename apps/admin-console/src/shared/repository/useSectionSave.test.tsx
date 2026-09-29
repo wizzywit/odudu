@@ -536,7 +536,7 @@ it('announces a conflict in one line, with the comparison beside the announcemen
   expect(within(announced()).queryByRole('table')).toBeNull();
   expect(
     within(general()).getByRole('button', { name: 'Save General' }),
-  ).toHaveAccessibleDescription('Keep yours or take theirs before saving. or press Enter');
+  ).toHaveAccessibleDescription('Keep yours or take theirs before saving.');
 });
 
 it('announces a 412 that touched none of the edits, and asks for another save', async () => {
@@ -761,7 +761,7 @@ it('holds Save when the newer version a 412 points at could not be loaded, until
   expect(within(announced()).queryByRole('button')).toBeNull();
   const save = within(general()).getByRole('button', { name: 'Save General' });
   expect(save).toBeDisabled();
-  expect(save).toHaveAccessibleDescription('Load the newer version before saving. or press Enter');
+  expect(save).toHaveAccessibleDescription('Load the newer version before saving.');
 
   await user.click(
     within(general()).getByRole('button', { name: 'Load the newer version of General' }),
@@ -791,7 +791,7 @@ it('holds Save, saying why, once the record is found deleted', async () => {
     expect(save).toBeDisabled();
   });
   expect(save).toHaveAccessibleDescription(
-    'This record was deleted since you opened it, so there is nothing to save to. or press Enter',
+    'This record was deleted since you opened it, so there is nothing to save to.',
   );
   await user.type(within(general()).getByRole('textbox', { name: 'Name' }), '{Enter}');
   expect(patches()).toEqual([]);
