@@ -160,7 +160,7 @@ async function expectOneCentreLine(page: Page, singleRow: boolean): Promise<void
     bar.getByText(/^or press/u),
   ];
   const boxes = await Promise.all(controls.map(box));
-  expect(new Set(boxes.slice(0, 4).map((b) => Math.round(b.h)))).toEqual(new Set([32]));
+  expect(new Set(boxes.slice(0, 4).map((b) => Math.round(b.h)))).toEqual(new Set([40]));
   const rows: { first: number; centres: number[] }[] = [];
   for (const b of boxes) {
     const centre = b.y + b.h / 2;
