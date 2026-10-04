@@ -121,7 +121,7 @@ refusal and the same write forwarded once it names the session's subject.
 The earlier runs were not re-captured.
 
 One section comes from **a fifth run**, on a stack of its own, the project
-`odudu-signin` on `http://localhost:3082` at `929a9e60`: the restarted
+`odudu-signin` on `http://localhost:3082` at `0824c4e7`: the restarted
 callback. It says what it seeded in its first lines.
 
 ## `GET /console/auth/login`
@@ -444,7 +444,7 @@ left. That session is the one every later second-run section uses.
 
 From **the fifth run**, on its own stack: the `infra/docker` compose file as
 the project `odudu-signin`, on `http://localhost:3082`, built from commit
-`929a9e60`, with a throwaway tenant, `signin-restart`, holding `grace` as its
+`0824c4e7`, with a throwaway tenant, `signin-restart`, holding `grace` as its
 administrator. A curl cookie jar, `jar`, plays one browser throughout. With
 `COMPOSE_PROJECT_NAME=odudu-signin` set, the seed printed:
 
@@ -457,9 +457,9 @@ docker compose exec -T odudu node dist/main.js seed grant-role --tenant signin-r
 ```
 
 ```
-{"command":"tenant","created":true,"tenant":"signin-restart","tenantId":"01a10892-6bfa-7239-be3e-e38b9c926211"}
-{"command":"user","tenant":"signin-restart","tenantId":"01a10892-6bfa-7239-be3e-e38b9c926211","username":"grace","userSubjectId":"01a10892-7057-783a-9dca-e794f47e97ef"}
-{"command":"grant-role","tenant":"signin-restart","tenantId":"01a10892-6bfa-7239-be3e-e38b9c926211","username":"grace","role":"odudu-admin:tenant-admin"}
+{"command":"tenant","created":true,"tenant":"signin-restart","tenantId":"01a108bd-b4b2-756b-b09e-6dbd32fbdf4d"}
+{"command":"user","tenant":"signin-restart","tenantId":"01a108bd-b4b2-756b-b09e-6dbd32fbdf4d","username":"grace","userSubjectId":"01a108bd-b7a3-7793-9eb4-90662b8361a6"}
+{"command":"grant-role","tenant":"signin-restart","tenantId":"01a108bd-b4b2-756b-b09e-6dbd32fbdf4d","username":"grace","role":"odudu-admin:tenant-admin"}
 ```
 
 A refused callback no longer ends on the refusal page. It begins the
@@ -470,18 +470,27 @@ presented. A refusal that arrives while that restart's `odudu-console-restart`
 cookie is still set (60 seconds) is shown the page instead, and the page links
 back to the console.
 
+The tenant is read from the `state` alone, which nothing authenticates:
+anyone can write `<uuid>.<43 characters>`, so the restart's `location` names
+the tenant for any tenant uuid it is given. That is accepted. A tenant's name
+is public in every `/tenants/<name>/` URL, its uuid already travels in its
+own `state` and session cookie, and the `location` only ever leads to this
+gateway's own `/console/auth/login`. Without the name, an expired sign-in
+could restart only at `/console/`, and would lose the silent sign-in shown
+below.
+
 **A sign-in left open past the login's lifetime.** The gateway's `login`, the
 tenant's authorization endpoint and `grace`'s password were sent as in
 [the first run](#get-consoleauthlogin). The `authenticate` request answered:
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a10892-cd72-70ea-9be5-40244586da60
-set-cookie: signin-restart-session=01a10892-cdc9-73f9-8c0f-6b48524fc175:ZdwvMMm48ajABaNLCsBhK7Dfg6d0s0QYM7OGKIVv-KY; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a108bd-ba01-7e72-983b-9c5723d52461
+set-cookie: signin-restart-session=01a108bd-ba7d-7791-9abe-a02b0204e94c:C7aSHxAgyTFJm5Ry7Bx28LUEtD1vhyIY9ik97mgvc2s; HttpOnly; SameSite=Lax; Path=/
 set-cookie: signin-restart-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://localhost:3082/console/auth/callback?code=mHr_xRhChgGwJpygJ5C2n7aM6bzx8qtishQw2U5r1vk&state=01a10892-6bfa-7239-be3e-e38b9c926211.G244-NvCZPv4RSEbjIUpd1VIysGbxsq0Oa1G-puO_jI&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsignin-restart
+location: http://localhost:3082/console/auth/callback?code=8ADlLQH5BSxI1o5sTM5Q-W7-tBUd3DUqIXj6uF2JZCo&state=01a108bd-b4b2-756b-b09e-6dbd32fbdf4d.OBy4NmYU1OoW4R0WN8IMpzfwcPZeCI6M1kPVrIcW-dk&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsignin-restart
 content-length: 0
-Date: Sun, 04 Oct 2026 20:20:01 GMT
+Date: Sun, 04 Oct 2026 21:06:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -493,9 +502,9 @@ and the jar's login cookie was removed, as a browser drops it at its
 
 ```sql
 update console_logins set expires_at = now() - interval '1 second'
-  where tenant_id = '01a10892-6bfa-7239-be3e-e38b9c926211';
+  where tenant_id = '01a108bd-b4b2-756b-b09e-6dbd32fbdf4d';
 select expires_at < now() as expired from console_logins
-  where tenant_id = '01a10892-6bfa-7239-be3e-e38b9c926211';
+  where tenant_id = '01a108bd-b4b2-756b-b09e-6dbd32fbdf4d';
 ```
 
 ```
@@ -514,13 +523,13 @@ curl -sS -D - -c jar -b jar "$LOCATION"
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a10893-0327-72ab-8e38-0144dbeaf84d
+x-request-id: 01a108bd-bb85-796f-a4fb-f852b4efbde9
 cache-control: no-store
 set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 set-cookie: odudu-console-restart=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=60
 location: /console/auth/login?tenant=signin-restart
 content-length: 0
-Date: Sun, 04 Oct 2026 20:20:14 GMT
+Date: Sun, 04 Oct 2026 21:06:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -534,7 +543,7 @@ curl -sS -D - -c jar -b jar "$LOCATION"
 
 ```
 HTTP/1.1 400 Bad Request
-x-request-id: 01a10893-0336-7149-ab12-795ec94bd3bd
+x-request-id: 01a108bd-bb92-747c-8473-cfb43f7a262c
 set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 cache-control: no-store
 content-type: text/html; charset=utf-8
@@ -542,7 +551,7 @@ content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action
 x-frame-options: DENY
 referrer-policy: no-referrer
 content-length: 232
-Date: Sun, 04 Oct 2026 20:20:14 GMT
+Date: Sun, 04 Oct 2026 21:06:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -568,83 +577,84 @@ curl -sS -D - -o /dev/null -c jar -b jar "$CALLBACK"    # the location above
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a10893-2031-7f48-aa0d-0110db49c7a4
+x-request-id: 01a108bd-bb9f-7380-892c-60da383b71ed
 cache-control: no-store
-set-cookie: odudu-console-login=01a10892-6bfa-7239-be3e-e38b9c926211.wx_--0myF7VGyvDs7AuC7qLqGJaLLeart8crsBTh0LA; HttpOnly; SameSite=Lax; Path=/; Max-Age=600
-location: http://localhost:3082/tenants/signin-restart/protocol/openid-connect/auth?response_type=code&client_id=odudu-admin&redirect_uri=http%3A%2F%2Flocalhost%3A3082%2Fconsole%2Fauth%2Fcallback&scope=openid&resource=urn%3Aodudu%3Aparams%3Aadmin-api&state=01a10892-6bfa-7239-be3e-e38b9c926211.wx_--0myF7VGyvDs7AuC7qLqGJaLLeart8crsBTh0LA&nonce=HzM9wrvS6Hhl17_8kcrbaNMnKFOrvkr3w_RbeGQpUcA&code_challenge=or3ZmNsILWLWL80_NCNy39yKLTSu_IDoXMa653l8m-o&code_challenge_method=S256
+set-cookie: odudu-console-login=01a108bd-b4b2-756b-b09e-6dbd32fbdf4d.n5MLNmKsBZv-2kzRjxAg2x6If0LcDxxX1icbUHWcTdg; HttpOnly; SameSite=Lax; Path=/; Max-Age=600
+location: http://localhost:3082/tenants/signin-restart/protocol/openid-connect/auth?response_type=code&client_id=odudu-admin&redirect_uri=http%3A%2F%2Flocalhost%3A3082%2Fconsole%2Fauth%2Fcallback&scope=openid&resource=urn%3Aodudu%3Aparams%3Aadmin-api&state=01a108bd-b4b2-756b-b09e-6dbd32fbdf4d.n5MLNmKsBZv-2kzRjxAg2x6If0LcDxxX1icbUHWcTdg&nonce=za05eaGWkGl-80bANrVOSNGoFVSKmHIetP98tsp5wNg&code_challenge=hO_cQP-XyHQfTSeU9Tc0HgIZvwU8rGmjcUcdAllAxCM&code_challenge_method=S256
 content-length: 0
-Date: Sun, 04 Oct 2026 20:20:22 GMT
+Date: Sun, 04 Oct 2026 21:06:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a10893-204b-7776-bc21-d0c45e1b0688
-location: http://localhost:3082/console/auth/callback?code=pi46OhyMuIqA0AjqIezXw05gAgcB3QyzmoiFzZO36dI&state=01a10892-6bfa-7239-be3e-e38b9c926211.wx_--0myF7VGyvDs7AuC7qLqGJaLLeart8crsBTh0LA&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsignin-restart
+x-request-id: 01a108bd-bbb1-7d8a-a51b-ff70caba4603
+location: http://localhost:3082/console/auth/callback?code=XFi8934NxcJ53y9sgsa21AeNlOqLL-OJnhKaAbT7NUQ&state=01a108bd-b4b2-756b-b09e-6dbd32fbdf4d.n5MLNmKsBZv-2kzRjxAg2x6If0LcDxxX1icbUHWcTdg&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsignin-restart
 content-length: 0
-Date: Sun, 04 Oct 2026 20:20:22 GMT
+Date: Sun, 04 Oct 2026 21:06:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a10893-2090-7947-a40d-d92b002ad7e0
+x-request-id: 01a108bd-bbcd-7fba-959d-50f20e039bfd
 cache-control: no-store
 set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 set-cookie: odudu-console-restart=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-set-cookie: odudu-console=01a10892-6bfa-7239-be3e-e38b9c926211.eu9KSj0_2b-wj7o6j07eg7VzANl6EIiH-S-3i4x3PfE; HttpOnly; SameSite=Strict; Path=/
+set-cookie: odudu-console=01a108bd-b4b2-756b-b09e-6dbd32fbdf4d.UbeLBc78w8nIIDjDx0defSDsAIXwMI8NM5PVt5hzYU4; HttpOnly; SameSite=Strict; Path=/
 location: /console/
 content-length: 0
-Date: Sun, 04 Oct 2026 20:20:22 GMT
+Date: Sun, 04 Oct 2026 21:06:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
 
 The sign-in completed, and the restart cookie was cleared with the login
-cookie. The code the stale callback carried was never exchanged: the
-tenant's codes afterwards, one per authorization response,
+cookie. The code the stale callback carried, `8ADlLQH5BSxI1o5sTM5Q-W7-tBUd3DUqIXj6uF2JZCo`, was never
+exchanged. The tenant's codes afterwards, each named by matching its stored
+hash (base64url SHA-256) against the two codes above:
 
 ```sql
-select auth_time, consumed_at is not null as consumed from authorization_codes
-  where tenant_id = '01a10892-6bfa-7239-be3e-e38b9c926211' order by auth_time;
+select case code_hash
+    when translate(rtrim(encode(sha256(convert_to('8ADlLQH5BSxI1o5sTM5Q-W7-tBUd3DUqIXj6uF2JZCo', 'UTF8')), 'base64'), '='), '+/', '-_') then 'stale'
+    when translate(rtrim(encode(sha256(convert_to('XFi8934NxcJ53y9sgsa21AeNlOqLL-OJnhKaAbT7NUQ', 'UTF8')), 'base64'), '='), '+/', '-_') then 'restart'
+  end as code, consumed_at is not null as consumed
+  from authorization_codes where tenant_id = '01a108bd-b4b2-756b-b09e-6dbd32fbdf4d' order by 1;
 ```
 
 ```
-         auth_time          | consumed
-----------------------------+----------
- 2026-10-04 20:20:01.093+00 | t
- 2026-10-04 20:20:01.093+00 | f
+  code   | consumed
+---------+----------
+ restart | t
+ stale   | f
 (2 rows)
 ```
-
-Both carry the one `auth_time` of `grace`'s password, since the second was
-answered from the session it set.
 
 **A `state` that does not match the login cookie.** A new jar, `jar2`, began
 a sign-in, which set:
 
 ```
-set-cookie: odudu-console-login=01a10892-6bfa-7239-be3e-e38b9c926211.rYSFNyomWRPCO3OTu7enl9wSRy2wrYM2Wov-uR5Zn98; HttpOnly; SameSite=Lax; Path=/; Max-Age=600
+set-cookie: odudu-console-login=01a108bd-b4b2-756b-b09e-6dbd32fbdf4d.Tt75gHXd-5LC_-i08TD36f3ALE03L3H86v-z1jC5krE; HttpOnly; SameSite=Lax; Path=/; Max-Age=600
 ```
 
 A callback whose `state` keeps that tenant and carries another secret of the
 same shape is answered exactly as the expired one was:
 
 ```bash
-curl -sS -D - -c jar2 -b jar2 'http://localhost:3082/console/auth/callback?code=anything&state=01a10892-6bfa-7239-be3e-e38b9c926211.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsignin-restart'
+curl -sS -D - -c jar2 -b jar2 'http://localhost:3082/console/auth/callback?code=anything&state=01a108bd-b4b2-756b-b09e-6dbd32fbdf4d.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsignin-restart'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a10893-5b16-719c-a520-0e8906d8886d
+x-request-id: 01a108bd-bca7-7961-b9ad-723fceebeb08
 cache-control: no-store
 set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 set-cookie: odudu-console-restart=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=60
 location: /console/auth/login?tenant=signin-restart
 content-length: 0
-Date: Sun, 04 Oct 2026 20:20:37 GMT
+Date: Sun, 04 Oct 2026 21:06:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -658,13 +668,13 @@ curl -sS -D - 'http://localhost:3082/console/auth/callback?code=anything&state=n
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a10894-98a2-7b13-81fe-e02569dc3c0d
+x-request-id: 01a108bd-bcbd-7314-9346-f6db2569fdfa
 cache-control: no-store
 set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 set-cookie: odudu-console-restart=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=60
 location: /console/
 content-length: 0
-Date: Sun, 04 Oct 2026 20:21:58 GMT
+Date: Sun, 04 Oct 2026 21:06:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -678,7 +688,7 @@ curl -sS -D - 'http://localhost:3082/console/auth/callback?code=anything&iss=htt
 
 ```
 HTTP/1.1 400 Bad Request
-x-request-id: 01a10893-3fed-72b3-815c-f99c36937fea
+x-request-id: 01a108bd-bcb2-7035-967d-bb9efc17f4a2
 set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 cache-control: no-store
 content-type: text/html; charset=utf-8
@@ -686,7 +696,7 @@ content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action
 x-frame-options: DENY
 referrer-policy: no-referrer
 content-length: 232
-Date: Sun, 04 Oct 2026 20:20:30 GMT
+Date: Sun, 04 Oct 2026 21:06:54 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 

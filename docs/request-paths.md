@@ -1228,27 +1228,29 @@ cleared, `Max-Age=0` — ticking a box the login page never even offered
 The parked request lives 30 minutes. A login form left open longer and then
 submitted is refused with nothing issued: no code and no redirect back to
 the client, whose own `state` may by then have expired too. A reload of
-`/authorize`, which parks the request afresh, is what starts again.
+`/authorize`, which parks the request afresh, is what starts again; the page
+itself offers no way back, which is placed below under
+[What is not implemented](#what-is-not-implemented).
 
 Captured on its own stack, not the one above: the `infra/docker` compose
 file as the project `odudu-signin` on `http://localhost:3082`, built from
-commit `929a9e60`, with the tenant `signin-restart` and its administrator
+commit `0824c4e7`, with the tenant `signin-restart` and its administrator
 `grace` that [Console paths](console-paths.md#get-consoleauthcallback-restarted)
 seeds. Its console's `login` led to the authorization endpoint, which parked
-the request as `01a10893-7682-7b7b-bba5-1b0df54b443a`. Its lifetime, then the
-same row expired with `psql` (header spaces trimmed):
+the request as `01a108bd-bce1-7c7b-879d-775af4983269`. Its lifetime, then the same row expired with `psql`
+(header spaces trimmed):
 
 ```sql
 select expires_at - created_at as lifetime from authentication_sessions
-  where id = '01a10893-7682-7b7b-bba5-1b0df54b443a';
+  where id = '01a108bd-bce1-7c7b-879d-775af4983269';
 update authentication_sessions set expires_at = now() - interval '1 second'
-  where id = '01a10893-7682-7b7b-bba5-1b0df54b443a';
+  where id = '01a108bd-bce1-7c7b-879d-775af4983269';
 ```
 
 ```
     lifetime
 -----------------
- 00:30:00.000271
+ 00:30:00.000333
 (1 row)
 
 UPDATE 1
@@ -1258,7 +1260,7 @@ The right password, posted against it:
 
 ```bash
 curl -sS -D - -c jar3 -b jar3 -X POST \
-  --data-urlencode auth_session_id=01a10893-7682-7b7b-bba5-1b0df54b443a \
+  --data-urlencode auth_session_id=01a108bd-bce1-7c7b-879d-775af4983269 \
   --data-urlencode username=grace \
   --data-urlencode password=signin-restart-throwaway \
   http://localhost:3082/tenants/signin-restart/login-actions/authenticate
@@ -1266,13 +1268,13 @@ curl -sS -D - -c jar3 -b jar3 -X POST \
 
 ```
 HTTP/1.1 400 Bad Request
-x-request-id: 01a10893-9717-7572-8f84-b45ab05efa80
+x-request-id: 01a108bd-bddc-7832-b4ed-c41c3275a54b
 content-type: text/html
 content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
 x-frame-options: DENY
 referrer-policy: no-referrer
 content-length: 254
-Date: Sun, 04 Oct 2026 20:20:52 GMT
+Date: Sun, 04 Oct 2026 21:06:55 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -1285,6 +1287,20 @@ Keep-Alive: timeout=72
 <p><small>invalid_request</small></p>
 </body>
 </html>
+```
+
+The tenant still held the two codes the restarted console sign-in had left,
+and no third:
+
+```sql
+select count(*) as codes from authorization_codes where tenant_id = '01a108bd-b4b2-756b-b09e-6dbd32fbdf4d';
+```
+
+```
+ codes
+-------
+     2
+(1 row)
 ```
 
 The same answer as an `auth_session_id` that names nothing, since the hidden
@@ -9964,6 +9980,11 @@ here.
 - **per-step authenticator configuration**: P4f.
 - **a password blocklist and breach check**: P4f.
 - **translated pages and mail**: P4b.
+- **a way back from the sign-in page's "no longer valid" answer**: a login
+  posted after its 30-minute authentication session ends on a page that says
+  "Go back and start again" and links nowhere, where a mature provider
+  restarts the parked request. That page's work is **P4b**'s, whose criterion
+  names it ([A login posted after its authentication session expired](#a-login-posted-after-its-authentication-session-expired)).
 - **custom subject attributes and a declarative user profile**: P7.
 - **fine-grained admin permissions**: P9.
 - **per-client dedicated mappers**: P10.
