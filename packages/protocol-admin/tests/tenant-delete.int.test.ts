@@ -289,6 +289,12 @@ describe('disabling a tenant', () => {
     const released = new Promise<void>((resolve) => {
       release = resolve;
     });
+    // Resolved only once the first transaction has ended the batch and holds
+    // its row locks, so the second request cannot start before it does.
+    let holding: () => void = () => undefined;
+    const ready = new Promise<void>((resolve) => {
+      holding = resolve;
+    });
     const first = withTenant(fixture.app.db, t.id, async (tx) => {
       const ended = await endSessionsWhere(
         tx,
@@ -302,10 +308,11 @@ describe('disabling a tenant', () => {
         VALUES (gen_random_uuid(), ${t.id}, ${ada},
                 ${new Date(fixture.clock.now().getTime() + 3_600_000).toISOString()}::timestamptz,
                 ${fixture.clock.now().toISOString()}::timestamptz, md5(${t.id}))`);
+      holding();
       await released;
       return ended;
     });
-    await waitForLockWaiters(0);
+    await ready;
     const second = call(token, 'PATCH', `/admin/tenants/${t.name}`, { enabled: false });
     await waitForLockWaiters(1);
     release();
@@ -340,9 +347,17 @@ describe('disabling a tenant', () => {
       });
     } finally {
       await fixture.owner.db.execute(
-        sql`DROP TRIGGER refuse_delivery ON backchannel_logout_deliveries`,
+        sql.raw(`
+        DROP TRIGGER refuse_delivery ON backchannel_logout_deliveries;
+        DROP FUNCTION refuse_delivery_${t.id.replaceAll('-', '_')}();`),
       );
     }
+    const leftover = countRowsSchema.parse(
+      await fixture.owner.db.execute(
+        sql`SELECT count(*)::int AS n FROM pg_proc WHERE proname = ${`refuse_delivery_${t.id.replaceAll('-', '_')}`}`,
+      ),
+    );
+    expect(leftover[0]?.n).toBe(0);
     const enabled = countRowsSchema.parse(
       await fixture.owner.db.execute(
         sql`SELECT count(*)::int AS n FROM tenants WHERE id = ${t.id} AND NOT enabled`,
