@@ -72,6 +72,9 @@ function metadataInput(client: ExportedClient): Record<string, unknown> {
     userinfo_encrypted_response_alg: client.userinfo_encrypted_response_alg,
     userinfo_encrypted_response_enc: client.userinfo_encrypted_response_enc,
     tls_client_auth_subject_dn: client.tls_client_auth_subject_dn,
+    client_uri: client.client_uri,
+    policy_uri: client.policy_uri,
+    tos_uri: client.tos_uri,
   };
   return {
     redirect_uris: client.redirect_uris,

@@ -154,7 +154,12 @@ form take a verified email address, in any case, where it takes a username:
 a username still wins over another subject's address, an unverified or
 ambiguous address answers exactly as an unknown username does, and a wrong
 password counts towards the lockout of the subject the address resolves
-to. Outgoing mail goes through
+to. A client carries a `description` for its administrators, at most 1000
+characters, and RFC 7591's `client_uri`, `policy_uri` and `tos_uri`, each an
+absolute https URI (http only on a loopback host) with no fragment: dynamic
+registration accepts and echoes the three, `POST` and `PATCH /clients`
+write all four, the tenant document carries them, and the consent screen
+links the three pages under the client's name. Outgoing mail goes through
 `ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
 `ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`;
 leave `ODUDU_SMTP_HOST` unset and the server logs every message instead of

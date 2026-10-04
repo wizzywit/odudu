@@ -17,6 +17,7 @@ const client: ClientRecord = {
   fullScopeAllowed: false,
   registrationOrigin: 'seeded',
   builtinAdmin: false,
+  description: null,
 };
 
 const subject: SubjectRecord = {

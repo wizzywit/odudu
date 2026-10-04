@@ -53,6 +53,10 @@ export const AMENDABLE_CLIENT_FIELDS: readonly string[] = ALL_FIELDS.filter(
 // refused on this client until somebody decides otherwise.
 export const BUILTIN_ADMIN_AMENDABLE_FIELDS: readonly string[] = [
   'name',
+  'description',
+  'client_uri',
+  'policy_uri',
+  'tos_uri',
   'consent_required',
   'frontchannel_logout_uri',
   'backchannel_logout_uri',

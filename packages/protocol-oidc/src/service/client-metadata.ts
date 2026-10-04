@@ -21,6 +21,9 @@ export interface ClientMetadata {
   userinfoEncryptedResponseAlg: string | null;
   userinfoEncryptedResponseEnc: string | null;
   tlsClientAuthSubjectDn: string | null;
+  clientUri: string | null;
+  policyUri: string | null;
+  tosUri: string | null;
 }
 
 // `field` names the metadata member at fault, when one member is.
@@ -140,6 +143,23 @@ function isValidRedirectUri(raw: string): boolean {
   );
 }
 
+// RFC 7591 §2's `client_uri`, `policy_uri` and `tos_uri` are pages a person
+// opens from the consent screen, so of the redirect-URI forms above only the
+// web ones apply: https to any host, http to loopback only, no fragment.
+function isValidWebPageUri(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (url.hash !== '') return false;
+  if (url.protocol === 'https:') return true;
+  return url.protocol === 'http:' && isLoopbackHost(url.hostname);
+}
+
+const WEB_PAGE_FIELDS = ['client_uri', 'policy_uri', 'tos_uri'] as const;
+
 // Registration-time policy for both logout URIs (OIDC Back-Channel Logout
 // 1.0 §2.2, Front-Channel Logout 1.0 §2's own registration metadata): https,
 // absolute, no fragment. Unlike the redirect_uri MAY, no exception is made
@@ -204,6 +224,9 @@ const metadataShape = z.object({
   userinfo_encrypted_response_alg: z.string().optional(),
   userinfo_encrypted_response_enc: z.string().optional(),
   tls_client_auth_subject_dn: z.string().optional(),
+  client_uri: z.string().optional(),
+  policy_uri: z.string().optional(),
+  tos_uri: z.string().optional(),
 });
 
 // The registration body is an untyped boundary: parsed with Zod, never
@@ -348,6 +371,18 @@ export function parseClientMetadata(
     );
   }
 
+  const badPage = WEB_PAGE_FIELDS.find((field) => {
+    const value = metadata[field];
+    return value !== undefined && !isValidWebPageUri(value);
+  });
+  if (badPage !== undefined) {
+    return invalid(
+      'invalid_client_metadata',
+      `${badPage} must be an absolute https URI, or http on a loopback host, with no fragment`,
+      badPage,
+    );
+  }
+
   if (metadata.jwks !== undefined && metadata.jwks_uri !== undefined) {
     return invalid('invalid_client_metadata', 'jwks and jwks_uri are mutually exclusive', 'jwks');
   }
@@ -413,6 +448,9 @@ export function parseClientMetadata(
       userinfoEncryptedResponseAlg,
       userinfoEncryptedResponseEnc,
       tlsClientAuthSubjectDn: tlsClientAuthSubjectDn.length > 0 ? tlsClientAuthSubjectDn : null,
+      clientUri: metadata.client_uri ?? null,
+      policyUri: metadata.policy_uri ?? null,
+      tosUri: metadata.tos_uri ?? null,
     },
   };
 }

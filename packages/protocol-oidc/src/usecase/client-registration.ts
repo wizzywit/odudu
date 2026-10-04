@@ -150,6 +150,9 @@ async function performRegistration(
     userinfoEncryptedResponseAlg: metadata.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: metadata.userinfoEncryptedResponseEnc,
     tlsClientAuthSubjectDn: metadata.tlsClientAuthSubjectDn,
+    clientUri: metadata.clientUri,
+    policyUri: metadata.policyUri,
+    tosUri: metadata.tosUri,
   });
 
   return {

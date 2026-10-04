@@ -9,6 +9,7 @@ import {
 const CLIENT: ExportedClient = {
   client_id: 'billing-app',
   name: 'Billing',
+  description: null,
   type: 'confidential',
   enabled: true,
   full_scope_allowed: false,
@@ -35,6 +36,9 @@ const CLIENT: ExportedClient = {
   userinfo_encrypted_response_alg: null,
   userinfo_encrypted_response_enc: null,
   tls_client_auth_subject_dn: null,
+  client_uri: null,
+  policy_uri: null,
+  tos_uri: null,
   service_account_roles: [{ name: 'billing-reader', client: null }],
 };
 

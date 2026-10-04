@@ -5,6 +5,7 @@ const BASE = {
   tenant: 'acme',
   authSessionId: 'session-id',
   clientName: 'Acme Dashboard',
+  clientPages: { clientUri: null, policyUri: null, tosUri: null },
   defaultScopes: ['openid', 'profile'],
   optionalScopes: ['offline_access', 'email'],
   alreadyGranted: ['email'],
@@ -20,6 +21,25 @@ describe('renderConsentPage', () => {
     expect(page.body).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(page.body).not.toContain('<script>alert(1)</script>');
     expect(page.html).not.toContain('<script>alert(1)</script>');
+  });
+
+  it('links each page the client registered, escaped, and no other', () => {
+    const page = renderConsentPage({
+      ...BASE,
+      clientPages: {
+        clientUri: 'https://acme.example/?a=1&b="x"',
+        policyUri: null,
+        tosUri: 'https://acme.example/terms',
+      },
+    });
+    expect(page.body).toContain('<a href="https://acme.example/?a=1&amp;b=&quot;x&quot;">');
+    expect(page.body).toContain('<a href="https://acme.example/terms">Terms of service</a>');
+    expect(page.body).not.toContain('Privacy policy');
+    expect(page.script).toBeNull();
+  });
+
+  it('renders no link at all for a client that registered no page', () => {
+    expect(renderConsentPage(BASE).body).not.toContain('<a ');
   });
 
   it('lists every default scope without a checkbox', () => {

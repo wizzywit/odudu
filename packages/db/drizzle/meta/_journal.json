@@ -589,6 +589,13 @@
       "when": 1789049381726,
       "tag": "0083_login_with_email",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1789049381727,
+      "tag": "0084_client_display_metadata",
+      "breakpoints": true
     }
   ]
 }

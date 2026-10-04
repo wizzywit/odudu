@@ -33,6 +33,9 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
     userinfoEncryptedResponseAlg: row.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: row.userinfoEncryptedResponseEnc,
     tlsClientAuthSubjectDn: row.tlsClientAuthSubjectDn,
+    clientUri: row.clientUri,
+    policyUri: row.policyUri,
+    tosUri: row.tosUri,
   };
 }
 
@@ -60,6 +63,9 @@ export type NewClientOidcConfig = Omit<
   | 'userinfoEncryptedResponseAlg'
   | 'userinfoEncryptedResponseEnc'
   | 'tlsClientAuthSubjectDn'
+  | 'clientUri'
+  | 'policyUri'
+  | 'tosUri'
 > & {
   idTokenTtlSeconds?: number | null;
   clientCredentialsScopes?: string[];
@@ -77,6 +83,9 @@ export type NewClientOidcConfig = Omit<
   userinfoEncryptedResponseAlg?: string | null;
   userinfoEncryptedResponseEnc?: string | null;
   tlsClientAuthSubjectDn?: string | null;
+  clientUri?: string | null;
+  policyUri?: string | null;
+  tosUri?: string | null;
 };
 
 export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
@@ -121,6 +130,9 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
           userinfoEncryptedResponseAlg: input.userinfoEncryptedResponseAlg ?? null,
           userinfoEncryptedResponseEnc: input.userinfoEncryptedResponseEnc ?? null,
           tlsClientAuthSubjectDn: input.tlsClientAuthSubjectDn ?? null,
+          clientUri: input.clientUri ?? null,
+          policyUri: input.policyUri ?? null,
+          tosUri: input.tosUri ?? null,
         })
         .returning();
       const row = rows[0];

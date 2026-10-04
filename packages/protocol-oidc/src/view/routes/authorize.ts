@@ -109,6 +109,7 @@ async function renderAuthorizationOutcome(
         tenant,
         authSessionId: outcome.authSessionId,
         clientName: outcome.clientName,
+        clientPages: outcome.clientPages,
         defaultScopes: outcome.defaultScopes,
         optionalScopes: outcome.optionalScopes,
         alreadyGranted: outcome.alreadyGranted,

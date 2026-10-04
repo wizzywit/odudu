@@ -22,6 +22,7 @@ const client: ClientRecord = {
   fullScopeAllowed: false,
   registrationOrigin: 'seeded',
   builtinAdmin: false,
+  description: null,
 };
 
 const config: ClientOidcConfig = {
@@ -49,6 +50,9 @@ const config: ClientOidcConfig = {
   userinfoEncryptedResponseAlg: null,
   userinfoEncryptedResponseEnc: null,
   tlsClientAuthSubjectDn: null,
+  clientUri: null,
+  policyUri: null,
+  tosUri: null,
 };
 
 // One list stands for both halves of the rule these tests exercise: the

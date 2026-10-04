@@ -199,6 +199,7 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
       serviceSubjectId: clients.serviceSubjectId,
       clientId: clients.clientId,
       name: clients.name,
+      description: clients.description,
       type: clients.type,
       enabled: clients.enabled,
       fullScopeAllowed: clients.fullScopeAllowed,
@@ -225,6 +226,9 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
       userinfoEncryptedResponseAlg: clientOidcConfig.userinfoEncryptedResponseAlg,
       userinfoEncryptedResponseEnc: clientOidcConfig.userinfoEncryptedResponseEnc,
       tlsClientAuthSubjectDn: clientOidcConfig.tlsClientAuthSubjectDn,
+      clientUri: clientOidcConfig.clientUri,
+      policyUri: clientOidcConfig.policyUri,
+      tosUri: clientOidcConfig.tosUri,
     })
     .from(clients)
     .innerJoin(clientOidcConfig, eq(clients.id, clientOidcConfig.clientId))
@@ -238,6 +242,7 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
       exported: {
         client_id: row.clientId,
         name: row.name,
+        description: row.description,
         // Plain text columns bounded by CHECKs (clients_secret_matches_type,
         // clients_registration_origin_check), narrowed as `clientRepository` does.
         type: row.type as ClientRecord['type'],
@@ -266,6 +271,9 @@ async function readClients(tx: TenantScopedDatabase, tenantId: string): Promise<
         userinfo_encrypted_response_alg: row.userinfoEncryptedResponseAlg,
         userinfo_encrypted_response_enc: row.userinfoEncryptedResponseEnc,
         tls_client_auth_subject_dn: row.tlsClientAuthSubjectDn,
+        client_uri: row.clientUri,
+        policy_uri: row.policyUri,
+        tos_uri: row.tosUri,
       },
     };
   });

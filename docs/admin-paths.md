@@ -1957,7 +1957,7 @@ way, also `409`, rather than surfacing as the database's own unique-index
 violation.
 
 A create body may also carry any field `PATCH /clients/{id}` below
-amends — `audiences`, `web_origins`, `post_logout_redirect_uris`,
+amends — `description`, `client_uri`, `policy_uri`, `tos_uri`, `audiences`, `web_origins`, `post_logout_redirect_uris`,
 `client_credentials_scopes`, `access_token_ttl_seconds`,
 `id_token_ttl_seconds`, `refresh_token_ttl_seconds`, `consent_required`,
 `token_exchange_impersonation_allowed`, `enabled`, `full_scope_allowed` and
@@ -2261,7 +2261,10 @@ control `PATCH /settings` uses, row lock included. A stale `If-Match` is
 The RFC 7591 metadata fields among them — `redirect_uris`, `grant_types`,
 `token_endpoint_auth_method`, `jwks`, `jwks_uri`, the two logout URIs and
 their `_session_required` flags, the three `userinfo_*` response fields,
-and `tls_client_auth_subject_dn` — are revalidated through the same
+`tls_client_auth_subject_dn`, and `client_uri`, `policy_uri` and `tos_uri`
+— each of the last three an absolute https URI, or http on a loopback
+host, with no fragment, and linked from the consent screen — are
+revalidated through the same
 `parseClientMetadata` a create body runs through, against the amended
 value merged with what the client already holds: a `redirect_uris` entry
 registration would refuse is refused here with the identical `400` detail,
@@ -2281,9 +2284,9 @@ otherwise, on a create or an amend alike. `none` is the only public
 method.
 
 The built-in admin client (`builtin_admin`) is amended through an
-allowlist, not an exclusion list: `name`, `consent_required`, the two
-logout URIs and their `_session_required` flags, and the three
-`userinfo_*` algorithms. Every other field is refused with `409` naming
+allowlist, not an exclusion list: `name`, `description`, `client_uri`,
+`policy_uri`, `tos_uri`, `consent_required`, the two logout URIs and their
+`_session_required` flags, and the three `userinfo_*` algorithms. Every other field is refused with `409` naming
 the field and the client, because each could leave every administrator of
 the tenant locked out while the client stays enabled — `audiences` carries
 the admin API's own resource identifier, `grant_types`,

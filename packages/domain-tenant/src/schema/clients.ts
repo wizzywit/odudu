@@ -12,6 +12,9 @@ export const clients = pgTable('clients', {
     .references(() => tenants.id, { onDelete: 'cascade' }),
   clientId: text('client_id').notNull(),
   name: text('name').notNull(),
+  // An administrator's note on what the client is for
+  // (packages/db/drizzle/0084_client_display_metadata.sql).
+  description: text('description'),
   enabled: boolean('enabled').notNull().default(true),
   type: text('type').notNull(),
   secretHash: text('secret_hash'),
@@ -57,6 +60,7 @@ export interface ClientRecord {
   tenantId: string;
   clientId: string;
   name: string;
+  description: string | null;
   enabled: boolean;
   type: 'public' | 'confidential';
   secretHash: string | null;

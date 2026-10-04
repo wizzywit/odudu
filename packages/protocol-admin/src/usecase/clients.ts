@@ -54,6 +54,7 @@ const CLIENT_VIEW_COLUMNS = {
   id: clients.id,
   clientId: clients.clientId,
   name: clients.name,
+  description: clients.description,
   enabled: clients.enabled,
   type: clients.type,
   createdAt: clients.createdAt,
@@ -83,6 +84,9 @@ const CLIENT_VIEW_COLUMNS = {
   userinfoEncryptedResponseAlg: clientOidcConfig.userinfoEncryptedResponseAlg,
   userinfoEncryptedResponseEnc: clientOidcConfig.userinfoEncryptedResponseEnc,
   tlsClientAuthSubjectDn: clientOidcConfig.tlsClientAuthSubjectDn,
+  clientUri: clientOidcConfig.clientUri,
+  policyUri: clientOidcConfig.policyUri,
+  tosUri: clientOidcConfig.tosUri,
 };
 
 // The client and its OIDC configuration, joined into the one resource an
@@ -92,6 +96,7 @@ export interface ClientView {
   readonly id: string;
   readonly clientId: string;
   readonly name: string;
+  readonly description: string | null;
   readonly enabled: boolean;
   readonly type: ClientRecord['type'];
   readonly createdAt: Date;
@@ -121,6 +126,9 @@ export interface ClientView {
   readonly userinfoEncryptedResponseAlg: string | null;
   readonly userinfoEncryptedResponseEnc: string | null;
   readonly tlsClientAuthSubjectDn: string | null;
+  readonly clientUri: string | null;
+  readonly policyUri: string | null;
+  readonly tosUri: string | null;
   readonly scopes: readonly ClientScopeAssignmentView[];
 }
 
@@ -425,6 +433,7 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): Omit<Clie
     id: client.id,
     clientId: client.clientId,
     name: client.name,
+    description: client.description,
     enabled: client.enabled,
     type: client.type,
     createdAt: client.createdAt,
@@ -454,6 +463,9 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): Omit<Clie
     userinfoEncryptedResponseAlg: config.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: config.userinfoEncryptedResponseEnc,
     tlsClientAuthSubjectDn: config.tlsClientAuthSubjectDn,
+    clientUri: config.clientUri,
+    policyUri: config.policyUri,
+    tosUri: config.tosUri,
   };
 }
 
@@ -571,6 +583,7 @@ export async function createClient(
     type,
     secretHash,
     serviceSubjectId,
+    ...(admin.client.description === undefined ? {} : { description: admin.client.description }),
     ...(admin.client.enabled === undefined ? {} : { enabled: admin.client.enabled }),
     ...(admin.client.fullScopeAllowed === undefined
       ? {}
@@ -605,6 +618,9 @@ export async function createClient(
     userinfoEncryptedResponseAlg: metadata.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: metadata.userinfoEncryptedResponseEnc,
     tlsClientAuthSubjectDn: metadata.tlsClientAuthSubjectDn,
+    clientUri: metadata.clientUri,
+    policyUri: metadata.policyUri,
+    tosUri: metadata.tosUri,
   });
 
   const view = await attachScopes(tx, toClientView(client, config));
@@ -632,6 +648,7 @@ export function clientWireShape(view: ClientView): Client {
     id: view.id,
     client_id: view.clientId,
     name: view.name,
+    description: view.description,
     type: view.type,
     enabled: view.enabled,
     full_scope_allowed: view.fullScopeAllowed,
@@ -659,6 +676,9 @@ export function clientWireShape(view: ClientView): Client {
     userinfo_encrypted_response_alg: view.userinfoEncryptedResponseAlg,
     userinfo_encrypted_response_enc: view.userinfoEncryptedResponseEnc,
     tls_client_auth_subject_dn: view.tlsClientAuthSubjectDn,
+    client_uri: view.clientUri,
+    policy_uri: view.policyUri,
+    tos_uri: view.tosUri,
     builtin_admin: view.builtinAdmin,
     service_subject_id: view.serviceSubjectId,
     scopes: view.scopes.map((scope) => ({
@@ -728,6 +748,9 @@ const METADATA_FIELDS = new Set<string>([
   'userinfo_encrypted_response_alg',
   'userinfo_encrypted_response_enc',
   'tls_client_auth_subject_dn',
+  'client_uri',
+  'policy_uri',
+  'tos_uri',
 ]);
 
 interface FieldError {
@@ -759,6 +782,22 @@ function checkedStringArray(field: string, value: unknown): string[] | FieldErro
     : { field, description: `${field} must be an array of strings` };
 }
 
+// clients_description_length (0084_client_display_metadata.sql).
+const DESCRIPTION_MAX = 1000;
+
+function checkedDescription(value: unknown): string | null | FieldError {
+  if (value === null) return null;
+  if (typeof value !== 'string') {
+    return { field: 'description', description: 'description must be a string or null' };
+  }
+  return value.length > DESCRIPTION_MAX
+    ? {
+        field: 'description',
+        description: `description must be at most ${String(DESCRIPTION_MAX)} characters`,
+      }
+    : value;
+}
+
 function checkedWebOrigins(origins: readonly string[]): string[] | FieldError {
   const bad = origins.find((origin) => !isWellFormedWebOrigin(origin));
   return bad === undefined
@@ -774,6 +813,7 @@ function checkedWebOrigins(origins: readonly string[]): string[] | FieldError {
 // created or amended, since none of the checks depends on a stored row.
 const ADMIN_FIELDS = new Set<string>([
   'name',
+  'description',
   'enabled',
   'full_scope_allowed',
   'audiences',
@@ -788,7 +828,12 @@ const ADMIN_FIELDS = new Set<string>([
 ]);
 
 interface AdminFieldPatches {
-  readonly client: { name?: string; enabled?: boolean; fullScopeAllowed?: boolean };
+  readonly client: {
+    name?: string;
+    description?: string | null;
+    enabled?: boolean;
+    fullScopeAllowed?: boolean;
+  };
   readonly config: {
     audiences?: string[];
     webOrigins?: string[];
@@ -818,6 +863,11 @@ function checkedAdminFields(
     const checked = checkedString('name', values.name);
     if (isFieldError(checked)) return checked;
     client.name = checked;
+  }
+  if ('description' in values) {
+    const checked = checkedDescription(values.description);
+    if (isFieldError(checked)) return checked;
+    client.description = checked;
   }
   if ('enabled' in values) {
     const checked = checkedBoolean('enabled', values.enabled);
@@ -1034,6 +1084,9 @@ export async function amendClient(
         'tls_client_auth_subject_dn',
         configRow.tlsClientAuthSubjectDn,
       ),
+      client_uri: metadataFieldValue(input.values, 'client_uri', configRow.clientUri),
+      policy_uri: metadataFieldValue(input.values, 'policy_uri', configRow.policyUri),
+      tos_uri: metadataFieldValue(input.values, 'tos_uri', configRow.tosUri),
     };
 
     const parsed = parseClientMetadata(merged, { tlsClientAuthEnabled: deps.tlsClientAuthEnabled });
@@ -1060,6 +1113,9 @@ export async function amendClient(
     configPatch.userinfoEncryptedResponseAlg = parsed.metadata.userinfoEncryptedResponseAlg;
     configPatch.userinfoEncryptedResponseEnc = parsed.metadata.userinfoEncryptedResponseEnc;
     configPatch.tlsClientAuthSubjectDn = parsed.metadata.tlsClientAuthSubjectDn;
+    configPatch.clientUri = parsed.metadata.clientUri;
+    configPatch.policyUri = parsed.metadata.policyUri;
+    configPatch.tosUri = parsed.metadata.tosUri;
 
     // `type` is unamendable (`refusalFor('type')`) for exactly this reason;
     // reaching the same change through `token_endpoint_auth_method` instead

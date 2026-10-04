@@ -13,8 +13,8 @@ describe('the client amendment allowlist', () => {
   // column, `builtin_admin`, which needs its own refusal reason rather
   // than falling silently into either list — the fourth test below is
   // what catches a column like it.
-  it('admits the three mutable columns on clients and 22 of 24 on client_oidc_config', () => {
-    expect(AMENDABLE_CLIENT_FIELDS).toHaveLength(25);
+  it('admits the four mutable columns on clients and 25 of 27 on client_oidc_config', () => {
+    expect(AMENDABLE_CLIENT_FIELDS).toHaveLength(29);
     for (const field of [
       'name',
       'enabled',
@@ -66,14 +66,18 @@ describe('the client amendment allowlist', () => {
 });
 
 describe('the narrower allowlist the built-in admin client is amended through', () => {
-  it('admits nine fields nothing about reaching the admin API depends on', () => {
+  it('admits thirteen fields nothing about reaching the admin API depends on', () => {
     expect([...BUILTIN_ADMIN_AMENDABLE_FIELDS].sort()).toEqual([
       'backchannel_logout_session_required',
       'backchannel_logout_uri',
+      'client_uri',
       'consent_required',
+      'description',
       'frontchannel_logout_session_required',
       'frontchannel_logout_uri',
       'name',
+      'policy_uri',
+      'tos_uri',
       'userinfo_encrypted_response_alg',
       'userinfo_encrypted_response_enc',
       'userinfo_signed_response_alg',

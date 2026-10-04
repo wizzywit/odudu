@@ -50,6 +50,9 @@ function toResponseBody(client: RegisteredClient): Record<string, unknown> {
     ...(metadata.tlsClientAuthSubjectDn === null
       ? {}
       : { tls_client_auth_subject_dn: metadata.tlsClientAuthSubjectDn }),
+    ...(metadata.clientUri === null ? {} : { client_uri: metadata.clientUri }),
+    ...(metadata.policyUri === null ? {} : { policy_uri: metadata.policyUri }),
+    ...(metadata.tosUri === null ? {} : { tos_uri: metadata.tosUri }),
   };
 }
 

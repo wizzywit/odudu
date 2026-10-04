@@ -125,6 +125,7 @@ export type LoginSubmissionOutcome =
       kind: 'consent';
       authSessionId: string;
       clientName: string;
+      clientPages: ClientPages;
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
@@ -227,8 +228,17 @@ export async function refusedForUnverifiedEmail(
 // what consentRepository persists (a client_scopes id). One dependency
 // call bundles all three so the gate and the POST handler each pay for it
 // once, not per scope.
+// RFC 7591 §2's pages about the client, registered with it and linked from
+// the consent screen; null where the client registered none.
+export interface ClientPages {
+  clientUri: string | null;
+  policyUri: string | null;
+  tosUri: string | null;
+}
+
 export interface ConsentContext {
   clientName: string;
+  clientPages: ClientPages;
   consentRequired: boolean;
   defaultScopes: string[];
   optionalScopes: string[];
@@ -249,6 +259,7 @@ export type ConsentGateOutcome =
   | {
       kind: 'ask';
       clientName: string;
+      clientPages: ClientPages;
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
@@ -292,6 +303,7 @@ export async function decideConsentGate(
   return {
     kind: 'ask',
     clientName: context.clientName,
+    clientPages: context.clientPages,
     defaultScopes: decision.defaultScopes,
     optionalScopes: decision.optionalScopes,
     alreadyGranted: decision.alreadyGranted,
@@ -661,6 +673,7 @@ export async function handleLoginSubmission(
       kind: 'consent',
       authSessionId,
       clientName: gate.clientName,
+      clientPages: gate.clientPages,
       defaultScopes: gate.defaultScopes,
       optionalScopes: gate.optionalScopes,
       alreadyGranted: gate.alreadyGranted,

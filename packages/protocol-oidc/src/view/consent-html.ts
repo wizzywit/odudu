@@ -7,6 +7,13 @@ export interface ConsentPageInput {
   // Self-asserted by the client at registration (RFC 7591 §5) — escaped
   // like every other interpolated value, the client's name most of all.
   clientName: string;
+  // RFC 7591 §2's pages, as registered: https, or http on loopback, already
+  // refused otherwise when the client was written.
+  clientPages: {
+    readonly clientUri: string | null;
+    readonly policyUri: string | null;
+    readonly tosUri: string | null;
+  };
   defaultScopes: readonly string[];
   optionalScopes: readonly string[];
   alreadyGranted: readonly string[];
@@ -33,6 +40,17 @@ function renderOptionalScope(scope: string, granted: ReadonlySet<string>): strin
   return `<label><input type="checkbox" name="scope" value="${escaped}"${checked}> ${escaped}${note}</label>`;
 }
 
+function renderPageLinks(pages: ConsentPageInput['clientPages'], clientName: string): string {
+  const links = [
+    [pages.clientUri, `About ${clientName}`],
+    [pages.policyUri, 'Privacy policy'],
+    [pages.tosUri, 'Terms of service'],
+  ]
+    .filter((link): link is [string, string] => link[0] !== null)
+    .map(([href, label]) => `<a href="${escapeHtml(href)}">${escapeHtml(label)}</a>`);
+  return links.length === 0 ? '' : `\n<p>${links.join(' · ')}</p>`;
+}
+
 // The hidden field is the whole of this page's CSRF defence, exactly as
 // renderLoginForm's is (packages/protocol-oidc/src/view/authorize-html.ts:130):
 // a submission whose auth_session_id does not name a live authentication
@@ -48,7 +66,7 @@ export function renderConsentPage(input: ConsentPageInput): RenderedPage {
     .join('\n  ');
   return page(
     'Allow access?',
-    `<h1>${escapeHtml(input.clientName)} is asking for access</h1>
+    `<h1>${escapeHtml(input.clientName)} is asking for access</h1>${renderPageLinks(input.clientPages, input.clientName)}
 <form method="post" action="${action}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(input.authSessionId)}">
   <ul>

@@ -15,6 +15,7 @@ const confidentialClient: ClientRecord = {
   fullScopeAllowed: false,
   registrationOrigin: 'seeded',
   builtinAdmin: false,
+  description: null,
 };
 
 describe('evaluateClientCredentialsGrant', () => {

@@ -17,6 +17,7 @@ const confidential = {
   fullScopeAllowed: false,
   registrationOrigin: 'seeded' as const,
   builtinAdmin: false,
+  description: null,
 };
 const publicClient = { ...confidential, type: 'public' as const, secretHash: null };
 

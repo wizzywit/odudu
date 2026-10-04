@@ -19,6 +19,7 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
     tenantId: row.tenantId,
     clientId: row.clientId,
     name: row.name,
+    description: row.description,
     enabled: row.enabled,
     type: row.type as ClientRecord['type'],
     secretHash: row.secretHash,
@@ -34,6 +35,7 @@ export interface NewClient {
   tenantId: string;
   clientId: string;
   name: string;
+  description?: string | null;
   type: 'public' | 'confidential';
   secretHash: string | null;
   enabled?: boolean;
@@ -95,6 +97,7 @@ export function clientRepository(tx: TenantScopedDatabase) {
             tenantId: input.tenantId,
             clientId: input.clientId,
             name: input.name,
+            description: input.description ?? null,
             type: input.type,
             secretHash: input.secretHash,
             enabled: input.enabled ?? true,
@@ -122,7 +125,9 @@ export function clientRepository(tx: TenantScopedDatabase) {
     // refused anything else by name.
     async update(
       id: string,
-      patch: Partial<Pick<typeof clients.$inferInsert, 'name' | 'enabled' | 'fullScopeAllowed'>>,
+      patch: Partial<
+        Pick<typeof clients.$inferInsert, 'name' | 'description' | 'enabled' | 'fullScopeAllowed'>
+      >,
     ): Promise<ClientRecord> {
       const rows = await tx.update(clients).set(patch).where(eq(clients.id, id)).returning();
       const row = rows[0];

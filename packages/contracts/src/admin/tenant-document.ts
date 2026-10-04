@@ -91,6 +91,7 @@ export const exportedFlowStepSchema = z.strictObject({
 export const exportedClientSchema = z.strictObject({
   client_id: z.string(),
   name: z.string(),
+  description: z.string().nullable(),
   type: clientTypeSchema,
   enabled: z.boolean(),
   full_scope_allowed: z.boolean(),
@@ -117,6 +118,9 @@ export const exportedClientSchema = z.strictObject({
   userinfo_encrypted_response_alg: z.string().nullable(),
   userinfo_encrypted_response_enc: z.string().nullable(),
   tls_client_auth_subject_dn: z.string().nullable(),
+  client_uri: z.string().nullable(),
+  policy_uri: z.string().nullable(),
+  tos_uri: z.string().nullable(),
   // The roles a confidential client's own service account holds, which
   // its client_credentials tokens carry; empty for a public client.
   service_account_roles: z.array(roleReferenceSchema),

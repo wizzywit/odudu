@@ -148,6 +148,7 @@ async function writeClient(
     tenantId,
     clientId: client.client_id,
     name: client.name,
+    description: client.description,
     type: client.type,
     secretHash: secret === null ? null : await deps.hashClientSecret(secret),
     enabled: client.enabled,
@@ -181,6 +182,9 @@ async function writeClient(
     userinfoEncryptedResponseAlg: metadata.userinfoEncryptedResponseAlg,
     userinfoEncryptedResponseEnc: metadata.userinfoEncryptedResponseEnc,
     tlsClientAuthSubjectDn: metadata.tlsClientAuthSubjectDn,
+    clientUri: metadata.clientUri,
+    policyUri: metadata.policyUri,
+    tosUri: metadata.tosUri,
   });
   return { id: created.id, serviceSubjectId, secret };
 }

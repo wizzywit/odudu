@@ -24,6 +24,7 @@ import { parseResource } from '#/service/resource-indicator';
 import {
   decideConsentGate,
   refusedForUnverifiedEmail,
+  type ClientPages,
   type ConsentGateDeps,
   type LoginSubmissionDeps,
 } from '#/usecase/login-submission';
@@ -51,6 +52,7 @@ export type AuthorizationRequestOutcome =
       kind: 'consent';
       authSessionId: string;
       clientName: string;
+      clientPages: ClientPages;
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
@@ -491,6 +493,7 @@ export async function handleAuthorizationRequest(
         kind: 'consent',
         authSessionId,
         clientName: gate.clientName,
+        clientPages: gate.clientPages,
         defaultScopes: gate.defaultScopes,
         optionalScopes: gate.optionalScopes,
         alreadyGranted: gate.alreadyGranted,
@@ -719,6 +722,7 @@ export async function handleSelectAccountSubmission(
       kind: 'consent',
       authSessionId,
       clientName: gate.clientName,
+        clientPages: gate.clientPages,
       defaultScopes: gate.defaultScopes,
       optionalScopes: gate.optionalScopes,
       alreadyGranted: gate.alreadyGranted,

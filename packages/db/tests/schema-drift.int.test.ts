@@ -142,6 +142,7 @@ const EXPECTED_CHECKS: Record<string, string> = {
     'CHECK (((reset_password_ttl_seconds >= 60) AND (reset_password_ttl_seconds <= 86400)))',
   'tenants.tenants_verify_email_ttl_range':
     'CHECK (((verify_email_ttl_seconds >= 60) AND (verify_email_ttl_seconds <= 604800)))',
+  'clients.clients_description_length': 'CHECK ((char_length(description) <= 1000))',
 };
 
 interface ColumnRow {

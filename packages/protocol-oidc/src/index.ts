@@ -328,6 +328,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         const scopeIdByName = new Map(assignments.map((row) => [row.scope.name, row.scope.id]));
         return {
           clientName: client?.name ?? '',
+          clientPages: {
+            clientUri: config?.clientUri ?? null,
+            policyUri: config?.policyUri ?? null,
+            tosUri: config?.tosUri ?? null,
+          },
           consentRequired: config?.consentRequired ?? false,
           defaultScopes,
           optionalScopes,

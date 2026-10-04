@@ -66,6 +66,11 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   // (client_oidc_config_tls_client_auth_needs_subject_dn), so it stays
   // nullable here the way jwksUri does for private_key_jwt.
   tlsClientAuthSubjectDn: text('tls_client_auth_subject_dn'),
+  // RFC 7591 §2's pages about the client, linked from the consent screen
+  // (packages/db/drizzle/0084_client_display_metadata.sql).
+  clientUri: text('client_uri'),
+  policyUri: text('policy_uri'),
+  tosUri: text('tos_uri'),
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
@@ -96,4 +101,7 @@ export interface ClientOidcConfig {
   userinfoEncryptedResponseAlg: string | null;
   userinfoEncryptedResponseEnc: string | null;
   tlsClientAuthSubjectDn: string | null;
+  clientUri: string | null;
+  policyUri: string | null;
+  tosUri: string | null;
 }
