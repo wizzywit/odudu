@@ -2,6 +2,7 @@ import {
   amendClientRequestSchema,
   createClientRequestSchema,
   listClientsQuerySchema,
+  rotateClientSecretQuerySchema,
   type Client,
   type CreateClientResponse,
   type RotateClientSecretResponse,
@@ -43,6 +44,7 @@ export interface ClientsRouteDeps {
   readonly hashClientSecret: (secret: string) => Promise<string>;
   readonly tlsClientAuthEnabled: boolean;
   readonly audit: Audit;
+  readonly now: () => Date;
   /** See `SubjectsRouteDeps.callerCapabilities` (#/view/routes/subjects.ts) — the same ceiling. */
   readonly callerCapabilities: (
     issuerTenantId: string,
@@ -386,12 +388,16 @@ export function rotateClientSecretHandler(deps: ClientsRouteDeps): AdminRouteHan
       principal.subjectId,
     );
 
+    // Fastify's ajv compiler already validated the querystring against this
+    // schema (ADMIN_ROUTES' `querystringSchema`); parsing again only narrows it.
+    const query = rotateClientSecretQuerySchema.parse(request.query);
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       rotateClientSecret(
         tx,
-        { hashClientSecret: deps.hashClientSecret, audit: deps.audit },
+        { hashClientSecret: deps.hashClientSecret, audit: deps.audit, now: deps.now },
         {
           clientDbId: id,
+          graceSeconds: query.grace_seconds ?? 0,
           callerCapabilities,
           actorSubjectId: principal.subjectId,
           actorTenantId: principal.issuerTenantId,

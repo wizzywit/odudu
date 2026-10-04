@@ -146,6 +146,10 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'client_oidc_config.client_oidc_config_id_token_alg_check':
     "CHECK ((id_token_signed_response_alg = ANY (ARRAY['RS256'::text, 'ES256'::text])))",
   'client_oidc_config.client_oidc_config_default_max_age_range': 'CHECK ((default_max_age >= 0))',
+  'clients.clients_previous_secret_pair':
+    'CHECK (((previous_secret_hash IS NULL) = (previous_secret_expires_at IS NULL)))',
+  'clients.clients_previous_secret_confidential':
+    "CHECK (((previous_secret_hash IS NULL) OR (type = 'confidential'::text)))",
 };
 
 interface ColumnRow {

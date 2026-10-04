@@ -20,6 +20,8 @@ const client: ClientRecord = {
   registrationOrigin: 'seeded',
   builtinAdmin: false,
   description: null,
+  previousSecretHash: null,
+  previousSecretExpiresAt: null,
 };
 
 const record: AuthorizationCodeRecord = {

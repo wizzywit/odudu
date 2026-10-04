@@ -1,6 +1,6 @@
 import { isUniqueViolation, tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
-import { count, eq } from 'drizzle-orm';
+import { count, eq, lte } from 'drizzle-orm';
 import { clients, type ClientRecord } from '#/schema/clients';
 
 export type { ClientRecord } from '#/schema/clients';
@@ -23,6 +23,8 @@ function toRecord(row: typeof clients.$inferSelect): ClientRecord {
     enabled: row.enabled,
     type: row.type as ClientRecord['type'],
     secretHash: row.secretHash,
+    previousSecretHash: row.previousSecretHash,
+    previousSecretExpiresAt: row.previousSecretExpiresAt,
     createdAt: row.createdAt,
     serviceSubjectId: row.serviceSubjectId,
     fullScopeAllowed: row.fullScopeAllowed,
@@ -145,11 +147,21 @@ export function clientRepository(tx: TenantScopedDatabase) {
     },
 
     // `secret_hash` is refused by the general amendment (client-patch.ts's
-    // `refusalFor`) and rotated only through here.
-    async rotateSecret(id: string, secretHash: string): Promise<ClientRecord> {
+    // `refusalFor`) and rotated only through here. `previous` keeps the
+    // replaced secret valid until its instant; null ends it now, and either
+    // way whatever an earlier rotation kept is gone.
+    async rotateSecret(
+      id: string,
+      secretHash: string,
+      previous: { readonly hash: string; readonly expiresAt: Date } | null = null,
+    ): Promise<ClientRecord> {
       const rows = await tx
         .update(clients)
-        .set({ secretHash })
+        .set({
+          secretHash,
+          previousSecretHash: previous?.hash ?? null,
+          previousSecretExpiresAt: previous?.expiresAt ?? null,
+        })
         .where(eq(clients.id, id))
         .returning();
       const row = rows[0];
@@ -157,6 +169,17 @@ export function clientRepository(tx: TenantScopedDatabase) {
         throw new Error(`client ${id} not found while rotating its secret`);
       }
       return toRecord(row);
+    },
+
+    // Every previous secret whose window ended at or before `now`, cleared,
+    // answering the clients it was cleared from.
+    async clearExpiredPreviousSecrets(now: Date): Promise<ClientRecord[]> {
+      const rows = await tx
+        .update(clients)
+        .set({ previousSecretHash: null, previousSecretExpiresAt: null })
+        .where(lte(clients.previousSecretExpiresAt, now))
+        .returning();
+      return rows.map(toRecord);
     },
 
     // `SELECT ... FOR NO KEY UPDATE` on the tenant row before the `COUNT`, in

@@ -91,6 +91,7 @@ const CLIENT_VIEW_COLUMNS = {
   idTokenSignedResponseAlg: clientOidcConfig.idTokenSignedResponseAlg,
   defaultMaxAge: clientOidcConfig.defaultMaxAge,
   requireAuthTime: clientOidcConfig.requireAuthTime,
+  previousSecretExpiresAt: clients.previousSecretExpiresAt,
 };
 
 // The client and its OIDC configuration, joined into the one resource an
@@ -136,6 +137,7 @@ export interface ClientView {
   readonly idTokenSignedResponseAlg: string | null;
   readonly defaultMaxAge: number | null;
   readonly requireAuthTime: boolean;
+  readonly previousSecretExpiresAt: Date | null;
   readonly scopes: readonly ClientScopeAssignmentView[];
 }
 
@@ -476,6 +478,7 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): Omit<Clie
     idTokenSignedResponseAlg: config.idTokenSignedResponseAlg,
     defaultMaxAge: config.defaultMaxAge,
     requireAuthTime: config.requireAuthTime,
+    previousSecretExpiresAt: client.previousSecretExpiresAt,
   };
 }
 
@@ -712,6 +715,7 @@ export function clientWireShape(view: ClientView): Client {
     id_token_signed_response_alg: view.idTokenSignedResponseAlg,
     default_max_age: view.defaultMaxAge,
     require_auth_time: view.requireAuthTime,
+    previous_secret_expires_at: view.previousSecretExpiresAt?.toISOString() ?? null,
     builtin_admin: view.builtinAdmin,
     service_subject_id: view.serviceSubjectId,
     scopes: view.scopes.map((scope) => ({
@@ -1233,11 +1237,14 @@ export async function amendClient(
 
 export interface RotateClientSecretInput extends ClientCeilingCaller {
   readonly clientDbId: string;
+  /** How long the replaced secret keeps authenticating; zero ends it now. */
+  readonly graceSeconds: number;
 }
 
 export interface RotateClientSecretDeps {
   readonly hashClientSecret: (secret: string) => Promise<string>;
   readonly audit: Audit;
+  readonly now: () => Date;
 }
 
 export type RotateClientSecretOutcome =
@@ -1267,7 +1274,17 @@ export async function rotateClientSecret(
 
   const secret = generateClientSecret();
   const secretHash = await deps.hashClientSecret(secret);
-  const updatedClientRow = await clientRepository(tx).rotateSecret(input.clientDbId, secretHash);
+  const previousExpiresAt =
+    input.graceSeconds > 0 && clientRow.secretHash !== null
+      ? new Date(deps.now().getTime() + input.graceSeconds * 1000)
+      : null;
+  const updatedClientRow = await clientRepository(tx).rotateSecret(
+    input.clientDbId,
+    secretHash,
+    previousExpiresAt === null || clientRow.secretHash === null
+      ? null
+      : { hash: clientRow.secretHash, expiresAt: previousExpiresAt },
+  );
 
   await deps.audit(tx, {
     action: 'client.rotate_secret',
@@ -1278,9 +1295,13 @@ export async function rotateClientSecret(
     actorClientId: input.actorClientId,
     outcome: 'allowed',
     // Named rather than diffed: secretHash never appears in a wire shape
-    // for redactedDiff to read, so this states the one fact worth
-    // recording without ever holding the hash, old or new.
-    detail: { secret_hash: { changed: true } },
+    // for redactedDiff to read, so this states the facts worth recording
+    // without ever holding a hash, old or new.
+    detail: {
+      secret_hash: { changed: true },
+      grace_seconds: input.graceSeconds,
+      previous_secret_expires_at: previousExpiresAt?.toISOString() ?? null,
+    },
   });
 
   const configRow = await clientOidcConfigRepository(tx).byClientId(input.clientDbId);

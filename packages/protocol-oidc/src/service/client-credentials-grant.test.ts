@@ -16,6 +16,8 @@ const confidentialClient: ClientRecord = {
   registrationOrigin: 'seeded',
   builtinAdmin: false,
   description: null,
+  previousSecretHash: null,
+  previousSecretExpiresAt: null,
 };
 
 describe('evaluateClientCredentialsGrant', () => {

@@ -411,6 +411,43 @@ describe('audit_events retention', () => {
   });
 });
 
+describe('rotated-out client secrets', () => {
+  it('clears one past its window and audits it, and keeps one inside it', async () => {
+    const tenantId = newId();
+    const expired = newId();
+    const live = newId();
+    await owner.db.execute(sql`
+      INSERT INTO tenants (id, name) VALUES (${tenantId}, ${`reap-${tenantId}`})
+    `);
+    await owner.db.execute(sql`
+      INSERT INTO clients (id, tenant_id, client_id, name, type, secret_hash,
+                           previous_secret_hash, previous_secret_expires_at)
+      VALUES
+        (${expired}, ${tenantId}, 'expired', 'expired', 'confidential', 'next', 'old',
+         ${at(-1 * SECOND)}::timestamptz),
+        (${live}, ${tenantId}, 'live', 'live', 'confidential', 'next', 'old',
+         ${at(HOUR)}::timestamptz)
+    `);
+
+    const outcome = await runPass();
+    if (!outcome.ran) throw new Error('the pass did not run');
+    expect(outcome.cleared.client_previous_secrets).toBe(1);
+
+    const rows = await owner.db.execute<{ id: string; previous_secret_hash: string | null }>(sql`
+      SELECT id, previous_secret_hash FROM clients WHERE tenant_id = ${tenantId} ORDER BY client_id
+    `);
+    expect(rows).toEqual([
+      { id: expired, previous_secret_hash: null },
+      { id: live, previous_secret_hash: 'old' },
+    ]);
+    const audited = await owner.db.execute<{ resource_id: string }>(sql`
+      SELECT resource_id FROM audit_events
+       WHERE tenant_id = ${tenantId} AND action = 'client.secret_expired'
+    `);
+    expect(audited.map((row) => row.resource_id)).toEqual([expired]);
+  });
+});
+
 describe('odudu reap', () => {
   // First, and deliberately: the report is summed over every tenant in the
   // database, so this is the only point at which it can be compared to an

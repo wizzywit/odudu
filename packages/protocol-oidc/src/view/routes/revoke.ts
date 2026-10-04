@@ -41,6 +41,7 @@ export function registerRevokeRoute(app: FastifyInstance, deps: RevokeRouteDeps)
       verifyPassword: deps.verifyPassword,
       clientSecretLimiter: deps.clientSecretLimiter,
       logger: request.log,
+      now: () => now,
       issuer,
       keys,
     };

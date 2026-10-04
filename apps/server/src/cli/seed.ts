@@ -201,6 +201,7 @@ async function assertMatchesExisting(
     existingClient,
     opts.clientSecret ?? null,
     verifyPassword,
+    new Date(),
   );
   if (!secretMatches) {
     throw new OduduError(

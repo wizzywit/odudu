@@ -27,6 +27,10 @@ const REFUSALS: Readonly<Record<string, string>> = {
   registration_origin: 'registration_origin is provenance; rewriting it falsifies a record',
   service_subject_id: 'service_subject_id re-points role assignments and needs its own operation',
   secret_hash: 'secret_hash is rotated through its own endpoint',
+  previous_secret_hash:
+    'previous_secret_hash is kept by a rotation and cleared when its window ends',
+  previous_secret_expires_at:
+    "previous_secret_expires_at is set by a rotation's grace_seconds and cannot be extended",
   type: "type silently changes a live client's security model in both directions",
   builtin_admin:
     "builtin_admin marks the client a tenant's administration roles hang from; changing it needs its own operation, not a general amendment",

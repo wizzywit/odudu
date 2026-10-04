@@ -92,6 +92,7 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
               issuer,
               kek: deps.kek,
               clock: deps.clock,
+              now: () => deps.clock.now(),
               lifespans: {
                 ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
                 ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,

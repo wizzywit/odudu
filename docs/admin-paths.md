@@ -2451,10 +2451,23 @@ Keep-Alive: timeout=72
 Requires `manage-clients`. Rotates a confidential client's secret: generates a fresh one, stores only
 its hash, and returns the plaintext **exactly once, in this response** —
 the same guarantee `POST /clients` makes for a client's first secret.
-Nothing reads it back afterward, and the previous secret stops
-authenticating at `/token` immediately, since only the current hash is ever
-compared against. A public client (`token_endpoint_auth_method: "none"`)
-has no secret to rotate, refused with `409`.
+Nothing reads it back afterward. By default the previous secret stops
+authenticating at `/token`, `/introspect` and `/revoke` immediately, which is
+the answer to a leaked one. `?grace_seconds=N`, from `0` to `604800` (a
+week), keeps it authenticating beside the new one for `N` seconds instead,
+so a client's deployments can move over without an outage; the response's
+`previous_secret_expires_at` says when it stops, and every read of the
+client says the same until then. A week covers a weekly deployment picking
+up the new secret; a longer window would leave a second standing credential
+nobody is tracking. Rotating again inside a window keeps only the secret
+that rotation replaced, so at most two ever authenticate. Only the old
+secret's hash is kept, never shown, and the audit row records
+`grace_seconds` and `previous_secret_expires_at`, never a secret or a hash.
+`odudu reap` clears the kept hash once the window has passed and audits
+each one as `client.secret_expired`; the secret is refused from the instant
+the window ends whether or not that pass has run. A public client
+(`token_endpoint_auth_method: "none"`) has no secret to rotate, refused with
+`409`.
 
 ```bash
 curl -sS -X POST \

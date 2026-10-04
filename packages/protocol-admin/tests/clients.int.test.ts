@@ -1301,9 +1301,11 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
             events.push(event);
             return Promise.resolve();
           },
+          now: () => new Date(),
         },
         {
           clientDbId: created.id,
+          graceSeconds: 0,
           callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',
@@ -1339,9 +1341,11 @@ describe('POST /admin/tenants/{t}/clients/{id}/secret', () => {
             events.push(event);
             return Promise.resolve();
           },
+          now: () => new Date(),
         },
         {
           clientDbId: id,
+          graceSeconds: 0,
           callerCapabilities: new Set<string>(),
           actorSubjectId: 'test-subject',
           actorTenantId: 'test-tenant',

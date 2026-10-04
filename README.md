@@ -165,7 +165,10 @@ signs the client's ID tokens with `RS256` or `ES256` where the tenant holds a
 key for it (and the last key of an algorithm a client names cannot be
 retired), `default_max_age` forces a fresh login for a request that carries
 no `max_age` of its own once the session is older, and `require_auth_time`
-puts `auth_time` in every ID token. Outgoing mail goes through
+puts `auth_time` in every ID token. `POST /admin/tenants/{tenant}/clients/{id}/secret?grace_seconds=N`
+keeps a rotated-out secret authenticating for up to a week beside the new
+one (none by default), and `odudu reap` clears it, audited, once that window
+ends. Outgoing mail goes through
 `ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
 `ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`;
 leave `ODUDU_SMTP_HOST` unset and the server logs every message instead of

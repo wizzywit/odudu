@@ -83,6 +83,7 @@ import {
   listTenantsResponseSchema,
   deleteTenantQuerySchema,
   roleSchema,
+  rotateClientSecretQuerySchema,
   rotateClientSecretResponseSchema,
   scopeMappersSchema,
   setGroupRolesRequestSchema,
@@ -718,7 +719,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/clients/:id/secret',
     capability: 'manage-clients',
     responseSchema: rotateClientSecretResponseSchema,
-    description: SERVICE_ACCOUNT_CEILING,
+    querystringSchema: rotateClientSecretQuerySchema,
+    description:
+      'Answers the new secret once. `grace_seconds` (0 to 604800, default 0) keeps the ' +
+      'secret it replaces authenticating that long beside it, and the response states ' +
+      `when it stops in \`previous_secret_expires_at\`. ${SERVICE_ACCOUNT_CEILING}`,
   },
   {
     method: 'GET',

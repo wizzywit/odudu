@@ -88,6 +88,7 @@ const SWEPT: ReapOutcome = {
     sessions: 1,
     audit_events: 0,
   },
+  cleared: { client_previous_secrets: 1 },
 };
 
 describe('whether the server reaps on its own schedule', () => {
@@ -161,7 +162,7 @@ describe('reapModule', () => {
 
     expect(log.lines).toContainEqual({
       level: 'info',
-      payload: { deleted: SWEPT.deleted },
+      payload: { deleted: SWEPT.deleted, cleared: SWEPT.cleared },
       message: 'retention pass complete',
     });
   });

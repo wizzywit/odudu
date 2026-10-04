@@ -18,6 +18,10 @@ export const clients = pgTable('clients', {
   enabled: boolean('enabled').notNull().default(true),
   type: text('type').notNull(),
   secretHash: text('secret_hash'),
+  // The secret a rotation replaced and the instant it stops authenticating
+  // (packages/db/drizzle/0086_client_previous_secret.sql).
+  previousSecretHash: text('previous_secret_hash'),
+  previousSecretExpiresAt: timestamp('previous_secret_expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   // Nullable: a public client has no service account. Populated for
   // confidential clients when the client is provisioned, and read by the
@@ -64,6 +68,8 @@ export interface ClientRecord {
   enabled: boolean;
   type: 'public' | 'confidential';
   secretHash: string | null;
+  previousSecretHash: string | null;
+  previousSecretExpiresAt: Date | null;
   createdAt: Date;
   serviceSubjectId: string | null;
   fullScopeAllowed: boolean;

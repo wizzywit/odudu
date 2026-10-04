@@ -85,8 +85,14 @@ export function reapModule(deps: ReapModuleDeps, pass: ReapPass = reap): OduduMo
         log,
         run: async () => {
           const outcome = await pass(deps, ctx.clock.now(), retentionPolicyFromConfig(ctx.config));
-          if (outcome.ran) log.info({ deleted: outcome.deleted }, 'retention pass complete');
-          else log.info({ reason: outcome.reason }, 'retention pass skipped');
+          if (outcome.ran) {
+            log.info(
+              { deleted: outcome.deleted, cleared: outcome.cleared },
+              'retention pass complete',
+            );
+          } else {
+            log.info({ reason: outcome.reason }, 'retention pass skipped');
+          }
         },
       });
       ctx.logger.info(

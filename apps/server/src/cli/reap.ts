@@ -8,6 +8,7 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { loadConfig, OduduError, type Config } from '@odudu/kernel';
+import { expireRotatedClientSecrets } from '@odudu/protocol-admin';
 import { BACKCHANNEL_LOGOUT_MAX_ATTEMPTS } from '@odudu/protocol-oidc';
 import { sql, type SQL } from 'drizzle-orm';
 
@@ -37,6 +38,15 @@ export type TableName =
 export type ReapReport = Record<TableName, number>;
 
 /**
+ * What the pass cleared without deleting a row: a rotated-out client
+ * secret past its window, whose hash nothing can authenticate with any
+ * more. Each is audited where it is cleared.
+ */
+export interface ClearReport {
+  readonly client_previous_secrets: number;
+}
+
+/**
  * Why a pass did nothing. Distinct from a report of zeros, at both levels:
  * "deleted nothing", "another instance is deleting instead of me" and "found
  * nothing to look at" are three different facts, and a scheduled job that
@@ -47,7 +57,7 @@ export type ReapSkipReason =
 
 export type ReapOutcome =
   | { readonly ran: false; readonly reason: ReapSkipReason }
-  | { readonly ran: true; readonly deleted: ReapReport };
+  | { readonly ran: true; readonly deleted: ReapReport; readonly cleared: ClearReport };
 
 /**
  * One window per table that has one of its own, in seconds. `refresh_tokens`
@@ -429,13 +439,14 @@ async function reapTenant(
   tx: TenantScopedDatabase,
   now: Date,
   policy: RetentionPolicy,
-): Promise<ReapReport> {
+): Promise<{ deleted: ReapReport; cleared: ClearReport }> {
   const report = emptyReport();
   for (const table of REAP_ORDER) {
     const result = await tx.execute(RETENTION_RULES[table].statement(now, policy));
     report[table] = result.count;
   }
-  return report;
+  const clientPreviousSecrets = await expireRotatedClientSecrets(tx, now);
+  return { deleted: report, cleared: { client_previous_secrets: clientPreviousSecrets } };
 }
 
 export interface ReapDeps {
@@ -517,10 +528,12 @@ export async function reap(
   }
 
   const deleted = emptyReport();
+  let clientPreviousSecrets = 0;
   for (const tenantReport of pass.values) {
-    for (const table of REAP_ORDER) deleted[table] += tenantReport[table];
+    for (const table of REAP_ORDER) deleted[table] += tenantReport.deleted[table];
+    clientPreviousSecrets += tenantReport.cleared.client_previous_secrets;
   }
-  return { ran: true, deleted };
+  return { ran: true, deleted, cleared: { client_previous_secrets: clientPreviousSecrets } };
 }
 
 // Reads its own configuration and opens its own connections, the way the

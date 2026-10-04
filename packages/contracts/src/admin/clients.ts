@@ -50,6 +50,9 @@ export const clientSchema = z.object({
   id_token_signed_response_alg: z.string().nullable(),
   default_max_age: z.number().int().nullable(),
   require_auth_time: z.boolean(),
+  // When the secret a rotation replaced stops authenticating; null once it
+  // has, or when no rotation kept one. Never the secret itself.
+  previous_secret_expires_at: z.string().nullable(),
   builtin_admin: z.boolean(),
   service_subject_id: z.uuid().nullable(),
   scopes: z.array(clientScopeAssignmentViewSchema),
@@ -118,6 +121,18 @@ export type ListClientsResponse = z.infer<typeof listClientsResponseSchema>;
 // the excluded one its reason (client-patch.ts's `refusalFor`).
 export const amendClientRequestSchema = z.record(z.string(), z.unknown());
 export type AmendClientRequest = z.infer<typeof amendClientRequestSchema>;
+
+// How long the replaced secret keeps authenticating beside the new one.
+// Zero, the default, ends it at once — the right answer to a leak. A week
+// covers a weekly deployment picking up the new secret; a longer window is
+// a second standing credential nobody is tracking.
+export const CLIENT_SECRET_GRACE_MAX_SECONDS = 604_800;
+export const rotateClientSecretQuerySchema = z
+  .object({
+    grace_seconds: z.coerce.number().int().min(0).max(CLIENT_SECRET_GRACE_MAX_SECONDS).optional(),
+  })
+  .strict();
+export type RotateClientSecretQuery = z.infer<typeof rotateClientSecretQuerySchema>;
 
 export const rotateClientSecretResponseSchema = clientSchema.extend({
   client_secret: z.string(),

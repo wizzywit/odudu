@@ -25,6 +25,8 @@ export interface ClientAuthenticationDeps {
   // ever sees the shape.
   clientSecretLimiter: ClientSecretLimiter;
   logger: RefusalLogger;
+  // What a rotated-out secret's window is measured against.
+  now(): Date;
 }
 
 export interface BasicCredentials {
@@ -128,7 +130,7 @@ async function verifyClientCredentials(
     presented = null;
   }
 
-  const ok = await verifyClientSecret(client, presented, deps.verifyPassword);
+  const ok = await verifyClientSecret(client, presented, deps.verifyPassword, deps.now());
   if (!ok) throw refused();
 
   return { client, config };

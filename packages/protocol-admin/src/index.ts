@@ -211,6 +211,7 @@ import {
 } from '#/view/routes/tenant-sessions';
 
 export { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
+export { expireRotatedClientSecrets } from '#/usecase/client-secret-expiry';
 export { composeUserSubject, type ComposeUserSubjectInput } from '#/usecase/subjects';
 export { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 export { resolveHostAddresses } from '#/adapter/host-addresses';
@@ -460,6 +461,7 @@ function buildAdminRoutes(
       hashClientSecret: hashPassword,
       tlsClientAuthEnabled: deps.trustProxy ?? false,
       audit: clientAudit,
+      now: () => clock.now(),
       callerCapabilities,
     };
     const registrationTokensDeps: RegistrationTokensRouteDeps = {
