@@ -62,9 +62,12 @@ interface PasswordAttempt {
   onRecord: { lockedUntil: Date | null };
 }
 
-// A username wins over another subject's address. Where the tenant accepts
-// an address, both lookups run for every login, so a username, an address
-// and a miss each cost the same statements and none of them answers faster.
+// Where the tenant accepts an address, an input carrying `@` names the
+// subject whose verified address it is before any whose username it is: a
+// verified address proves control of a mailbox, while anybody can choose a
+// username that copies one and would otherwise shadow its owner's sign-in.
+// Both lookups run for every login, so a username, an address and a miss
+// each cost the same statements and none of them answers faster.
 async function passwordAttemptFor(
   tx: TenantScopedDatabase,
   login: string,
@@ -73,7 +76,7 @@ async function passwordAttemptFor(
   const accounts = userRepository(tx);
   const byUsername = await accounts.byUsername(login);
   const byEmail = loginWithEmail ? await accounts.byVerifiedEmail(login) : null;
-  const found = byUsername ?? byEmail;
+  const found = login.includes('@') ? (byEmail ?? byUsername) : (byUsername ?? byEmail);
   const keyedOn = found === null ? DUMMY_SUBJECT_ID : found.subject.id;
   const storedHash = await credentialRepository(tx).passwordFor(keyedOn);
   const onRecord = await loginFailureRepository(tx).forSubject(keyedOn);

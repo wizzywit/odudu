@@ -1329,8 +1329,10 @@ forged one. The 30 minutes are the tenant's `login_ttl_seconds`, which
 A tenant whose `login_with_email` is on (default `false`,
 [Admin paths](admin-paths.md#lifetimes-and-signing-in-with-an-email-address))
 takes a verified email address in the same field as a username, matched
-without regard to case. A username still wins over another subject's
-address; an address nobody holds, one that is not verified, and one two
+without regard to case. An input carrying `@` names the subject whose
+verified address it is before any subject whose username it is, since
+anybody may choose a username that copies an address but only its owner
+verified it; an address nobody holds, one that is not verified, and one two
 subjects hold in different cases all answer exactly as an unknown username
 does, through the same statements, so the form says nothing about which
 addresses exist. A wrong password counts towards the lockout of the

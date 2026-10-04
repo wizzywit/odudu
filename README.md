@@ -152,7 +152,8 @@ old column default, except on the built-in admin client, whose tokens keep
 their own five minutes; a client whose `300` was a choice is pinned again
 by `PATCH`ing that lifetime back to an explicit value. `login_with_email`, off by default, lets the login
 form take a verified email address, in any case, where it takes a username:
-a username still wins over another subject's address, an unverified or
+an input carrying `@` names the subject whose verified address it is before
+one whose username merely copies it, an unverified or
 ambiguous address answers exactly as an unknown username does, and a wrong
 password counts towards the lockout of the subject the address resolves
 to. A client carries a `description` for its administrators, bounded at

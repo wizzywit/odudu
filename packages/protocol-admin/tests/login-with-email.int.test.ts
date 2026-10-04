@@ -147,12 +147,21 @@ describe('signing in with an email address', () => {
     expect(refusalOf(byEmail)).toBe(refusalOf(unknown));
   });
 
-  it('lets a username win over another subject’s address', async () => {
+  it('lets a verified address win over a username another subject chose to match it', async () => {
     const setup = await tenantWithEmailLogin(true);
-    const named = await userWithEmail(setup.tenant.id, 'bob@example.com', 'x@example.com', true);
-    await userWithEmail(setup.tenant.id, 'bob', 'bob@example.com', true);
+    const holder = await userWithEmail(setup.tenant.id, 'bob', 'bob@example.com', true);
+    await userWithEmail(setup.tenant.id, 'bob@example.com', 'x@example.com', true);
 
     const login = await attempt(setup, 'bob@example.com');
+    const redeemed = await redeemCode(fixture, setup.tenant.name, setup.client, login);
+    expect(subOf(redeemed.json())).toBe(holder);
+  });
+
+  it('still signs in by an @-bearing username that no verified address matches', async () => {
+    const setup = await tenantWithEmailLogin(true);
+    const named = await userWithEmail(setup.tenant.id, 'carol@team', 'carol@example.com', true);
+
+    const login = await attempt(setup, 'carol@team');
     const redeemed = await redeemCode(fixture, setup.tenant.name, setup.client, login);
     expect(subOf(redeemed.json())).toBe(named);
   });
