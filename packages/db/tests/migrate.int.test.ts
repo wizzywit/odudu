@@ -55,6 +55,7 @@ describe('migrations', () => {
       'id',
       'id_token_ttl_seconds',
       'login_ttl_seconds',
+      'login_with_email',
       'max_clients',
       'max_sessions_per_browser',
       'name',

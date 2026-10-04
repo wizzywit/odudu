@@ -69,6 +69,7 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   login_ttl_seconds: count,
   verify_email_ttl_seconds: count,
   reset_password_ttl_seconds: count,
+  login_with_email: z.boolean(),
 });
 export type TenantSettingsDocument = z.infer<typeof tenantSettingsDocumentSchema>;
 

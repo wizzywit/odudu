@@ -92,6 +92,9 @@ export const tenants = pgTable('tenants', {
   loginTtlSeconds: integer('login_ttl_seconds').notNull().default(1800),
   verifyEmailTtlSeconds: integer('verify_email_ttl_seconds').notNull().default(43_200),
   resetPasswordTtlSeconds: integer('reset_password_ttl_seconds').notNull().default(300),
+  // Whether the login form accepts a verified email address as well as a
+  // username (packages/db/drizzle/0083_login_with_email.sql).
+  loginWithEmail: boolean('login_with_email').notNull().default(false),
   // Search keys, in the C collation, filled by the database
   // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
   nameSearch: text('name_search').generatedAlwaysAs(sql`lower(name)`),

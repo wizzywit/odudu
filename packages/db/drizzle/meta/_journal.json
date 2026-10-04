@@ -582,6 +582,13 @@
       "when": 1789049381725,
       "tag": "0082_tenant_lifetimes",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1789049381726,
+      "tag": "0083_login_with_email",
+      "breakpoints": true
     }
   ]
 }

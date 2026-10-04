@@ -149,7 +149,12 @@ day). The first three are defaults a client's own value of the same name
 overrides; a client's `null` takes the tenant's. Migration
 `0082_tenant_lifetimes.sql` set to `null` every client lifetime still at the
 old column default, except on the built-in admin client, whose tokens keep
-their own five minutes. Outgoing mail goes through
+their own five minutes. `login_with_email`, off by default, lets the login
+form take a verified email address, in any case, where it takes a username:
+a username still wins over another subject's address, an unverified or
+ambiguous address answers exactly as an unknown username does, and a wrong
+password counts towards the lockout of the subject the address resolves
+to. Outgoing mail goes through
 `ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
 `ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`;
 leave `ODUDU_SMTP_HOST` unset and the server logs every message instead of

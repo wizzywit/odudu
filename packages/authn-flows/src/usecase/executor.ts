@@ -55,18 +55,25 @@ const DUMMY_SUBJECT_ID = '00000000-0000-0000-0000-000000000000';
 
 interface PasswordAttempt {
   verification: PasswordVerification;
-  // Whatever the username resolved to, or the placeholder above — what the
+  // Whatever the login resolved to, or the placeholder above — what the
   // credential lookup, the lockout read and the failure write are all keyed
   // on, so the same four statements run whether the account exists or not.
   keyedOn: string;
   onRecord: { lockedUntil: Date | null };
 }
 
+// A username wins over another subject's address. Where the tenant accepts
+// an address, both lookups run for every login, so a username, an address
+// and a miss each cost the same statements and none of them answers faster.
 async function passwordAttemptFor(
   tx: TenantScopedDatabase,
-  username: string,
+  login: string,
+  loginWithEmail: boolean,
 ): Promise<PasswordAttempt> {
-  const found = await userRepository(tx).byUsername(username);
+  const accounts = userRepository(tx);
+  const byUsername = await accounts.byUsername(login);
+  const byEmail = loginWithEmail ? await accounts.byVerifiedEmail(login) : null;
+  const found = byUsername ?? byEmail;
   const keyedOn = found === null ? DUMMY_SUBJECT_ID : found.subject.id;
   const storedHash = await credentialRepository(tx).passwordFor(keyedOn);
   const onRecord = await loginFailureRepository(tx).forSubject(keyedOn);
@@ -92,7 +99,7 @@ async function runPasswordStep(
   if (input.username === undefined || input.password === undefined) {
     return passwordStep(input, { subjectId: null, storedHash: null });
   }
-  const attempt = await passwordAttemptFor(tx, input.username);
+  const attempt = await passwordAttemptFor(tx, input.username, context.loginWithEmail);
   const outcome = await passwordStep(input, attempt.verification);
   const failures = loginFailureRepository(tx);
 
@@ -325,6 +332,7 @@ interface StepContext {
   // The tenant's own brute-force numbers, read alongside every other switch
   // one `advance` needs (see tenantSettingsRepository.flowSettings).
   lockout: LockoutPolicy;
+  loginWithEmail: boolean;
 }
 
 type TenantAuthenticatorFn = (
@@ -364,6 +372,7 @@ interface FlowFacts {
   // Zero where the tenant does not age passwords out, which is the default.
   passwordMaxAgeDays: number;
   lockout: LockoutPolicy;
+  loginWithEmail: boolean;
   satisfied: ReadonlySet<string>;
   assertionOffered: boolean;
   recoveryCodeOffered: boolean;
@@ -396,6 +405,7 @@ async function flowFacts(
     otpRequired: settings.otpRequired,
     passwordMaxAgeDays: settings.passwordMaxAgeDays,
     lockout: settings.lockout,
+    loginWithEmail: settings.loginWithEmail,
     satisfied: request.satisfied,
     assertionOffered: request.assertionOffered,
     recoveryCodeOffered: request.recoveryCodeOffered,
@@ -625,6 +635,7 @@ async function loadFlowContext(
       now: clock.now(),
       publicBaseUrl: options.publicBaseUrl ?? null,
       lockout: loaded.facts.lockout,
+      loginWithEmail: loaded.facts.loginWithEmail,
     }),
   };
 }
@@ -680,6 +691,7 @@ export async function initialChallenge(
     now: clock.now(),
     publicBaseUrl: null,
     lockout: facts.lockout,
+    loginWithEmail: facts.loginWithEmail,
   });
   const dispatched = await dispatchNext(registry, steps, new Set(), {});
   if (dispatched.kind !== 'ran') {
@@ -860,6 +872,7 @@ export async function advance(
     now: clock.now(),
     publicBaseUrl: options.publicBaseUrl ?? null,
     lockout: facts.lockout,
+    loginWithEmail: facts.loginWithEmail,
   });
   const after = await dispatchNext(forSubject, stepsForSubject, updatedSatisfied, {});
 

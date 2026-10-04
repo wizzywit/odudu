@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { OduduError } from '@odudu/kernel';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { subjects, type SubjectRecord } from '#/schema/subjects';
 import { isEmailAddress } from '#/service/email';
 import { users, type UserRecord } from '#/schema/users';
@@ -105,6 +105,27 @@ export function userRepository(tx: TenantScopedDatabase) {
         .where(eq(users.username, username));
       const row = rows[0];
       return row === undefined ? null : { subject: toSubject(row.subject), user: toUser(row.user) };
+    },
+
+    // The login form's lookup when a tenant accepts an email address there:
+    // a verified address, matched case-insensitively. users_email_unique is
+    // case-sensitive, so two subjects may hold one address in two cases;
+    // that answers no subject rather than either of them.
+    async byVerifiedEmail(email: string): Promise<UserWithSubject | null> {
+      const rows = await tx
+        .select({ subject: subjects, user: users })
+        .from(users)
+        .innerJoin(subjects, eq(subjects.id, users.subjectId))
+        .where(
+          and(
+            eq(users.emailSearch, sql`lower(${email}) COLLATE "C"`),
+            eq(users.emailVerified, true),
+          ),
+        )
+        .limit(2);
+      const row = rows[0];
+      if (row === undefined || rows.length > 1) return null;
+      return { subject: toSubject(row.subject), user: toUser(row.user) };
     },
 
     // The claim mapper registry's lookup: an access token carries `sub`,

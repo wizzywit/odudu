@@ -74,6 +74,7 @@ const DOCUMENT: TenantDocument = {
     login_ttl_seconds: 1800,
     verify_email_ttl_seconds: 43_200,
     reset_password_ttl_seconds: 300,
+    login_with_email: false,
   },
   flow: [{ authenticator: 'password', requirement: 'required' }],
   clients: [CLIENT],

@@ -4,10 +4,11 @@ import { OduduError } from '@odudu/kernel';
 import { eq } from 'drizzle-orm';
 
 // What one `advance` needs from the tenant row: whether it demands a second
-// factor, how long it lets a password stand, and how many wrong passwords
-// an account tolerates.
+// factor, whether its login form takes an email address, how long it lets a
+// password stand, and how many wrong passwords an account tolerates.
 export interface FlowSettings {
   otpRequired: boolean;
+  loginWithEmail: boolean;
   passwordMaxAgeDays: number;
   lockout: LockoutPolicy;
 }
@@ -29,6 +30,7 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
       const rows = await tx
         .select({
           otpRequired: tenants.otpRequired,
+          loginWithEmail: tenants.loginWithEmail,
           passwordMaxAgeDays: tenants.passwordMaxAgeDays,
           maxFailures: tenants.bruteForceMaxFailures,
           lockoutSeconds: tenants.bruteForceLockoutSeconds,
@@ -43,6 +45,7 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
       }
       return {
         otpRequired: row.otpRequired,
+        loginWithEmail: row.loginWithEmail,
         passwordMaxAgeDays: row.passwordMaxAgeDays,
         lockout: {
           maxFailures: row.maxFailures,

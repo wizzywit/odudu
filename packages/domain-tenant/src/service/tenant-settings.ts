@@ -50,6 +50,7 @@ const SETTINGS = {
   login_ttl_seconds: { column: 'loginTtlSeconds', type: 'integer' },
   verify_email_ttl_seconds: { column: 'verifyEmailTtlSeconds', type: 'integer' },
   reset_password_ttl_seconds: { column: 'resetPasswordTtlSeconds', type: 'integer' },
+  login_with_email: { column: 'loginWithEmail', type: 'boolean' },
 } as const satisfies Record<string, TenantSetting>;
 
 interface TenantSetting {
