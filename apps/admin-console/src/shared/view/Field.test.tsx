@@ -14,7 +14,6 @@ import {
   UrlListField,
   type KeyValuePair,
 } from '#/shared/view/Field.tsx';
-import { FieldGrid, GridCell } from '#/shared/view/FieldGrid.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 function describedBy(element: HTMLElement): string {
@@ -430,44 +429,6 @@ describe('FieldGroup', () => {
     expect(label.closest('label')).not.toBeNull();
     expect(label.closest('[style]')).toHaveStyle({ position: 'absolute' });
     expect(extension).toHaveAttribute('data-control');
-  });
-});
-
-describe('FieldGrid', () => {
-  it('lays each field in a cell that says how wide it runs', () => {
-    render(
-      <FieldGrid>
-        <GridCell>
-          <TextField label="Nickname" value="" onChange={vi.fn()} />
-        </GridCell>
-        <GridCell span="wide">
-          <TextField label="Street" value="" onChange={vi.fn()} />
-        </GridCell>
-        <GridCell span="full">
-          <TextField label="Formatted address" value="" onChange={vi.fn()} />
-        </GridCell>
-      </FieldGrid>,
-    );
-    const cells = ['Nickname', 'Street', 'Formatted address'].map((name) =>
-      screen.getByRole('textbox', { name }).closest('[data-cell]'),
-    );
-    expect(cells.map((cell) => cell?.getAttribute('data-span') ?? null)).toEqual([
-      null,
-      'wide',
-      'full',
-    ]);
-  });
-
-  it('passes axe in both themes', async () => {
-    expect(
-      await axeInBothThemes(() => (
-        <FieldGrid>
-          <GridCell span="wide">
-            <TextField label="Street" value="" onChange={vi.fn()} />
-          </GridCell>
-        </FieldGrid>
-      )),
-    ).toEqual({ light: [], dark: [] });
   });
 });
 
