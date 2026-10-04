@@ -154,8 +154,8 @@ form take a verified email address, in any case, where it takes a username:
 a username still wins over another subject's address, an unverified or
 ambiguous address answers exactly as an unknown username does, and a wrong
 password counts towards the lockout of the subject the address resolves
-to. A client carries a `description` for its administrators, at most 1000
-characters, and RFC 7591's `client_uri`, `policy_uri` and `tos_uri`, each an
+to. A client carries a `description` for its administrators, bounded at
+`1000`, and RFC 7591's `client_uri`, `policy_uri` and `tos_uri`, each an
 absolute https URI (http only on a loopback host) with no fragment: dynamic
 registration accepts and echoes the three, `POST` and `PATCH /clients`
 write all four, the tenant document carries them, and the consent screen
