@@ -611,6 +611,38 @@ describe('GET /console/auth/callback', () => {
     }
   });
 
+  it('restarts a live login whose code the provider will not exchange', async () => {
+    const stack = await startApp();
+    try {
+      const jar = new Jar();
+      const { authorize } = await beginLogin(stack, jar);
+      const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
+      const bogus = new URL(callback);
+      bogus.searchParams.set('code', 'not-a-code-the-provider-issued');
+
+      expectRestarted(await browse(stack, jar, pathOf(stack, bogus.toString())));
+      expect(await sessionsFor(subjectId)).toHaveLength(0);
+    } finally {
+      await stack.app.close();
+    }
+  });
+
+  it('restarts a live login whose callback carries no code', async () => {
+    const stack = await startApp();
+    try {
+      const jar = new Jar();
+      const { authorize } = await beginLogin(stack, jar);
+      const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
+      const stripped = new URL(callback);
+      stripped.searchParams.delete('code');
+
+      expectRestarted(await browse(stack, jar, pathOf(stack, stripped.toString())));
+      expect(await sessionsFor(subjectId)).toHaveLength(0);
+    } finally {
+      await stack.app.close();
+    }
+  });
+
   it('shows the page for a forged callback that carries no state', async () => {
     const stack = await startApp();
     try {
