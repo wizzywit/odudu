@@ -157,3 +157,85 @@ describe('the recovery-code backfill, run by a schema owner that is not a superu
     expect(scoped).toHaveLength(1);
   });
 });
+
+// The last migration before client lifetimes began inheriting the tenant's.
+const BEFORE_THE_LIFETIMES = 81;
+
+describe('the client lifetime rewrite, run by a schema owner that is not a superuser', () => {
+  let lifetimesHandle: DatabaseHandle | undefined;
+
+  afterAll(async () => {
+    await lifetimesHandle?.close();
+  });
+
+  it('inherits what never chose, keeps what did, and pins the built-in admin client', async () => {
+    const database = `${OWNER}_lifetimes`;
+    await adminHandle?.sql.unsafe(`CREATE DATABASE ${database} OWNER ${OWNER}`);
+    const url = new URL(container.adminUrl);
+    url.username = OWNER;
+    url.password = OWNER;
+    url.pathname = `/${database}`;
+    lifetimesHandle = createDatabase(url.toString(), { max: 2 });
+    const db = lifetimesHandle;
+
+    const tenantId = newId();
+    const defaulted = newId();
+    const chosen = newId();
+    const admin = newId();
+    await runMigrations(db.db, await migrationsThrough(BEFORE_THE_LIFETIMES));
+    await withTenant(db.db, tenantId, async (tx) => {
+      await tx.execute(
+        sql`insert into tenants (id, name) values (${tenantId}, ${`t-${tenantId}`})`,
+      );
+      for (const [id, builtin, access] of [
+        [defaulted, false, 300],
+        [chosen, false, 900],
+        [admin, true, 300],
+      ] as const) {
+        await tx.execute(sql`
+          insert into clients (id, tenant_id, client_id, name, type, builtin_admin)
+          values (${id}, ${tenantId}, ${id}, ${id}, 'public', ${builtin})`);
+        await tx.execute(sql`
+          insert into client_oidc_config (client_id, tenant_id, redirect_uris, grant_types,
+                                          token_endpoint_auth_method, access_token_ttl_seconds,
+                                          refresh_token_ttl_seconds)
+          values (${id}, ${tenantId}, ARRAY['https://app.example/cb'], ARRAY['authorization_code'],
+                  'none', ${access}, 1209600)`);
+      }
+    });
+
+    await runMigrations(db.db, MIGRATIONS_DIR);
+
+    const rows = await withTenant(db.db, tenantId, (tx) =>
+      tx.execute<{
+        client_id: string;
+        access_token_ttl_seconds: number | null;
+        id_token_ttl_seconds: number | null;
+        refresh_token_ttl_seconds: number | null;
+      }>(sql`select client_id, access_token_ttl_seconds, id_token_ttl_seconds,
+                    refresh_token_ttl_seconds from client_oidc_config`),
+    );
+    const byId = new Map(rows.map((row) => [row.client_id, row]));
+    expect(byId.get(defaulted)).toMatchObject({
+      access_token_ttl_seconds: null,
+      id_token_ttl_seconds: null,
+      refresh_token_ttl_seconds: null,
+    });
+    expect(byId.get(chosen)).toMatchObject({
+      access_token_ttl_seconds: 900,
+      id_token_ttl_seconds: 900,
+      refresh_token_ttl_seconds: null,
+    });
+    expect(byId.get(admin)).toMatchObject({
+      access_token_ttl_seconds: 300,
+      id_token_ttl_seconds: 300,
+      refresh_token_ttl_seconds: 1_209_600,
+    });
+
+    const forced = await db.sql<{ relname: string; relforcerowsecurity: boolean }[]>`
+      select relname, relforcerowsecurity from pg_class
+       where relname in ('clients', 'client_oidc_config') order by relname
+    `;
+    expect(forced.map((table) => table.relforcerowsecurity)).toEqual([true, true]);
+  }, 180_000);
+});

@@ -50,6 +50,13 @@ ALTER TABLE client_oidc_config
 ALTER TABLE client_oidc_config ADD CONSTRAINT client_oidc_config_id_token_ttl_ceiling
   CHECK (id_token_ttl_seconds >= 1 AND id_token_ttl_seconds <= 3600);
 
+-- FORCE ROW LEVEL SECURITY removes the schema owner's exemption, so under an
+-- owner that is not SUPERUSER or BYPASSRLS these UPDATEs would match nothing
+-- and raise nothing. Lifted for the rewrite and restored after it, as
+-- 0040_recovery_code_execution.sql does and gives the reasons for.
+ALTER TABLE client_oidc_config NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE clients NO FORCE ROW LEVEL SECURITY;
+
 UPDATE client_oidc_config SET id_token_ttl_seconds = access_token_ttl_seconds
  WHERE access_token_ttl_seconds <> 300
     OR client_id IN (SELECT id FROM clients WHERE builtin_admin);
@@ -59,3 +66,6 @@ UPDATE client_oidc_config SET access_token_ttl_seconds = NULL
 UPDATE client_oidc_config SET refresh_token_ttl_seconds = NULL
  WHERE refresh_token_ttl_seconds = 1209600
    AND client_id NOT IN (SELECT id FROM clients WHERE builtin_admin);
+
+ALTER TABLE clients FORCE ROW LEVEL SECURITY;
+ALTER TABLE client_oidc_config FORCE ROW LEVEL SECURITY;

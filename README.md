@@ -149,7 +149,8 @@ day). The first three are defaults a client's own value of the same name
 overrides; a client's `null` takes the tenant's. Migration
 `0082_tenant_lifetimes.sql` set to `null` every client lifetime still at the
 old column default, except on the built-in admin client, whose tokens keep
-their own five minutes. `login_with_email`, off by default, lets the login
+their own five minutes; a client whose `300` was a choice is pinned again
+by `PATCH`ing that lifetime back to an explicit value. `login_with_email`, off by default, lets the login
 form take a verified email address, in any case, where it takes a username:
 a username still wins over another subject's address, an unverified or
 ambiguous address answers exactly as an unknown username does, and a wrong
