@@ -551,7 +551,7 @@ async function issueAuthorizationCodeTokens(
   const userinfoClaims = Object.keys(code.claims.userinfo);
   const requestedUserinfoClaims = userinfoClaims.length > 0 ? userinfoClaims : null;
 
-  const { accessToken, audience, iat, exp } = await mintAccessToken(
+  const { accessToken, audience, iat } = await mintAccessToken(
     deps,
     {
       subjectId: code.subjectId,
