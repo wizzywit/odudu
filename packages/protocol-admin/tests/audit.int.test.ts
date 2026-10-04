@@ -121,7 +121,11 @@ describe('audit', () => {
     // The detail names that the hash changed without ever holding it — a
     // detail of `{}` would also pass `not.toContain`, so the row is pinned
     // to what it actually records, not merely to what it omits.
-    expect(rotated?.detail).toEqual({ secret_hash: { changed: true } });
+    expect(rotated?.detail).toEqual({
+      secret_hash: { changed: true },
+      grace_seconds: 0,
+      previous_secret_expires_at: null,
+    });
     expect(JSON.stringify(rotated?.detail ?? {})).not.toContain(secret);
   });
 
