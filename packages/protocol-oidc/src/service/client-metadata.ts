@@ -24,6 +24,9 @@ export interface ClientMetadata {
   clientUri: string | null;
   policyUri: string | null;
   tosUri: string | null;
+  idTokenSignedResponseAlg: 'RS256' | 'ES256' | null;
+  defaultMaxAge: number | null;
+  requireAuthTime: boolean;
 }
 
 // `field` names the metadata member at fault, when one member is.
@@ -94,6 +97,17 @@ const USERINFO_ENCRYPTION_ENCS = new Set<string>(USERINFO_ENCRYPTION_ENCS_PERMIT
 // `_alg` is registered with no `_enc`.
 // verified: curl -s https://openid.net/specs/openid-connect-registration-1_0.html
 export const USERINFO_ENCRYPTION_ENC_DEFAULT = 'A128CBC-HS256';
+
+// signing_keys_alg_check: the algorithms this server can hold a signing key
+// for. Unlike `userinfo_signed_response_alg`, `none` is refused: an ID token
+// is the client's proof of who authenticated, never an unsigned claim. Which
+// of the two the tenant holds a key for is the caller's to check, against
+// its own keys (`idTokenAlgUnavailable`, #/usecase/id-token-alg.ts).
+export const ID_TOKEN_SIGNING_ALGS_PERMITTED = ['RS256', 'ES256'] as const;
+
+function isIdTokenSigningAlg(value: string): value is 'RS256' | 'ES256' {
+  return (ID_TOKEN_SIGNING_ALGS_PERMITTED as readonly string[]).includes(value);
+}
 
 // RFC 7591 §2: the server assigns these, so a client stating one for itself
 // is refused rather than silently overridden — silent override is how a
@@ -227,6 +241,9 @@ const metadataShape = z.object({
   client_uri: z.string().optional(),
   policy_uri: z.string().optional(),
   tos_uri: z.string().optional(),
+  id_token_signed_response_alg: z.string().optional(),
+  default_max_age: z.number().int().nonnegative().max(2_147_483_647).optional(),
+  require_auth_time: z.boolean().optional(),
 });
 
 // The registration body is an untyped boundary: parsed with Zod, never
@@ -313,6 +330,15 @@ export function parseClientMetadata(
       'invalid_client_metadata',
       `userinfo_signed_response_alg must not be ${userinfoSignedResponseAlg}`,
       'userinfo_signed_response_alg',
+    );
+  }
+
+  const idTokenSignedResponseAlg = metadata.id_token_signed_response_alg ?? null;
+  if (idTokenSignedResponseAlg !== null && !isIdTokenSigningAlg(idTokenSignedResponseAlg)) {
+    return invalid(
+      'invalid_client_metadata',
+      `id_token_signed_response_alg must not be ${idTokenSignedResponseAlg}`,
+      'id_token_signed_response_alg',
     );
   }
 
@@ -451,6 +477,9 @@ export function parseClientMetadata(
       clientUri: metadata.client_uri ?? null,
       policyUri: metadata.policy_uri ?? null,
       tosUri: metadata.tos_uri ?? null,
+      idTokenSignedResponseAlg,
+      defaultMaxAge: metadata.default_max_age ?? null,
+      requireAuthTime: metadata.require_auth_time ?? false,
     },
   };
 }

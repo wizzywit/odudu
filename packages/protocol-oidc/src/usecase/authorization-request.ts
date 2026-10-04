@@ -322,6 +322,10 @@ export async function handleAuthorizationRequest(
   if (resourceOutcome.kind === 'invalid_target') return reject('invalid_target');
   const audience = resourceOutcome.audience;
 
+  // OIDC Dynamic Client Registration §2: a request's own `max_age` wins,
+  // and the client's `default_max_age` stands in where it carries none.
+  const maxAge = outcome.maxAge ?? resolved.config?.defaultMaxAge ?? null;
+
   // OIDC Core §5.5. Parsed below the §4.1.2.1 boundary, same as `resource`
   // above: a malformed parameter is reported at the client's own
   // redirect_uri, not rendered.
@@ -332,7 +336,7 @@ export async function handleAuthorizationRequest(
   // asks one question (`token-issuance.ts` excludes `auth_time` from what
   // this synthesis could otherwise narrow away).
   const claims: ClaimsRequest =
-    outcome.maxAge === null
+    maxAge === null
       ? claimsOutcome.request
       : {
           ...claimsOutcome.request,
@@ -393,7 +397,7 @@ export async function handleAuthorizationRequest(
   const decision = decideReuse({
     sessions: candidateSessions,
     prompts: outcome.prompts,
-    maxAge: outcome.maxAge,
+    maxAge,
     now: deps.now(),
   });
 
@@ -530,7 +534,7 @@ export async function handleAuthorizationRequest(
       ...(claimsSubject !== null ? { claimsSubject } : {}),
       // Re-checked against whichever session is posted back — see
       // handleSelectAccountSubmission's own withinMaxAge call.
-      ...(outcome.maxAge !== null ? { maxAge: outcome.maxAge } : {}),
+      ...(maxAge !== null ? { maxAge } : {}),
       resource: [...audience],
       claims,
     });
@@ -722,7 +726,7 @@ export async function handleSelectAccountSubmission(
       kind: 'consent',
       authSessionId,
       clientName: gate.clientName,
-        clientPages: gate.clientPages,
+      clientPages: gate.clientPages,
       defaultScopes: gate.defaultScopes,
       optionalScopes: gate.optionalScopes,
       alreadyGranted: gate.alreadyGranted,

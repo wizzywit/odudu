@@ -95,6 +95,9 @@ export type CreateTenantOutcome =
   | { kind: 'name_refused' }
   | { kind: 'name_taken' };
 
+/** The one key a new tenant holds, so the only algorithm it can sign with. */
+export const PROVISIONED_KEY_ALG = 'ES256';
+
 // Mirrors `ensureSigningKey` (apps/server/src/cli/seed.ts): a freshly
 // inserted tenant has none yet, so there is nothing to check first — a
 // tenant with no client yet still needs one the instant it can issue
@@ -104,7 +107,7 @@ async function mintSigningKey(
   tenantId: string,
   kek: Uint8Array,
 ): Promise<void> {
-  const generated = await generateSigningKey('ES256', kek);
+  const generated = await generateSigningKey(PROVISIONED_KEY_ALG, kek);
   await signingKeyRepository(tx).create({
     id: newId(),
     tenantId,

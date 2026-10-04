@@ -36,6 +36,11 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
     clientUri: row.clientUri,
     policyUri: row.policyUri,
     tosUri: row.tosUri,
+    // client_oidc_config_id_token_alg_check bounds the column.
+    idTokenSignedResponseAlg:
+      row.idTokenSignedResponseAlg as ClientOidcConfig['idTokenSignedResponseAlg'],
+    defaultMaxAge: row.defaultMaxAge,
+    requireAuthTime: row.requireAuthTime,
   };
 }
 
@@ -66,6 +71,9 @@ export type NewClientOidcConfig = Omit<
   | 'clientUri'
   | 'policyUri'
   | 'tosUri'
+  | 'idTokenSignedResponseAlg'
+  | 'defaultMaxAge'
+  | 'requireAuthTime'
 > & {
   idTokenTtlSeconds?: number | null;
   clientCredentialsScopes?: string[];
@@ -86,6 +94,9 @@ export type NewClientOidcConfig = Omit<
   clientUri?: string | null;
   policyUri?: string | null;
   tosUri?: string | null;
+  idTokenSignedResponseAlg?: ClientOidcConfig['idTokenSignedResponseAlg'];
+  defaultMaxAge?: number | null;
+  requireAuthTime?: boolean;
 };
 
 export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
@@ -133,6 +144,9 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
           clientUri: input.clientUri ?? null,
           policyUri: input.policyUri ?? null,
           tosUri: input.tosUri ?? null,
+          idTokenSignedResponseAlg: input.idTokenSignedResponseAlg ?? null,
+          defaultMaxAge: input.defaultMaxAge ?? null,
+          requireAuthTime: input.requireAuthTime ?? false,
         })
         .returning();
       const row = rows[0];

@@ -3,7 +3,6 @@ import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import { outboxRepository, renderVerifyEmail } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
 
-
 export interface SendVerificationEmailDeps {
   readonly database: DatabaseHandle;
   readonly tenantId: string;

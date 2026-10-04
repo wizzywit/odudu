@@ -121,6 +121,9 @@ export const exportedClientSchema = z.strictObject({
   client_uri: z.string().nullable(),
   policy_uri: z.string().nullable(),
   tos_uri: z.string().nullable(),
+  id_token_signed_response_alg: z.string().nullable(),
+  default_max_age: z.number().int().nullable(),
+  require_auth_time: z.boolean(),
   // The roles a confidential client's own service account holds, which
   // its client_credentials tokens carry; empty for a public client.
   service_account_roles: z.array(roleReferenceSchema),

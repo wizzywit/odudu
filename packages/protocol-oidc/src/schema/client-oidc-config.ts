@@ -71,6 +71,11 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   clientUri: text('client_uri'),
   policyUri: text('policy_uri'),
   tosUri: text('tos_uri'),
+  // OIDC Dynamic Client Registration §2's ID token settings
+  // (packages/db/drizzle/0085_client_id_token_settings.sql).
+  idTokenSignedResponseAlg: text('id_token_signed_response_alg'),
+  defaultMaxAge: integer('default_max_age'),
+  requireAuthTime: boolean('require_auth_time').notNull().default(false),
 }).enableRLS();
 
 // Redirect URIs and grant types are OAuth vocabulary; they live here rather
@@ -104,4 +109,7 @@ export interface ClientOidcConfig {
   clientUri: string | null;
   policyUri: string | null;
   tosUri: string | null;
+  idTokenSignedResponseAlg: 'RS256' | 'ES256' | null;
+  defaultMaxAge: number | null;
+  requireAuthTime: boolean;
 }

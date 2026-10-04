@@ -28,6 +28,7 @@ import { fieldPath } from '#/service/field-path';
 import { validateFlowSteps } from '#/service/flow-validation';
 import { CLAIM_KEY, PHONE_E164_MESSAGE, shapeInvalidityFor } from '#/usecase/profile';
 import { tooManySubjectsDetail } from '#/usecase/tenant-export';
+import { PROVISIONED_KEY_ALG } from '#/usecase/tenants';
 
 export interface ImportEnvironment {
   readonly knownMappers: readonly string[];
@@ -75,6 +76,8 @@ function metadataInput(client: ExportedClient): Record<string, unknown> {
     client_uri: client.client_uri,
     policy_uri: client.policy_uri,
     tos_uri: client.tos_uri,
+    id_token_signed_response_alg: client.id_token_signed_response_alg,
+    default_max_age: client.default_max_age,
   };
   return {
     redirect_uris: client.redirect_uris,
@@ -82,6 +85,7 @@ function metadataInput(client: ExportedClient): Record<string, unknown> {
     token_endpoint_auth_method: client.token_endpoint_auth_method,
     backchannel_logout_session_required: client.backchannel_logout_session_required,
     frontchannel_logout_session_required: client.frontchannel_logout_session_required,
+    require_auth_time: client.require_auth_time,
     ...Object.fromEntries(Object.entries(optional).filter(([, value]) => value !== null)),
   };
 }
@@ -453,6 +457,13 @@ function clientProblems(
       problems.add(at, parsed.description);
     } else {
       metadata.set(client.client_id, parsed.metadata);
+      const idTokenAlg = parsed.metadata.idTokenSignedResponseAlg;
+      if (idTokenAlg !== null && idTokenAlg !== PROVISIONED_KEY_ALG) {
+        problems.add(
+          `${path}.id_token_signed_response_alg`,
+          `an imported tenant holds only an ${PROVISIONED_KEY_ALG} key`,
+        );
+      }
       const type = parsed.metadata.tokenEndpointAuthMethod === 'none' ? 'public' : 'confidential';
       if (client.type !== type) {
         problems.add(

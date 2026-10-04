@@ -39,6 +39,9 @@ const CLIENT: ExportedClient = {
   client_uri: null,
   policy_uri: null,
   tos_uri: null,
+  id_token_signed_response_alg: null,
+  default_max_age: null,
+  require_auth_time: false,
   service_account_roles: [{ name: 'billing-reader', client: null }],
 };
 

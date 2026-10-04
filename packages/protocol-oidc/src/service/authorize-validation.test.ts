@@ -53,6 +53,9 @@ const config: ClientOidcConfig = {
   clientUri: null,
   policyUri: null,
   tosUri: null,
+  idTokenSignedResponseAlg: null,
+  defaultMaxAge: null,
+  requireAuthTime: false,
 };
 
 // One list stands for both halves of the rule these tests exercise: the

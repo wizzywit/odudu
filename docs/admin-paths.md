@@ -2261,10 +2261,11 @@ control `PATCH /settings` uses, row lock included. A stale `If-Match` is
 The RFC 7591 metadata fields among them — `redirect_uris`, `grant_types`,
 `token_endpoint_auth_method`, `jwks`, `jwks_uri`, the two logout URIs and
 their `_session_required` flags, the three `userinfo_*` response fields,
-`tls_client_auth_subject_dn`, and `client_uri`, `policy_uri` and `tos_uri`
-— each of the last three an absolute https URI, or http on a loopback
-host, with no fragment, and linked from the consent screen — are
-revalidated through the same
+`tls_client_auth_subject_dn`, `client_uri`, `policy_uri` and `tos_uri`
+— each of those three an absolute https URI, or http on a loopback
+host, with no fragment, and linked from the consent screen — and
+`id_token_signed_response_alg`, `default_max_age` and `require_auth_time`
+are revalidated through the same
 `parseClientMetadata` a create body runs through, against the amended
 value merged with what the client already holds: a `redirect_uris` entry
 registration would refuse is refused here with the identical `400` detail,
@@ -6877,9 +6878,9 @@ window has two active keys or none. `POST /keys/:id/retire` answers `409`
 in two cases, checked in that order: while the key's own status is
 `active` — promote another key first, however well its algorithm is
 otherwise covered — and, once that is ruled out, while a client is still
-registered with a `userinfo_signed_response_alg` no remaining non-retired
-key would produce, naming the offending client id(s) in the response
-`detail`.
+registered with a `userinfo_signed_response_alg` or an
+`id_token_signed_response_alg` no remaining non-retired key would produce,
+naming the offending client id(s) in the response `detail`.
 
 This ordering exists to dissolve a deadlock: registration itself refuses a
 `userinfo_signed_response_alg` no non-retired key produces

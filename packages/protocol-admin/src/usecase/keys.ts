@@ -9,7 +9,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { clients } from '@odudu/domain-tenant';
 import { clientOidcConfig } from '@odudu/protocol-oidc';
 import { newId } from '@odudu/kernel';
-import { and, asc, eq, gt, ne } from 'drizzle-orm';
+import { and, asc, eq, gt, ne, or } from 'drizzle-orm';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 
@@ -315,7 +315,12 @@ export async function retireKey(
       .select({ oauthClientId: clients.clientId })
       .from(clientOidcConfig)
       .innerJoin(clients, eq(clients.id, clientOidcConfig.clientId))
-      .where(eq(clientOidcConfig.userinfoSignedResponseAlg, locked.alg));
+      .where(
+        or(
+          eq(clientOidcConfig.userinfoSignedResponseAlg, locked.alg),
+          eq(clientOidcConfig.idTokenSignedResponseAlg, locked.alg),
+        ),
+      );
     if (offending.length > 0) {
       return {
         kind: 'algorithm_needed',

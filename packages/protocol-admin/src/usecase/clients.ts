@@ -16,6 +16,7 @@ import {
   clientOidcConfig,
   clientOidcConfigRepository,
   clientTokenTtlProblem,
+  idTokenAlgUnavailable,
   isWellFormedWebOrigin,
   parseClientMetadata,
   type ClientOidcConfig,
@@ -87,6 +88,9 @@ const CLIENT_VIEW_COLUMNS = {
   clientUri: clientOidcConfig.clientUri,
   policyUri: clientOidcConfig.policyUri,
   tosUri: clientOidcConfig.tosUri,
+  idTokenSignedResponseAlg: clientOidcConfig.idTokenSignedResponseAlg,
+  defaultMaxAge: clientOidcConfig.defaultMaxAge,
+  requireAuthTime: clientOidcConfig.requireAuthTime,
 };
 
 // The client and its OIDC configuration, joined into the one resource an
@@ -129,6 +133,9 @@ export interface ClientView {
   readonly clientUri: string | null;
   readonly policyUri: string | null;
   readonly tosUri: string | null;
+  readonly idTokenSignedResponseAlg: string | null;
+  readonly defaultMaxAge: number | null;
+  readonly requireAuthTime: boolean;
   readonly scopes: readonly ClientScopeAssignmentView[];
 }
 
@@ -466,6 +473,9 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): Omit<Clie
     clientUri: config.clientUri,
     policyUri: config.policyUri,
     tosUri: config.tosUri,
+    idTokenSignedResponseAlg: config.idTokenSignedResponseAlg,
+    defaultMaxAge: config.defaultMaxAge,
+    requireAuthTime: config.requireAuthTime,
   };
 }
 
@@ -516,6 +526,23 @@ export async function createClient(
   }
   const metadata = parsed.metadata;
   const type = clientType(metadata.tokenEndpointAuthMethod);
+  const unavailable = await idTokenAlgUnavailable(tx, metadata.idTokenSignedResponseAlg);
+  if (unavailable !== null) {
+    await deps.audit(tx, {
+      action: 'client.create',
+      resourceType: 'client',
+      resourceId: input.clientId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+    });
+    return {
+      kind: 'invalid_value',
+      field: 'id_token_signed_response_alg',
+      description: unavailable,
+    };
+  }
 
   const auditRefusal = (): Promise<void> =>
     deps.audit(tx, {
@@ -621,6 +648,9 @@ export async function createClient(
     clientUri: metadata.clientUri,
     policyUri: metadata.policyUri,
     tosUri: metadata.tosUri,
+    idTokenSignedResponseAlg: metadata.idTokenSignedResponseAlg,
+    defaultMaxAge: metadata.defaultMaxAge,
+    requireAuthTime: metadata.requireAuthTime,
   });
 
   const view = await attachScopes(tx, toClientView(client, config));
@@ -679,6 +709,9 @@ export function clientWireShape(view: ClientView): Client {
     client_uri: view.clientUri,
     policy_uri: view.policyUri,
     tos_uri: view.tosUri,
+    id_token_signed_response_alg: view.idTokenSignedResponseAlg,
+    default_max_age: view.defaultMaxAge,
+    require_auth_time: view.requireAuthTime,
     builtin_admin: view.builtinAdmin,
     service_subject_id: view.serviceSubjectId,
     scopes: view.scopes.map((scope) => ({
@@ -751,6 +784,9 @@ const METADATA_FIELDS = new Set<string>([
   'client_uri',
   'policy_uri',
   'tos_uri',
+  'id_token_signed_response_alg',
+  'default_max_age',
+  'require_auth_time',
 ]);
 
 interface FieldError {
@@ -1087,6 +1123,17 @@ export async function amendClient(
       client_uri: metadataFieldValue(input.values, 'client_uri', configRow.clientUri),
       policy_uri: metadataFieldValue(input.values, 'policy_uri', configRow.policyUri),
       tos_uri: metadataFieldValue(input.values, 'tos_uri', configRow.tosUri),
+      id_token_signed_response_alg: metadataFieldValue(
+        input.values,
+        'id_token_signed_response_alg',
+        configRow.idTokenSignedResponseAlg,
+      ),
+      default_max_age: metadataFieldValue(input.values, 'default_max_age', configRow.defaultMaxAge),
+      require_auth_time: metadataFieldValue(
+        input.values,
+        'require_auth_time',
+        configRow.requireAuthTime,
+      ),
     };
 
     const parsed = parseClientMetadata(merged, { tlsClientAuthEnabled: deps.tlsClientAuthEnabled });
@@ -1116,6 +1163,19 @@ export async function amendClient(
     configPatch.clientUri = parsed.metadata.clientUri;
     configPatch.policyUri = parsed.metadata.policyUri;
     configPatch.tosUri = parsed.metadata.tosUri;
+    configPatch.idTokenSignedResponseAlg = parsed.metadata.idTokenSignedResponseAlg;
+    configPatch.defaultMaxAge = parsed.metadata.defaultMaxAge;
+    configPatch.requireAuthTime = parsed.metadata.requireAuthTime;
+    if ('id_token_signed_response_alg' in input.values) {
+      const unavailable = await idTokenAlgUnavailable(tx, parsed.metadata.idTokenSignedResponseAlg);
+      if (unavailable !== null) {
+        return {
+          kind: 'invalid_value',
+          field: 'id_token_signed_response_alg',
+          description: unavailable,
+        };
+      }
+    }
 
     // `type` is unamendable (`refusalFor('type')`) for exactly this reason;
     // reaching the same change through `token_endpoint_auth_method` instead

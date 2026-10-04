@@ -79,6 +79,23 @@ import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange
 // tenant's, so issuance never sees a lifetime the client left unset.
 type IssuingConfig = ClientOidcConfig & TokenLifetimes;
 
+// The client's `id_token_signed_response_alg` (OIDC Dynamic Client
+// Registration §2), or the active key it signs with when it named none.
+// Never another algorithm in its place: a client that registered one may
+// reject anything else. Retiring that algorithm's last key is refused while
+// a client names it (packages/protocol-admin/src/usecase/keys.ts).
+async function idTokenKey(
+  tx: TenantScopedDatabase,
+  config: ClientOidcConfig,
+  active: SigningKeyRecord,
+): Promise<SigningKeyRecord> {
+  const alg = config.idTokenSignedResponseAlg;
+  if (alg === null || alg === active.alg) return active;
+  const key = await signingKeyRepository(tx).forAlg(alg);
+  if (key === null) throw new Error(`no signing key produces ${alg} for an ID token`);
+  return key;
+}
+
 // Re-exported so the view layer can name it without reaching into
 // repository directly (dependency-cruiser's no-view-to-repository rule) —
 // view/routes/token.ts is the one caller.
@@ -602,7 +619,9 @@ async function issueAuthorizationCodeTokens(
       // OIDC Core §2/§15.1: required for an Essential Claim or a `max_age`
       // request, both folded into this one flag at /authorize — otherwise
       // left out (authorization-request.ts's `claims` synthesis).
-      ...(code.claims.idToken.auth_time?.essential === true
+      // OIDC Dynamic Client Registration §2's `require_auth_time` adds a
+      // third: the client asked for it in every ID token.
+      ...(code.claims.idToken.auth_time?.essential === true || config.requireAuthTime
         ? { auth_time: Math.floor(code.authTime.getTime() / 1000) }
         : {}),
       ...(code.nonce !== null ? { nonce: code.nonce } : {}),
@@ -610,7 +629,10 @@ async function issueAuthorizationCodeTokens(
       ...(amr.length > 0 ? { amr } : {}),
       ...(acr !== null ? { acr } : {}),
     });
-    idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
+    idToken = await signJwt(idTokenClaims, {
+      key: await idTokenKey(tx, config, key),
+      kek: deps.kek,
+    });
   }
 
   // Persist the grant and bind the code's redemption to it — the anchor a
@@ -1309,7 +1331,10 @@ async function issueExchangedTokens(
       ...(subject.token.sessionId !== null ? { sid: subject.token.sessionId } : {}),
       ...(act === undefined ? {} : { act }),
     });
-    const idToken = await signJwt(idTokenClaims, { key, kek: deps.kek });
+    const idToken = await signJwt(idTokenClaims, {
+      key: await idTokenKey(tx, config, key),
+      kek: deps.kek,
+    });
     await recordExchange(null, ID_TOKEN_TYPE);
 
     return {

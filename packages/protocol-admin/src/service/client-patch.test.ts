@@ -13,8 +13,8 @@ describe('the client amendment allowlist', () => {
   // column, `builtin_admin`, which needs its own refusal reason rather
   // than falling silently into either list — the fourth test below is
   // what catches a column like it.
-  it('admits the four mutable columns on clients and 25 of 27 on client_oidc_config', () => {
-    expect(AMENDABLE_CLIENT_FIELDS).toHaveLength(29);
+  it('admits the four mutable columns on clients and 28 of 30 on client_oidc_config', () => {
+    expect(AMENDABLE_CLIENT_FIELDS).toHaveLength(32);
     for (const field of [
       'name',
       'enabled',
@@ -88,20 +88,23 @@ describe('the narrower allowlist the built-in admin client is amended through', 
   // `client_oidc_config` is refused on this one client by default, and
   // this is what forces somebody to say so deliberately instead of
   // discovering it when an administrator is locked out.
-  it('guards the other sixteen, admission-bearing or not yet judged', () => {
+  it('guards the other nineteen, admission-bearing or not yet judged', () => {
     expect([...BUILTIN_ADMIN_GUARDED_FIELDS].sort()).toEqual([
       'access_token_ttl_seconds',
       'audiences',
       'client_credentials_scopes',
+      'default_max_age',
       'enabled',
       'full_scope_allowed',
       'grant_types',
+      'id_token_signed_response_alg',
       'id_token_ttl_seconds',
       'jwks',
       'jwks_uri',
       'post_logout_redirect_uris',
       'redirect_uris',
       'refresh_token_ttl_seconds',
+      'require_auth_time',
       'tls_client_auth_subject_dn',
       'token_endpoint_auth_method',
       'token_exchange_impersonation_allowed',

@@ -878,6 +878,7 @@ export {
   type ClientTokenTtlRange,
 } from '#/service/client-token-ttl';
 export { clientOidcConfigRepository } from '#/repository/client-oidc-config';
+export { idTokenAlgUnavailable } from '#/usecase/id-token-alg';
 export {
   provisionAdminClient,
   ADMIN_CLIENT_REDIRECT_URI,

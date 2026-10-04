@@ -150,7 +150,7 @@ describe('tenant-wide lifetimes', () => {
     expect(Number(idToken.exp) - Number(idToken.iat)).toBe(450);
   });
 
-  it('expires an authorization code at the tenant’s code lifetime', async () => {
+  it('[OIDC-CORE-16.9-01] expires an authorization code at the tenant’s code lifetime', async () => {
     const { tenant, client, username } = await signedInTenant();
     await patchSettings(tenant.name, { authorization_code_ttl_seconds: 5 });
 

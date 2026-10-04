@@ -53,6 +53,11 @@ function toResponseBody(client: RegisteredClient): Record<string, unknown> {
     ...(metadata.clientUri === null ? {} : { client_uri: metadata.clientUri }),
     ...(metadata.policyUri === null ? {} : { policy_uri: metadata.policyUri }),
     ...(metadata.tosUri === null ? {} : { tos_uri: metadata.tosUri }),
+    ...(metadata.idTokenSignedResponseAlg === null
+      ? {}
+      : { id_token_signed_response_alg: metadata.idTokenSignedResponseAlg }),
+    ...(metadata.defaultMaxAge === null ? {} : { default_max_age: metadata.defaultMaxAge }),
+    require_auth_time: metadata.requireAuthTime,
   };
 }
 

@@ -29,6 +29,9 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     client_uri: 'value',
     policy_uri: 'value',
     tos_uri: 'value',
+    id_token_signed_response_alg: 'value',
+    default_max_age: 'value',
+    require_auth_time: 'value',
     // `jwks` reaches here through `clientWireShape` and can really change
     // on an amend. `secret_hash` and `password_encrypted` cannot: neither
     // is ever part of a client's wire shape, and `rotateClientSecret`

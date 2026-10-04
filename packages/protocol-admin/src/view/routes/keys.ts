@@ -163,7 +163,8 @@ function retirementProblem(
           'about:blank',
           'Conflict',
           `no remaining signing key produces ${outcome.alg}, still required by ` +
-            `userinfo_signed_response_alg on client(s): ${outcome.clientIds.join(', ')}`,
+            `userinfo_signed_response_alg or id_token_signed_response_alg on client(s): ` +
+            outcome.clientIds.join(', '),
         ),
       );
   }

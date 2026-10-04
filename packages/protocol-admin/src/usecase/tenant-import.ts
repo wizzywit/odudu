@@ -185,6 +185,9 @@ async function writeClient(
     clientUri: metadata.clientUri,
     policyUri: metadata.policyUri,
     tosUri: metadata.tosUri,
+    idTokenSignedResponseAlg: metadata.idTokenSignedResponseAlg,
+    defaultMaxAge: metadata.defaultMaxAge,
+    requireAuthTime: metadata.requireAuthTime,
   });
   return { id: created.id, serviceSubjectId, secret };
 }

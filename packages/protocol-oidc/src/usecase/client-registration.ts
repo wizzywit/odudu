@@ -13,6 +13,7 @@ import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { extractBearerToken } from '#/service/bearer-token';
 import { parseClientMetadata, type ClientMetadata } from '#/service/client-metadata';
+import { idTokenAlgUnavailable } from '#/usecase/id-token-alg';
 
 export interface ClientRegistrationDeps {
   findTenant(name: string): Promise<TenantLookup | null>;
@@ -94,6 +95,11 @@ async function performRegistration(
     }
   }
 
+  const idTokenAlg = await idTokenAlgUnavailable(tx, metadata.idTokenSignedResponseAlg);
+  if (idTokenAlg !== null) {
+    return { kind: 'invalid_metadata', error: 'invalid_client_metadata', description: idTokenAlg };
+  }
+
   // jwks_uri is validated for shape only, by parseClientMetadata
   // (assertFetchableUrl) — never dereferenced here. The key is not needed
   // until `authenticatePrivateKeyJwt` (usecase/token-issuance.ts) fetches
@@ -153,6 +159,9 @@ async function performRegistration(
     clientUri: metadata.clientUri,
     policyUri: metadata.policyUri,
     tosUri: metadata.tosUri,
+    idTokenSignedResponseAlg: metadata.idTokenSignedResponseAlg,
+    defaultMaxAge: metadata.defaultMaxAge,
+    requireAuthTime: metadata.requireAuthTime,
   });
 
   return {

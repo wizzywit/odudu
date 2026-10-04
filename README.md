@@ -159,7 +159,13 @@ characters, and RFC 7591's `client_uri`, `policy_uri` and `tos_uri`, each an
 absolute https URI (http only on a loopback host) with no fragment: dynamic
 registration accepts and echoes the three, `POST` and `PATCH /clients`
 write all four, the tenant document carries them, and the consent screen
-links the three pages under the client's name. Outgoing mail goes through
+links the three pages under the client's name. Three more are OpenID
+Connect Dynamic Client Registration §2's: `id_token_signed_response_alg`
+signs the client's ID tokens with `RS256` or `ES256` where the tenant holds a
+key for it (and the last key of an algorithm a client names cannot be
+retired), `default_max_age` forces a fresh login for a request that carries
+no `max_age` of its own once the session is older, and `require_auth_time`
+puts `auth_time` in every ID token. Outgoing mail goes through
 `ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
 `ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`;
 leave `ODUDU_SMTP_HOST` unset and the server logs every message instead of
