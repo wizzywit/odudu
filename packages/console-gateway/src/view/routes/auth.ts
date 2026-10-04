@@ -1,9 +1,12 @@
 import { type FastifyInstance, type FastifyReply } from 'fastify';
 import {
   clearedLoginCookie,
+  clearedRestartCookie,
   loginCookie,
   loginCookieName,
   readCookie,
+  restartCookie,
+  restartCookieName,
   sessionCookie,
 } from '#/service/cookies';
 import { beginLogin, type LoginDeps } from '#/usecase/begin-login';
@@ -75,7 +78,12 @@ export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps
       now: deps.now(),
     });
     const cleared = clearedLoginCookie(deps.tls);
-    if (result.kind === 'refused') return refuse(reply, 400, [cleared]);
+    if (result.kind === 'refused') {
+      // Once: a refusal inside the restart's minute is shown, not retried.
+      const restarted = readCookie(request.headers.cookie, restartCookieName(deps.tls));
+      if (result.restart === null || restarted !== undefined) return refuse(reply, 400, [cleared]);
+      return redirect(reply, result.restart, [cleared, restartCookie(deps.tls)]);
+    }
     if (result.kind === 'signed-in' && result.replacedFailure !== undefined) {
       request.log.warn(
         { err: result.replacedFailure },
@@ -84,7 +92,7 @@ export function registerAuthRoutes(fastify: FastifyInstance, deps: AuthRouteDeps
     }
     const cookies =
       result.kind === 'signed-in'
-        ? [cleared, sessionCookie(result.sessionCookie, deps.tls)]
+        ? [cleared, clearedRestartCookie(deps.tls), sessionCookie(result.sessionCookie, deps.tls)]
         : [cleared];
     return redirect(reply, result.location, cookies);
   });

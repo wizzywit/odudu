@@ -42,9 +42,27 @@ export type CallbackResult =
       readonly replacedFailure?: FailureKind;
     }
   | { readonly kind: 'op-error'; readonly location: string }
-  | { readonly kind: 'refused' };
+  // Where to begin the sign-in again, or null for a callback that carried
+  // no state, which no sign-in of this console's could have produced.
+  | { readonly kind: 'refused'; readonly restart: string | null };
 
-const REFUSED: CallbackResult = { kind: 'refused' };
+const CONSOLE = '/console/';
+
+// The same answer for every refusal, so it says nothing of the check that
+// failed: the sign-in of the tenant the state is bound to, never the code.
+async function refused(deps: LoginDeps, state: string | undefined): Promise<CallbackResult> {
+  if (state === undefined) return { kind: 'refused', restart: null };
+  const bound = splitTenantBound(state);
+  if (bound === null) return { kind: 'refused', restart: CONSOLE };
+  const name = await withTenant(deps.database.db, bound.tenantId, (tx) =>
+    tenantNameRepository(tx).nameOf(bound.tenantId),
+  );
+  if (name === null) return { kind: 'refused', restart: CONSOLE };
+  return {
+    kind: 'refused',
+    restart: `/console/auth/login?${new URLSearchParams({ tenant: name }).toString()}`,
+  };
+}
 
 export interface FailureKind {
   readonly type: string;
@@ -124,13 +142,13 @@ export async function completeLogin(
   }
 
   const taken = await takeLogin(deps, input.state, input.loginCookie, input.now);
-  if (taken === null || input.code === undefined) return REFUSED;
+  if (taken === null || input.code === undefined) return refused(deps, input.state);
   const { login, tenantName } = taken;
 
   // RFC 9207 §2.4: the authorization response names its issuer, and one
   // naming any other tenant's is a mix-up.
   const issuer = await deps.odudu.issuerOf(tenantName, input.from);
-  if (issuer === null || input.iss !== issuer) return REFUSED;
+  if (issuer === null || input.iss !== issuer) return refused(deps, input.state);
 
   const tokens = await deps.odudu.exchangeCode({
     tenant: tenantName,
@@ -139,7 +157,7 @@ export async function completeLogin(
     redirectUri: callbackUri(deps.base),
     from: input.from,
   });
-  if (tokens === null) return REFUSED;
+  if (tokens === null) return refused(deps, input.state);
 
   // From here a live grant exists, and a sign-in that stops short of a
   // session, by refusal or by a throw, must not leave it behind.
@@ -152,7 +170,7 @@ export async function completeLogin(
   }
   if (signedIn === null) {
     await endGrant(deps.odudu, tenantName, tokens.refreshToken, input.from);
-    return REFUSED;
+    return refused(deps, input.state);
   }
   const replacedFailure = await endReplacedSession(deps, input);
   return replacedFailure === null ? signedIn : { ...signedIn, replacedFailure };

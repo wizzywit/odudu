@@ -44,6 +44,8 @@ const REDIRECT_URI = `${BASE}/console/auth/callback`;
 const LOGIN_COOKIE = 'odudu-console-login';
 const SESSION_COOKIE = 'odudu-console';
 const REFUSAL = 'sign-in could not be completed';
+const RESTART_COOKIE = 'odudu-console-restart';
+const RESTART = `/console/auth/login?tenant=${SYSTEM_TENANT_NAME}`;
 
 beforeAll(async () => {
   containerHandle = await startTestDatabase();
@@ -83,7 +85,24 @@ async function sessionsFor(subjectId: string): Promise<Record<string, unknown>[]
 function expectRefused(res: LightMyRequestResponse): void {
   expect(res.statusCode).toBe(400);
   expect(res.body).toContain(REFUSAL);
+  expect(res.body).toContain('<a href="/console/">Sign in again</a>');
   expect(res.headers['set-cookie'] ?? '').not.toContain(`${SESSION_COOKIE}=`);
+}
+
+function setCookies(res: LightMyRequestResponse): string[] {
+  const header = res.headers['set-cookie'];
+  return header === undefined ? [] : Array.isArray(header) ? header : [header];
+}
+
+// A refused callback begins the sign-in again, once: a fresh state, nothing
+// taken from the refused one but its tenant, and a guard against a loop.
+function expectRestarted(res: LightMyRequestResponse, location = RESTART): void {
+  expect(res.statusCode).toBe(302);
+  expect(res.headers.location).toBe(location);
+  const cookies = setCookies(res);
+  expect(cookies).toContain(`${LOGIN_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`);
+  expect(cookies).toContain(`${RESTART_COOKIE}=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=60`);
+  expect(cookies.join('\n')).not.toContain(`${SESSION_COOKIE}=`);
 }
 
 function claimsOf(jwt: string): Record<string, unknown> {
@@ -270,7 +289,7 @@ describe('GET /console/auth/callback', () => {
       );
       const next = await signInAtOp(stack, second, authorize);
 
-      expectRefused(await browse(stack, second, pathOf(stack, next.callback)));
+      expectRestarted(await browse(stack, second, pathOf(stack, next.callback)));
 
       expect(await sessionsFor(old.subjectId)).toHaveLength(1);
       const session = await browse(stack, first, '/console/api/session');
@@ -414,15 +433,20 @@ describe('GET /console/auth/callback', () => {
       const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
 
       jar.cookies.delete(LOGIN_COOKIE);
-      expectRefused(await browse(stack, jar, pathOf(stack, callback)));
+      expectRestarted(await browse(stack, jar, pathOf(stack, callback)));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
 
+      // A second refusal while the restart is fresh shows the page instead.
       jar.cookies.set(LOGIN_COOKIE, `${SYSTEM_TENANT_ID}.bm90LXRoZS1zdGF0ZQ`);
       expectRefused(await browse(stack, jar, pathOf(stack, callback)));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
 
       jar.cookies.set(LOGIN_COOKIE, state);
-      expect((await browse(stack, jar, pathOf(stack, callback))).statusCode).toBe(302);
+      const signedIn = await browse(stack, jar, pathOf(stack, callback));
+      expect(signedIn.statusCode).toBe(302);
+      expect(setCookies(signedIn)).toContain(
+        `${RESTART_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      );
       expect(await sessionsFor(subjectId)).toHaveLength(1);
     } finally {
       await stack.app.close();
@@ -438,7 +462,7 @@ describe('GET /console/auth/callback', () => {
       expect((await browse(stack, jar, pathOf(stack, callback))).statusCode).toBe(302);
 
       jar.cookies.set(LOGIN_COOKIE, state);
-      expectRefused(await browse(stack, jar, pathOf(stack, callback)));
+      expectRestarted(await browse(stack, jar, pathOf(stack, callback)));
       expect(await sessionsFor(subjectId)).toHaveLength(1);
     } finally {
       await stack.app.close();
@@ -454,7 +478,7 @@ describe('GET /console/auth/callback', () => {
       const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
       clock.advance(11 * 60 * 1000);
 
-      expectRefused(await browse(stack, jar, pathOf(stack, callback)));
+      expectRestarted(await browse(stack, jar, pathOf(stack, callback)));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
     } finally {
       await stack.app.close();
@@ -470,7 +494,7 @@ describe('GET /console/auth/callback', () => {
       const forged = new URL(callback);
       forged.searchParams.set('iss', `${BASE}/tenants/acme`);
 
-      expectRefused(await browse(stack, jar, pathOf(stack, forged.toString())));
+      expectRestarted(await browse(stack, jar, pathOf(stack, forged.toString())));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
     } finally {
       await stack.app.close();
@@ -488,7 +512,7 @@ describe('GET /console/auth/callback', () => {
       );
       const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
 
-      expectRefused(await browse(stack, jar, pathOf(stack, callback)));
+      expectRestarted(await browse(stack, jar, pathOf(stack, callback)));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
 
       expect(tokenResponses).toHaveLength(1);
@@ -517,7 +541,7 @@ describe('GET /console/auth/callback', () => {
       const stripped = new URL(callback);
       stripped.searchParams.delete('iss');
 
-      expectRefused(await browse(stack, jar, pathOf(stack, stripped.toString())));
+      expectRestarted(await browse(stack, jar, pathOf(stack, stripped.toString())));
       expect(await sessionsFor(subjectId)).toHaveLength(0);
     } finally {
       await stack.app.close();
@@ -539,12 +563,110 @@ describe('GET /console/auth/callback', () => {
       forged.searchParams.set('state', edited);
       jar.cookies.set(LOGIN_COOKIE, edited);
 
-      expectRefused(await browse(stack, jar, pathOf(stack, forged.toString())));
+      expectRestarted(
+        await browse(stack, jar, pathOf(stack, forged.toString())),
+        `/console/auth/login?tenant=edited-${other.slice(-12)}`,
+      );
       expect(await sessionsFor(subjectId)).toHaveLength(0);
       const left = await owner.db.execute(
         sql`SELECT id FROM console_logins WHERE state_hash = ${sha256(state)}`,
       );
       expect(left).toHaveLength(1);
+    } finally {
+      await stack.app.close();
+    }
+  });
+
+  it('restarts an expired login once, and shows the page with its way out on a second refusal', async () => {
+    const stack = await startApp();
+    const { clock } = stack;
+    try {
+      const jar = new Jar();
+      const { authorize } = await beginLogin(stack, jar);
+      const { callback } = await signInAtOp(stack, jar, authorize);
+      clock.advance(11 * 60 * 1000);
+      jar.cookies.delete(LOGIN_COOKIE);
+
+      expectRestarted(await browse(stack, jar, pathOf(stack, callback)));
+      expect(jar.cookies.get(RESTART_COOKIE)).toBe('1');
+      expectRefused(await browse(stack, jar, pathOf(stack, callback)));
+    } finally {
+      await stack.app.close();
+    }
+  });
+
+  it('restarts a state that does not match this browser’s login cookie', async () => {
+    const stack = await startApp();
+    try {
+      const mine = new Jar();
+      await beginLogin(stack, mine);
+      const theirs = new Jar();
+      const { authorize } = await beginLogin(stack, theirs);
+      const { callback, subjectId } = await signInAtOp(stack, theirs, authorize);
+
+      expectRestarted(await browse(stack, mine, pathOf(stack, callback)));
+      expect(await sessionsFor(subjectId)).toHaveLength(0);
+    } finally {
+      await stack.app.close();
+    }
+  });
+
+  it('shows the page for a forged callback that carries no state', async () => {
+    const stack = await startApp();
+    try {
+      const query = new URLSearchParams({ code: 'forged', iss: ISSUER });
+      const res = await browse(stack, new Jar(), `/console/auth/callback?${query.toString()}`);
+      expectRefused(res);
+      expect(setCookies(res).join('\n')).not.toContain(`${RESTART_COOKIE}=1`);
+    } finally {
+      await stack.app.close();
+    }
+  });
+
+  it('restarts at the console itself when the state names no tenant it can use', async () => {
+    const stack = await startApp();
+    try {
+      for (const state of ['not-a-state', `${newId()}.${'a'.repeat(43)}`]) {
+        const query = new URLSearchParams({ code: 'forged', state, iss: ISSUER });
+        expectRestarted(
+          await browse(stack, new Jar(), `/console/auth/callback?${query.toString()}`),
+          '/console/',
+        );
+      }
+    } finally {
+      await stack.app.close();
+    }
+  });
+
+  it('signs in through the restart after the login waited past its lifetime', async () => {
+    const stack = await startApp();
+    try {
+      const jar = new Jar();
+      const { authorize, state } = await beginLogin(stack, jar);
+      const { callback, subjectId } = await signInAtOp(stack, jar, authorize);
+      // Expired in the row rather than on the gateway's clock, which would
+      // also put the provider's fresh ID token out of date.
+      await owner.db.execute(
+        sql`UPDATE console_logins SET expires_at = now() - interval '1 second' WHERE state_hash = ${sha256(state)}`,
+      );
+      // The browser has dropped the login cookie by its Max-Age.
+      jar.cookies.delete(LOGIN_COOKIE);
+
+      const restarted = await browse(stack, jar, pathOf(stack, callback));
+      expectRestarted(restarted);
+      const login = await browse(stack, jar, String(restarted.headers.location));
+      expect(login.statusCode).toBe(302);
+      const fresh = new URL(String(login.headers.location));
+      expect(fresh.searchParams.get('state')).not.toBe(new URL(callback).searchParams.get('state'));
+      // The provider's own session from the stale sign-in answers at once.
+      const answered = await browse(stack, jar, fresh.pathname + fresh.search);
+      expect(answered.statusCode).toBe(302);
+      const done = await browse(stack, jar, pathOf(stack, String(answered.headers.location)));
+      expect(done.statusCode).toBe(302);
+      expect(done.headers.location).toBe('/console/');
+      expect(jar.cookies.has(SESSION_COOKIE)).toBe(true);
+      expect(jar.cookies.has(RESTART_COOKIE)).toBe(false);
+      expect(await sessionsFor(subjectId)).toHaveLength(1);
     } finally {
       await stack.app.close();
     }

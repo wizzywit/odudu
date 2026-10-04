@@ -1,7 +1,9 @@
 import { type RenderedPage } from '@odudu/kernel';
 
 const TITLE = 'Sign-in failed';
-const BODY = '<h1>Sign-in failed</h1>\n<p>The sign-in could not be completed.</p>';
+const BODY = `<h1>Sign-in failed</h1>
+<p>The sign-in could not be completed.</p>
+<p><a href="/console/">Sign in again</a></p>`;
 
 // Deliberately the same page for every refusal, so a response says nothing
 // about which check a forged or stale callback failed.

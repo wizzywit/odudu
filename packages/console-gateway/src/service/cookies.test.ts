@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   clearedLoginCookie,
+  clearedRestartCookie,
   loginCookie,
+  restartCookie,
+  restartCookieName,
   clearedSessionCookie,
   loginCookieName,
   readCookie,
@@ -32,6 +35,25 @@ describe('the login cookie', () => {
   it('is cleared with the same name and path', () => {
     expect(clearedLoginCookie(false)).toBe(
       'odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0',
+    );
+  });
+});
+
+describe('the restart cookie', () => {
+  // __Host- needs Path=/, so it is not scoped to /console/auth either.
+  it('lives a minute, Lax, at the root path, __Host- only under TLS', () => {
+    expect(restartCookieName(true)).toBe('__Host-odudu-console-restart');
+    expect(restartCookie(true)).toBe(
+      '__Host-odudu-console-restart=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=60; Secure',
+    );
+    expect(restartCookie(false)).toBe(
+      'odudu-console-restart=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=60',
+    );
+  });
+
+  it('is cleared with the same name and path', () => {
+    expect(clearedRestartCookie(false)).toBe(
+      'odudu-console-restart=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0',
     );
   });
 });

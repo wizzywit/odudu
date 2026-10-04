@@ -8,4 +8,10 @@ describe('renderSignInRefused', () => {
     expect(page.script).toBeNull();
     expect(page.frames).toEqual([]);
   });
+
+  it('offers one way out, back to the console, which begins a fresh sign-in', () => {
+    const page = renderSignInRefused();
+    expect(page.html).toContain('<a href="/console/">Sign in again</a>');
+    expect(page.html.match(/<a /gu)).toHaveLength(1);
+  });
 });

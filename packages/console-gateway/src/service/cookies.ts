@@ -1,5 +1,7 @@
 import { CONSOLE_LOGIN_SECONDS } from '#/service/session-lifetime';
 
+const RESTART_SECONDS = 60;
+
 // ADR 0020: a __Host- cookie needs Secure, which plain HTTP cannot carry,
 // so the name follows TLS. __Host- also requires Path=/, which is why the
 // login cookie is not scoped to /console/auth.
@@ -28,6 +30,30 @@ export function loginCookie(state: string, tls: boolean): string {
 
 export function clearedLoginCookie(tls: boolean): string {
   return cookie(loginCookieName(tls), '', ['HttpOnly', 'SameSite=Lax', 'Path=/', 'Max-Age=0'], tls);
+}
+
+// Set when a refused callback begins the sign-in again, so a second refusal
+// inside its minute shows the page rather than looping through the provider.
+export function restartCookieName(tls: boolean): string {
+  return tls ? '__Host-odudu-console-restart' : 'odudu-console-restart';
+}
+
+export function restartCookie(tls: boolean): string {
+  return cookie(
+    restartCookieName(tls),
+    '1',
+    ['HttpOnly', 'SameSite=Lax', 'Path=/', `Max-Age=${String(RESTART_SECONDS)}`],
+    tls,
+  );
+}
+
+export function clearedRestartCookie(tls: boolean): string {
+  return cookie(
+    restartCookieName(tls),
+    '',
+    ['HttpOnly', 'SameSite=Lax', 'Path=/', 'Max-Age=0'],
+    tls,
+  );
 }
 
 export function sessionCookie(value: string, tls: boolean): string {
