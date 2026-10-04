@@ -3,6 +3,7 @@
    compound field lays out its parts by the width it was given. */
 .frame {
   container-type: inline-size;
+  inline-size: 100%;
   min-inline-size: 0;
 }
 

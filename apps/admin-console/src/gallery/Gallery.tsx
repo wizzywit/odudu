@@ -529,7 +529,7 @@ function ProfileCloseUp() {
     </GridCell>
   );
   return (
-    <div className={styles.stack}>
+    <div className={styles.sections}>
       <Section title="Name" dirty={false} saving={false} onSave={NOTHING} onDiscard={NOTHING}>
         <FieldGrid>
           {text('name', 'Full name')}
