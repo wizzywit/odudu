@@ -256,7 +256,17 @@ test('a full birthdate is entered by keyboard alone', async ({ page }) => {
     if (await known.evaluate((node) => node === document.activeElement)) break;
     await page.keyboard.press('Tab');
   }
+  // The form is chosen by keyboard: Year only, then back to the full date.
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(known).toHaveText(/Year only/u);
+  await expect(birthdate.getByRole('textbox', { name: 'Year' })).toBeVisible();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Enter');
   await expect(known).toHaveText(/Full date/u);
+  await expect(known).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(birthdate.getByRole('spinbutton').first()).toBeFocused();
   // The browser's locale here is en-US: month, day, year.
