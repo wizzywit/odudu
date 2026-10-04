@@ -88,6 +88,8 @@ const seededSchema = z.object({
     // birthdate another enters by keyboard alone.
     typed: z.string(),
     keyed: z.string(),
+    // Whose filled-in profile the layout tests measure, and nothing changes.
+    measured: z.string(),
     // Locked out by a test, then cleared.
     locked: account,
     // Issued a one-time password, which then signs in.

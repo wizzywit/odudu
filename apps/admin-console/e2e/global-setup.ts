@@ -55,6 +55,7 @@ export default function globalSetup(): void {
     conflict: 'augusta',
     typed: 'hypatia',
     keyed: 'euclid',
+    measured: 'somerville',
     locked: { tenant: `${run}-s`, username: 'lamarr', password: password() },
     issued: { tenant: `${run}-s`, username: 'franklin', password: password() },
     doomed: 'turing',
@@ -98,7 +99,13 @@ export default function globalSetup(): void {
   administrator(subjects.admin);
   subject(subjects.viewer);
   grant(subjects.viewer, 'odudu-admin:view-users');
-  for (const username of [subjects.edited, subjects.conflict, subjects.typed, subjects.keyed]) {
+  for (const username of [
+    subjects.edited,
+    subjects.conflict,
+    subjects.typed,
+    subjects.keyed,
+    subjects.measured,
+  ]) {
     subject({ tenant: subjects.admin.tenant, username, password: password() });
   }
   subject(subjects.locked);
