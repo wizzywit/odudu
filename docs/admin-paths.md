@@ -423,7 +423,9 @@ not re-run — each says so, and why, where it appears.
 
 Migrations `0082` to `0086` added fields every client and every tenant
 document now carries, and a handful of transcripts below were captured
-before them. Each says so where it is shown. What such a transcript lacks:
+before them. Each says so where it is shown, and each is recaptured after
+the group, role and scope configuration work that changes the same
+sections, before P4d's close pass. What such a transcript lacks:
 a client read now also carries `description`, `id_token_ttl_seconds`,
 `client_uri`, `policy_uri`, `tos_uri`, `id_token_signed_response_alg`,
 `default_max_age`, `require_auth_time` and `previous_secret_expires_at`, and
@@ -1375,7 +1377,7 @@ curl -sS -D - \
   http://localhost:3000/admin/tenants/export-demo/export
 ```
 
-Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 HTTP/1.1 200 OK
@@ -2057,7 +2059,7 @@ curl -sS -D - -X POST \
   http://localhost:3080/admin/tenants/demo/clients
 ```
 
-Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 HTTP/1.1 201 Created
@@ -2083,7 +2085,7 @@ curl -sS -D - \
   http://localhost:3080/admin/tenants/demo/clients/01a0ea52-00e5-7d46-9b04-4047f5547b03
 ```
 
-Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 HTTP/1.1 200 OK
@@ -2162,7 +2164,7 @@ curl -sS -D - -X POST \
 one-time secret. The `scopes` ids are `client-facts-demo`'s own, created
 with the tenant above:
 
-Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 HTTP/1.1 201 Created
@@ -2220,7 +2222,7 @@ curl -sS -D - \
   "http://localhost:3080/admin/tenants/demo/clients?client_id=DEMO&type=confidential&limit=1"
 ```
 
-Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 HTTP/1.1 200 OK
@@ -2456,7 +2458,7 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3080/admin/tenants/client-facts-demo/clients/01a0ea52-5338-79b6-856d-2be5d449e11e
 ```
 
-Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 {"id":"01a0ea52-5338-79b6-856d-2be5d449e11e","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-28T23:20:58.904Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0ea52-531a-7799-aab8-fe7dfcf769a6","scopes":[{"id":"01a0ea52-52d9-715b-ac9f-3f2ff5e8cbe5","name":"openid","assignment":"default"},{"id":"01a0ea52-52da-76aa-a90a-0bb41b35e3c9","name":"profile","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-3543425d2470","name":"email","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-35440d053d73","name":"address","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bcb2323b2d5","name":"phone","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bccdc833770","name":"roles","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1a4b075bcc","name":"groups","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1b19fc898d","name":"offline_access","assignment":"optional"}]}
@@ -2612,8 +2614,8 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 The transcript below it predates `grace_seconds` and the client fields added
-since it was captured, so its body lacks them; what it shows of a rotation without
-grace is otherwise unchanged.
+since it was captured, so its body lacks them, until it is recaptured before
+P4d closes; what it shows of a rotation without grace is otherwise unchanged.
 
 ```bash
 curl -sS -X POST \
@@ -2626,7 +2628,7 @@ Captured immediately after the disable above, which is why `enabled` reads
 being on the built-in client rather than on a disabled one. `demo-backend`
 was deleted afterward, in the `DELETE` section above.
 
-Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 {"id":"01a0ea52-5338-79b6-856d-2be5d449e11e","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-28T23:20:58.904Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0ea52-531a-7799-aab8-fe7dfcf769a6","scopes":[{"id":"01a0ea52-52d9-715b-ac9f-3f2ff5e8cbe5","name":"openid","assignment":"default"},{"id":"01a0ea52-52da-76aa-a90a-0bb41b35e3c9","name":"profile","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-3543425d2470","name":"email","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-35440d053d73","name":"address","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bcb2323b2d5","name":"phone","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bccdc833770","name":"roles","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1a4b075bcc","name":"groups","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1b19fc898d","name":"offline_access","assignment":"optional"}],"client_secret":"LP5wAXCjiJZrtCtUazC4IZBTWQyMjI0cnpHDmgaKShs"}
@@ -6896,7 +6898,7 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3080/admin/tenants/scope-unassign-demo/scopes/01a0ea62-eab5-7272-9ed9-b0306b9f211a/clients/01a0ea62-eaef-7228-a188-247cd02f071f
 ```
 
-Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 HTTP/1.1 204 No Content
@@ -7719,7 +7721,7 @@ reserved-`client_id` refusal, attempted last, then `demo-app` and
 `demo-backend` below it — both created directly through `POST /clients`,
 oldest last:
 
-Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 {"items":[{"id":"01a0ee95-ae60-72e3-8a5d-c5f9b1c33908","occurred_at":"2026-09-29T19:13:02.047Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0ee95-ae38-7a0f-a18d-797dbc8a2d06","ip":"172.22.0.1","detail":{}},{"id":"01a0ee95-ae2b-761b-9477-55bd94e8374a","occurred_at":"2026-09-29T19:13:01.912Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ae07-7eaf-83d7-bbb02a7840c4","request_id":"01a0ee95-adbb-7232-b2b2-9841c6fe75df","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"private_key_jwt"}}},{"id":"01a0ee95-adb1-78e5-a8f7-8b6c6e6526a6","occurred_at":"2026-09-29T19:13:01.658Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ad80-7776-8fec-a430c88e186b","request_id":"01a0ee95-acb2-79b9-b44d-5c3ba2e2026d","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/callback"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
@@ -7777,7 +7779,7 @@ curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3082/admin/tenants/demo/audit; echo
 ```
 
-Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 {"items":[{"id":"01a0ee95-ae60-72e3-8a5d-c5f9b1c33908","occurred_at":"2026-09-29T19:13:02.047Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0ee95-ae38-7a0f-a18d-797dbc8a2d06","ip":"172.22.0.1","detail":{}},{"id":"01a0ee95-ae2b-761b-9477-55bd94e8374a","occurred_at":"2026-09-29T19:13:01.912Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ae07-7eaf-83d7-bbb02a7840c4","request_id":"01a0ee95-adbb-7232-b2b2-9841c6fe75df","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"private_key_jwt"}}},{"id":"01a0ee95-adb1-78e5-a8f7-8b6c6e6526a6","occurred_at":"2026-09-29T19:13:01.658Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ad80-7776-8fec-a430c88e186b","request_id":"01a0ee95-acb2-79b9-b44d-5c3ba2e2026d","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/callback"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
@@ -7829,7 +7831,7 @@ curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 Only `resource-doc-a`'s own row, not `resource-doc-b`'s:
 
-Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 {"items":[{"id":"01a0ee95-dab9-7f0d-ad4e-79e72240e973","occurred_at":"2026-09-29T19:13:13.327Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-daa4-70e7-b131-bb8e9e998f7d","request_id":"01a0ee95-da55-71b4-85f3-daf418c61c2c","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"resource-doc-a"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://a.example/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}

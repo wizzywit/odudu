@@ -1296,7 +1296,7 @@ the command is the same one:
 node --env-file=.env apps/server/src/main.ts reap
 ```
 
-Captured before the report gained `cleared`, which every pass now prints after `deleted` — `"cleared":{"client_previous_secrets":0}` where no rotated-out client secret's window had ended ([docs/admin-paths.md](docs/admin-paths.md#post-clientsidsecret)).
+Captured before the report gained `cleared`, and recaptured before P4d closes: every pass now prints after `deleted` — `"cleared":{"client_previous_secrets":0}` where no rotated-out client secret's window had ended ([docs/admin-paths.md](docs/admin-paths.md#post-clientsidsecret)).
 
 ```
 {"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"sessions":0,"audit_events":0}}
