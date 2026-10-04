@@ -43,6 +43,13 @@ const SETTINGS = {
   remember_me_max_seconds: { column: 'rememberMeMaxSeconds', type: 'integer' },
   audit_retention_days: { column: 'auditRetentionDays', type: 'integer' },
   username_editable: { column: 'usernameEditable', type: 'boolean' },
+  access_token_ttl_seconds: { column: 'accessTokenTtlSeconds', type: 'integer' },
+  id_token_ttl_seconds: { column: 'idTokenTtlSeconds', type: 'integer' },
+  refresh_token_ttl_seconds: { column: 'refreshTokenTtlSeconds', type: 'integer' },
+  authorization_code_ttl_seconds: { column: 'authorizationCodeTtlSeconds', type: 'integer' },
+  login_ttl_seconds: { column: 'loginTtlSeconds', type: 'integer' },
+  verify_email_ttl_seconds: { column: 'verifyEmailTtlSeconds', type: 'integer' },
+  reset_password_ttl_seconds: { column: 'resetPasswordTtlSeconds', type: 'integer' },
 } as const satisfies Record<string, TenantSetting>;
 
 interface TenantSetting {
@@ -117,7 +124,7 @@ export interface TenantSettingRange {
 }
 
 // The ranges the CHECK constraints on `tenants` hold each integer setting
-// to (migrations 0028, 0035, 0041, 0045, 0048, 0049 and 0068), restated so
+// to (migrations 0028, 0035, 0041, 0045, 0048, 0049, 0068 and 0082), restated so
 // a caller can be refused per setting before anything is written;
 // tests/tenant-setting-checks.int.test.ts holds the two in agreement.
 export const TENANT_SETTING_RANGES: Readonly<
@@ -136,6 +143,13 @@ export const TENANT_SETTING_RANGES: Readonly<
   remember_me_idle_seconds: { min: 60, max: 31_536_000 },
   remember_me_max_seconds: { min: 60, max: 31_536_000 },
   audit_retention_days: { min: 1, max: 3650 },
+  access_token_ttl_seconds: { min: 1, max: 3600 },
+  id_token_ttl_seconds: { min: 1, max: 3600 },
+  refresh_token_ttl_seconds: { min: 1 },
+  authorization_code_ttl_seconds: { min: 1, max: 600 },
+  login_ttl_seconds: { min: 60, max: 86_400 },
+  verify_email_ttl_seconds: { min: 60, max: 604_800 },
+  reset_password_ttl_seconds: { min: 60, max: 86_400 },
 };
 
 /** Pairs `[lower, upper]` a CHECK holds `lower <= upper`. */

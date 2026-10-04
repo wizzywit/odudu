@@ -17,8 +17,11 @@ export const clientOidcConfig = pgTable('client_oidc_config', {
   grantTypes: text('grant_types').array().notNull(),
   tokenEndpointAuthMethod: text('token_endpoint_auth_method').notNull(),
   audiences: text('audiences').array().notNull().default([]),
-  accessTokenTtlSeconds: integer('access_token_ttl_seconds').notNull().default(300),
-  refreshTokenTtlSeconds: integer('refresh_token_ttl_seconds').notNull().default(1_209_600),
+  // Null takes the tenant's own lifetime
+  // (packages/db/drizzle/0082_tenant_lifetimes.sql).
+  accessTokenTtlSeconds: integer('access_token_ttl_seconds'),
+  idTokenTtlSeconds: integer('id_token_ttl_seconds'),
+  refreshTokenTtlSeconds: integer('refresh_token_ttl_seconds'),
   // The ceiling on what client_credentials may request — resource-server
   // scopes (e.g. `reports:read`), not the OIDC vocabulary the tenant's
   // client_scopes carry, since this grant has no consent screen and no
@@ -75,8 +78,9 @@ export interface ClientOidcConfig {
   grantTypes: string[];
   tokenEndpointAuthMethod: TokenEndpointAuthMethod;
   audiences: string[];
-  accessTokenTtlSeconds: number;
-  refreshTokenTtlSeconds: number;
+  accessTokenTtlSeconds: number | null;
+  idTokenTtlSeconds: number | null;
+  refreshTokenTtlSeconds: number | null;
   clientCredentialsScopes: string[];
   webOrigins: string[];
   postLogoutRedirectUris: string[];

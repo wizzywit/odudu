@@ -62,6 +62,13 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   remember_me_max_seconds: count,
   audit_retention_days: count,
   username_editable: z.boolean(),
+  access_token_ttl_seconds: count,
+  id_token_ttl_seconds: count,
+  refresh_token_ttl_seconds: count,
+  authorization_code_ttl_seconds: count,
+  login_ttl_seconds: count,
+  verify_email_ttl_seconds: count,
+  reset_password_ttl_seconds: count,
 });
 export type TenantSettingsDocument = z.infer<typeof tenantSettingsDocumentSchema>;
 
@@ -91,8 +98,9 @@ export const exportedClientSchema = z.strictObject({
   grant_types: z.array(z.string()),
   token_endpoint_auth_method: z.string(),
   audiences: z.array(z.string()),
-  access_token_ttl_seconds: z.number().int(),
-  refresh_token_ttl_seconds: z.number().int(),
+  access_token_ttl_seconds: z.number().int().nullable(),
+  id_token_ttl_seconds: z.number().int().nullable(),
+  refresh_token_ttl_seconds: z.number().int().nullable(),
   client_credentials_scopes: z.array(z.string()),
   web_origins: z.array(z.string()),
   post_logout_redirect_uris: z.array(z.string()),

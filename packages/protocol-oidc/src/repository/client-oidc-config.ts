@@ -16,6 +16,7 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
       row.tokenEndpointAuthMethod as ClientOidcConfig['tokenEndpointAuthMethod'],
     audiences: row.audiences,
     accessTokenTtlSeconds: row.accessTokenTtlSeconds,
+    idTokenTtlSeconds: row.idTokenTtlSeconds,
     refreshTokenTtlSeconds: row.refreshTokenTtlSeconds,
     clientCredentialsScopes: row.clientCredentialsScopes,
     webOrigins: row.webOrigins,
@@ -43,6 +44,7 @@ function toRecord(row: typeof clientOidcConfig.$inferSelect): ClientOidcConfig {
 // caller that predates them keeps behaving as if they did not exist.
 export type NewClientOidcConfig = Omit<
   ClientOidcConfig,
+  | 'idTokenTtlSeconds'
   | 'clientCredentialsScopes'
   | 'webOrigins'
   | 'postLogoutRedirectUris'
@@ -59,6 +61,7 @@ export type NewClientOidcConfig = Omit<
   | 'userinfoEncryptedResponseEnc'
   | 'tlsClientAuthSubjectDn'
 > & {
+  idTokenTtlSeconds?: number | null;
   clientCredentialsScopes?: string[];
   webOrigins?: string[];
   postLogoutRedirectUris?: string[];
@@ -101,6 +104,7 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
           tokenEndpointAuthMethod: input.tokenEndpointAuthMethod,
           audiences: input.audiences,
           accessTokenTtlSeconds: input.accessTokenTtlSeconds,
+          idTokenTtlSeconds: input.idTokenTtlSeconds ?? null,
           refreshTokenTtlSeconds: input.refreshTokenTtlSeconds,
           clientCredentialsScopes: input.clientCredentialsScopes ?? [],
           webOrigins: input.webOrigins ?? [],

@@ -130,8 +130,8 @@ async function performRegistration(
     clientId: client.id,
     tenantId,
     audiences: [],
-    accessTokenTtlSeconds: 300,
-    refreshTokenTtlSeconds: 1_209_600,
+    accessTokenTtlSeconds: null,
+    refreshTokenTtlSeconds: null,
     redirectUris: metadata.redirectUris,
     grantTypes: metadata.grantTypes,
     tokenEndpointAuthMethod:

@@ -3,7 +3,6 @@ import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import { outboxRepository, renderResetPassword } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
 import { type PasswordPolicy, type PolicyViolation } from '#/repository/tenant-settings';
-import { RESET_PASSWORD_TTL_SECONDS } from '#/usecase/verify-email';
 
 // Re-exported so the view layer can reach these without importing the
 // repository directly (no-view-to-repository, .dependency-cruiser.cjs):
@@ -79,12 +78,13 @@ export async function enqueueResetLink(
   tenant: ActionLinkTenant,
   user: { readonly subjectId: string; readonly email: string },
 ): Promise<void> {
-  const { token } = await actionTokenRepository(tx).issue({
+  const tokens = actionTokenRepository(tx);
+  const { token } = await tokens.issue({
     tenantId: tenant.tenantId,
     subjectId: user.subjectId,
     type: 'reset_password',
     email: user.email,
-    ttlSeconds: RESET_PASSWORD_TTL_SECONDS,
+    ttlSeconds: await tokens.lifetimeOf(tenant.tenantId, 'reset_password'),
   });
   const link = `${tenant.issuerBase}/tenants/${tenant.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
   await outboxRepository(tx).enqueue({

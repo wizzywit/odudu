@@ -458,8 +458,13 @@ function clientProblems(
         );
       }
     }
-    for (const field of ['access_token_ttl_seconds', 'refresh_token_ttl_seconds'] as const) {
-      const outOfRange = clientTokenTtlProblem(field, client[field]);
+    for (const field of [
+      'access_token_ttl_seconds',
+      'id_token_ttl_seconds',
+      'refresh_token_ttl_seconds',
+    ] as const) {
+      const lifetime = client[field];
+      const outOfRange = lifetime === null ? null : clientTokenTtlProblem(field, lifetime);
       if (outOfRange !== null) problems.add(`${path}.${field}`, outOfRange);
     }
     client.web_origins.forEach((origin, originIndex) => {

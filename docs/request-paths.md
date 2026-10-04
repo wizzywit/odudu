@@ -1004,7 +1004,8 @@ it is also where the request is parked: the scope, `redirect_uri`, `state`,
 `nonce` and `code_challenge` are stored server-side against it and read back
 from there, never from the form submission. Resubmitting a wider scope or a
 different redirect URI with the login POST changes nothing. The
-authentication session lives 30 minutes.
+authentication session lives for the tenant's `login_ttl_seconds` (default
+`1800`, thirty minutes).
 
 `POST` is accepted at the same endpoint with the parameters form-encoded
 (OIDC Core §3.1.2.1), and answers identically:
@@ -1063,7 +1064,9 @@ the other case.
 Three things in that response:
 
 - **`code`** — 32 random bytes, base64url. Only its SHA-256 hash is stored.
-  It lives **60 seconds** and can be redeemed once.
+  It lives for the tenant's `authorization_code_ttl_seconds` — **60
+  seconds** by default, ten minutes at most (RFC 6749 §4.1.2) — and can be
+  redeemed once.
 - **`state`** — echoed back exactly as sent. The client compares it to what
   it sent and abandons the response if it differs.
 - **`iss`** — RFC 9207 §2. The client checks it names the server it started
@@ -1225,7 +1228,8 @@ cleared, `Max-Age=0` — ticking a box the login page never even offered
 
 #### A login posted after its authentication session expired
 
-The parked request lives 30 minutes. A login form left open longer and then
+The parked request lives for the tenant's `login_ttl_seconds`, 30 minutes
+by default. A login form left open longer and then
 submitted is refused with nothing issued: no code and no redirect back to
 the client, whose own `state` may by then have expired too. A reload of
 `/authorize`, which parks the request afresh, is what starts again; the page
@@ -1305,10 +1309,9 @@ select count(*) as codes from authorization_codes where tenant_id = '01a108bd-b4
 
 The same answer as an `auth_session_id` that names nothing, since the hidden
 field is the form's CSRF defence and an expired one proves no more than a
-forged one. The 30 minutes are a constant today
-(`AUTH_SESSION_TTL_MS`, `packages/authn-flows/src/usecase/executor.ts`);
-making them a tenant setting is P4d's admin-configuration work, which places
-login lifetimes among its items.
+forged one. The 30 minutes are the tenant's `login_ttl_seconds`, which
+`PATCH /admin/tenants/{tenant}/settings` amends between `60` and `86400`
+([Admin paths](admin-paths.md#get-settings-and-patch-settings)).
 
 ### 4. `/token`
 
@@ -4045,8 +4048,8 @@ odudu seed tenant --name reset-demo --set reset_password_allowed=true
 {"command":"tenant","created":false,"tenant":"reset-demo","tenantId":"01a0cb18-11ed-76ca-b9fc-f5244493d7c2","settings":["reset_password_allowed"]}
 ```
 
-The token a request mints is valid for five minutes
-(`RESET_PASSWORD_TTL_SECONDS`, `packages/account/src/usecase/verify-email.ts`
+The token a request mints is valid for the tenant's
+`reset_password_ttl_seconds` (five minutes by default
 — Keycloak's own default for a password-reset action token, chosen because
 the window it opens is an account-takeover window). Run the rest of this
 section within that window, or the link expires and every `curl` past that
@@ -9541,7 +9544,8 @@ retrying unchanged produces the same answer.
 
 **From a `code`.** Verify `state` and `iss` first. Then redeem it at
 `/token` with the same `redirect_uri` and the `code_verifier` you kept,
-within 60 seconds, exactly once. Do not retry a redemption that returned
+within the tenant's code lifetime (60 seconds by default), exactly once. Do
+not retry a redemption that returned
 `invalid_grant` — if it succeeded once, retrying revokes the grant you just
 received.
 
@@ -9981,7 +9985,7 @@ here.
 - **a password blocklist and breach check**: P4f.
 - **translated pages and mail**: P4b.
 - **a way back from the sign-in page's "no longer valid" answer**: a login
-  posted after its 30-minute authentication session ends on a page that says
+  posted after its authentication session ends on a page that says
   "Go back and start again" and links nowhere, where a mature provider
   restarts the parked request. That page's work is **P4b**'s, whose criterion
   names it ([A login posted after its authentication session expired](#a-login-posted-after-its-authentication-session-expired)).

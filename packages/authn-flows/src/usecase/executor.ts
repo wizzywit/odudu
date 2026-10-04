@@ -543,8 +543,6 @@ export async function dispatchNext(
   return { kind: 'ran', authenticator: decision.authenticator, result: await run(input) };
 }
 
-const AUTH_SESSION_TTL_MS = 30 * 60_000;
-
 export async function startAuthentication(
   tx: TenantScopedDatabase,
   tenantId: string,
@@ -552,11 +550,12 @@ export async function startAuthentication(
   clock: Clock = systemClock,
 ): Promise<{ authSessionId: string }> {
   const id = newId();
+  const ttlSeconds = await tenantSettingsRepository(tx).loginTtlSeconds(tenantId);
   await authenticationSessionRepository(tx).create({
     id,
     tenantId,
     pendingRequest: request,
-    expiresAt: new Date(clock.now().getTime() + AUTH_SESSION_TTL_MS),
+    expiresAt: new Date(clock.now().getTime() + ttlSeconds * 1000),
   });
   return { authSessionId: id };
 }

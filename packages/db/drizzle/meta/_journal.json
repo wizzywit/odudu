@@ -575,6 +575,13 @@
       "when": 1789049381724,
       "tag": "0081_list_index_group_children",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1789049381725,
+      "tag": "0082_tenant_lifetimes",
+      "breakpoints": true
     }
   ]
 }

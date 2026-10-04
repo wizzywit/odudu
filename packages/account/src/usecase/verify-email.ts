@@ -3,15 +3,6 @@ import { auditRepository, type RequestContext } from '@odudu/domain-audit';
 import { outboxRepository, renderVerifyEmail } from '@odudu/email';
 import { actionTokenRepository } from '#/repository/action-tokens';
 
-// Keycloak's action-token defaults (`actionTokenGeneratedByUserLifespan` and
-// its per-action override for email verification): 12 hours for a link the
-// user follows from their own inbox at their own pace, 5 minutes for one
-// that grants password reset — an account-takeover window that stays short
-// on purpose. RESET_PASSWORD_TTL_SECONDS is defined here, next to the
-// constant it mirrors, for the password-reset task to import rather than
-// invent independently.
-export const VERIFY_EMAIL_TTL_SECONDS = 60 * 60 * 12;
-export const RESET_PASSWORD_TTL_SECONDS = 60 * 5;
 
 export interface SendVerificationEmailDeps {
   readonly database: DatabaseHandle;
@@ -48,12 +39,13 @@ export async function enqueueVerificationLink(
   tenant: Omit<SendVerificationEmailDeps, 'database'>,
   input: SendVerificationEmailInput,
 ): Promise<void> {
-  const { token } = await actionTokenRepository(tx).issue({
+  const tokens = actionTokenRepository(tx);
+  const { token } = await tokens.issue({
     tenantId: tenant.tenantId,
     subjectId: input.subjectId,
     type: 'verify_email',
     email: input.email,
-    ttlSeconds: VERIFY_EMAIL_TTL_SECONDS,
+    ttlSeconds: await tokens.lifetimeOf(tenant.tenantId, 'verify_email'),
   });
   const link = `${tenant.issuerBase}/tenants/${tenant.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
   await outboxRepository(tx).enqueue({

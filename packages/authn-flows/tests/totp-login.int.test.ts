@@ -725,6 +725,29 @@ describe('tenantSettingsRepository', () => {
       },
     });
   });
+
+  it("cannot read a foreign tenant's login lifetime, and refuses rather than defaulting", async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId, false);
+        await tx.update(tenants).set({ loginTtlSeconds: 120 }).where(eq(tenants.id, tenantId));
+        return tenantId;
+      },
+      verifySeeded: async (tx, tenantId) => {
+        expect(await tenantSettingsRepository(tx).loginTtlSeconds(tenantId)).toBe(120);
+      },
+      attempt: async (tx, tenantId) => {
+        try {
+          return await tenantSettingsRepository(tx).loginTtlSeconds(tenantId);
+        } catch (caught) {
+          return caught instanceof OduduError ? caught.code : 'unexpected';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('tenant_not_found');
+      },
+    });
+  });
 });
 
 describe('authenticationSessionRepository — the subject binding', () => {

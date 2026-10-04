@@ -83,6 +83,15 @@ export const tenants = pgTable('tenants', {
   // Whether an administrator may rename a username
   // (packages/db/drizzle/0077_username_editable.sql, ADR 0039).
   usernameEditable: boolean('username_editable').notNull().default(false),
+  // The lifetimes this tenant issues with (packages/db/drizzle/0082_tenant_lifetimes.sql).
+  // The three token lifetimes are defaults a client's own value overrides.
+  accessTokenTtlSeconds: integer('access_token_ttl_seconds').notNull().default(300),
+  idTokenTtlSeconds: integer('id_token_ttl_seconds').notNull().default(300),
+  refreshTokenTtlSeconds: integer('refresh_token_ttl_seconds').notNull().default(1_209_600),
+  authorizationCodeTtlSeconds: integer('authorization_code_ttl_seconds').notNull().default(60),
+  loginTtlSeconds: integer('login_ttl_seconds').notNull().default(1800),
+  verifyEmailTtlSeconds: integer('verify_email_ttl_seconds').notNull().default(43_200),
+  resetPasswordTtlSeconds: integer('reset_password_ttl_seconds').notNull().default(300),
   // Search keys, in the C collation, filled by the database
   // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
   nameSearch: text('name_search').generatedAlwaysAs(sql`lower(name)`),

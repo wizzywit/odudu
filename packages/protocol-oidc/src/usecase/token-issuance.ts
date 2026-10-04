@@ -21,6 +21,7 @@ import { clientOidcConfigRepository, type ClientOidcConfig } from '#/repository/
 import { authorizationCodeRepository } from '#/repository/codes';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
+import { tenantLifetimesRepository } from '#/repository/tenant-lifetimes';
 import { accessTokenEligibleScope, reachableRoleIds } from '#/repository/scope-role-reach';
 import { rotateRefreshToken } from '#/usecase/refresh-rotation';
 import { acrFor, amrFor } from '#/service/acr';
@@ -33,6 +34,7 @@ import {
   narrowToRequestedClaims,
 } from '#/service/claims';
 import { evaluateClientCredentialsGrant } from '#/service/client-credentials-grant';
+import { effectiveLifetimes, type TokenLifetimes } from '#/service/client-token-ttl';
 import {
   invalidClient,
   invalidGrant,
@@ -72,6 +74,10 @@ import {
   type RefusalLogger,
 } from '#/usecase/client-authentication';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
+
+// The client's configuration with every lifetime resolved against the
+// tenant's, so issuance never sees a lifetime the client left unset.
+type IssuingConfig = ClientOidcConfig & TokenLifetimes;
 
 // Re-exported so the view layer can name it without reaching into
 // repository directly (dependency-cruiser's no-view-to-repository rule) —
@@ -399,7 +405,7 @@ async function mintAccessToken(
     subjectId: string;
     clientId: string;
     scope: string[];
-    config: ClientOidcConfig;
+    config: IssuingConfig;
     // The resolved audience this token is bound to, before the issuer is
     // appended — see `resolveAudience`, which every caller runs before
     // reaching here.
@@ -484,7 +490,7 @@ async function issueAuthorizationCodeTokens(
   deps: TokenIssuanceDeps,
   request: Extract<StructuredRequest, { grantType: 'authorization_code' }>,
   client: ClientRecord,
-  config: ClientOidcConfig,
+  config: IssuingConfig,
 ): Promise<TokenResponse> {
   const code = await redeemAuthorizationCode(tx, deps, request, client);
 
@@ -592,7 +598,7 @@ async function issueAuthorizationCodeTokens(
       sub: code.subjectId,
       aud: client.clientId,
       iat,
-      exp,
+      exp: iat + config.idTokenTtlSeconds,
       // OIDC Core §2/§15.1: required for an Essential Claim or a `max_age`
       // request, both folded into this one flag at /authorize — otherwise
       // left out (authorization-request.ts's `claims` synthesis).
@@ -709,7 +715,7 @@ async function issueRefreshTokens(
   deps: TokenIssuanceDeps,
   request: Extract<StructuredRequest, { grantType: 'refresh_token' }>,
   client: ClientRecord,
-  config: ClientOidcConfig,
+  config: IssuingConfig,
 ): Promise<TokenResponse> {
   const now = deps.clock.now();
   const presentedHash = hashRefreshToken(request.refreshToken);
@@ -820,7 +826,7 @@ async function issueClientCredentialsTokens(
   deps: TokenIssuanceDeps,
   request: Extract<StructuredRequest, { grantType: 'client_credentials' }>,
   client: ClientRecord,
-  config: ClientOidcConfig,
+  config: IssuingConfig,
 ): Promise<TokenResponse> {
   const decision = evaluateClientCredentialsGrant(client, config.clientCredentialsScopes, {
     requestedScope: request.scope,
@@ -1129,7 +1135,7 @@ async function issueExchangedTokens(
   deps: TokenIssuanceDeps,
   request: Extract<StructuredRequest, { grantType: typeof TOKEN_EXCHANGE_GRANT }>,
   client: ClientRecord,
-  config: ClientOidcConfig,
+  config: IssuingConfig,
 ): Promise<TokenResponse> {
   // RFC 8693 §2.2.2 answers every refusal below `invalid_request`, a
   // decision about an authenticated client's tokens rather than a malformed
@@ -1291,7 +1297,7 @@ async function issueExchangedTokens(
       { reachableRoleIds: reachable, fullScopeAllowed: client.fullScopeAllowed },
     );
     const iat = Math.floor(now.getTime() / 1000);
-    const ttlExp = iat + config.accessTokenTtlSeconds;
+    const ttlExp = iat + config.idTokenTtlSeconds;
     const ceiling = expCeiling === undefined ? ttlExp : Math.floor(expCeiling.getTime() / 1000);
     const exp = Math.min(ttlExp, ceiling);
     const idTokenClaims = withRegisteredClaimsWinning(mapped, {
@@ -1496,15 +1502,19 @@ async function issueForAuthenticatedClient(
     throw unauthorizedClient();
   }
 
+  const issuing: IssuingConfig = {
+    ...config,
+    ...effectiveLifetimes(config, await tenantLifetimesRepository(tx).byId(deps.tenantId)),
+  };
   switch (request.grantType) {
     case 'authorization_code':
-      return issueAuthorizationCodeTokens(tx, deps, request, client, config);
+      return issueAuthorizationCodeTokens(tx, deps, request, client, issuing);
     case 'refresh_token':
-      return issueRefreshTokens(tx, deps, request, client, config);
+      return issueRefreshTokens(tx, deps, request, client, issuing);
     case 'client_credentials':
-      return issueClientCredentialsTokens(tx, deps, request, client, config);
+      return issueClientCredentialsTokens(tx, deps, request, client, issuing);
     case TOKEN_EXCHANGE_GRANT:
-      return issueExchangedTokens(tx, deps, request, client, config);
+      return issueExchangedTokens(tx, deps, request, client, issuing);
     default:
       return assertNeverGrant(request);
   }

@@ -442,3 +442,40 @@ describe('tenant isolation', () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+describe('lifetimeOf', () => {
+  it('reads the tenant’s own lifetime for each type of link', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await tx
+        .update(tenants)
+        .set({ verifyEmailTtlSeconds: 600, resetPasswordTtlSeconds: 900 })
+        .where(eq(tenants.id, tenantId));
+      expect(await actionTokenRepository(tx).lifetimeOf(tenantId, 'verify_email')).toBe(600);
+      expect(await actionTokenRepository(tx).lifetimeOf(tenantId, 'reset_password')).toBe(900);
+    });
+  });
+
+  it('cannot read another tenant’s lifetime, and refuses rather than defaulting', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return tenantId;
+      },
+      verifySeeded: async (tx, tenantId) => {
+        expect(await actionTokenRepository(tx).lifetimeOf(tenantId, 'reset_password')).toBe(300);
+      },
+      attempt: async (tx, tenantId) => {
+        try {
+          return await actionTokenRepository(tx).lifetimeOf(tenantId, 'reset_password');
+        } catch {
+          return 'refused';
+        }
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('refused');
+      },
+    });
+  });
+});

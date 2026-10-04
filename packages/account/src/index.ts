@@ -5,8 +5,6 @@ export {
   sendVerificationEmail,
   enqueueVerificationLink,
   completeEmailVerification,
-  VERIFY_EMAIL_TTL_SECONDS,
-  RESET_PASSWORD_TTL_SECONDS,
   type SendVerificationEmailDeps,
   type SendVerificationEmailInput,
   type CompleteEmailVerificationDeps,

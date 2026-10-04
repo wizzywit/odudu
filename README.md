@@ -138,7 +138,18 @@ administrator rename a subject's username through
 `PATCH /admin/tenants/{tenant}/subjects/{id}`, always under `If-Match`
 ([docs/admin-paths.md](docs/admin-paths.md#renaming-a-username)); `sub` does
 not change, so sessions, refresh tokens and lockout counters survive it,
-and the old name stops signing in at once. Outgoing mail goes through
+and the old name stops signing in at once. The lifetimes a tenant issues
+with are settings too, each defaulting to the value the code used to fix:
+`access_token_ttl_seconds` and `id_token_ttl_seconds` (`300`, at most
+`3600`), `refresh_token_ttl_seconds` (`1209600`),
+`authorization_code_ttl_seconds` (`60`, at most `600`), `login_ttl_seconds`
+(`1800`, how long a login page may stay open), `verify_email_ttl_seconds`
+(`43200`, at most a week) and `reset_password_ttl_seconds` (`300`, at most a
+day). The first three are defaults a client's own value of the same name
+overrides; a client's `null` takes the tenant's. Migration
+`0082_tenant_lifetimes.sql` set to `null` every client lifetime still at the
+old column default, except on the built-in admin client, whose tokens keep
+their own five minutes. Outgoing mail goes through
 `ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
 `ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`;
 leave `ODUDU_SMTP_HOST` unset and the server logs every message instead of
@@ -570,9 +581,9 @@ decided independently. **Logout revokes the session row and every grant
 tied to it.** Odudu's access tokens are self-contained `at+jwt` JWTs that a
 resource server can verify without a round trip to anywhere, so a resource
 server that only checks the signature locally keeps accepting a logged-out
-user's token until its own `exp`, at most
-`client_oidc_config.access_token_ttl_seconds` (capped at one hour) after it
-was issued — nothing about the token itself changes. A resource server that
+user's token until its own `exp`, at most the client's
+`access_token_ttl_seconds`, or the tenant's when the client sets none
+(capped at one hour either way), after it was issued — nothing about the token itself changes. A resource server that
 instead calls `POST /tenants/{tenant}/protocol/openid-connect/token/introspect`
 (RFC 7662), authenticating with its own client credentials, sees the
 revocation immediately: introspection checks the grant's `revoked_at` and

@@ -17,6 +17,7 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     token_endpoint_auth_method: 'value',
     audiences: 'value',
     access_token_ttl_seconds: 'value',
+    id_token_ttl_seconds: 'value',
     refresh_token_ttl_seconds: 'value',
     client_credentials_scopes: 'value',
     web_origins: 'value',

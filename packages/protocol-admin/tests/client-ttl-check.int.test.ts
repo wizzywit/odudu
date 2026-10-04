@@ -23,6 +23,7 @@ const INT4_MAX = 2_147_483_647;
 
 const COLUMN = {
   access_token_ttl_seconds: 'accessTokenTtlSeconds',
+  id_token_ttl_seconds: 'idTokenTtlSeconds',
   refresh_token_ttl_seconds: 'refreshTokenTtlSeconds',
 } as const;
 

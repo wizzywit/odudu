@@ -121,6 +121,32 @@ function basic(client: SignInClient): string {
   return `Basic ${Buffer.from(`${client.clientId}:${client.secret}`).toString('base64')}`;
 }
 
+// Redeems the code a sign-in's redirect carries.
+export async function redeemCode(
+  fixture: AdminFixture,
+  tenantName: string,
+  client: SignInClient,
+  login: LightMyRequestResponse,
+): Promise<LightMyRequestResponse> {
+  const location = login.headers.location;
+  if (login.statusCode !== 302 || typeof location !== 'string') {
+    throw new Error(`the sign-in answered ${String(login.statusCode)}, not a redirect`);
+  }
+  const code = new URL(location).searchParams.get('code');
+  if (code === null) throw new Error(`no code in ${location}`);
+  return fixture.http.inject({
+    method: 'POST',
+    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
+    payload: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: VERIFIER,
+    }).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic(client) },
+  });
+}
+
 // Signs in and redeems the code, answering the token response it bought.
 export async function signInForTokens(
   fixture: AdminFixture,
@@ -138,23 +164,7 @@ export async function signInForTokens(
     password,
     scope,
   );
-  const location = login.headers.location;
-  if (login.statusCode !== 302 || typeof location !== 'string') {
-    throw new Error(`the sign-in answered ${String(login.statusCode)}, not a redirect`);
-  }
-  const code = new URL(location).searchParams.get('code');
-  if (code === null) throw new Error(`no code in ${location}`);
-  const redeemed = await fixture.http.inject({
-    method: 'POST',
-    url: `/tenants/${tenantName}/protocol/openid-connect/token`,
-    payload: new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: REDIRECT_URI,
-      code_verifier: VERIFIER,
-    }).toString(),
-    headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic(client) },
-  });
+  const redeemed = await redeemCode(fixture, tenantName, client, login);
   if (redeemed.statusCode !== 200) {
     throw new Error(`the code redemption answered ${String(redeemed.statusCode)}`);
   }

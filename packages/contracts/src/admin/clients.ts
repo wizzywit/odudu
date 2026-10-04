@@ -24,8 +24,10 @@ export const clientSchema = z.object({
   grant_types: z.array(z.string()),
   token_endpoint_auth_method: z.string(),
   audiences: z.array(z.string()),
-  access_token_ttl_seconds: z.number().int(),
-  refresh_token_ttl_seconds: z.number().int(),
+  // Null takes the tenant's lifetime of the same name.
+  access_token_ttl_seconds: z.number().int().nullable(),
+  id_token_ttl_seconds: z.number().int().nullable(),
+  refresh_token_ttl_seconds: z.number().int().nullable(),
   client_credentials_scopes: z.array(z.string()),
   web_origins: z.array(z.string()),
   post_logout_redirect_uris: z.array(z.string()),

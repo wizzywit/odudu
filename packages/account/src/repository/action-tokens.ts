@@ -1,4 +1,4 @@
-import { type TenantScopedDatabase } from '@odudu/db';
+import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { createHash, randomBytes } from 'node:crypto';
@@ -21,9 +21,9 @@ function sha256Hex(token: string): string {
 
 // ttlSeconds carries no default: `verify_email` and `reset_password` tokens
 // have very different exposure profiles (a day-long password-reset window
-// is an account-takeover window), so a caller states the value it means
-// rather than inheriting one invisibly. See VERIFY_EMAIL_TTL_SECONDS and
-// RESET_PASSWORD_TTL_SECONDS in #/usecase/verify-email.
+// is an account-takeover window), so a caller states the value it means —
+// the tenant's own, through `lifetimeOf`, rather than one inherited
+// invisibly.
 export interface IssueActionToken {
   tenantId: string;
   subjectId: string;
@@ -48,6 +48,21 @@ function toRecord(row: typeof actionTokens.$inferSelect): ActionTokenRecord {
 
 export function actionTokenRepository(tx: TenantScopedDatabase) {
   return {
+    // The tenant's lifetime for a link of this type
+    // (packages/db/drizzle/0082_tenant_lifetimes.sql).
+    async lifetimeOf(tenantId: string, type: ActionTokenType): Promise<number> {
+      const rows = await tx
+        .select({
+          verifyEmail: tenants.verifyEmailTtlSeconds,
+          resetPassword: tenants.resetPasswordTtlSeconds,
+        })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId));
+      const row = rows[0];
+      if (row === undefined) throw new Error(`tenant ${tenantId} is not visible here`);
+      return type === 'verify_email' ? row.verifyEmail : row.resetPassword;
+    },
+
     async issue(input: IssueActionToken): Promise<{ token: string }> {
       const token = generateActionToken();
       await tx.insert(actionTokens).values({

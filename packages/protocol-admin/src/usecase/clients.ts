@@ -66,6 +66,7 @@ const CLIENT_VIEW_COLUMNS = {
   tokenEndpointAuthMethod: clientOidcConfig.tokenEndpointAuthMethod,
   audiences: clientOidcConfig.audiences,
   accessTokenTtlSeconds: clientOidcConfig.accessTokenTtlSeconds,
+  idTokenTtlSeconds: clientOidcConfig.idTokenTtlSeconds,
   refreshTokenTtlSeconds: clientOidcConfig.refreshTokenTtlSeconds,
   clientCredentialsScopes: clientOidcConfig.clientCredentialsScopes,
   webOrigins: clientOidcConfig.webOrigins,
@@ -102,8 +103,9 @@ export interface ClientView {
   readonly grantTypes: string[];
   readonly tokenEndpointAuthMethod: ClientOidcConfig['tokenEndpointAuthMethod'];
   readonly audiences: string[];
-  readonly accessTokenTtlSeconds: number;
-  readonly refreshTokenTtlSeconds: number;
+  readonly accessTokenTtlSeconds: number | null;
+  readonly idTokenTtlSeconds: number | null;
+  readonly refreshTokenTtlSeconds: number | null;
   readonly clientCredentialsScopes: string[];
   readonly webOrigins: string[];
   readonly postLogoutRedirectUris: string[];
@@ -435,6 +437,7 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): Omit<Clie
     tokenEndpointAuthMethod: config.tokenEndpointAuthMethod,
     audiences: config.audiences,
     accessTokenTtlSeconds: config.accessTokenTtlSeconds,
+    idTokenTtlSeconds: config.idTokenTtlSeconds,
     refreshTokenTtlSeconds: config.refreshTokenTtlSeconds,
     clientCredentialsScopes: config.clientCredentialsScopes,
     webOrigins: config.webOrigins,
@@ -585,8 +588,8 @@ export async function createClient(
     clientId: client.id,
     tenantId: input.tenantId,
     audiences: [],
-    accessTokenTtlSeconds: 300,
-    refreshTokenTtlSeconds: 1_209_600,
+    accessTokenTtlSeconds: null,
+    refreshTokenTtlSeconds: null,
     ...admin.config,
     redirectUris: metadata.redirectUris,
     grantTypes: metadata.grantTypes,
@@ -639,6 +642,7 @@ export function clientWireShape(view: ClientView): Client {
     token_endpoint_auth_method: view.tokenEndpointAuthMethod,
     audiences: view.audiences,
     access_token_ttl_seconds: view.accessTokenTtlSeconds,
+    id_token_ttl_seconds: view.idTokenTtlSeconds,
     refresh_token_ttl_seconds: view.refreshTokenTtlSeconds,
     client_credentials_scopes: view.clientCredentialsScopes,
     web_origins: view.webOrigins,
@@ -777,6 +781,7 @@ const ADMIN_FIELDS = new Set<string>([
   'post_logout_redirect_uris',
   'client_credentials_scopes',
   'access_token_ttl_seconds',
+  'id_token_ttl_seconds',
   'refresh_token_ttl_seconds',
   'consent_required',
   'token_exchange_impersonation_allowed',
@@ -789,12 +794,19 @@ interface AdminFieldPatches {
     webOrigins?: string[];
     postLogoutRedirectUris?: string[];
     clientCredentialsScopes?: string[];
-    accessTokenTtlSeconds?: number;
-    refreshTokenTtlSeconds?: number;
+    accessTokenTtlSeconds?: number | null;
+    idTokenTtlSeconds?: number | null;
+    refreshTokenTtlSeconds?: number | null;
     consentRequired?: boolean;
     tokenExchangeImpersonationAllowed?: boolean;
   };
 }
+
+const TOKEN_TTL_FIELDS = [
+  'access_token_ttl_seconds',
+  'id_token_ttl_seconds',
+  'refresh_token_ttl_seconds',
+] as const;
 
 function checkedAdminFields(
   values: Readonly<Record<string, unknown>>,
@@ -835,14 +847,20 @@ function checkedAdminFields(
     } else if (field === 'post_logout_redirect_uris') config.postLogoutRedirectUris = checked;
     else config.clientCredentialsScopes = checked;
   }
-  for (const field of ['access_token_ttl_seconds', 'refresh_token_ttl_seconds'] as const) {
+  // Null hands the lifetime back to the tenant's setting of the same name.
+  for (const field of TOKEN_TTL_FIELDS) {
     if (!(field in values)) continue;
-    const checked = checkedInteger(field, values[field]);
-    if (isFieldError(checked)) return checked;
-    const outOfRange = clientTokenTtlProblem(field, checked);
-    if (outOfRange !== null) return { field, description: outOfRange };
-    if (field === 'access_token_ttl_seconds') config.accessTokenTtlSeconds = checked;
-    else config.refreshTokenTtlSeconds = checked;
+    let lifetime: number | null = null;
+    if (values[field] !== null) {
+      const checked = checkedInteger(field, values[field]);
+      if (isFieldError(checked)) return checked;
+      const outOfRange = clientTokenTtlProblem(field, checked);
+      if (outOfRange !== null) return { field, description: outOfRange };
+      lifetime = checked;
+    }
+    if (field === 'access_token_ttl_seconds') config.accessTokenTtlSeconds = lifetime;
+    else if (field === 'id_token_ttl_seconds') config.idTokenTtlSeconds = lifetime;
+    else config.refreshTokenTtlSeconds = lifetime;
   }
   for (const field of ['consent_required', 'token_exchange_impersonation_allowed'] as const) {
     if (!(field in values)) continue;

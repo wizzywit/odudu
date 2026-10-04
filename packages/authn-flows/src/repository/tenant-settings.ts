@@ -53,6 +53,19 @@ export function tenantSettingsRepository(tx: TenantScopedDatabase) {
       };
     },
 
+    // How long a login may stay open (packages/db/drizzle/0082_tenant_lifetimes.sql).
+    async loginTtlSeconds(tenantId: string): Promise<number> {
+      const rows = await tx
+        .select({ loginTtlSeconds: tenants.loginTtlSeconds })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId));
+      const row = rows[0];
+      if (row === undefined) {
+        throw new OduduError('tenant_not_found', `no tenant with id ${tenantId} in this context`);
+      }
+      return row.loginTtlSeconds;
+    },
+
     // The whole policy, read only where a password is being written — the
     // change-password action. Raises on a missing row for the reason above:
     // a default of zero for the depth would accept a password the tenant

@@ -12,6 +12,7 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { type RequestContext } from '@odudu/domain-audit';
 import { isUuid } from '@odudu/kernel';
 import { authorizationCodeRepository } from '#/repository/codes';
+import { tenantLifetimesRepository } from '#/repository/tenant-lifetimes';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import { generateAuthorizationCode, hashAuthorizationCode } from '#/service/authorization-code';
 import { EMPTY_CLAIMS_REQUEST, type ClaimsRequest } from '#/service/claims-request';
@@ -22,8 +23,6 @@ import { type PromptValue } from '#/service/prompt';
 // A code lives 60 seconds: it is redeemed by a backend within a second or
 // two of the redirect, and a short window shrinks how long an intercepted
 // code is worth anything.
-const AUTHORIZATION_CODE_TTL_MS = 60_000;
-
 export interface IssueAuthorizationCodeInput {
   tenantId: string;
   clientId: string;
@@ -38,10 +37,10 @@ export interface IssueAuthorizationCodeInput {
   // instant as `now`; on a reused session it is the session's own original
   // login, which can be arbitrarily far in the past.
   authTime: Date;
-  // The instant this code is issued, which is what its 60s TTL counts from.
-  // Deliberately separate from `authTime`: a code issued for a reused
-  // session must still expire 60s from now, not 60s from a login that may
-  // have happened minutes or hours ago.
+  // The instant this code is issued, which is what the tenant's code
+  // lifetime counts from. Deliberately separate from `authTime`: a code
+  // issued for a reused session must still expire that long from now, not
+  // from a login that may have happened minutes or hours ago.
   now: Date;
   // The SSO session this code's eventual grant is bound to — copied
   // forward so `/token` can carry it onto `token_grants.session_id`
@@ -64,6 +63,7 @@ export async function issueAuthorizationCode(
   input: IssueAuthorizationCodeInput,
 ): Promise<{ code: string }> {
   const code = generateAuthorizationCode();
+  const lifetimes = await tenantLifetimesRepository(tx).byId(input.tenantId);
   await authorizationCodeRepository(tx).create({
     codeHash: hashAuthorizationCode(code),
     tenantId: input.tenantId,
@@ -75,7 +75,7 @@ export async function issueAuthorizationCode(
     codeChallenge: input.codeChallenge,
     codeChallengeMethod: input.codeChallengeMethod,
     authTime: input.authTime,
-    expiresAt: new Date(input.now.getTime() + AUTHORIZATION_CODE_TTL_MS),
+    expiresAt: new Date(input.now.getTime() + lifetimes.authorizationCodeTtlSeconds * 1000),
     sessionId: input.sessionId,
     resource: input.resource,
     claims: input.claims,

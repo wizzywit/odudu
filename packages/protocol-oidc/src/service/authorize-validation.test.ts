@@ -32,6 +32,7 @@ const config: ClientOidcConfig = {
   tokenEndpointAuthMethod: 'client_secret_basic',
   audiences: [],
   accessTokenTtlSeconds: 300,
+  idTokenTtlSeconds: null,
   refreshTokenTtlSeconds: 1_209_600,
   clientCredentialsScopes: [],
   webOrigins: [],

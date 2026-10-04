@@ -1780,7 +1780,7 @@ echo
 
 ## `GET /settings` and `PATCH /settings`
 
-The 29 columns `tenants` carries beyond identity — everything
+The 36 columns `tenants` carries beyond identity — everything
 `odudu seed tenant --set` can already change — read and amended through one
 map, `@odudu/domain-tenant`'s `SETTINGS`
 (`packages/domain-tenant/src/service/tenant-settings.ts`): a name a caller
@@ -1959,18 +1959,21 @@ violation.
 A create body may also carry any field `PATCH /clients/{id}` below
 amends — `audiences`, `web_origins`, `post_logout_redirect_uris`,
 `client_credentials_scopes`, `access_token_ttl_seconds`,
-`refresh_token_ttl_seconds`, `consent_required`,
+`id_token_ttl_seconds`, `refresh_token_ttl_seconds`, `consent_required`,
 `token_exchange_impersonation_allowed`, `enabled`, `full_scope_allowed` and
 `name` — each checked by the identical validation `PATCH` runs. A field
 `PATCH` refuses to amend, such as `type`, is refused here with `PATCH`'s own
 reason; a key that names nothing on the client at all is refused with `400`
 and the detail `<field>: <field> is not a client field`, naming it rather
 than silently ignoring it; `name` sent alongside a different `client_name`
-is refused the same way. `access_token_ttl_seconds` outside 1 to 3600 and
-`refresh_token_ttl_seconds` below 1 are refused with `400`, naming the field,
-on a create and a `PATCH` alike — the ranges the database's own CHECK
-constraints hold (`0013_access_token_ttl_ceiling.sql`,
-`0014_refresh_token_ttl_floor.sql`), which otherwise surfaced as a `500`.
+is refused the same way. `access_token_ttl_seconds` or `id_token_ttl_seconds`
+outside 1 to 3600 and `refresh_token_ttl_seconds` below 1 are refused with
+`400`, naming the field, on a create and a `PATCH` alike — the ranges the
+database's own CHECK constraints hold (`0013_access_token_ttl_ceiling.sql`,
+`0014_refresh_token_ttl_floor.sql`, `0082_tenant_lifetimes.sql`), which
+otherwise surfaced as a `500`. Each of the three may be `null`, which a
+client created without one already is: the client then takes the tenant's
+setting of the same name ([`GET /settings`](#get-settings-and-patch-settings)).
 No transcript shows that refusal;
 `packages/protocol-admin/tests/client-ttl-check.int.test.ts` covers it.
 

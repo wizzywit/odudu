@@ -164,6 +164,7 @@ async function writeClient(
       metadata.tokenEndpointAuthMethod as ClientOidcConfig['tokenEndpointAuthMethod'],
     audiences: client.audiences,
     accessTokenTtlSeconds: client.access_token_ttl_seconds,
+    idTokenTtlSeconds: client.id_token_ttl_seconds,
     refreshTokenTtlSeconds: client.refresh_token_ttl_seconds,
     clientCredentialsScopes: client.client_credentials_scopes,
     webOrigins: client.web_origins,

@@ -127,6 +127,21 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK (((NOT phone_number_verified) OR ((phone_number IS NOT NULL) AND (phone_number ~ '^\\+[1-9][0-9]{1,14}(;ext=[0-9]+)?$'::text))))",
   'users.users_zoneinfo_shape':
     "CHECK (((zoneinfo IS NULL) OR (zoneinfo ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'::text)))",
+  'client_oidc_config.client_oidc_config_id_token_ttl_ceiling':
+    'CHECK (((id_token_ttl_seconds >= 1) AND (id_token_ttl_seconds <= 3600)))',
+  'tenants.tenants_access_token_ttl_range':
+    'CHECK (((access_token_ttl_seconds >= 1) AND (access_token_ttl_seconds <= 3600)))',
+  'tenants.tenants_authorization_code_ttl_range':
+    'CHECK (((authorization_code_ttl_seconds >= 1) AND (authorization_code_ttl_seconds <= 600)))',
+  'tenants.tenants_id_token_ttl_range':
+    'CHECK (((id_token_ttl_seconds >= 1) AND (id_token_ttl_seconds <= 3600)))',
+  'tenants.tenants_login_ttl_range':
+    'CHECK (((login_ttl_seconds >= 60) AND (login_ttl_seconds <= 86400)))',
+  'tenants.tenants_refresh_token_ttl_floor': 'CHECK ((refresh_token_ttl_seconds >= 1))',
+  'tenants.tenants_reset_password_ttl_range':
+    'CHECK (((reset_password_ttl_seconds >= 60) AND (reset_password_ttl_seconds <= 86400)))',
+  'tenants.tenants_verify_email_ttl_range':
+    'CHECK (((verify_email_ttl_seconds >= 60) AND (verify_email_ttl_seconds <= 604800)))',
 };
 
 interface ColumnRow {

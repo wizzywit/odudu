@@ -97,7 +97,10 @@ async function provisionOidcConfig(
     grantTypes: ['authorization_code', 'refresh_token'],
     tokenEndpointAuthMethod: 'none',
     audiences: [ADMIN_API_AUDIENCE],
+    // Its own, never the tenant's default: nobody may amend this client,
+    // so a tenant raising its default must not lengthen admin tokens.
     accessTokenTtlSeconds: 300,
+    idTokenTtlSeconds: 300,
     refreshTokenTtlSeconds: 1_209_600,
   });
 }
