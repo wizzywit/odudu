@@ -50,8 +50,9 @@ export const clientSchema = z.object({
   id_token_signed_response_alg: z.string().nullable(),
   default_max_age: z.number().int().nullable(),
   require_auth_time: z.boolean(),
-  // When the secret a rotation replaced stops authenticating; null once it
-  // has, or when no rotation kept one. Never the secret itself.
+  // The instant the secret a rotation replaced stops (or stopped)
+  // authenticating; null when no rotation kept one, and once `odudu reap`
+  // has cleared it after that instant. Never the secret itself.
   previous_secret_expires_at: z.string().nullable(),
   builtin_admin: z.boolean(),
   service_subject_id: z.uuid().nullable(),

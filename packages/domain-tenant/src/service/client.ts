@@ -3,7 +3,9 @@ import { type ClientRecord } from '#/schema/clients';
 // The comparison function is injected rather than imported: domain-tenant must
 // not depend on domain-identity, which is where the Argon2id verifier lives.
 // The server wires the two together. A rotated-out secret still answers
-// until its window ends at `now`, and not from that instant on.
+// until its window ends at `now`, and not from that instant on. A wrong
+// secret costs a second comparison while one is kept, which tells a caller
+// the per-client limiter already bounds only that a rotation is under way.
 export async function verifyClientSecret(
   client: ClientRecord,
   presented: string | null,

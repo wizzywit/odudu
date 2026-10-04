@@ -20,9 +20,10 @@ import { decideConsent } from '#/service/consent';
 import { tenantIssuer } from '#/service/issuer';
 import { type PromptValue } from '#/service/prompt';
 
-// A code lives 60 seconds: it is redeemed by a backend within a second or
-// two of the redirect, and a short window shrinks how long an intercepted
-// code is worth anything.
+// A code lives for the tenant's authorization_code_ttl_seconds, 60 by
+// default and never above 600: it is redeemed by a backend within a second
+// or two of the redirect, and a short window shrinks how long an
+// intercepted code is worth anything.
 export interface IssueAuthorizationCodeInput {
   tenantId: string;
   clientId: string;
@@ -222,12 +223,6 @@ export async function refusedForUnverifiedEmail(
   return status.verified ? null : { hasEmail: status.hasEmail };
 }
 
-// What a consent decision needs about the client beyond decideConsent's own
-// pure inputs: a name to put on the page, and the name<->id mapping a
-// consent POST needs to turn a ticked checkbox (a scope name) back into
-// what consentRepository persists (a client_scopes id). One dependency
-// call bundles all three so the gate and the POST handler each pay for it
-// once, not per scope.
 // RFC 7591 §2's pages about the client, registered with it and linked from
 // the consent screen; null where the client registered none.
 export interface ClientPages {
@@ -236,6 +231,12 @@ export interface ClientPages {
   tosUri: string | null;
 }
 
+// What a consent decision needs about the client beyond decideConsent's own
+// pure inputs: a name to put on the page, and the name<->id mapping a
+// consent POST needs to turn a ticked checkbox (a scope name) back into
+// what consentRepository persists (a client_scopes id). One dependency
+// call bundles all three so the gate and the POST handler each pay for it
+// once, not per scope.
 export interface ConsentContext {
   clientName: string;
   clientPages: ClientPages;

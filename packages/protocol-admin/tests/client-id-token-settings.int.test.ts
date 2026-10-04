@@ -213,6 +213,22 @@ describe('default_max_age', () => {
     expect(past.body).toContain('name="password"');
   });
 
+  it('answers prompt=none past it with login_required, never a login page', async () => {
+    const s = await setup({ default_max_age: 60 });
+    const login = await submitPassword(
+      fixture,
+      s.tenant.name,
+      s.client.clientId,
+      s.username,
+      PASSWORD,
+    );
+    fixture.clock.advance(120_000);
+    const silent = await authorize(s, sessionCookie(login), { prompt: 'none', state: 'st' });
+    expect(silent.statusCode).toBe(302);
+    const location = new URL(String(silent.headers.location));
+    expect(location.searchParams.get('error')).toBe('login_required');
+  });
+
   it('gives way to a max_age the request carries', async () => {
     const s = await setup({ default_max_age: 60 });
     const login = await submitPassword(
@@ -313,5 +329,27 @@ describe('the three through registration, export and import', () => {
       headers: { authorization: `Bearer ${operator}` },
     });
     expect(listed.json<{ items: unknown[] }>().items[0]).toMatchObject(settings);
+  });
+
+  it('refuses an import whose client names an algorithm a new tenant holds no key for', async () => {
+    const s = await setup();
+    const operator = await fixture.systemAdminToken(['manage-tenants', 'tenant-admin']);
+    const exported = await fixture.http.inject({
+      url: `/admin/tenants/${s.tenant.name}/export`,
+      headers: { authorization: `Bearer ${operator}` },
+    });
+    const document = tenantDocumentSchema.parse(exported.json());
+    const client = document.clients[0];
+    if (client === undefined) throw new Error('expected an exported client');
+    client.id_token_signed_response_alg = 'RS256';
+
+    const imported = await fixture.http.inject({
+      method: 'POST',
+      url: '/admin/tenant-imports',
+      headers: { authorization: `Bearer ${operator}` },
+      payload: { name: `idt-rs-${newId()}`, document },
+    });
+    expect(imported.statusCode).toBe(400);
+    expect(imported.body).toContain('document.clients[0].id_token_signed_response_alg');
   });
 });

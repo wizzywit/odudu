@@ -4,7 +4,7 @@ import { auditRepository } from '@odudu/domain-audit';
 import { clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { type LightMyRequestResponse } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture, type TestClient } from '#/testing/admin-fixture';
 import { expireRotatedClientSecrets } from '#/usecase/client-secret-expiry';
 
@@ -16,6 +16,9 @@ beforeAll(async () => {
 }, 180_000);
 afterAll(async () => {
   await fixtureHandle?.stop();
+});
+afterEach(() => {
+  fixture.clock.set(new Date());
 });
 
 interface Rotated {
@@ -94,7 +97,13 @@ describe('POST /clients/{id}/secret with a grace period', () => {
     fixture.clock.advance(3600 * 1000);
     expect((await tokenWith(tenant.name, client, client.secret)).statusCode).toBe(401);
     expect((await tokenWith(tenant.name, client, rotated.secret)).statusCode).toBe(200);
-    fixture.clock.set(new Date());
+  });
+
+  it('accepts the longest window, a week', async () => {
+    const { tenant, client } = await serviceClient();
+    const rotated = await rotate(tenant.name, client, 604_800);
+    expect(rotated.status).toBe(200);
+    expect((await tokenWith(tenant.name, client, client.secret)).statusCode).toBe(200);
   });
 
   it('keeps only the secret it replaced when rotated again inside a window', async () => {
