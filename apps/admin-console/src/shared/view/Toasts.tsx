@@ -104,7 +104,7 @@ export function Toasts({
   toasts,
   onDismiss,
 }: {
-  readonly toasts: readonly Toast[];
+  toasts: readonly Toast[];
   onDismiss: (id: string) => void;
 }) {
   const region = useRef<HTMLElement>(null);

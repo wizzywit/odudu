@@ -82,7 +82,7 @@ it('keeps an error until it is dismissed', () => {
   expect(onDismiss).toHaveBeenCalledWith('t2');
 });
 
-function Queue({ initial }: { readonly initial: readonly Toast[] }) {
+function Queue({ initial }: { initial: readonly Toast[] }) {
   const [toasts, setToasts] = useState(initial);
   return (
     <>

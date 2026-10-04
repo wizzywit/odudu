@@ -4,12 +4,12 @@ import { useSignedIn } from '#/features/session/usecase/useSignedIn.ts';
 import { useSignIn } from '#/features/session/usecase/useSignIn.ts';
 
 export type TenantAccess =
-  | { readonly kind: 'allowed'; readonly principal: Principal }
-  | { readonly kind: 'signing-in'; readonly tenant: string; readonly ended: boolean }
+  | { kind: 'allowed'; principal: Principal }
+  | { kind: 'signing-in'; tenant: string; ended: boolean }
   | {
-      readonly kind: 'elsewhere';
-      readonly principal: Principal;
-      readonly signIn: () => void;
+      kind: 'elsewhere';
+      principal: Principal;
+      signIn: () => void;
     };
 
 // A tenant in the URL goes straight to its sign-in when nobody is signed

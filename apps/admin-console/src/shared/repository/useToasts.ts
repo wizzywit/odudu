@@ -2,9 +2,9 @@ import { create } from 'zustand';
 import type { Toast } from '#/shared/service/toast.ts';
 
 interface ToastQueue {
-  readonly toasts: readonly Toast[];
-  readonly push: (toast: Omit<Toast, 'id'>) => string;
-  readonly dismiss: (id: string) => void;
+  toasts: readonly Toast[];
+  push: (toast: Omit<Toast, 'id'>) => string;
+  dismiss: (id: string) => void;
 }
 
 let issued = 0;

@@ -25,12 +25,12 @@ export function useAuthorityQuery(
   // not asked again until the principal signs back in.
   live = true,
 ): {
-  readonly authority: Authority | undefined;
+  authority: Authority | undefined;
   // undefined until whoami has answered.
-  readonly refusedUnknown: boolean | undefined;
+  refusedUnknown: boolean | undefined;
   // Whether whoami has answered at all, with its capabilities or a failure.
-  readonly answered: boolean;
-  readonly reread: () => void;
+  answered: boolean;
+  reread: () => void;
 } {
   const { gateway } = useTransport();
   const client = useQueryClient();

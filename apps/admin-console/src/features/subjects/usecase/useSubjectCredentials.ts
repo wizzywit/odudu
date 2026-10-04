@@ -14,26 +14,26 @@ import { useToasts } from '#/shared/repository/useToasts.ts';
 import type { GatewayResult } from '#/shared/transport/gateway.ts';
 
 export type Asking =
-  | { readonly kind: 'password' }
-  | { readonly kind: 'factor'; readonly credential: Credential }
-  | { readonly kind: 'recovery-codes' }
-  | { readonly kind: 'lockout' };
+  | { kind: 'password' }
+  | { kind: 'factor'; credential: Credential }
+  | { kind: 'recovery-codes' }
+  | { kind: 'lockout' };
 
 export interface SubjectCredentials {
-  readonly name: string;
+  name: string;
   // A service or agent subject, which holds none of this.
-  readonly itself: boolean;
-  readonly credentials: Read<ListCredentialsResponse>;
-  readonly lockout: Read<Lockout>;
-  readonly asking: Asking | null;
-  readonly busy: boolean;
-  readonly problem: string | null;
-  readonly ask: (asking: Asking) => void;
-  readonly cancel: () => void;
-  readonly confirm: () => void;
+  itself: boolean;
+  credentials: Read<ListCredentialsResponse>;
+  lockout: Read<Lockout>;
+  asking: Asking | null;
+  busy: boolean;
+  problem: string | null;
+  ask: (asking: Asking) => void;
+  cancel: () => void;
+  confirm: () => void;
   // The one-time password, for its SecretDialog and nothing else.
-  readonly secret: string | null;
-  readonly closeSecret: () => void;
+  secret: string | null;
+  closeSecret: () => void;
 }
 
 function refusalText(what: string, result: Exclude<GatewayResult<unknown>, { ok: true }>): string {

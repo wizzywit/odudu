@@ -53,7 +53,7 @@ export function readSubjectCount(
 export function createSubject(
   gateway: Gateway,
   tenant: string,
-  input: { readonly username: string; readonly email: string },
+  input: { username: string; email: string },
 ): Promise<GatewayResult<Subject>> {
   const t = path(tenant);
   return gateway.request('POST', `admin/tenants/${t}/subjects`, {

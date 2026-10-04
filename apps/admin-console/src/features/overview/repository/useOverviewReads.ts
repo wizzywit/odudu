@@ -21,26 +21,26 @@ import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export interface OverviewAsks {
-  readonly discovery: boolean;
-  readonly subjects: boolean;
-  readonly clients: boolean;
-  readonly groups: boolean;
-  readonly roles: boolean;
-  readonly scopes: boolean;
-  readonly settings: boolean;
-  readonly smtp: boolean;
-  readonly keys: boolean;
-  readonly audit: boolean;
+  discovery: boolean;
+  subjects: boolean;
+  clients: boolean;
+  groups: boolean;
+  roles: boolean;
+  scopes: boolean;
+  settings: boolean;
+  smtp: boolean;
+  keys: boolean;
+  audit: boolean;
 }
 
 export interface OverviewReads {
-  readonly discovery: Read<Discovery>;
-  readonly jwks: Read<Jwks>;
-  readonly counts: Readonly<Record<Collection, Read<CountResponse>>>;
-  readonly settings: Read<Settings>;
-  readonly smtp: Read<SmtpConfig>;
-  readonly keys: Read<readonly SigningKey[]>;
-  readonly audit: Read<readonly AuditEvent[]>;
+  discovery: Read<Discovery>;
+  jwks: Read<Jwks>;
+  counts: Readonly<Record<Collection, Read<CountResponse>>>;
+  settings: Read<Settings>;
+  smtp: Read<SmtpConfig>;
+  keys: Read<readonly SigningKey[]>;
+  audit: Read<readonly AuditEvent[]>;
 }
 
 export type ReadName = keyof OverviewAsks | 'jwks';

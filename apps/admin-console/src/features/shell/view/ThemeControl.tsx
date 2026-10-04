@@ -2,7 +2,7 @@ import { Label, RadioButton, RadioField, RadioGroup } from 'react-aria-component
 import type { ThemeChoice } from '#/shared/service/theme.ts';
 import styles from '#/features/shell/view/ThemeControl.module.css';
 
-const CHOICES: readonly { readonly id: ThemeChoice; readonly label: string }[] = [
+const CHOICES: readonly { id: ThemeChoice; label: string }[] = [
   { id: 'system', label: 'System' },
   { id: 'light', label: 'Light' },
   { id: 'dark', label: 'Dark' },

@@ -42,7 +42,7 @@ export function KeyHint({
 }: {
   id?: string;
   lead: string;
-  readonly keys: readonly Key[];
+  keys: readonly Key[];
   announced?: boolean;
 }) {
   const platform = use(PlatformContext);

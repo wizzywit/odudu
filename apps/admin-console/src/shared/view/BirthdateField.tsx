@@ -33,7 +33,7 @@ import {
 } from '#/shared/view/Field.tsx';
 import styles from '#/shared/view/Field.module.css';
 
-const FORMS: readonly { readonly id: BirthdateForm; readonly label: string }[] = [
+const FORMS: readonly { id: BirthdateForm; label: string }[] = [
   { id: 'date', label: 'Full date' },
   { id: 'year', label: 'Year only' },
   { id: 'no-year', label: 'Day and month' },

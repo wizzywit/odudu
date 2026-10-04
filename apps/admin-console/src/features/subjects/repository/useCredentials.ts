@@ -17,9 +17,7 @@ import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.t
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export type Read<T> =
-  | { readonly status: 'loading' }
-  | { readonly status: 'ready'; readonly data: T }
-  | { readonly status: 'failed'; readonly retry: () => void };
+  { status: 'loading' } | { status: 'ready'; data: T } | { status: 'failed'; retry: () => void };
 
 function useSubjectRead<T>(
   key: readonly unknown[],
@@ -64,13 +62,11 @@ export function useLockout(tenant: string, id: string, asked: boolean): Read<Loc
 }
 
 export type CredentialChange =
-  | { readonly kind: 'factor'; readonly credentialId: string }
-  | { readonly kind: 'recovery-codes' }
-  | { readonly kind: 'lockout' };
+  { kind: 'factor'; credentialId: string } | { kind: 'recovery-codes' } | { kind: 'lockout' };
 
 export interface CredentialChanges {
-  readonly busy: boolean;
-  readonly run: (change: CredentialChange) => Promise<GatewayResult<undefined>>;
+  busy: boolean;
+  run: (change: CredentialChange) => Promise<GatewayResult<undefined>>;
 }
 
 // Each change re-reads what it changed, so the tab shows the server's word.
@@ -102,8 +98,8 @@ export function useIssuePassword(
   tenant: string,
   id: string,
   told: {
-    readonly issued: () => void;
-    readonly refused: (failure: GatewayFailure) => void;
+    issued: () => void;
+    refused: (failure: GatewayFailure) => void;
   },
 ): SecretOnce<void, null> {
   const client = useQueryClient();

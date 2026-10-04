@@ -16,33 +16,33 @@ import {
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 
 export interface ChosenFile {
-  readonly name: string;
-  readonly size: string;
+  name: string;
+  size: string;
 }
 
 export interface ImportTenantPage {
-  readonly name: string;
-  readonly displayName: string;
-  readonly rule: string;
-  readonly file: ChosenFile | null;
-  readonly nameError: string | undefined;
-  readonly fileError: string | undefined;
+  name: string;
+  displayName: string;
+  rule: string;
+  file: ChosenFile | null;
+  nameError: string | undefined;
+  fileError: string | undefined;
   // Every problem the import found in the document, each at its JSON path.
-  readonly errors: readonly ImportError[];
-  readonly message: string | null;
-  readonly unconfirmed: boolean;
-  readonly busy: boolean;
-  readonly secret: ImportedSecret | null;
-  readonly secretPlace: string;
-  readonly imported: { readonly tenant: string; readonly recordHref: string } | null;
-  readonly editName: (name: string) => void;
-  readonly editDisplayName: (displayName: string) => void;
-  readonly choose: (file: File | null) => void;
-  readonly submit: () => void;
-  readonly check: () => void;
-  readonly closeSecret: () => void;
+  errors: readonly ImportError[];
+  message: string | null;
+  unconfirmed: boolean;
+  busy: boolean;
+  secret: ImportedSecret | null;
+  secretPlace: string;
+  imported: { tenant: string; recordHref: string } | null;
+  editName: (name: string) => void;
+  editDisplayName: (displayName: string) => void;
+  choose: (file: File | null) => void;
+  submit: () => void;
+  check: () => void;
+  closeSecret: () => void;
   // The first administrator's step, for the tenant just imported.
-  readonly begin: BeginAdministrator;
+  begin: BeginAdministrator;
 }
 
 // Most often a reverse proxy's own limit, lower than the import route's.

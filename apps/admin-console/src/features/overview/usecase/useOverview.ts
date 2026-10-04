@@ -22,13 +22,13 @@ import { readable } from '#/shared/service/access.ts';
 import type { AdminCapability, Authority } from '#/shared/service/principal.ts';
 
 export interface Overview {
-  readonly discovery: Read<DiscoveryView>;
-  readonly keys: Read<KeysView>;
-  readonly tiles: readonly CountTile[];
-  readonly attention: AttentionState;
+  discovery: Read<DiscoveryView>;
+  keys: Read<KeysView>;
+  tiles: readonly CountTile[];
+  attention: AttentionState;
   // Null when whoami says the audit trail is not the operator's to read.
-  readonly audit: Gated<readonly AuditEvent[]> | null;
-  readonly auditHref: string;
+  audit: Gated<readonly AuditEvent[]> | null;
+  auditHref: string;
 }
 
 const COUNTED = [

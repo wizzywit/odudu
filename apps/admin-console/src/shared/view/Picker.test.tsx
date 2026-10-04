@@ -7,8 +7,8 @@ import { Picker } from '#/shared/view/Picker.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 interface Scope {
-  readonly id: string;
-  readonly name: string;
+  id: string;
+  name: string;
 }
 
 const SCOPES: readonly Scope[] = [

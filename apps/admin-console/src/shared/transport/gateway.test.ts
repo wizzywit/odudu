@@ -16,8 +16,8 @@ const ETAG = '"e0e294cbbb3a1a76ae2d1962269e63e5016b9ac6c24613abe0a66c650dc679be"
 const SUBJECT_PATH = 'admin/tenants/acme/subjects/01a0e72d-7fc7-7950-a1e7-1d079588f8b4';
 
 interface Call {
-  readonly url: string;
-  readonly init: RequestInit;
+  url: string;
+  init: RequestInit;
 }
 type Answer = Response | Error;
 

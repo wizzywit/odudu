@@ -4,8 +4,8 @@ import { loadDrafts, storeDrafts } from '#/shared/adapter/draftStorage.ts';
 // Every field says whether it is secret, with no default, so a new password
 // or client-secret field cannot reach sessionStorage by omission.
 export interface DraftField {
-  readonly kind: 'plain' | 'secret';
-  readonly value: unknown;
+  kind: 'plain' | 'secret';
+  value: unknown;
 }
 export type DraftFields = Readonly<Record<string, DraftField>>;
 export type DraftValues = Readonly<Record<string, unknown>>;
@@ -13,28 +13,28 @@ export type DraftValues = Readonly<Record<string, unknown>>;
 // A draft is saved with the ETag its section loaded, never a fresh one, so a
 // change somebody made meanwhile answers 412 rather than being overwritten.
 export interface KeptDraft {
-  readonly values: DraftValues;
-  readonly etag: string | null;
+  values: DraftValues;
+  etag: string | null;
 }
 
 export interface DraftSource {
-  readonly record: string;
-  readonly section: string;
-  readonly dirty: () => boolean;
+  record: string;
+  section: string;
+  dirty: () => boolean;
   // The section's edits, not its whole record: a restore lands on a fresh read.
-  readonly fields: () => DraftFields;
-  readonly etag: () => string | null;
+  fields: () => DraftFields;
+  etag: () => string | null;
 }
 
 interface Drafts {
-  readonly register: (source: DraftSource) => () => void;
+  register: (source: DraftSource) => () => void;
   // Writes every dirty section's non-secret edits; answers how many sections.
-  readonly keepDirty: (owner: string) => number;
-  readonly restore: (record: string, section: string) => KeptDraft | null;
-  readonly forget: (record: string, section: string) => void;
+  keepDirty: (owner: string) => number;
+  restore: (record: string, section: string) => KeptDraft | null;
+  forget: (record: string, section: string) => void;
   // Drops drafts some other administrator left in this tab.
-  readonly adopt: (owner: string) => void;
-  readonly forgetAll: () => void;
+  adopt: (owner: string) => void;
+  forgetAll: () => void;
 }
 
 function keepable(fields: DraftFields): Record<string, unknown> {

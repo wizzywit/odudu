@@ -35,11 +35,11 @@ export function ResourceListPage<T>({
   kicker?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
-  noun: { readonly one: string; readonly other: string };
-  readonly searchFields?: readonly SelectOption[];
+  noun: { one: string; other: string };
+  searchFields?: readonly SelectOption[];
   // Exact filters, drawn beside the search.
   filters?: ReactNode;
-  readonly columns: readonly Column<T>[];
+  columns: readonly Column<T>[];
   rowKey: (row: T) => string;
   onRowAction?: (id: string) => void;
   // What a refused read needed, named rather than shown as a failure.
@@ -96,8 +96,8 @@ function Narrowing<T>({
   children,
 }: {
   list: ResourceListState<T>;
-  noun: { readonly one: string; readonly other: string };
-  readonly searchFields: readonly SelectOption[];
+  noun: { one: string; other: string };
+  searchFields: readonly SelectOption[];
   filters: ReactNode;
   children: ReactNode;
 }) {
@@ -149,8 +149,8 @@ function Body<T>({
 }: {
   list: ResourceListState<T>;
   title: string;
-  noun: { readonly one: string; readonly other: string };
-  readonly columns: readonly Column<T>[];
+  noun: { one: string; other: string };
+  columns: readonly Column<T>[];
   rowKey: (row: T) => string;
   onRowAction?: (id: string) => void;
   capability: string;

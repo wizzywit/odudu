@@ -15,9 +15,9 @@ const TAGS = `
   .split(/\s+/u);
 
 export interface LocaleOption {
-  readonly id: string;
-  readonly label: string;
-  readonly detail: string;
+  id: string;
+  label: string;
+  detail: string;
 }
 
 export function localeName(tag: string, display: string): string {

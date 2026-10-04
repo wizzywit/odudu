@@ -1,9 +1,9 @@
 import { isValidZoneinfo } from '@odudu/contracts';
 
 export interface ZoneOption {
-  readonly id: string;
-  readonly label: string;
-  readonly detail: string;
+  id: string;
+  label: string;
+  detail: string;
 }
 
 // "GMT+01:00" as Intl writes it, or "GMT" alone at a zero offset.

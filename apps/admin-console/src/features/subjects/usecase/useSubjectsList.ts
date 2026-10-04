@@ -8,12 +8,12 @@ import type { AdminCapability } from '#/shared/service/principal.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
 export interface SubjectsList {
-  readonly list: ResourceListState<Subject>;
+  list: ResourceListState<Subject>;
   // Null while whoami says creating would be refused.
-  readonly createHref: string | null;
+  createHref: string | null;
   // What changing a subject needs that whoami says is missing.
-  readonly changeNeeds: readonly AdminCapability[];
-  readonly open: (id: string) => void;
+  changeNeeds: readonly AdminCapability[];
+  open: (id: string) => void;
 }
 
 export function useSubjectsList(tenant: string): SubjectsList {

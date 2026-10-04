@@ -8,12 +8,12 @@ export const TENANT = 'acme';
 export const NOW = new Date('2026-09-28T14:03:22Z');
 
 export interface ClientRow {
-  readonly id: string;
-  readonly clientId: string;
-  readonly name: string;
-  readonly type: 'confidential' | 'public';
-  readonly enabled: boolean;
-  readonly created: string;
+  id: string;
+  clientId: string;
+  name: string;
+  type: 'confidential' | 'public';
+  enabled: boolean;
+  created: string;
 }
 
 export const CLIENTS: readonly ClientRow[] = [

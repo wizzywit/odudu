@@ -18,7 +18,7 @@ export function RolePicker({
 }: {
   label: string;
   picker: PickerState<Role>;
-  readonly selected: readonly string[];
+  selected: readonly string[];
   onChange: (ids: string[]) => void;
   selectionMode?: 'single' | 'multiple';
 }) {

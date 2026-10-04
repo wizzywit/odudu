@@ -25,7 +25,7 @@ export function ConflictPanel({
   onTakeTheirs,
 }: {
   section: string;
-  readonly conflicts: readonly Conflict[];
+  conflicts: readonly Conflict[];
   source?: ConflictSource;
   busy?: boolean;
   onKeepMine: () => void;

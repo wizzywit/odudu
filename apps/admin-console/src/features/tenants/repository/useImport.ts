@@ -8,32 +8,32 @@ import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.t
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export interface ImportInput {
-  readonly name: string;
-  readonly displayName: string;
-  readonly file: File;
+  name: string;
+  displayName: string;
+  file: File;
 }
 
 export interface ImportedSecret {
-  readonly clientId: string;
-  readonly secret: string;
+  clientId: string;
+  secret: string;
 }
 
 export type ImportOutcome =
-  | { readonly ok: true; readonly tenant: Tenant; readonly secrets: number }
-  | { readonly ok: false; readonly kind: 'file'; readonly message: string }
-  | { readonly ok: false; readonly kind: 'refused'; readonly failure: GatewayFailure };
+  | { ok: true; tenant: Tenant; secrets: number }
+  | { ok: false; kind: 'file'; message: string }
+  | { ok: false; kind: 'refused'; failure: GatewayFailure };
 
 export interface TenantImport {
   // Never sent twice for one press: a repeat would answer 409 and the
   // secrets of the first would be lost.
-  readonly start: (input: ImportInput) => void;
-  readonly busy: boolean;
-  readonly outcome: ImportOutcome | null;
+  start: (input: ImportInput) => void;
+  busy: boolean;
+  outcome: ImportOutcome | null;
   // One client's secret at a time, for its SecretDialog and nothing else.
-  readonly secret: ImportedSecret | null;
-  readonly shown: number;
-  readonly close: () => void;
-  readonly find: (name: string) => Promise<GatewayResult<Tenant | null>>;
+  secret: ImportedSecret | null;
+  shown: number;
+  close: () => void;
+  find: (name: string) => Promise<GatewayResult<Tenant | null>>;
 }
 
 // The secrets are split off before the mutation settles, so the mutation

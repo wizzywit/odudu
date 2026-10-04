@@ -18,7 +18,7 @@ const PAGE_RULES = {
 export async function axeInBothThemes(
   ui: () => ReactElement,
   ready: () => Promise<unknown> = () => Promise.resolve(),
-  { disable = [] }: { readonly disable?: readonly string[] } = {},
+  { disable = [] }: { disable?: readonly string[] } = {},
 ): Promise<Record<Theme, string[]>> {
   const found: Record<Theme, string[]> = { light: [], dark: [] };
   const root = document.documentElement;

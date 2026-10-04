@@ -25,8 +25,8 @@ export function defect(message: string): GatewayFailure {
 }
 
 export interface Refused {
-  readonly failure: GatewayFailure;
-  readonly request: AdministratorRequest;
+  failure: GatewayFailure;
+  request: AdministratorRequest;
 }
 
 export function refusedAt(failure: GatewayFailure, request: AdministratorRequest): Refused {
@@ -36,7 +36,7 @@ export function refusedAt(failure: GatewayFailure, request: AdministratorRequest
 async function adminClientOf(
   gateway: Gateway,
   tenant: string,
-): Promise<{ readonly client: string } | Refused> {
+): Promise<{ client: string } | Refused> {
   const clients = await readAdminClients(gateway, tenant);
   if (!clients.ok) return refusedAt(clients, 'clients');
   const client = builtinAdminClient(clients.data.items);
@@ -53,7 +53,7 @@ async function heldRoles(
   gateway: Gateway,
   tenant: string,
   subjectId: string,
-): Promise<{ readonly ids: readonly string[]; readonly etag: string } | Refused> {
+): Promise<{ ids: readonly string[]; etag: string } | Refused> {
   const held = await readSubjectRoles(gateway, tenant, subjectId);
   if (!held.ok) return refusedAt(held, 'subject-roles');
   if (held.etag === null) {
@@ -100,23 +100,22 @@ export async function grantTenantAdmin(
 export type Revoked =
   // stillHolds is null when it could not be checked: the subject has no
   // username to look it up by, or the look-up failed.
-  | { readonly kind: 'revoked'; readonly stillHolds: boolean | null }
+  | { kind: 'revoked'; stillHolds: boolean | null }
   // Held only through a group or a role that nests it, which no edit here reaches.
-  | { readonly kind: 'not-direct' }
-  | ({ readonly kind: 'refused' } & Refused);
+  | { kind: 'not-direct' }
+  | ({ kind: 'refused' } & Refused);
 
 // Only a subject's own role assignments are changed. Whether the capability
 // survived through another path is asked of the server rather than worked out.
 export async function revokeAdministrator(
   gateway: Gateway,
   tenant: string,
-  subject: { readonly id: string; readonly username: string | null },
+  subject: { id: string; username: string | null },
 ): Promise<Revoked> {
   const client = await adminClientOf(gateway, tenant);
   if (isRefused(client)) return { kind: 'refused', ...client };
   // By name, as the grant does: a client's roles can run past one page.
-  const found: { readonly id: string; readonly name: string; readonly client_id: string | null }[] =
-    [];
+  const found: { id: string; name: string; client_id: string | null }[] = [];
   for (const name of administratorRoleNames(tenant)) {
     const roles = await readClientRoles(gateway, tenant, client.client, name);
     if (!roles.ok) return { kind: 'refused', ...refusedAt(roles, 'roles') };

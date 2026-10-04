@@ -49,14 +49,14 @@ export type ClaimInput =
   'text' | 'url' | 'picture' | 'phone' | 'birthdate' | 'gender' | 'zone' | 'locale' | 'country';
 
 export interface ClaimField {
-  readonly id: Claim;
-  readonly label: string;
-  readonly input: ClaimInput;
+  id: Claim;
+  label: string;
+  input: ClaimInput;
   // The HTML token naming what a text claim holds (WCAG 1.3.5); a typed
   // field carries its own.
-  readonly autoComplete?: string;
+  autoComplete?: string;
   // How far the field runs across the profile's columns, where one is narrow.
-  readonly span?: 'wide' | 'full';
+  span?: 'wide' | 'full';
 }
 
 export const NAME_CLAIMS: readonly ClaimField[] = [
@@ -102,11 +102,11 @@ export const ADDRESS_CLAIMS: readonly ClaimField[] = [
 ];
 
 export interface Credentials {
-  readonly password: Credential | null;
+  password: Credential | null;
   // A TOTP enrolment or a passkey, each removable on its own.
-  readonly factors: readonly Credential[];
+  factors: readonly Credential[];
   // Unspent codes, or null when none was ever issued.
-  readonly recoveryCodes: number | null;
+  recoveryCodes: number | null;
 }
 
 export function credentialsOf(items: readonly Credential[]): Credentials {
@@ -128,9 +128,9 @@ export function removeFactorLabel(credential: Credential): string {
 }
 
 export interface LockoutSummary {
-  readonly tone: 'neutral' | 'danger';
-  readonly state: 'locked' | 'not locked';
-  readonly text: string;
+  tone: 'neutral' | 'danger';
+  state: 'locked' | 'not locked';
+  text: string;
 }
 
 function failures(count: number): string {

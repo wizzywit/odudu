@@ -5,9 +5,9 @@ import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 interface Client {
-  readonly id: string;
-  readonly name: string;
-  readonly type: string;
+  id: string;
+  name: string;
+  type: string;
 }
 
 const CLIENTS: readonly Client[] = [

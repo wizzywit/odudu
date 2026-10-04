@@ -2,8 +2,8 @@ export type Platform = 'mac' | 'other';
 
 // The parts of navigator read here; userAgentData is not in every browser.
 export interface NavigatorLike {
-  readonly platform?: string;
-  readonly userAgentData?: { readonly platform?: string };
+  platform?: string;
+  userAgentData?: { platform?: string };
 }
 
 const APPLE = /mac|iphone|ipad|ipod|ios/iu;
@@ -21,8 +21,8 @@ export const PLATFORM: Platform = platformOf(
 export type Key = 'Enter' | 'Mod' | 'Alt' | (string & {});
 
 export interface KeyLabel {
-  readonly shown: string;
-  readonly spoken: string;
+  shown: string;
+  spoken: string;
 }
 
 const NAMED: Readonly<Record<string, Readonly<Record<Platform, KeyLabel>>>> = {

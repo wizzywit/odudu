@@ -12,8 +12,8 @@ import { useTransport } from '#/shared/transport/useTransport.ts';
 // `by` tells a read apart from what a section's save wrote in its place, so
 // that only somebody else's change counts as an update.
 export interface RecordEntry<R> {
-  readonly result: GatewaySuccess<R>;
-  readonly by: 'read' | 'save';
+  result: GatewaySuccess<R>;
+  by: 'read' | 'save';
 }
 
 export function recordKey(tenant: string, record: string) {
@@ -21,9 +21,9 @@ export function recordKey(tenant: string, record: string) {
 }
 
 export interface RecordState<R> extends RecordView {
-  readonly data: R | undefined;
-  readonly etag: string | null;
-  readonly failure: GatewayFailure | null;
+  data: R | undefined;
+  etag: string | null;
+  failure: GatewayFailure | null;
 }
 
 // Thrown so that a failed re-read leaves the record already read in place:
@@ -47,10 +47,10 @@ export function useRecord<R>({
   record,
   read,
 }: {
-  readonly tenant: string;
+  tenant: string;
   // The record's path within the tenant, e.g. `clients/<id>`.
-  readonly record: string;
-  readonly read: (gateway: Gateway) => Promise<GatewayResult<R>>;
+  record: string;
+  read: (gateway: Gateway) => Promise<GatewayResult<R>>;
 }): RecordState<R> {
   const { gateway } = useTransport();
   const client = useQueryClient();

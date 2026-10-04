@@ -19,7 +19,7 @@ export function problem(
   status: number,
   type = 'about:blank',
   title = 'Refused',
-  extra: { readonly detail?: string; readonly errors?: readonly unknown[] } = {},
+  extra: { detail?: string; errors?: readonly unknown[] } = {},
 ): Answer {
   return () =>
     new Response(JSON.stringify({ type, title, status, ...extra }), {
@@ -52,19 +52,19 @@ export function offline(): Answer {
 }
 
 export interface Call {
-  readonly method: string;
-  readonly path: string;
+  method: string;
+  path: string;
   // The X-Odudu-Console-Subject the request named, or null.
-  readonly subject: string | null;
+  subject: string | null;
 }
 
 // What a request carried beyond its address: its query, If-Match and body.
 export interface Sent {
-  readonly method: string;
-  readonly path: string;
-  readonly search: URLSearchParams;
-  readonly ifMatch: string | null;
-  readonly body: unknown;
+  method: string;
+  path: string;
+  search: URLSearchParams;
+  ifMatch: string | null;
+  body: unknown;
 }
 
 function bodyOf(init: RequestInit): unknown {

@@ -40,7 +40,7 @@ function displayNameOf(displayName: string): { display_name?: string } {
 
 export function createTenant(
   gateway: Gateway,
-  input: { readonly name: string; readonly displayName: string },
+  input: { name: string; displayName: string },
 ): Promise<GatewayResult<Tenant>> {
   return gateway.request('POST', 'admin/tenants', {
     body: { name: input.name, ...displayNameOf(input.displayName) },
@@ -66,7 +66,7 @@ export function readTenant(gateway: Gateway, name: string): Promise<GatewayResul
 export function amendTenant(
   gateway: Gateway,
   name: string,
-  changes: { readonly display_name?: string | null; readonly enabled?: boolean },
+  changes: { display_name?: string | null; enabled?: boolean },
   ifMatch: string,
 ): Promise<GatewayResult<Tenant>> {
   return gateway.request('PATCH', `admin/tenants/${tenantPath(name)}`, {
@@ -78,7 +78,7 @@ export function amendTenant(
 
 export function importTenant(
   gateway: Gateway,
-  input: { readonly name: string; readonly displayName: string; readonly document: unknown },
+  input: { name: string; displayName: string; document: unknown },
 ): Promise<GatewayResult<ImportTenantResponse>> {
   return gateway.request('POST', 'admin/tenant-imports', {
     body: { name: input.name, ...displayNameOf(input.displayName), document: input.document },

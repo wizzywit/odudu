@@ -3,45 +3,45 @@ import type { CursorTrail } from '#/shared/service/cursorTrail.ts';
 
 // A prefix of one named field, as the admin API searches.
 export interface ListSearch {
-  readonly field: string;
-  readonly query: string;
+  field: string;
+  query: string;
 }
 
 export interface ListNarrowing {
-  readonly search: ListSearch | null;
-  readonly filters: Readonly<Record<string, string>>;
+  search: ListSearch | null;
+  filters: Readonly<Record<string, string>>;
 }
 
 export interface ListSpec {
   // The fields a search can apply to, the default first; empty for none.
-  readonly fields: readonly string[];
-  readonly filters: readonly string[];
+  fields: readonly string[];
+  filters: readonly string[];
 }
 
 export interface ListPage<T> {
-  readonly items: readonly T[];
-  readonly next?: string | undefined;
+  items: readonly T[];
+  next?: string | undefined;
 }
 
 export type ListStatus = 'loading' | 'failed' | 'refused' | 'ready';
 
 // A list page's whole state, as the view renders it.
 export interface ResourceListState<T> extends ListNarrowing {
-  readonly status: ListStatus;
-  readonly rows: readonly T[];
-  readonly count: CountResponse | null;
-  readonly narrowed: boolean;
-  readonly trail: CursorTrail;
-  readonly next: string | null;
-  readonly loadingMore: boolean;
+  status: ListStatus;
+  rows: readonly T[];
+  count: CountResponse | null;
+  narrowed: boolean;
+  trail: CursorTrail;
+  next: string | null;
+  loadingMore: boolean;
   // A page after the first failed; the rows already shown stay.
-  readonly loadMoreFailed: boolean;
-  readonly setSearch: (search: ListSearch) => void;
-  readonly setFilter: (name: string, value: string | null) => void;
-  readonly clear: () => void;
-  readonly setTrail: (trail: CursorTrail) => void;
-  readonly loadMore: () => void;
-  readonly retry: () => void;
+  loadMoreFailed: boolean;
+  setSearch: (search: ListSearch) => void;
+  setFilter: (name: string, value: string | null) => void;
+  clear: () => void;
+  setTrail: (trail: CursorTrail) => void;
+  loadMore: () => void;
+  retry: () => void;
 }
 
 const QUERY = 'q';

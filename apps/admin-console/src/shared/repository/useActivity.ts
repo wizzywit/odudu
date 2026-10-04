@@ -10,9 +10,9 @@ export function useActivity({
   resourceType,
   resourceId,
 }: {
-  readonly tenant: string;
-  readonly resourceType: string;
-  readonly resourceId: string;
+  tenant: string;
+  resourceType: string;
+  resourceId: string;
 }): ResourceListState<AuditEvent> {
   return useResourceList({
     tenant,

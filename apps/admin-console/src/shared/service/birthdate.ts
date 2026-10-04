@@ -3,12 +3,12 @@ import { isValidBirthdate } from '@odudu/contracts';
 // The three forms OIDC Core §5.1 gives a birthdate: YYYY-MM-DD, YYYY alone,
 // and 0000-MM-DD for a day and month whose year is withheld.
 export type Birthdate =
-  | { readonly kind: 'empty' }
-  | { readonly kind: 'date'; readonly year: number; readonly month: number; readonly day: number }
-  | { readonly kind: 'year'; readonly year: number }
-  | { readonly kind: 'no-year'; readonly month: number; readonly day: number }
+  | { kind: 'empty' }
+  | { kind: 'date'; year: number; month: number; day: number }
+  | { kind: 'year'; year: number }
+  | { kind: 'no-year'; month: number; day: number }
   // Stored in the claim's shape but naming no day that exists.
-  | { readonly kind: 'other'; readonly raw: string };
+  | { kind: 'other'; raw: string };
 
 export type BirthdateForm = 'date' | 'year' | 'no-year';
 
@@ -73,9 +73,9 @@ export function convertBirthdate(birthdate: Birthdate, to: BirthdateForm): Birth
 }
 
 export interface Day {
-  readonly year: number;
-  readonly month: number;
-  readonly day: number;
+  year: number;
+  month: number;
+  day: number;
 }
 
 export function birthdateProblem(birthdate: Birthdate, today: Day): string | null {

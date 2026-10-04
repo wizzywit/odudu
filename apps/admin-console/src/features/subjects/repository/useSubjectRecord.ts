@@ -36,8 +36,8 @@ export function useProfileRecord(tenant: string, id: string): RecordState<Profil
 }
 
 export interface AccountValues extends Readonly<Record<string, unknown>> {
-  readonly username: string;
-  readonly email: string;
+  username: string;
+  email: string;
 }
 
 // An emptied email is cleared, as the server keeps no empty one.
@@ -74,8 +74,8 @@ export function saveClaims(tenant: string, id: string) {
 }
 
 export interface VerificationValues extends Readonly<Record<string, unknown>> {
-  readonly email_verified: boolean;
-  readonly phone_number_verified: boolean;
+  email_verified: boolean;
+  phone_number_verified: boolean;
 }
 
 export function saveVerification(tenant: string, id: string) {
@@ -84,8 +84,8 @@ export function saveVerification(tenant: string, id: string) {
 }
 
 export interface SubjectChange<A> {
-  readonly busy: boolean;
-  readonly run: (arg: A) => Promise<GatewayResult<unknown>>;
+  busy: boolean;
+  run: (arg: A) => Promise<GatewayResult<unknown>>;
 }
 
 // Enabling and disabling are one PATCH on the ETag the subject was read
@@ -130,9 +130,9 @@ export function useSubjectDeletion(tenant: string, id: string): SubjectChange<vo
 }
 
 export type UsernamePolicyRead =
-  | { readonly status: 'loading' }
-  | { readonly status: 'ready'; readonly editable: boolean }
-  | { readonly status: 'failed'; readonly retry: () => void };
+  | { status: 'loading' }
+  | { status: 'ready'; editable: boolean }
+  | { status: 'failed'; retry: () => void };
 
 // Whether a rename would be accepted, as the tenant's policy says.
 export function useUsernamePolicy(tenant: string): UsernamePolicyRead {

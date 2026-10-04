@@ -51,7 +51,7 @@ function Figure({ tile }: { tile: CountTile }) {
   }
 }
 
-export function CountsPanel({ tiles }: { readonly tiles: readonly CountTile[] }) {
+export function CountsPanel({ tiles }: { tiles: readonly CountTile[] }) {
   return (
     <Panel title="Counts">
       <ul className={styles.tiles}>

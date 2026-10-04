@@ -23,8 +23,8 @@ export type AdministratorCall = 'create' | 'grant' | 'password';
 // issued last: a lost answer is replaced by issuing another, which nothing
 // else here can say of itself.
 export function administratorCalls(done: {
-  readonly subjectId: string | null;
-  readonly granted: boolean;
+  subjectId: string | null;
+  granted: boolean;
 }): readonly AdministratorCall[] {
   const calls: AdministratorCall[] = [];
   if (done.subjectId === null) calls.push('create');
@@ -36,15 +36,15 @@ export function administratorCalls(done: {
 // A tenant may make a client role of its own named `tenant-admin`, so the
 // one that grants the console is found through the built-in client.
 export function builtinAdminClient(
-  clients: readonly { readonly id: string; readonly builtin_admin: boolean }[],
+  clients: readonly { id: string; builtin_admin: boolean }[],
 ): string | null {
   return clients.find((client) => client.builtin_admin)?.id ?? null;
 }
 
 interface ClientRole {
-  readonly id: string;
-  readonly name: string;
-  readonly client_id: string | null;
+  id: string;
+  name: string;
+  client_id: string | null;
 }
 
 export function tenantAdminRole(roles: readonly ClientRole[], adminClient: string): string | null {
@@ -140,7 +140,7 @@ export function roleChangeNeeds(tenant: string): readonly AdminCapability[] {
 // hands the role out, the other writes to a subject who holds it (ADR 0040).
 export function administratorNeeds(
   tenant: string,
-  done: { readonly subjectId: string | null; readonly granted: boolean },
+  done: { subjectId: string | null; granted: boolean },
 ): readonly AdminCapability[] {
   const calls = administratorCalls(done);
   const requests = calls.flatMap((call) => CALL_REQUESTS[call]);

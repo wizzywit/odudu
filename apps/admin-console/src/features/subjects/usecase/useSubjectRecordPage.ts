@@ -9,19 +9,19 @@ import type { AdminCapability } from '#/shared/service/principal.ts';
 import type { RecordView } from '#/shared/service/record.ts';
 
 export interface SubjectRecordPage {
-  readonly record: RecordView;
-  readonly subject: Subject | undefined;
-  readonly etag: string | null;
-  readonly tab: SubjectTab;
-  readonly selectTab: (tab: string) => void;
+  record: RecordView;
+  subject: Subject | undefined;
+  etag: string | null;
+  tab: SubjectTab;
+  selectTab: (tab: string) => void;
   // Tabs with a section holding unsaved edits, for their dots.
-  readonly dirty: ReadonlySet<SubjectTab>;
+  dirty: ReadonlySet<SubjectTab>;
   // False once whoami says a change would be refused; true until it answers.
-  readonly canManage: boolean;
+  canManage: boolean;
   // What changing the subject needs that whoami says is missing.
-  readonly changeNeeds: readonly AdminCapability[];
+  changeNeeds: readonly AdminCapability[];
   // The principal looking is this subject.
-  readonly self: boolean;
+  self: boolean;
 }
 
 export function useSubjectRecordPage(tenant: string, id: string): SubjectRecordPage {

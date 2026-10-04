@@ -29,8 +29,8 @@ export function readable(
 
 export interface Change {
   // As the page's one line says it: "change them", "export them".
-  readonly change: string;
-  readonly needs: readonly AdminCapability[];
+  change: string;
+  needs: readonly AdminCapability[];
 }
 
 // The page's changes whoami rules out, joined into the one line that

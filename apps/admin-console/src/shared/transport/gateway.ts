@@ -9,34 +9,34 @@ export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
 export interface RequestOptions<T> {
-  readonly body?: unknown;
-  readonly ifMatch?: string;
-  readonly schema: ZodType<T>;
+  body?: unknown;
+  ifMatch?: string;
+  schema: ZodType<T>;
 }
 
 export interface GatewaySuccess<T> {
-  readonly ok: true;
-  readonly status: number;
-  readonly data: T;
-  readonly etag: string | null;
-  readonly next: string | null;
+  ok: true;
+  status: number;
+  data: T;
+  etag: string | null;
+  next: string | null;
 }
 
 // `defect` and `schema` are the console's own mistakes, already logged: a
 // view reports them as a generic failure, never as something the user did.
 export type GatewayFailure =
-  | { readonly ok: false; readonly kind: 'problem'; readonly problem: Problem }
-  | { readonly ok: false; readonly kind: 'network' }
-  | { readonly ok: false; readonly kind: 'schema' }
-  | { readonly ok: false; readonly kind: 'defect' };
+  | { ok: false; kind: 'problem'; problem: Problem }
+  | { ok: false; kind: 'network' }
+  | { ok: false; kind: 'schema' }
+  | { ok: false; kind: 'defect' };
 
 export type GatewayResult<T> = GatewaySuccess<T> | GatewayFailure;
 
 // A body answered as the server sent it, for a file the console saves
 // rather than a document it reads: a schema would drop what it does not know.
 export interface RawBody {
-  readonly text: string;
-  readonly contentType: string | null;
+  text: string;
+  contentType: string | null;
 }
 
 export interface Gateway {
@@ -48,11 +48,11 @@ export interface Gateway {
 }
 
 export interface GatewayDependencies {
-  readonly fetch?: Fetch;
-  readonly sleep?: (ms: number) => Promise<void>;
-  readonly log?: (message: string) => void;
-  readonly events?: SessionEvents;
-  readonly timeoutMs?: number;
+  fetch?: Fetch;
+  sleep?: (ms: number) => Promise<void>;
+  log?: (message: string) => void;
+  events?: SessionEvents;
+  timeoutMs?: number;
 }
 
 const BASE = '/console/api/';
@@ -69,10 +69,7 @@ const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([503, 504]);
 // answer came back, since any status is the server's answer. A POST, a
 // DELETE, or a write without If-Match whose outcome is unknown is never
 // repeated; the caller says it could not confirm the result.
-function retriesFor(
-  method: Method,
-  conditional: boolean,
-): { readonly attempts: number; readonly onStatus: boolean } {
+function retriesFor(method: Method, conditional: boolean): { attempts: number; onStatus: boolean } {
   if (method === 'GET') return { attempts: 3, onStatus: true };
   if ((method === 'PATCH' || method === 'PUT') && conditional) {
     return { attempts: 2, onStatus: false };
@@ -81,8 +78,8 @@ function retriesFor(
 }
 
 interface Answer {
-  readonly response: Response;
-  readonly text: string;
+  response: Response;
+  text: string;
 }
 
 // Resolved the way the browser will resolve it, so that dot segments in any
@@ -101,9 +98,7 @@ function resolve(path: string): URL {
   return url;
 }
 
-function parseJson(
-  text: string,
-): { readonly ok: true; readonly value: unknown } | { readonly ok: false } {
+function parseJson(text: string): { ok: true; value: unknown } | { ok: false } {
   if (text === '') return { ok: true, value: undefined };
   try {
     const value: unknown = JSON.parse(text);
@@ -176,10 +171,8 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
   async function exchange(
     method: Method,
     path: string,
-    options: { readonly body?: unknown; readonly ifMatch?: string },
-  ): Promise<
-    { readonly ok: true; readonly answer: Answer; readonly where: string } | GatewayFailure
-  > {
+    options: { body?: unknown; ifMatch?: string },
+  ): Promise<{ ok: true; answer: Answer; where: string } | GatewayFailure> {
     const url = resolve(path);
     const where = `${method} ${url.pathname.slice(BASE.length)}`;
     const headers = new Headers({ accept: 'application/json' });

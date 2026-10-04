@@ -5,8 +5,8 @@ import type { Fetch } from '#/shared/transport/gateway.ts';
 const REDIRECT = `${location.origin}/tenants/acme/protocol/openid-connect/logout?id_token_hint=h&client_id=odudu-admin`;
 
 interface Call {
-  readonly url: string;
-  readonly init: RequestInit;
+  url: string;
+  init: RequestInit;
 }
 
 function harness(answer: Response | Error) {

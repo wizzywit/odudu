@@ -8,19 +8,19 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const logoutSchema = z.object({ redirect: z.string() });
 
 export type LogoutResult =
-  | { readonly ok: true; readonly redirect: string }
-  | { readonly ok: false; readonly kind: 'problem'; readonly problem: Problem }
-  | { readonly ok: false; readonly kind: 'network' }
-  | { readonly ok: false; readonly kind: 'schema' };
+  | { ok: true; redirect: string }
+  | { ok: false; kind: 'problem'; problem: Problem }
+  | { ok: false; kind: 'network' }
+  | { ok: false; kind: 'schema' };
 
 export interface Auth {
   logout(): Promise<LogoutResult>;
 }
 
 export interface AuthDependencies {
-  readonly fetch?: Fetch;
-  readonly log?: (message: string) => void;
-  readonly timeoutMs?: number;
+  fetch?: Fetch;
+  log?: (message: string) => void;
+  timeoutMs?: number;
 }
 
 function parseJson(text: string): unknown {

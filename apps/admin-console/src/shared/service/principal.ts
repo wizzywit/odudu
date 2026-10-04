@@ -6,16 +6,16 @@ export type AdminCapability = (typeof ADMIN_CAPABILITIES)[number];
 // the one the session was issued by, which a system administrator carries
 // into every tenant they enter.
 export interface Principal {
-  readonly tenant: string;
-  readonly subjectId: string;
-  readonly username: string;
+  tenant: string;
+  subjectId: string;
+  username: string;
 }
 
 // What whoami says the principal holds on one tenant: advice for what to
 // render, never authority, since every request is authorised by the server.
 export interface Authority {
-  readonly capabilities: readonly AdminCapability[];
-  readonly crossTenant: boolean;
+  capabilities: readonly AdminCapability[];
+  crossTenant: boolean;
 }
 
 export const SYSTEM_TENANT = 'system';

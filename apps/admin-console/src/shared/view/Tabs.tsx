@@ -10,10 +10,10 @@ import {
 import styles from '#/shared/view/Tabs.module.css';
 
 export interface TabItem {
-  readonly id: string;
-  readonly label: string;
-  readonly dirty?: boolean;
-  readonly panel: ReactNode;
+  id: string;
+  label: string;
+  dirty?: boolean;
+  panel: ReactNode;
 }
 
 export function Tabs({
@@ -23,7 +23,7 @@ export function Tabs({
   onSelectionChange,
 }: {
   label: string;
-  readonly tabs: readonly TabItem[];
+  tabs: readonly TabItem[];
   selectedKey?: string;
   onSelectionChange?: (id: string) => void;
 }) {

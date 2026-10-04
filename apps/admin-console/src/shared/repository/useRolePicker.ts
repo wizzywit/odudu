@@ -7,7 +7,7 @@ import type { PickerState } from '#/shared/service/picker.ts';
 // client's id for the roles scoped to it.
 export function useRolePicker(
   tenant: string,
-  { client }: { readonly client?: string } = {},
+  { client }: { client?: string } = {},
 ): PickerState<Role> {
   return usePicker({
     tenant,

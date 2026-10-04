@@ -16,7 +16,7 @@ export function SubjectsGate({
   tenant: string;
   title: string;
   // A page below the list keeps its way back while it is refused.
-  readonly breadcrumb?: readonly Crumb[];
+  breadcrumb?: readonly Crumb[];
   children: ReactNode;
 }) {
   const access = useSubjectsArea(tenant);

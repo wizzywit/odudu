@@ -6,10 +6,10 @@ import { createGateway, type Gateway } from '#/shared/transport/gateway.ts';
 // event a refused session raises, and a navigation of the window itself
 // (sign-in and the end-session redirect are pages, not requests).
 export interface Transport {
-  readonly gateway: Gateway;
-  readonly auth: Auth;
-  readonly events: SessionEvents;
-  readonly leavePage: (url: string) => void;
+  gateway: Gateway;
+  auth: Auth;
+  events: SessionEvents;
+  leavePage: (url: string) => void;
 }
 
 export function createBrowserTransport(): Transport {

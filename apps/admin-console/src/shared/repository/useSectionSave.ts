@@ -17,19 +17,19 @@ import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export interface SectionField<V> {
-  readonly value: V;
-  readonly label: string;
-  readonly kind: 'plain' | 'secret';
+  value: V;
+  label: string;
+  kind: 'plain' | 'secret';
   // How a conflict shows the value, where plain text would not do.
-  readonly describe?: (value: unknown) => string;
+  describe?: (value: unknown) => string;
 }
 
 export type SectionFields<T extends Values> = { readonly [K in keyof T]: SectionField<T[K]> };
 
 export interface SaveInput<T extends Values> {
-  readonly changes: Partial<T>;
-  readonly values: T;
-  readonly ifMatch: string;
+  changes: Partial<T>;
+  values: T;
+  ifMatch: string;
 }
 
 export type { ConflictSource, SaveStatus };
@@ -37,41 +37,41 @@ export type { ConflictSource, SaveStatus };
 type Phase = Exclude<SaveStatus, 'conflict'>;
 
 export interface SectionSave<T extends Values> {
-  readonly status: SaveStatus;
-  readonly fieldErrors: Readonly<Partial<Record<keyof T & string, string>>>;
-  readonly conflicts: readonly Conflict[];
-  readonly conflictSource: ConflictSource;
+  status: SaveStatus;
+  fieldErrors: Readonly<Partial<Record<keyof T & string, string>>>;
+  conflicts: readonly Conflict[];
+  conflictSource: ConflictSource;
   // Why Save is held, for Section's `blocked`.
-  readonly blocked: string | undefined;
+  blocked: string | undefined;
   // Reads the record again, after a 412 whose fresh read failed.
-  readonly reread: () => void;
+  reread: () => void;
   // Re-saves every edit on the fresh ETag.
-  readonly keepMine: () => void;
+  keepMine: () => void;
   // Drops the conflicting edits and keeps the rest.
-  readonly takeTheirs: () => void;
-  readonly values: T;
-  readonly changed: readonly (keyof T & string)[];
-  readonly dirty: boolean;
-  readonly saving: boolean;
-  readonly restored: boolean;
+  takeTheirs: () => void;
+  values: T;
+  changed: readonly (keyof T & string)[];
+  dirty: boolean;
+  saving: boolean;
+  restored: boolean;
   // A refusal that belongs beside the save: a guard's 409, or the
   // capability a 403 needed.
-  readonly message: string | null;
-  readonly edit: <K extends keyof T & string>(field: K, value: T[K]) => void;
-  readonly discard: () => void;
+  message: string | null;
+  edit: <K extends keyof T & string>(field: K, value: T[K]) => void;
+  discard: () => void;
   // False when it declined to send, for Section's `onSave`.
-  readonly submit: () => boolean;
+  submit: () => boolean;
 }
 
 interface State<T extends Values> {
-  readonly base: T;
-  readonly etag: string;
-  readonly edits: Partial<T>;
-  readonly conflicts: readonly (keyof T & string)[];
-  readonly source: ConflictSource;
-  readonly phase: Phase;
-  readonly fieldErrors: Readonly<Record<string, string>>;
-  readonly message: string | null;
+  base: T;
+  etag: string;
+  edits: Partial<T>;
+  conflicts: readonly (keyof T & string)[];
+  source: ConflictSource;
+  phase: Phase;
+  fieldErrors: Readonly<Record<string, string>>;
+  message: string | null;
 }
 
 function valuesOf<T extends Values>(fields: SectionFields<T>): T {
@@ -128,20 +128,20 @@ export function useSectionSave<T extends Values, R>({
   fields,
   save,
 }: {
-  readonly tenant: string;
-  readonly record: string;
-  readonly section: string;
-  readonly label?: string;
+  tenant: string;
+  record: string;
+  section: string;
+  label?: string;
   // The ETag the record was read with: a section mounts once it is read.
-  readonly etag: string;
+  etag: string;
   // What the save needs, named when a 403 refuses it.
-  readonly capability: string;
+  capability: string;
   // The record was found deleted since it was read (`useRecord`'s `gone`).
-  readonly gone?: boolean;
+  gone?: boolean;
   // Told of a 403, so the caller can re-read whoami (`useRefusal.report`).
-  readonly onRefused?: (failure: GatewayFailure) => void;
-  readonly fields: SectionFields<T>;
-  readonly save: (gateway: Gateway, input: SaveInput<T>) => Promise<GatewayResult<R>>;
+  onRefused?: (failure: GatewayFailure) => void;
+  fields: SectionFields<T>;
+  save: (gateway: Gateway, input: SaveInput<T>) => Promise<GatewayResult<R>>;
 }): SectionSave<T> {
   const { gateway } = useTransport();
   const client = useQueryClient();

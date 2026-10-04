@@ -14,7 +14,7 @@ export function PageHeader({
 }: {
   title: ReactNode;
   kicker?: ReactNode;
-  readonly breadcrumb?: readonly Crumb[];
+  breadcrumb?: readonly Crumb[];
   status?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;

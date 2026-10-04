@@ -39,8 +39,8 @@ export function useTenantMissing(tenant: string): boolean | undefined {
 // A 403 names the capability the refused action needed and re-reads whoami,
 // since what the console was told the principal holds is now in doubt.
 export function useRefusal(tenant: string): {
-  readonly refused: AdminCapability | null;
-  readonly report: (result: GatewayResult<unknown>, needed: AdminCapability) => boolean;
+  refused: AdminCapability | null;
+  report: (result: GatewayResult<unknown>, needed: AdminCapability) => boolean;
 } {
   const { reread } = useWhoami(tenant);
   const [refused, setRefused] = useState<AdminCapability | null>(null);

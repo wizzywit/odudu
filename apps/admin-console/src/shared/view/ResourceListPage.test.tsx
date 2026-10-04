@@ -8,8 +8,8 @@ import { ResourceListPage } from '#/shared/view/ResourceListPage.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 interface Row {
-  readonly id: string;
-  readonly name: string;
+  id: string;
+  name: string;
 }
 
 const COLUMNS: readonly Column<Row>[] = [

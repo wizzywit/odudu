@@ -36,41 +36,41 @@ import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
 // Why the revoke in the open dialog did not happen, said in that dialog.
 export type RevokeProblem =
-  | { readonly kind: 'refused'; readonly text: string }
+  | { kind: 'refused'; text: string }
   // Held only indirectly; the subject's own tabs are where it can be changed.
-  | { readonly kind: 'not-direct'; readonly name: string; readonly subjectHref: string };
+  | { kind: 'not-direct'; name: string; subjectHref: string };
 
 export interface RevokeDialog {
-  readonly title: string;
-  readonly consequence: string;
-  readonly typed: string;
-  readonly problem: RevokeProblem | null;
+  title: string;
+  consequence: string;
+  typed: string;
+  problem: RevokeProblem | null;
 }
 
 export interface SystemAdministrators {
-  readonly list: ResourceListState<Subject>;
+  list: ResourceListState<Subject>;
   // The one holder the guard would refuse to lose, and why, said beforehand.
-  readonly onlyHolder: { readonly id: string; readonly reason: string } | null;
-  readonly createNeeds: readonly AdminCapability[];
-  readonly changeNeeds: readonly AdminCapability[];
+  onlyHolder: { id: string; reason: string } | null;
+  createNeeds: readonly AdminCapability[];
+  changeNeeds: readonly AdminCapability[];
   // The changes whoami rules out, for the page's one line.
-  readonly blocked: Change | null;
-  readonly begin: BeginAdministrator;
-  readonly picker: PickerState<Subject>;
+  blocked: Change | null;
+  begin: BeginAdministrator;
+  picker: PickerState<Subject>;
   // Why a subject cannot be granted it, from the holders already listed.
-  readonly unavailableOf: (subject: Subject) => string | null;
-  readonly chosen: Subject | null;
-  readonly choose: (id: string | null) => void;
-  readonly grant: () => void;
-  readonly revoking: RevokeDialog | null;
-  readonly startRevoke: (subject: Subject) => void;
-  readonly cancelRevoke: () => void;
-  readonly confirmRevoke: () => void;
-  readonly busy: boolean;
+  unavailableOf: (subject: Subject) => string | null;
+  chosen: Subject | null;
+  choose: (id: string | null) => void;
+  grant: () => void;
+  revoking: RevokeDialog | null;
+  startRevoke: (subject: Subject) => void;
+  cancelRevoke: () => void;
+  confirmRevoke: () => void;
+  busy: boolean;
   // Why the last grant did not happen, said beside the Grant button.
-  readonly grantMessage: string | null;
+  grantMessage: string | null;
   // What a revoke that landed came to, when it is not a plain success.
-  readonly revokeNotice: string | null;
+  revokeNotice: string | null;
 }
 
 // A refusal is the server's answer about the one change, so it is said in

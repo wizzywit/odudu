@@ -14,9 +14,9 @@ import {
 
 export interface PhoneParts {
   // Null when the stored number is not in international form.
-  readonly region: string | null;
-  readonly national: string;
-  readonly extension: string | null;
+  region: string | null;
+  national: string;
+  extension: string | null;
 }
 
 const COUNTRIES: ReadonlySet<string> = new Set(getCountries());
@@ -95,9 +95,7 @@ export function phoneProblemPart(region: string | null, national: string): Phone
 }
 
 // A number pasted in its international form names its own country.
-export function readTypedNumber(
-  text: string,
-): { readonly region: string; readonly national: string } | null {
+export function readTypedNumber(text: string): { region: string; national: string } | null {
   const trimmed = text.trim();
   if (!trimmed.startsWith('+')) return null;
   const { region, national } = splitPhone(`+${trimmed.replace(/[^0-9]/gu, '')}`);

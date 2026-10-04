@@ -7,9 +7,9 @@ export interface SectionDraft {
   // them as its own unsaved edits, and nothing is sent until somebody saves.
   // `restored.etag` is the ETag they were made against, which tells whether
   // the record has moved on since.
-  readonly restored: KeptDraft | null;
+  restored: KeptDraft | null;
   // Called once the restored edits are saved or discarded.
-  readonly settle: () => void;
+  settle: () => void;
 }
 
 // A draft is keyed by the tenant as well as the record, since a system
@@ -23,14 +23,14 @@ export function useSectionDraft({
   fields,
   etag,
 }: {
-  readonly tenant: string;
-  readonly record: string;
-  readonly section: string;
-  readonly label: string;
-  readonly dirty: boolean;
-  readonly fields: DraftFields;
+  tenant: string;
+  record: string;
+  section: string;
+  label: string;
+  dirty: boolean;
+  fields: DraftFields;
   // The ETag the section loaded with, or null for a record not read yet.
-  readonly etag: string | null;
+  etag: string | null;
 }): SectionDraft {
   const record = `${tenant}/${path}`;
   useDirtySection(`${record}#${section}`, label, dirty);

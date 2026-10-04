@@ -11,11 +11,11 @@ export function usePicker<T>({
   fixed = {},
   read,
 }: {
-  readonly tenant: string;
-  readonly resource: string;
-  readonly field?: string;
-  readonly fixed?: Readonly<Record<string, string>>;
-  readonly read: ReadPage<T>;
+  tenant: string;
+  resource: string;
+  field?: string;
+  fixed?: Readonly<Record<string, string>>;
+  read: ReadPage<T>;
 }): PickerState<T> {
   const [query, setQuery] = useState('');
   const params = new URLSearchParams();

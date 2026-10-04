@@ -25,7 +25,7 @@ export function useTenantRecord(name: string): RecordState<Tenant> {
 }
 
 export interface GeneralValues extends Readonly<Record<string, unknown>> {
-  readonly display_name: string;
+  display_name: string;
 }
 
 // An emptied display name is cleared, as the server keeps no empty one.
@@ -42,10 +42,10 @@ export function saveGeneral(name: string) {
 }
 
 export interface EnabledChange {
-  readonly busy: boolean;
-  readonly failure: GatewayFailure | null;
+  busy: boolean;
+  failure: GatewayFailure | null;
   // Answers the result, so the caller can say what came of it.
-  readonly set: (enabled: boolean) => Promise<GatewayResult<Tenant>>;
+  set: (enabled: boolean) => Promise<GatewayResult<Tenant>>;
 }
 
 // Disabling and enabling are one PATCH on the ETag the record was read

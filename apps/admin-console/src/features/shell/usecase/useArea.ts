@@ -3,10 +3,10 @@ import { holds, showsSystemArea, SYSTEM_AREAS, type Area } from '#/features/shel
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 
 export type AreaAccess =
-  | { readonly kind: 'hidden' }
-  | { readonly kind: 'checking' }
-  | { readonly kind: 'refused'; readonly capability: NonNullable<Area['capability']> }
-  | { readonly kind: 'open' };
+  | { kind: 'hidden' }
+  | { kind: 'checking' }
+  | { kind: 'refused'; capability: NonNullable<Area['capability']> }
+  | { kind: 'open' };
 
 // whoami is advice: an area whose capability it says is missing explains
 // what it needs instead of offering reads the server would refuse.

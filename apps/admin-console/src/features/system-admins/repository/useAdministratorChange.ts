@@ -11,9 +11,9 @@ import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export interface AdministratorChange {
-  readonly busy: boolean;
-  readonly grant: (subjectId: string) => Promise<Refused | null>;
-  readonly revoke: (subject: Pick<Subject, 'id' | 'username'>) => Promise<Revoked>;
+  busy: boolean;
+  grant: (subjectId: string) => Promise<Refused | null>;
+  revoke: (subject: Pick<Subject, 'id' | 'username'>) => Promise<Revoked>;
 }
 
 // Either way the holders are read again, since a refusal can mean the list

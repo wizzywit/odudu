@@ -6,7 +6,7 @@ import { Skeleton } from '#/shared/view/Skeleton.tsx';
 
 export type FeatureRoute<P extends object> = ComponentType<P> & {
   // Fetches the chunk ahead of the first render, which then draws at once.
-  readonly preload: () => Promise<void>;
+  preload: () => Promise<void>;
 };
 
 // A route whose component is a feature's own chunk, fetched on first use.

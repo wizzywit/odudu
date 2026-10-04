@@ -11,12 +11,12 @@ import {
 import styles from '#/shared/view/DataTable.module.css';
 
 export interface Column<T> {
-  readonly id: string;
-  readonly header: string;
-  readonly cell: (row: T) => ReactNode;
-  readonly isRowHeader?: boolean;
+  id: string;
+  header: string;
+  cell: (row: T) => ReactNode;
+  isRowHeader?: boolean;
   // Dropped while the shell is narrower than 1024 px, where fewer columns fit.
-  readonly secondary?: boolean;
+  secondary?: boolean;
 }
 
 function classes(...names: (string | false | undefined)[]): string {
@@ -32,8 +32,8 @@ export function DataTable<T>({
   empty,
 }: {
   label: string;
-  readonly columns: readonly Column<T>[];
-  readonly rows: readonly T[];
+  columns: readonly Column<T>[];
+  rows: readonly T[];
   rowKey: (row: T) => string;
   onRowAction?: (id: string) => void;
   empty?: ReactNode;

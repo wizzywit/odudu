@@ -13,21 +13,21 @@ export const TENANT_TABS = ['general', 'administrators', 'export'] as const;
 export type TenantTab = (typeof TENANT_TABS)[number];
 
 export interface TenantRecordPage {
-  readonly record: RecordView;
-  readonly tenant: Tenant | undefined;
-  readonly etag: string | null;
-  readonly tab: TenantTab;
-  readonly selectTab: (tab: string) => void;
-  readonly dirty: ReadonlySet<string>;
+  record: RecordView;
+  tenant: Tenant | undefined;
+  etag: string | null;
+  tab: TenantTab;
+  selectTab: (tab: string) => void;
+  dirty: ReadonlySet<string>;
 }
 
 export interface TenantRecordAccess {
   // What reading the record needs that whoami says is missing.
-  readonly readNeeds: readonly AdminCapability[];
+  readNeeds: readonly AdminCapability[];
   // What adding an administrator needs that whoami says is missing.
-  readonly addNeeds: readonly AdminCapability[];
+  addNeeds: readonly AdminCapability[];
   // The changes whoami rules out, for the page's one line.
-  readonly blocked: Change | null;
+  blocked: Change | null;
 }
 
 export function useTenantRecordPage(name: string): TenantRecordPage {

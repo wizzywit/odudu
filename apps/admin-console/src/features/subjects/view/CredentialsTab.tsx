@@ -249,10 +249,10 @@ function LockoutPanel({
 }
 
 interface Dialog {
-  readonly title: string;
-  readonly consequence: string;
-  readonly confirmLabel: string;
-  readonly tone: 'primary' | 'danger';
+  title: string;
+  consequence: string;
+  confirmLabel: string;
+  tone: 'primary' | 'danger';
 }
 
 function dialogOf(asking: Asking, name: string, self: boolean): Dialog {

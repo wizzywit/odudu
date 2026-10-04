@@ -2,7 +2,7 @@ import { COUNTRY_ALIASES, COUNTRY_NAMES } from '#/shared/service/countryNames.ts
 
 // ISO 3166-1 alpha-2 regions, and XK, which CLDR names Kosovo.
 export interface Region {
-  readonly code: string;
+  code: string;
 }
 
 export const REGIONS: readonly Region[] = Object.keys(COUNTRY_NAMES).map((code) => ({ code }));
@@ -32,8 +32,8 @@ export function regionOfCountryName(name: string): string | null {
 }
 
 export interface NamedRegion {
-  readonly id: string;
-  readonly label: string;
+  id: string;
+  label: string;
 }
 
 export function countryOptions(locale: string): readonly NamedRegion[] {

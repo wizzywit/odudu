@@ -7,32 +7,32 @@ import {
 } from '#/shared/service/principal.ts';
 
 export interface Area {
-  readonly path: string;
-  readonly label: string;
+  path: string;
+  label: string;
   // What its first read needs, so the page can say so rather than be refused.
-  readonly capability: AdminCapability | null;
+  capability: AdminCapability | null;
   // Whether it lists records and so pages through a cursor trail.
-  readonly list: boolean;
+  list: boolean;
   // Pages beside its own path that belong to it, such as creation beside a
   // list, so the rail lights it there too.
-  readonly pages: readonly string[];
+  pages: readonly string[];
 }
 
 export interface RailLink {
-  readonly href: string;
-  readonly label: string;
+  href: string;
+  label: string;
   // The addresses of the pages beside it that it stands for.
-  readonly pages: readonly string[];
+  pages: readonly string[];
 }
 
 export interface RailSection {
-  readonly heading?: string;
-  readonly items: readonly RailLink[];
+  heading?: string;
+  items: readonly RailLink[];
 }
 
 interface AreaGroup {
-  readonly heading?: string;
-  readonly areas: readonly Area[];
+  heading?: string;
+  areas: readonly Area[];
 }
 
 const area = (

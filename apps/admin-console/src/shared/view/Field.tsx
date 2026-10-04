@@ -52,8 +52,8 @@ export function invalid(error: string | undefined): { isInvalid: boolean } {
 // is described by the description, and the one a problem is about by the
 // error as well, so a screen reader hears it on that control.
 interface GroupIds {
-  readonly description: string | undefined;
-  readonly error: string | undefined;
+  description: string | undefined;
+  error: string | undefined;
 }
 
 export const FieldGroupIds = createContext<GroupIds | null>(null);
@@ -180,7 +180,7 @@ export function ReadOnlyValue({
   );
 }
 
-function ReadOnlyList({ items }: { readonly items: readonly string[] }) {
+function ReadOnlyList({ items }: { items: readonly string[] }) {
   return (
     <ul className={styles.readOnlyList}>
       {items.map((item, i) => (
@@ -315,8 +315,8 @@ export function InlineFields({ children }: { children: ReactNode }) {
 }
 
 export interface SelectOption {
-  readonly id: string;
-  readonly label: string;
+  id: string;
+  label: string;
 }
 
 export function SelectField({
@@ -335,7 +335,7 @@ export function SelectField({
 }: Chrome &
   GroupPart &
   PartLabel & {
-    readonly options: readonly SelectOption[];
+    options: readonly SelectOption[];
     value: string;
     onChange: (value: string) => void;
     autoComplete?: string;
@@ -465,8 +465,8 @@ function useRowFocus(count: number) {
 }
 
 interface RowIds {
-  readonly ids: readonly string[];
-  readonly next: number;
+  ids: readonly string[];
+  next: number;
 }
 
 function numbered(from: number, count: number): string[] {
@@ -656,8 +656,8 @@ export function UrlListField({
   onChange,
 }: Chrome & {
   itemLabel: string;
-  readonly itemErrors?: readonly (string | undefined)[];
-  readonly value: readonly string[];
+  itemErrors?: readonly (string | undefined)[];
+  value: readonly string[];
   onChange: (value: readonly string[]) => void;
 }) {
   const focus = useRowFocus(value.length);
@@ -724,8 +724,8 @@ export function UrlListField({
 }
 
 export interface KeyValuePair {
-  readonly key: string;
-  readonly value: string;
+  key: string;
+  value: string;
 }
 
 export function KeyValueField({
@@ -741,7 +741,7 @@ export function KeyValueField({
 }: Chrome & {
   keyLabel: string;
   valueLabel: string;
-  readonly value: readonly KeyValuePair[];
+  value: readonly KeyValuePair[];
   onChange: (value: readonly KeyValuePair[]) => void;
 }) {
   const focus = useRowFocus(value.length);

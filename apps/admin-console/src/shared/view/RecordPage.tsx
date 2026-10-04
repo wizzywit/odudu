@@ -28,7 +28,7 @@ export function RecordPage({
 }: {
   record: RecordView;
   // Up to the list the record sits in, ending with the record itself.
-  readonly breadcrumb: readonly Crumb[];
+  breadcrumb: readonly Crumb[];
   title: ReactNode;
   status?: ReactNode;
   description?: ReactNode;
@@ -37,7 +37,7 @@ export function RecordPage({
   noun: string;
   // Names the tab list: "Client sections".
   label: string;
-  readonly tabs: readonly TabItem[];
+  tabs: readonly TabItem[];
   tab: string;
   onTabChange: (id: string) => void;
   // The one line saying what the caller may not change.

@@ -207,7 +207,7 @@ describe('ToggleField', () => {
   });
 });
 
-function Urls({ initial, error }: { readonly initial: readonly string[]; error?: string }) {
+function Urls({ initial, error }: { initial: readonly string[]; error?: string }) {
   const [urls, setUrls] = useState(initial);
   return (
     <UrlListField
@@ -289,7 +289,7 @@ describe('UrlListField', () => {
   });
 });
 
-function Pairs({ initial }: { readonly initial: readonly KeyValuePair[] }) {
+function Pairs({ initial }: { initial: readonly KeyValuePair[] }) {
   const [pairs, setPairs] = useState(initial);
   return (
     <KeyValueField

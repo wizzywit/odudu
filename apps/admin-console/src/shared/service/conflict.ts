@@ -1,15 +1,15 @@
 // One field that another administrator changed while this one was editing
 // it: their value is what the record holds now, yours is the unsaved edit.
 export interface Conflict {
-  readonly field: string;
-  readonly label: string;
-  readonly theirs: unknown;
-  readonly yours: unknown;
+  field: string;
+  label: string;
+  theirs: unknown;
+  yours: unknown;
   // A secret's value is never shown, not even to say that it differs.
-  readonly secret: boolean;
+  secret: boolean;
   // How the field reads its value, where describeValue would not do: a
   // lifetime shown with its duration, say.
-  readonly describe?: ((value: unknown) => string) | undefined;
+  describe?: ((value: unknown) => string) | undefined;
 }
 
 export function describeValue(value: unknown): string {

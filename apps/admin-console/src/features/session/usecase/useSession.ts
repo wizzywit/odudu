@@ -6,19 +6,19 @@ import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 import { isSessionEnded } from '#/shared/service/sessionEnded.ts';
 
 export type Boot =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'failed'; readonly retry: () => void }
+  | { kind: 'loading' }
+  | { kind: 'failed'; retry: () => void }
   | {
-      readonly kind: 'replaced';
-      readonly was: Principal;
-      readonly now: Principal;
-      readonly carryOn: () => void;
-      readonly signInAgain: () => void;
+      kind: 'replaced';
+      was: Principal;
+      now: Principal;
+      carryOn: () => void;
+      signInAgain: () => void;
     }
   | {
-      readonly kind: 'ready';
-      readonly principal: Principal | null;
-      readonly ended: Principal | null;
+      kind: 'ready';
+      principal: Principal | null;
+      ended: Principal | null;
     };
 
 // A session ending mid-edit keeps every dirty section's non-secret edits in

@@ -4,7 +4,7 @@ import { useGo } from '#/features/tenants/repository/useGo.ts';
 import { administratorStepHref } from '#/features/tenants/service.ts';
 
 export interface BeginAdministrator {
-  readonly start: () => void;
+  start: () => void;
 }
 
 // Each tenant keeps its own administrator in progress: one whose subject

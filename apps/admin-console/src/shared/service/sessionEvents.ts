@@ -1,7 +1,7 @@
 interface SessionEventMap {
-  readonly sessionEnded: [];
+  sessionEnded: [];
   // Another sign-in in this browser replaced the session this tab shows.
-  readonly principalChanged: [];
+  principalChanged: [];
 }
 type SessionEventName = keyof SessionEventMap;
 type Listener<N extends SessionEventName> = (...args: SessionEventMap[N]) => void;

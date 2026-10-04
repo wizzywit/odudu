@@ -17,7 +17,7 @@ export function SystemGate({
   tenant: string;
   title: string;
   // A page below a list keeps its way back while access is checked or refused.
-  readonly breadcrumb?: readonly Crumb[];
+  breadcrumb?: readonly Crumb[];
   children: ReactNode;
 }) {
   const access = useTenantsArea(tenant);

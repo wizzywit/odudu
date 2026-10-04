@@ -15,26 +15,26 @@ import type { GatewayFailure } from '#/shared/transport/gateway.ts';
 
 export interface NewSubject {
   // Why creating would be refused, named before anything is sent.
-  readonly refused: 'manage-users' | null;
-  readonly rule: string;
-  readonly listHref: string;
-  readonly username: string;
-  readonly email: string;
-  readonly usernameError: string | undefined;
-  readonly emailError: string | undefined;
-  readonly message: string | null;
+  refused: 'manage-users' | null;
+  rule: string;
+  listHref: string;
+  username: string;
+  email: string;
+  usernameError: string | undefined;
+  emailError: string | undefined;
+  message: string | null;
   // The POST's answer was lost: offer to look for the subject rather than send it again.
-  readonly unconfirmed: boolean;
-  readonly busy: boolean;
-  readonly editUsername: (username: string) => void;
-  readonly editEmail: (email: string) => void;
-  readonly submit: () => void;
-  readonly check: () => void;
+  unconfirmed: boolean;
+  busy: boolean;
+  editUsername: (username: string) => void;
+  editEmail: (email: string) => void;
+  submit: () => void;
+  check: () => void;
 }
 
 interface Errors {
-  readonly username?: string;
-  readonly email?: string;
+  username?: string;
+  email?: string;
 }
 
 export function useNewSubject(tenant: string): NewSubject {

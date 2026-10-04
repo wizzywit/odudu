@@ -42,7 +42,7 @@ export function Picker<T>({
   selectionMode = 'multiple',
 }: {
   label: string;
-  noun: { readonly one: string; readonly other: string };
+  noun: { one: string; other: string };
   picker: PickerState<T>;
   idOf: (item: T) => string;
   nameOf: (item: T) => string;
@@ -56,7 +56,7 @@ export function Picker<T>({
   capability: string;
   // The field the search is a prefix of.
   searchBy?: string;
-  readonly selected: readonly string[];
+  selected: readonly string[];
   onChange: (ids: string[]) => void;
   selectionMode?: 'single' | 'multiple';
 }) {
@@ -143,14 +143,14 @@ function Options<T>({
   onChange,
 }: {
   label: string;
-  noun: { readonly one: string; readonly other: string };
+  noun: { one: string; other: string };
   picker: PickerState<T>;
   idOf: (item: T) => string;
   nameOf: (item: T) => string;
   detailOf: (item: T) => string;
   accessibleNameOf?: (item: T) => string;
   unavailable: ReadonlyMap<string, string>;
-  readonly selected: readonly string[];
+  selected: readonly string[];
   selectionMode: 'single' | 'multiple';
   onChange: (keys: Selection) => void;
 }) {

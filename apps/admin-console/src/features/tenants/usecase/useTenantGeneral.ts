@@ -14,20 +14,20 @@ import type { GatewayResult } from '#/shared/transport/gateway.ts';
 
 export interface EnabledControl {
   // Why it cannot be changed, shown as fixed text instead of a control.
-  readonly fixed: string | null;
-  readonly enabled: boolean;
-  readonly busy: boolean;
-  readonly confirming: boolean;
-  readonly message: string | null;
-  readonly ask: () => void;
-  readonly cancel: () => void;
-  readonly disable: () => void;
-  readonly enable: () => void;
+  fixed: string | null;
+  enabled: boolean;
+  busy: boolean;
+  confirming: boolean;
+  message: string | null;
+  ask: () => void;
+  cancel: () => void;
+  disable: () => void;
+  enable: () => void;
 }
 
 export interface TenantGeneral {
-  readonly general: SectionSave<GeneralValues>;
-  readonly enabled: EnabledControl;
+  general: SectionSave<GeneralValues>;
+  enabled: EnabledControl;
 }
 
 const SYSTEM_FIXED =

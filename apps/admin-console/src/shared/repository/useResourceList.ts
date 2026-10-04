@@ -46,11 +46,11 @@ export function useListPages<T>({
   read,
   enabled = true,
 }: {
-  readonly key: readonly unknown[];
-  readonly query: URLSearchParams;
-  readonly cursor: string | undefined;
-  readonly read: ReadPage<T>;
-  readonly enabled?: boolean;
+  key: readonly unknown[];
+  query: URLSearchParams;
+  cursor: string | undefined;
+  read: ReadPage<T>;
+  enabled?: boolean;
 }) {
   const { gateway } = useTransport();
   const pages = useInfiniteQuery({
@@ -95,17 +95,17 @@ export function useResourceList<T>({
   read,
   count,
 }: {
-  readonly tenant: string;
+  tenant: string;
   // Names the list in the query cache, e.g. `clients`.
-  readonly resource: string;
+  resource: string;
   // The fields a search can apply to, the default first.
-  readonly search?: readonly string[];
+  search?: readonly string[];
   // The exact filters the list takes, each a URL parameter of that name.
-  readonly filters?: readonly string[];
+  filters?: readonly string[];
   // Parameters every read carries, such as an Activity tab's record.
-  readonly fixed?: Readonly<Record<string, string>>;
-  readonly read: ReadPage<T>;
-  readonly count?: ReadCount;
+  fixed?: Readonly<Record<string, string>>;
+  read: ReadPage<T>;
+  count?: ReadCount;
 }): ResourceListState<T> {
   const { gateway } = useTransport();
   const client = useQueryClient();

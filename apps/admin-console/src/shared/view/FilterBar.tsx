@@ -16,8 +16,8 @@ import { KeyHint } from '#/shared/view/KeyHint.tsx';
 import styles from '#/shared/view/FilterBar.module.css';
 
 export interface Search {
-  readonly field: string;
-  readonly query: string;
+  field: string;
+  query: string;
 }
 
 // A search is a prefix on one named field, so the field is always shown as a
@@ -34,7 +34,7 @@ export function FilterBar({
   children,
 }: {
   label: string;
-  readonly fields: readonly SelectOption[];
+  fields: readonly SelectOption[];
   field: string;
   query: string;
   onSearch: (search: Search) => void;

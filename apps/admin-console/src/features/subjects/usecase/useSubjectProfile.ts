@@ -24,16 +24,16 @@ export function useSubjectProfileRead(tenant: string, id: string): RecordState<P
 }
 
 export interface ClaimSection {
-  readonly id: string;
-  readonly title: string;
-  readonly claims: readonly ClaimField[];
-  readonly save: SectionSave<ClaimValues>;
+  id: string;
+  title: string;
+  claims: readonly ClaimField[];
+  save: SectionSave<ClaimValues>;
 }
 
 export interface SubjectClaims {
-  readonly sections: readonly ClaimSection[];
-  readonly verification: SectionSave<VerificationValues>;
-  readonly updatedAt: string | null;
+  sections: readonly ClaimSection[];
+  verification: SectionSave<VerificationValues>;
+  updatedAt: string | null;
 }
 
 const SECTIONS = [

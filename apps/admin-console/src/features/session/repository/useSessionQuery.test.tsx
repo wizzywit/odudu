@@ -17,7 +17,7 @@ it('drops every other cached read when the session is marked ended', async () =>
   const client = createQueryClient();
   client.setQueryData(['whoami', 'acme'], { ok: true });
   client.setQueryData(['clients', 'acme'], { ok: true });
-  const wrapper = ({ children }: { readonly children: ReactNode }) => (
+  const wrapper = ({ children }: { children: ReactNode }) => (
     <TransportContext value={transport}>
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     </TransportContext>

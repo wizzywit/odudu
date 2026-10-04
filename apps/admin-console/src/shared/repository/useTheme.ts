@@ -2,8 +2,8 @@ import { createContext, useContext } from 'react';
 import type { ThemeChoice } from '#/shared/service/theme.ts';
 
 export interface Theme {
-  readonly choice: ThemeChoice;
-  readonly choose: (choice: ThemeChoice) => void;
+  choice: ThemeChoice;
+  choose: (choice: ThemeChoice) => void;
 }
 
 export const ThemeContext = createContext<Theme | null>(null);

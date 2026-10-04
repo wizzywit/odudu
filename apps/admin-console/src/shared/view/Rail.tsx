@@ -3,13 +3,13 @@ import { Link } from 'react-aria-components';
 import styles from '#/shared/view/Rail.module.css';
 
 export interface RailItem {
-  readonly href: string;
-  readonly label: string;
+  href: string;
+  label: string;
 }
 
 export interface RailGroup {
-  readonly heading?: string;
-  readonly items: readonly RailItem[];
+  heading?: string;
+  items: readonly RailItem[];
 }
 
 function Group({ group, currentHref }: { group: RailGroup; currentHref?: string }) {
@@ -48,7 +48,7 @@ export function Rail({
   checking = false,
 }: {
   label: string;
-  readonly groups: readonly RailGroup[];
+  groups: readonly RailGroup[];
   currentHref?: string;
   // Whether the areas it may list are still being asked about.
   checking?: boolean;

@@ -1,12 +1,12 @@
 import { useLocation, useNavigate } from '@tanstack/react-router';
 
 export interface UrlSearch {
-  readonly params: URLSearchParams;
+  params: URLSearchParams;
   // Goes to the same page with these parameters, through the router, so the
   // unsaved-changes guard is asked first.
-  readonly go: (params: URLSearchParams) => void;
+  go: (params: URLSearchParams) => void;
   // Takes one parameter out of the address in place, adding no history entry.
-  readonly drop: (name: string) => void;
+  drop: (name: string) => void;
 }
 
 export function useUrlSearch(): UrlSearch {

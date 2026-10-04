@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 
 interface DialogHost {
-  readonly open: number;
-  readonly opened: () => () => void;
+  open: number;
+  opened: () => () => void;
 }
 
 export const useDialogHost = create<DialogHost>()((set) => ({

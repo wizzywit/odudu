@@ -64,9 +64,7 @@ export function importFileProblem(bytes: number): string | null {
   return `The file is larger than ${fileSize(TENANT_IMPORT_BODY_LIMIT)}, the most an import accepts.`;
 }
 
-export type ParsedDocument =
-  | { readonly ok: true; readonly document: unknown }
-  | { readonly ok: false; readonly message: string };
+export type ParsedDocument = { ok: true; document: unknown } | { ok: false; message: string };
 
 export function parseDocument(text: string): ParsedDocument {
   const document = parsed(text);
@@ -78,18 +76,18 @@ export function parseDocument(text: string): ParsedDocument {
 // A tenant's guided creation, as far as it has gone. The typed values are
 // kept so a reload resumes it; the one-time password never is.
 export type Creation =
-  | { readonly step: 'tenant'; readonly name: string; readonly displayName: string }
+  | { step: 'tenant'; name: string; displayName: string }
   | {
-      readonly step: 'administrator';
-      readonly tenant: string;
+      step: 'administrator';
+      tenant: string;
       // Where the tenant came from, which decides what the page says of it.
-      readonly origin: 'created' | 'imported' | 'existing';
-      readonly username: string;
-      readonly email: string;
-      readonly subjectId: string | null;
-      readonly granted: boolean;
+      origin: 'created' | 'imported' | 'existing';
+      username: string;
+      email: string;
+      subjectId: string | null;
+      granted: boolean;
     }
-  | { readonly step: 'done'; readonly tenant: string; readonly username: string };
+  | { step: 'done'; tenant: string; username: string };
 
 export const FRESH_CREATION: Creation = { step: 'tenant', name: '', displayName: '' };
 

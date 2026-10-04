@@ -2,31 +2,31 @@ import type { CountResponse, Settings, SigningKey, SmtpConfig } from '@odudu/con
 import { readyToPromote } from '#/shared/service/keyPromotion.ts';
 
 export interface Discovery {
-  readonly issuer: string;
-  readonly [member: string]: unknown;
+  issuer: string;
+  [member: string]: unknown;
 }
 
 export interface PublicKey {
-  readonly kty: string;
-  readonly kid?: string | undefined;
-  readonly alg?: string | undefined;
-  readonly use?: string | undefined;
-  readonly [member: string]: unknown;
+  kty: string;
+  kid?: string | undefined;
+  alg?: string | undefined;
+  use?: string | undefined;
+  [member: string]: unknown;
 }
 
 export interface Jwks {
-  readonly keys: readonly PublicKey[];
-  readonly [member: string]: unknown;
+  keys: readonly PublicKey[];
+  [member: string]: unknown;
 }
 
 export interface DiscoveryView {
-  readonly issuer: string;
+  issuer: string;
   // Where relying parties read it, OpenID Connect Discovery 1.0 §4.
-  readonly document: string;
-  readonly raw: string;
-  readonly endpoints: readonly { readonly name: string; readonly url: string }[];
-  readonly lists: readonly { readonly name: string; readonly values: readonly string[] }[];
-  readonly flags: readonly { readonly name: string; readonly value: boolean }[];
+  document: string;
+  raw: string;
+  endpoints: readonly { name: string; url: string }[];
+  lists: readonly { name: string; values: readonly string[] }[];
+  flags: readonly { name: string; value: boolean }[];
 }
 
 function isEndpoint(name: string): boolean {
@@ -65,12 +65,12 @@ export type KeyLane = SigningKey['status'] | 'unlisted' | 'unknown';
 
 export interface PublishedKey {
   // Its place in the set: a kid is optional, so it cannot key a row.
-  readonly row: string;
-  readonly kid: string | null;
-  readonly kty: string;
-  readonly alg: string | null;
-  readonly use: string | null;
-  readonly lane: KeyLane;
+  row: string;
+  kid: string | null;
+  kty: string;
+  alg: string | null;
+  use: string | null;
+  lane: KeyLane;
 }
 
 export function publishedKeys(
@@ -94,21 +94,21 @@ export function publishedKeys(
 }
 
 export interface AttentionItem {
-  readonly id: string;
+  id: string;
   // The area whose page fixes it.
-  readonly area: 'email' | 'keys' | 'settings';
-  readonly title: string;
-  readonly detail: string;
+  area: 'email' | 'keys' | 'settings';
+  title: string;
+  detail: string;
 }
 
 // A read that is undefined was not made or not answered, and the checks
 // that need it are skipped rather than guessed.
 export interface AttentionInputs {
-  readonly settings: Settings | undefined;
-  readonly smtp: SmtpConfig | undefined;
-  readonly keys: readonly SigningKey[] | undefined;
-  readonly clients: CountResponse | undefined;
-  readonly now: Date;
+  settings: Settings | undefined;
+  smtp: SmtpConfig | undefined;
+  keys: readonly SigningKey[] | undefined;
+  clients: CountResponse | undefined;
+  now: Date;
 }
 
 function mailNeeds(settings: Settings): string | null {
@@ -175,43 +175,43 @@ export function needsAttention(inputs: AttentionInputs): readonly AttentionItem[
 // One of the page's reads: `off` is one it did not make, because whoami has
 // not answered or says the capability it needs is not held.
 export type Read<T> =
-  | { readonly status: 'off' }
-  | { readonly status: 'loading' }
-  | { readonly status: 'ready'; readonly data: T }
-  | { readonly status: 'failed'; readonly refused: boolean; readonly retry: () => void };
+  | { status: 'off' }
+  | { status: 'loading' }
+  | { status: 'ready'; data: T }
+  | { status: 'failed'; refused: boolean; retry: () => void };
 
 // A read the page may not make at all, because whoami says the capability
 // it needs is not held.
-export type Gated<T> = Read<T> | { readonly status: 'needs'; readonly capability: string };
+export type Gated<T> = Read<T> | { status: 'needs'; capability: string };
 
 export interface CountTile {
-  readonly id: string;
-  readonly label: string;
-  readonly href: string;
-  readonly noun: { readonly one: string; readonly other: string };
-  readonly count: Gated<CountResponse>;
+  id: string;
+  label: string;
+  href: string;
+  noun: { one: string; other: string };
+  count: Gated<CountResponse>;
   // The client cap, when settings could be read.
-  readonly limit?: number | undefined;
+  limit?: number | undefined;
 }
 
 export interface AttentionLink extends AttentionItem {
-  readonly href: string;
+  href: string;
   // The label of the area the link opens.
-  readonly place: string;
+  place: string;
 }
 
 export interface AttentionState {
-  readonly status: 'checking' | 'ready';
-  readonly items: readonly AttentionLink[];
+  status: 'checking' | 'ready';
+  items: readonly AttentionLink[];
   // Capabilities a check needed and whoami says are not held.
-  readonly unchecked: readonly string[];
-  readonly failed: boolean;
-  readonly retry: () => void;
+  unchecked: readonly string[];
+  failed: boolean;
+  retry: () => void;
 }
 
 export interface KeysView {
-  readonly rows: readonly PublishedKey[];
-  readonly raw: string;
+  rows: readonly PublishedKey[];
+  raw: string;
   // The capability the keys' lanes need, when it is not held.
-  readonly lanesNeed: string | null;
+  lanesNeed: string | null;
 }

@@ -28,8 +28,8 @@ import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export interface CreationProgress {
-  readonly creation: Creation;
-  readonly update: (creation: Creation) => void;
+  creation: Creation;
+  update: (creation: Creation) => void;
 }
 
 function ownCreation(owner: string, flow: CreationFlow): Creation | null {
@@ -73,12 +73,9 @@ export function beginAdministrator(
 }
 
 export interface TenantCreate {
-  readonly busy: boolean;
-  readonly create: (input: {
-    readonly name: string;
-    readonly displayName: string;
-  }) => Promise<GatewayResult<Tenant>>;
-  readonly find: (name: string) => Promise<GatewayResult<Tenant | null>>;
+  busy: boolean;
+  create: (input: { name: string; displayName: string }) => Promise<GatewayResult<Tenant>>;
+  find: (name: string) => Promise<GatewayResult<Tenant | null>>;
 }
 
 // Neither is repeated on its own: a POST whose answer was lost is looked
@@ -86,8 +83,7 @@ export interface TenantCreate {
 export function useTenantCreate(): TenantCreate {
   const { gateway } = useTransport();
   const create = useMutation({
-    mutationFn: (input: { readonly name: string; readonly displayName: string }) =>
-      createTenant(gateway, input),
+    mutationFn: (input: { name: string; displayName: string }) => createTenant(gateway, input),
   });
   const find = useMutation({ mutationFn: (name: string) => findTenant(gateway, name) });
   return {
@@ -98,15 +94,15 @@ export function useTenantCreate(): TenantCreate {
 }
 
 export interface AdministratorRun {
-  readonly tenant: string;
-  readonly username: string;
-  readonly email: string;
-  readonly subjectId: string | null;
-  readonly granted: boolean;
+  tenant: string;
+  username: string;
+  email: string;
+  subjectId: string | null;
+  granted: boolean;
   // Told as each call lands, so a reload between two resumes at the next.
-  readonly onProgress: (done: { readonly subjectId: string; readonly granted: boolean }) => void;
+  onProgress: (done: { subjectId: string; granted: boolean }) => void;
   // Told once of the call that failed, as it fails.
-  readonly onFailure: (
+  onFailure: (
     failure: GatewayFailure,
     call: AdministratorCall,
     request: AdministratorRequest,
@@ -114,8 +110,7 @@ export interface AdministratorRun {
 }
 
 type CallResult =
-  | { readonly ok: true; readonly subjectId?: string; readonly password?: string }
-  | { readonly ok: false; readonly refused: Refused };
+  { ok: true; subjectId?: string; password?: string } | { ok: false; refused: Refused };
 
 async function runCall(
   gateway: Gateway,
@@ -151,7 +146,7 @@ async function runCall(
 async function runAdministrator(
   gateway: Gateway,
   run: AdministratorRun,
-): Promise<GatewayResult<{ readonly password: string }>> {
+): Promise<GatewayResult<{ password: string }>> {
   let subjectId = run.subjectId;
   let granted = run.granted;
   for (const call of administratorCalls({ subjectId, granted })) {
@@ -177,7 +172,7 @@ async function runAdministrator(
 export function useFirstAdministrator(): SecretOnce<AdministratorRun, null> {
   return useSecretOnce({
     run: runAdministrator,
-    split: (answer: { readonly password: string }) => ({ secret: answer.password, rest: null }),
+    split: (answer: { password: string }) => ({ secret: answer.password, rest: null }),
   });
 }
 
@@ -187,7 +182,7 @@ export function useFindSubject(): (
 ) => Promise<GatewayResult<Subject | null>> {
   const { gateway } = useTransport();
   const find = useMutation({
-    mutationFn: (input: { readonly tenant: string; readonly username: string }) =>
+    mutationFn: (input: { tenant: string; username: string }) =>
       findSubject(gateway, input.tenant, input.username),
   });
   return (tenant, username) => find.mutateAsync({ tenant, username });

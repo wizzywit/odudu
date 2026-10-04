@@ -45,7 +45,7 @@ export function SectionNotice({
 }: {
   section: string;
   status: SaveStatus;
-  readonly conflicts: readonly Conflict[];
+  conflicts: readonly Conflict[];
   conflictSource: ConflictSource;
   message: string | null;
   busy: boolean;

@@ -8,14 +8,14 @@ import type { AdminCapability } from '#/shared/service/principal.ts';
 
 export interface TenantExportState {
   // The capabilities whoami says are missing, each named rather than refused.
-  readonly needs: readonly AdminCapability[];
-  readonly subjectsNeed: AdminCapability | null;
-  readonly includeSubjects: boolean;
-  readonly setIncludeSubjects: (include: boolean) => void;
-  readonly busy: boolean;
-  readonly saved: (Exported & { readonly size: string }) | null;
-  readonly message: string | null;
-  readonly start: () => void;
+  needs: readonly AdminCapability[];
+  subjectsNeed: AdminCapability | null;
+  includeSubjects: boolean;
+  setIncludeSubjects: (include: boolean) => void;
+  busy: boolean;
+  saved: (Exported & { size: string }) | null;
+  message: string | null;
+  start: () => void;
 }
 
 const EXPORT_NEEDS: readonly AdminCapability[] = ['manage-tenant', 'manage-clients'];

@@ -30,10 +30,10 @@ import {
 import styles from '#/shared/view/Field.module.css';
 
 export interface ComboOption {
-  readonly id: string;
-  readonly label: string;
+  id: string;
+  label: string;
   // Shown after the label and matched by typing, such as a zone's offset.
-  readonly detail?: string;
+  detail?: string;
 }
 
 // Closes the list each time `times` grows: React Aria leaves it open on a
@@ -60,8 +60,8 @@ function CloseList({ times }: { times: number }) {
 }
 
 interface Shown {
-  readonly value: string;
-  readonly text: string;
+  value: string;
+  text: string;
 }
 
 function matching(
@@ -102,7 +102,7 @@ export function ComboBoxField({
 }: Chrome &
   GroupPart &
   PartLabel & {
-    readonly options: readonly ComboOption[];
+    options: readonly ComboOption[];
     value: string;
     onChange: (value: string) => void;
     allowsCustomValue?: boolean;

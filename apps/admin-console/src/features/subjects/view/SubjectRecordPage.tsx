@@ -16,12 +16,12 @@ import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
 
 interface PanelProps {
-  readonly tenant: string;
-  readonly subject: Subject;
-  readonly etag: string;
-  readonly gone: boolean;
-  readonly canManage: boolean;
-  readonly self: boolean;
+  tenant: string;
+  subject: Subject;
+  etag: string;
+  gone: boolean;
+  canManage: boolean;
+  self: boolean;
 }
 
 // One panel per tab, in SUBJECT_TABS' order; a tab joins by naming its panel here.

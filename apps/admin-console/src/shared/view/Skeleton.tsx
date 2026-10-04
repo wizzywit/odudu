@@ -37,8 +37,8 @@ export function Skeleton({ label, lines = 3 }: { label: string; lines?: number }
 }
 
 export interface SkeletonColumn {
-  readonly header: string;
-  readonly secondary?: boolean;
+  header: string;
+  secondary?: boolean;
 }
 
 function classes(...names: (string | false | undefined)[]): string {
@@ -53,7 +53,7 @@ export function TableSkeleton({
   rows = 5,
 }: {
   label: string;
-  readonly columns: readonly SkeletonColumn[];
+  columns: readonly SkeletonColumn[];
   rows?: number;
 }) {
   return (
@@ -107,7 +107,7 @@ export function RecordSkeleton({
   title = true,
 }: {
   label: string;
-  readonly tabs: readonly string[];
+  tabs: readonly string[];
   // False beneath a page header that already draws the title.
   title?: boolean;
 }) {

@@ -1,27 +1,27 @@
 import { create } from 'zustand';
 
 interface Departure {
-  readonly proceed: () => void;
-  readonly refuse: () => void;
+  proceed: () => void;
+  refuse: () => void;
 }
 
 interface UnsavedGuard {
   // Section id to the name a person knows it by.
-  readonly dirty: ReadonlyMap<string, string>;
-  readonly pending: Departure | null;
+  dirty: ReadonlyMap<string, string>;
+  pending: Departure | null;
   // Bumped by each leave, which forgets every dirty section: one still on
   // screen afterwards, because the departure did not unmount it, says so again.
-  readonly generation: number;
+  generation: number;
   // Set once the page itself is being left, so the unload prompt stays quiet.
-  readonly released: boolean;
-  readonly setDirty: (section: string, label: string | null) => void;
-  readonly unsaved: () => string[];
+  released: boolean;
+  setDirty: (section: string, label: string | null) => void;
+  unsaved: () => string[];
   // True when the departure went ahead; false when it is held for an answer.
-  readonly request: (proceed: () => void, refuse?: () => void) => boolean;
-  readonly stay: () => void;
-  readonly leave: () => void;
-  readonly release: () => void;
-  readonly reset: () => void;
+  request: (proceed: () => void, refuse?: () => void) => boolean;
+  stay: () => void;
+  leave: () => void;
+  release: () => void;
+  reset: () => void;
 }
 
 const NOTHING = (): void => undefined;

@@ -31,74 +31,74 @@ import type { GatewayFailure } from '#/shared/transport/gateway.ts';
 type Step<S extends Creation['step']> = Extract<Creation, { step: S }>;
 
 export interface TenantStep {
-  readonly step: 'tenant';
-  readonly name: string;
-  readonly displayName: string;
-  readonly rule: string;
-  readonly issuer: string | null;
-  readonly nameError: string | undefined;
-  readonly displayNameError: string | undefined;
-  readonly message: string | null;
+  step: 'tenant';
+  name: string;
+  displayName: string;
+  rule: string;
+  issuer: string | null;
+  nameError: string | undefined;
+  displayNameError: string | undefined;
+  message: string | null;
   // The POST's answer was lost: offer to look for the tenant rather than send it again.
-  readonly unconfirmed: boolean;
-  readonly busy: boolean;
-  readonly editName: (name: string) => void;
-  readonly editDisplayName: (displayName: string) => void;
-  readonly submit: () => void;
-  readonly check: () => void;
+  unconfirmed: boolean;
+  busy: boolean;
+  editName: (name: string) => void;
+  editDisplayName: (displayName: string) => void;
+  submit: () => void;
+  check: () => void;
 }
 
 export interface AdministratorStep {
-  readonly step: 'administrator';
-  readonly tenant: string;
-  readonly origin: Step<'administrator'>['origin'];
+  step: 'administrator';
+  tenant: string;
+  origin: Step<'administrator'>['origin'];
   // system's administrators are the system administrators, managed elsewhere.
-  readonly systemAdminsHref: string | null;
-  readonly issuer: string | null;
-  readonly username: string;
-  readonly email: string;
+  systemAdminsHref: string | null;
+  issuer: string | null;
+  username: string;
+  email: string;
   // Created already, so its username is fixed and only the rest is left.
-  readonly created: boolean;
-  readonly usernameError: string | undefined;
-  readonly emailError: string | undefined;
-  readonly message: string | null;
-  readonly unconfirmed: boolean;
-  readonly busy: boolean;
+  created: boolean;
+  usernameError: string | undefined;
+  emailError: string | undefined;
+  message: string | null;
+  unconfirmed: boolean;
+  busy: boolean;
   // What whoami says is missing for the steps' requests, named before any is sent.
-  readonly needs: readonly AdminCapability[];
-  readonly secret: string | null;
-  readonly editUsername: (username: string) => void;
-  readonly editEmail: (email: string) => void;
-  readonly submit: () => void;
-  readonly check: () => void;
-  readonly closeSecret: () => void;
+  needs: readonly AdminCapability[];
+  secret: string | null;
+  editUsername: (username: string) => void;
+  editEmail: (email: string) => void;
+  submit: () => void;
+  check: () => void;
+  closeSecret: () => void;
 }
 
 export interface DoneStep {
-  readonly step: 'done';
-  readonly tenant: string;
-  readonly username: string;
+  step: 'done';
+  tenant: string;
+  username: string;
   // Starting over from a tenant's own administrator adds another to it.
-  readonly again: 'tenant' | 'administrator';
-  readonly systemAdminsHref: string | null;
-  readonly recordHref: string;
-  readonly enterHref: string;
+  again: 'tenant' | 'administrator';
+  systemAdminsHref: string | null;
+  recordHref: string;
+  enterHref: string;
 }
 
 export interface Unfinished {
-  readonly tenant: string;
-  readonly username: string;
+  tenant: string;
+  username: string;
   // Whether tenant-admin landed, leaving only the one-time password.
-  readonly granted: boolean;
+  granted: boolean;
 }
 
 export interface NewTenant {
-  readonly current: TenantStep | AdministratorStep | DoneStep;
-  readonly startOver: () => void;
+  current: TenantStep | AdministratorStep | DoneStep;
+  startOver: () => void;
   // A subject created but not finished, which starting over would drop.
-  readonly replacing: Unfinished | null;
-  readonly replace: () => void;
-  readonly keep: () => void;
+  replacing: Unfinished | null;
+  replace: () => void;
+  keep: () => void;
 }
 
 function systemAdminsOf(tenant: string): string | null {
@@ -264,7 +264,7 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
       authority === undefined
         ? []
         : administratorNeeds(step.tenant, step).filter((c) => !holds(authority, c));
-    const record = (done: { readonly subjectId: string; readonly granted: boolean }): void => {
+    const record = (done: { subjectId: string; granted: boolean }): void => {
       update({ ...step, ...done });
     };
     return {

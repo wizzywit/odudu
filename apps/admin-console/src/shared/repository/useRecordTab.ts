@@ -7,7 +7,7 @@ const PARAM = 'tab';
 // name: a list's search or cursor trail belongs to the tab that set it.
 export function useRecordTab<T extends string>(
   tabs: readonly [T, ...T[]],
-): { readonly tab: T; readonly selectTab: (tab: T) => void } {
+): { tab: T; selectTab: (tab: T) => void } {
   const { params, go } = useUrlSearch();
   const asked = params.get(PARAM);
   const tab = tabs.find((candidate) => candidate === asked) ?? tabs[0];

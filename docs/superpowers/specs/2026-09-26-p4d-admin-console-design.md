@@ -558,8 +558,12 @@ A `#/` import names its file's extension (`#/app/App.tsx`), because under
 `package.json` `imports` target, and one `"#/*": "./src/*"` must reach both
 `.ts` and `.tsx`.
 
-Component props are plain properties, not `readonly`; an array prop is typed
-`readonly T[]`.
+Every property the console declares, in any interface or type, `.ts` and
+`.tsx` alike, is a plain property, not `readonly`. The guarantee is kept on
+the value instead: an array is typed `readonly T[]` (or `ReadonlyArray`, a
+readonly tuple, `ReadonlyMap`, `ReadonlySet`), which stops an in-place
+`sort` or `push` on cached data. `tests/lint/console-plain-properties.test.ts`
+holds every console source file to this.
 
 A stateful usecase is a hook — `useAmendClientIdentity` returning
 `{ save, status, fieldErrors }` — and a stateless one a function; both live

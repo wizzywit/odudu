@@ -1,8 +1,8 @@
 export type Values = Readonly<Record<string, unknown>>;
 
 export interface Draft<T extends Values> {
-  readonly base: T;
-  readonly edits: Partial<T>;
+  base: T;
+  edits: Partial<T>;
 }
 
 export function sameValue(a: unknown, b: unknown): boolean {
@@ -55,10 +55,10 @@ export function discard<T extends Values>(draft: Draft<T>): Draft<T> {
 }
 
 export interface Rebased<T extends Values> {
-  readonly draft: Draft<T>;
+  draft: Draft<T>;
   // Edited here and changed on the server since: nothing merges on its own,
   // so the section shows theirs beside yours before it saves again.
-  readonly conflicts: readonly (keyof T & string)[];
+  conflicts: readonly (keyof T & string)[];
 }
 
 // Another section's save returns the whole record: this one's edits survive

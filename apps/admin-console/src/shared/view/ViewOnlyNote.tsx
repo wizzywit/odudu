@@ -10,7 +10,7 @@ export function ViewOnlyNote({
   noun: string;
   // What the caller may not do here, when it is less than all of it.
   change?: string;
-  readonly needs: readonly string[];
+  needs: readonly string[];
 }) {
   return (
     <p role="note" className={styles.note}>

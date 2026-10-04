@@ -11,7 +11,7 @@ export function GroupPicker({
 }: {
   label: string;
   picker: PickerState<Group>;
-  readonly selected: readonly string[];
+  selected: readonly string[];
   onChange: (ids: string[]) => void;
   selectionMode?: 'single' | 'multiple';
 }) {

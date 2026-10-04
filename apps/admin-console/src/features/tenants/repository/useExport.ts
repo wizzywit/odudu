@@ -6,14 +6,14 @@ import type { GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export interface Exported {
-  readonly fileName: string;
-  readonly bytes: number;
-  readonly omitted: readonly string[];
+  fileName: string;
+  bytes: number;
+  omitted: readonly string[];
 }
 
 export interface TenantExport {
-  readonly busy: boolean;
-  readonly start: (includeSubjects: boolean) => Promise<GatewayResult<Exported>>;
+  busy: boolean;
+  start: (includeSubjects: boolean) => Promise<GatewayResult<Exported>>;
 }
 
 // The document is saved as the text the server sent and kept nowhere else:

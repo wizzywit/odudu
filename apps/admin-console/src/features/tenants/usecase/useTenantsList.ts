@@ -8,11 +8,11 @@ import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
 export interface TenantsList {
-  readonly list: ResourceListState<Tenant>;
+  list: ResourceListState<Tenant>;
   // Null when whoami says a record could not be read: its rows open nothing.
-  readonly open: ((name: string) => void) | null;
+  open: ((name: string) => void) | null;
   // What reading a tenant's record needs that whoami says is missing.
-  readonly recordNeeds: readonly AdminCapability[];
+  recordNeeds: readonly AdminCapability[];
 }
 
 export function useTenantsList(): TenantsList {

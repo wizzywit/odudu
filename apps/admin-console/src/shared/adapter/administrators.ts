@@ -49,7 +49,7 @@ export function readAdministratorCount(
 export function createSubject(
   gateway: Gateway,
   tenant: string,
-  input: { readonly username: string; readonly email: string },
+  input: { username: string; email: string },
 ): Promise<GatewayResult<Subject>> {
   return gateway.request('POST', `admin/tenants/${tenantPath(tenant)}/subjects`, {
     body: { username: input.username, ...(input.email === '' ? {} : { email: input.email }) },

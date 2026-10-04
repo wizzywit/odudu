@@ -12,12 +12,12 @@ import {
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
 export interface TenantAdministrators {
-  readonly list: ResourceListState<Subject>;
+  list: ResourceListState<Subject>;
   // The capability or role the guard counts, and for `system` where its
   // administrators are managed.
-  readonly counted: 'tenant-admin' | 'manage-tenants';
-  readonly systemAdminsHref: string | null;
-  readonly begin: BeginAdministrator;
+  counted: 'tenant-admin' | 'manage-tenants';
+  systemAdminsHref: string | null;
+  begin: BeginAdministrator;
 }
 
 export function useTenantAdministrators(tenant: string): TenantAdministrators {

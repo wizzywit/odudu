@@ -13,10 +13,10 @@ import { useTransport } from '#/shared/transport/useTransport.ts';
 const KEY = ['session'] as const;
 
 export interface SessionRead {
-  readonly result: GatewayResult<Principal>;
+  result: GatewayResult<Principal>;
   // Who this tab was showing when its session ended, or when a sign-in in
   // another tab replaced it with the principal `result` names.
-  readonly was: Principal | null;
+  was: Principal | null;
 }
 
 const ENDED: GatewayResult<Principal> = {
@@ -70,18 +70,18 @@ export function rememberedTenant({
   named,
   signedIn,
 }: {
-  readonly named: string | null;
-  readonly signedIn: boolean;
+  named: string | null;
+  signedIn: boolean;
 }): string | null {
   return named === null && !signedIn ? loadLastTenant() : null;
 }
 
 export function useSessionQuery(): {
-  readonly read: SessionRead | undefined;
-  readonly retry: () => void;
-  readonly markEnded: (was: Principal | null) => void;
+  read: SessionRead | undefined;
+  retry: () => void;
+  markEnded: (was: Principal | null) => void;
   // Takes the principal another sign-in left as this tab's own.
-  readonly carryOn: () => void;
+  carryOn: () => void;
 } {
   const { gateway } = useTransport();
   const client = useQueryClient();

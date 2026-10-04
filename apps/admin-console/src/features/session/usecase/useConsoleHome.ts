@@ -19,24 +19,24 @@ import { useUrlSearch } from '#/shared/repository/useUrlSearch.ts';
 export const CHOOSE_TENANT = 'choose';
 
 export type Home =
-  | { readonly kind: 'leaving'; readonly tenant: string | null }
+  | { kind: 'leaving'; tenant: string | null }
   | {
-      readonly kind: 'elsewhere';
-      readonly principal: Principal;
-      readonly tenant: string;
-      readonly signIn: () => void;
+      kind: 'elsewhere';
+      principal: Principal;
+      tenant: string;
+      signIn: () => void;
     }
   | {
-      readonly kind: 'choose';
-      readonly remembered: string | null;
+      kind: 'choose';
+      remembered: string | null;
       // Why the last sign-in came back without a session, in words.
-      readonly notice: string | null;
+      notice: string | null;
       // A system administrator enters a tenant rather than signing in to it.
-      readonly enters: boolean;
+      enters: boolean;
       // A tenant administrator's session, which a sign-in elsewhere replaces.
-      readonly replacing: Principal | null;
-      readonly choose: (tenant: string) => void;
-      readonly check: (tenant: string) => string | undefined;
+      replacing: Principal | null;
+      choose: (tenant: string) => void;
+      check: (tenant: string) => string | undefined;
     };
 
 // The bare console: a signed-in administrator goes on to their tenant; a

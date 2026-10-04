@@ -2,9 +2,9 @@ import { createContext, useContext } from 'react';
 import type { Principal } from '#/features/session/service.ts';
 
 export interface SignedIn {
-  readonly principal: Principal | null;
+  principal: Principal | null;
   // Whose session ended while the console was open, or null when none did.
-  readonly ended: Principal | null;
+  ended: Principal | null;
 }
 
 export const SignedInContext = createContext<SignedIn>({ principal: null, ended: null });

@@ -21,21 +21,21 @@ import type { ThemeChoice } from '#/shared/service/theme.ts';
 import { useTheme } from '#/shared/repository/useTheme.ts';
 
 export interface Shell {
-  readonly groups: readonly RailSection[];
+  groups: readonly RailSection[];
   // Whoami has not answered yet, so the rail says it is checking.
-  readonly checking: boolean;
-  readonly currentHref: string | undefined;
-  readonly systemAuthority: boolean;
-  readonly systemRecordHref: string;
-  readonly username: string;
-  readonly signedInTo: string;
-  readonly switchHref: string;
-  readonly collapsed: boolean;
-  readonly dialogOpen: boolean;
-  readonly setCollapsed: (collapsed: boolean) => void;
-  readonly theme: ThemeChoice;
-  readonly chooseTheme: (choice: ThemeChoice) => void;
-  readonly signOut: () => void;
+  checking: boolean;
+  currentHref: string | undefined;
+  systemAuthority: boolean;
+  systemRecordHref: string;
+  username: string;
+  signedInTo: string;
+  switchHref: string;
+  collapsed: boolean;
+  dialogOpen: boolean;
+  setCollapsed: (collapsed: boolean) => void;
+  theme: ThemeChoice;
+  chooseTheme: (choice: ThemeChoice) => void;
+  signOut: () => void;
 }
 
 export function useShell(tenant: string, principal: Principal): Shell {

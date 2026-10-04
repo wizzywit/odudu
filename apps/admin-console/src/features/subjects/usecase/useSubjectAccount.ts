@@ -22,33 +22,33 @@ import type { GatewayResult } from '#/shared/transport/gateway.ts';
 
 export type UsernameMode =
   // Offered: the tenant's policy accepts a rename.
-  | { readonly kind: 'editable'; readonly description: string }
+  | { kind: 'editable'; description: string }
   // Not offered: the policy is off, and this is why.
-  | { readonly kind: 'fixed'; readonly reason: string; readonly settingsHref: string }
-  | { readonly kind: 'failed'; readonly retry: () => void }
-  | { readonly kind: 'checking' };
+  | { kind: 'fixed'; reason: string; settingsHref: string }
+  | { kind: 'failed'; retry: () => void }
+  | { kind: 'checking' };
 
 export interface Confirmable {
-  readonly confirming: boolean;
-  readonly busy: boolean;
+  confirming: boolean;
+  busy: boolean;
   // The server's refusal, said in the dialog that asked for it.
-  readonly problem: string | null;
-  readonly ask: () => void;
-  readonly cancel: () => void;
-  readonly confirm: () => void;
+  problem: string | null;
+  ask: () => void;
+  cancel: () => void;
+  confirm: () => void;
 }
 
 export interface SubjectAccount {
-  readonly name: string;
-  readonly section: SectionSave<AccountValues>;
-  readonly username: UsernameMode;
-  readonly enabled: boolean;
+  name: string;
+  section: SectionSave<AccountValues>;
+  username: UsernameMode;
+  enabled: boolean;
   // Enabling has an inverse, so it asks nothing; disabling asks first.
-  readonly enable: () => void;
-  readonly disable: Confirmable;
+  enable: () => void;
+  disable: Confirmable;
   // Why the last enable did not happen, said beside the button.
-  readonly enabledMessage: string | null;
-  readonly remove: Confirmable;
+  enabledMessage: string | null;
+  remove: Confirmable;
 }
 
 function refusalText(

@@ -22,10 +22,10 @@ import {
 import styles from '#/shared/view/Field.module.css';
 
 interface Typed {
-  readonly value: string;
-  readonly region: string | null;
-  readonly national: string;
-  readonly extension: string | null;
+  value: string;
+  region: string | null;
+  national: string;
+  extension: string | null;
 }
 
 function callingOptions(locale: string): readonly ComboOption[] {

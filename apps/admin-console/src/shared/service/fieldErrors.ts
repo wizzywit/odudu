@@ -1,9 +1,9 @@
 import type { FieldError } from '@odudu/contracts/admin';
 
 export interface FieldErrors {
-  readonly fields: Readonly<Record<string, string>>;
+  fields: Readonly<Record<string, string>>;
   // Refusals that name no field of this section, shown for the section as a whole.
-  readonly other: readonly string[];
+  other: readonly string[];
 }
 
 // `redirect_uris[1]` and `document.name` belong to the field they start with.
@@ -29,9 +29,9 @@ function fromDetail(detail: string): FieldError[] | null {
 
 export function fieldErrorsOf(
   problem: {
-    readonly title?: string | undefined;
-    readonly detail?: string | undefined;
-    readonly errors?: readonly FieldError[] | undefined;
+    title?: string | undefined;
+    detail?: string | undefined;
+    errors?: readonly FieldError[] | undefined;
   },
   known: readonly string[],
 ): FieldErrors {

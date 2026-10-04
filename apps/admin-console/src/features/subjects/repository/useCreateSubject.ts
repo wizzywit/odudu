@@ -6,13 +6,10 @@ import type { GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export interface CreateSubject {
-  readonly busy: boolean;
-  readonly create: (input: {
-    readonly username: string;
-    readonly email: string;
-  }) => Promise<GatewayResult<Subject>>;
+  busy: boolean;
+  create: (input: { username: string; email: string }) => Promise<GatewayResult<Subject>>;
   // For a creation whose answer was lost: never sent twice, looked for instead.
-  readonly find: (username: string) => Promise<GatewayResult<Subject | null>>;
+  find: (username: string) => Promise<GatewayResult<Subject | null>>;
 }
 
 export function useCreateSubject(tenant: string): CreateSubject {
@@ -24,7 +21,7 @@ export function useCreateSubject(tenant: string): CreateSubject {
     }
   };
   const create = useMutation({
-    mutationFn: (input: { readonly username: string; readonly email: string }) =>
+    mutationFn: (input: { username: string; email: string }) =>
       createSubject(gateway, tenant, input),
     onSuccess: created,
   });

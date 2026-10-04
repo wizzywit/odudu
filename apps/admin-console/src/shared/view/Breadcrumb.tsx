@@ -10,7 +10,7 @@ export function Breadcrumb({
   items,
   label = 'Breadcrumb',
 }: {
-  readonly items: readonly Crumb[];
+  items: readonly Crumb[];
   // Only where two trails share a page, as the gallery's do.
   label?: string;
 }) {
