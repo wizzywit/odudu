@@ -513,8 +513,15 @@ drives, with tests at the protocol layer.
 - [ ] Docs tidy (asked for by the user):
   - Move every finished phase's plan out of `docs/superpowers/plans/` into
     `docs/archive/plans/`, and repoint the five documents that cite a plan.
-  - Keep in place: ADRs, specs, phase notes, protocol notes and spike logs.
-    Their citations are live: 23 files cite specs, and 18 cite spike logs.
+  - Closed phases' specs and spike logs go to the archive too, after a
+    distillation pass. Each of their roughly 65 citations is repointed to the
+    ADR, phase note or protocol note that now holds the point. Where no such
+    home exists, write one: an ADR for a decision, a phase-note entry for a
+    finding. "verified:" evidence moves into the phase note of the phase
+    that ran it.
+  - Keep in place: ADRs, phase notes, protocol notes, the umbrella design
+    spec (its §11 is the live roadmap), and the open phase's spec until
+    that phase closes.
   - Add `docs/README.md`, which says what each kind of document is for and
     whether it is kept current or written once.
   - A link check fails the build on a dangling reference into `docs/`.
