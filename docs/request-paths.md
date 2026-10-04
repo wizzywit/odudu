@@ -394,6 +394,17 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 200
 ```
 
+Registration accepts, beside the redirect and authentication metadata the
+transcripts below register, RFC 7591's `client_uri`, `policy_uri` and
+`tos_uri` (absolute https, or http on a loopback host, no fragment — the
+consent screen links them, [The client's own pages](#the-clients-own-pages))
+and OpenID Connect Dynamic Client Registration §2's
+`id_token_signed_response_alg` (an algorithm a non-retired key of the tenant
+produces), `default_max_age` and `require_auth_time`; a response echoes each
+one registered, and none that was not. No transcript here registers them;
+`packages/protocol-admin/tests/client-metadata.int.test.ts` and
+`client-id-token-settings.int.test.ts` do.
+
 `client_registration_policy` is `disabled` on every tenant by default (ADR
 0026). Registering before it is opened, or against a tenant that does not
 exist, answers the same way — an enumeration oracle costs nothing to close
@@ -1312,6 +1323,70 @@ field is the form's CSRF defence and an expired one proves no more than a
 forged one. The 30 minutes are the tenant's `login_ttl_seconds`, which
 `PATCH /admin/tenants/{tenant}/settings` amends between `60` and `86400`
 ([Admin paths](admin-paths.md#get-settings-and-patch-settings)).
+
+#### Signing in with an email address
+
+A tenant whose `login_with_email` is on (default `false`,
+[Admin paths](admin-paths.md#lifetimes-and-signing-in-with-an-email-address))
+takes a verified email address in the same field as a username, matched
+without regard to case. A username still wins over another subject's
+address; an address nobody holds, one that is not verified, and one two
+subjects hold in different cases all answer exactly as an unknown username
+does, through the same statements, so the form says nothing about which
+addresses exist. A wrong password counts towards the lockout of the
+subject the address resolves to.
+
+Captured on a stack of its own built from this branch, in a tenant
+`email-demo` seeded for it with
+`odudu seed --tenant email-demo --client email-spa --redirect-uri http://localhost:8080/callback --user grace --password correct-horse-battery --email Grace@Example.com`,
+the address then marked verified with
+`PATCH /admin/tenants/email-demo/subjects/{id}/profile` `{"email_verified": true}`
+and the setting turned on with `PATCH /admin/tenants/email-demo/settings`
+`{"login_with_email": true}`. The form names the field for both, and the
+address signs in typed in another case:
+
+```bash
+AUTHORIZE='http://localhost:3082/tenants/email-demo/protocol/openid-connect/auth?response_type=code&client_id=email-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=s&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+PAGE=$(curl -sS "$AUTHORIZE")
+echo "$PAGE" | grep -o '<label>[^<]*<input type="text"[^>]*>'
+AUTH_SESSION_ID=$(echo "$PAGE" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p' | head -1)
+curl -sS -D - -o /dev/null \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=GRACE@example.com' \
+  --data-urlencode 'password=correct-horse-battery' \
+  http://localhost:3082/tenants/email-demo/login-actions/authenticate \
+  | tr -d '\r' | grep -E '^HTTP|^location'
+```
+
+```
+<label>Username or email <input type="text" name="username" autocomplete="username">
+HTTP/1.1 302 Found
+location: http://localhost:8080/callback?code=Qoploq5vLoyfbO0K1cJcYrNk7cEvcJi08-YMrb3cGWc&state=s&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Femail-demo
+```
+
+A wrong password for the held address and any password for an address
+nobody holds return byte-identical pages, once the two values that differ
+on every render — the form's own `auth_session_id` and the passkey
+script's nonce — are set aside:
+
+```bash
+for login in nobody@example.com grace@example.com; do
+  PAGE=$(curl -sS "$AUTHORIZE")
+  AUTH_SESSION_ID=$(echo "$PAGE" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p' | head -1)
+  curl -sS -w '%{http_code} ' \
+    --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+    --data-urlencode "username=$login" \
+    --data-urlencode 'password=wrong-password' \
+    http://localhost:3082/tenants/email-demo/login-actions/authenticate \
+    | sed -e "s/$AUTH_SESSION_ID/AUTH_SESSION_ID/g" -e 's/nonce="[^"]*"/nonce="NONCE"/' \
+    | shasum -a 256
+done
+```
+
+```
+fee64ef949a1eb5872315bdd3668fa0cb91635048d77bd7654a5a02169dfe9d5  -
+fee64ef949a1eb5872315bdd3668fa0cb91635048d77bd7654a5a02169dfe9d5  -
+```
 
 ### 4. `/token`
 
@@ -5544,6 +5619,8 @@ removes nothing at all:
 odudu reap
 ```
 
+Captured before the report gained `cleared`, which every pass now prints after `deleted` — `"cleared":{"client_previous_secrets":0}` where no rotated-out client secret's window had ended (see [Admin paths](admin-paths.md#post-clientsidsecret)).
+
 ```
 {"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"sessions":0,"audit_events":0}}
 ```
@@ -5604,6 +5681,8 @@ UPDATE sessions SET created_at = created_at - interval '40 days', expires_at = e
 odudu reap
 ```
 
+Captured before the report gained `cleared`, which every pass now prints after `deleted` — `"cleared":{"client_previous_secrets":0}` where no rotated-out client secret's window had ended (see [Admin paths](admin-paths.md#post-clientsidsecret)).
+
 ```
 {"ran":true,"deleted":{"refresh_tokens":2,"authorization_codes":1,"token_grants":1,"authentication_sessions":1,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"sessions":1,"audit_events":0}}
 ```
@@ -5622,6 +5701,8 @@ A second run has nothing left:
 ```bash
 odudu reap
 ```
+
+Captured before the report gained `cleared`, which every pass now prints after `deleted` — `"cleared":{"client_previous_secrets":0}` where no rotated-out client secret's window had ended (see [Admin paths](admin-paths.md#post-clientsidsecret)).
 
 ```
 {"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":0,"console_logins":0,"sessions":0,"audit_events":0}}
@@ -5650,6 +5731,8 @@ SELECT gen_random_uuid(), t.id, sha256(gen_random_uuid()::text::bytea), 'v', 'n'
 "
 odudu reap
 ```
+
+Captured before the report gained `cleared`, which every pass now prints after `deleted` — `"cleared":{"client_previous_secrets":0}` where no rotated-out client secret's window had ended (see [Admin paths](admin-paths.md#post-clientsidsecret)).
 
 ```
 {"ran":true,"deleted":{"refresh_tokens":0,"authorization_codes":0,"token_grants":0,"authentication_sessions":0,"action_tokens":0,"client_registration_tokens":0,"login_failures":0,"email_outbox":0,"backchannel_logout_deliveries":0,"client_assertion_jti":0,"console_sessions":2,"console_logins":1,"sessions":0,"audit_events":0}}
@@ -7199,6 +7282,41 @@ curl -sS -D - -b cookies-consent.txt --get \
 HTTP/1.1 302 Found
 location: https://rp.example/cb?error=consent_required&state=xyz-reuse&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fdemo
 content-length: 0
+```
+
+#### The client's own pages
+
+A client that registered RFC 7591's `client_uri`, `policy_uri` or `tos_uri`
+has each linked under its name, so the End-User can read them before
+answering. Every link is escaped through the renderer's own `escapeHtml`,
+attribute and text alike, and the page's policy is the one it always sends:
+a link is a navigation, which `default-src 'none'` does not govern. Captured
+on the stack and tenant [Signing in with an email address](#signing-in-with-an-email-address)
+used, with a public client created through the admin API for it and `grace`
+signing in from a fresh browser:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"client_id": "billing-spa", "name": "Billing & Co", "token_endpoint_auth_method": "none", "redirect_uris": ["http://localhost:8080/callback"], "consent_required": true, "client_uri": "https://billing.example/about?from=consent&lang=en", "policy_uri": "https://billing.example/privacy", "tos_uri": "https://billing.example/terms"}' \
+  http://localhost:3082/admin/tenants/email-demo/clients \
+  | jq -c '{client_id, name, consent_required, client_uri, policy_uri, tos_uri}'
+PAGE=$(curl -sS 'http://localhost:3082/tenants/email-demo/protocol/openid-connect/auth?response_type=code&client_id=billing-spa&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&scope=openid&state=s&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256')
+AUTH_SESSION_ID=$(echo "$PAGE" | sed -n 's/.*name="auth_session_id" value="\([^"]*\)".*/\1/p' | head -1)
+curl -sS -D - \
+  --data-urlencode "auth_session_id=$AUTH_SESSION_ID" \
+  --data-urlencode 'username=grace' \
+  --data-urlencode 'password=correct-horse-battery' \
+  http://localhost:3082/tenants/email-demo/login-actions/authenticate \
+  | tr -d '\r' | sed -n '1p;/^content-security-policy/p;/<h1>/,/<form/p'
+```
+
+```
+{"client_id":"billing-spa","name":"Billing & Co","consent_required":true,"client_uri":"https://billing.example/about?from=consent&lang=en","policy_uri":"https://billing.example/privacy","tos_uri":"https://billing.example/terms"}
+HTTP/1.1 200 OK
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
+<h1>Billing &amp; Co is asking for access</h1>
+<p><a href="https://billing.example/about?from=consent&amp;lang=en">About Billing &amp; Co</a> · <a href="https://billing.example/privacy">Privacy policy</a> · <a href="https://billing.example/terms">Terms of service</a></p>
+<form method="post" action="/tenants/email-demo/login-actions/consent">
 ```
 
 ## Path C: `client_credentials`

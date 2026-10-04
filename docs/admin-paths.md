@@ -419,6 +419,25 @@ not re-run — each says so, and why, where it appears.
 | `GET`    | `/admin/tenants/{tenant}/audit/export`                           | Export audit events as NDJSON              |
 | `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference                      |
 
+### Transcripts that predate a field
+
+Migrations `0082` to `0086` added fields every client and every tenant
+document now carries, and a handful of transcripts below were captured
+before them. Each says so where it is shown. What such a transcript lacks:
+a client read now also carries `description`, `id_token_ttl_seconds`,
+`client_uri`, `policy_uri`, `tos_uri`, `id_token_signed_response_alg`,
+`default_max_age`, `require_auth_time` and `previous_secret_expires_at`, and
+a client that never chose its own lifetimes reads `null` where those
+transcripts show `300` and `1209600` (it takes the tenant's, [Lifetimes, and
+signing in with an email address](#lifetimes-and-signing-in-with-an-email-address));
+a tenant document's `settings` also carry the eight settings that
+subsection names, and its clients the fields above; and an audit row's
+diff of a client carries the new fields beside the old. Nothing else in
+those transcripts changed. The sections that show these fields at all —
+the settings, [A client's pages and its ID token settings](#a-clients-pages-and-its-id-token-settings)
+and the rotation under [`POST /clients/{id}/secret`](#post-clientsidsecret)
+— were captured after.
+
 ### A refusal names its field
 
 A `400` that names something in the request carries `errors` beside
@@ -1356,6 +1375,8 @@ curl -sS -D - \
   http://localhost:3000/admin/tenants/export-demo/export
 ```
 
+Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+
 ```
 HTTP/1.1 200 OK
 x-request-id: 01a0e5d9-8b57-7c1d-bb96-b5e32edb81b1
@@ -1807,26 +1828,27 @@ committed, exactly as `PATCH /admin/tenants/{tenant}` does.
 ```bash
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/settings-demo/settings
+  http://localhost:3082/admin/tenants/settings-demo/settings
 ```
 
 Captured against `settings-demo`, a tenant created for this section through
 `POST /admin/tenants` with `display_name` "Settings Demo", as the system
-admin `ada-rename` the rename walkthrough under `PATCH /subjects/:id` uses,
-so every value but `display_name` is the migrations' own default:
+admin `ada` [Getting the token](#getting-the-token) seeds, on a stack built
+from the commit that made the lifetimes settings, so every value but
+`display_name` is the migrations' own default:
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e37c-7b52-7cfb-bf94-c82a71461949
+x-request-id: 01a10930-ad08-77ea-aca7-348e7f252101
 cache-control: no-store
-etag: "541f8ad7127836bb2c79e2c7d499b824c1512ac0fa5713abd8d5952046182645"
+etag: "0f6a12f82bad66b8c2a3c0941c6d1e6578a6d7eecf395cba4e6b9332abee794a"
 content-type: application/json; charset=utf-8
-content-length: 857
-Date: Sun, 27 Sep 2026 15:29:41 GMT
+content-length: 1103
+Date: Sun, 04 Oct 2026 23:12:27 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":false,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":8,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false}
+{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":false,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":8,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"login_with_email":false}
 ```
 
 Amending sends only the settings that change, and the response is the whole
@@ -1837,36 +1859,35 @@ curl -sS -D - -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"verify_email": true, "password_min_length": 14}' \
-  http://localhost:3000/admin/tenants/settings-demo/settings
+  http://localhost:3082/admin/tenants/settings-demo/settings
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e37c-7b66-7f7c-a9aa-f29ffc2d97e8
+x-request-id: 01a10930-cf9c-74f3-8b06-b0761c8108d4
 cache-control: no-store
-etag: "a87f22b6be2f43fe4578f8152c877ed31ff804243771fcda82f173b3f09155c6"
+etag: "e366534015037a326650ce09da0841b20fe5a51b7c47d3a37aced5f926eaa7fe"
 content-type: application/json; charset=utf-8
-content-length: 857
-Date: Sun, 27 Sep 2026 15:29:41 GMT
+content-length: 1103
+Date: Sun, 04 Oct 2026 23:12:36 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":14,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false}
+{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":14,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"login_with_email":false}
 ```
 
 A name this map does not know is refused with `400`, naming the settings it
 does — which is also the one place the whole vocabulary is listed by the
-server itself. Captured against the sixth stack, in a tenant also named
-`settings-demo` created there for it:
+server itself. Captured on the same stack and tenant:
 
 ```bash
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -d '{"nonesuch": true}' \
-  http://localhost:3080/admin/tenants/settings-demo/settings
+  http://localhost:3082/admin/tenants/settings-demo/settings
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown tenant setting \"nonesuch\"; expected one of display_name, enabled, registration_allowed, verify_email, reset_password_allowed, sso_session_idle_seconds, sso_session_max_seconds, password_min_length, password_require_digit, password_require_uppercase, password_require_lowercase, password_require_special, password_not_username, password_not_email, password_history_depth, password_max_age_days, otp_required, brute_force_max_failures, brute_force_lockout_seconds, brute_force_max_lockout_seconds, brute_force_failure_reset_seconds, client_registration_policy, max_clients, max_sessions_per_browser, remember_me_allowed, remember_me_idle_seconds, remember_me_max_seconds, audit_retention_days, username_editable","errors":[{"path":"nonesuch","message":"is not a tenant setting"}],"instance":"01a0ea51-1eba-7c20-805b-52e3fbd77f94"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown tenant setting \"nonesuch\"; expected one of display_name, enabled, registration_allowed, verify_email, reset_password_allowed, sso_session_idle_seconds, sso_session_max_seconds, password_min_length, password_require_digit, password_require_uppercase, password_require_lowercase, password_require_special, password_not_username, password_not_email, password_history_depth, password_max_age_days, otp_required, brute_force_max_failures, brute_force_lockout_seconds, brute_force_max_lockout_seconds, brute_force_failure_reset_seconds, client_registration_policy, max_clients, max_sessions_per_browser, remember_me_allowed, remember_me_idle_seconds, remember_me_max_seconds, audit_retention_days, username_editable, access_token_ttl_seconds, id_token_ttl_seconds, refresh_token_ttl_seconds, authorization_code_ttl_seconds, login_ttl_seconds, verify_email_ttl_seconds, reset_password_ttl_seconds, login_with_email","errors":[{"path":"nonesuch","message":"is not a tenant setting"}],"instance":"01a10930-cfcf-7564-bf21-7e2cac3611c8"}
 ```
 
 A value the map coerces but outside its range — `password_min_length`
@@ -1928,6 +1949,43 @@ docker compose exec -T odudu node dist/main.js seed tenant --name range-demo 2>/
 OduduError: tenant setting password_max_age_days must be between 0 and 3650; tenant setting sso_session_idle_seconds must not exceed sso_session_max_seconds
   code: 'seed_invalid_options'
 {"command":"tenant","created":true,"tenant":"range-demo","tenantId":"01a0e5a1-a6ff-7c12-9a71-8b9c81ba450b"}
+```
+
+### Lifetimes, and signing in with an email address
+
+Seven of the settings are lifetimes the code used to fix, each defaulting
+to the constant it replaced (`0082_tenant_lifetimes.sql`):
+`access_token_ttl_seconds` and `id_token_ttl_seconds` (`300`, `1` to
+`3600`), `refresh_token_ttl_seconds` (`1209600`, at least `1`),
+`authorization_code_ttl_seconds` (`60`, `1` to `600` — RFC 6749 §4.1.2's
+ten minutes), `login_ttl_seconds` (`1800`, `60` to `86400`: how long a login
+page may stay open), `verify_email_ttl_seconds` (`43200`, `60` to `604800`)
+and `reset_password_ttl_seconds` (`300`, `60` to `86400`). The three token
+lifetimes are defaults: a client's own `access_token_ttl_seconds`,
+`id_token_ttl_seconds` or `refresh_token_ttl_seconds` overrides each, and a
+client whose value is `null` takes the tenant's. Each is read where the
+token, code, login or link is minted, so a change applies from the next
+one. `login_with_email` (default `false`) lets the login form take a
+verified email address where it takes a username — [Signing in with an
+email address](request-paths.md#signing-in-with-an-email-address) walks
+through it. Captured on the same stack and tenant, the response narrowed to
+the settings this subsection is about:
+
+```bash
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"access_token_ttl_seconds": 600, "id_token_ttl_seconds": 900, "authorization_code_ttl_seconds": 30, "login_ttl_seconds": 600, "reset_password_ttl_seconds": 900, "login_with_email": true}' \
+  http://localhost:3082/admin/tenants/settings-demo/settings \
+  | jq -c '{access_token_ttl_seconds, id_token_ttl_seconds, refresh_token_ttl_seconds, authorization_code_ttl_seconds, login_ttl_seconds, verify_email_ttl_seconds, reset_password_ttl_seconds, login_with_email}'
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"access_token_ttl_seconds": 7200, "authorization_code_ttl_seconds": 900, "reset_password_ttl_seconds": 30}' \
+  http://localhost:3082/admin/tenants/settings-demo/settings
+```
+
+```
+{"access_token_ttl_seconds":600,"id_token_ttl_seconds":900,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":30,"login_ttl_seconds":600,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":900,"login_with_email":true}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"3 tenant setting(s) outside the permitted range, listed under errors","errors":[{"path":"access_token_ttl_seconds","message":"must be between 1 and 3600"},{"path":"authorization_code_ttl_seconds","message":"must be between 1 and 600"},{"path":"reset_password_ttl_seconds","message":"must be between 60 and 86400"}],"instance":"01a10930-cffb-71d9-bb78-4c1cacfd308d"}
 ```
 
 ## `GET /clients`, `POST /clients` and `GET /clients/{id}`
@@ -1999,6 +2057,8 @@ curl -sS -D - -X POST \
   http://localhost:3080/admin/tenants/demo/clients
 ```
 
+Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+
 ```
 HTTP/1.1 201 Created
 x-request-id: 01a0ea52-00a1-7434-8baa-1afd205ea58c
@@ -2022,6 +2082,8 @@ curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3080/admin/tenants/demo/clients/01a0ea52-00e5-7d46-9b04-4047f5547b03
 ```
+
+Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 HTTP/1.1 200 OK
@@ -2100,6 +2162,8 @@ curl -sS -D - -X POST \
 one-time secret. The `scopes` ids are `client-facts-demo`'s own, created
 with the tenant above:
 
+Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+
 ```
 HTTP/1.1 201 Created
 x-request-id: 01a0ea52-530f-7094-9050-2e52a880acb2
@@ -2155,6 +2219,8 @@ curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   "http://localhost:3080/admin/tenants/demo/clients?client_id=DEMO&type=confidential&limit=1"
 ```
+
+Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 HTTP/1.1 200 OK
@@ -2390,6 +2456,8 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3080/admin/tenants/client-facts-demo/clients/01a0ea52-5338-79b6-856d-2be5d449e11e
 ```
 
+Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+
 ```
 {"id":"01a0ea52-5338-79b6-856d-2be5d449e11e","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-28T23:20:58.904Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0ea52-531a-7799-aab8-fe7dfcf769a6","scopes":[{"id":"01a0ea52-52d9-715b-ac9f-3f2ff5e8cbe5","name":"openid","assignment":"default"},{"id":"01a0ea52-52da-76aa-a90a-0bb41b35e3c9","name":"profile","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-3543425d2470","name":"email","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-35440d053d73","name":"address","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bcb2323b2d5","name":"phone","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bccdc833770","name":"roles","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1a4b075bcc","name":"groups","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1b19fc898d","name":"offline_access","assignment":"optional"}]}
 ```
@@ -2405,6 +2473,51 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```
 {"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be disabled","instance":"01a0ea52-546c-774b-bd3a-f1af15367421"}
+```
+
+### A client's pages and its ID token settings
+
+`description` is the administrators' own note on the client, at most 1000
+characters and shown nowhere else. `client_uri`, `policy_uri` and `tos_uri`
+are RFC 7591 §2's pages about the client, which the consent screen links
+under the client's name ([The consent screen](request-paths.md#the-consent-screen)).
+`id_token_signed_response_alg`, `default_max_age` and `require_auth_time`
+are OpenID Connect Dynamic Client Registration §2's: the algorithm the
+client's ID tokens are signed with (`RS256` or `ES256`, and only one a
+non-retired key of the tenant produces; `null` signs with the active key),
+the age past which a session is re-authenticated when a request carries no
+`max_age` of its own, and whether every ID token carries `auth_time`.
+Dynamic registration accepts the same six and echoes them. Captured in a
+tenant `client-pages-demo` created for it, on the stack the settings above
+were captured on:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"client_id": "billing", "redirect_uris": ["https://billing.example/callback"], "grant_types": ["authorization_code", "client_credentials"], "description": "Invoices and payment runs", "client_uri": "https://billing.example/about", "policy_uri": "https://billing.example/privacy", "tos_uri": "https://billing.example/terms", "id_token_signed_response_alg": "ES256", "default_max_age": 3600, "require_auth_time": true}' \
+  http://localhost:3082/admin/tenants/client-pages-demo/clients
+```
+
+```
+{"id":"01a10931-8140-71a8-821f-c964f28b806c","client_id":"billing","name":"billing","description":"Invoices and payment runs","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-10-04T23:13:21.637Z","redirect_uris":["https://billing.example/callback"],"grant_types":["authorization_code","client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":"https://billing.example/about","policy_uri":"https://billing.example/privacy","tos_uri":"https://billing.example/terms","id_token_signed_response_alg":"ES256","default_max_age":3600,"require_auth_time":true,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a10931-80eb-7dae-b54e-9fa1635b3c01","scopes":[{"id":"01a10931-8088-7f03-b2a1-02e5841d33fb","name":"openid","assignment":"default"},{"id":"01a10931-8089-78fa-af76-02832be0f387","name":"profile","assignment":"default"},{"id":"01a10931-808a-7df9-b8dd-eef4a7ba67b8","name":"email","assignment":"default"},{"id":"01a10931-808a-7df9-b8dd-eef579ac3d13","name":"address","assignment":"default"},{"id":"01a10931-808b-7b6a-aa6a-cb9a3de3321a","name":"phone","assignment":"default"},{"id":"01a10931-808c-7c37-a054-dcb2bb72400b","name":"roles","assignment":"default"},{"id":"01a10931-808c-7c37-a054-dcb33bbe225d","name":"groups","assignment":"default"},{"id":"01a10931-808d-7164-b419-e79b3fa4803a","name":"offline_access","assignment":"optional"}],"client_secret":"0QtbcTY6v9PH8oi75MThTIvTX8f8HOlb1y0EBpx0mjE"}
+```
+
+A page that is not https, or an algorithm no key of the tenant produces,
+is refused by name — the tenant holds only the `ES256` key it was created
+with:
+
+```bash
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"policy_uri": "http://billing.example/privacy"}' \
+  http://localhost:3082/admin/tenants/client-pages-demo/clients/01a10931-8140-71a8-821f-c964f28b806c
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"id_token_signed_response_alg": "RS256"}' \
+  http://localhost:3082/admin/tenants/client-pages-demo/clients/01a10931-8140-71a8-821f-c964f28b806c
+```
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"policy_uri must be an absolute https URI, or http on a loopback host, with no fragment","errors":[{"path":"policy_uri","message":"policy_uri must be an absolute https URI, or http on a loopback host, with no fragment"}],"instance":"01a10931-8168-7b92-ab09-89bf0be6bfba"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"id_token_signed_response_alg: id_token_signed_response_alg RS256 is not produced by any of this tenant's signing keys (ES256)","errors":[{"path":"id_token_signed_response_alg","message":"id_token_signed_response_alg RS256 is not produced by any of this tenant's signing keys (ES256)"}],"instance":"01a10931-8181-7d3b-b46c-a81077826a7c"}
 ```
 
 ## `DELETE /clients/{id}`
@@ -2469,6 +2582,39 @@ the window ends whether or not that pass has run. A public client
 (`token_endpoint_auth_method: "none"`) has no secret to rotate, refused with
 `409`.
 
+Captured on the same client, with an hour's grace: the response, narrowed,
+then `client_credentials` at `/token` with the secret the create above
+answered and with the new one, then a week and a second asked for, then the
+audit row the rotation wrote:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3082/admin/tenants/client-pages-demo/clients/01a10931-8140-71a8-821f-c964f28b806c/secret?grace_seconds=3600' \
+  | jq -c '{client_id, previous_secret_expires_at, client_secret}'
+for secret in "$OLD_SECRET" "$NEW_SECRET"; do
+  curl -sS -o /dev/null -w '%{http_code}\n' -u "billing:$secret" \
+    -d grant_type=client_credentials \
+    http://localhost:3082/tenants/client-pages-demo/protocol/openid-connect/token
+done
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3082/admin/tenants/client-pages-demo/clients/01a10931-8140-71a8-821f-c964f28b806c/secret?grace_seconds=604801'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  'http://localhost:3082/admin/tenants/client-pages-demo/audit?action=client.rotate_secret' \
+  | jq -c '.items[0] | {action, outcome, detail}'
+```
+
+```
+{"client_id":"billing","previous_secret_expires_at":"2026-10-05T00:13:29.089Z","client_secret":"msYC9U85SlNkuYyb2bfBKAzYwI5bmqr6CFdlVp3E7yw"}
+200
+200
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/grace_seconds must be <= 604800","errors":[{"path":"grace_seconds","message":"must be <= 604800"}],"instance":"01a10931-9e9a-7afa-84c4-4ed5807be500"}
+{"action":"client.rotate_secret","outcome":"allowed","detail":{"secret_hash":{"changed":true},"grace_seconds":3600,"previous_secret_expires_at":"2026-10-05T00:13:29.089Z"}}
+```
+
+The transcript below it predates `grace_seconds` and the client fields added
+since it was captured, so its body lacks them; what it shows of a rotation without
+grace is otherwise unchanged.
+
 ```bash
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -2479,6 +2625,8 @@ Captured immediately after the disable above, which is why `enabled` reads
 `false` here: rotating a disabled client's secret is allowed, the guard
 being on the built-in client rather than on a disabled one. `demo-backend`
 was deleted afterward, in the `DELETE` section above.
+
+Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 {"id":"01a0ea52-5338-79b6-856d-2be5d449e11e","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-28T23:20:58.904Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0ea52-531a-7799-aab8-fe7dfcf769a6","scopes":[{"id":"01a0ea52-52d9-715b-ac9f-3f2ff5e8cbe5","name":"openid","assignment":"default"},{"id":"01a0ea52-52da-76aa-a90a-0bb41b35e3c9","name":"profile","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-3543425d2470","name":"email","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-35440d053d73","name":"address","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bcb2323b2d5","name":"phone","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bccdc833770","name":"roles","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1a4b075bcc","name":"groups","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1b19fc898d","name":"offline_access","assignment":"optional"}],"client_secret":"LP5wAXCjiJZrtCtUazC4IZBTWQyMjI0cnpHDmgaKShs"}
@@ -6748,6 +6896,8 @@ curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3080/admin/tenants/scope-unassign-demo/scopes/01a0ea62-eab5-7272-9ed9-b0306b9f211a/clients/01a0ea62-eaef-7228-a188-247cd02f071f
 ```
 
+Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+
 ```
 HTTP/1.1 204 No Content
 x-request-id: 01a0ea62-eb2b-7cb1-9acb-921afd92292c
@@ -7569,6 +7719,8 @@ reserved-`client_id` refusal, attempted last, then `demo-app` and
 `demo-backend` below it — both created directly through `POST /clients`,
 oldest last:
 
+Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+
 ```
 {"items":[{"id":"01a0ee95-ae60-72e3-8a5d-c5f9b1c33908","occurred_at":"2026-09-29T19:13:02.047Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0ee95-ae38-7a0f-a18d-797dbc8a2d06","ip":"172.22.0.1","detail":{}},{"id":"01a0ee95-ae2b-761b-9477-55bd94e8374a","occurred_at":"2026-09-29T19:13:01.912Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ae07-7eaf-83d7-bbb02a7840c4","request_id":"01a0ee95-adbb-7232-b2b2-9841c6fe75df","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"private_key_jwt"}}},{"id":"01a0ee95-adb1-78e5-a8f7-8b6c6e6526a6","occurred_at":"2026-09-29T19:13:01.658Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ad80-7776-8fec-a430c88e186b","request_id":"01a0ee95-acb2-79b9-b44d-5c3ba2e2026d","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/callback"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
 ```
@@ -7625,6 +7777,8 @@ curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3082/admin/tenants/demo/audit; echo
 ```
 
+Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
+
 ```
 {"items":[{"id":"01a0ee95-ae60-72e3-8a5d-c5f9b1c33908","occurred_at":"2026-09-29T19:13:02.047Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0ee95-ae38-7a0f-a18d-797dbc8a2d06","ip":"172.22.0.1","detail":{}},{"id":"01a0ee95-ae2b-761b-9477-55bd94e8374a","occurred_at":"2026-09-29T19:13:01.912Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ae07-7eaf-83d7-bbb02a7840c4","request_id":"01a0ee95-adbb-7232-b2b2-9841c6fe75df","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"private_key_jwt"}}},{"id":"01a0ee95-adb1-78e5-a8f7-8b6c6e6526a6","occurred_at":"2026-09-29T19:13:01.658Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ad80-7776-8fec-a430c88e186b","request_id":"01a0ee95-acb2-79b9-b44d-5c3ba2e2026d","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/callback"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
 ```
@@ -7674,6 +7828,8 @@ curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 Only `resource-doc-a`'s own row, not `resource-doc-b`'s:
+
+Captured before migrations `0082` to `0086` ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 {"items":[{"id":"01a0ee95-dab9-7f0d-ad4e-79e72240e973","occurred_at":"2026-09-29T19:13:13.327Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-daa4-70e7-b131-bb8e9e998f7d","request_id":"01a0ee95-da55-71b4-85f3-daf418c61c2c","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"resource-doc-a"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://a.example/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
