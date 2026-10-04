@@ -57,7 +57,7 @@ function toResponseBody(client: RegisteredClient): Record<string, unknown> {
       ? {}
       : { id_token_signed_response_alg: metadata.idTokenSignedResponseAlg }),
     ...(metadata.defaultMaxAge === null ? {} : { default_max_age: metadata.defaultMaxAge }),
-    require_auth_time: metadata.requireAuthTime,
+    ...(metadata.requireAuthTime ? { require_auth_time: true } : {}),
   };
 }
 
