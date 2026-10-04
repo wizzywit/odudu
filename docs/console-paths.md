@@ -120,6 +120,10 @@ would each be answered `409` today; the fourth run's section shows that
 refusal and the same write forwarded once it names the session's subject.
 The earlier runs were not re-captured.
 
+One section comes from **a fifth run**, on a stack of its own, the project
+`odudu-signin` on `http://localhost:3082` at `929a9e60`: the restarted
+callback. It says what it seeded in its first lines.
+
 ## `GET /console/auth/login`
 
 The console's sign-in starts here. `return_to` is where the callback sends
@@ -239,7 +243,11 @@ and none of them reaches the browser.
 
 ## `GET /console/auth/callback`, refused
 
-From the second run. It signed in as the first run did, with the same
+From the second run, before a refused callback restarted the sign-in. The
+two refusals below answered the page at `5fd4b11`; a first refusal now
+answers the restart that [the fifth run](#get-consoleauthcallback-restarted)
+shows, and only a second inside its minute answers the page, which now also
+links back to the console. Everything else here is unchanged. It signed in as the first run did, with the same
 `login`, authorization-endpoint and `authenticate` requests; the two that
 set what this section uses answered:
 
@@ -431,6 +439,267 @@ select count(*) as console_logins from console_logins where tenant_id = '01a0e72
 One session, created at 09:03:34 by the callback that signed in. The two
 refusals and the error callback created none, and no pending sign-in is
 left. That session is the one every later second-run section uses.
+
+## `GET /console/auth/callback`, restarted
+
+From **the fifth run**, on its own stack: the `infra/docker` compose file as
+the project `odudu-signin`, on `http://localhost:3082`, built from commit
+`929a9e60`, with a throwaway tenant, `signin-restart`, holding `grace` as its
+administrator. A curl cookie jar, `jar`, plays one browser throughout. With
+`COMPOSE_PROJECT_NAME=odudu-signin` set, the seed printed:
+
+```bash
+docker compose exec -T odudu node dist/main.js seed tenant --name signin-restart
+docker compose exec -T odudu node dist/main.js seed user --tenant signin-restart \
+  --username grace --password signin-restart-throwaway
+docker compose exec -T odudu node dist/main.js seed grant-role --tenant signin-restart \
+  --username grace --role odudu-admin:tenant-admin
+```
+
+```
+{"command":"tenant","created":true,"tenant":"signin-restart","tenantId":"01a10892-6bfa-7239-be3e-e38b9c926211"}
+{"command":"user","tenant":"signin-restart","tenantId":"01a10892-6bfa-7239-be3e-e38b9c926211","username":"grace","userSubjectId":"01a10892-7057-783a-9dca-e794f47e97ef"}
+{"command":"grant-role","tenant":"signin-restart","tenantId":"01a10892-6bfa-7239-be3e-e38b9c926211","username":"grace","role":"odudu-admin:tenant-admin"}
+```
+
+A refused callback no longer ends on the refusal page. It begins the
+sign-in again, once, for the tenant its `state` is bound to, with a fresh
+`state` of its own. The answer is the same whichever check refused, so it
+says nothing about which one failed, and the code it carried is never
+presented. A refusal that arrives while that restart's `odudu-console-restart`
+cookie is still set (60 seconds) is shown the page instead, and the page links
+back to the console.
+
+**A sign-in left open past the login's lifetime.** The gateway's `login`, the
+tenant's authorization endpoint and `grace`'s password were sent as in
+[the first run](#get-consoleauthlogin). The `authenticate` request answered:
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a10892-cd72-70ea-9be5-40244586da60
+set-cookie: signin-restart-session=01a10892-cdc9-73f9-8c0f-6b48524fc175:ZdwvMMm48ajABaNLCsBhK7Dfg6d0s0QYM7OGKIVv-KY; HttpOnly; SameSite=Lax; Path=/
+set-cookie: signin-restart-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+location: http://localhost:3082/console/auth/callback?code=mHr_xRhChgGwJpygJ5C2n7aM6bzx8qtishQw2U5r1vk&state=01a10892-6bfa-7239-be3e-e38b9c926211.G244-NvCZPv4RSEbjIUpd1VIysGbxsq0Oa1G-puO_jI&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsignin-restart
+content-length: 0
+Date: Sun, 04 Oct 2026 20:20:01 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+The pending sign-in lasts 600 seconds, in its row and in the login cookie's
+`Max-Age`. The row was expired with `psql` (header spaces trimmed, as above),
+and the jar's login cookie was removed, as a browser drops it at its
+`Max-Age`:
+
+```sql
+update console_logins set expires_at = now() - interval '1 second'
+  where tenant_id = '01a10892-6bfa-7239-be3e-e38b9c926211';
+select expires_at < now() as expired from console_logins
+  where tenant_id = '01a10892-6bfa-7239-be3e-e38b9c926211';
+```
+
+```
+UPDATE 1
+ expired
+---------
+ t
+(1 row)
+```
+
+The callback the tenant redirected to, `$LOCATION` being its `location`:
+
+```bash
+curl -sS -D - -c jar -b jar "$LOCATION"
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a10893-0327-72ab-8e38-0144dbeaf84d
+cache-control: no-store
+set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: odudu-console-restart=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=60
+location: /console/auth/login?tenant=signin-restart
+content-length: 0
+Date: Sun, 04 Oct 2026 20:20:14 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+**The same callback again, inside the minute.** The jar now holds
+`odudu-console-restart`, so the refusal is shown rather than restarted:
+
+```bash
+curl -sS -D - -c jar -b jar "$LOCATION"
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a10893-0336-7149-ab12-795ec94bd3bd
+set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+cache-control: no-store
+content-type: text/html; charset=utf-8
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
+x-frame-options: DENY
+referrer-policy: no-referrer
+content-length: 232
+Date: Sun, 04 Oct 2026 20:20:14 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sign-in failed</title></head>
+<body>
+<h1>Sign-in failed</h1>
+<p>The sign-in could not be completed.</p>
+<p><a href="/console/">Sign in again</a></p>
+</body>
+</html>
+```
+
+**Following the restart.** The tenant's own session, set by the stale
+sign-in, answers the fresh authorization request at once:
+
+```bash
+curl -sS -D - -o /dev/null -c jar -b jar 'http://localhost:3082/console/auth/login?tenant=signin-restart'
+curl -sS -D - -o /dev/null -c jar -b jar "$AUTHORIZE"   # the location above
+curl -sS -D - -o /dev/null -c jar -b jar "$CALLBACK"    # the location above
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a10893-2031-7f48-aa0d-0110db49c7a4
+cache-control: no-store
+set-cookie: odudu-console-login=01a10892-6bfa-7239-be3e-e38b9c926211.wx_--0myF7VGyvDs7AuC7qLqGJaLLeart8crsBTh0LA; HttpOnly; SameSite=Lax; Path=/; Max-Age=600
+location: http://localhost:3082/tenants/signin-restart/protocol/openid-connect/auth?response_type=code&client_id=odudu-admin&redirect_uri=http%3A%2F%2Flocalhost%3A3082%2Fconsole%2Fauth%2Fcallback&scope=openid&resource=urn%3Aodudu%3Aparams%3Aadmin-api&state=01a10892-6bfa-7239-be3e-e38b9c926211.wx_--0myF7VGyvDs7AuC7qLqGJaLLeart8crsBTh0LA&nonce=HzM9wrvS6Hhl17_8kcrbaNMnKFOrvkr3w_RbeGQpUcA&code_challenge=or3ZmNsILWLWL80_NCNy39yKLTSu_IDoXMa653l8m-o&code_challenge_method=S256
+content-length: 0
+Date: Sun, 04 Oct 2026 20:20:22 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a10893-204b-7776-bc21-d0c45e1b0688
+location: http://localhost:3082/console/auth/callback?code=pi46OhyMuIqA0AjqIezXw05gAgcB3QyzmoiFzZO36dI&state=01a10892-6bfa-7239-be3e-e38b9c926211.wx_--0myF7VGyvDs7AuC7qLqGJaLLeart8crsBTh0LA&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsignin-restart
+content-length: 0
+Date: Sun, 04 Oct 2026 20:20:22 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a10893-2090-7947-a40d-d92b002ad7e0
+cache-control: no-store
+set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: odudu-console-restart=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: odudu-console=01a10892-6bfa-7239-be3e-e38b9c926211.eu9KSj0_2b-wj7o6j07eg7VzANl6EIiH-S-3i4x3PfE; HttpOnly; SameSite=Strict; Path=/
+location: /console/
+content-length: 0
+Date: Sun, 04 Oct 2026 20:20:22 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+The sign-in completed, and the restart cookie was cleared with the login
+cookie. The code the stale callback carried was never exchanged: the
+tenant's codes afterwards, one per authorization response,
+
+```sql
+select auth_time, consumed_at is not null as consumed from authorization_codes
+  where tenant_id = '01a10892-6bfa-7239-be3e-e38b9c926211' order by auth_time;
+```
+
+```
+         auth_time          | consumed
+----------------------------+----------
+ 2026-10-04 20:20:01.093+00 | t
+ 2026-10-04 20:20:01.093+00 | f
+(2 rows)
+```
+
+Both carry the one `auth_time` of `grace`'s password, since the second was
+answered from the session it set.
+
+**A `state` that does not match the login cookie.** A new jar, `jar2`, began
+a sign-in, which set:
+
+```
+set-cookie: odudu-console-login=01a10892-6bfa-7239-be3e-e38b9c926211.rYSFNyomWRPCO3OTu7enl9wSRy2wrYM2Wov-uR5Zn98; HttpOnly; SameSite=Lax; Path=/; Max-Age=600
+```
+
+A callback whose `state` keeps that tenant and carries another secret of the
+same shape is answered exactly as the expired one was:
+
+```bash
+curl -sS -D - -c jar2 -b jar2 'http://localhost:3082/console/auth/callback?code=anything&state=01a10892-6bfa-7239-be3e-e38b9c926211.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsignin-restart'
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a10893-5b16-719c-a520-0e8906d8886d
+cache-control: no-store
+set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: odudu-console-restart=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=60
+location: /console/auth/login?tenant=signin-restart
+content-length: 0
+Date: Sun, 04 Oct 2026 20:20:37 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+A `state` that names no tenant the gateway can read restarts at the
+console's own `/console/` instead:
+
+```bash
+curl -sS -D - 'http://localhost:3082/console/auth/callback?code=anything&state=not-a-state&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsignin-restart'
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a10894-98a2-7b13-81fe-e02569dc3c0d
+cache-control: no-store
+set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+set-cookie: odudu-console-restart=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=60
+location: /console/
+content-length: 0
+Date: Sun, 04 Oct 2026 20:21:58 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+A callback with no `state` at all, which no sign-in of this console's
+produces, is shown the page at once, with no restart cookie:
+
+```bash
+curl -sS -D - 'http://localhost:3082/console/auth/callback?code=anything&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fsignin-restart'
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a10893-3fed-72b3-815c-f99c36937fea
+set-cookie: odudu-console-login=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+cache-control: no-store
+content-type: text/html; charset=utf-8
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
+x-frame-options: DENY
+referrer-policy: no-referrer
+content-length: 232
+Date: Sun, 04 Oct 2026 20:20:30 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sign-in failed</title></head>
+<body>
+<h1>Sign-in failed</h1>
+<p>The sign-in could not be completed.</p>
+<p><a href="/console/">Sign in again</a></p>
+</body>
+</html>
+```
 
 ## `GET /console/api/session`
 

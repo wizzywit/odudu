@@ -1223,6 +1223,77 @@ ordinary transcript above shows, with the persistent cookie still sent but
 cleared, `Max-Age=0` — ticking a box the login page never even offered
 (since the checkbox itself is gated on the same setting) changes nothing.
 
+#### A login posted after its authentication session expired
+
+The parked request lives 30 minutes. A login form left open longer and then
+submitted is refused with nothing issued: no code and no redirect back to
+the client, whose own `state` may by then have expired too. A reload of
+`/authorize`, which parks the request afresh, is what starts again.
+
+Captured on its own stack, not the one above: the `infra/docker` compose
+file as the project `odudu-signin` on `http://localhost:3082`, built from
+commit `929a9e60`, with the tenant `signin-restart` and its administrator
+`grace` that [Console paths](console-paths.md#get-consoleauthcallback-restarted)
+seeds. Its console's `login` led to the authorization endpoint, which parked
+the request as `01a10893-7682-7b7b-bba5-1b0df54b443a`. Its lifetime, then the
+same row expired with `psql` (header spaces trimmed):
+
+```sql
+select expires_at - created_at as lifetime from authentication_sessions
+  where id = '01a10893-7682-7b7b-bba5-1b0df54b443a';
+update authentication_sessions set expires_at = now() - interval '1 second'
+  where id = '01a10893-7682-7b7b-bba5-1b0df54b443a';
+```
+
+```
+    lifetime
+-----------------
+ 00:30:00.000271
+(1 row)
+
+UPDATE 1
+```
+
+The right password, posted against it:
+
+```bash
+curl -sS -D - -c jar3 -b jar3 -X POST \
+  --data-urlencode auth_session_id=01a10893-7682-7b7b-bba5-1b0df54b443a \
+  --data-urlencode username=grace \
+  --data-urlencode password=signin-restart-throwaway \
+  http://localhost:3082/tenants/signin-restart/login-actions/authenticate
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a10893-9717-7572-8f84-b45ab05efa80
+content-type: text/html
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
+x-frame-options: DENY
+referrer-policy: no-referrer
+content-length: 254
+Date: Sun, 04 Oct 2026 20:20:52 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sign-in error</title></head>
+<body>
+<h1>Can't continue</h1>
+<p>This sign-in attempt is no longer valid. Go back and start again.</p>
+<p><small>invalid_request</small></p>
+</body>
+</html>
+```
+
+The same answer as an `auth_session_id` that names nothing, since the hidden
+field is the form's CSRF defence and an expired one proves no more than a
+forged one. The 30 minutes are a constant today
+(`AUTH_SESSION_TTL_MS`, `packages/authn-flows/src/usecase/executor.ts`);
+making them a tenant setting is P4d's admin-configuration work, which places
+login lifetimes among its items.
+
 ### 4. `/token`
 
 ```bash

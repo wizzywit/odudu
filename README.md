@@ -1179,8 +1179,13 @@ tokens server-side and gives the browser nothing but a session cookie:
   the new session is written, so switching tenants leaves one session and a
   refused or cancelled sign-in leaves the old one as it was; a wait of more
   than 5 s for the old session's lock skips its revoke rather than failing
-  the sign-in, and the old row idles out. Every refusal is the same `400`
-  page.
+  the sign-in, and the old row idles out. Every refusal gets the same
+  answer, whichever check failed: a `302` back to
+  `/console/auth/login?tenant=` for the tenant the `state` is bound to (or
+  `/console/` when it names none), which begins a fresh sign-in and never
+  presents the refused code, with a 60-second `odudu-console-restart`
+  cookie. A refusal while that cookie is set, or a callback with no
+  `state`, gets the `400` page instead, which links back to `/console/`.
   An error response from the authorization endpoint instead redirects
   `302` to `/console/?login_error=<code>`, carrying only the error code,
   which the console puts into words: above its tenant question, or in a
