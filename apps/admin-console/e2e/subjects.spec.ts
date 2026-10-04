@@ -229,7 +229,8 @@ test('a subject’s details are entered through typed fields and stored as the c
   await details.getByRole('combobox', { name: 'Locale' }).pressSequentially('English (Nig');
   await page.getByRole('option', { name: 'English (Nigeria)' }).click();
   await page.getByRole('button', { name: 'Save Details' }).click();
-  await expect(page.getByRole('button', { name: 'Save Details' })).toHaveCount(0);
+  // Gone only once stored: while the save runs the button reads "Saving…".
+  await expect(page.getByRole('button', { name: 'Discard changes to Details' })).toHaveCount(0);
   expect(userColumn(username, 'phone_number')).toBe('+2348031234567');
   expect(userColumn(username, 'birthdate')).toBe('1990');
   expect(userColumn(username, 'zoneinfo')).toBe('Africa/Lagos');
@@ -239,7 +240,8 @@ test('a subject’s details are entered through typed fields and stored as the c
   // Filled whole, as a paste or autofill does: the list closes on the match.
   await address.getByRole('combobox', { name: 'Country' }).fill('Germany');
   await page.getByRole('button', { name: 'Save Address' }).click();
-  await expect(page.getByRole('button', { name: 'Save Address' })).toHaveCount(0);
+  // Gone only once stored: while the save runs the button reads "Saving…".
+  await expect(page.getByRole('button', { name: 'Discard changes to Address' })).toHaveCount(0);
   expect(userColumn(username, 'address_country')).toBe('Germany');
   await expectAccessible(page);
 });
