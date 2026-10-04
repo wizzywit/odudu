@@ -510,6 +510,15 @@ drives, with tests at the protocol layer.
       (a proxied PATCH, the principal-changed refusal, a refresh, a refresh
       that cannot take the lock), each run whole on one stack, and remove
       the labels.
+- [ ] Docs review against the phase's diff, done by a reviewer who did not
+      write it:
+  - Every admin route, gateway route and protocol behaviour P4d added or
+    changed appears in `README.md`, `docs/request-paths.md`,
+    `docs/admin-paths.md`, `docs/console-paths.md` and the published OpenAPI
+    document.
+  - The response and refusal shapes written there are the ones the code now
+    gives.
+  - Every transcript is real output, under CLAUDE.md's three rules.
 - [ ] Docs tidy (asked for by the user):
   - Move every finished phase's plan out of `docs/superpowers/plans/` into
     `docs/archive/plans/`, and repoint the five documents that cite a plan.
