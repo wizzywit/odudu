@@ -1,5 +1,6 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useFreshRead } from '#/shared/repository/useFreshRead.ts';
 import { createSubject } from '#/features/subjects/adapter/subjects.ts';
 import { findSubject } from '#/shared/adapter/administrators.ts';
 import type { GatewayResult } from '#/shared/transport/gateway.ts';
@@ -25,12 +26,13 @@ export function useCreateSubject(tenant: string): CreateSubject {
       createSubject(gateway, tenant, input),
     onSuccess: created,
   });
-  const find = useMutation({
-    mutationFn: (username: string) => findSubject(gateway, tenant, username),
-  });
+  const fresh = useFreshRead();
   return {
-    busy: create.isPending || find.isPending,
+    busy: create.isPending || fresh.pending,
     create: (input) => create.mutateAsync(input),
-    find: (username) => find.mutateAsync(username),
+    find: (username) =>
+      fresh.read(['find', tenant, 'subjects', username], () =>
+        findSubject(gateway, tenant, username),
+      ),
   };
 }

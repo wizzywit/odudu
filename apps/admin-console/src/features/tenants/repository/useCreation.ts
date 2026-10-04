@@ -25,6 +25,7 @@ import {
 } from '#/shared/service/administrators.ts';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce.ts';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
+import { useFreshRead } from '#/shared/repository/useFreshRead.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export interface CreationProgress {
@@ -85,11 +86,11 @@ export function useTenantCreate(): TenantCreate {
   const create = useMutation({
     mutationFn: (input: { name: string; displayName: string }) => createTenant(gateway, input),
   });
-  const find = useMutation({ mutationFn: (name: string) => findTenant(gateway, name) });
+  const fresh = useFreshRead();
   return {
-    busy: create.isPending || find.isPending,
+    busy: create.isPending || fresh.pending,
     create: (input) => create.mutateAsync(input),
-    find: (name) => find.mutateAsync(name),
+    find: (name) => fresh.read(['find', 'tenants', name], () => findTenant(gateway, name)),
   };
 }
 
@@ -181,9 +182,9 @@ export function useFindSubject(): (
   username: string,
 ) => Promise<GatewayResult<Subject | null>> {
   const { gateway } = useTransport();
-  const find = useMutation({
-    mutationFn: (input: { tenant: string; username: string }) =>
-      findSubject(gateway, input.tenant, input.username),
-  });
-  return (tenant, username) => find.mutateAsync({ tenant, username });
+  const fresh = useFreshRead();
+  return (tenant, username) =>
+    fresh.read(['find', tenant, 'subjects', username], () =>
+      findSubject(gateway, tenant, username),
+    );
 }

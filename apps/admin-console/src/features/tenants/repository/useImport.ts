@@ -5,6 +5,7 @@ import { readFileText } from '#/features/tenants/adapter/files.ts';
 import { findTenant, importTenant } from '#/features/tenants/adapter/tenants.ts';
 import { parseDocument } from '#/features/tenants/service.ts';
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
+import { useFreshRead } from '#/shared/repository/useFreshRead.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export interface ImportInput {
@@ -65,7 +66,7 @@ export function useImport(onRefused: (failure: GatewayFailure) => void): TenantI
       inFlight.current = false;
     },
   });
-  const find = useMutation({ mutationFn: (name: string) => findTenant(gateway, name) });
+  const fresh = useFreshRead();
   return {
     start: (input) => {
       if (inFlight.current) return;
@@ -81,6 +82,6 @@ export function useImport(onRefused: (failure: GatewayFailure) => void): TenantI
       setShown((count) => count + 1);
       setSecrets((left) => left.slice(1));
     },
-    find: (name) => find.mutateAsync(name),
+    find: (name) => fresh.read(['find', 'tenants', name], () => findTenant(gateway, name)),
   };
 }
