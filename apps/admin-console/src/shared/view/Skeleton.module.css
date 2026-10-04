@@ -16,13 +16,24 @@
   min-inline-size: 0;
 }
 
+/* A bar's box is the line, or the control, it stands for, so nothing moves
+   when the content arrives; the drawn bar is a thinner stroke inside it. */
 .bar {
+  position: relative;
   display: block;
-  block-size: 12px;
+  block-size: 1lh;
   max-inline-size: 100%;
+  --stroke: 12px;
+}
+
+.bar::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block: calc((100% - var(--stroke)) / 2);
+  border: 1px solid var(--border);
   border-radius: var(--radius-s);
   background-color: var(--surface-sunken);
-  border: 1px solid var(--border);
 }
 
 .bar[data-size='line']:nth-child(3n + 2) {
@@ -39,26 +50,33 @@
 
 .bar[data-size='label'] {
   inline-size: 6rem;
+  block-size: var(--label-line);
 }
 
 .bar[data-size='heading'] {
   inline-size: 10rem;
-  block-size: 16px;
+  font-size: var(--type-20);
+  line-height: 1.3;
+  --stroke: 16px;
 }
 
 .bar[data-size='title'] {
   inline-size: 14rem;
-  block-size: 20px;
+  font-size: var(--type-28);
+  line-height: 1.2;
+  --stroke: 20px;
 }
 
 .bar[data-size='tag'] {
   inline-size: 4rem;
-  block-size: 20px;
+  block-size: 22px;
+  --stroke: 100%;
 }
 
 .bar[data-size='field'] {
   inline-size: min(100%, 24rem);
-  block-size: 36px;
+  block-size: var(--control-height);
+  --stroke: 100%;
 }
 
 .title {
@@ -138,7 +156,7 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .bar {
+  .bar::before {
     background-image: linear-gradient(
       90deg,
       transparent 0%,
