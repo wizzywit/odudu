@@ -510,6 +510,14 @@ drives, with tests at the protocol layer.
       (a proxied PATCH, the principal-changed refusal, a refresh, a refresh
       that cannot take the lock), each run whole on one stack, and remove
       the labels.
+- [ ] Docs tidy (asked for by the user):
+  - Move every finished phase's plan out of `docs/superpowers/plans/` into
+    `docs/archive/plans/`, and repoint the five documents that cite a plan.
+  - Keep in place: ADRs, specs, phase notes, protocol notes and spike logs.
+    Their citations are live: 23 files cite specs, and 18 cite spike logs.
+  - Add `docs/README.md`, which says what each kind of document is for and
+    whether it is kept current or written once.
+  - A link check fails the build on a dangling reference into `docs/`.
 - [ ] `docs/NEXT.md`: record where P4d stands.
 - [ ] The phase-closing pass from `CLAUDE.md`, sections 1–4, for all of P4d.
 - [ ] Commit: `Close the console's features`.
