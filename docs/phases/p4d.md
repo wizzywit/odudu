@@ -1499,3 +1499,24 @@ predicate, `subjectIsEnabled` in `@odudu/domain-identity`.
 **One view test was not seen red.** `SubjectsPage.test.tsx` was written
 before the page but first run after it; every other test in the feature was
 seen failing first.
+
+## Part 4 — Subjects, the admin API's remaining doors, and trying the console
+
+**Disabled means disabled at every door.** Disabling a subject used to stop only the refresh grant. Its unexpired access token still worked at `/userinfo`, `/introspect`, token exchange and the admin API. One predicate now answers for all five: `subjectIsEnabled` in `packages/domain-identity`. Each door refuses the way it already refuses a revoked grant, so the answer never says why. A disabled tenant keeps publishing its keys and discovery document, so relying parties can still check the Back-Channel Logout tokens it sends. Disabling a tenant ends its sessions in batches of 500, and deleting it waits until none are left (ADR 0026, ADR 0040's amendment).
+
+**A gap audit closed the admin API.** The admin API was compared against Keycloak's, Auth0's and Okta's operator surfaces. Twenty routes were missing for features the server already had. They now exist: a subject's grants, tenant-wide sessions, mail status, claim evaluation, tenant deletion, bulk subject operations, audit export and the rest. Capabilities the server does not have are named in their owning phase's §11 criterion. `tests/docs/gap-audit-placement.test.ts` holds that list to §11.
+
+**Trying the console found what tests did not.** The user tried the console by hand, and the mistakes it turned up were about layout and wording:
+
+- three creation flows that shared one stored draft;
+- a rail that lit nothing on two pages;
+- keyboard hints drawn like buttons;
+- form controls of four different heights;
+- placeholders thinner than the rows they stand in for;
+- a dead-end "Sign-in failed" page.
+
+The last one came from a provider tab restored hours later, which brought back the console's old state. A refused callback now starts one fresh sign-in, and a second refusal shows the page with a way out.
+
+**Typed fields.** Phone numbers are read with `libphonenumber-js`, loaded only with the chunk that shows them. Country names are CLDR's common English names, pinned in the repository rather than taken from whatever the browser ships. Autofill is off on another person's record, because WCAG 1.3.5 concerns the user's own data.
+
+**Two console rules are now lints.** Interfaces carry no property-level `readonly`; readonly arrays, tuples, maps and sets keep theirs. A read is never wrapped in `useMutation`; a confirmation that must reach the server goes through `useFreshRead`.
