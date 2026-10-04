@@ -517,7 +517,7 @@ const PROFILE = {
 type ProfileName = keyof typeof PROFILE;
 
 // The record's Profile tab as it lays its claims out: one control height,
-// three columns, the compound fields and the street wider than one.
+// three columns, the phone and the street wider than one.
 function ProfileCloseUp() {
   const [p, setProfile] = useState(PROFILE);
   const set = (name: ProfileName) => (value: string) => {
@@ -546,18 +546,18 @@ function ProfileCloseUp() {
             <PhoneField label="Phone number" value={p.phone} onChange={set('phone')} />
           </GridCell>
           <GridCell>
-            <UrlField label="Profile page" value={p.profile} onChange={set('profile')} />
+            <GenderField label="Gender" value={p.gender} onChange={set('gender')} />
           </GridCell>
           <GridCell>
-            <PictureField label="Picture" value={p.picture} onChange={set('picture')} />
+            <UrlField label="Profile page" value={p.profile} onChange={set('profile')} />
           </GridCell>
           <GridCell>
             <UrlField label="Website" value={p.website} onChange={set('website')} />
           </GridCell>
           <GridCell>
-            <GenderField label="Gender" value={p.gender} onChange={set('gender')} />
+            <PictureField label="Picture" value={p.picture} onChange={set('picture')} />
           </GridCell>
-          <GridCell span="wide">
+          <GridCell>
             <BirthdateField label="Birthdate" value={p.birthdate} onChange={set('birthdate')} />
           </GridCell>
           <GridCell>

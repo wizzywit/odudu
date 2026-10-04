@@ -75,11 +75,11 @@ export const NAME_CLAIMS: readonly ClaimField[] = [
 
 export const DETAIL_CLAIMS: readonly ClaimField[] = [
   { id: 'phone_number', label: 'Phone number', input: 'phone', span: 'wide' },
-  { id: 'profile', label: 'Profile page', input: 'url', autoComplete: 'url' },
-  { id: 'picture', label: 'Picture', input: 'picture', autoComplete: 'photo' },
-  { id: 'website', label: 'Website', input: 'url', autoComplete: 'url' },
   { id: 'gender', label: 'Gender', input: 'gender' },
-  { id: 'birthdate', label: 'Birthdate', input: 'birthdate', span: 'wide' },
+  { id: 'profile', label: 'Profile page', input: 'url', autoComplete: 'url' },
+  { id: 'website', label: 'Website', input: 'url', autoComplete: 'url' },
+  { id: 'picture', label: 'Picture', input: 'picture', autoComplete: 'photo' },
+  { id: 'birthdate', label: 'Birthdate', input: 'birthdate' },
   { id: 'zoneinfo', label: 'Time zone', input: 'zone' },
   { id: 'locale', label: 'Locale', input: 'locale' },
 ];

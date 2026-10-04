@@ -94,6 +94,11 @@ describe('BirthdateField', () => {
     expect(known()).toHaveTextContent('Day and month');
   });
 
+  it('sets a year in the content face, as a date and not an id', () => {
+    render(<Controlled start="1990" />);
+    expect(screen.getByRole('textbox', { name: 'Year' })).not.toHaveAttribute('data-mono');
+  });
+
   it('stores a year as it is typed, so Enter saves it', async () => {
     const user = userEvent.setup();
     render(<Controlled start="1990" />);

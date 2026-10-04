@@ -48,14 +48,23 @@ async function box(locator: Locator): Promise<Box> {
 }
 
 // A grid row is the cells sharing one top; each cell's first control stands
-// for it.
-async function rowsOf(section: Locator): Promise<Map<number, { name: string; control: Box }[]>> {
-  const rows = new Map<number, { name: string; control: Box }[]>();
+// for it, and its last control is the one that should reach the cell's end.
+interface Cell {
+  readonly name: string;
+  readonly box: Box;
+  readonly control: Box;
+  readonly last: Box;
+}
+
+async function rowsOf(section: Locator): Promise<Map<number, Cell[]>> {
+  const rows = new Map<number, Cell[]>();
   for (const cell of await section.locator('[data-cell]').all()) {
-    const top = Math.round((await box(cell)).y);
+    const cellBox = await box(cell);
+    const top = Math.round(cellBox.y);
     const control = await box(cell.locator('[data-control]').first());
+    const last = await box(cell.locator('[data-control]').last());
     const name = (await cell.innerText()).split('\n')[0] ?? '';
-    rows.set(top, [...(rows.get(top) ?? []), { name, control }]);
+    rows.set(top, [...(rows.get(top) ?? []), { name, box: cellBox, control, last }]);
   }
   return rows;
 }
@@ -83,6 +92,26 @@ test.describe('the profile’s fields', () => {
             `${title}: ${cell.name}`,
           ).toBeLessThanOrEqual(1);
         }
+      }
+    }
+    // Every control ends where its cell does, and every Details row is full.
+    for (const title of ['Name', 'Details', 'Address']) {
+      const section = page.getByRole('region', { name: title });
+      const grid = await box(section.locator('[data-cell]').first().locator('..'));
+      for (const cells of (await rowsOf(section)).values()) {
+        for (const cell of cells) {
+          const end = cell.box.x + cell.box.width;
+          expect(
+            Math.abs(cell.last.x + cell.last.width - end),
+            `${title}: ${cell.name}`,
+          ).toBeLessThanOrEqual(1);
+        }
+        if (title !== 'Details') continue;
+        const ends = cells.map((cell) => cell.box.x + cell.box.width);
+        expect(
+          Math.abs(Math.max(...ends) - (grid.x + grid.width)),
+          cells[0]?.name,
+        ).toBeLessThanOrEqual(1);
       }
     }
     // A compound field's parts sit on one line, at the height of any other control.
@@ -186,7 +215,7 @@ test.describe('a placeholder takes the height of what it stands for', () => {
     expect(Math.abs(placeholder.field.height - real.field.height)).toBeLessThanOrEqual(NEAR);
   });
 
-  test('a record’s section heading', async ({ page }) => {
+  test('a record’s section heading, and its title', async ({ page }) => {
     await page.setViewportSize(DESKTOP);
     await signIn(page, admin);
     const id = measuredId();
@@ -194,10 +223,16 @@ test.describe('a placeholder takes the height of what it stands for', () => {
     await page.goto(`/console/${TENANT}/subjects/${id}`);
     const loading = page.getByRole('status').filter({ hasText: /^Loading/u });
     const heading = await box(loading.locator('[data-size="heading"]').first());
+    // The page names the record by its noun until it loads, at the title's
+    // own height, so the title does not move either.
+    const named = await box(page.getByRole('heading', { level: 1, name: 'Subject' }));
     await release();
     await expect(loading).toHaveCount(0);
     const real = await box(page.getByRole('heading', { level: 2, name: 'Account' }));
     expect(Math.abs(heading.height - real.height)).toBeLessThanOrEqual(NEAR);
+    const title = await box(page.getByRole('heading', { level: 1, name: subjects.measured }));
+    expect(Math.abs(named.height - title.height)).toBeLessThanOrEqual(NEAR);
+    expect(Math.abs(named.y - title.y)).toBeLessThanOrEqual(NEAR);
   });
 
   test('a count tile', async ({ page }) => {

@@ -526,7 +526,6 @@
   padding: 0 var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-s);
-  font-family: var(--font-mono);
   font-size: var(--type-15);
   font-variant-numeric: tabular-nums;
   color: var(--ink-primary);
@@ -563,22 +562,27 @@
   background: var(--focus-ring);
 }
 
-.input[data-year] {
-  max-inline-size: 8rem;
-  font-family: var(--font-mono);
+.input[inputmode='numeric'] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The caps keep a field outside a grid from running across a wide form; in
+   a grid cell a control ends where its cell does, level with its row. */
+[data-cell] :is(.trigger, .dateInput, .comboGroup) {
+  max-inline-size: none;
 }
 
 /* Country, number and extension on one line, the number taking the rest;
    in a narrow cell the country takes a line of its own. */
 .phone {
   display: grid;
-  grid-template-columns: 12rem minmax(0, 1fr) 6rem;
+  grid-template-columns: 12rem minmax(0, 1fr) 7.5rem;
   gap: var(--space-2);
 }
 
 @container (inline-size < 26rem) {
   .phone {
-    grid-template-columns: minmax(0, 1fr) 6rem;
+    grid-template-columns: minmax(0, 1fr) 7.5rem;
   }
 
   .phone > :first-child {
@@ -589,7 +593,7 @@
 /* What is known of a birthdate, then the date itself, on one line. */
 .birthdate {
   display: grid;
-  grid-template-columns: 11rem minmax(0, 1fr);
+  grid-template-columns: 9.5rem minmax(0, 1fr);
   align-items: start;
   gap: var(--space-2);
 }
@@ -599,7 +603,12 @@
   gap: var(--space-2);
 }
 
-@container (inline-size < 22rem) {
+.birthdate .parts > * {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+@container (inline-size < 20rem) {
   .birthdate {
     grid-template-columns: minmax(0, 1fr);
   }

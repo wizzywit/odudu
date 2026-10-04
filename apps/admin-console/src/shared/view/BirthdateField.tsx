@@ -146,7 +146,6 @@ function YearOnly({
         isDisabled={isDisabled}
         invalid={invalid}
         autoComplete="bday-year"
-        mono
         onChange={(typed) => {
           const digits = typed.replace(/[^0-9]/gu, '').slice(0, 4);
           setText(digits);

@@ -123,7 +123,7 @@ export function PhoneField({
         <TextField
           label="Extension"
           hideLabel
-          placeholder="Ext."
+          placeholder="Extension"
           autoComplete="tel-extension"
           value={current.extension ?? ''}
           inputMode="numeric"

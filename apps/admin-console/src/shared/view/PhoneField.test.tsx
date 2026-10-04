@@ -44,6 +44,14 @@ describe('PhoneField', () => {
     expect(group.querySelectorAll('[data-control]')).toHaveLength(3);
   });
 
+  it('shows each part the words its name starts with, for speech input', () => {
+    render(<Controlled />);
+    for (const name of ['Country', 'Number', 'Extension']) {
+      const control = screen.getByRole(name === 'Country' ? 'combobox' : 'textbox', { name });
+      expect(control).toHaveAttribute('placeholder', name);
+    }
+  });
+
   it('opens a stored number under its country', () => {
     render(<Controlled start="+447700900123" />);
     expect(screen.getByRole('combobox', { name: 'Country' })).toHaveValue('United Kingdom');

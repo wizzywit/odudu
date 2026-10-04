@@ -100,10 +100,24 @@ describe('the claims', () => {
     );
     expect(spans).toEqual({
       phone_number: 'wide',
-      birthdate: 'wide',
       address_formatted: 'full',
       address_street: 'wide',
     });
+  });
+
+  // Three columns of three rows with no hole: phone and gender, the three
+  // web addresses, then birthdate, zone and locale.
+  it('orders the details so each row of three columns fills', () => {
+    expect(DETAIL_CLAIMS.map((c) => c.id)).toEqual([
+      'phone_number',
+      'gender',
+      'profile',
+      'website',
+      'picture',
+      'birthdate',
+      'zoneinfo',
+      'locale',
+    ]);
   });
 });
 
