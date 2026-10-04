@@ -216,7 +216,8 @@ test('a subject’s details are entered through typed fields and stored as the c
   await phone.getByRole('textbox', { name: 'Number' }).fill('0803 123 4567');
   await expect(phone).toContainText('Stored as +2348031234567, which reads +234 803 123 4567.');
   const birthdate = details.getByRole('group', { name: 'Birthdate' });
-  await birthdate.getByText('Year only', { exact: true }).click();
+  await birthdate.getByRole('button', { name: /What is known of the birthdate/u }).click();
+  await page.getByRole('option', { name: 'Year only' }).click();
   await birthdate.getByRole('textbox', { name: 'Year' }).fill('1990');
   await details.getByRole('combobox', { name: 'Time zone' }).pressSequentially('Lagos');
   await expect(page.getByRole('option', { name: 'Africa/Lagos' })).toBeVisible();
@@ -248,13 +249,12 @@ test('a full birthdate is entered by keyboard alone', async ({ page }) => {
   await signIn(page, admin);
   await openSubject(page, username);
   const birthdate = page.getByRole('group', { name: 'Birthdate' });
-  const full = birthdate.getByRole('radio', { name: 'Full date' });
+  const known = birthdate.getByRole('button', { name: /What is known of the birthdate/u });
   for (let pressed = 0; pressed < 80; pressed += 1) {
-    if (await full.evaluate((node) => node === document.activeElement)) break;
+    if (await known.evaluate((node) => node === document.activeElement)) break;
     await page.keyboard.press('Tab');
   }
-  await page.keyboard.press('Space');
-  await expect(full).toBeChecked();
+  await expect(known).toHaveText(/Full date/u);
   await page.keyboard.press('Tab');
   await expect(birthdate.getByRole('spinbutton').first()).toBeFocused();
   // The browser's locale here is en-US: month, day, year.

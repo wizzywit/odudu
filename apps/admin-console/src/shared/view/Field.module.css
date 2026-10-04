@@ -1,20 +1,53 @@
 .field {
   display: grid;
+  align-content: start;
   gap: var(--space-1);
   min-inline-size: 0;
 }
 
+/* One line of label above every control, so controls in a row start level. */
 .header {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-2);
+  min-block-size: var(--label-line);
 }
 
 .label {
   font-size: var(--type-13);
   font-weight: 500;
+  line-height: var(--label-line);
   color: var(--ink-primary);
+}
+
+/* A legend laid out as a grid item, so it sits where any label does; the
+   Changed mark goes beside it and every other child takes a whole row. */
+.group {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-1) var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.group > * {
+  grid-column: 1 / -1;
+}
+
+.group > legend {
+  float: inline-start;
+  grid-column: 1;
+  padding: 0;
+}
+
+.group > .changed {
+  grid-column: 2;
+  justify-self: start;
+  align-self: center;
 }
 
 .changed {
@@ -29,7 +62,7 @@
 
 .input {
   inline-size: 100%;
-  min-block-size: 36px;
+  block-size: var(--control-height);
   padding: 0 var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-s);
@@ -60,6 +93,11 @@
   border-color: var(--signal-danger-ink);
 }
 
+.input::placeholder {
+  color: var(--ink-muted);
+  opacity: 1;
+}
+
 .input[data-disabled] {
   border-style: dashed;
   color: var(--ink-muted);
@@ -67,7 +105,9 @@
 }
 
 .field[data-changed] .input,
-.field[data-changed] .trigger {
+.field[data-changed] .trigger,
+.field[data-changed] .comboGroup,
+.group[data-changed] [data-control] {
   border-inline-start: 3px solid var(--signal-warning-ink);
 }
 
@@ -128,7 +168,7 @@
   gap: var(--space-2);
   inline-size: 100%;
   max-inline-size: 20rem;
-  min-block-size: 36px;
+  block-size: var(--control-height);
   padding: 0 var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-s);
@@ -146,10 +186,12 @@
 
 .trigger[data-focus-visible] {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline-offset: -1px;
+  border-color: var(--focus-ring);
 }
 
-.field[data-invalid] .trigger {
+.field[data-invalid] .trigger,
+.trigger[data-invalid] {
   border-color: var(--signal-danger-ink);
 }
 
@@ -163,7 +205,6 @@
 .field[data-inline] .trigger {
   inline-size: auto;
   min-inline-size: 10rem;
-  min-block-size: 0;
   block-size: var(--control-height);
   font-size: var(--type-13);
 }
@@ -178,6 +219,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.selectValue[data-placeholder] {
+  color: var(--ink-muted);
 }
 
 .chevron {
@@ -373,33 +418,70 @@
 .comboGroup {
   display: flex;
   align-items: stretch;
+  inline-size: 100%;
   max-inline-size: 28rem;
+  block-size: var(--control-height);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-panel);
+  transition: border-color var(--motion-fast) var(--ease);
 }
 
-.comboGroup .input {
-  border-start-end-radius: 0;
-  border-end-end-radius: 0;
+.comboGroup[data-hovered] {
+  border-color: var(--ink-muted);
+}
+
+.comboGroup[data-focus-within] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+  border-color: var(--focus-ring);
+}
+
+.field[data-invalid] .comboGroup,
+.comboGroup[data-invalid] {
+  border-color: var(--signal-danger-ink);
+}
+
+/* The input and its button are one control: the group draws the border. */
+.comboGroup .input,
+.field[data-changed] .comboGroup .input {
+  flex: 1;
+  min-inline-size: 0;
+  block-size: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.comboGroup .input[data-focused],
+.comboGroup .input[data-focus-visible] {
+  outline: none;
 }
 
 .comboButton {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  min-inline-size: var(--target-min);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--border-strong);
-  border-inline-start: 0;
+  inline-size: var(--control-height);
+  padding: 0;
+  border: 0;
+  border-inline-start: var(--hairline);
   border-start-end-radius: var(--radius-s);
   border-end-end-radius: var(--radius-s);
   font-size: var(--type-12);
   color: var(--ink-muted);
-  background: var(--surface-sunken);
+  background: transparent;
   cursor: pointer;
+}
+
+.comboButton[data-hovered] {
+  color: var(--ink-primary);
 }
 
 .comboButton[data-focus-visible] {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .popover .listbox {
@@ -420,50 +502,9 @@
   color: var(--ink-muted);
 }
 
-.forms {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-}
-
-.form {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-block-size: var(--target-min);
-  font-size: var(--type-13);
-  color: var(--ink-primary);
-  cursor: pointer;
-}
-
-.form::before {
-  content: '';
-  flex: none;
-  inline-size: 14px;
-  block-size: 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  background: var(--surface-panel);
-}
-
-.form[data-selected]::before {
-  border: 4px solid var(--signal-active-ink);
-}
-
-.form[data-focus-visible]::before {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-.form[data-disabled] {
-  color: var(--ink-muted);
-  cursor: not-allowed;
-}
-
 .part {
   display: grid;
-  gap: var(--space-1);
-  max-inline-size: 20rem;
+  min-inline-size: 0;
 }
 
 .parts {
@@ -472,17 +513,16 @@
   gap: var(--space-3);
 }
 
-.partLabel {
-  font-size: var(--type-12);
-  color: var(--ink-muted);
+.parts > * {
+  flex: 1 1 10rem;
 }
 
 .dateInput {
   display: inline-flex;
   align-items: center;
-  inline-size: fit-content;
-  min-inline-size: 12rem;
-  min-block-size: 36px;
+  inline-size: 100%;
+  max-inline-size: 16rem;
+  block-size: var(--control-height);
   padding: 0 var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-s);
@@ -502,10 +542,6 @@
 .field[data-invalid] .dateInput,
 .dateInput[data-invalid] {
   border-color: var(--signal-danger-ink);
-}
-
-.field[data-changed] .dateInput {
-  border-inline-start: 3px solid var(--signal-warning-ink);
 }
 
 .segment {
@@ -532,15 +568,39 @@
   font-family: var(--font-mono);
 }
 
+/* Country, number and extension on one line, the number taking the rest;
+   in a narrow cell the country takes a line of its own. */
 .phone {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-2) var(--space-3);
-  max-inline-size: 36rem;
+  grid-template-columns: 12rem minmax(0, 1fr) 6rem;
+  gap: var(--space-2);
 }
 
-@container (inline-size < 30rem) {
+@container (inline-size < 26rem) {
   .phone {
+    grid-template-columns: minmax(0, 1fr) 6rem;
+  }
+
+  .phone > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* What is known of a birthdate, then the date itself, on one line. */
+.birthdate {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+}
+
+.birthdate .parts {
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+}
+
+@container (inline-size < 22rem) {
+  .birthdate {
     grid-template-columns: minmax(0, 1fr);
   }
 }

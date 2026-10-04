@@ -55,6 +55,8 @@ export interface ClaimField {
   // The HTML token naming what a text claim holds (WCAG 1.3.5); a typed
   // field carries its own.
   readonly autoComplete?: string;
+  // How far the field runs across the profile's columns, where one is narrow.
+  readonly span?: 'wide' | 'full';
 }
 
 export const NAME_CLAIMS: readonly ClaimField[] = [
@@ -72,12 +74,12 @@ export const NAME_CLAIMS: readonly ClaimField[] = [
 ];
 
 export const DETAIL_CLAIMS: readonly ClaimField[] = [
-  { id: 'phone_number', label: 'Phone number', input: 'phone' },
+  { id: 'phone_number', label: 'Phone number', input: 'phone', span: 'wide' },
   { id: 'profile', label: 'Profile page', input: 'url', autoComplete: 'url' },
   { id: 'picture', label: 'Picture', input: 'picture', autoComplete: 'photo' },
   { id: 'website', label: 'Website', input: 'url', autoComplete: 'url' },
   { id: 'gender', label: 'Gender', input: 'gender' },
-  { id: 'birthdate', label: 'Birthdate', input: 'birthdate' },
+  { id: 'birthdate', label: 'Birthdate', input: 'birthdate', span: 'wide' },
   { id: 'zoneinfo', label: 'Time zone', input: 'zone' },
   { id: 'locale', label: 'Locale', input: 'locale' },
 ];
@@ -85,8 +87,14 @@ export const DETAIL_CLAIMS: readonly ClaimField[] = [
 // The formatted address is the whole address as one text; HTML names no
 // autofill purpose for that.
 export const ADDRESS_CLAIMS: readonly ClaimField[] = [
-  { id: 'address_formatted', label: 'Formatted address', input: 'text' },
-  { id: 'address_street', label: 'Street', input: 'text', autoComplete: 'street-address' },
+  { id: 'address_formatted', label: 'Formatted address', input: 'text', span: 'full' },
+  {
+    id: 'address_street',
+    label: 'Street',
+    input: 'text',
+    autoComplete: 'street-address',
+    span: 'wide',
+  },
   { id: 'address_locality', label: 'Locality', input: 'text', autoComplete: 'address-level2' },
   { id: 'address_region', label: 'Region', input: 'text', autoComplete: 'address-level1' },
   { id: 'address_postal_code', label: 'Postal code', input: 'text', autoComplete: 'postal-code' },

@@ -96,6 +96,8 @@ export function PhoneField({
       <div className={styles.phone}>
         <ComboBoxField
           label="Country"
+          hideLabel
+          placeholder="Country"
           options={options}
           value={current.region ?? ''}
           isDisabled={isDisabled}
@@ -106,6 +108,8 @@ export function PhoneField({
         />
         <TextField
           label="Number"
+          hideLabel
+          placeholder="Number"
           type="tel"
           value={current.national}
           isDisabled={isDisabled}
@@ -118,6 +122,8 @@ export function PhoneField({
         />
         <TextField
           label="Extension"
+          hideLabel
+          placeholder="Ext."
           autoComplete="tel-extension"
           value={current.extension ?? ''}
           inputMode="numeric"

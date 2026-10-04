@@ -144,7 +144,7 @@ function rule(css: string, selector: string): string {
 }
 
 it('gives every control in the bar one height, from one token', () => {
-  expect(tokens).toMatch(/--control-height:\s*32px;/u);
+  expect(tokens).toMatch(/--control-height:\s*40px;/u);
   const HEIGHT = /block-size:\s*var\(--control-height\)/u;
   for (const selector of ['.chip', '.input', '.count']) {
     expect(rule(filterCss, selector), selector).toMatch(HEIGHT);

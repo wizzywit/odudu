@@ -23,6 +23,7 @@ import {
   TimeZoneField,
 } from '#/shared/view/ClaimFields.tsx';
 import { OwnDataFields, TextField, ToggleField, type Chrome } from '#/shared/view/Field.tsx';
+import { FieldGrid, GridCell } from '#/shared/view/FieldGrid.tsx';
 import { PhoneField } from '#/shared/view/PhoneField.tsx';
 import { PictureField, UrlField } from '#/shared/view/UrlField.tsx';
 import { Section } from '#/shared/view/Section.tsx';
@@ -262,21 +263,22 @@ function Claims({ section }: { section: ClaimSection }) {
       blocked={s.blocked}
       notice={notice(section.title, s)}
     >
-      <div className={styles.grid}>
+      <FieldGrid>
         {section.claims.map((claim) => (
-          <ClaimInput
-            key={claim.id}
-            claim={claim}
-            label={claim.label}
-            value={s.values[claim.id] ?? ''}
-            error={s.fieldErrors[claim.id]}
-            changed={s.changed.includes(claim.id)}
-            onChange={(value) => {
-              s.edit(claim.id, value);
-            }}
-          />
+          <GridCell key={claim.id} {...(claim.span === undefined ? {} : { span: claim.span })}>
+            <ClaimInput
+              claim={claim}
+              label={claim.label}
+              value={s.values[claim.id] ?? ''}
+              error={s.fieldErrors[claim.id]}
+              changed={s.changed.includes(claim.id)}
+              onChange={(value) => {
+                s.edit(claim.id, value);
+              }}
+            />
+          </GridCell>
         ))}
-      </div>
+      </FieldGrid>
     </Section>
   );
 }

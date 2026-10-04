@@ -149,7 +149,11 @@ it('gives each detail the input its shape needs, and saves what the server store
   await user.clear(number);
   await user.type(number, '07700 900456');
   const birthdate = within(details).getByRole('group', { name: 'Birthdate' });
-  await user.click(within(birthdate).getByRole('radio', { name: 'Year only' }));
+  await user.click(
+    within(birthdate).getByRole('button', { name: /What is known of the birthdate/u }),
+  );
+  await user.click(await screen.findByRole('option', { name: 'Year only' }));
+  expect(phone.closest('[data-cell]')).toHaveAttribute('data-span', 'wide');
   expect(within(details).getByRole('combobox', { name: 'Time zone' })).toHaveValue('UTC');
   expect(within(details).getByRole('combobox', { name: 'Locale' })).toBeVisible();
   expect(within(details).getByRole('textbox', { name: 'Website' })).toHaveAttribute(

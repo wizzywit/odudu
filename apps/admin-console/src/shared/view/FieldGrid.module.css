@@ -1,0 +1,39 @@
+/* The columns follow the grid's own width, so the same fields lay out alike
+   in a section, a dialog or a narrow pane. Each cell is a container too, so a
+   compound field lays out its parts by the width it was given. */
+.frame {
+  container-type: inline-size;
+  min-inline-size: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.cell {
+  container-type: inline-size;
+  min-inline-size: 0;
+}
+
+@container (inline-size >= 30rem) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cell[data-span] {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (inline-size >= 50rem) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .cell[data-span='wide'] {
+    grid-column: span 2;
+  }
+}

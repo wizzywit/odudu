@@ -21,6 +21,7 @@ const PATTERNS = {
   'skeleton-table': 'Skeleton: a table, its own header over placeholder rows',
   'skeleton-record': 'Skeleton: a record, its tabs and sections',
   'typed-fields': 'Typed fields: a claim in its own shape, with its autocomplete token',
+  profile: "Profile: a record's claims in columns, one control height",
   'view-only': 'View only: one line, and every field as text',
 } as const;
 

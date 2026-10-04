@@ -5,10 +5,8 @@ import {
   DateInput,
   DateSegment,
   Label,
-  RadioButton,
-  RadioField,
-  RadioGroup,
   useLocale,
+  VisuallyHidden,
   type DateValue,
 } from 'react-aria-components';
 import {
@@ -110,8 +108,10 @@ function FullDate({
       isDisabled={isDisabled}
       className={styles.part ?? ''}
     >
-      <Label className={styles.partLabel ?? ''}>Date</Label>
-      <DateInput className={styles.dateInput ?? ''}>
+      <VisuallyHidden>
+        <Label>Date</Label>
+      </VisuallyHidden>
+      <DateInput className={styles.dateInput ?? ''} data-control>
         {(segment) => <DateSegment segment={segment} className={styles.segment ?? ''} />}
       </DateInput>
     </DateField>
@@ -139,6 +139,8 @@ function YearOnly({
     <div className={styles.part}>
       <TextField
         label="Year"
+        hideLabel
+        placeholder="YYYY"
         value={text}
         inputMode="numeric"
         isDisabled={isDisabled}
@@ -189,6 +191,8 @@ function DayAndMonth({
     <div className={styles.parts}>
       <SelectField
         label="Month"
+        hideLabel
+        placeholder="Month"
         options={monthOptions(locale)}
         value={month === null ? '' : String(month)}
         isDisabled={isDisabled}
@@ -200,6 +204,8 @@ function DayAndMonth({
       />
       <SelectField
         label="Day"
+        hideLabel
+        placeholder="Day"
         options={dayOptions(month)}
         value={day === null ? '' : String(day)}
         isDisabled={isDisabled}
@@ -255,49 +261,45 @@ export function BirthdateField({
       error={problem}
       {...(changed === undefined ? {} : { changed })}
     >
-      <RadioGroup
-        aria-label={`What is known of the ${label.toLowerCase()}`}
-        orientation="horizontal"
-        value={form}
-        isDisabled={isDisabled}
-        onChange={(next) => {
-          const to = FORMS.find((f) => f.id === next)?.id ?? 'date';
-          setChosen(to);
-          set(convertBirthdate(birthdate, to));
-        }}
-        className={styles.forms ?? ''}
-      >
-        {FORMS.map((f) => (
-          <RadioField key={f.id} value={f.id}>
-            <RadioButton className={styles.form ?? ''}>{f.label}</RadioButton>
-          </RadioField>
-        ))}
-      </RadioGroup>
-      {form === 'date' ? (
-        <FullDate
-          birthdate={birthdate}
-          onChange={set}
+      <div className={styles.birthdate}>
+        <SelectField
+          label={`What is known of the ${label.toLowerCase()}`}
+          hideLabel
+          options={FORMS}
+          value={form}
           isDisabled={isDisabled}
-          invalid={problem !== undefined}
+          onChange={(next) => {
+            const to = FORMS.find((f) => f.id === next)?.id ?? 'date';
+            setChosen(to);
+            set(convertBirthdate(birthdate, to));
+          }}
         />
-      ) : null}
-      {form === 'year' ? (
-        <YearOnly
-          birthdate={birthdate}
-          onChange={set}
-          isDisabled={isDisabled}
-          invalid={problem !== undefined}
-        />
-      ) : null}
-      {form === 'no-year' ? (
-        <DayAndMonth
-          birthdate={birthdate}
-          onChange={set}
-          isDisabled={isDisabled}
-          locale={locale}
-          invalid={problem !== undefined}
-        />
-      ) : null}
+        {form === 'date' ? (
+          <FullDate
+            birthdate={birthdate}
+            onChange={set}
+            isDisabled={isDisabled}
+            invalid={problem !== undefined}
+          />
+        ) : null}
+        {form === 'year' ? (
+          <YearOnly
+            birthdate={birthdate}
+            onChange={set}
+            isDisabled={isDisabled}
+            invalid={problem !== undefined}
+          />
+        ) : null}
+        {form === 'no-year' ? (
+          <DayAndMonth
+            birthdate={birthdate}
+            onChange={set}
+            isDisabled={isDisabled}
+            locale={locale}
+            invalid={problem !== undefined}
+          />
+        ) : null}
+      </div>
     </FieldGroup>
   );
 }

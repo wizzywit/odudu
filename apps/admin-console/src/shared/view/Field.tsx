@@ -24,6 +24,7 @@ import {
   SwitchField,
   Text,
   TextField as AriaTextField,
+  VisuallyHidden,
   type Key,
 } from 'react-aria-components';
 import { formatDuration } from '#/shared/service/format.ts';
@@ -76,7 +77,29 @@ export function partProps(
   };
 }
 
-export function Header({ label, changed }: { label: string; changed?: boolean }) {
+// A part of a group may hide its label from sight: the group's legend says
+// what the whole is, and the label still names the part to a screen reader.
+export interface PartLabel {
+  hideLabel?: boolean;
+  placeholder?: string;
+}
+
+export function Header({
+  label,
+  changed,
+  hidden = false,
+}: {
+  label: string;
+  changed?: boolean;
+  hidden?: boolean | undefined;
+}) {
+  if (hidden) {
+    return (
+      <VisuallyHidden>
+        <Label>{label}</Label>
+      </VisuallyHidden>
+    );
+  }
   return (
     <div className={styles.header}>
       <Label className={styles.label ?? ''}>{label}</Label>
@@ -182,8 +205,11 @@ export function TextField({
   onBlur,
   invalid: part,
   inputMode,
+  hideLabel,
+  placeholder,
 }: Chrome &
-  GroupPart & {
+  GroupPart &
+  PartLabel & {
     value: string;
     onChange: (value: string) => void;
     onBlur?: () => void;
@@ -212,12 +238,14 @@ export function TextField({
       className={styles.field ?? ''}
       data-changed={changed === true || undefined}
     >
-      <Header label={label} {...(changed === undefined ? {} : { changed })} />
+      <Header label={label} hidden={hideLabel} {...(changed === undefined ? {} : { changed })} />
       <Input
         className={styles.input ?? ''}
+        data-control
         data-mono={mono || undefined}
         spellCheck={false}
         {...(inputMode === undefined ? {} : { inputMode })}
+        {...(placeholder === undefined ? {} : { placeholder })}
       />
       <Description>{description}</Description>
       <Message error={error} />
@@ -263,7 +291,7 @@ export function NumberWithUnitField({
       data-changed={changed === true || undefined}
     >
       <Header label={label} {...(changed === undefined ? {} : { changed })} />
-      <Group className={styles.unitGroup ?? ''}>
+      <Group className={styles.unitGroup ?? ''} data-control>
         <Input className={styles.input ?? ''} data-mono />
         <span className={styles.unit} data-unit aria-hidden="true">
           {UNIT_SYMBOL[unit] ?? unit}
@@ -302,8 +330,11 @@ export function SelectField({
   onChange,
   autoComplete,
   invalid: part,
+  hideLabel,
+  placeholder,
 }: Chrome &
-  GroupPart & {
+  GroupPart &
+  PartLabel & {
     readonly options: readonly SelectOption[];
     value: string;
     onChange: (value: string) => void;
@@ -333,12 +364,13 @@ export function SelectField({
       onChange={(key: Key | null) => {
         if (key !== null) onChange(String(key));
       }}
+      {...(placeholder === undefined ? {} : { placeholder })}
       className={styles.field ?? ''}
       data-changed={changed === true || undefined}
       data-inline={inline || undefined}
     >
-      <Header label={label} {...(changed === undefined ? {} : { changed })} />
-      <AriaButton className={styles.trigger ?? ''}>
+      <Header label={label} hidden={hideLabel} {...(changed === undefined ? {} : { changed })} />
+      <AriaButton className={styles.trigger ?? ''} data-control>
         <SelectValue className={styles.selectValue ?? ''} />
         <span className={styles.chevron} aria-hidden="true">
           ▾
@@ -463,8 +495,8 @@ function useRowIds(count: number) {
   };
 }
 
-// Several controls standing for one value: the group carries the label, the
-// description and the error, as a single field does.
+// Several controls standing for one value: a fieldset whose legend reads as
+// any field's label, carrying the description and the error for the whole.
 export function FieldGroup({
   label,
   description,
@@ -472,7 +504,6 @@ export function FieldGroup({
   changed,
   children,
 }: Chrome & { children: ReactNode }) {
-  const legend = useId();
   const descriptionId = useId();
   const errorId = useId();
   const describedBy = [
@@ -480,20 +511,14 @@ export function FieldGroup({
     error === undefined ? null : errorId,
   ].filter((id) => id !== null);
   return (
-    <div
-      role="group"
-      aria-labelledby={legend}
+    <fieldset
       {...(describedBy.length === 0 ? {} : { 'aria-describedby': describedBy.join(' ') })}
-      className={styles.field}
+      className={styles.group}
       data-changed={changed === true || undefined}
       data-invalid={error === undefined ? undefined : true}
     >
-      <div className={styles.header}>
-        <span id={legend} className={styles.label}>
-          {label}
-        </span>
-        {changed === true ? <Changed /> : null}
-      </div>
+      <legend className={styles.label}>{label}</legend>
+      {changed === true ? <Changed /> : null}
       <FieldGroupIds
         value={{
           description:
@@ -513,7 +538,7 @@ export function FieldGroup({
           {error}
         </p>
       )}
-    </div>
+    </fieldset>
   );
 }
 

@@ -37,6 +37,7 @@ import {
   ToggleField,
   UrlListField,
 } from '#/shared/view/Field.tsx';
+import { FieldGrid, GridCell } from '#/shared/view/FieldGrid.tsx';
 import { FilterBar } from '#/shared/view/FilterBar.tsx';
 import { GroupPicker } from '#/shared/view/GroupPicker.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
@@ -490,6 +491,103 @@ function TypedFields() {
   );
 }
 
+const PROFILE = {
+  name: 'Ada Lovelace',
+  given: 'Ada',
+  family: 'Lovelace',
+  middle: '',
+  nickname: 'Ada',
+  preferred: 'ada',
+  phone: '+447700900123;ext=12',
+  profile: 'https://ada.example/about',
+  picture: 'https://cdn.example/ada.png',
+  website: 'https://ada.example',
+  gender: 'female',
+  birthdate: '1815-12-10',
+  zone: 'Europe/London',
+  locale: 'en-GB',
+  formatted: '12 St James’s Square, London SW1Y 4JH',
+  street: '12 St James’s Square',
+  locality: 'London',
+  region: '',
+  postal: 'SW1Y 4JH',
+  country: 'United Kingdom',
+};
+
+type ProfileName = keyof typeof PROFILE;
+
+// The record's Profile tab as it lays its claims out: one control height,
+// three columns, the compound fields and the street wider than one.
+function ProfileCloseUp() {
+  const [p, setProfile] = useState(PROFILE);
+  const set = (name: ProfileName) => (value: string) => {
+    setProfile((was) => ({ ...was, [name]: value }));
+  };
+  const text = (name: ProfileName, label: string) => (
+    <GridCell>
+      <TextField label={label} value={p[name]} onChange={set(name)} />
+    </GridCell>
+  );
+  return (
+    <div className={styles.stack}>
+      <Section title="Name" dirty={false} saving={false} onSave={NOTHING} onDiscard={NOTHING}>
+        <FieldGrid>
+          {text('name', 'Full name')}
+          {text('given', 'Given name')}
+          {text('family', 'Family name')}
+          {text('middle', 'Middle name')}
+          {text('nickname', 'Nickname')}
+          {text('preferred', 'Preferred username')}
+        </FieldGrid>
+      </Section>
+      <Section title="Details" dirty={false} saving={false} onSave={NOTHING} onDiscard={NOTHING}>
+        <FieldGrid>
+          <GridCell span="wide">
+            <PhoneField label="Phone number" value={p.phone} onChange={set('phone')} />
+          </GridCell>
+          <GridCell>
+            <UrlField label="Profile page" value={p.profile} onChange={set('profile')} />
+          </GridCell>
+          <GridCell>
+            <PictureField label="Picture" value={p.picture} onChange={set('picture')} />
+          </GridCell>
+          <GridCell>
+            <UrlField label="Website" value={p.website} onChange={set('website')} />
+          </GridCell>
+          <GridCell>
+            <GenderField label="Gender" value={p.gender} onChange={set('gender')} />
+          </GridCell>
+          <GridCell span="wide">
+            <BirthdateField label="Birthdate" value={p.birthdate} onChange={set('birthdate')} />
+          </GridCell>
+          <GridCell>
+            <TimeZoneField label="Time zone" value={p.zone} onChange={set('zone')} />
+          </GridCell>
+          <GridCell>
+            <LocaleField label="Locale" value={p.locale} onChange={set('locale')} />
+          </GridCell>
+        </FieldGrid>
+      </Section>
+      <Section title="Address" dirty={false} saving={false} onSave={NOTHING} onDiscard={NOTHING}>
+        <FieldGrid>
+          <GridCell span="full">
+            <TextField label="Formatted address" value={p.formatted} onChange={set('formatted')} />
+          </GridCell>
+          <GridCell span="wide">
+            <TextField label="Street" value={p.street} onChange={set('street')} />
+          </GridCell>
+          {text('locality', 'Locality')}
+          {text('region', 'Region')}
+          {text('postal', 'Postal code')}
+          <GridCell>
+            <CountryField label="Country" value={p.country} onChange={set('country')} />
+          </GridCell>
+        </FieldGrid>
+      </Section>
+    </div>
+  );
+}
+
 function ViewOnly() {
   return (
     <div className={styles.typed}>
@@ -797,6 +895,9 @@ export function Gallery({
         <Group id="typed" title="Typed fields">
           <Specimen label="Typed fields: a claim in its own shape, with its autocomplete token">
             <TypedFields />
+          </Specimen>
+          <Specimen label="Profile: a record's claims in columns, one control height">
+            <ProfileCloseUp />
           </Specimen>
           <Specimen label="View only: one line, and every field as text">
             <ViewOnly />

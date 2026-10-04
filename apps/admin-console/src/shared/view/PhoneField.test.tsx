@@ -33,6 +33,17 @@ describe('PhoneField', () => {
     expect(group).toHaveTextContent('Stored as +2348031234567, which reads +234 803 123 4567.');
   });
 
+  it('names its parts for a screen reader only, each a control of one height', () => {
+    render(<Controlled start="+447700900123;ext=12" />);
+    const group = screen.getByRole('group', { name: 'Phone number' });
+    for (const name of ['Country', 'Number', 'Extension']) {
+      expect(within(group).getByText(name).closest('[style]'), name).toHaveStyle({
+        position: 'absolute',
+      });
+    }
+    expect(group.querySelectorAll('[data-control]')).toHaveLength(3);
+  });
+
   it('opens a stored number under its country', () => {
     render(<Controlled start="+447700900123" />);
     expect(screen.getByRole('combobox', { name: 'Country' })).toHaveValue('United Kingdom');

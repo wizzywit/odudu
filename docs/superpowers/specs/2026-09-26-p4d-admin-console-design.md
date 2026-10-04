@@ -805,7 +805,15 @@ A tenant cannot be deleted: the API has no such route. It can be disabled.
 - space: a 4 px base, steps of 8, 12, 16, 24, 32;
 - motion: 120 ms for hover and press, 200 ms for panels and toasts, one
   ease-out curve, View Transitions between routes; `prefers-reduced-motion`
-  makes each instant.
+  makes each instant;
+- controls: one height, `--control-height` (40 px), for every single-line
+  control and button, under one 20 px label line, so the controls of a form
+  row start and end level; a compound field is a `fieldset` whose legend
+  reads as a label, its parts on one line with their labels kept for screen
+  readers only. A form's fields sit in a `FieldGrid` of three, two or one
+  columns by its own width, each cell naming a wide or full-row span;
+- placeholders: a skeleton bar takes the height of the line, row, heading,
+  control or tile it stands for, so nothing moves when the content arrives.
 
 **Responsive by container queries**: at 1024 px and wider, the full rail and
 multi-column tables; from 640 to 1023, a narrower rail and fewer columns;
@@ -822,7 +830,7 @@ bar never collapses.
 
 **Components** in `shared/view`: AppShell, Rail, ContextBar, PageHeader,
 Breadcrumb, Tabs, Section with SaveBar, Field (text, number with unit, select, toggle,
-URL list, key-value), DataTable with stacked mode, FilterBar, Pager, Count,
+URL list, key-value), FieldGrid, DataTable with stacked mode, FilterBar, Pager, Count,
 EmptyState, Skeleton, Toasts, ConfirmDialog (plain and typed), SecretDialog,
 UnsavedChangesDialog, CopyValue, Timestamp, Duration, StatusTag,
 CapabilityNote.

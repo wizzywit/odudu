@@ -91,6 +91,20 @@ describe('the claims', () => {
       address_country: 'country:-',
     });
   });
+
+  it('runs a compound field and the address lines wider than one column', () => {
+    const spans = Object.fromEntries(
+      [...NAME_CLAIMS, ...DETAIL_CLAIMS, ...ADDRESS_CLAIMS]
+        .filter((c) => c.span !== undefined)
+        .map((c) => [c.id, c.span]),
+    );
+    expect(spans).toEqual({
+      phone_number: 'wide',
+      birthdate: 'wide',
+      address_formatted: 'full',
+      address_street: 'wide',
+    });
+  });
 });
 
 describe('credentials', () => {

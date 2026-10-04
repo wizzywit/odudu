@@ -25,6 +25,7 @@ import {
   VALIDATION,
   type Chrome,
   type GroupPart,
+  type PartLabel,
 } from '#/shared/view/Field.tsx';
 import styles from '#/shared/view/Field.module.css';
 
@@ -96,8 +97,11 @@ export function ComboBoxField({
   mono = false,
   matchIds = true,
   invalid: part,
+  hideLabel,
+  placeholder,
 }: Chrome &
-  GroupPart & {
+  GroupPart &
+  PartLabel & {
     readonly options: readonly ComboOption[];
     value: string;
     onChange: (value: string) => void;
@@ -176,13 +180,14 @@ export function ComboBoxField({
       data-changed={changed === true || undefined}
     >
       <CloseList times={closes} />
-      <Header label={label} {...(changed === undefined ? {} : { changed })} />
-      <Group className={styles.comboGroup ?? ''}>
+      <Header label={label} hidden={hideLabel} {...(changed === undefined ? {} : { changed })} />
+      <Group className={styles.comboGroup ?? ''} data-control>
         <Input
           className={styles.input ?? ''}
           data-mono={mono || undefined}
           spellCheck={false}
           autoComplete={ownToken(own, autoComplete)}
+          {...(placeholder === undefined ? {} : { placeholder })}
         />
         <AriaButton className={styles.comboButton ?? ''} aria-label={`Show ${label} options`}>
           <span aria-hidden="true">▾</span>

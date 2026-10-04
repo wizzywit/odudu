@@ -17,6 +17,16 @@ function Controlled({ start = '', locale = 'en-US' }: { start?: string; locale?:
   );
 }
 
+// The form chosen is a select beside the date, not a row of radios.
+function known(): HTMLElement {
+  return screen.getByRole('button', { name: /What is known of the birthdate/u });
+}
+
+async function choose(user: ReturnType<typeof userEvent.setup>, form: string): Promise<void> {
+  await user.click(known());
+  await user.click(await screen.findByRole('option', { name: form }));
+}
+
 function stored(): string {
   return screen.getByLabelText('Stored').textContent;
 }
@@ -33,6 +43,17 @@ describe('BirthdateField', () => {
     expect(stored()).toBe('1990-01-31');
   });
 
+  it('puts the form chosen and the date on one line, with no radios', () => {
+    render(<Controlled start="1990-01-31" />);
+    const group = screen.getByRole('group', { name: 'Birthdate' });
+    expect(within(group).queryAllByRole('radio')).toEqual([]);
+    expect(known()).toHaveTextContent('Full date');
+    expect(within(group).getByText('Date').closest('[style]')).toHaveStyle({
+      position: 'absolute',
+    });
+    expect(group.querySelectorAll('[data-control]')).toHaveLength(2);
+  });
+
   it('shows a stored date in its segments', () => {
     render(<Controlled start="1990-01-31" />);
     const segments = within(screen.getByRole('group', { name: 'Birthdate' })).getAllByRole(
@@ -44,7 +65,7 @@ describe('BirthdateField', () => {
   it('stores the year alone when only the year is known', async () => {
     const user = userEvent.setup();
     render(<Controlled start="1990-01-31" />);
-    await user.click(screen.getByRole('radio', { name: 'Year only' }));
+    await choose(user, 'Year only');
     expect(stored()).toBe('1990');
     const year = screen.getByRole('textbox', { name: 'Year' });
     await user.clear(year);
@@ -56,21 +77,21 @@ describe('BirthdateField', () => {
   it('stores 0000-MM-DD when the year is withheld', async () => {
     const user = userEvent.setup();
     render(<Controlled />);
-    await user.click(screen.getByRole('radio', { name: 'Day and month' }));
+    await choose(user, 'Day and month');
     await user.click(screen.getByRole('button', { name: /Month/u }));
     await user.click(await screen.findByRole('option', { name: 'February' }));
     expect(stored()).toBe('');
-    await user.click(screen.getByRole('button', { name: /Day/u }));
+    await user.click(screen.getByRole('button', { name: /Day$/u }));
     await user.click(await screen.findByRole('option', { name: '29' }));
     expect(stored()).toBe('0000-02-29');
   });
 
   it('opens a stored year or withheld year in its own form', () => {
     const { unmount } = render(<Controlled start="1990" />);
-    expect(screen.getByRole('radio', { name: 'Year only' })).toBeChecked();
+    expect(known()).toHaveTextContent('Year only');
     unmount();
     render(<Controlled start="0000-02-29" />);
-    expect(screen.getByRole('radio', { name: 'Day and month' })).toBeChecked();
+    expect(known()).toHaveTextContent('Day and month');
   });
 
   it('stores a year as it is typed, so Enter saves it', async () => {

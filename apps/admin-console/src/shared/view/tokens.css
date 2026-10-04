@@ -62,7 +62,9 @@
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 
   --target-min: 24px;
-  --control-height: 32px;
+  /* Every single-line control: inputs, selects, comboboxes, dates, buttons. */
+  --control-height: 40px;
+  --label-line: 20px;
 }
 
 :root[data-theme='light'] {
