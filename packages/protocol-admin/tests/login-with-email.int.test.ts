@@ -91,6 +91,15 @@ describe('signing in with an email address', () => {
     expect(res.json()).toMatchObject({ login_with_email: false });
   });
 
+  it('names the field for an address only while the setting is on', async () => {
+    for (const on of [false, true]) {
+      const setup = await tenantWithEmailLogin(on);
+      await userWithEmail(setup.tenant.id, 'ada', 'ada@example.com', true);
+      const refused = await attempt(setup, 'ada', 'wrong');
+      expect(refused.body).toContain(on ? '<label>Username or email ' : '<label>Username <');
+    }
+  });
+
   it('refuses a verified address while the setting is off, exactly as an unknown username', async () => {
     const setup = await tenantWithEmailLogin(false);
     await userWithEmail(setup.tenant.id, 'ada', 'ada@example.com', true);

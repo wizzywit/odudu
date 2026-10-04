@@ -169,6 +169,8 @@ export function registerRequiredActionRoute(
           form,
           deps.passkeyLogin ?? false,
           tenant.rememberMeAllowed,
+          undefined,
+          tenant.loginWithEmail,
         ),
       );
     }

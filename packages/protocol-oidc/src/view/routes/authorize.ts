@@ -126,6 +126,8 @@ async function renderAuthorizationOutcome(
       outcome.form,
       deps.passkeyLogin ?? false,
       outcome.rememberMeAllowed,
+      undefined,
+      outcome.loginWithEmail,
     ),
   );
 }

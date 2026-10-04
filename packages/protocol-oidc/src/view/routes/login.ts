@@ -211,6 +211,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
           deps.passkeyLogin ?? false,
           tenant?.rememberMeAllowed ?? false,
           outcome.reason,
+          tenant?.loginWithEmail ?? false,
         ),
       );
     }

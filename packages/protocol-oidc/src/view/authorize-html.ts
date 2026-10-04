@@ -36,9 +36,10 @@ const RECOVERY_CODE_FIELD =
 // `form` names the authenticator to render fields for (an authn-flows
 // registry key, e.g. 'password') — not a fixed enum, so a new authenticator
 // adds a case here rather than a schema change.
-function renderFormFields(form: string): string {
+function renderFormFields(form: string, loginWithEmail: boolean): string {
   if (form === 'password') {
-    return `<label>Username <input type="text" name="username" autocomplete="username"></label>
+    const label = loginWithEmail ? 'Username or email' : 'Username';
+    return `<label>${label} <input type="text" name="username" autocomplete="username"></label>
   <label>Password <input type="password" name="password" autocomplete="current-password"></label>`;
   }
   // No username: which account the code is checked against comes from the
@@ -133,6 +134,9 @@ export function renderLoginForm(
   // Shown above the fields when a refusal says something the person at the
   // form can act on — see LoginSubmissionOutcome's `reject`.
   error?: string,
+  // The tenant's `login_with_email`: only the label changes, since the
+  // field takes either and the server decides which it names.
+  loginWithEmail = false,
 ): RenderedPage {
   const action = `/tenants/${escapeHtml(tenant)}/login-actions/authenticate`;
   // Beside the password and nowhere else: a passkey is an alternative to
@@ -154,7 +158,7 @@ export function renderLoginForm(
       'Sign in',
       `${message}<form method="post" action="${action}">
   <input type="hidden" name="auth_session_id" value="${escapeHtml(authSessionId)}">
-  ${renderFormFields(form)}
+  ${renderFormFields(form, loginWithEmail)}
   ${rememberMe}<button type="submit">Sign in</button>
 </form>${passkey}`,
     ),
