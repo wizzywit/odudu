@@ -782,6 +782,31 @@ describe('[ODUDU-TOKEN-EXCHANGE-01] the grant end to end', () => {
     expect(decode(body.access_token).aud).toBe(CLIENT_ID);
   });
 
+  it('puts auth_time in an exchanged id_token for a client that requires it', async () => {
+    const subject = await loginAndGetToken({ scope: 'openid' });
+    await allowImpersonation(CLIENT_ID);
+    await withTenant(app.db, TENANT_ID, async (tx) => {
+      const client = await clientRepository(tx).byClientId(CLIENT_ID);
+      if (client === null) throw new Error('the exchanging client is missing');
+      await clientOidcConfigRepository(tx).update(client.id, { requireAuthTime: true });
+    });
+    try {
+      const response = await exchange({
+        subjectToken: subject.accessToken,
+        requestedTokenType: 'urn:ietf:params:oauth:token-type:id_token',
+      });
+      const claims = decode(response.json<{ access_token: string }>().access_token);
+      expect(claims.auth_time).toEqual(expect.any(Number));
+    } finally {
+      await withTenant(app.db, TENANT_ID, async (tx) => {
+        const client = await clientRepository(tx).byClientId(CLIENT_ID);
+        if (client !== null) {
+          await clientOidcConfigRepository(tx).update(client.id, { requireAuthTime: false });
+        }
+      });
+    }
+  });
+
   // client_scopes.include_in_id_token is off for `roles`/`groups`
   // (provision-defaults.ts) precisely because the ID token reaches the
   // browser and a client cannot opt out of what lands there —

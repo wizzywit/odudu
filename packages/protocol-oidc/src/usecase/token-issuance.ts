@@ -1322,12 +1322,20 @@ async function issueExchangedTokens(
     const ttlExp = iat + config.idTokenTtlSeconds;
     const ceiling = expCeiling === undefined ? ttlExp : Math.floor(expCeiling.getTime() / 1000);
     const exp = Math.min(ttlExp, ceiling);
+    // The session's own start is when its End-User authenticated, the same
+    // instant a reused session reports at /authorize; an offline token has
+    // no session, so there is no authentication time to report.
+    const session =
+      config.requireAuthTime && subject.token.sessionId !== null
+        ? await sessionRepository(tx).byId(subject.token.sessionId)
+        : null;
     const idTokenClaims = withRegisteredClaimsWinning(mapped, {
       iss: deps.issuer,
       sub: subject.token.subjectId,
       aud: client.clientId,
       iat,
       exp,
+      ...(session === null ? {} : { auth_time: Math.floor(session.createdAt.getTime() / 1000) }),
       ...(subject.token.sessionId !== null ? { sid: subject.token.sessionId } : {}),
       ...(act === undefined ? {} : { act }),
     });
