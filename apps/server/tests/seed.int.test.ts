@@ -793,6 +793,47 @@ describe("seed registers the console's URIs on the admin client", () => {
   });
 });
 
+describe('seeded client lifetimes', () => {
+  async function lifetimesOf(tenantName: string, clientId: string) {
+    const tenantId = (await owner.db.select().from(tenants).where(eq(tenants.name, tenantName)))[0]
+      ?.id;
+    if (tenantId === undefined) throw new Error('expected the seeded tenant');
+    return withTenant(owner.db, tenantId, async (tx) => {
+      const rows = await tx
+        .select()
+        .from(clients)
+        .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, clientId)));
+      const client = rows[0];
+      if (client === undefined) throw new Error('expected the seeded client');
+      const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+      return {
+        access: config?.accessTokenTtlSeconds,
+        id: config?.idTokenTtlSeconds,
+        refresh: config?.refreshTokenTtlSeconds,
+      };
+    });
+  }
+
+  it('leaves both doors’ clients to the tenant’s lifetimes', async () => {
+    const options = uniqueOptions();
+    await seed(options);
+    await seed([
+      'client',
+      '--tenant',
+      options.tenant,
+      '--client-id',
+      'inherits-spa',
+      '--public',
+      '--redirect-uri',
+      'https://app.example/callback',
+    ]);
+
+    const inherited = { access: null, id: null, refresh: null };
+    expect(await lifetimesOf(options.tenant, options.clientId)).toEqual(inherited);
+    expect(await lifetimesOf(options.tenant, 'inherits-spa')).toEqual(inherited);
+  });
+});
+
 describe('seed client --post-logout-redirect-uri', () => {
   it('registers the URIs RP-Initiated Logout matches against', async () => {
     const options = uniqueOptions();

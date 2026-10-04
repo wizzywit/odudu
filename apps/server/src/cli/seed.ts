@@ -435,8 +435,9 @@ async function performSeed(
       tokenEndpointAuthMethod:
         type === 'confidential' ? (opts.tokenEndpointAuthMethod ?? 'client_secret_basic') : 'none',
       audiences: [],
-      accessTokenTtlSeconds: 300,
-      refreshTokenTtlSeconds: 1_209_600,
+      // Null takes the tenant's lifetimes, as every other door's client does.
+      accessTokenTtlSeconds: null,
+      refreshTokenTtlSeconds: null,
       clientCredentialsScopes: [],
       // No frontchannel_logout_uri or backchannel_logout_uri flag exists
       // here, so isValidLogoutUri and sharesOriginWithRegisteredRedirectUri
@@ -1212,8 +1213,9 @@ async function runClientCommand(
       tokenEndpointAuthMethod:
         type === 'confidential' ? (authMethod ?? 'client_secret_basic') : 'none',
       audiences: [],
-      accessTokenTtlSeconds: 300,
-      refreshTokenTtlSeconds: 1_209_600,
+      // Null takes the tenant's lifetimes, as every other door's client does.
+      accessTokenTtlSeconds: null,
+      refreshTokenTtlSeconds: null,
       clientCredentialsScopes: [],
       webOrigins,
       postLogoutRedirectUris,
