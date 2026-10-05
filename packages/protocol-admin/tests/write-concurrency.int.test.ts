@@ -254,7 +254,7 @@ describe('a group reparented while a sibling takes its name under the new parent
     const fn = `hold_${moving.replaceAll('-', '')}`;
     await fixture.owner.db.execute(
       sql.raw(`create function ${fn}() returns trigger language plpgsql as $$
-        begin perform pg_advisory_xact_lock(${lockKey}); return new; end $$`),
+        begin perform pg_advisory_xact_lock(${String(lockKey)}); return new; end $$`),
     );
     await fixture.owner.db.execute(
       sql.raw(`create trigger ${fn} before update on groups for each row

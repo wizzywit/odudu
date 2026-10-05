@@ -240,7 +240,7 @@ describe('the roles mapped to a group', () => {
       { 'if-match': '*' },
     );
     expect(put.statusCode, put.body).toBe(200);
-    const expected = expect.arrayContaining([
+    const expected: unknown = expect.arrayContaining([
       expect.objectContaining({ id: bundle, admin_reach: ['view-audit'] }),
       expect.objectContaining({ id: plain, admin_reach: [] }),
     ]);
