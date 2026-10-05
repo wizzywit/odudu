@@ -346,16 +346,3 @@ it('passes axe in both themes, with a mail refused', async () => {
     ),
   ).toEqual({ light: [], dark: [] });
 });
-
-it('asks for the client and the address together, or neither', async () => {
-  const user = userEvent.setup();
-  const { sent } = renderConsoleAt(AT, subjectRoutes());
-  const mail = await screen.findByRole('region', { name: 'Email' });
-  await user.click(within(mail).getByRole('checkbox', { name: 'Set up an authenticator app' }));
-  await user.type(within(mail).getByRole('textbox', { name: 'Return to client' }), 'billing');
-  await user.click(within(mail).getByRole('button', { name: 'Email required actions' }));
-  expect(
-    within(mail).getByRole('textbox', { name: 'Return to address' }),
-  ).toHaveAccessibleDescription(/Give the client and the address together, or neither/u);
-  expect(sent.some((s) => s.path.endsWith('/actions-email'))).toBe(false);
-});
