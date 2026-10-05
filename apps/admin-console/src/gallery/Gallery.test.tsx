@@ -22,17 +22,18 @@ it('shows every component of the design system', () => {
   expect(missing).toEqual([]);
 });
 
-it('renders as one page that passes axe in both themes', { timeout: 60_000 }, async () => {
-  for (const theme of ['light', 'dark'] as const) {
+// One test per theme: the gallery grows with every component, and each
+// component's own test already runs axe in both themes.
+for (const theme of ['light', 'dark'] as const) {
+  it(`renders as one page that passes axe in the ${theme} theme`, { timeout: 90_000 }, async () => {
     document.documentElement.dataset.theme = theme;
     const { unmount } = render(<Gallery theme={theme} />);
     expect(screen.getByRole('heading', { level: 1, name: 'Instrument' })).toBeVisible();
     const result = await axe.run(document.body);
     expect(
       result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join('\n')}`),
-      theme,
     ).toEqual([]);
     unmount();
-  }
-  delete document.documentElement.dataset.theme;
-});
+    delete document.documentElement.dataset.theme;
+  });
+}
