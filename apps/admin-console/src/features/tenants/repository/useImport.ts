@@ -3,7 +3,11 @@ import { useMutation } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { readFileText } from '#/features/tenants/adapter/files.ts';
 import { findTenant, importTenant } from '#/features/tenants/adapter/tenants.ts';
-import { parseDocument } from '#/features/tenants/service.ts';
+import {
+  parseDocument,
+  type ImportedSecret,
+  type ImportOutcome,
+} from '#/features/tenants/service.ts';
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useFreshRead } from '#/shared/repository/useFreshRead.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
@@ -13,16 +17,6 @@ export interface ImportInput {
   displayName: string;
   file: File;
 }
-
-export interface ImportedSecret {
-  clientId: string;
-  secret: string;
-}
-
-export type ImportOutcome =
-  | { ok: true; tenant: Tenant; secrets: number }
-  | { ok: false; kind: 'file'; message: string }
-  | { ok: false; kind: 'refused'; failure: GatewayFailure };
 
 export interface TenantImport {
   // Never sent twice for one press: a repeat would answer 409 and the
@@ -54,13 +48,8 @@ export function useImport(onRefused: (failure: GatewayFailure) => void): TenantI
         return { ok: false, kind: 'refused', failure: result };
       }
       setShown(0);
-      setSecrets(
-        result.data.client_secrets.map(({ client_id, secret }) => ({
-          clientId: client_id,
-          secret,
-        })),
-      );
-      return { ok: true, tenant: result.data.tenant, secrets: result.data.client_secrets.length };
+      setSecrets(result.data.secrets);
+      return { ok: true, tenant: result.data.tenant, secrets: result.data.secrets.length };
     },
     onSettled: () => {
       inFlight.current = false;

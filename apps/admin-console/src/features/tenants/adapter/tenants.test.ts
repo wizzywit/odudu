@@ -90,7 +90,10 @@ it('imports a document under a new name', async () => {
     displayName: '',
     document: { version: 1 },
   });
-  expect(result).toMatchObject({ ok: true, data: answer });
+  expect(result).toMatchObject({
+    ok: true,
+    data: { tenant: ACME, secrets: [{ clientId: 'web', secret: 's3cr3t' }] },
+  });
   expect(fake.sent[0]?.body).toEqual({ name: 'acme', document: { version: 1 } });
 });
 

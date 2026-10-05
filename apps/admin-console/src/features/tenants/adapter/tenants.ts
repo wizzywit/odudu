@@ -4,11 +4,11 @@ import {
   listTenantsResponseSchema,
   tenantSchema,
   type CountResponse,
-  type ImportTenantResponse,
   type ListTenantsResponse,
   type Tenant,
 } from '@odudu/contracts/admin';
 import { z } from 'zod';
+import type { ImportedSecret } from '#/features/tenants/service.ts';
 import type { Gateway, GatewayResult, RawBody } from '#/shared/transport/gateway.ts';
 
 function tenantPath(name: string): string {
@@ -76,14 +76,23 @@ export function amendTenant(
   });
 }
 
-export function importTenant(
+export async function importTenant(
   gateway: Gateway,
   input: { name: string; displayName: string; document: unknown },
-): Promise<GatewayResult<ImportTenantResponse>> {
-  return gateway.request('POST', 'admin/tenant-imports', {
+): Promise<GatewayResult<{ tenant: Tenant; secrets: ImportedSecret[] }>> {
+  const result = await gateway.request('POST', 'admin/tenant-imports', {
     body: { name: input.name, ...displayNameOf(input.displayName), document: input.document },
     schema: importTenantResponseSchema,
   });
+  if (!result.ok) return result;
+  const { tenant, client_secrets } = result.data;
+  return {
+    ...result,
+    data: {
+      tenant,
+      secrets: client_secrets.map(({ client_id, secret }) => ({ clientId: client_id, secret })),
+    },
+  };
 }
 
 export function readExport(
