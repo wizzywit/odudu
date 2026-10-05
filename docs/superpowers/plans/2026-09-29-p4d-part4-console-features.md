@@ -447,6 +447,20 @@ eight views. 28 shared service functions cover the duplicates.
   It lands rule by rule. Its scope widens to each feature as that feature is
   cleaned, so no allowlist is ever needed.
 
+- **Component folders.** Every view component gets a folder named after it.
+  The folder holds `X.tsx`, `X.module.css`, `X.test.tsx` and an `index.ts`
+  that only re-exports. Imports name the folder (`#/shared/view/Button`),
+  never `index.ts` or a file inside it. Every import of a feature's or a
+  folder's `index.ts` is shortened the same way (`#/features/session`),
+  which is 73 imports today.
+  - **Spike first.** Prove that typecheck, `vite build`, Vitest and
+    dependency-cruiser all resolve a folder import through
+    `#/*` → `./src/*`. Record the exact commands in the phase note.
+  - **Guard.** A lint refuses an import that names an `index.ts`, and an
+    import into another component's folder.
+  - **Record it.** Spec §6 states the rule.
+  - **Console only.** The server packages run on Node ESM, which cannot
+    import a folder.
 - Behaviour must not change. The existing view tests and the full e2e run stay
   green at every increment.
 
