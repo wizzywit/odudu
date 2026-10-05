@@ -232,10 +232,10 @@ describe('POST /subjects/:id/actions-email', () => {
     const t = await fixture.createTenant(`act-${newId()}`);
     const ada = await seedUser(fixture, t.id, 'ada', 'ada@example.com');
     const clientId = await clientWithRedirect(t.name);
-    const strip = (res: LightMyRequestResponse) => {
-      const { instance: _instance, ...rest } = res.json<Record<string, unknown>>();
-      return rest;
-    };
+    const strip = (res: LightMyRequestResponse) =>
+      Object.fromEntries(
+        Object.entries(res.json<Record<string, unknown>>()).filter(([key]) => key !== 'instance'),
+      );
     const noClient = await send(fixture, t.name, ada, {
       actions: ['configure-totp'],
       client_id: 'nonesuch',
