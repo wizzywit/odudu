@@ -1,4 +1,4 @@
-import { type Group } from '@odudu/contracts/admin';
+import { type GroupFields } from '@odudu/contracts/admin';
 
 export function groupWireShape(group: {
   id: string;
@@ -8,7 +8,7 @@ export function groupWireShape(group: {
   defaultForNewSubjects: boolean;
   path: string;
   createdAt: Date;
-}): Group {
+}): GroupFields {
   return {
     id: group.id,
     name: group.name,

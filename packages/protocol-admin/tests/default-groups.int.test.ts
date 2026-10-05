@@ -6,6 +6,7 @@ import { newId } from '@odudu/kernel';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
+import { storedFields } from '#/testing/stored-fields';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import { composeUserSubject } from '#/usecase/subjects';
 
@@ -129,7 +130,7 @@ describe('PUT /admin/tenants/{t}/groups/{id}/default', () => {
     const set = await putDefault(t.name, id, true);
     expect(set.statusCode, set.body).toBe(200);
     expect(set.json<{ default_for_new_subjects: boolean }>().default_for_new_subjects).toBe(true);
-    expect(set.headers.etag).toBe(etagOf(set.json()));
+    expect(set.headers.etag).toBe(etagOf(storedFields(set.json())));
     expect(await createdSubjectGroups(t.name)).toEqual([id]);
 
     const unset = await putDefault(t.name, id, false);

@@ -9,6 +9,7 @@ import { isUniqueViolation, type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
+import { roleWireOf, withRoleReach } from '#/usecase/admin-reach';
 import {
   addRoleComposite,
   amendRole,
@@ -72,15 +73,18 @@ export function listRolesHandler(deps: RolesRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: roles route received no :tenant');
     }
 
-    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      listRoles(tx, {
+    const outcome = await adminTx(deps.database, request, targetTenantId, async (tx) => {
+      const listed = await listRoles(tx, {
         limit,
         cursor,
         cursorKey: deps.cursorKey,
         tenantId: targetTenantId,
         filters,
-      }),
-    );
+      });
+      return listed.kind === 'ok'
+        ? { ...listed, items: await withRoleReach(tx, listed.items) }
+        : listed;
+    });
     if (outcome.kind === 'invalid_cursor') {
       return sendProblem(reply, request, cursorProblem());
     }
@@ -105,13 +109,16 @@ export function readRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
       throw new Error('protocol-admin: GET role route received no :id');
     }
 
-    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) => readRole(tx, id));
+    const outcome = await adminTx(deps.database, request, targetTenantId, async (tx) => {
+      const read = await readRole(tx, id);
+      return read.kind === 'ok' ? { ...read, wire: await roleWireOf(tx, read.role) } : read;
+    });
     if (outcome.kind === 'not_found') {
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found', `no role ${id}`));
     }
 
     reply.header('etag', etagOf(outcome.role));
-    return reply.code(200).send(outcome.role);
+    return reply.code(200).send(outcome.wire);
   };
 }
 
@@ -119,10 +126,14 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const body = createRoleRequestSchema.parse(request.body);
 
-    let outcome: CreateRoleOutcome;
+    let outcome:
+      | Exclude<CreateRoleOutcome, { kind: 'ok' }>
+      | (Extract<CreateRoleOutcome, { kind: 'ok' }> & {
+          wire: Awaited<ReturnType<typeof roleWireOf>>;
+        });
     try {
-      outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-        createRole(
+      outcome = await adminTx(deps.database, request, targetTenantId, async (tx) => {
+        const created = await createRole(
           tx,
           { audit: deps.audit },
           {
@@ -135,8 +146,11 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
             actorTenantId: principal.issuerTenantId,
             actorClientId: principal.clientDbId,
           },
-        ),
-      );
+        );
+        return created.kind === 'ok'
+          ? { ...created, wire: await roleWireOf(tx, created.role) }
+          : created;
+      });
     } catch (error) {
       // `roles_tenant_name` (0017_roles.sql, renamed to its current name by
       // migration 0058) and `roles_client_name` are what actually refuse a
@@ -181,7 +195,7 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
       );
     }
     reply.header('etag', etagOf(outcome.role));
-    return reply.code(201).send(outcome.role);
+    return reply.code(201).send(outcome.wire);
   };
 }
 
@@ -222,8 +236,8 @@ export function amendRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
     }
     const values = amendRoleRequestSchema.parse(request.body);
 
-    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      amendRole(
+    const outcome = await adminTx(deps.database, request, targetTenantId, async (tx) => {
+      const amended = await amendRole(
         tx,
         { audit: deps.audit },
         {
@@ -234,14 +248,17 @@ export function amendRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
         },
-      ),
-    );
+      );
+      return amended.kind === 'ok'
+        ? { ...amended, wire: await roleWireOf(tx, amended.role) }
+        : amended;
+    });
 
     if (outcome.kind !== 'ok') {
       return amendmentProblem(reply, request, outcome);
     }
     reply.header('etag', outcome.etag);
-    return reply.code(200).send(outcome.role);
+    return reply.code(200).send(outcome.wire);
   };
 }
 
@@ -372,9 +389,12 @@ export function listRoleCompositesHandler(deps: RolesRouteDeps): AdminRouteHandl
       throw new Error('protocol-admin: GET composites route received no :id');
     }
 
-    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      listRoleComposites(tx, id),
-    );
+    const outcome = await adminTx(deps.database, request, targetTenantId, async (tx) => {
+      const listed = await listRoleComposites(tx, id);
+      return listed.kind === 'ok'
+        ? { ...listed, items: await withRoleReach(tx, listed.items) }
+        : listed;
+    });
     if (outcome.kind === 'not_found') {
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found', `no role ${id}`));
     }
@@ -440,8 +460,8 @@ export function setRoleDefaultHandler(deps: RolesRouteDeps): AdminRouteHandler {
     }
     const body = setRoleDefaultRequestSchema.parse(request.body);
 
-    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      setRoleDefault(
+    const outcome = await adminTx(deps.database, request, targetTenantId, async (tx) => {
+      const set = await setRoleDefault(
         tx,
         { audit: deps.audit },
         {
@@ -452,8 +472,9 @@ export function setRoleDefaultHandler(deps: RolesRouteDeps): AdminRouteHandler {
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
         },
-      ),
-    );
+      );
+      return set.kind === 'ok' ? { ...set, wire: await roleWireOf(tx, set.role) } : set;
+    });
 
     switch (outcome.kind) {
       case 'not_found':
@@ -468,7 +489,7 @@ export function setRoleDefaultHandler(deps: RolesRouteDeps): AdminRouteHandler {
         return sendProblem(reply, request, ifMatchStale());
       case 'ok':
         reply.header('etag', outcome.etag);
-        return reply.code(200).send(outcome.role);
+        return reply.code(200).send(outcome.wire);
     }
   };
 }

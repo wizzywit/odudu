@@ -1,4 +1,4 @@
-import { type Group, type ListGroupsQuery } from '@odudu/contracts/admin';
+import { type GroupFields, type ListGroupsQuery } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { descendantsOf, groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
@@ -58,7 +58,7 @@ export interface ListGroupsInput {
 }
 
 export type ListGroupsOutcome =
-  { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly Group[]; next: string | null };
+  { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly GroupFields[]; next: string | null };
 
 /** The groups listing's order, which its keyset cursor and its count both follow. */
 export function groupListOrder(filters: GroupFilters): SQL[] {
@@ -132,7 +132,7 @@ export async function listGroups(
   return { kind: 'ok', items: page.map((row) => groupWireShape(row)), next };
 }
 
-export type ReadGroupOutcome = { kind: 'not_found' } | { kind: 'ok'; group: Group };
+export type ReadGroupOutcome = { kind: 'not_found' } | { kind: 'ok'; group: GroupFields };
 
 export async function readGroup(
   tx: TenantScopedDatabase,
@@ -160,7 +160,7 @@ export interface CreateGroupDeps {
 
 export type CreateGroupOutcome =
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
-  | { kind: 'ok'; group: Group };
+  | { kind: 'ok'; group: GroupFields };
 
 // `OduduError('group_not_found')` from `groupRepository.create` (a
 // `parent_id` naming no group) propagates out of this function instead of
@@ -251,8 +251,9 @@ export type AmendGroupOutcome =
   | { kind: 'precondition_failed' }
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'cycle' }
+  | { kind: 'name_taken'; name: string }
   | { kind: 'default_group_capability'; capabilities: readonly string[] }
-  | { kind: 'ok'; group: Group; etag: string }
+  | { kind: 'ok'; group: GroupFields; etag: string }
   | LastAdministratorRefusal;
 
 async function lockGroupForAmend(
@@ -333,6 +334,16 @@ async function amendGroupUnguarded(
     // `group_not_found` with nothing catching it.
     if (!isUuid(parentId) || (await groupRepository(tx).byId(parentId)) === null) {
       return { kind: 'unknown_parent' };
+    }
+  }
+
+  // `groups_path_unique` would refuse the rewrite inside the transaction,
+  // so a sibling holding the name is looked for first.
+  if (parentId !== undefined && parentId !== locked.parentId) {
+    const above = parentId === null ? null : await groupRepository(tx).byId(parentId);
+    const taken = await groupRepository(tx).byPath(`${above?.path ?? ''}/${locked.name}`);
+    if (taken !== null && taken.id !== input.groupId) {
+      return { kind: 'name_taken', name: locked.name };
     }
   }
 
@@ -699,7 +710,7 @@ export type SetGroupDefaultOutcome =
   | { kind: 'not_found' }
   | { kind: 'default_group_capability'; capabilities: readonly string[] }
   | { kind: 'precondition_failed' }
-  | { kind: 'ok'; group: Group; etag: string };
+  | { kind: 'ok'; group: GroupFields; etag: string };
 
 // The role default's rule (`setRoleDefault`, #/usecase/roles.ts) applied to
 // what membership hands out: the group's own roles and every ancestor's, which
@@ -735,7 +746,7 @@ export async function setGroupDefault(
   }
 
   await groupRepository(tx).setDefaultForNewSubjects(input.groupId, input.value);
-  const after: Group = { ...before, default_for_new_subjects: input.value };
+  const after: GroupFields = { ...before, default_for_new_subjects: input.value };
 
   await deps.audit(tx, {
     action: 'group.default_set',

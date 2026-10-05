@@ -212,6 +212,9 @@ export {
   type ListConsentsResponse,
 } from '#/admin/consents';
 export {
+  adminReachSchema,
+  roleFieldsSchema,
+  type RoleFields,
   roleSchema,
   type Role,
   listRolesQuerySchema,
@@ -232,8 +235,12 @@ export {
   type SetRoleDefaultRequest,
 } from '#/admin/roles';
 export {
+  groupFieldsSchema,
+  type GroupFields,
   groupSchema,
   type Group,
+  groupRecordSchema,
+  type GroupRecord,
   listGroupsQuerySchema,
   type ListGroupsQuery,
   countGroupsQuerySchema,

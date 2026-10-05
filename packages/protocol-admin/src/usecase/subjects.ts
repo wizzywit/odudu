@@ -4,7 +4,7 @@ import {
   SUBJECT_SEARCH_FIELDS,
   usernameSchema,
   type Credential,
-  type Group,
+  type GroupFields,
   type ListSubjectsQuery,
   type HeldAdminCapability,
   type ListedSubject,
@@ -1248,19 +1248,19 @@ export type SetSubjectGroupsOutcome =
   | TargetCeilingRefusal
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
-  | { kind: 'ok'; groups: readonly Group[]; etag: string }
+  | { kind: 'ok'; groups: readonly GroupFields[]; etag: string }
   | LastAdministratorRefusal;
 
 export type ReadSubjectGroupsOutcome =
-  { kind: 'not_found' } | { kind: 'ok'; groups: readonly Group[]; etag: string };
+  { kind: 'not_found' } | { kind: 'ok'; groups: readonly GroupFields[]; etag: string };
 
 // The tag is over the body GET answers, so a reparent that rewrites a
 // member's `path` changes it even though the membership did not.
-function subjectGroupsEtag(memberships: readonly Group[]): string {
+function subjectGroupsEtag(memberships: readonly GroupFields[]): string {
   return etagOf({ items: memberships });
 }
 
-async function memberGroups(tx: TenantScopedDatabase, subjectId: string): Promise<Group[]> {
+async function memberGroups(tx: TenantScopedDatabase, subjectId: string): Promise<GroupFields[]> {
   return (await groupRepository(tx).groupsOfSubject(subjectId)).map(groupWireShape);
 }
 

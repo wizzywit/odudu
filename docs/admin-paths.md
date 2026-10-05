@@ -238,6 +238,21 @@ was checked after the subject and an unregistered one answered alike, with
 `seed admin --username ada-t8c2` run against it and each section's tenant
 made there for it; it was torn down the same way.
 
+**The thirteenth stack.** The sections on `admin_reach` and
+`subtree_admin_reach`, and the reparent refused for a taken name, ran against
+one more stack: compose project `odudu-t10` on port 3082, its Postgres on
+5464, built from this branch's working tree at `279a5926` with those fields
+added and brought up from an empty volume with `ODUDU_THROTTLE_LIMIT=1000`.
+Against it: `seed admin --username ada-t10`, a tenant `reach-demo` made with
+`odudu seed tenant`, and a subject `ada-t10` seeded there with a password and
+granted `odudu-admin:tenant-admin`, whose own admin token, got at
+`reach-demo` the way "Getting the token" shows, is `$ADMIN_TOKEN`. Each
+section says what else it made there. It was torn down with
+`docker compose down -v` when the capture finished. Every role and group
+answer captured on the stacks above predates the two fields, which each such
+answer now carries beside the stored ones; those transcripts were not
+recaptured, and show the stored fields alone.
+
 ## The shape of it
 
 Most of the admin endpoint lives under `/admin/tenants/{tenant}/`, mirroring
@@ -5966,6 +5981,44 @@ curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: applic
 {"items":[{"id":"01a0e9ec-6384-76f7-b433-4876e51cbff1","name":"billing-viewer","client_id":null,"client_key":null},{"id":"01a0ea27-1cdb-7d21-8f0c-d7baaca12b15","name":"reader","client_id":"01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3","client_key":"etags-app"}]}
 ```
 
+### What a role reaches: `admin_reach`
+
+Every role answer — the list, a role's own read and every write that answers
+it, and a role's composites — carries `admin_reach`: the admin capabilities
+the role hands out, expanded through `role_composites` however deep it nests
+them, by `capabilitiesReachableFrom`
+(`packages/protocol-admin/src/service/capability-ceiling.ts`), the same
+computation every capability ceiling here judges a write by, and read for a
+whole page in one query. It names capabilities in the order `whoami` does,
+never `tenant-admin` itself, whose holding is the capabilities it nests. It is
+derived on each read and never stored: the `ETag` is taken over the stored
+fields alone, so a composite added somewhere below a role does not stale a
+write to its description, and `PATCH` refuses it with a reason.
+
+Captured against the thirteenth stack: a tenant role `audit-lead` nesting
+`odudu-admin:view-audit`, and `audit-bundle` nesting `audit-lead`, each made
+there with `POST /roles` and `POST /roles/:id/composites` for it, `$P`
+that stack's `http://localhost:3082/admin/tenants/reach-demo`. `audit-bundle`
+names no capability itself and reaches one two levels down — what its
+default is then refused for:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" $P/roles/01a10b4e-3817-7c2d-b0cf-70a405d2a198
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/roles/01a10b4e-3817-7c2d-b0cf-70a405d2a198/composites; echo
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"default":true}' $P/roles/01a10b4e-3817-7c2d-b0cf-70a405d2a198/default; echo
+```
+
+Each response's status line and `etag` where it has one, then its body:
+
+```
+HTTP/1.1 200 OK
+etag: "f35d94729322104d722ea427be0440ac8518b14f00db3c0a4bb549c82285be30"
+{"id":"01a10b4e-3817-7c2d-b0cf-70a405d2a198","name":"audit-bundle","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T09:03:57.974Z","admin_reach":["view-audit"]}
+{"items":[{"id":"01a10b4e-37f5-7b2a-a36b-9c89dcd4129c","name":"audit-lead","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T09:03:57.941Z","admin_reach":["view-audit"]}]}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: view-audit","instance":"01a10b4e-5c4a-724b-91e9-735be0f7f299"}
+```
+
 ### The list a user manager picks from
 
 `GET /roles` alone is also readable with `view-users`, and so with
@@ -6447,7 +6500,8 @@ imported with the group. `PATCH` amends `description` and `parent_id` —
 reparenting, which recomputes `path` for the group and every descendant —
 and every other field is refused with a reason. A `parent_id` naming no group answers `400`, the
 same refusal `POST /groups` gives for the same input. Reparenting into the
-group's own subtree answers `409` (`group_reparent_cycle`), the same way a
+group's own subtree answers `409` (`group_reparent_cycle`), and so does a
+parent already holding a group of that name, the same way a
 role composite's cycle does.
 Both doors that choose a parent carry the same capability ceiling: naming
 a parent whose own roles — or any ancestor's — reach a capability the
@@ -6568,6 +6622,51 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=top"; echo
 {"items":[{"id":"01a109ba-8b5c-7d8c-9337-c6abb3a36eee","name":"payables","description":null,"parent_id":"01a109ba-8b46-73aa-98e5-54a2d4abddc6","default_for_new_subjects":false,"path":"/finance/payables","created_at":"2026-10-05T01:43:02.746Z"}]}
 {"count":1,"capped":false}
 {"type":"about:blank","title":"Error","status":400,"detail":"querystring/parent must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\", querystring/parent must be equal to constant, querystring/parent must match a schema in anyOf","errors":[{"path":"parent","message":"must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\""},{"path":"parent","message":"must be equal to constant"},{"path":"parent","message":"must match a schema in anyOf"}],"instance":"01a109ba-8bab-7f79-8a9c-ececd8c32911"}
+```
+
+### What a group hands out: `admin_reach` and `subtree_admin_reach`
+
+Every group answer carries `admin_reach`: what membership of the group hands
+out — the roles it and every group above it map, expanded through
+`role_composites` — by `capabilitiesOfGroupsAndAncestors`, read for a whole
+page in one query. A group's own record, and each write that answers it, also
+carries `subtree_admin_reach`: what deleting it takes from the subjects in it
+and beneath it, by `capabilitiesOfSubtree`, which is what the delete is held
+to. A subject's own groups (`GET /subjects/:id/groups`) carry neither. Both
+are derived, outside the `ETag`, and refused by `PATCH` with a reason.
+
+Captured against the thirteenth stack: `/ops` mapped to `audit-bundle` above,
+its child `/ops/oncall`, and `/ops/oncall/pager` mapped to
+`odudu-admin:manage-keys`, each made there for it. `/ops/oncall` maps nothing
+itself, hands out what `/ops` does, and would take `manage-keys` too:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/groups/01a10b4e-8179-7ea3-8421-973b86298b00; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=01a10b4e-815a-73f6-a8b9-5e5d6e3b6e89"; echo
+```
+
+```
+{"id":"01a10b4e-8179-7ea3-8421-973b86298b00","name":"oncall","description":null,"parent_id":"01a10b4e-815a-73f6-a8b9-5e5d6e3b6e89","default_for_new_subjects":false,"path":"/ops/oncall","created_at":"2026-10-05T09:04:16.759Z","admin_reach":["view-audit"],"subtree_admin_reach":["manage-keys","view-audit"]}
+{"items":[{"id":"01a10b4e-8179-7ea3-8421-973b86298b00","name":"oncall","description":null,"parent_id":"01a10b4e-815a-73f6-a8b9-5e5d6e3b6e89","default_for_new_subjects":false,"path":"/ops/oncall","created_at":"2026-10-05T09:04:16.759Z","admin_reach":["view-audit"]}]}
+```
+
+### A reparent onto a name already taken
+
+A move rewrites the group's `path`, so a parent already holding a group of
+the same name refuses it with `409`, before anything is written — the same
+refusal `POST /groups` gives for the same name. On the same stack, with a
+`/finance/oncall` made there beside `/ops/oncall`, then the group read back:
+
+```bash
+curl -sS -D - -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{{"parent_id":"{ids['FIN']}"}}' $P/groups/{ids['ONCALL']}
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/groups/{ids['ONCALL']} | jq -c '{{path, parent_id}}'
+```
+
+```
+HTTP/1.1 409 Conflict
+{"type":"about:blank","title":"Conflict","status":409,"detail":"a group named \"oncall\" already exists there","instance":"01a10b4e-a109-7562-8528-990e8a088db9"}
+{"path":"/ops/oncall","parent_id":"01a10b4e-815a-73f6-a8b9-5e5d6e3b6e89"}
 ```
 
 ## `GET /groups/:id/roles` and `PUT /groups/:id/roles`

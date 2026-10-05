@@ -7,8 +7,9 @@ import {
   idSchema,
   searchPrefixSchema,
 } from '#/admin/shared';
+import { adminReachSchema } from '#/admin/roles';
 
-export const groupSchema = z.object({
+export const groupFieldsSchema = z.object({
   id: idSchema,
   name: z.string(),
   description: z.string().nullable(),
@@ -17,7 +18,16 @@ export const groupSchema = z.object({
   path: z.string(),
   created_at: createdAtSchema,
 });
+export type GroupFields = z.infer<typeof groupFieldsSchema>;
+
+// `admin_reach` is what membership hands out: the group's roles and every
+// ancestor's. A group's own record adds what deleting it would take away,
+// its whole subtree's included.
+export const groupSchema = groupFieldsSchema.extend({ admin_reach: adminReachSchema });
 export type Group = z.infer<typeof groupSchema>;
+
+export const groupRecordSchema = groupSchema.extend({ subtree_admin_reach: adminReachSchema });
+export type GroupRecord = z.infer<typeof groupRecordSchema>;
 
 // One level of the tree: the children of the group `parent` names, or the
 // groups with no parent at all under `root`.
@@ -75,6 +85,6 @@ export const setSubjectGroupsRequestSchema = z.object({
 export type SetSubjectGroupsRequest = z.infer<typeof setSubjectGroupsRequestSchema>;
 
 export const setSubjectGroupsResponseSchema = z.object({
-  items: z.array(groupSchema),
+  items: z.array(groupFieldsSchema),
 });
 export type SetSubjectGroupsResponse = z.infer<typeof setSubjectGroupsResponseSchema>;

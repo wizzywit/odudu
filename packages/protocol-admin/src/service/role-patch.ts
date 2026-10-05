@@ -17,6 +17,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
   client_key:
     'client_key is the owning client\u2019s own client_id, read from that client; it follows client_id',
   created_at: 'created_at is history',
+  admin_reach:
+    'admin_reach is derived from the roles this role nests; change its composites instead',
 };
 
 export function refusalFor(field: string): string | null {

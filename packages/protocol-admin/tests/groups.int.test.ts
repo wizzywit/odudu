@@ -6,12 +6,13 @@ import {
   TENANT_ADMIN,
   TENANT_CAPABILITIES,
 } from '@odudu/domain-tenant';
-import { type Group } from '@odudu/contracts/admin';
+import { type GroupFields } from '@odudu/contracts/admin';
 import { newId } from '@odudu/kernel';
 import { sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { etagOf } from '#/service/etag';
+import { storedFields } from '#/testing/stored-fields';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 import {
   amendGroup,
@@ -162,7 +163,7 @@ describe('GET /admin/tenants/{t}/groups/{id}', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.headers.etag).toBe(etagOf(res.json()));
+    expect(res.headers.etag).toBe(etagOf(storedFields(res.json())));
   });
 
   it('404s an id no group holds', async () => {
@@ -712,7 +713,7 @@ async function makeGroup(
   tenantId: string,
   name: string,
   audit: (tx: TenantScopedDatabase, e: GroupAuditEvent) => Promise<void> = () => Promise.resolve(),
-): Promise<Group> {
+): Promise<GroupFields> {
   const outcome = await withTenant(fixture.app.db, tenantId, (tx) =>
     createGroup(
       tx,

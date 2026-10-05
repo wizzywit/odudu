@@ -1,11 +1,11 @@
-import { groupSchema } from '@odudu/contracts/admin';
+import { groupRecordSchema } from '@odudu/contracts/admin';
 
 // The real field list a group's wire shape carries, not a hand-kept
-// restatement of it — a field added to `groupSchema` (@odudu/contracts)
+// restatement of it — a field added to `groupRecordSchema` (@odudu/contracts)
 // shows up here without this file changing, so the "accounts for every
 // field" test below (group-patch.test.ts) actually exercises the contract
 // rather than a copy of it.
-export const GROUP_FIELDS: readonly string[] = Object.keys(groupSchema.shape);
+export const GROUP_FIELDS: readonly string[] = Object.keys(groupRecordSchema.shape);
 
 const REFUSALS: Readonly<Record<string, string>> = {
   id: 'identity: changing it breaks every group_roles and subject_groups edge naming this group',
@@ -18,6 +18,10 @@ const REFUSALS: Readonly<Record<string, string>> = {
   default_for_new_subjects:
     'default_for_new_subjects changes who joins a group silently at signup; set it with PUT /admin/tenants/{tenant}/groups/{id}/default, not a general amendment',
   created_at: 'created_at is history',
+  admin_reach:
+    'admin_reach is derived from the roles this group and every group above it map; change those instead',
+  subtree_admin_reach:
+    'subtree_admin_reach is derived from the roles mapped in and above this group\u2019s subtree; change those instead',
 };
 
 export function refusalFor(field: string): string | null {

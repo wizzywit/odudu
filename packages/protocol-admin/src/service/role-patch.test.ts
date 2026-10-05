@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { AMENDABLE_ROLE_FIELDS, refusalFor, ROLE_FIELDS } from '#/service/role-patch';
 
 describe('the role amendment allowlist', () => {
+  it('refuses the derived reach field, which no write sets', () => {
+    expect(ROLE_FIELDS).toContain('admin_reach');
+    expect(refusalFor('admin_reach')).toMatch(/derived/u);
+  });
+
   it('admits only description', () => {
     expect(AMENDABLE_ROLE_FIELDS).toEqual(['description']);
   });

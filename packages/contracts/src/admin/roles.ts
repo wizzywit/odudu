@@ -6,12 +6,18 @@ import {
   idSchema,
   searchPrefixSchema,
 } from '#/admin/shared';
+import { ADMIN_CAPABILITIES } from '#/admin/whoami';
+
+// The admin capabilities a role or group hands out, however deep it nests
+// them, as the capability ceiling (ADR 0040) judges them; derived on every
+// read, never stored, and outside the ETag.
+export const adminReachSchema = z.array(z.enum(ADMIN_CAPABILITIES));
 
 // `client_id` null means a tenant role; non-null means one scoped to that
 // client, whose qualified name (packages/domain-authz's qualifiedRoleName)
 // is what a token actually carries. `client_key` is that client's own
 // `client_id`, the name a person tells it apart by.
-export const roleSchema = z.object({
+export const roleFieldsSchema = z.object({
   id: idSchema,
   name: z.string(),
   description: z.string().nullable(),
@@ -20,6 +26,9 @@ export const roleSchema = z.object({
   default_for_new_subjects: z.boolean(),
   created_at: createdAtSchema,
 });
+export type RoleFields = z.infer<typeof roleFieldsSchema>;
+
+export const roleSchema = roleFieldsSchema.extend({ admin_reach: adminReachSchema });
 export type Role = z.infer<typeof roleSchema>;
 
 // `client` narrows to one owner: `tenant` for the tenant roles, or a

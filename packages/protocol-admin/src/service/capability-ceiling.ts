@@ -1,3 +1,4 @@
+import { ADMIN_CAPABILITIES } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
   ancestorsOf,
@@ -249,4 +250,98 @@ export async function hasEnabledHolder(tx: TenantScopedDatabase, name: string): 
     `),
   );
   return rows[0]?.held ?? false;
+}
+
+const reachRowsSchema = z.array(z.object({ root: z.string(), name: z.string() }));
+
+// Each root's capabilities in the admin vocabulary's own order, every root
+// answered, an empty list where it reaches none.
+function reachByRoot(
+  roots: readonly string[],
+  rows: z.infer<typeof reachRowsSchema>,
+): ReadonlyMap<string, readonly string[]> {
+  return new Map(
+    roots.map((root) => {
+      const names = new Set(rows.filter((row) => row.root === root).map((row) => row.name));
+      return [root, ADMIN_CAPABILITIES.filter((name) => names.has(name))];
+    }),
+  );
+}
+
+function idList(ids: readonly string[]): SQL {
+  return sql.join(
+    ids.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+}
+
+// The admin capabilities in a closure of (root, role_id) rows, by root.
+function capabilitiesIn(closure: SQL): SQL {
+  return sql`${closure}
+    SELECT c.root::text AS root, r.name AS name
+    FROM closure c
+    JOIN roles r ON r.id = c.role_id
+    JOIN clients cl ON cl.id = r.client_id
+    WHERE cl.client_id = ${ADMIN_CLIENT_ID}
+      AND r.name IN (${sql.join(
+        ADMIN_CAPABILITIES.map((name) => sql`${name}`),
+        sql`, `,
+      )})`;
+}
+
+/**
+ * `capabilitiesReachableFrom` for each of `roleIds` on its own, in one query
+ * for a whole page: what a role's `admin_reach` reports, and so what every
+ * ceiling on a write naming it will judge.
+ */
+export async function adminReachOfRoles(
+  tx: TenantScopedDatabase,
+  roleIds: readonly string[],
+): Promise<ReadonlyMap<string, readonly string[]>> {
+  if (roleIds.length === 0) return new Map();
+  const rows = await tx.execute(
+    capabilitiesIn(sql`
+      WITH RECURSIVE closure(root, role_id) AS (
+        SELECT id, id FROM roles WHERE id IN (${idList(roleIds)})
+        UNION
+        SELECT c.root, rc.child_role_id
+        FROM role_composites rc JOIN closure c ON rc.parent_role_id = c.role_id
+      )`),
+  );
+  return reachByRoot(roleIds, reachRowsSchema.parse(rows));
+}
+
+/**
+ * `capabilitiesOfGroupsAndAncestors` for each of `groupIds` on its own, in
+ * one query for a whole page: what membership of each hands out.
+ */
+export async function adminReachOfGroups(
+  tx: TenantScopedDatabase,
+  groupIds: readonly string[],
+): Promise<ReadonlyMap<string, readonly string[]>> {
+  if (groupIds.length === 0) return new Map();
+  const rows = await tx.execute(
+    capabilitiesIn(sql`
+      WITH RECURSIVE chain(root, id, parent_id) AS (
+        SELECT id, id, parent_id FROM groups WHERE id IN (${idList(groupIds)})
+        UNION
+        SELECT ch.root, g.id, g.parent_id FROM groups g JOIN chain ch ON g.id = ch.parent_id
+      ),
+      closure(root, role_id) AS (
+        SELECT ch.root, gr.role_id FROM chain ch JOIN group_roles gr ON gr.group_id = ch.id
+        UNION
+        SELECT c.root, rc.child_role_id
+        FROM role_composites rc JOIN closure c ON rc.parent_role_id = c.role_id
+      )`),
+  );
+  return reachByRoot(groupIds, reachRowsSchema.parse(rows));
+}
+
+/** `capabilitiesOfSubtree` in the admin vocabulary's order: a group record's `subtree_admin_reach`. */
+export async function subtreeAdminReach(
+  tx: TenantScopedDatabase,
+  groupId: string,
+): Promise<readonly string[]> {
+  const reached = await capabilitiesOfSubtree(tx, groupId);
+  return ADMIN_CAPABILITIES.filter((name) => reached.has(name));
 }

@@ -1,4 +1,4 @@
-import { type ListRolesQuery, type Role } from '@odudu/contracts/admin';
+import { type ListRolesQuery, type RoleFields } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
@@ -53,7 +53,7 @@ interface RoleRow {
   createdAt: Date;
 }
 
-export function roleWireShape(role: RoleRow, clientKey: string | null): Role {
+export function roleWireShape(role: RoleRow, clientKey: string | null): RoleFields {
   return {
     id: role.id,
     name: role.name,
@@ -69,7 +69,7 @@ export function roleWireShape(role: RoleRow, clientKey: string | null): Role {
 export async function rolesWire(
   tx: TenantScopedDatabase,
   rows: readonly RoleRow[],
-): Promise<Role[]> {
+): Promise<RoleFields[]> {
   const ids = [...new Set(rows.flatMap((row) => (row.clientId === null ? [] : [row.clientId])))];
   const keys =
     ids.length === 0
@@ -87,7 +87,7 @@ export async function rolesWire(
   );
 }
 
-async function roleWire(tx: TenantScopedDatabase, row: RoleRow): Promise<Role> {
+async function roleWire(tx: TenantScopedDatabase, row: RoleRow): Promise<RoleFields> {
   const [wire] = await rolesWire(tx, [row]);
   if (wire === undefined) throw new Error(`role ${row.id} has no wire shape`);
   return wire;
@@ -105,7 +105,7 @@ export interface ListRolesInput {
 }
 
 export type ListRolesOutcome =
-  { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly Role[]; next: string | null };
+  { kind: 'invalid_cursor' } | { kind: 'ok'; items: readonly RoleFields[]; next: string | null };
 
 function roleOwnerConditions(filters: RoleFilters): SQL[] {
   if (filters.client === undefined) return [];
@@ -184,7 +184,7 @@ export async function listRoles(
   return { kind: 'ok', items: await rolesWire(tx, page), next };
 }
 
-export type ReadRoleOutcome = { kind: 'not_found' } | { kind: 'ok'; role: Role };
+export type ReadRoleOutcome = { kind: 'not_found' } | { kind: 'ok'; role: RoleFields };
 
 export async function readRole(tx: TenantScopedDatabase, roleId: string): Promise<ReadRoleOutcome> {
   const role = await roleRepository(tx).byId(roleId);
@@ -209,7 +209,7 @@ export interface CreateRoleDeps {
 export type CreateRoleOutcome =
   | { kind: 'unknown_client' }
   | { kind: 'default_on_admin_client'; adminClient: string }
-  | { kind: 'ok'; role: Role };
+  | { kind: 'ok'; role: RoleFields };
 
 export async function createRole(
   tx: TenantScopedDatabase,
@@ -284,7 +284,7 @@ export type AmendRoleOutcome =
   | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
   | { kind: 'precondition_failed' }
-  | { kind: 'ok'; role: Role; etag: string };
+  | { kind: 'ok'; role: RoleFields; etag: string };
 
 // Wrapped in `{ value }` rather than the bare type — see `SubjectPatch`
 // (#/usecase/subjects.ts) for why: it tells "cleared to null" apart from
@@ -490,11 +490,14 @@ async function deleteRoleUnguarded(
 
 // A role's direct composites as `GET …/composites` answers them, and what the
 // `ETag` on that read and on every composite write is taken over.
-async function compositesOf(tx: TenantScopedDatabase, roleId: string): Promise<readonly Role[]> {
+async function compositesOf(
+  tx: TenantScopedDatabase,
+  roleId: string,
+): Promise<readonly RoleFields[]> {
   return rolesWire(tx, await roleRepository(tx).directComposites(roleId));
 }
 
-function compositesEtag(items: readonly Role[]): string {
+function compositesEtag(items: readonly RoleFields[]): string {
   return etagOf({ items });
 }
 
@@ -648,7 +651,7 @@ export async function addRoleComposite(
 }
 
 export type ListRoleCompositesOutcome =
-  { kind: 'not_found' } | { kind: 'ok'; items: readonly Role[]; etag: string };
+  { kind: 'not_found' } | { kind: 'ok'; items: readonly RoleFields[]; etag: string };
 
 export async function listRoleComposites(
   tx: TenantScopedDatabase,
@@ -786,7 +789,7 @@ export interface SetRoleDefaultDeps {
 export type SetRoleDefaultOutcome =
   | { kind: 'not_found' }
   | { kind: 'default_role_capability'; capabilities: readonly string[] }
-  | { kind: 'ok'; role: Role; etag: string }
+  | { kind: 'ok'; role: RoleFields; etag: string }
   | { kind: 'precondition_failed' };
 
 // Stricter than the capability ceiling `addRoleComposite` applies, and so
@@ -821,7 +824,7 @@ export async function setRoleDefault(
   }
 
   await roleRepository(tx).setDefaultForNewSubjects(input.roleId, input.value);
-  const after: Role = { ...before, default_for_new_subjects: input.value };
+  const after: RoleFields = { ...before, default_for_new_subjects: input.value };
 
   await deps.audit(tx, {
     action: 'role.default_set',
