@@ -1,5 +1,15 @@
-import type { CountResponse, Settings, SigningKey, SmtpConfig } from '@odudu/contracts/admin';
+import type {
+  AuditEvent,
+  CountResponse,
+  Settings,
+  SigningKey,
+  SmtpConfig,
+} from '@odudu/contracts/admin';
+import { holds, readable } from '#/shared/service/access.ts';
+import { isRefused } from '#/shared/service/failure.ts';
 import { readyToPromote } from '#/shared/service/keyPromotion.ts';
+import type { AdminCapability, Authority } from '#/shared/service/principal.ts';
+import type { GatewayResult } from '#/shared/service/result.ts';
 
 export interface Discovery {
   issuer: string;
@@ -214,4 +224,236 @@ export interface KeysView {
   raw: string;
   // The capability the keys' lanes need, when it is not held.
   lanesNeed: string | null;
+}
+
+export type Collection = 'subjects' | 'clients' | 'groups' | 'roles' | 'scopes';
+
+export interface OverviewAsks {
+  discovery: boolean;
+  subjects: boolean;
+  clients: boolean;
+  groups: boolean;
+  roles: boolean;
+  scopes: boolean;
+  settings: boolean;
+  smtp: boolean;
+  keys: boolean;
+  audit: boolean;
+}
+
+export type ReadName = keyof OverviewAsks | 'jwks';
+
+export interface OverviewReads {
+  discovery: Read<Discovery>;
+  jwks: Read<Jwks>;
+  counts: Readonly<Record<Collection, Read<CountResponse>>>;
+  settings: Read<Settings>;
+  smtp: Read<SmtpConfig>;
+  keys: Read<readonly SigningKey[]>;
+  audit: Read<readonly AuditEvent[]>;
+}
+
+// What an area is called, needs and is addressed by; the overview links to
+// areas it does not own.
+export interface Place {
+  label: string;
+  capability: AdminCapability | null;
+  href: string;
+}
+
+export type AreaOf = (path: string) => Place;
+
+export function readOutcome<T>(
+  asked: boolean,
+  result: GatewayResult<T> | undefined,
+  retry: () => void,
+): Read<T> {
+  if (!asked) return { status: 'off' };
+  if (result === undefined) return { status: 'loading' };
+  if (result.ok) return { status: 'ready', data: result.data };
+  return { status: 'failed', refused: isRefused(result), retry };
+}
+
+export function mapRead<T, U>(read: Read<T>, map: (data: T) => U): Read<U> {
+  return read.status === 'ready' ? { status: 'ready', data: map(read.data) } : read;
+}
+
+export function readyData<T>(read: Read<T>): T | undefined {
+  return read.status === 'ready' ? read.data : undefined;
+}
+
+// Before whoami answers a read is `off` and shows as loading; after, one
+// whose capability is not held, or that the server refused, names it.
+export function gate<T>(
+  read: Read<T>,
+  authority: Authority | undefined,
+  capability: AdminCapability | null,
+): Gated<T> {
+  if (capability === null) return read;
+  const refused = read.status === 'failed' && read.refused;
+  if ((authority !== undefined && !holds(authority, capability)) || refused) {
+    return { status: 'needs', capability };
+  }
+  return read;
+}
+
+// What each read needs; the tenant's public documents need no capability.
+const NEEDS: Readonly<Record<ReadName, AdminCapability | null>> = {
+  discovery: null,
+  jwks: null,
+  subjects: 'view-users',
+  clients: 'manage-clients',
+  groups: 'manage-tenant',
+  roles: 'manage-tenant',
+  scopes: 'manage-tenant',
+  settings: 'manage-tenant',
+  smtp: 'manage-tenant',
+  keys: 'manage-keys',
+  audit: 'view-audit',
+};
+
+export function readCapability(name: ReadName): AdminCapability | null {
+  return NEEDS[name];
+}
+
+// A read the capability allows, once whoami has said what is held; the
+// public documents are asked for as soon as the tenant is known to exist.
+export function overviewAsks(
+  authority: Authority | undefined,
+  tenantMissing: boolean | undefined,
+): OverviewAsks {
+  const has = (name: ReadName): boolean => {
+    const capability = NEEDS[name];
+    return authority !== undefined && capability !== null && holds(authority, capability);
+  };
+  return {
+    discovery: tenantMissing === false,
+    subjects: has('subjects'),
+    clients: has('clients'),
+    groups: has('groups'),
+    roles: has('roles'),
+    scopes: has('scopes'),
+    settings: has('settings'),
+    smtp: has('smtp'),
+    keys: has('keys'),
+    audit: has('audit'),
+  };
+}
+
+export function keysView(reads: OverviewReads, authority: Authority | undefined): Read<KeysView> {
+  const keys = gate(reads.keys, authority, 'manage-keys');
+  const listed = keys.status === 'ready' ? keys.data : undefined;
+  return mapRead(reads.jwks, (jwks) => ({
+    rows: publishedKeys(jwks, listed),
+    raw: rawJson(jwks),
+    lanesNeed: keys.status === 'needs' ? keys.capability : null,
+  }));
+}
+
+const COUNTED = [
+  { id: 'subjects', noun: { one: 'subject', other: 'subjects' } },
+  { id: 'clients', noun: { one: 'client', other: 'clients' } },
+  { id: 'groups', noun: { one: 'group', other: 'groups' } },
+  { id: 'roles', noun: { one: 'role', other: 'roles' } },
+  { id: 'scopes', noun: { one: 'scope', other: 'scopes' } },
+] as const;
+
+// A tile links to its area, so one the rail leaves out is left out here.
+export function countTiles(
+  reads: OverviewReads,
+  authority: Authority | undefined,
+  areaOf: AreaOf,
+): CountTile[] {
+  const cap = readyData(reads.settings)?.max_clients;
+  return COUNTED.flatMap(({ id, noun }) => {
+    const place = areaOf(id);
+    if (!readable(authority, place.capability)) return [];
+    return [
+      {
+        id,
+        label: place.label,
+        href: place.href,
+        noun,
+        count: gate(reads.counts[id], authority, place.capability),
+        limit: id === 'clients' && typeof cap === 'number' ? cap : undefined,
+      },
+    ];
+  });
+}
+
+export interface AttentionData extends Omit<AttentionState, 'retry'> {
+  // Asks again for each read that failed.
+  retries: readonly (() => void)[];
+}
+
+// The attention checks read settings and the SMTP relay, the signing keys,
+// and the client count.
+const CHECKED_WITH: readonly AdminCapability[] = ['manage-tenant', 'manage-keys', 'manage-clients'];
+
+export function attentionState(
+  reads: OverviewReads,
+  authority: Authority | undefined,
+  areaOf: AreaOf,
+  now: Date,
+): AttentionData {
+  const used = [reads.settings, reads.smtp, reads.keys, reads.counts.clients];
+  const unchecked = authority === undefined ? [] : CHECKED_WITH.filter((c) => !holds(authority, c));
+  const retries = used.flatMap((read) => (read.status === 'failed' ? [read.retry] : []));
+  const items = needsAttention({
+    settings: readyData(reads.settings),
+    smtp: readyData(reads.smtp),
+    keys: readyData(reads.keys),
+    clients: readyData(reads.counts.clients),
+    now,
+  }).map((item) => {
+    const place = areaOf(item.area);
+    return { ...item, href: place.href, place: place.label };
+  });
+  return {
+    status:
+      authority === undefined || used.some((read) => read.status === 'loading')
+        ? 'checking'
+        : 'ready',
+    items,
+    unchecked,
+    failed: retries.length > 0,
+    retries,
+  };
+}
+
+export function isClear(attention: Omit<AttentionState, 'retry'>): boolean {
+  return (
+    attention.status === 'ready' &&
+    attention.items.length === 0 &&
+    attention.unchecked.length === 0 &&
+    !attention.failed
+  );
+}
+
+// The latest audit rows are left off the page when the area is not the
+// caller's to read.
+export function auditView(
+  access: { kind: 'hidden' | 'checking' | 'refused' | 'open' },
+  audit: Read<readonly AuditEvent[]>,
+  authority: Authority | undefined,
+): Gated<readonly AuditEvent[]> | null {
+  return access.kind === 'refused' ? null : gate(audit, authority, 'view-audit');
+}
+
+export function laneText(lane: KeyLane): string {
+  return lane === 'unlisted' ? 'not in the key list' : lane;
+}
+
+export function unreadableTitle(what: string): string {
+  return `The ${what} could not be read`;
+}
+
+const NUMBER = new Intl.NumberFormat('en');
+
+export function limitText(limit: number): string {
+  return ` of ${NUMBER.format(limit)} allowed`;
+}
+
+export function countAgainLabel(noun: string): string {
+  return `Count ${noun} again`;
 }

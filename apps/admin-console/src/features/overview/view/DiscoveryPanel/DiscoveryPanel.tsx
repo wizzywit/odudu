@@ -1,10 +1,13 @@
 import { Fragment, useId, type ReactNode } from 'react';
-import type {
-  DiscoveryView,
-  KeyLane,
-  KeysView,
-  PublishedKey,
-  Read,
+import { flagText } from '#/shared/service/format.ts';
+import {
+  laneText,
+  unreadableTitle,
+  type DiscoveryView,
+  type KeyLane,
+  type KeysView,
+  type PublishedKey,
+  type Read,
 } from '#/features/overview/service.ts';
 import { Panel } from '#/features/overview/view/Panel';
 import { Button } from '#/shared/view/Button';
@@ -66,9 +69,7 @@ const COLUMNS: readonly Column<PublishedKey>[] = [
       key.lane === 'unknown' ? (
         <span className={styles.quiet}>not known</span>
       ) : (
-        <StatusTag tone={TONES[key.lane]}>
-          {key.lane === 'unlisted' ? 'not in the key list' : key.lane}
-        </StatusTag>
+        <StatusTag tone={TONES[key.lane]}>{laneText(key.lane)}</StatusTag>
       ),
   },
 ];
@@ -77,7 +78,7 @@ function Failed({ what, onRetry }: { what: string; onRetry: () => void }) {
   return (
     <EmptyState
       variant="failed"
-      title={`The ${what} could not be read`}
+      title={unreadableTitle(what)}
       action={<Button onPress={onRetry}>Try again</Button>}
     >
       The gateway did not answer, or answered with an error.
@@ -185,7 +186,7 @@ function Document({ view, keys }: { view: DiscoveryView; keys: Read<KeysView> })
               <dt>
                 <Name name={flag.name} />
               </dt>
-              <dd>{flag.value ? 'yes' : 'no'}</dd>
+              <dd>{flagText(flag.value, 'yes', 'no')}</dd>
             </div>
           ))}
         </dl>

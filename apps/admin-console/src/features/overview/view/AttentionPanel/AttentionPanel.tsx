@@ -1,5 +1,5 @@
 import { Link } from 'react-aria-components';
-import type { AttentionState } from '#/features/overview/service.ts';
+import { isClear, type AttentionState } from '#/features/overview/service.ts';
 import { Panel } from '#/features/overview/view/Panel';
 import { Button } from '#/shared/view/Button';
 import { ListSkeleton } from '#/shared/view/Skeleton';
@@ -7,7 +7,7 @@ import styles from '#/features/overview/view/AttentionPanel/AttentionPanel.modul
 
 export function AttentionPanel({ attention }: { attention: AttentionState }) {
   const { status, items, unchecked, failed } = attention;
-  const clear = status === 'ready' && items.length === 0 && unchecked.length === 0 && !failed;
+  const clear = isClear(attention);
   return (
     <Panel title="Needs attention">
       {status === 'checking' ? (

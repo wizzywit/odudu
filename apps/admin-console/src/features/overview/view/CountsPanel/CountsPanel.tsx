@@ -1,12 +1,10 @@
 import { Link, VisuallyHidden } from 'react-aria-components';
-import type { CountTile } from '#/features/overview/service.ts';
+import { countAgainLabel, limitText, type CountTile } from '#/features/overview/service.ts';
 import { Panel } from '#/features/overview/view/Panel';
 import { Button } from '#/shared/view/Button';
 import { Count } from '#/shared/view/Count';
 import { SkeletonBar } from '#/shared/view/Skeleton';
 import styles from '#/features/overview/view/CountsPanel/CountsPanel.module.css';
-
-const NUMBER = new Intl.NumberFormat('en');
 
 function Figure({ tile }: { tile: CountTile }) {
   const { count } = tile;
@@ -33,7 +31,7 @@ function Figure({ tile }: { tile: CountTile }) {
             size="small"
             variant="quiet"
             onPress={count.retry}
-            aria-label={`Count ${tile.noun.other} again`}
+            aria-label={countAgainLabel(tile.noun.other)}
           >
             Try again
           </Button>
@@ -44,7 +42,7 @@ function Figure({ tile }: { tile: CountTile }) {
         <span className={styles.figure}>
           <Count count={count.data.count} capped={count.data.capped} noun={tile.noun} />
           {tile.limit === undefined ? null : (
-            <span className={styles.quiet}>{` of ${NUMBER.format(tile.limit)} allowed`}</span>
+            <span className={styles.quiet}>{limitText(tile.limit)}</span>
           )}
         </span>
       );

@@ -10,7 +10,7 @@ import {
   type SmtpConfig,
 } from '@odudu/contracts/admin';
 import { z } from 'zod';
-import type { Discovery, Jwks } from '#/features/overview/service.ts';
+import type { Collection, Discovery, Jwks } from '#/features/overview/service.ts';
 import { readAuditPage } from '#/shared/adapter/audit.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 
@@ -33,8 +33,6 @@ const KEY_PAGE = 200;
 // A tenant holds a handful of keys; this bounds a cursor that never ends.
 const MAX_KEY_PAGES = 10;
 const LATEST_AUDIT = 5;
-
-export type Collection = 'subjects' | 'clients' | 'groups' | 'roles' | 'scopes';
 
 function tenantPath(tenant: string): string {
   return encodeURIComponent(tenant);

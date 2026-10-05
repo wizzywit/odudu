@@ -1,10 +1,3 @@
-import type {
-  AuditEvent,
-  CountResponse,
-  Settings,
-  SigningKey,
-  SmtpConfig,
-} from '@odudu/contracts/admin';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   readCount,
@@ -14,36 +7,17 @@ import {
   readLatestAudit,
   readSettings,
   readSmtp,
-  type Collection,
 } from '#/features/overview/adapter.ts';
-import type { Discovery, Jwks, Read } from '#/features/overview/service.ts';
+import {
+  readOutcome,
+  type Collection,
+  type OverviewAsks,
+  type OverviewReads,
+  type Read,
+  type ReadName,
+} from '#/features/overview/service.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
-
-export interface OverviewAsks {
-  discovery: boolean;
-  subjects: boolean;
-  clients: boolean;
-  groups: boolean;
-  roles: boolean;
-  scopes: boolean;
-  settings: boolean;
-  smtp: boolean;
-  keys: boolean;
-  audit: boolean;
-}
-
-export interface OverviewReads {
-  discovery: Read<Discovery>;
-  jwks: Read<Jwks>;
-  counts: Readonly<Record<Collection, Read<CountResponse>>>;
-  settings: Read<Settings>;
-  smtp: Read<SmtpConfig>;
-  keys: Read<readonly SigningKey[]>;
-  audit: Read<readonly AuditEvent[]>;
-}
-
-export type ReadName = keyof OverviewAsks | 'jwks';
 
 // Told of every answer as it arrives, so a refusal can be reported once per
 // answer rather than once per render.
@@ -68,17 +42,9 @@ function useTenantRead<T>(
     },
     enabled: asked,
   });
-  if (!asked) return { status: 'off' };
-  const result = query.data;
-  if (result === undefined) return { status: 'loading' };
-  if (result.ok) return { status: 'ready', data: result.data };
-  return {
-    status: 'failed',
-    refused: result.kind === 'problem' && result.problem.status === 403,
-    retry: () => {
-      client.invalidateQueries({ queryKey: key, exact: true }).catch(() => undefined);
-    },
-  };
+  return readOutcome(asked, query.data, () => {
+    client.invalidateQueries({ queryKey: key, exact: true }).catch(() => undefined);
+  });
 }
 
 export function useOverviewReads(
