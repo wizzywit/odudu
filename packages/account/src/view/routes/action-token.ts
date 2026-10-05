@@ -76,9 +76,6 @@ export interface ActionTokenRouteDeps {
   // Injected for the same reason: the subject's owed actions are
   // @odudu/authn-flows' table, which this package does not import.
   readonly addRequiredActions: CompleteRequiredActionsDeps['addRequiredActions'];
-  // A client and its redirect URIs are @odudu/domain-tenant's and
-  // @odudu/protocol-oidc's, which this package does not import either.
-  readonly redirectStillRegistered: CompleteRequiredActionsDeps['redirectStillRegistered'];
 }
 
 // @fastify/formbody parses a repeated query or body field into an array; a
@@ -128,7 +125,6 @@ async function completeActionsLink(
       unchangedPasswordViolations: deps.unchangedPasswordViolations,
       clearPasswordUpdateAction: deps.clearPasswordUpdateAction,
       addRequiredActions: deps.addRequiredActions,
-      redirectStillRegistered: deps.redirectStillRegistered,
     },
     key,
     password,

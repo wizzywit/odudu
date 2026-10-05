@@ -579,7 +579,7 @@ describe('a required-actions link, through the real composition root', () => {
     }
   });
 
-  it('offers the way back while the client registers it, and not once it is disabled', async () => {
+  it('never links back to the client from the page a finished link answers with', async () => {
     const tenantName = `actions-${newId()}`;
     const seeded = await seed({
       tenant: tenantName,
@@ -598,8 +598,11 @@ describe('a required-actions link, through the real composition root', () => {
         .where(and(eq(clients.tenantId, seeded.tenantId), eq(clients.clientId, 'reset-spa')))
     )[0];
     if (client === undefined) throw new Error('seed made no client');
-    const mint = () =>
-      withTenant(appDb.db, seeded.tenantId, (tx) =>
+
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      await withTenant(appDb.db, seeded.tenantId, (tx) =>
         enqueueActionsLink(
           tx,
           {
@@ -612,23 +615,12 @@ describe('a required-actions link, through the real composition root', () => {
           { actions: ['configure-totp'], redirectUri: REDIRECT_URI, redirectClientId: client.id },
         ),
       );
-
-    const app = buildTestApp();
-    await app.ready();
-    try {
-      await mint();
-      const live = capturingSender();
-      await drainOutbox(live);
-      const first = await submitActions(app, extractLink(live.sent[0] ?? fail()));
-      expect(first.body).toContain(`href="${REDIRECT_URI}"`);
-
-      await owner.db.update(clients).set({ enabled: false }).where(eq(clients.id, client.id));
-      await mint();
-      const disabled = capturingSender();
-      await drainOutbox(disabled);
-      const second = await submitActions(app, extractLink(disabled.sent[0] ?? fail()));
-      expect(second.statusCode).toBe(200);
-      expect(second.body).not.toContain('<a ');
+      const sender = capturingSender();
+      await drainOutbox(sender);
+      const done = await submitActions(app, extractLink(sender.sent[0] ?? fail()));
+      expect(done.statusCode).toBe(200);
+      expect(done.body).not.toContain('<a ');
+      expect(done.body).not.toContain(REDIRECT_URI);
     } finally {
       await app.close();
     }

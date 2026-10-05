@@ -4707,8 +4707,8 @@ a `client_id`, or a `client_id` without a `redirect_uri`, is refused the same
 way, naming `client_id`. The link's last page no longer links to it: that
 callback carries no `code` or `state`, which a client reads as a failed or
 forged one, so the page says to sign in to the application instead. The pair
-is still validated, stored with the link and named in the audit row, and is
-checked again when the link is followed. A client that does not exist and one that
+is still validated, stored with the link and named in the audit row, and
+nothing reads it back. A client that does not exist and one that
 never registered the URI get the same answer, so a caller with
 `manage-users` alone learns nothing about another client's registration
 from it, and both are checked only after the subject is found and the

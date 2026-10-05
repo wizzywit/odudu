@@ -74,12 +74,6 @@ export interface CompleteRequiredActionsDeps {
     tx: TenantScopedDatabase,
     subjectId: string,
   ) => Promise<void>;
-  /** Whether the client still registers the URI the link was minted to offer. */
-  readonly redirectStillRegistered: (
-    tx: TenantScopedDatabase,
-    clientId: string,
-    redirectUri: string,
-  ) => Promise<boolean>;
   /** Owes the subject each action, so its next sign-in asks for it. */
   readonly addRequiredActions: (
     tx: TenantScopedDatabase,
@@ -90,7 +84,7 @@ export interface CompleteRequiredActionsDeps {
 }
 
 export type CompleteRequiredActionsResult =
-  | { kind: 'done'; remaining: readonly string[]; redirectUri: string | null }
+  | { kind: 'done'; remaining: readonly string[] }
   | { kind: 'invalid' }
   | { kind: 'password_required' }
   | { kind: 'invalid_password'; violations: PolicyViolation[] };
@@ -149,16 +143,7 @@ export async function completeRequiredActions(
       const remaining = actions.filter((action) => action !== 'update-password');
       if (remaining.length > 0)
         await deps.addRequiredActions(tx, deps.tenantId, record.subjectId, remaining);
-      const { redirectUri, redirectClientId } = record;
-      const offered =
-        redirectUri !== null &&
-        redirectClientId !== null &&
-        (await deps.redirectStillRegistered(tx, redirectClientId, redirectUri));
-      return {
-        kind: 'done',
-        remaining: remaining.map(actionLabel),
-        redirectUri: offered ? redirectUri : null,
-      };
+      return { kind: 'done', remaining: remaining.map(actionLabel) };
     },
     deps.request,
   );

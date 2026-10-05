@@ -24,12 +24,10 @@ import {
   userRepository,
   verifyPassword,
 } from '@odudu/domain-identity';
-import { clientRepository } from '@odudu/domain-tenant';
 import { DEFAULT_CONSOLE_DIR, DEFAULT_OUTBOX_MAX_ATTEMPTS, newId } from '@odudu/kernel';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
-  clientOidcConfigRepository,
   oidcRoutes,
   standardClaimMappers,
   type AuditRefusalBudget,
@@ -383,13 +381,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     },
     clearPasswordUpdateAction: (tx, subjectId) =>
       requiredActionRepository(tx).complete(subjectId, 'update-password'),
-    // A disabled client's way back is not offered either.
-    redirectStillRegistered: async (tx, clientId, redirectUri) => {
-      const client = await clientRepository(tx).byId(clientId);
-      if (client?.enabled !== true) return false;
-      const config = await clientOidcConfigRepository(tx).byClientId(clientId);
-      return (config?.redirectUris ?? []).includes(redirectUri);
-    },
     addRequiredActions: async (tx, tenantId, subjectId, actions) => {
       for (const action of actions) {
         await requiredActionRepository(tx).add(tenantId, subjectId, action);
