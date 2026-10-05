@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { isRefused } from '#/shared/service/failure.ts';
 import type { GatewayResult } from '#/shared/transport/gateway.ts';
 
 // `refused` is a 403: the read needs a capability the caller lacks.
@@ -20,7 +21,7 @@ export function useSubjectRead<T>(
   if (result.ok) return { status: 'ready', data: result.data };
   return {
     status: 'failed',
-    refused: result.kind === 'problem' && result.problem.status === 403,
+    refused: isRefused(result),
     retry: () => {
       client.invalidateQueries({ queryKey: key, exact: true }).catch(() => undefined);
     },

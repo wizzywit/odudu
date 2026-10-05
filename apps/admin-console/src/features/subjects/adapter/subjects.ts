@@ -82,7 +82,8 @@ export function amendSubject(
   const t = path(tenant);
   const id = segment(subjectId);
   return gateway.request('PATCH', `admin/tenants/${t}/subjects/${id}`, {
-    body: changes,
+    // The server keeps no empty email, so an emptied one is cleared.
+    body: changes.email === '' ? { ...changes, email: null } : changes,
     ifMatch,
     schema: subjectSchema,
   });
@@ -120,7 +121,10 @@ export function amendProfile(
   const t = path(tenant);
   const id = segment(subjectId);
   return gateway.request('PATCH', `admin/tenants/${t}/subjects/${id}/profile`, {
-    body: changes,
+    // A claim the form holds as '' is one the subject does not have.
+    body: Object.fromEntries(
+      Object.entries(changes).map(([claim, value]) => [claim, value === '' ? null : value]),
+    ),
     ifMatch,
     schema: profileSchema,
   });
@@ -197,4 +201,20 @@ export async function readUsernameEditable(
     schema: usernamePolicySchema,
   });
   return result.ok ? { ...result, data: result.data.username_editable } : result;
+}
+
+export type CredentialChange =
+  { kind: 'factor'; credentialId: string } | { kind: 'recovery-codes' } | { kind: 'lockout' };
+
+export function changeCredential(
+  gateway: Gateway,
+  tenant: string,
+  subjectId: string,
+  change: CredentialChange,
+): Promise<GatewayResult<undefined>> {
+  if (change.kind === 'factor') {
+    return deleteCredential(gateway, tenant, subjectId, change.credentialId);
+  }
+  if (change.kind === 'recovery-codes') return revokeRecoveryCodes(gateway, tenant, subjectId);
+  return clearLockout(gateway, tenant, subjectId);
 }

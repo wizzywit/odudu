@@ -2,6 +2,9 @@ import type { SendActionsEmailRequest } from '@odudu/contracts/admin';
 import { z } from 'zod';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 
+export type MailRequest =
+  { kind: 'reset' } | { kind: 'verification' } | { kind: 'actions'; body: SendActionsEmailRequest };
+
 // Each answers 202 with no body: the link is never in the response.
 const accepted = z.undefined();
 
@@ -41,4 +44,15 @@ export function sendActionsEmail(
     body,
     schema: accepted,
   });
+}
+
+export function sendMail(
+  gateway: Gateway,
+  tenant: string,
+  subjectId: string,
+  request: MailRequest,
+): Promise<GatewayResult<undefined>> {
+  if (request.kind === 'reset') return sendPasswordReset(gateway, tenant, subjectId);
+  if (request.kind === 'verification') return sendVerification(gateway, tenant, subjectId);
+  return sendActionsEmail(gateway, tenant, subjectId, request.body);
 }

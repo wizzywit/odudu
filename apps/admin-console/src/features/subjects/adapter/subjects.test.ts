@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import {
   amendProfile,
   amendSubject,
+  changeCredential,
   clearLockout,
   createSubject,
   deleteCredential,
@@ -77,6 +78,30 @@ it('reads a subject and its profile with their ETags, and amends each on one', a
   ]);
 });
 
+it('clears an emptied email or claim, as the server keeps no empty one', async () => {
+  const fake = fakeTransport({
+    [`PATCH ${T}/${ID}`]: json(ADA, 200, { etag: '"s2"' }),
+    [`PATCH ${T}/${ID}/profile`]: json(
+      fullProfile({ name: 'Ada', email_verified: true, phone_number_verified: false }),
+      200,
+      { etag: '"p2"' },
+    ),
+  });
+  const gateway = fake.transport.gateway;
+  await amendSubject(gateway, 'acme', ID, { username: 'ada', email: '' }, '"s1"');
+  await amendProfile(
+    gateway,
+    'acme',
+    ID,
+    { name: '', nickname: 'ada', email_verified: true },
+    '"p1"',
+  );
+  expect(fake.sent.map((sent) => sent.body)).toEqual([
+    { username: 'ada', email: null },
+    { name: null, nickname: 'ada', email_verified: true },
+  ]);
+});
+
 it('reaches the credential, lockout and deletion routes by the subject id', async () => {
   const fake = fakeTransport({
     [`GET ${T}/${ID}/credentials`]: json({ items: [] }),
@@ -101,6 +126,24 @@ it('reaches the credential, lockout and deletion routes by the subject id', asyn
   });
   expect(await clearLockout(gateway, 'acme', ID)).toMatchObject({ ok: true });
   expect(await deleteSubject(gateway, 'acme', ID)).toMatchObject({ ok: true });
+});
+
+it('sends a credential change to the route its kind names', async () => {
+  const gone = () => new Response(null, { status: 204 });
+  const fake = fakeTransport({
+    [`DELETE ${T}/${ID}/credentials/c1`]: gone,
+    [`DELETE ${T}/${ID}/recovery-codes`]: gone,
+    [`DELETE ${T}/${ID}/lockout`]: gone,
+  });
+  const gateway = fake.transport.gateway;
+  await changeCredential(gateway, 'acme', ID, { kind: 'factor', credentialId: 'c1' });
+  await changeCredential(gateway, 'acme', ID, { kind: 'recovery-codes' });
+  await changeCredential(gateway, 'acme', ID, { kind: 'lockout' });
+  expect(fake.sent.map((sent) => `${sent.method} ${sent.path.split(`${ID}/`)[1] ?? ''}`)).toEqual([
+    'DELETE credentials/c1',
+    'DELETE recovery-codes',
+    'DELETE lockout',
+  ]);
 });
 
 it('reads whether usernames can be renamed from the subjects’ username policy', async () => {

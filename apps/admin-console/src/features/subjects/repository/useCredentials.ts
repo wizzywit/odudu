@@ -6,11 +6,10 @@ import type {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSubjectRead, type Read } from '#/features/subjects/repository/useSubjectRead.ts';
 import {
-  clearLockout,
-  deleteCredential,
+  changeCredential,
   readCredentials,
   readLockout,
-  revokeRecoveryCodes,
+  type CredentialChange,
 } from '#/features/subjects/adapter/subjects.ts';
 import { issuePassword } from '#/shared/adapter/administrators.ts';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce.ts';
@@ -43,8 +42,7 @@ export function useLockout(tenant: string, id: string, asked: boolean): Read<Loc
   return useSubjectRead(lockoutKey(tenant, id), asked, () => readLockout(gateway, tenant, id));
 }
 
-export type CredentialChange =
-  { kind: 'factor'; credentialId: string } | { kind: 'recovery-codes' } | { kind: 'lockout' };
+export type { CredentialChange };
 
 export interface CredentialChanges {
   busy: boolean;
@@ -56,16 +54,7 @@ export function useCredentialChanges(tenant: string, id: string): CredentialChan
   const { gateway } = useTransport();
   const client = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (change: CredentialChange): Promise<GatewayResult<undefined>> => {
-      switch (change.kind) {
-        case 'factor':
-          return deleteCredential(gateway, tenant, id, change.credentialId);
-        case 'recovery-codes':
-          return revokeRecoveryCodes(gateway, tenant, id);
-        case 'lockout':
-          return clearLockout(gateway, tenant, id);
-      }
-    },
+    mutationFn: (change: CredentialChange) => changeCredential(gateway, tenant, id, change),
     onSettled: (_result, _error, change) => {
       const key = change.kind === 'lockout' ? lockoutKey(tenant, id) : credentialsKey(tenant, id);
       client.invalidateQueries({ queryKey: key, exact: true }).catch(() => undefined);

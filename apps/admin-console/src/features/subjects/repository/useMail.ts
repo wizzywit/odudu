@@ -1,15 +1,9 @@
-import type { SendActionsEmailRequest } from '@odudu/contracts/admin';
 import { useMutation } from '@tanstack/react-query';
-import {
-  sendActionsEmail,
-  sendPasswordReset,
-  sendVerification,
-} from '#/features/subjects/adapter/mail.ts';
+import { sendMail, type MailRequest } from '#/features/subjects/adapter/mail.ts';
 import type { GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
-export type MailRequest =
-  { kind: 'reset' } | { kind: 'verification' } | { kind: 'actions'; body: SendActionsEmailRequest };
+export type { MailRequest };
 
 export interface MailSend {
   busy: boolean;
@@ -20,16 +14,7 @@ export interface MailSend {
 export function useMailSend(tenant: string, id: string): MailSend {
   const { gateway } = useTransport();
   const mutation = useMutation({
-    mutationFn: (request: MailRequest) => {
-      switch (request.kind) {
-        case 'reset':
-          return sendPasswordReset(gateway, tenant, id);
-        case 'verification':
-          return sendVerification(gateway, tenant, id);
-        case 'actions':
-          return sendActionsEmail(gateway, tenant, id, request.body);
-      }
-    },
+    mutationFn: (request: MailRequest) => sendMail(gateway, tenant, id, request),
   });
   return { busy: mutation.isPending, send: (request) => mutation.mutateAsync(request) };
 }

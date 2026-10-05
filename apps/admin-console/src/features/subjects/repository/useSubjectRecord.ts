@@ -16,6 +16,7 @@ import {
 } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
 import { profileRecord, subjectRecord } from '#/features/subjects/service.ts';
+import { isStale } from '#/shared/service/failure.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
@@ -40,37 +41,16 @@ export interface AccountValues extends Readonly<Record<string, unknown>> {
   email: string;
 }
 
-// An emptied email is cleared, as the server keeps no empty one.
 export function saveAccount(tenant: string, id: string) {
   return (gateway: Gateway, { changes, ifMatch }: SaveInput<AccountValues>) =>
-    amendSubject(
-      gateway,
-      tenant,
-      id,
-      {
-        ...(changes.username === undefined ? {} : { username: changes.username }),
-        ...(changes.email === undefined
-          ? {}
-          : { email: changes.email === '' ? null : changes.email }),
-      },
-      ifMatch,
-    );
+    amendSubject(gateway, tenant, id, changes, ifMatch);
 }
 
 export type ClaimValues = Readonly<Record<string, string>>;
 
-// A claim the form holds as '' is one the subject does not have.
 export function saveClaims(tenant: string, id: string) {
   return (gateway: Gateway, { changes, ifMatch }: SaveInput<ClaimValues>) =>
-    amendProfile(
-      gateway,
-      tenant,
-      id,
-      Object.fromEntries(
-        Object.entries(changes).map(([claim, value]) => [claim, value === '' ? null : value]),
-      ),
-      ifMatch,
-    );
+    amendProfile(gateway, tenant, id, changes, ifMatch);
 }
 
 export interface VerificationValues extends Readonly<Record<string, unknown>> {
@@ -106,7 +86,7 @@ export function useSubjectEnabled(
     onSuccess: (result) => {
       if (result.ok) {
         client.setQueryData<RecordEntry<Subject>>(key, { result, by: 'save' });
-      } else if (result.kind === 'problem' && result.problem.status === 412) {
+      } else if (isStale(result)) {
         client.invalidateQueries({ queryKey: key, exact: true }).catch(() => undefined);
       }
     },
