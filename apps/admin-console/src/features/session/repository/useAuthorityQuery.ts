@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { readAuthority } from '#/features/session/adapter/session.ts';
-import type { Authority } from '#/features/session/service.ts';
+import type { Authority } from '#/features/session/service';
 import { isUnknownTenant } from '#/shared/service/failure.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 

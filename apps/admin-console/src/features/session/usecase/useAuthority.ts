@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuthorityQuery } from '#/features/session/repository/useAuthorityQuery.ts';
-import { tenantMissing, type AdminCapability, type Authority } from '#/features/session/service.ts';
+import { tenantMissing, type AdminCapability, type Authority } from '#/features/session/service';
 import { useSignedIn } from '#/features/session/usecase/useSignedIn.ts';
 import { isRefused } from '#/shared/service/failure.ts';
 import type { GatewayResult } from '#/shared/transport/gateway.ts';

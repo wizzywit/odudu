@@ -14,7 +14,7 @@ import {
   tenantPage,
   tenantProblem,
   type Principal,
-} from '#/features/session/service.ts';
+} from '#/features/session/service';
 import { useSignedIn } from '#/features/session/usecase/useSignedIn.ts';
 import { useSignIn } from '#/features/session/usecase/useSignIn.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';

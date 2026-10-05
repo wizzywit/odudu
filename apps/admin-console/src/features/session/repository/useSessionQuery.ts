@@ -10,7 +10,7 @@ import {
   shownPrincipal,
   type Principal,
   type SessionRead,
-} from '#/features/session/service.ts';
+} from '#/features/session/service';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 import type { Gateway } from '#/shared/transport/gateway.ts';

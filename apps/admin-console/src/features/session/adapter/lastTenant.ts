@@ -1,4 +1,4 @@
-import { isTenantName } from '#/features/session/service.ts';
+import { isTenantName } from '#/features/session/service';
 
 const KEY = 'odudu.console.tenant';
 

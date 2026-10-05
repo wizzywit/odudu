@@ -1,5 +1,5 @@
 import { useSessionEvent, useSessionQuery } from '#/features/session/repository/useSessionQuery.ts';
-import { bootOf, draftOwner, shownPrincipal, type Principal } from '#/features/session/service.ts';
+import { bootOf, draftOwner, shownPrincipal, type Principal } from '#/features/session/service';
 import { useSignIn } from '#/features/session/usecase/useSignIn.ts';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';

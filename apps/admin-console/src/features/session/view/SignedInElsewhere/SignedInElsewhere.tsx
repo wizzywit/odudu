@@ -5,7 +5,7 @@ import {
   signInToLabel,
   tenantPage,
   type Principal,
-} from '#/features/session/service.ts';
+} from '#/features/session/service';
 import { SessionStatus } from '#/features/session/view/SessionStatus';
 import { Button } from '#/shared/view/Button';
 import styles from '#/features/session/view/SignedInElsewhere/SignedInElsewhere.module.css';

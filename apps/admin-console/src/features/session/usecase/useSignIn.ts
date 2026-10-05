@@ -1,5 +1,5 @@
 import { useLocation } from '@tanstack/react-router';
-import { loginUrl } from '#/features/session/service.ts';
+import { loginUrl } from '#/features/session/service';
 import { useLeaveConsole } from '#/shared/repository/useLeaveConsole.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 

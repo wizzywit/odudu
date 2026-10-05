@@ -1,4 +1,4 @@
-import { signingInText, signingInTitle } from '#/features/session/service.ts';
+import { signingInText, signingInTitle } from '#/features/session/service';
 import { SessionStatus } from '#/features/session/view/SessionStatus';
 
 export function SigningIn({ tenant, ended }: { tenant: string | null; ended: boolean }) {

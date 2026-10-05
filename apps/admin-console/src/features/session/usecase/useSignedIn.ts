@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { Principal } from '#/features/session/service.ts';
+import type { Principal } from '#/features/session/service';
 
 export interface SignedIn {
   principal: Principal | null;

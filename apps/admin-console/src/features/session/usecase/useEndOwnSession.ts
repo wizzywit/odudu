@@ -1,5 +1,5 @@
 import { useGatewaySessionEnd } from '#/features/session/repository/useGatewaySessionEnd.ts';
-import { CONSOLE_ROOT } from '#/features/session/service.ts';
+import { CONSOLE_ROOT } from '#/features/session/service';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import { useLeaveConsole } from '#/shared/repository/useLeaveConsole.ts';
 

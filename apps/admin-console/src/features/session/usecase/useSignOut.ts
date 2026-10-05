@@ -1,5 +1,5 @@
 import { useGatewaySignOut } from '#/features/session/repository/useGatewaySignOut.ts';
-import { SIGN_OUT_FAILED } from '#/features/session/service.ts';
+import { SIGN_OUT_FAILED } from '#/features/session/service';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 
