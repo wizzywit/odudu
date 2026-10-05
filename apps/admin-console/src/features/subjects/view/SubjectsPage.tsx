@@ -49,9 +49,13 @@ const STATUS = [
   { id: 'false', label: 'Disabled' },
 ];
 
+// `any` is the server's own value, the holders of at least one capability.
 const CAPABILITY = [
-  { id: 'any', label: 'Any capability' },
-  ...SUBJECT_CAPABILITY_FILTER.map((capability) => ({ id: capability, label: capability })),
+  { id: 'all', label: 'Holding anything or nothing' },
+  ...SUBJECT_CAPABILITY_FILTER.map((capability) => ({
+    id: capability,
+    label: capability === 'any' ? 'Any capability' : capability,
+  })),
 ];
 
 // Set from a role's or a group's own page; the id is all the list knows.
@@ -96,9 +100,9 @@ function List({ tenant }: { tenant: string }) {
             label="Capability"
             description="Held directly, through a group or nested in another role."
             options={CAPABILITY}
-            value={list.filters.capability ?? 'any'}
+            value={list.filters.capability ?? 'all'}
             onChange={(value) => {
-              list.setFilter('capability', value === 'any' ? null : value);
+              list.setFilter('capability', value === 'all' ? null : value);
             }}
           />
           {NARROWING.map(({ filter, phrase, all }) => {

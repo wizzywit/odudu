@@ -3,13 +3,9 @@ import {
   administratorCalls,
   administratorCapability,
   administratorNeeds,
-  administratorRoleIds,
   builtinAdminClient,
-  roleChangeNeeds,
   tenantAdminCarries,
   tenantAdminRole,
-  holdsDirectly,
-  withoutRoles,
   withRole,
 } from '#/shared/service/administrators.ts';
 
@@ -61,33 +57,6 @@ describe('what the guard counts', () => {
   });
 });
 
-describe('the roles that make an administrator', () => {
-  const roles = [
-    { id: 'r-admin', name: 'tenant-admin', client_id: 'c-builtin' },
-    { id: 'r-tenants', name: 'manage-tenants', client_id: 'c-builtin' },
-    { id: 'r-users', name: 'manage-users', client_id: 'c-builtin' },
-    { id: 'r-own', name: 'manage-tenants', client_id: 'c-own' },
-  ];
-
-  it("are the built-in client's tenant-admin and, in system, manage-tenants", () => {
-    expect(administratorRoleIds('system', roles, 'c-builtin')).toEqual(['r-admin', 'r-tenants']);
-    expect(administratorRoleIds('acme', roles, 'c-builtin')).toEqual(['r-admin']);
-  });
-
-  it('are taken out of what a subject holds, the rest kept in order', () => {
-    expect(withoutRoles(['r1', 'r-admin', 'r2', 'r-tenants'], ['r-admin', 'r-tenants'])).toEqual([
-      'r1',
-      'r2',
-    ]);
-  });
-
-  it("are held directly only when one of them is among the subject's own roles", () => {
-    expect(holdsDirectly(['r1', 'r-tenants'], ['r-admin', 'r-tenants'])).toBe(true);
-    expect(holdsDirectly(['r1', 'r2'], ['r-admin', 'r-tenants'])).toBe(false);
-    expect(holdsDirectly([], ['r-admin'])).toBe(false);
-  });
-});
-
 describe('what adding an administrator needs', () => {
   it('is what each call still to make needs, and for the grant all that tenant-admin carries', () => {
     const fresh = administratorNeeds('acme', { subjectId: null, granted: false });
@@ -112,12 +81,5 @@ describe('what adding an administrator needs', () => {
     expect([...chosen].sort()).toEqual(
       ['manage-clients', 'manage-users', 'view-audit', 'view-users'].sort(),
     );
-  });
-});
-
-describe('what giving or taking tenant-admin needs', () => {
-  it('is the grant requests and every capability the role carries', () => {
-    expect([...roleChangeNeeds('system')].sort()).toEqual([...tenantAdminCarries('system')].sort());
-    expect(roleChangeNeeds('acme')).not.toContain('manage-tenants');
   });
 });

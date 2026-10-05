@@ -1,7 +1,7 @@
 import {
   USERNAME_RULE,
   type Credential,
-  type EffectiveRoleAssignment,
+  type HeldAdminCapability,
   type Lockout,
   type Profile,
   type RequiredAction,
@@ -10,9 +10,9 @@ import {
 import type { Crumb } from '#/shared/service/breadcrumb.ts';
 import {
   holdingLabel,
+  includedBy,
   isAdminRole,
   isHolding,
-  provenanceText,
   type Holding,
 } from '#/shared/service/capabilities.ts';
 import { formatAbsolute } from '#/shared/service/format.ts';
@@ -286,28 +286,23 @@ export function splitRoles(items: readonly Assigned[]): SplitRoles {
 }
 
 export interface HeldLine {
-  holding: Holding;
+  holding: string;
   label: string;
   how: string;
 }
 
-// What a holder holds, leaving out what another of its holdings already
-// carries: tenant-admin's nested capabilities are said by "Full".
-export function heldSummary(effective: readonly EffectiveRoleAssignment[]): HeldLine[] {
-  const admin = effective.filter((role) => isAdminRole(role));
-  const names = new Set(admin.map((role) => role.name));
-  return admin.flatMap((role) => {
-    if (!isHolding(role.name)) return [];
-    const own = role.via.filter((via) => via.kind !== 'composite' || !names.has(via.parent_name));
-    if (own.length === 0) return [];
-    return [
-      {
-        holding: role.name,
-        label: holdingLabel(role.name),
-        how: own.map(provenanceText).join(', '),
-      },
-    ];
-  });
+// What a listed holder holds: Full collapses what it carries, and
+// manage-users view-users; which group or role carries the rest is the
+// open editor's to say.
+export function heldLines(held: readonly HeldAdminCapability[]): HeldLine[] {
+  const names = held.map((each) => each.name);
+  return held
+    .filter((each) => includedBy(each.name, names) === null)
+    .map((each) => ({
+      holding: each.name,
+      label: holdingLabel(each.name),
+      how: each.direct ? 'directly' : 'through a group or role',
+    }));
 }
 
 export interface MailRefusal {
@@ -345,24 +340,87 @@ export function signsInAsItself(subject: Pick<Subject, 'type'>): boolean {
 
 // What a 403 or the last-administrator 409 means for a change to what a
 // subject holds: a caller gives only what it holds itself, and reaches no
-// subject holding more (ADR 0040).
+// subject holding more (ADR 0040). The guard's own detail is kept.
 export function accessRefusal(
   name: string,
   what: 'groups' | 'roles' | 'actions',
-): (problem: { type: string; status: number }) => string | null {
+  self = false,
+): (problem: { type: string; status: number; detail?: string | undefined }) => string | null {
   return (problem) => {
     if (problem.status === 409 && problem.type === 'about:blank#last-administrator') {
-      return `${name} is the last enabled administrator here, and this would take that from them, so nothing was changed. Make somebody else an administrator first.`;
+      const who = self ? 'You are' : `${name} is`;
+      const detail = problem.detail === undefined ? '' : ` (${problem.detail})`;
+      return `${who} the last enabled administrator here, and this would take that away, so nothing was changed${detail}. Make somebody else an administrator first.`;
     }
     if (problem.status !== 403) return null;
-    const ceiling = `nor can you change a subject who holds a capability you do not (ADR 0040). It also needs manage-users.`;
+    const ceiling = `nor can you change a subject who holds a capability you do not. It also needs manage-users.`;
     switch (what) {
       case 'groups':
         return `Refused: a group's roles are granted with it, and you can grant only capabilities you hold yourself; ${ceiling}`;
       case 'roles':
         return `Refused: you can give or take only what you hold yourself, nested in a role or not; ${ceiling}`;
       case 'actions':
-        return `Refused: it needs manage-users, and ${name} may hold a capability you do not (ADR 0040).`;
+        return `Refused: it needs manage-users, and ${name} may hold a capability you do not.`;
     }
   };
+}
+
+// What this console stops offering once a holding is gone.
+const LOSS: Readonly<Record<Holding, string>> = {
+  'tenant-admin': 'everything Full carries',
+  'view-users': 'reading subjects',
+  'manage-users': 'changing subjects',
+  'manage-clients': 'changing clients',
+  'manage-tenant': "changing this tenant's settings, roles, groups and scopes",
+  'manage-keys': 'managing signing keys',
+  'manage-sessions': 'ending sessions and revoking grants',
+  'view-audit': 'reading the audit trail',
+  'manage-tenants': 'reaching every other tenant',
+};
+
+const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
+
+export interface Confirmation {
+  title: string;
+  consequence: string;
+  // Typed before it is confirmed, where the change reaches every tenant.
+  typed: string | null;
+}
+
+// Asked before a save that takes admin capabilities from yourself, or takes
+// manage-tenants from anybody: a plain save would land at once (§7.4).
+export function removalConfirmation({
+  name,
+  self,
+  removed,
+  removesTenants,
+}: {
+  name: string;
+  self: boolean;
+  removed: readonly Holding[];
+  removesTenants: boolean;
+}): Confirmation | null {
+  if (removed.length === 0 || (!self && !removesTenants)) return null;
+  const lost = AND.format(removed.map(holdingLabel));
+  const stops = AND.format(removed.map((holding) => LOSS[holding]));
+  if (removesTenants) {
+    return {
+      title: self
+        ? 'Revoke your own system administration?'
+        : `Take system administration from ${name}?`,
+      consequence: self
+        ? `You are taking ${lost} from yourself, and with manage-tenants every other tenant. Once it lands this console stops offering ${stops}, and only another system administrator can give it back.`
+        : `${name} loses ${lost}, and with manage-tenants every other tenant. Their other roles are kept; a holding through a group or a role that nests it stays until it is changed there.`,
+      typed: name,
+    };
+  }
+  return {
+    title: 'Remove your own admin capabilities?',
+    consequence: `You are taking ${lost} from yourself. Once it lands this console stops offering ${stops}, unless a group or another role still gives it to you, and you cannot give it back yourself.`,
+    typed: null,
+  };
+}
+
+export function onlyHolderText(name: string, tenant: string, counted: string): string {
+  return `${name} is the only enabled holder of ${counted}, so ${tenant} would be left with nobody holding it. Give it to somebody else first.`;
 }

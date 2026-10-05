@@ -48,7 +48,13 @@ function role(id: string, name: string) {
 function subjects(holders: readonly unknown[], others: readonly unknown[] = []): Answer {
   return (request) => {
     const username = request.search.get('username');
-    const all = request.search.get('capability') === null ? [...holders, ...others] : holders;
+    const all =
+      request.search.get('capability') === null
+        ? [...holders, ...others]
+        : holders.map((row) => ({
+            ...(row as object),
+            admin_capabilities: [{ name: 'tenant-admin', direct: true }],
+          }));
     const items = all.filter(
       (row) =>
         username === null ||
@@ -101,27 +107,31 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
-it('lists who holds manage-tenants in system, however they hold it', async () => {
+it('lists every holder of an admin capability in system, a page at a time', async () => {
   const { sent } = renderConsoleAt(AT, routes());
   expect(
     await screen.findByRole('heading', { level: 1, name: 'System administrators' }),
   ).toBeVisible();
-  const table = await screen.findByRole('grid', { name: 'System administrators' });
-  expect(within(table).getByText('ada')).toBeVisible();
-  expect(within(table).getByText('root')).toBeVisible();
-  expect(await screen.findByText('2 system administrators')).toBeVisible();
-  expect(screen.getByText(/directly, through a group or under another role/u)).toBeVisible();
-  const reads = sent.filter((s) => s.path === `${S}/subjects`);
-  // The list's own read, apart from the holders of every capability below it.
-  expect(reads.find((s) => s.search.get('limit') === null)?.search.get('capability')).toBe(
-    'manage-tenants',
-  );
+  const list = await screen.findByRole('list', { name: 'Administrators of system' });
+  expect(
+    within(list)
+      .getAllByRole('link')
+      .map((link) => link.textContent),
+  ).toEqual(['root', 'ada']);
+  expect(within(list).getAllByText('reaches every tenant')).toHaveLength(2);
+  expect(await screen.findByText('2 administrators')).toBeVisible();
+  expect(screen.getByText(/anything else held in system acts in system only/u)).toBeVisible();
+  const reads = sent.filter((s) => s.path === `${S}/subjects` && s.search.get('limit') === null);
+  expect(reads[0]?.search.get('capability')).toBe('any');
+  expect(screen.queryByRole('button', { name: /^Revoke/u })).toBeNull();
 });
 
 it("creates one through system's guided administrator step", async () => {
   const user = userEvent.setup();
   const { router } = renderConsoleAt(AT, routes());
-  const create = await screen.findByRole('button', { name: 'Create a system administrator' });
+  const create = await screen.findByRole('button', {
+    name: 'Create a new subject as an administrator',
+  });
   await waitFor(() => {
     expect(create).toBeEnabled();
   });
@@ -130,21 +140,16 @@ it("creates one through system's guided administrator step", async () => {
     await screen.findByRole('heading', { level: 1, name: 'Add a system administrator' }),
   ).toBeVisible();
   expect(router.state.location.pathname).toBe('/system/system-admins/new');
-  expect(
-    screen
-      .getByRole('navigation', { name: 'Areas of system' })
-      .querySelector('[aria-current="page"]'),
-  ).toHaveTextContent('System administrators');
   expect(sessionStorage.getItem(KEY)).toContain('"tenant":"system"');
 });
 
-it('grants tenant-admin to a subject chosen from system', async () => {
+it('gives a subject chosen from system Full, by default', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(AT, routes());
   const choose = await screen.findByRole('group', { name: 'Subject in system' });
   await user.type(within(choose).getByRole('searchbox'), 'gr{Enter}');
   await user.click(await within(choose).findByRole('option', { name: /grace/u }));
-  const grant = screen.getByRole('button', { name: 'Grant tenant-admin to grace' });
+  const grant = screen.getByRole('button', { name: 'Give it to grace' });
   await waitFor(() => {
     expect(grant).toBeEnabled();
   });
@@ -156,166 +161,51 @@ it('grants tenant-admin to a subject chosen from system', async () => {
       body: { role_ids: ['reader', 'r-admin'] },
     });
   });
-  expect(await screen.findByText('grace is now a system administrator.')).toBeVisible();
+  expect(await screen.findByText('grace now holds Full (tenant-admin) in system.')).toBeVisible();
 });
 
-it('marks a subject who already holds it, from the list it already read', async () => {
+it('gives a chosen set of capabilities instead of Full', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(AT, routes());
-  await screen.findByRole('grid', { name: 'System administrators' });
   const choose = await screen.findByRole('group', { name: 'Subject in system' });
-  const ada = await within(choose).findByRole('option', { name: /ada/u });
-  expect(ada).toHaveAttribute('aria-disabled', 'true');
-  expect(ada).toHaveAccessibleDescription(/already a system administrator/u);
-  const grace = within(choose).getByRole('option', { name: /grace/u });
-  expect(grace).not.toHaveAttribute('aria-disabled');
-  expect(grace).not.toHaveAccessibleDescription(/already a system administrator/u);
-  await user.click(ada);
-  expect(screen.getByRole('button', { name: 'Grant tenant-admin' })).toBeDisabled();
-  const perRow = sent.filter((s) => /\/subjects\/s-[a-z]+$/u.test(s.path));
-  expect(perRow).toEqual([]);
+  await user.click(await within(choose).findByRole('option', { name: /grace/u }));
+  const holds = screen.getByRole('group', { name: 'What they hold' });
+  await user.click(within(holds).getByRole('checkbox', { name: 'Full (tenant-admin)' }));
+  await user.click(screen.getByRole('button', { name: 'Give it to grace' }));
+  expect(await screen.findByText('Choose Full, or at least one capability.')).toBeVisible();
+  await user.click(within(holds).getByRole('checkbox', { name: 'manage-tenants' }));
+  await user.click(screen.getByRole('button', { name: 'Give it to grace' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PUT')).toMatchObject({
+      body: { role_ids: ['reader', 'r-tenants'] },
+    });
+  });
 });
 
-it('marks a holder the list is narrowed away from, by one read per picker search', async () => {
+it('marks a subject who already holds something, by one read per picker search', async () => {
   const user = userEvent.setup();
-  const { sent } = renderConsoleAt(`${AT}?q=root`, routes());
-  const table = await screen.findByRole('grid', { name: 'System administrators' });
-  expect(within(table).queryByText('ada')).toBeNull();
+  const { sent } = renderConsoleAt(AT, routes());
   const choose = await screen.findByRole('group', { name: 'Subject in system' });
   const ada = await within(choose).findByRole('option', { name: /ada/u });
   await waitFor(() => {
-    expect(ada).toHaveAccessibleDescription(/already a system administrator/u);
+    expect(ada).toHaveAccessibleDescription(/already holds a capability/u);
   });
+  expect(ada).toHaveAttribute('aria-disabled', 'true');
+  expect(within(choose).getByRole('option', { name: /grace/u })).not.toHaveAttribute(
+    'aria-disabled',
+  );
   await user.type(within(choose).getByRole('searchbox'), 'gr{Enter}');
   await within(choose).findByRole('option', { name: /grace/u });
   const holderReads = sent.filter(
     (s) =>
       s.path === `${S}/subjects` &&
-      s.search.get('capability') === 'manage-tenants' &&
-      s.search.get('cursor') === null,
+      s.search.get('username') === 'gr' &&
+      s.search.get('capability') === 'any',
   );
-  const byQuery = holderReads.map((s) => s.search.get('username') ?? '');
-  expect(byQuery.filter((q) => q === 'gr')).toHaveLength(1);
+  expect(holderReads).toHaveLength(1);
 });
 
-it('revokes behind a typed confirmation, keeping the roles that are not an administrator’s', async () => {
-  const user = userEvent.setup();
-  let revoked = false;
-  const { sent } = renderConsoleAt(
-    AT,
-    routes({
-      [`GET ${S}/subjects`]: (request) => subjects(revoked ? [ROOT_ROW] : [ROOT_ROW, ADA])(request),
-      [`PUT ${S}/subjects/s-ada/roles`]: (request) => {
-        revoked = true;
-        return json({ items: [] }, 200, { etag: '"s-ada-2"' })(request);
-      },
-    }),
-  );
-  await user.click(await screen.findByRole('button', { name: 'Revoke ada' }));
-  const dialog = await screen.findByRole('alertdialog', { name: 'Revoke ada?' });
-  expect(dialog).toHaveTextContent('ada loses tenant-admin and manage-tenants in system');
-  const confirm = within(dialog).getByRole('button', { name: 'Revoke' });
-  expect(confirm).toBeDisabled();
-  await user.type(within(dialog).getByRole('textbox', { name: 'Type ada to confirm' }), 'ada');
-  await user.click(confirm);
-  await waitFor(() => {
-    expect(sent.find((s) => s.method === 'PUT')).toMatchObject({
-      path: `${S}/subjects/s-ada/roles`,
-      ifMatch: '"s-ada-1"',
-      body: { role_ids: ['reader'] },
-    });
-  });
-  expect(await screen.findByText('ada is no longer a system administrator.')).toBeVisible();
-  await waitFor(() => {
-    expect(screen.queryByRole('button', { name: 'Revoke ada' })).toBeNull();
-  });
-});
-
-it('says when the revoked holder still holds manage-tenants some other way', async () => {
-  const user = userEvent.setup();
-  renderConsoleAt(AT, routes());
-  await user.click(await screen.findByRole('button', { name: 'Revoke ada' }));
-  await user.type(
-    within(await screen.findByRole('alertdialog')).getByRole('textbox'),
-    'ada{Enter}',
-  );
-  expect(
-    await screen.findByText(/who still holds manage-tenants through a group or a role/u),
-  ).toBeVisible();
-});
-
-it('says so when you are about to revoke yourself', async () => {
-  const user = userEvent.setup();
-  renderConsoleAt(AT, routes());
-  await user.click(await screen.findByRole('button', { name: 'Revoke root' }));
-  const dialog = await screen.findByRole('alertdialog', {
-    name: 'Revoke your own system administration?',
-  });
-  expect(dialog).toHaveTextContent('You are revoking your own system administration');
-  expect(within(dialog).getByRole('textbox', { name: 'Type root to confirm' })).toBeVisible();
-});
-
-it('says beforehand that the only enabled holder cannot be revoked, and offers nothing', async () => {
-  renderConsoleAt(
-    AT,
-    routes({
-      [`GET ${S}/subjects`]: subjects([ROOT_ROW, subject('s-old', 'old', { enabled: false })]),
-      [`GET ${S}/subjects/count`]: counted(2, 1),
-    }),
-  );
-  const revoke = await screen.findByRole('button', { name: 'Revoke root' });
-  await waitFor(() => {
-    expect(revoke).toBeDisabled();
-  });
-  expect(revoke).toHaveAccessibleDescription(
-    /root is the only enabled system administrator, so revoking them is refused/u,
-  );
-  expect(screen.getByRole('button', { name: 'Revoke old' })).toBeEnabled();
-});
-
-it("shows the last-administrator guard's refusal plainly when the server answers it", async () => {
-  const user = userEvent.setup();
-  renderConsoleAt(
-    AT,
-    routes({
-      [`PUT ${S}/subjects/s-ada/roles`]: problem(
-        409,
-        'about:blank#last-administrator',
-        'Conflict',
-        {
-          detail: 'this would leave no enabled subject holding manage-tenants',
-        },
-      ),
-    }),
-  );
-  await user.click(await screen.findByRole('button', { name: 'Revoke ada' }));
-  const dialog = await screen.findByRole('alertdialog');
-  await user.type(within(dialog).getByRole('textbox'), 'ada{Enter}');
-  // Beside the action it refused: the dialog stays, saying why.
-  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-    'ada was not revoked: this would leave no enabled subject holding manage-tenants.',
-  );
-  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-  expect(screen.queryByRole('alertdialog')).toBeNull();
-});
-
-it('says a revoke met roles changed under it, beside the action, and changes nothing', async () => {
-  const user = userEvent.setup();
-  renderConsoleAt(
-    AT,
-    routes({
-      [`PUT ${S}/subjects/s-ada/roles`]: problem(412, 'about:blank', 'Precondition Failed'),
-    }),
-  );
-  await user.click(await screen.findByRole('button', { name: 'Revoke ada' }));
-  const dialog = await screen.findByRole('alertdialog');
-  await user.type(within(dialog).getByRole('textbox'), 'ada{Enter}');
-  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-    'ada was not revoked: their roles changed while this ran. Try again.',
-  );
-});
-
-it('says a grant met roles changed under it, beside the Grant button', async () => {
+it('says a grant met roles changed under it, beside the button', async () => {
   const user = userEvent.setup();
   renderConsoleAt(
     AT,
@@ -325,63 +215,17 @@ it('says a grant met roles changed under it, beside the Grant button', async () 
   );
   const choose = await screen.findByRole('group', { name: 'Subject in system' });
   await user.click(await within(choose).findByRole('option', { name: /grace/u }));
-  const grant = screen.getByRole('button', { name: 'Grant tenant-admin to grace' });
+  const grant = screen.getByRole('button', { name: 'Give it to grace' });
   await waitFor(() => {
     expect(grant).toBeEnabled();
   });
   await user.click(grant);
-  const section = screen.getByRole('region', { name: 'Grant to an existing subject' });
+  const section = screen.getByRole('region', { name: 'Add an administrator' });
   expect(
     await within(section).findByText(
-      'grace was not granted tenant-admin: their roles changed while this ran. Try again.',
+      'grace was not given it: their roles changed while this ran. Try again.',
     ),
   ).toBeVisible();
-});
-
-it('does not call a revoke done when whether they still hold it could not be checked', async () => {
-  const user = userEvent.setup();
-  const service = subject('s-svc', 'unused', { type: 'service', username: null, email: null });
-  renderConsoleAt(
-    AT,
-    routes({
-      [`GET ${S}/subjects`]: subjects([ROOT_ROW, service]),
-      ...roles('s-svc', ['r-admin']),
-    }),
-  );
-  await user.click(await screen.findByRole('button', { name: 'Revoke s-svc' }));
-  await user.type(
-    within(await screen.findByRole('alertdialog')).getByRole('textbox'),
-    's-svc{Enter}',
-  );
-  expect(
-    await screen.findByText(
-      'tenant-admin and manage-tenants were taken from s-svc. Whether they still hold manage-tenants another way could not be checked: the list shows it.',
-    ),
-  ).toBeVisible();
-  expect(screen.queryByText('s-svc is no longer a system administrator.')).toBeNull();
-});
-
-it('changes nothing for a holder who holds it only through a group or another role', async () => {
-  const user = userEvent.setup();
-  const { sent } = renderConsoleAt(AT, routes(roles('s-ada', ['reader'])));
-  await user.click(await screen.findByRole('button', { name: 'Revoke ada' }));
-  const dialog = await screen.findByRole('alertdialog');
-  await user.type(within(dialog).getByRole('textbox'), 'ada{Enter}');
-  const alert = await within(dialog).findByRole('alert');
-  expect(alert).toHaveTextContent(
-    'Nothing was changed: ada holds manage-tenants only through a group or a role that nests it. Change that group or role on ada’s Groups or Roles tab.',
-  );
-  expect(within(alert).getByRole('link', { name: 'Groups' })).toHaveAttribute(
-    'href',
-    '/console/system/subjects/s-ada?tab=groups',
-  );
-  expect(within(alert).getByRole('link', { name: 'Roles' })).toHaveAttribute(
-    'href',
-    '/console/system/subjects/s-ada?tab=roles',
-  );
-  expect(sent.some((s) => s.method === 'PUT')).toBe(false);
-  // Pressing it again would change nothing again.
-  expect(within(dialog).getByRole('button', { name: 'Revoke' })).toBeDisabled();
 });
 
 it('offers a limited operator none of the changes the server would refuse, and says so once', async () => {
@@ -389,17 +233,15 @@ it('offers a limited operator none of the changes the server would refuse, and s
     AT,
     routes({ [`GET ${S}/whoami`]: whoami(['manage-tenants', 'view-users']) }),
   );
-  await screen.findByRole('grid', { name: 'System administrators' });
+  await screen.findByRole('list', { name: 'Administrators of system' });
   await waitFor(() => {
     expect(screen.getByRole('note')).toHaveTextContent(
-      'You can view system administrators but not create them or grant or revoke tenant-admin (needs manage-users, manage-clients, manage-tenant, manage-keys, manage-sessions and view-audit).',
+      'You can view system administrators but not create them or change what they hold (needs manage-users, manage-clients, manage-tenant, manage-keys, manage-sessions and view-audit).',
     );
   });
   expect(screen.getAllByRole('note')).toHaveLength(1);
-  expect(screen.queryByRole('button', { name: 'Create a system administrator' })).toBeNull();
-  expect(screen.queryByRole('button', { name: /^Revoke/u })).toBeNull();
-  expect(screen.queryByRole('button', { name: /^Grant/u })).toBeNull();
-  expect(screen.queryByRole('columnheader', { name: 'Action' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Add an administrator' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /capabilities/u })).toBeNull();
   expect(sent.filter((s) => s.method !== 'GET')).toHaveLength(0);
 });
 
@@ -411,68 +253,11 @@ it('is no page for a tenant administrator', async () => {
   expect(await screen.findByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
 });
 
-it('passes axe in both themes with a refusal in the revoke dialog', async () => {
-  const user = userEvent.setup();
-  expect(
-    await axeInBothThemes(
-      () => consoleAt(AT, routes(roles('s-ada', ['reader']))).element,
-      async () => {
-        await user.click(await screen.findByRole('button', { name: 'Revoke ada' }));
-        const dialog = await screen.findByRole('alertdialog');
-        await user.type(within(dialog).getByRole('textbox'), 'ada{Enter}');
-        await within(dialog).findByRole('alert');
-      },
-    ),
-  ).toEqual({ light: [], dark: [] });
-});
-
-it('passes axe in both themes: the list, the only holder, and the revoke dialog', async () => {
-  const user = userEvent.setup();
+it('passes axe in both themes', async () => {
   expect(
     await axeInBothThemes(
       () => consoleAt(AT, routes()).element,
-      () => screen.findByRole('grid', { name: 'System administrators' }),
+      () => screen.findByRole('list', { name: 'Administrators of system' }),
     ),
   ).toEqual({ light: [], dark: [] });
-  expect(
-    await axeInBothThemes(
-      () =>
-        consoleAt(
-          AT,
-          routes({
-            [`GET ${S}/subjects`]: subjects([ROOT_ROW]),
-            [`GET ${S}/subjects/count`]: counted(1),
-          }),
-        ).element,
-      async () => {
-        await waitFor(() => {
-          expect(screen.getByRole('button', { name: 'Revoke root' })).toBeDisabled();
-        });
-      },
-    ),
-  ).toEqual({ light: [], dark: [] });
-  expect(
-    await axeInBothThemes(
-      () => consoleAt(AT, routes()).element,
-      async () => {
-        await user.click(await screen.findByRole('button', { name: 'Revoke ada' }));
-        await screen.findByRole('alertdialog');
-      },
-    ),
-  ).toEqual({ light: [], dark: [] });
-});
-
-it('lists every holder of an admin capability in system, each open for change in place', async () => {
-  const user = userEvent.setup();
-  renderConsoleAt(AT, routes());
-  const holders = await screen.findByRole('list', { name: 'Administrators of system' });
-  expect(
-    within(holders)
-      .getAllByRole('link')
-      .map((link) => link.textContent),
-  ).toEqual(['ada', 'root']);
-  await user.click(within(holders).getByRole('button', { name: 'Change ada’s capabilities' }));
-  expect(
-    await within(holders).findByRole('checkbox', { name: 'Full (tenant-admin)' }),
-  ).toBeVisible();
 });

@@ -1,18 +1,38 @@
-import { useId, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-aria-components';
 import {
   useCapabilityHolders,
-  useHeldLines,
   type Holder,
 } from '#/features/subjects/usecase/useCapabilityHolders.ts';
 import { SubjectCapabilities } from '#/features/subjects/view/CapabilityEditor.tsx';
+import { grantableIn } from '#/shared/service/capabilities.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { Count } from '#/shared/view/Count.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
+import { SelectField } from '#/shared/view/Field.tsx';
+import { FilterBar } from '#/shared/view/FilterBar.tsx';
+import { Pager } from '#/shared/view/Pager.tsx';
 import { ListSkeleton } from '#/shared/view/Skeleton.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
+import { Timestamp } from '#/shared/view/Timestamp.tsx';
 import styles from '#/features/subjects/view/CapabilityHolders.module.css';
+
+const NOUN = { one: 'administrator', other: 'administrators' };
+const SEARCH = [{ id: 'username', label: 'Username' }];
+const STATUS = [
+  { id: 'any', label: 'Any status' },
+  { id: 'true', label: 'Enabled' },
+  { id: 'false', label: 'Disabled' },
+];
+
+function holdsOptions(tenant: string) {
+  return [
+    { id: 'any', label: 'Any capability' },
+    { id: 'tenant-admin', label: 'Full (tenant-admin)' },
+    ...grantableIn(tenant).map((capability) => ({ id: capability, label: capability })),
+  ];
+}
 
 function Row({
   tenant,
@@ -21,7 +41,6 @@ function Row({
   open,
   canChange,
   onToggle,
-  actions,
 }: {
   tenant: string;
   authorityTenant: string;
@@ -29,10 +48,8 @@ function Row({
   open: boolean;
   canChange: boolean;
   onToggle: () => void;
-  actions: ReactNode;
 }) {
-  const lines = useHeldLines(tenant, holder);
-  const editor = useId();
+  const editor = `capabilities-${holder.subject.id}`;
   return (
     <li className={styles.holder}>
       <div className={styles.head}>
@@ -40,29 +57,35 @@ function Row({
           {holder.name}
         </Link>
         {holder.subject.enabled ? null : <StatusTag tone="danger">disabled</StatusTag>}
+        {holder.reachesEveryTenant ? (
+          <StatusTag tone="system-authority">reaches every tenant</StatusTag>
+        ) : null}
+        <span className={styles.how}>
+          Created <Timestamp value={holder.subject.created_at} />
+        </span>
       </div>
       <ul aria-label={`What ${holder.name} holds`} className={styles.held}>
-        {lines.map((line) => (
+        {holder.lines.map((line) => (
           <li key={line.holding}>
             <code>{line.label}</code>
-            {line.how === '' ? null : <span className={styles.how}>{` · ${line.how}`}</span>}
+            <span className={styles.how}>{` · ${line.how}`}</span>
           </li>
         ))}
       </ul>
-      <div className={styles.actions}>
-        {canChange ? (
+      {canChange ? (
+        <div className={styles.actions}>
           <Button size="small" aria-expanded={open} aria-controls={editor} onPress={onToggle}>
             {open ? `Close ${holder.name}’s capabilities` : `Change ${holder.name}’s capabilities`}
           </Button>
-        ) : null}
-        {actions}
-      </div>
+        </div>
+      ) : null}
       <div id={editor} className={styles.editor}>
         {open ? (
           <SubjectCapabilities
             tenant={tenant}
             subject={holder.subject}
             authorityTenant={authorityTenant}
+            self={holder.self}
           />
         ) : null}
       </div>
@@ -70,70 +93,118 @@ function Row({
   );
 }
 
-// Everybody holding an admin capability in a tenant, with what each holds
-// and how, each one's own set open for change in place.
+// Everybody holding an admin capability in a tenant, a page at a time, with
+// what each holds, each one's own set open for change in place.
 export function CapabilityHolders({
   tenant,
   authorityTenant = tenant,
   canChange,
-  actionsOf,
 }: {
   tenant: string;
   authorityTenant?: string;
   // False once whoami says a change would be refused.
   canChange: boolean;
-  actionsOf?: (holder: Holder) => ReactNode;
 }) {
   const page = useCapabilityHolders(tenant);
+  const { list } = page;
   const label = `Administrators of ${tenant}`;
-  switch (page.status) {
+  let body: ReactNode;
+  switch (list.status) {
     case 'loading':
-      return <ListSkeleton label="Loading administrators" />;
+      body = <ListSkeleton label="Loading administrators" />;
+      break;
     case 'refused':
       return <CapabilityNote capability="view-users">{label}</CapabilityNote>;
     case 'failed':
-      return (
+      body = (
         <EmptyState
           variant="failed"
           title="The administrators could not be loaded"
-          action={<Button onPress={page.retry}>Try again</Button>}
+          action={<Button onPress={list.retry}>Try again</Button>}
         >
           The gateway did not answer, or answered with an error.
         </EmptyState>
       );
-    case 'ready':
       break;
-  }
-  if (page.holders.length === 0) {
-    return (
-      <EmptyState variant="nothing-yet" title="No administrators yet">
-        {`Nobody holds an admin capability in ${tenant}, so nobody can sign in to its console until one is added.`}
-      </EmptyState>
-    );
+    case 'ready':
+      body =
+        page.holders.length === 0 ? (
+          list.narrowed ? (
+            <EmptyState
+              variant="nothing-matches"
+              title="No administrators match"
+              action={<Button onPress={list.clear}>Show every administrator</Button>}
+            >
+              A search matches the start of the username.
+            </EmptyState>
+          ) : (
+            <EmptyState variant="nothing-yet" title="No administrators yet">
+              {`Nobody holds an admin capability in ${tenant}, so nobody can sign in to its console until one is added.`}
+            </EmptyState>
+          )
+        ) : (
+          <>
+            <ul aria-label={label} className={styles.list}>
+              {page.holders.map((holder) => (
+                <Row
+                  key={holder.subject.id}
+                  tenant={tenant}
+                  authorityTenant={authorityTenant}
+                  holder={holder}
+                  open={page.open === holder.subject.id}
+                  canChange={canChange}
+                  onToggle={() => {
+                    page.toggle(holder.subject.id);
+                  }}
+                />
+              ))}
+            </ul>
+            <Pager
+              label="Administrators"
+              trail={list.trail}
+              next={list.next}
+              onTrailChange={list.setTrail}
+              onLoadMore={list.loadMore}
+              loadingMore={list.loadingMore}
+            />
+          </>
+        );
+      break;
   }
   return (
     <div className={styles.holders}>
-      <Count
-        count={page.holders.length}
-        capped={false}
-        noun={{ one: 'administrator', other: 'administrators' }}
-      />
-      <ul aria-label={label} className={styles.list}>
-        {page.holders.map((holder) => (
-          <Row
-            key={holder.subject.id}
-            tenant={tenant}
-            authorityTenant={authorityTenant}
-            holder={holder}
-            open={page.open === holder.subject.id}
-            canChange={canChange}
-            onToggle={() => {
-              page.toggle(holder.subject.id);
-            }}
-            actions={actionsOf?.(holder) ?? null}
-          />
-        ))}
-      </ul>
+      <FilterBar
+        label="Filter administrators"
+        fields={SEARCH}
+        field="username"
+        query={list.search?.query ?? ''}
+        onSearch={list.setSearch}
+        onClear={list.clear}
+        active={list.narrowed}
+        count={
+          list.count === null ? null : (
+            <Count count={list.count.count} capped={list.count.capped} noun={NOUN} />
+          )
+        }
+      >
+        <SelectField
+          label="Status"
+          options={STATUS}
+          value={list.filters.enabled ?? 'any'}
+          onChange={(value) => {
+            list.setFilter('enabled', value === 'any' ? null : value);
+          }}
+        />
+        <SelectField
+          label="Holds"
+          options={holdsOptions(tenant)}
+          value={list.filters.capability ?? 'any'}
+          onChange={(value) => {
+            list.setFilter('capability', value === 'any' ? null : value);
+          }}
+        />
+      </FilterBar>
+      {body}
     </div>
   );
 }

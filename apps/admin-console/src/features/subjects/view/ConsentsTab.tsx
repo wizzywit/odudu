@@ -40,8 +40,16 @@ function columns(page: SubjectConsents): readonly Column<Consent>[] {
   ];
 }
 
-export function ConsentsTab({ tenant, subject }: { tenant: string; subject: Subject }) {
-  const page = useSubjectConsents(tenant, subject);
+export function ConsentsTab({
+  tenant,
+  subject,
+  canManage,
+}: {
+  tenant: string;
+  subject: Subject;
+  canManage: boolean;
+}) {
+  const page = useSubjectConsents(tenant, subject, canManage);
   const { name, consents, revoke } = page;
   const shape = columns(page);
   let body;

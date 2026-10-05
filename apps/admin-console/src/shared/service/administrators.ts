@@ -59,37 +59,8 @@ export function tenantAdminRole(roles: readonly ClientRole[], adminClient: strin
   return clientRole(roles, adminClient, TENANT_ADMIN);
 }
 
-export function administratorRoleNames(tenant: string): readonly string[] {
-  return [...new Set([TENANT_ADMIN, administratorCapability(tenant)])];
-}
-
-// Every role of the built-in client whose holder the guard counts.
-export function administratorRoleIds(
-  tenant: string,
-  roles: readonly ClientRole[],
-  adminClient: string,
-): readonly string[] {
-  const names = new Set(administratorRoleNames(tenant));
-  return roles
-    .filter((role) => role.client_id === adminClient && names.has(role.name))
-    .map((role) => role.id);
-}
-
-// A subject holding the capability only through a group or a nested role
-// holds none of these itself, so removing its own roles would change nothing.
-export function holdsDirectly(held: readonly string[], granting: readonly string[]): boolean {
-  return held.some((role) => granting.includes(role));
-}
-
 export function withRole(held: readonly string[], role: string): readonly string[] {
   return held.includes(role) ? held : [...held, role];
-}
-
-export function withoutRoles(
-  held: readonly string[],
-  removed: readonly string[],
-): readonly string[] {
-  return held.filter((role) => !removed.includes(role));
 }
 
 // Each request adding or removing an administrator makes, by what its route
@@ -129,17 +100,6 @@ const CALL_REQUESTS: Readonly<Record<AdministratorCall, readonly AdministratorRe
   grant: GRANT_REQUESTS,
   password: ['password'],
 };
-
-// Giving or taking tenant-admin is held to the caller's own capabilities
-// (ADR 0040), so it needs every one the role carries.
-export function roleChangeNeeds(tenant: string): readonly AdminCapability[] {
-  return [
-    ...new Set([
-      ...GRANT_REQUESTS.map((request) => ADMINISTRATOR_REQUEST_NEEDS[request]),
-      ...tenantAdminCarries(tenant),
-    ]),
-  ];
-}
 
 // What the calls still to make need, so a resumed step asks for no more.
 // The grant and the password each need all that is being given: one hands

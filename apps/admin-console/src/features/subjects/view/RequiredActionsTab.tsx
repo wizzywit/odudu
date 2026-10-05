@@ -22,10 +22,12 @@ const OPTIONS = REQUIRED_ACTIONS.map(({ action, label, description }) => ({
 function Ready({
   tenant,
   subject,
+  allowed,
   ...read
 }: {
   tenant: string;
   subject: Subject;
+  allowed: boolean;
   data: Parameters<typeof useRequiredActions>[2];
   etag: string;
   gone: boolean;
@@ -35,7 +37,7 @@ function Ready({
     canManage,
     save: s,
     choose,
-  } = useRequiredActions(tenant, subject, read.data, read.etag, read.gone);
+  } = useRequiredActions(tenant, subject, read.data, read.etag, read.gone, allowed);
   return (
     <Section
       title="Required actions"
@@ -61,7 +63,15 @@ function Ready({
   );
 }
 
-function Panel({ tenant, subject }: { tenant: string; subject: Subject }) {
+function Panel({
+  tenant,
+  subject,
+  canManage,
+}: {
+  tenant: string;
+  subject: Subject;
+  canManage: boolean;
+}) {
   const read = useRequiredActionsRead(tenant, subject.id);
   if (read.status === 'loading') {
     return <FormSkeleton label="Loading the required actions" fields={2} />;
@@ -78,11 +88,26 @@ function Panel({ tenant, subject }: { tenant: string; subject: Subject }) {
     );
   }
   return (
-    <Ready tenant={tenant} subject={subject} data={read.data} etag={read.etag} gone={read.gone} />
+    <Ready
+      tenant={tenant}
+      subject={subject}
+      allowed={canManage}
+      data={read.data}
+      etag={read.etag}
+      gone={read.gone}
+    />
   );
 }
 
-export function RequiredActionsTab({ tenant, subject }: { tenant: string; subject: Subject }) {
+export function RequiredActionsTab({
+  tenant,
+  subject,
+  canManage,
+}: {
+  tenant: string;
+  subject: Subject;
+  canManage: boolean;
+}) {
   return (
     <div className={styles.tab}>
       {signsInAsItself(subject) ? (
@@ -90,7 +115,7 @@ export function RequiredActionsTab({ tenant, subject }: { tenant: string; subjec
           {`A ${subject.type} subject signs in as itself, with its client's credentials, so it is asked for nothing at sign-in.`}
         </p>
       ) : (
-        <Panel tenant={tenant} subject={subject} />
+        <Panel tenant={tenant} subject={subject} canManage={canManage} />
       )}
     </div>
   );

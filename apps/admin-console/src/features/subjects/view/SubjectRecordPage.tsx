@@ -21,13 +21,17 @@ import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
+import { BeyondNote } from '#/features/subjects/view/BeyondNote.tsx';
 
 interface PanelProps {
   tenant: string;
   subject: Subject;
   etag: string;
   gone: boolean;
+  // manage-users is held, and the subject is within the caller's reach.
   canManage: boolean;
+  // The subject holds nothing the caller does not, so a write may be offered.
+  withinReach: boolean;
   self: boolean;
 }
 
@@ -35,16 +39,44 @@ interface PanelProps {
 const PANELS: Readonly<Record<SubjectTab, (props: PanelProps) => ReactNode>> = {
   profile: (props) => <ProfileTab {...props} />,
   credentials: (props) => <CredentialsTab {...props} />,
-  groups: (props) => <GroupsTab tenant={props.tenant} subject={props.subject} />,
-  roles: (props) => <RolesTab tenant={props.tenant} subject={props.subject} />,
+  groups: (props) => (
+    <GroupsTab
+      tenant={props.tenant}
+      subject={props.subject}
+      canManage={props.canManage}
+      self={props.self}
+    />
+  ),
+  roles: (props) => (
+    <RolesTab
+      tenant={props.tenant}
+      subject={props.subject}
+      canManage={props.canManage}
+      self={props.self}
+    />
+  ),
   'required-actions': (props) => (
-    <RequiredActionsTab tenant={props.tenant} subject={props.subject} />
+    <RequiredActionsTab tenant={props.tenant} subject={props.subject} canManage={props.canManage} />
   ),
   sessions: (props) => (
-    <SessionsTab tenant={props.tenant} subject={props.subject} self={props.self} />
+    <SessionsTab
+      tenant={props.tenant}
+      subject={props.subject}
+      self={props.self}
+      withinReach={props.withinReach}
+    />
   ),
-  consents: (props) => <ConsentsTab tenant={props.tenant} subject={props.subject} />,
-  grants: (props) => <GrantsTab tenant={props.tenant} subject={props.subject} />,
+  consents: (props) => (
+    <ConsentsTab tenant={props.tenant} subject={props.subject} canManage={props.canManage} />
+  ),
+  grants: (props) => (
+    <GrantsTab
+      tenant={props.tenant}
+      subject={props.subject}
+      self={props.self}
+      withinReach={props.withinReach}
+    />
+  ),
   activity: (props) => <ActivityPanel tenant={props.tenant} id={props.subject.id} />,
 };
 
@@ -61,6 +93,7 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
           etag,
           gone: page.record.gone,
           canManage: page.canManage,
+          withinReach: page.beyond.length === 0,
           self: page.self,
         };
   return (
@@ -79,9 +112,11 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
             description: subject.email ?? (subject.type === 'user' ? 'No email' : subject.type),
           })}
       noun="subject"
-      {...(page.changeNeeds.length === 0
-        ? {}
-        : { viewOnly: <ViewOnlyNote noun="subjects" needs={page.changeNeeds} /> })}
+      {...(page.beyond.length > 0
+        ? { viewOnly: <BeyondNote name={name} beyond={page.beyond} /> }
+        : page.changeNeeds.length === 0
+          ? {}
+          : { viewOnly: <ViewOnlyNote noun="subjects" needs={page.changeNeeds} /> })}
       label="Subject sections"
       tab={page.tab}
       onTabChange={page.selectTab}

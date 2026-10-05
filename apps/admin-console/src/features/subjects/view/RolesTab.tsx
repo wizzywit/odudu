@@ -109,16 +109,20 @@ function Roles({ roles }: { roles: SubjectRoles }) {
 function Ready({
   tenant,
   subject,
+  canManage,
+  self,
   ...read
 }: {
   tenant: string;
   subject: Subject;
+  canManage: boolean;
+  self: boolean;
   data: Parameters<typeof useSubjectRoles>[2];
   etag: string;
   gone: boolean;
 }) {
-  const roles = useSubjectRoles(tenant, subject, read.data, read.etag, read.gone);
-  const editing = useCapabilityEditor({ tenant, subject, ...read });
+  const roles = useSubjectRoles(tenant, subject, read.data, read.etag, read.gone, canManage);
+  const editing = useCapabilityEditor({ tenant, subject, allowed: canManage, self, ...read });
   return (
     <>
       <Roles roles={roles} />
@@ -128,7 +132,17 @@ function Ready({
   );
 }
 
-export function RolesTab({ tenant, subject }: { tenant: string; subject: Subject }) {
+export function RolesTab({
+  tenant,
+  subject,
+  canManage,
+  self,
+}: {
+  tenant: string;
+  subject: Subject;
+  canManage: boolean;
+  self: boolean;
+}) {
   const read = useSubjectRolesRead(tenant, subject.id);
   if (read.status === 'loading') return <FormSkeleton label="Loading the roles" fields={3} />;
   if (read.data === undefined || read.etag === null) {
@@ -144,7 +158,15 @@ export function RolesTab({ tenant, subject }: { tenant: string; subject: Subject
   }
   return (
     <div className={styles.tab}>
-      <Ready tenant={tenant} subject={subject} data={read.data} etag={read.etag} gone={read.gone} />
+      <Ready
+        tenant={tenant}
+        subject={subject}
+        canManage={canManage}
+        self={self}
+        data={read.data}
+        etag={read.etag}
+        gone={read.gone}
+      />
     </div>
   );
 }

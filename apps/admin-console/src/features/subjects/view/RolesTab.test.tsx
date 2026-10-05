@@ -117,6 +117,29 @@ it('changes the admin capabilities by checkbox, keeping the other roles', async 
   });
 });
 
+it('says how a capability not assigned here is held, and where it is changed', async () => {
+  renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`GET ${E}`]: json({
+        items: [
+          held(role('r-view-audit', 'view-audit', 'odudu-admin'), [
+            { kind: 'group', group_id: 'g', group_path: '/auditors' },
+          ]),
+        ],
+      }),
+    }),
+  );
+  const section = await screen.findByRole('region', { name: 'Admin capabilities' });
+  expect(
+    await within(section).findByRole('checkbox', { name: 'view-audit' }),
+  ).toHaveAccessibleDescription(/Held through group \/auditors\./u);
+  expect(within(section).getByRole('link', { name: 'Groups' })).toHaveAttribute(
+    'href',
+    `${ADA_AT}?tab=groups`,
+  );
+});
+
 it('holds back each capability the caller does not hold, saying why', async () => {
   renderConsoleAt(AT, subjectRoutes(['view-users', 'manage-users', 'view-audit']));
   const section = await screen.findByRole('region', { name: 'Admin capabilities' });
@@ -136,11 +159,14 @@ it('offers no change to a subject holding a capability the caller does not', asy
       }),
     }),
   );
-  const section = await screen.findByRole('region', { name: 'Admin capabilities' });
   expect(
-    await within(section).findByText(/ada holds manage-keys, which you do not/u),
+    await screen.findByText(
+      'ada holds manage-keys, which you do not, so you can view ada but change nothing here.',
+    ),
   ).toBeVisible();
-  for (const box of within(section).getAllByRole('checkbox')) expect(box).toBeDisabled();
+  await screen.findByRole('region', { name: 'Admin capabilities' });
+  expect(screen.queryByRole('checkbox')).toBeNull();
+  expect(screen.queryByRole('listbox')).toBeNull();
 });
 
 it('words the last-administrator guard in place', async () => {

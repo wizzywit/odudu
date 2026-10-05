@@ -7,6 +7,7 @@ import {
 } from '#/features/subjects/usecase/useSubjectGroups.ts';
 import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
 import { Button } from '#/shared/view/Button.tsx';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { GroupPicker } from '#/shared/view/GroupPicker.tsx';
 import { Section } from '#/shared/view/Section.tsx';
@@ -52,6 +53,15 @@ function Groups({ groups }: { groups: SubjectGroups }) {
           onChange={groups.choose}
         />
       ) : null}
+      <ConfirmDialog
+        isOpen={groups.confirming !== null}
+        title={groups.confirming?.title ?? ''}
+        consequence={groups.confirming?.consequence ?? ''}
+        confirmLabel="Save Groups"
+        tone="danger"
+        onConfirm={groups.confirm}
+        onCancel={groups.cancel}
+      />
     </Section>
   );
 }
@@ -59,19 +69,41 @@ function Groups({ groups }: { groups: SubjectGroups }) {
 function Ready({
   tenant,
   subject,
+  canManage,
+  self,
   ...read
 }: {
   tenant: string;
   subject: Subject;
+  canManage: boolean;
+  self: boolean;
   data: Parameters<typeof useSubjectGroups>[2];
   etag: string;
   gone: boolean;
 }) {
-  const groups = useSubjectGroups(tenant, subject, read.data, read.etag, read.gone);
+  const groups = useSubjectGroups(
+    tenant,
+    subject,
+    read.data,
+    read.etag,
+    read.gone,
+    canManage,
+    self,
+  );
   return <Groups groups={groups} />;
 }
 
-export function GroupsTab({ tenant, subject }: { tenant: string; subject: Subject }) {
+export function GroupsTab({
+  tenant,
+  subject,
+  canManage,
+  self,
+}: {
+  tenant: string;
+  subject: Subject;
+  canManage: boolean;
+  self: boolean;
+}) {
   const read = useSubjectGroupsRead(tenant, subject.id);
   if (read.status === 'loading') return <FormSkeleton label="Loading the groups" fields={2} />;
   if (read.data === undefined || read.etag === null) {
@@ -87,7 +119,15 @@ export function GroupsTab({ tenant, subject }: { tenant: string; subject: Subjec
   }
   return (
     <div className={styles.tab}>
-      <Ready tenant={tenant} subject={subject} data={read.data} etag={read.etag} gone={read.gone} />
+      <Ready
+        tenant={tenant}
+        subject={subject}
+        canManage={canManage}
+        self={self}
+        data={read.data}
+        etag={read.etag}
+        gone={read.gone}
+      />
     </div>
   );
 }

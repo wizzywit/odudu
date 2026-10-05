@@ -1,19 +1,13 @@
 import {
   readAdminClients,
-  readAdministratorPage,
   readClientRoles,
   readSubjectRoles,
   setSubjectRoles,
 } from '#/shared/adapter/administrators.ts';
 import {
-  administratorCapability,
-  administratorRoleIds,
-  administratorRoleNames,
   builtinAdminClient,
-  holdsDirectly,
   TENANT_ADMIN,
   clientRole,
-  withoutRoles,
   withRole,
   type AdministratorRequest,
 } from '#/shared/service/administrators.ts';
@@ -107,55 +101,4 @@ export function grantTenantAdmin(
   subjectId: string,
 ): Promise<Refused | null> {
   return grantHoldings(gateway, tenant, subjectId, [TENANT_ADMIN]);
-}
-
-export type Revoked =
-  // stillHolds is null when it could not be checked: the subject has no
-  // username to look it up by, or the look-up failed.
-  | { kind: 'revoked'; stillHolds: boolean | null }
-  // Held only through a group or a role that nests it, which no edit here reaches.
-  | { kind: 'not-direct' }
-  | ({ kind: 'refused' } & Refused);
-
-// Only a subject's own role assignments are changed. Whether the capability
-// survived through another path is asked of the server rather than worked out.
-export async function revokeAdministrator(
-  gateway: Gateway,
-  tenant: string,
-  subject: { id: string; username: string | null },
-): Promise<Revoked> {
-  const client = await adminClientOf(gateway, tenant);
-  if (isRefused(client)) return { kind: 'refused', ...client };
-  // By name, as the grant does: a client's roles can run past one page.
-  const found: { id: string; name: string; client_id: string | null }[] = [];
-  for (const name of administratorRoleNames(tenant)) {
-    const roles = await readClientRoles(gateway, tenant, client.client, name);
-    if (!roles.ok) return { kind: 'refused', ...refusedAt(roles, 'roles') };
-    found.push(...roles.data.items);
-  }
-  const granting = administratorRoleIds(tenant, found, client.client);
-  const held = await heldRoles(gateway, tenant, subject.id);
-  if (isRefused(held)) return { kind: 'refused', ...held };
-  if (!holdsDirectly(held.ids, granting)) return { kind: 'not-direct' };
-  const set = await setSubjectRoles(
-    gateway,
-    tenant,
-    subject.id,
-    withoutRoles(held.ids, granting),
-    held.etag,
-  );
-  if (!set.ok) return { kind: 'refused', ...refusedAt(set, 'set-roles') };
-  if (subject.username === null) return { kind: 'revoked', stillHolds: null };
-  const holders = await readAdministratorPage(
-    gateway,
-    tenant,
-    new URLSearchParams({
-      capability: administratorCapability(tenant),
-      username: subject.username,
-    }),
-  );
-  return {
-    kind: 'revoked',
-    stillHolds: holders.ok ? holders.data.items.some((holder) => holder.id === subject.id) : null,
-  };
 }

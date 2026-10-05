@@ -71,11 +71,15 @@ export interface SubjectConsents {
   revoke: Confirming<Consent>;
 }
 
-export function useSubjectConsents(tenant: string, subject: Subject): SubjectConsents {
+export function useSubjectConsents(
+  tenant: string,
+  subject: Subject,
+  canManage: boolean,
+): SubjectConsents {
   const name = subjectName(subject);
   return {
     name,
-    canManage: useHolds(tenant, 'manage-users'),
+    canManage,
     consents: useConsents(tenant, subject.id),
     revoke: useConfirmedChange({
       tenant,

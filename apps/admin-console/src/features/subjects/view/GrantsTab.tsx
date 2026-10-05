@@ -38,7 +38,20 @@ const COLUMNS: readonly Column<Grant>[] = [
   },
 ];
 
-function Grants({ tenant, subject }: { tenant: string; subject: Subject }) {
+// The console's own sign-in holds a grant through the built-in admin client.
+const CONSOLE_CLIENT = 'odudu-admin';
+
+function Grants({
+  tenant,
+  subject,
+  self,
+  withinReach,
+}: {
+  tenant: string;
+  subject: Subject;
+  self: boolean;
+  withinReach: boolean;
+}) {
   const page = useSubjectGrants(tenant, subject);
   const { name, revoke } = page;
   const asked = revoke.asking;
@@ -56,7 +69,7 @@ function Grants({ tenant, subject }: { tenant: string; subject: Subject }) {
         rowKey={(grant) => grant.id}
         empty={`${name} holds no grant that is still in force.`}
       />
-      {page.clients.length > 0 ? (
+      {withinReach && page.clients.length > 0 ? (
         <div className={styles.actions}>
           {page.clients.map((client) => (
             <Button
@@ -73,8 +86,12 @@ function Grants({ tenant, subject }: { tenant: string; subject: Subject }) {
       ) : null}
       <ConfirmDialog
         isOpen={asked !== null}
-        title={`Revoke ${name}’s grants through ${asked?.key ?? ''}?`}
-        consequence={`Every grant ${name} holds through ${asked?.key ?? 'it'} is revoked, offline ones included, so its refresh tokens stop working. No session ends. The consent stays, so the next sign-in through it asks nothing.`}
+        title={
+          self
+            ? `Revoke your own grants through ${asked?.key ?? ''}?`
+            : `Revoke ${name}’s grants through ${asked?.key ?? ''}?`
+        }
+        consequence={`Every grant ${self ? 'you hold' : `${name} holds`} through ${asked?.key ?? 'it'} is revoked, offline ones included, so its refresh tokens stop working. No session ends. The consent stays, so the next sign-in through it asks nothing.${self && asked?.key === CONSOLE_CLIENT ? ' This console signs in through it, so it signs you out at its next request.' : ''}`}
         confirmLabel="Revoke grants"
         tone="danger"
         busy={revoke.busy}
@@ -86,12 +103,22 @@ function Grants({ tenant, subject }: { tenant: string; subject: Subject }) {
   );
 }
 
-export function GrantsTab({ tenant, subject }: { tenant: string; subject: Subject }) {
+export function GrantsTab({
+  tenant,
+  subject,
+  self,
+  withinReach,
+}: {
+  tenant: string;
+  subject: Subject;
+  self: boolean;
+  withinReach: boolean;
+}) {
   const allowed = useHolds(tenant, 'manage-sessions');
   return (
     <div className={styles.tab}>
       {allowed ? (
-        <Grants tenant={tenant} subject={subject} />
+        <Grants tenant={tenant} subject={subject} self={self} withinReach={withinReach} />
       ) : (
         <CapabilityNote capability="manage-sessions">Grants</CapabilityNote>
       )}

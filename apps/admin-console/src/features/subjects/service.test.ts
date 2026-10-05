@@ -8,9 +8,10 @@ import {
   NAME_CLAIMS,
   newSubjectHref,
   accessRefusal,
+  removalConfirmation,
   actionsRecord,
   groupsRecord,
-  heldSummary,
+  heldLines,
   mailRefusal,
   profileRecord,
   REQUIRED_ACTIONS,
@@ -250,32 +251,23 @@ describe('roles', () => {
 });
 
 describe('a holder in a list of administrators', () => {
-  it('names what is held, and leaves out what another holding implies', () => {
-    const via = (parent: string) => ({
-      kind: 'composite' as const,
-      parent_role_id: 'p',
-      parent_name: parent,
-    });
-    const role = (name: string, paths: unknown[]) => ({
-      id: `r-${name}`,
-      name,
-      client_id: 'c',
-      client_key: 'odudu-admin',
-      via: paths as never,
-    });
+  it('says what is held and whether directly, leaving out what another holding carries', () => {
     expect(
-      heldSummary([
-        role('tenant-admin', [{ kind: 'direct' }]),
-        role('manage-users', [via('tenant-admin')]),
-        role('view-users', [via('manage-users'), via('tenant-admin')]),
-        role('view-audit', [
-          via('tenant-admin'),
-          { kind: 'group', group_id: 'g', group_path: '/ops' },
-        ]),
+      heldLines([
+        { name: 'tenant-admin', direct: true },
+        { name: 'manage-users', direct: false },
+        { name: 'view-users', direct: false },
+      ]),
+    ).toEqual([{ holding: 'tenant-admin', label: 'Full (tenant-admin)', how: 'directly' }]);
+    expect(
+      heldLines([
+        { name: 'manage-users', direct: true },
+        { name: 'view-users', direct: false },
+        { name: 'view-audit', direct: false },
       ]),
     ).toEqual([
-      { holding: 'tenant-admin', label: 'Full (tenant-admin)', how: 'directly' },
-      { holding: 'view-audit', label: 'view-audit', how: 'through group /ops' },
+      { holding: 'manage-users', label: 'manage-users', how: 'directly' },
+      { holding: 'view-audit', label: 'view-audit', how: 'through a group or role' },
     ]);
   });
 });
@@ -304,8 +296,72 @@ describe('a change to what a subject holds, refused', () => {
 
   it('words the last-administrator guard in place', () => {
     expect(accessRefusal('ada', 'roles')(problem(409, 'about:blank#last-administrator'))).toBe(
-      'ada is the last enabled administrator here, and this would take that from them, so nothing was changed. Make somebody else an administrator first.',
+      'ada is the last enabled administrator here, and this would take that away, so nothing was changed. Make somebody else an administrator first.',
     );
     expect(accessRefusal('ada', 'roles')(problem(409))).toBeNull();
+  });
+});
+
+describe('the last-administrator guard, worded in place', () => {
+  it("keeps the API's detail, and says so of yourself", () => {
+    const problem = {
+      type: 'about:blank#last-administrator',
+      status: 409,
+      detail: 'this would leave no enabled subject holding tenant-admin',
+    };
+    expect(accessRefusal('ada', 'roles', true)(problem)).toBe(
+      'You are the last enabled administrator here, and this would take that away, so nothing was changed (this would leave no enabled subject holding tenant-admin). Make somebody else an administrator first.',
+    );
+  });
+});
+
+describe('what is asked before a save takes capabilities away', () => {
+  it('asks nothing of a change to somebody else that leaves every tenant alone', () => {
+    expect(
+      removalConfirmation({
+        name: 'ada',
+        self: false,
+        removed: ['view-audit'],
+        removesTenants: false,
+      }),
+    ).toBeNull();
+    expect(
+      removalConfirmation({ name: 'ada', self: true, removed: [], removesTenants: false }),
+    ).toBeNull();
+  });
+
+  it('says what this console stops offering when you take from yourself', () => {
+    expect(
+      removalConfirmation({
+        name: 'ada',
+        self: true,
+        removed: ['view-audit'],
+        removesTenants: false,
+      }),
+    ).toEqual({
+      title: 'Remove your own admin capabilities?',
+      consequence:
+        'You are taking view-audit from yourself. Once it lands this console stops offering reading the audit trail, unless a group or another role still gives it to you, and you cannot give it back yourself.',
+      typed: null,
+    });
+  });
+
+  it('asks for the name, typed, before manage-tenants is taken from anybody', () => {
+    const asked = removalConfirmation({
+      name: 'ada',
+      self: false,
+      removed: ['tenant-admin'],
+      removesTenants: true,
+    });
+    expect(asked?.title).toBe('Take system administration from ada?');
+    expect(asked?.typed).toBe('ada');
+    expect(
+      removalConfirmation({
+        name: 'ada',
+        self: true,
+        removed: ['manage-tenants'],
+        removesTenants: true,
+      })?.title,
+    ).toBe('Revoke your own system administration?');
   });
 });

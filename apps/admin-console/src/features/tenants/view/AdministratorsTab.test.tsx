@@ -30,43 +30,24 @@ function routes() {
 
 const AT = '/console/system/tenants/acme?tab=administrators';
 
-const HOLDINGS = [
-  'tenant-admin',
-  'view-users',
-  'manage-users',
-  'manage-clients',
-  'manage-tenant',
-  'manage-keys',
-  'manage-sessions',
-  'view-audit',
-];
-
 it('lists everybody holding any admin capability, and says the last one cannot be removed', async () => {
   const { sent } = renderConsoleAt(AT, {
     ...routes(),
-    [`GET ${ADMIN}/acme/subjects/${GRACE.id}/effective-roles`]: json({
-      items: [
-        {
-          id: 'r-full',
-          name: 'tenant-admin',
-          client_id: 'c-admin',
-          client_key: 'odudu-admin',
-          via: [{ kind: 'group', group_id: 'g', group_path: '/admins' }],
-        },
-      ],
+    [`GET ${ADMIN}/acme/subjects`]: json({
+      items: [{ ...GRACE, admin_capabilities: [{ name: 'tenant-admin', direct: false }] }],
     }),
   });
   const list = await screen.findByRole('list', { name: 'Administrators of acme' });
   expect(list).toHaveTextContent('grace');
-  expect(await within(list).findByRole('list', { name: 'What grace holds' })).toHaveTextContent(
-    'Full (tenant-admin) · through group /admins',
+  expect(within(list).getByRole('list', { name: 'What grace holds' })).toHaveTextContent(
+    'Full (tenant-admin) · through a group or role',
   );
   expect(await screen.findByText('1 administrator')).toBeVisible();
   expect(
     screen.getByText(/the last one cannot be disabled, deleted, or lose tenant-admin/u),
   ).toBeVisible();
   const reads = sent.filter((s) => s.path === `${ADMIN}/acme/subjects`);
-  expect(reads.map((s) => s.search.get('capability')).sort()).toEqual([...HOLDINGS].sort());
+  expect(reads.map((s) => s.search.get('capability'))).toEqual(['any']);
 });
 
 it("changes a holder's capabilities in place", async () => {
@@ -161,7 +142,7 @@ it('names manage-tenants for system, which its last-administrator guard counts',
       sent
         .filter((s) => s.path === `${ADMIN}/system/subjects`)
         .map((s) => s.search.get('capability')),
-    ).toContain('manage-tenants');
+    ).toContain('any');
   });
 });
 

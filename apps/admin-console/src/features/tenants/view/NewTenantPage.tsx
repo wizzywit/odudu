@@ -158,6 +158,11 @@ function Administrator({ step }: { step: AdministratorStep }) {
             />
           </>
         )}
+        {step.origin === 'existing' ? null : (
+          <p className={styles.lead}>
+            {`The first administrator holds Full, so somebody in ${step.tenant} can give every capability; narrow it afterwards under Administrators.`}
+          </p>
+        )}
         {step.choosing ? (
           <ChecklistField
             label="What they hold"

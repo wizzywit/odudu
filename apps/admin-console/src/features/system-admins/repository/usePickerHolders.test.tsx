@@ -48,7 +48,7 @@ it('follows the holders to their last page', async () => {
   await waitFor(() => {
     expect(result.current).toEqual(new Set(['h0', 'h1', 'h2']));
   });
-  expect(fake.sent.every((s) => s.search.get('capability') === 'manage-tenants')).toBe(true);
+  expect(fake.sent.every((s) => s.search.get('capability') === 'any')).toBe(true);
 });
 
 it('stops after ten pages, saying so as a console defect', async () => {

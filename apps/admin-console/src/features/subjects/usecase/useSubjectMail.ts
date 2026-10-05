@@ -188,6 +188,11 @@ export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
         setErrors({});
         const client = clientId.trim();
         const redirect = redirectUri.trim();
+        if ((client === '') !== (redirect === '')) {
+          const together = 'Give the client and the address together, or neither.';
+          setErrors(client === '' ? { client_id: together } : { redirect_uri: together });
+          return;
+        }
         const back = {
           ...(client === '' ? {} : { client_id: client }),
           ...(redirect === '' ? {} : { redirect_uri: redirect }),

@@ -5,7 +5,9 @@ import {
   type CapabilityEditing,
 } from '#/features/subjects/usecase/useCapabilities.ts';
 import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
+import { Link } from 'react-aria-components';
 import { Button } from '#/shared/view/Button.tsx';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { ChecklistField } from '#/shared/view/ChecklistField.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { ReadOnlyFields } from '#/shared/view/Field.tsx';
@@ -13,12 +15,10 @@ import { Section } from '#/shared/view/Section.tsx';
 import { FormSkeleton } from '#/shared/view/Skeleton.tsx';
 import styles from '#/features/subjects/view/Tab.module.css';
 
+const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
+
 function beyondText(name: string, beyond: readonly string[]): string {
-  const list =
-    beyond.length === 1
-      ? beyond[0]
-      : `${beyond.slice(0, -1).join(', ')} and ${String(beyond.at(-1))}`;
-  return `${name} holds ${String(list)}, which you do not, so you cannot change what ${name} holds (ADR 0040).`;
+  return `${name} holds ${AND.format(beyond)}, which you do not, so you cannot change what ${name} holds.`;
 }
 
 export function CapabilitySection({ editing }: { editing: CapabilityEditing }) {
@@ -37,6 +37,14 @@ export function CapabilitySection({ editing }: { editing: CapabilityEditing }) {
       notice={<SectionNoticeOf title="Admin capabilities" save={s} />}
     >
       {locked ? <p className={styles.rule}>{beyondText(editing.name, editing.beyond)}</p> : null}
+      {editing.rolesFailed === null ? null : (
+        <p role="alert" className={styles.rule}>
+          The admin roles could not be read, so nothing can be saved.{' '}
+          <Button size="small" variant="quiet" onPress={editing.rolesFailed.retry}>
+            Read them again
+          </Button>
+        </p>
+      )}
       <ReadOnlyFields when={!editing.canManage}>
         <ChecklistField
           label={`Assigned to ${editing.name}`}
@@ -47,6 +55,25 @@ export function CapabilitySection({ editing }: { editing: CapabilityEditing }) {
           onChange={editing.choose}
         />
       </ReadOnlyFields>
+      {editing.elsewhere.length === 0 ? null : (
+        <p className={styles.rule}>
+          {`${AND.format(editing.elsewhere.map((held) => `${held.label} ${held.through}`))}: only that group or role takes it away, on ${editing.name}’s `}
+          <Link href={editing.groupsHref}>Groups</Link> or{' '}
+          <Link href={editing.rolesHref}>Roles</Link> tab.
+        </p>
+      )}
+      <ConfirmDialog
+        isOpen={editing.confirming !== null}
+        title={editing.confirming?.title ?? ''}
+        consequence={editing.confirming?.consequence ?? ''}
+        confirmLabel="Save Admin capabilities"
+        tone="danger"
+        {...(typeof editing.confirming?.typed === 'string'
+          ? { typed: editing.confirming.typed }
+          : {})}
+        onConfirm={editing.confirm}
+        onCancel={editing.cancel}
+      />
     </Section>
   );
 }
@@ -55,16 +82,18 @@ function Ready({
   tenant,
   subject,
   authorityTenant,
+  self,
   ...read
 }: {
   tenant: string;
   subject: Subject;
   authorityTenant: string;
+  self: boolean;
   data: Parameters<typeof useCapabilityEditor>[0]['data'];
   etag: string;
   gone: boolean;
 }) {
-  const editing = useCapabilityEditor({ tenant, subject, authorityTenant, ...read });
+  const editing = useCapabilityEditor({ tenant, subject, authorityTenant, self, ...read });
   return <CapabilitySection editing={editing} />;
 }
 
@@ -73,10 +102,12 @@ export function SubjectCapabilities({
   tenant,
   subject,
   authorityTenant = tenant,
+  self,
 }: {
   tenant: string;
   subject: Subject;
   authorityTenant?: string;
+  self: boolean;
 }) {
   const read = useSubjectRolesRead(tenant, subject.id);
   if (read.status === 'loading') {
@@ -98,6 +129,7 @@ export function SubjectCapabilities({
       tenant={tenant}
       subject={subject}
       authorityTenant={authorityTenant}
+      self={self}
       data={read.data}
       etag={read.etag}
       gone={read.gone}

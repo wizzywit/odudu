@@ -92,6 +92,7 @@ export function useResourceList<T>({
   search = [],
   filters = [],
   fixed = {},
+  defaults = {},
   read,
   count,
 }: {
@@ -104,6 +105,8 @@ export function useResourceList<T>({
   filters?: readonly string[];
   // Parameters every read carries, such as an Activity tab's record.
   fixed?: Readonly<Record<string, string>>;
+  // What a filter the address does not set reads as, without counting as narrowing.
+  defaults?: Readonly<Record<string, string>>;
   read: ReadPage<T>;
   count?: ReadCount;
 }): ResourceListState<T> {
@@ -113,7 +116,7 @@ export function useResourceList<T>({
   const spec = { fields: search, filters };
   const narrowing = listFromSearch(params, spec);
   const trail = trailFromSearch(params);
-  const query = apiQuery(narrowing, fixed);
+  const query = apiQuery({ ...narrowing, filters: { ...defaults, ...narrowing.filters } }, fixed);
   const key = ['list', tenant, resource] as const;
   const pages = useListPages({ key, query, cursor: currentCursor(trail), read });
   const counted = useQuery({

@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
@@ -51,4 +51,17 @@ it('passes axe in both themes, with nothing assigned', async () => {
       },
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('holds a save until the admin roles are read, and says when they could not be', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, {
+    ...routes(json({ items: [] }, 200, { etag: '"r1"' })),
+    [`GET ${ADMIN}/acme/roles`]: problem(500),
+  });
+  await user.click(await screen.findByRole('button', { name: 'Change grace’s capabilities' }));
+  const section = await screen.findByRole('region', { name: 'Admin capabilities' });
+  expect(await within(section).findByText(/The admin roles could not be read/u)).toBeVisible();
+  await user.click(within(section).getByRole('checkbox', { name: 'view-audit' }));
+  expect(within(section).getByRole('button', { name: 'Save Admin capabilities' })).toBeDisabled();
 });

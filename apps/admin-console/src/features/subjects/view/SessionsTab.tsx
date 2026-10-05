@@ -82,8 +82,8 @@ function started(session: Session): string {
   return formatAbsolute(new Date(session.created_at));
 }
 
-function columns(page: SubjectSessions): readonly Column<Session>[] {
-  return [
+function columns(page: SubjectSessions, withinReach: boolean): readonly Column<Session>[] {
+  const shown: Column<Session>[] = [
     {
       id: 'created_at',
       header: 'Started',
@@ -111,6 +111,10 @@ function columns(page: SubjectSessions): readonly Column<Session>[] {
           session.client_ids.join(', ')
         ),
     },
+  ];
+  if (!withinReach) return shown;
+  return [
+    ...shown,
     {
       id: 'end',
       header: 'Action',
@@ -130,10 +134,22 @@ function columns(page: SubjectSessions): readonly Column<Session>[] {
   ];
 }
 
-const OWN =
-  'One of them may be the one this console signed you in through: if it is, the console signs you out at its next request.';
+const OWN_ONE =
+  'It may be the one this console signed you in through: if it is, the console signs you out at its next request.';
+const OWN_ALL =
+  'The one this console signed you in through is among them, so the console signs you out at its next request.';
 
-function Sessions({ tenant, subject, self }: { tenant: string; subject: Subject; self: boolean }) {
+function Sessions({
+  tenant,
+  subject,
+  self,
+  withinReach,
+}: {
+  tenant: string;
+  subject: Subject;
+  self: boolean;
+  withinReach: boolean;
+}) {
   const page = useSubjectSessions(tenant, subject);
   const { name } = page;
   return (
@@ -146,11 +162,11 @@ function Sessions({ tenant, subject, self }: { tenant: string; subject: Subject;
         list={page.list}
         label={`Live sessions of ${name}`}
         noun="sessions"
-        columns={columns(page)}
+        columns={columns(page, withinReach)}
         rowKey={(session) => session.id}
         empty={`${name} holds no live session.`}
       />
-      {page.list.rows.length > 0 ? (
+      {withinReach && page.list.rows.length > 0 ? (
         <div className={styles.actions}>
           <Button
             variant="danger"
@@ -165,7 +181,7 @@ function Sessions({ tenant, subject, self }: { tenant: string; subject: Subject;
       <ConfirmDialog
         isOpen={page.end.asking !== null}
         title={self ? 'End this session of your own?' : `End this session of ${name}?`}
-        consequence={`Every grant it holds is revoked, and each client with a back-channel logout URI is told. A grant bound to no session, such as offline_access, stays.${self ? ` ${OWN}` : ''}`}
+        consequence={`Every grant it holds is revoked, and each client with a back-channel logout URI is told. A grant bound to no session, such as offline_access, stays.${self ? ` ${OWN_ONE}` : ''}`}
         confirmLabel="End session"
         tone="danger"
         busy={page.end.busy}
@@ -176,7 +192,7 @@ function Sessions({ tenant, subject, self }: { tenant: string; subject: Subject;
       <ConfirmDialog
         isOpen={page.endAll.asking !== null}
         title={self ? 'End every session of your own?' : `End every session of ${name}?`}
-        consequence={`Every live session ${self ? 'you hold' : `${name} holds`} ends, each with its grants revoked, and each client with a back-channel logout URI is told. A grant bound to no session, an offline_access refresh token, is left: the Grants tab revokes those.${self ? ` ${OWN}` : ''}`}
+        consequence={`Every live session ${self ? 'you hold' : `${name} holds`} ends, each with its grants revoked, and each client with a back-channel logout URI is told. A grant bound to no session, an offline_access refresh token, is left: the Grants tab revokes those.${self ? ` ${OWN_ALL}` : ''}`}
         confirmLabel="End every session"
         tone="danger"
         busy={page.endAll.busy}
@@ -192,16 +208,18 @@ export function SessionsTab({
   tenant,
   subject,
   self,
+  withinReach,
 }: {
   tenant: string;
   subject: Subject;
   self: boolean;
+  withinReach: boolean;
 }) {
   const allowed = useHolds(tenant, 'manage-sessions');
   return (
     <div className={styles.tab}>
       {allowed ? (
-        <Sessions tenant={tenant} subject={subject} self={self} />
+        <Sessions tenant={tenant} subject={subject} self={self} withinReach={withinReach} />
       ) : (
         <CapabilityNote capability="manage-sessions">Sessions</CapabilityNote>
       )}

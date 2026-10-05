@@ -54,6 +54,12 @@ it('creates a tenant, then its first administrator with a password shown once, t
   expect(
     await screen.findByRole('heading', { level: 1, name: 'First administrator of acme' }),
   ).toBeVisible();
+  expect(
+    screen.getByText(
+      'The first administrator holds Full, so somebody in acme can give every capability; narrow it afterwards under Administrators.',
+    ),
+  ).toBeVisible();
+  expect(screen.queryByRole('group', { name: 'What they hold' })).toBeNull();
   await user.type(screen.getByRole('textbox', { name: 'Username' }), 'grace');
   await user.click(screen.getByRole('button', { name: 'Create administrator' }));
 

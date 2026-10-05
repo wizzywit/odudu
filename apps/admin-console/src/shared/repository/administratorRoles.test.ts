@@ -1,15 +1,10 @@
 import { expect, it } from 'vitest';
-import {
-  grantHoldings,
-  grantTenantAdmin,
-  revokeAdministrator,
-} from '#/shared/repository/administratorRoles.ts';
+import { grantHoldings, grantTenantAdmin } from '#/shared/repository/administratorRoles.ts';
 import { fakeTransport, json, problem, type Answer } from '#/testing/fakeTransport.ts';
 import { administratorRoutes } from '#/testing/tenantsFixtures.ts';
 
 const S = '/console/api/admin/tenants/system';
 const ID = '01a0e72d-7fc7-7950-a1e7-1d079588f8b4';
-const SUBJECT = { id: ID, username: 'ada' };
 
 function role(id: string, name: string, client: string | null) {
   return {
@@ -84,59 +79,15 @@ it('grants a chosen set of capabilities, each found by its own name', async () =
   });
 });
 
-it("takes the built-in client's tenant-admin and manage-tenants away, keeping the rest", async () => {
-  const fake = fakeTransport(systemRoles(['r-own', 'r-admin', 'r-users', 'r-tenants']));
-  expect(await revokeAdministrator(fake.transport.gateway, 'system', SUBJECT)).toEqual({
-    kind: 'revoked',
-    stillHolds: false,
+it('hands back a refused grant, and the request it answered', async () => {
+  const fake = fakeTransport({
+    ...systemRoles(['reader']),
+    [`PUT ${S}/subjects/${ID}/roles`]: problem(403, 'about:blank', 'Forbidden'),
   });
-  const put = fake.sent.find((sent) => sent.method === 'PUT');
-  expect(put).toMatchObject({ ifMatch: '"roles-1"', body: { role_ids: ['r-own', 'r-users'] } });
-  const check = fake.sent.at(-1);
-  expect(check?.path).toBe(`${S}/subjects`);
-  expect(check?.search.get('capability')).toBe('manage-tenants');
-  expect(check?.search.get('username')).toBe('ada');
-});
-
-it('says so when the subject still holds manage-tenants some other way', async () => {
-  const fake = fakeTransport(systemRoles(['r-admin'], [ID]));
-  expect(await revokeAdministrator(fake.transport.gateway, 'system', SUBJECT)).toEqual({
-    kind: 'revoked',
-    stillHolds: true,
-  });
-});
-
-it('changes nothing for a subject holding neither role directly', async () => {
-  const fake = fakeTransport(systemRoles(['r-own', 'r-users']));
-  expect(await revokeAdministrator(fake.transport.gateway, 'system', SUBJECT)).toEqual({
-    kind: 'not-direct',
-  });
-  expect(fake.sent.some((sent) => sent.method === 'PUT')).toBe(false);
-});
-
-it("hands back the guard's refusal, and the request it answered", async () => {
-  const routes = systemRoles(['r-admin']);
-  routes[`PUT ${S}/subjects/${ID}/roles`] = problem(
-    409,
-    'about:blank#last-administrator',
-    'Conflict',
-    { detail: 'this would leave no enabled subject holding manage-tenants' },
+  expect(await grantHoldings(fake.transport.gateway, 'system', ID, ['manage-users'])).toMatchObject(
+    {
+      request: 'set-roles',
+      failure: { kind: 'problem', problem: { status: 403 } },
+    },
   );
-  const fake = fakeTransport(routes);
-  const revoked = await revokeAdministrator(fake.transport.gateway, 'system', SUBJECT);
-  expect(revoked).toMatchObject({
-    kind: 'refused',
-    request: 'set-roles',
-    failure: { kind: 'problem', problem: { status: 409, type: 'about:blank#last-administrator' } },
-  });
-});
-
-it('cannot say whether the subject still holds manage-tenants when the check is refused', async () => {
-  const routes = systemRoles(['r-admin']);
-  routes[`GET ${S}/subjects`] = problem(503, 'about:blank', 'Service Unavailable');
-  const fake = fakeTransport(routes);
-  expect(await revokeAdministrator(fake.transport.gateway, 'system', SUBJECT)).toEqual({
-    kind: 'revoked',
-    stillHolds: null,
-  });
 });

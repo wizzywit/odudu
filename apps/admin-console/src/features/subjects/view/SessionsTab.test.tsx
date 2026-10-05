@@ -90,7 +90,7 @@ it('says so when the sessions are your own', async () => {
   );
   await user.click(await screen.findByRole('button', { name: 'End every session' }));
   const dialog = await screen.findByRole('alertdialog', { name: 'End every session of your own?' });
-  expect(dialog).toHaveTextContent(/the one this console signed you in through/u);
+  expect(dialog).toHaveTextContent(/The one this console signed you in through is among them/u);
 });
 
 it('names manage-sessions to an operator without it, and reads nothing', async () => {

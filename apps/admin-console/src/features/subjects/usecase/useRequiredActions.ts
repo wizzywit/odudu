@@ -1,5 +1,5 @@
 import type { RequiredAction, SetRequiredActionsResponse, Subject } from '@odudu/contracts/admin';
-import { useAuthority, useRefusal } from '#/features/session/index.ts';
+import { useRefusal } from '#/features/session/index.ts';
 import {
   saveActions,
   useActionsRecord,
@@ -13,7 +13,6 @@ import {
 } from '#/features/subjects/service.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
-import { lacking } from '#/shared/service/access.ts';
 
 export function useRequiredActionsRead(
   tenant: string,
@@ -47,10 +46,10 @@ export function useRequiredActions(
   data: SetRequiredActionsResponse,
   etag: string,
   gone: boolean,
+  canManage: boolean,
 ): SubjectActions {
   const name = subjectName(subject);
   const refusal = useRefusal(tenant);
-  const canManage = lacking(useAuthority(tenant), ['manage-users']).length === 0;
   const save = useSectionSave({
     tenant,
     record: actionsRecord(subject.id),

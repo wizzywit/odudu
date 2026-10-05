@@ -4,7 +4,7 @@ import type {
   SetRolesResponse,
   Subject,
 } from '@odudu/contracts/admin';
-import { useAuthority, useRefusal } from '#/features/session/index.ts';
+import { useRefusal } from '#/features/session/index.ts';
 import { useEffectiveRoles, useSaveRoles } from '#/features/subjects/repository/useAccess.ts';
 import type { Read } from '#/features/subjects/repository/useSubjectRead.ts';
 import {
@@ -15,7 +15,6 @@ import {
 } from '#/features/subjects/service.ts';
 import { useRolePicker } from '#/shared/repository/useRolePicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
-import { lacking } from '#/shared/service/access.ts';
 import { isAdminRole } from '#/shared/service/capabilities.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
 
@@ -52,10 +51,10 @@ export function useSubjectRoles(
   data: SetRolesResponse,
   etag: string,
   gone: boolean,
+  canManage: boolean,
 ): SubjectRoles {
   const name = subjectName(subject);
   const refusal = useRefusal(tenant);
-  const canManage = lacking(useAuthority(tenant), ['manage-users']).length === 0;
   const picker = useRolePicker(tenant);
   const effective = useEffectiveRoles(tenant, subject.id);
   const saveRoles = useSaveRoles(tenant, subject.id);

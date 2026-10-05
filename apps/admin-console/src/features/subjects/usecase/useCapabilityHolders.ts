@@ -1,79 +1,56 @@
-import type { Subject } from '@odudu/contracts/admin';
+import type { ListedSubject } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useEffectiveRoles } from '#/features/subjects/repository/useAccess.ts';
-import { useHolderLists } from '#/features/subjects/repository/useHolders.ts';
-import {
-  heldSummary,
-  subjectHref,
-  subjectName,
-  type HeldLine,
-} from '#/features/subjects/service.ts';
-import { holdingLabel, holdingsIn, type Holding } from '#/shared/service/capabilities.ts';
+import { usePrincipal } from '#/features/session/index.ts';
+import { useHolderList } from '#/features/subjects/repository/useHolders.ts';
+import { heldLines, subjectHref, subjectName, type HeldLine } from '#/features/subjects/service.ts';
+import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
+import { MANAGE_TENANTS, TENANT_ADMIN } from '#/shared/service/administrators.ts';
+import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
+import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
 export interface Holder {
-  subject: Subject;
+  subject: ListedSubject;
   name: string;
   href: string;
-  // What the lists say it holds, Full first, before its own read says how.
-  holdings: readonly Holding[];
+  lines: readonly HeldLine[];
+  // manage-tenants, which in system reaches every other tenant.
+  reachesEveryTenant: boolean;
+  self: boolean;
 }
 
 export interface CapabilityHolders {
-  status: 'loading' | 'ready' | 'refused' | 'failed';
+  list: ResourceListState<ListedSubject>;
   holders: readonly Holder[];
-  retry: () => void;
   // The holder whose capabilities are open for change, one at a time.
   open: string | null;
+  // Asks before closing an editor holding unsaved edits.
   toggle: (id: string) => void;
 }
 
 export function useCapabilityHolders(tenant: string): CapabilityHolders {
-  const lists = useHolderLists(tenant);
+  const principal = usePrincipal();
+  const list = useHolderList(tenant);
   const [open, setOpen] = useState<string | null>(null);
-  const toggle = (id: string): void => {
-    setOpen((was) => (was === id ? null : id));
-  };
-  if (lists.status === 'loading') {
-    return { status: 'loading', holders: [], retry: () => undefined, open, toggle };
-  }
-  if (lists.status === 'failed') {
-    const refused = lists.failure.kind === 'problem' && lists.failure.problem.status === 403;
-    return {
-      status: refused ? 'refused' : 'failed',
-      holders: [],
-      retry: lists.retry,
-      open,
-      toggle,
-    };
-  }
-  const holders = new Map<string, Holder>();
-  for (const holding of holdingsIn(tenant)) {
-    for (const subject of lists.byHolding.get(holding) ?? []) {
-      const known = holders.get(subject.id);
-      holders.set(subject.id, {
+  return {
+    list,
+    holders: list.rows.map((subject) => {
+      const held = subject.admin_capabilities ?? [];
+      return {
         subject,
         name: subjectName(subject),
         href: subjectHref(tenant, subject.id),
-        holdings: [...(known?.holdings ?? []), holding],
-      });
-    }
-  }
-  return {
-    status: 'ready',
-    holders: [...holders.values()].sort((a, b) => a.name.localeCompare(b.name)),
-    retry: () => undefined,
+        lines: heldLines(held),
+        reachesEveryTenant:
+          tenant === SYSTEM_TENANT &&
+          held.some((each) => each.name === MANAGE_TENANTS || each.name === TENANT_ADMIN),
+        self: principal.tenant === tenant && principal.subjectId === subject.id,
+      };
+    }),
     open,
-    toggle,
+    toggle: (id) => {
+      useUnsavedGuard.getState().request(() => {
+        setOpen((was) => (was === id ? null : id));
+      });
+    },
   };
-}
-
-// How one holder holds what it holds, once its own read answers; until
-// then, what the lists said.
-export function useHeldLines(tenant: string, holder: Holder): readonly HeldLine[] {
-  const effective = useEffectiveRoles(tenant, holder.subject.id);
-  if (effective.status === 'ready') return heldSummary(effective.data.items);
-  const shown = holder.holdings.includes('tenant-admin')
-    ? ['tenant-admin' as const]
-    : holder.holdings;
-  return shown.map((holding) => ({ holding, label: holdingLabel(holding), how: '' }));
 }

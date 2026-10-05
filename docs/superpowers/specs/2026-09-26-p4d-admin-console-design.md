@@ -652,13 +652,13 @@ page has none: its kicker names its rail group.
 
 Record pages and their tabs:
 
-| Area    | Tabs                                                                                       |
-| ------- | ------------------------------------------------------------------------------------------ |
-| Subject | Profile · Credentials · Groups · Roles · Required actions · Sessions · Consents · Activity |
-| Group   | General · Roles · Activity                                                                 |
-| Role    | General · Composites · Activity                                                            |
-| Client  | General · Redirects & origins · Tokens · Scopes · Logout · Advanced · Activity             |
-| Scope   | General · Roles · Claim mappers · Clients · Activity                                       |
+| Area    | Tabs                                                                                                |
+| ------- | --------------------------------------------------------------------------------------------------- |
+| Subject | Profile · Credentials · Groups · Roles · Required actions · Sessions · Consents · Grants · Activity |
+| Group   | General · Roles · Activity                                                                          |
+| Role    | General · Composites · Activity                                                                     |
+| Client  | General · Redirects & origins · Tokens · Scopes · Logout · Advanced · Activity                      |
+| Scope   | General · Roles · Claim mappers · Clients · Activity                                                |
 
 Sign-in flow is one page of ordered steps with their requirement. Signing
 keys is one page of three lanes by the stored status: `rotating`

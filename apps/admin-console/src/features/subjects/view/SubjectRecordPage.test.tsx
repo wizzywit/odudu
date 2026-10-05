@@ -4,7 +4,15 @@ import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { json, problem } from '#/testing/fakeTransport.ts';
 import { consoleAt, renderConsoleAt, resetConsole, whoami } from '#/testing/renderConsole.tsx';
-import { ADA_AT, ADA_ID, S, subject, subjectRoutes } from '#/testing/subjectsFixtures.ts';
+import {
+  ADA_AT,
+  ADA_ID,
+  ADMIN_ROLES,
+  assigned,
+  S,
+  subject,
+  subjectRoutes,
+} from '#/testing/subjectsFixtures.ts';
 
 afterEach(() => {
   resetConsole();
@@ -126,4 +134,56 @@ it('reads whoami once, however many parts of the page ask what it says', async (
   const { sent } = renderConsoleAt(ADA_AT, subjectRoutes());
   await screen.findByRole('textbox', { name: 'Nickname' });
   expect(sent.filter((s) => s.path.endsWith('/whoami'))).toHaveLength(1);
+});
+
+const FULL_HOLDER = {
+  [`GET ${S}/${ADA_ID}/effective-roles`]: json({
+    items: ADMIN_ROLES.map((role, i) => ({
+      ...assigned(role),
+      via:
+        i === 0
+          ? [{ kind: 'direct' }]
+          : [{ kind: 'composite', parent_role_id: 'r-full', parent_name: 'tenant-admin' }],
+    })),
+  }),
+};
+
+it('offers no change to a subject holding more than the caller, and says so once', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(['view-users', 'manage-users', 'manage-sessions'], FULL_HOLDER),
+  );
+  const note = await screen.findByText(/ada holds .* which you do not/u);
+  expect(note).toHaveTextContent(
+    'ada holds manage-tenant, manage-clients, manage-keys and view-audit, which you do not, so you can view ada but change nothing here.',
+  );
+  expect(screen.queryByRole('button', { name: /Disable|Delete/u })).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Full name' })).toBeNull();
+  for (const tab of [
+    'Credentials',
+    'Groups',
+    'Roles',
+    'Required actions',
+    'Sessions',
+    'Consents',
+  ]) {
+    await user.click(screen.getByRole('tab', { name: tab }));
+    await screen.findByRole('tabpanel', { name: tab });
+    expect(
+      screen.queryByRole('button', { name: /Issue|Send|Remove|Revoke|End|Save|Email|Clear/u }),
+      tab,
+    ).toBeNull();
+    expect(screen.queryByRole('checkbox'), tab).toBeNull();
+    expect(screen.queryByRole('listbox'), tab).toBeNull();
+  }
+});
+
+it('passes axe in both themes, beyond reach', async () => {
+  expect(
+    await axeInBothThemes(
+      () => consoleAt(ADA_AT, subjectRoutes(['view-users', 'manage-users'], FULL_HOLDER)).element,
+      () => screen.findByText(/which you do not/u),
+    ),
+  ).toEqual({ light: [], dark: [] });
 });

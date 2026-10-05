@@ -4,7 +4,7 @@ import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { inTurn, json } from '#/testing/fakeTransport.ts';
 import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
-import { ADA_AT, ADA_ID, S, subjectRoutes } from '#/testing/subjectsFixtures.ts';
+import { ADA_AT, ADA_ID, S, subject, subjectRoutes } from '#/testing/subjectsFixtures.ts';
 
 afterEach(() => {
   resetConsole();
@@ -72,4 +72,26 @@ it('passes axe in both themes', async () => {
       () => screen.findByRole('grid', { name: 'Grants ada holds' }),
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+it("says that revoking your own console's grants signs you out", async () => {
+  const user = userEvent.setup();
+  const own = `${S}/s1`;
+  renderConsoleAt(
+    '/console/acme/subjects/s1?tab=grants',
+    subjectRoutes(undefined, {
+      [`GET ${own}`]: json(subject('s1', 'grace'), 200, { etag: '"s1"' }),
+      [`GET ${own}/effective-roles`]: json({ items: [] }),
+      [`GET ${own}/grants`]: json({
+        items: [{ ...grant('g1', false), client_id: 'c-admin', client_key: 'odudu-admin' }],
+      }),
+    }),
+  );
+  await user.click(
+    await screen.findByRole('button', { name: 'Revoke every grant through odudu-admin' }),
+  );
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Revoke your own grants through odudu-admin?',
+  });
+  expect(dialog).toHaveTextContent(/signs you out at its next request/u);
 });

@@ -1,4 +1,5 @@
 import type {
+  CountResponse,
   ListEffectiveRolesResponse,
   RequiredAction,
   SetRequiredActionsResponse,
@@ -14,6 +15,7 @@ import {
   setRequiredActions,
   setSubjectGroups,
 } from '#/features/subjects/adapter/access.ts';
+import { readSubjectCount } from '#/features/subjects/adapter/subjects.ts';
 import { useSubjectRead, type Read } from '#/features/subjects/repository/useSubjectRead.ts';
 import { actionsRecord, groupsRecord, rolesRecord } from '#/features/subjects/service.ts';
 import { readSubjectRoles, setSubjectRoles } from '#/shared/adapter/administrators.ts';
@@ -68,6 +70,18 @@ export function useEffectiveRoles(
 export function useAdminRoleIds(tenant: string): Read<ReadonlyMap<Holding, string>> {
   const { gateway } = useTransport();
   return useSubjectRead(['admin-roles', tenant], true, () => readAdminRoles(gateway, tenant));
+}
+
+// How many enabled subjects hold what the last-administrator guard counts.
+export function useEnabledHolderCount(tenant: string, counted: string): Read<CountResponse> {
+  const { gateway } = useTransport();
+  return useSubjectRead(['holders', tenant, 'enabled', counted], true, () =>
+    readSubjectCount(
+      gateway,
+      tenant,
+      new URLSearchParams({ capability: counted, enabled: 'true' }),
+    ),
+  );
 }
 
 // What follows from a subject's roles and groups is read again once either
