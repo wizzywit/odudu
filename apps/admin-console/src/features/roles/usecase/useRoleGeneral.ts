@@ -10,18 +10,25 @@ import {
   type DescriptionValues,
 } from '#/features/roles/repository/useRoleRecord.ts';
 import {
+  type Ceiling,
   defaultBlock,
+  DEFAULT_LABEL,
+  defaultsChecking,
+  deletionFixed,
   DESCRIPTION_MAX,
   DESCRIPTION_RULE,
-  isBuiltin,
+  isDeleteHeld,
+  roleDeleteConsequence,
+  roleDeleteFailureText,
   roleRecord,
   roleSelfLoss,
   rolesHref,
 } from '#/features/roles/service.ts';
-import type { Ceiling } from '#/features/roles/usecase/useRoleRecordPage.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import { judgedLoss, lossText, writeRefusal } from '#/shared/service/capabilities.ts';
+import { asksFirst, judgedLoss, writeRefusal } from '#/shared/service/capabilities.ts';
+import { deletedText } from '#/shared/service/failure.ts';
+import { flagText } from '#/shared/service/format.ts';
 import type { GatewayFailure } from '#/shared/transport/gateway.ts';
 
 export type { SectionSave };
@@ -54,25 +61,6 @@ export interface RoleGeneral {
   descriptionLimit: number;
   defaults: Defaults;
   deletion: Deletion;
-}
-
-function failureText(name: string, result: GatewayFailure): string {
-  switch (result.kind) {
-    case 'network':
-      return `Could not confirm whether ${name} was deleted. It has not been sent again; look at the roles before trying again.`;
-    case 'schema':
-      return `${name} may have been deleted, but the answer could not be read. Reload to check.`;
-    case 'defect':
-      return `The console could not finish, so ${name} was not deleted. This is a fault in the console, not something you did.`;
-    case 'problem':
-      if (result.problem.status === 409 && result.problem.detail !== undefined) {
-        return `Refused: ${result.problem.detail}.`;
-      }
-      return (
-        writeRefusal(result.problem) ??
-        `${name} was not deleted: ${result.problem.detail ?? result.problem.title}`
-      );
-  }
 }
 
 export function useRoleGeneral({
@@ -129,9 +117,9 @@ export function useRoleGeneral({
     fields: {
       default_for_new_subjects: {
         value: role.default_for_new_subjects,
-        label: 'Given to every new subject',
+        label: DEFAULT_LABEL,
         kind: 'plain',
-        describe: (value) => (value === true ? 'on' : 'off'),
+        describe: (value) => flagText(value, 'on', 'off'),
       },
     },
     save: saves.default,
@@ -143,7 +131,6 @@ export function useRoleGeneral({
     ready?.caller ?? [],
     role.admin_reach,
   );
-  const asks = loss.kind === 'certain' || loss.kind === 'possible';
   return {
     description,
     descriptionRule: DESCRIPTION_RULE,
@@ -151,16 +138,14 @@ export function useRoleGeneral({
     defaults: {
       save: defaults,
       fixed: defaultBlock(role),
-      checking: ready === null && !isBuiltin(role),
+      checking: defaultsChecking(role, ceiling),
     },
     deletion: {
-      fixed: isBuiltin(role)
-        ? `${role.name} is a capability of the built-in admin client, so it cannot be deleted: every administrator holding it would lose it.`
-        : null,
-      held: ready?.deleteHeld != null,
+      fixed: deletionFixed(role),
+      held: isDeleteHeld(ceiling),
       checking: ready === null || loss.kind === 'checking',
       confirming: deleting,
-      consequence: `${role.name} is taken from every subject, group and scope it is given to, and out of every role it is nested in; what it nests is no longer held through it. It cannot be undone.${lossText(loss, role.name)}`,
+      consequence: roleDeleteConsequence(role.name, loss),
       busy: deletion.busy,
       problem,
       ask: () => {
@@ -179,16 +164,16 @@ export function useRoleGeneral({
           .then((result) => {
             if (result.ok) {
               setDeleting(false);
-              if (asks) reread();
-              push({ tone: 'success', message: `${role.name} was deleted.` });
+              if (asksFirst(loss)) reread();
+              push({ tone: 'success', message: deletedText(role.name) });
               go(rolesHref(tenant), { replace: true });
               return;
             }
             refusal.report(result, 'manage-tenant');
-            setProblem(failureText(role.name, result));
+            setProblem(roleDeleteFailureText(role.name, result));
           })
           .catch(() => {
-            setProblem(failureText(role.name, { ok: false, kind: 'defect' }));
+            setProblem(roleDeleteFailureText(role.name, { ok: false, kind: 'defect' }));
           });
       },
     },

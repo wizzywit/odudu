@@ -4,50 +4,28 @@ import { useAuthority, useRefusal } from '#/features/session';
 import { useCopySource, useCreateRole } from '#/features/roles/repository/useCreateRole.ts';
 import { useGo } from '#/features/roles/repository/useGo.ts';
 import {
-  childUnavailable,
+  copiedDescription,
+  type Copying,
+  copyingOf,
+  copyPlan,
   DESCRIPTION_MAX,
   DESCRIPTION_RULE,
+  NAME_TAKEN,
+  type PartialCopy,
+  partialCopy,
   roleHref,
   rolesHref,
 } from '#/features/roles/service.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch.ts';
-import { writeRefusal } from '#/shared/service/capabilities.ts';
-import { fieldErrorsOf } from '#/shared/service/fieldErrors.ts';
+import { requiredProblem, withoutField } from '#/shared/service/fieldErrors.ts';
+import { createdText, createFailure, lookupText } from '#/shared/service/failure.ts';
 import type { GatewayFailure } from '#/shared/transport/gateway.ts';
 
 type Field = 'name' | 'description';
 type Errors = Partial<Record<Field, string>>;
 
-function without(errors: Errors, field: Field): Errors {
-  return Object.fromEntries(Object.entries(errors).filter(([name]) => name !== field));
-}
-
-function sentence(text: string): string {
-  const said = text.charAt(0).toUpperCase() + text.slice(1);
-  return said.endsWith('.') ? said : `${said}.`;
-}
-
-const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
-
-export type Copying =
-  | { status: 'none' }
-  | { status: 'loading' }
-  | { status: 'failed' }
-  | {
-      status: 'ready';
-      name: string;
-      // What the copy will nest.
-      children: readonly string[];
-      // What it will not, since the caller could not nest it, and why.
-      left: readonly { name: string; why: string }[];
-    };
-
-export interface PartialCopy {
-  text: string;
-  href: string;
-  name: string;
-}
+export type { Copying, PartialCopy };
 
 export interface NewRole {
   listHref: string;
@@ -82,29 +60,19 @@ export function useNewRole(tenant: string): NewRole {
   const [message, setMessage] = useState<string | null>(null);
   const [unconfirmed, setUnconfirmed] = useState(false);
   const [partial, setPartial] = useState<PartialCopy | null>(null);
-  const shown = description ?? (source.status === 'ready' ? (source.role.description ?? '') : '');
+  const shown = copiedDescription(description, source);
   const caller = useAuthority(tenant)?.capabilities;
-  // A copy is a new tenant role, nested in nothing and handed to nobody yet,
-  // so each child is judged as a nesting into one.
-  const fresh = { id: '', default_for_new_subjects: false };
-  const judged = (source.status === 'ready' ? source.children : []).map((child) => ({
-    child,
-    why: caller === undefined ? null : childUnavailable(fresh, child, [], caller, tenant),
-  }));
-  const children = judged.filter((each) => each.why === null).map((each) => each.child);
+  const plan = copyPlan(source.status === 'ready' ? source.children : [], caller, tenant);
+  const children = plan.nested;
+  const looked = lookupText('role', name);
 
-  // A copy missing some of its composites stays here, saying so, since a
-  // toast is never the only copy of something to act on.
   const land = (role: Role, missed: readonly Role[]): void => {
-    if (missed.length > 0) {
-      setPartial({
-        text: `${role.name} was created, but ${AND.format(missed.map((each) => each.name))} could not be nested in it. Add them from its Composites tab.`,
-        href: `${roleHref(tenant, role.id)}?tab=composites`,
-        name: role.name,
-      });
+    const left = partialCopy(tenant, role, missed);
+    if (left !== null) {
+      setPartial(left);
       return;
     }
-    push({ tone: 'success', message: `${role.name} was created.` });
+    push({ tone: 'success', message: createdText(role.name) });
     go(roleHref(tenant, role.id), { replace: true });
   };
 
@@ -124,55 +92,24 @@ export function useNewRole(tenant: string): NewRole {
   };
 
   const failed = (failure: GatewayFailure): void => {
-    switch (failure.kind) {
-      case 'network':
-      case 'schema':
-        setUnconfirmed(true);
-        setMessage(
-          `Could not confirm whether ${name} was created. It has not been sent again; look for it before trying again.`,
-        );
-        return;
-      case 'defect':
-        setMessage(
-          'The console could not create the role. This is a fault in the console, not something you did.',
-        );
-        return;
-      case 'problem': {
-        const { problem } = failure;
-        if (problem.status === 409) {
-          setErrors({ name: sentence(problem.detail ?? 'That name is taken') });
-          return;
-        }
-        const refused = writeRefusal(problem);
-        if (refused !== null) {
-          refusal.report(failure, 'manage-tenant');
-          setMessage(refused);
-          return;
-        }
-        const placed = fieldErrorsOf(problem, ['name', 'description']);
-        setErrors(placed.fields);
-        setMessage(placed.other.length === 0 ? null : placed.other.join(' '));
-      }
-    }
+    const outcome = createFailure(failure, {
+      noun: 'role',
+      name,
+      fields: ['name', 'description'],
+      taken: { field: 'name', fallback: NAME_TAKEN },
+      capability: 'manage-tenant',
+    });
+    if (outcome.unconfirmed) setUnconfirmed(true);
+    if (outcome.report) refusal.report(failure, 'manage-tenant');
+    setErrors(outcome.errors);
+    setMessage(outcome.message);
   };
-
-  let copying: Copying = { status: 'none' };
-  if (source.status === 'ready') {
-    copying = {
-      status: 'ready',
-      name: source.role.name,
-      children: children.map((child) => child.name),
-      left: judged.flatMap(({ child, why }) => (why === null ? [] : [{ name: child.name, why }])),
-    };
-  } else if (source.status !== 'none') {
-    copying = { status: source.status };
-  }
 
   return {
     listHref: rolesHref(tenant),
     descriptionRule: DESCRIPTION_RULE,
     descriptionLimit: DESCRIPTION_MAX,
-    copying,
+    copying: copyingOf(source, plan),
     name,
     description: shown,
     errors,
@@ -182,11 +119,11 @@ export function useNewRole(tenant: string): NewRole {
     busy: creation.busy || source.status === 'loading' || caller === undefined,
     editName: (next) => {
       setName(next);
-      setErrors((was) => without(was, 'name'));
+      setErrors((was) => withoutField(was, 'name'));
     },
     editDescription: (next) => {
       setDescription(next);
-      setErrors((was) => without(was, 'description'));
+      setErrors((was) => withoutField(was, 'description'));
     },
     submit: () => {
       if (
@@ -198,8 +135,9 @@ export function useNewRole(tenant: string): NewRole {
       ) {
         return;
       }
-      if (name.trim() === '') {
-        setErrors({ name: 'Enter a name.' });
+      const required = requiredProblem(name, 'Enter a name.');
+      if (required !== null) {
+        setErrors({ name: required });
         return;
       }
       setErrors({});
@@ -220,7 +158,7 @@ export function useNewRole(tenant: string): NewRole {
         .find(name)
         .then((result) => {
           if (!result.ok) {
-            setMessage(`Could not look for ${name}. Try again.`);
+            setMessage(looked.failed);
             return;
           }
           if (result.data !== null) {
@@ -228,12 +166,10 @@ export function useNewRole(tenant: string): NewRole {
             return;
           }
           setUnconfirmed(false);
-          setMessage(
-            `No role named ${name} was found, so it was not created. Creating it again is safe.`,
-          );
+          setMessage(looked.missing);
         })
         .catch(() => {
-          setMessage(`Could not look for ${name}. Try again.`);
+          setMessage(looked.failed);
         });
     },
   };

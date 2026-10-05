@@ -2,30 +2,18 @@ import type { Role } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session';
 import { useRoleRecord } from '#/features/roles/repository/useRoleRecord.ts';
 import {
-  compositesRecord,
-  copyHref,
-  deleteBlock,
-  isBuiltin,
+  type Ceiling,
+  copyHrefOf,
   ROLE_TABS,
-  roleRecord,
+  roleCeiling,
   type RoleTab,
+  TAB_RECORDS,
 } from '#/features/roles/service.ts';
-import { useDirtySections } from '#/shared/repository/useDirtySections.ts';
+import { useDirtyRecords } from '#/shared/repository/useDirtyRecords.ts';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
-import type { AdminCapability } from '#/shared/service/principal.ts';
-import type { RecordView } from '#/shared/service/record.ts';
+import { dirtyTabs, tabNamed, type RecordView } from '#/shared/service/record.ts';
 
-// What the role reaches, which its record carries, and the caller's own
-// capabilities: every ceiling on its writes is judged by both, so nothing is
-// offered until whoami has answered.
-export type Ceiling =
-  | { status: 'checking' }
-  | {
-      status: 'ready';
-      caller: readonly AdminCapability[];
-      // Why it cannot be deleted, by the ceiling, or null.
-      deleteHeld: string | null;
-    };
+export type { Ceiling };
 
 export interface RoleRecordPage {
   record: RecordView;
@@ -43,31 +31,21 @@ export function useRoleRecordPage(tenant: string, id: string): RoleRecordPage {
   const record = useRoleRecord(tenant, id);
   const authority = useAuthority(tenant);
   const { tab, selectTab } = useRecordTab(ROLE_TABS);
-  const general = useDirtySections(tenant, roleRecord(id));
-  const nested = useDirtySections(tenant, compositesRecord(id));
+  const recordsOf = (each: RoleTab): readonly string[] => TAB_RECORDS[each](id);
+  const edited = useDirtyRecords(tenant, ROLE_TABS.flatMap(recordsOf));
   const role = record.data;
-  let ceiling: Ceiling = { status: 'checking' };
-  if (authority !== undefined && role !== undefined) {
-    ceiling = {
-      status: 'ready',
-      caller: authority.capabilities,
-      deleteHeld: isBuiltin(role) ? null : deleteBlock(role, authority.capabilities),
-    };
-  }
+
   return {
     record,
     role,
     etag: record.etag,
-    copyHref: role?.client_id === null ? copyHref(tenant, id) : null,
+    copyHref: copyHrefOf(tenant, role),
     tab,
     selectTab: (next) => {
-      const chosen = ROLE_TABS.find((candidate) => candidate === next);
+      const chosen = tabNamed(ROLE_TABS, next);
       if (chosen !== undefined) selectTab(chosen);
     },
-    dirty: new Set<RoleTab>([
-      ...(general.size > 0 ? (['general'] as const) : []),
-      ...(nested.size > 0 ? (['composites'] as const) : []),
-    ]),
-    ceiling,
+    dirty: dirtyTabs(ROLE_TABS, recordsOf, edited),
+    ceiling: roleCeiling(role, authority),
   };
 }

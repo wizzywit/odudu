@@ -9,19 +9,27 @@ import {
   type AddValues,
 } from '#/features/roles/repository/useRoleRecord.ts';
 import {
+  ADD_LABEL,
+  addRefusal,
+  type Asked,
+  type Ceiling,
   childUnavailable,
-  compositeRefusal,
+  compositeRemovalConfirmation,
+  compositeRemovalFailureText,
+  compositesFixed,
+  compositesOffered,
   compositesRecord,
-  isBuiltin,
+  NEST_LABEL,
   removalBlock,
   roleSelfLoss,
+  unnestedText,
 } from '#/features/roles/service.ts';
-import type { Ceiling } from '#/features/roles/usecase/useRoleRecordPage.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useRolePicker } from '#/shared/repository/useRolePicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import { judgedLoss, lossText, type Loss } from '#/shared/service/capabilities.ts';
+import { asksFirst, judgedLoss, type Loss } from '#/shared/service/capabilities.ts';
+import { describeIds } from '#/shared/service/format.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
 
 export function useCompositesRead(
@@ -37,10 +45,7 @@ export interface Child {
   held: string | null;
 }
 
-export interface Asked {
-  title: string;
-  consequence: string;
-}
+export type { Asked };
 
 export interface RoleComposites {
   // A capability role keeps what it was provisioned with, as fixed text.
@@ -96,21 +101,21 @@ export function useRoleComposites({
     tenant,
     record: compositesRecord(role.id),
     section: 'add',
-    label: 'Add a composite',
+    label: ADD_LABEL,
     etag,
     capability: 'manage-tenant',
     gone,
     onRefused: (failure) => {
       refusal.report(failure, 'manage-tenant');
     },
-    explain: (problem) => compositeRefusal('the role chosen', problem),
+    explain: addRefusal,
     fields: {
       child_role_id: {
         value: null,
-        label: 'Role to nest',
+        label: NEST_LABEL,
         kind: 'plain',
         describe: (value) =>
-          typeof value === 'string' ? (known.get(value)?.name ?? value) : 'none',
+          describeIds(typeof value === 'string' ? [value] : [], (id) => known.get(id)?.name ?? id),
       },
     },
     save,
@@ -130,25 +135,12 @@ export function useRoleComposites({
     try {
       const result = await removal.remove({ child: child.id, ifMatch: etag });
       if (result.ok) {
-        push({ tone: 'success', message: `${child.name} is no longer nested in ${role.name}.` });
-        if (lossOf(child).kind !== 'none') reread();
+        push({ tone: 'success', message: unnestedText(child.name, role.name) });
+        if (asksFirst(lossOf(child))) reread();
         return true;
       }
       refusal.report(result, 'manage-tenant');
-      if (result.kind === 'problem' && result.problem.status === 412) {
-        setMessage(
-          `${role.name}'s composites changed since you opened them, so ${child.name} was not taken out. They have been read again; look before trying again.`,
-        );
-      } else if (result.kind === 'problem') {
-        setMessage(
-          compositeRefusal(child.name, result.problem) ??
-            `${child.name} was not taken out: ${result.problem.detail ?? result.problem.title}`,
-        );
-      } else {
-        setMessage(
-          `Could not confirm whether ${child.name} was taken out. Look at the list before trying again.`,
-        );
-      }
+      setMessage(compositeRemovalFailureText(role.name, child.name, result));
       return false;
     } finally {
       setRemoving(null);
@@ -156,16 +148,12 @@ export function useRoleComposites({
   };
 
   return {
-    fixed: isBuiltin(role)
-      ? `${role.name} is a capability of the built-in admin client: it keeps the roles it was provisioned with, and nothing is nested in it or taken out of it here.`
-      : null,
+    fixed: compositesFixed(role),
     children: data.items.map((child) => ({
       role: child,
       held: removalBlock(child, caller, tenant),
     })),
-    // Each removal asks first where it takes from yourself, so none is
-    // offered while that is still being read.
-    offered: ceiling.status === 'ready' && own.status !== 'loading',
+    offered: compositesOffered(ceiling, own),
     add,
     picker,
     unavailableOf: (candidate) => childUnavailable(role, candidate, data.items, caller, tenant),
@@ -176,14 +164,8 @@ export function useRoleComposites({
     message,
     remove: (child) => {
       const lost = lossOf(child);
-      if (lost.kind === 'none') return run(child);
-      setAsking({
-        child,
-        asked: {
-          title: 'Take out a role your own access runs through?',
-          consequence: `Whoever holds ${role.name} no longer holds ${child.name} through it.${lossText(lost, `${child.name} nested in ${role.name}`)}`,
-        },
-      });
+      if (!asksFirst(lost)) return run(child);
+      setAsking({ child, asked: compositeRemovalConfirmation(role.name, child.name, lost) });
       return Promise.resolve(false);
     },
     asking: asking?.asked ?? null,

@@ -9,7 +9,7 @@ import { SelectField } from '#/shared/view/Field';
 import { ResourceListPage } from '#/shared/view/ResourceListPage';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Timestamp } from '#/shared/view/Timestamp';
-import styles from '#/features/roles/view/Tab.module.css';
+import styles from '#/features/roles/view/RolesPage/RolesPage.module.css';
 
 const COLUMNS: readonly Column<Role>[] = [
   {

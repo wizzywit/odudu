@@ -1,4 +1,4 @@
-import type { ListRoleCompositesResponse, Role } from '@odudu/contracts/admin';
+import type { Role } from '@odudu/contracts/admin';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addComposite,
@@ -7,6 +7,7 @@ import {
   readComposites,
   readRole,
 } from '#/features/roles/adapter/roles.ts';
+import type { CopyRead } from '#/features/roles/service.ts';
 import { useFreshRead } from '#/shared/repository/useFreshRead.ts';
 import type { GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
@@ -56,11 +57,7 @@ export function useCreateRole(tenant: string): CreateRole {
   };
 }
 
-export type CopyRead =
-  | { status: 'none' }
-  | { status: 'loading' }
-  | { status: 'ready'; role: Role; children: ListRoleCompositesResponse['items'] }
-  | { status: 'failed' };
+export type { CopyRead };
 
 // The role a copy is made of, and what it nests.
 export function useCopySource(tenant: string, id: string | null): CopyRead {

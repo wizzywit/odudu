@@ -1,14 +1,12 @@
 import type { SubmitEvent } from 'react';
 import { AreaGate, areaAt } from '#/features/shell';
-import { rolesTrail } from '#/features/roles/service.ts';
+import { copyingText, rolesTrail } from '#/features/roles/service.ts';
 import { useNewRole, type Copying } from '#/features/roles/usecase/useNewRole.ts';
 import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink';
 import { TextAreaField, TextField } from '#/shared/view/Field';
 import { PageHeader } from '#/shared/view/PageHeader';
-import styles from '#/features/roles/view/Form.module.css';
-
-const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
+import styles from '#/features/roles/view/NewRolePage/NewRolePage.module.css';
 
 function CopyNote({ copying }: { copying: Copying }) {
   switch (copying.status) {
@@ -25,11 +23,9 @@ function CopyNote({ copying }: { copying: Copying }) {
     case 'ready':
       return (
         <div className={styles.rule}>
-          <span className={styles.place}>
-            {`A copy of ${copying.name}, nesting ${copying.children.length === 0 ? 'nothing' : AND.format(copying.children)}.`}
-          </span>{' '}
-          Its description comes along. What it nests is added one role at a time after the copy is
-          made, so a refusal of one leaves the rest in place.
+          <span className={styles.place}>{copyingText(copying)}</span> Its description comes along.
+          What it nests is added one role at a time after the copy is made, so a refusal of one
+          leaves the rest in place.
           {copying.left.length === 0 ? null : (
             <>
               {' '}

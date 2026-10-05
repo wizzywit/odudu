@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { admitted, notLacking, blockedChanges, holds, lacking, readable } from '#/shared/service/access.ts';
+import {
+  admitted,
+  notLacking,
+  blockedChanges,
+  holds,
+  lacking,
+  readable,
+} from '#/shared/service/access.ts';
 
 const VIEWER = { capabilities: ['view-users'] as const, crossTenant: false };
 

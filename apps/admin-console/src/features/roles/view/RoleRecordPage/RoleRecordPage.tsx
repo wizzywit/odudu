@@ -10,8 +10,8 @@ import {
 } from '#/features/roles/service.ts';
 import { useAuditReadable, useRoleActivity } from '#/features/roles/usecase/useRoleActivity.ts';
 import { useRoleRecordPage, type Ceiling } from '#/features/roles/usecase/useRoleRecordPage.ts';
-import { CompositesTab } from '#/features/roles/view/CompositesTab.tsx';
-import { GeneralTab } from '#/features/roles/view/GeneralTab.tsx';
+import { CompositesTab } from '#/features/roles/view/RoleRecordPage/CompositesTab.tsx';
+import { GeneralTab } from '#/features/roles/view/RoleRecordPage/GeneralTab.tsx';
 import { RoleOwner } from '#/shared/view/RoleOwner';
 import { ActivityTab } from '#/shared/view/ActivityTab';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';
@@ -19,7 +19,7 @@ import { ButtonLink } from '#/shared/view/ButtonLink';
 import { RecordPage } from '#/shared/view/RecordPage';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Note } from '#/shared/view/Note';
-import styles from '#/features/roles/view/Tab.module.css';
+import styles from '#/features/roles/view/RoleRecordPage/Tab.module.css';
 
 interface PanelProps {
   tenant: string;
