@@ -10,6 +10,7 @@ import {
   setRoleDefault,
 } from '#/features/roles/adapter/roles.ts';
 import { compositesRecord, roleRecord } from '#/features/roles/service.ts';
+import { isStale } from '#/shared/service/failure.ts';
 import { recordKey, useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
@@ -77,17 +78,8 @@ export interface DefaultValues extends Readonly<Record<string, unknown>> {
 export function useRoleSaves(tenant: string, id: string) {
   const after = useAfterRoleChange(tenant);
   return {
-    // An emptied description is cleared, as the server keeps no empty one.
     description: async (gateway: Gateway, { values, ifMatch }: SaveInput<DescriptionValues>) =>
-      after(
-        await amendRole(
-          gateway,
-          tenant,
-          id,
-          { description: values.description === '' ? null : values.description },
-          ifMatch,
-        ),
-      ),
+      after(await amendRole(gateway, tenant, id, { description: values.description }, ifMatch)),
     default: async (gateway: Gateway, { values, ifMatch }: SaveInput<DefaultValues>) =>
       after(await setRoleDefault(gateway, tenant, id, values.default_for_new_subjects, ifMatch)),
   };
@@ -110,8 +102,7 @@ export function useCompositeRemoval(tenant: string, id: string): CompositeRemova
   const client = useQueryClient();
   const after = useAfterRoleChange(tenant);
   const reread = <R>(result: GatewayResult<R>): GatewayResult<R> => {
-    const changed = result.ok || (result.kind === 'problem' && result.problem.status === 412);
-    if (changed) {
+    if (result.ok || isStale(result)) {
       client
         .invalidateQueries({ queryKey: recordKey(tenant, compositesRecord(id)), exact: true })
         .catch(() => undefined);

@@ -1,13 +1,13 @@
 import type { Group } from '@odudu/contracts/admin';
 import { AreaGate, areaAt } from '#/features/shell';
 import { useGroupsList } from '#/features/groups/usecase/useGroupsList.ts';
-import { GroupTree } from '#/features/groups/view/GroupTree.tsx';
+import { GroupTree } from '#/features/groups/view/GroupsPage/GroupTree.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink';
 import type { Column } from '#/shared/view/DataTable';
 import { ResourceListPage } from '#/shared/view/ResourceListPage';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Timestamp } from '#/shared/view/Timestamp';
-import styles from '#/features/groups/view/GroupTree.module.css';
+import styles from '#/features/groups/view/GroupsPage/GroupTree.module.css';
 
 const COLUMNS: readonly Column<Group>[] = [
   {

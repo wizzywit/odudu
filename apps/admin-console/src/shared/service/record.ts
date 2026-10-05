@@ -75,3 +75,18 @@ export function recordView(
     gone: entry !== undefined && missing,
   };
 }
+
+// Which of `records` have a section with unsaved edits among `keys`.
+export function recordsWithEdits(
+  keys: Iterable<string>,
+  tenant: string,
+  records: readonly string[],
+): ReadonlySet<string> {
+  const held = [...keys];
+  return new Set(
+    records.filter((record) => {
+      const prefix = sectionKey(tenant, record, '');
+      return held.some((key) => key.startsWith(prefix));
+    }),
+  );
+}

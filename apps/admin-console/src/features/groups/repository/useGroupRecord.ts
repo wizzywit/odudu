@@ -8,7 +8,7 @@ import {
   setGroupDefault,
   setGroupRoles,
 } from '#/features/groups/adapter/groups.ts';
-import { groupRecord, groupRolesRecord } from '#/features/groups/service.ts';
+import { groupRecord, groupRolesRecord, type GroupRead } from '#/features/groups/service.ts';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
@@ -33,11 +33,7 @@ export function useGroupRolesRecord(
   });
 }
 
-export type GroupRead =
-  | { status: 'none' }
-  | { status: 'loading' }
-  | { status: 'ready'; group: GroupRecord }
-  | { status: 'failed'; retry: () => void };
+export type { GroupRead };
 
 function groupKey(tenant: string, id: string | null) {
   return ['group', tenant, id] as const;
@@ -117,17 +113,8 @@ export interface RoleValues extends Readonly<Record<string, unknown>> {
 export function useGroupSaves(tenant: string, id: string) {
   const after = useAfterGroupChange(tenant);
   return {
-    // An emptied description is cleared, as the server keeps no empty one.
     description: async (gateway: Gateway, { values, ifMatch }: SaveInput<DescriptionValues>) =>
-      after(
-        await amendGroup(
-          gateway,
-          tenant,
-          id,
-          { description: values.description === '' ? null : values.description },
-          ifMatch,
-        ),
-      ),
+      after(await amendGroup(gateway, tenant, id, { description: values.description }, ifMatch)),
     parent: async (gateway: Gateway, { values, ifMatch }: SaveInput<ParentValues>) =>
       after(await amendGroup(gateway, tenant, id, { parent_id: values.parent_id }, ifMatch)),
     default: async (gateway: Gateway, { values, ifMatch }: SaveInput<DefaultValues>) =>

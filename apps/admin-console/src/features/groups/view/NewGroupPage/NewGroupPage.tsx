@@ -7,7 +7,7 @@ import { ButtonLink } from '#/shared/view/ButtonLink';
 import { TextAreaField, TextField } from '#/shared/view/Field';
 import { GroupPicker } from '#/shared/view/GroupPicker';
 import { PageHeader } from '#/shared/view/PageHeader';
-import styles from '#/features/groups/view/Form.module.css';
+import styles from '#/features/groups/view/NewGroupPage/NewGroupPage.module.css';
 
 function Form({ tenant }: { tenant: string }) {
   const page = useNewGroup(tenant);

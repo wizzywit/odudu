@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   dirtyTabs,
+  recordsWithEdits,
   recordView,
   seenAfter,
   sectionKey,
@@ -96,5 +97,18 @@ describe('seenAfter', () => {
     expect(seenAfter('e1', 'e2', 'save')).toBe('e2');
     expect(seenAfter('e1', null, 'save')).toBe('e1');
     expect(seenAfter('e1', 'e1', 'save')).toBe('e1');
+  });
+});
+
+describe('recordsWithEdits', () => {
+  it('names the records with an unsaved section, in the order asked, by exact record', () => {
+    const keys = [
+      sectionKey('acme', 'groups/1', 'general'),
+      sectionKey('acme', 'groups/1/roles', 'roles'),
+      sectionKey('other', 'groups/2', 'general'),
+    ];
+    const asked = ['groups/2', 'groups/1', 'groups/1/roles', 'groups/10'];
+    expect([...recordsWithEdits(keys, 'acme', asked)]).toEqual(['groups/1', 'groups/1/roles']);
+    expect([...recordsWithEdits([], 'acme', asked)]).toEqual([]);
   });
 });

@@ -69,7 +69,8 @@ export function amendRole(
   const t = path(tenant);
   const id = segment(roleId);
   return gateway.request('PATCH', `admin/tenants/${t}/roles/${id}`, {
-    body: changes,
+    // The server keeps no empty description, so an emptied one is cleared.
+    body: { description: changes.description === '' ? null : changes.description },
     ifMatch,
     schema: roleSchema,
   });

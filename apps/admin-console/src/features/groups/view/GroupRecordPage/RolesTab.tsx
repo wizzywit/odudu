@@ -6,7 +6,7 @@ import {
   type Mapped,
 } from '#/features/groups/usecase/useGroupRoles.ts';
 import type { Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
-import { SectionNoticeOf } from '#/features/groups/view/SectionNoticeOf.tsx';
+import { SectionNoticeOf } from '#/features/groups/view/SectionNoticeOf';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { EmptyState } from '#/shared/view/EmptyState';
@@ -14,7 +14,7 @@ import { RolePicker } from '#/shared/view/RolePicker';
 import { Section } from '#/shared/view/Section';
 import { FormSkeleton } from '#/shared/view/Skeleton';
 import { RoleOwner } from '#/shared/view/RoleOwner';
-import styles from '#/features/groups/view/Tab.module.css';
+import styles from '#/features/groups/view/GroupRecordPage/Tab.module.css';
 
 function Listed({ path, mapped }: { path: string; mapped: readonly Mapped[] }) {
   if (mapped.length === 0) return <p className={styles.rule}>{`${path} carries no role.`}</p>;

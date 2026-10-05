@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { admitted, blockedChanges, holds, lacking, readable } from '#/shared/service/access.ts';
+import { admitted, notLacking, blockedChanges, holds, lacking, readable } from '#/shared/service/access.ts';
 
 const VIEWER = { capabilities: ['view-users'] as const, crossTenant: false };
 
@@ -65,5 +65,13 @@ describe('admitted', () => {
     expect(admitted(VIEWER, ['view-users', 'manage-users'])).toBe(false);
     expect(admitted(VIEWER, [])).toBe(true);
     expect(admitted(undefined, ['view-users'])).toBe(false);
+  });
+});
+
+describe('notLacking', () => {
+  it('is true until whoami says something is missing, including before it has answered', () => {
+    expect(notLacking(VIEWER, ['view-users'])).toBe(true);
+    expect(notLacking(VIEWER, ['view-users', 'manage-users'])).toBe(false);
+    expect(notLacking(undefined, ['view-users'])).toBe(true);
   });
 });

@@ -54,3 +54,12 @@ export function admitted(
 ): boolean {
   return authority !== undefined && lacking(authority, needs).length === 0;
 }
+
+// Whether whoami rules none of `needs` out; true before it has answered, so
+// a page does not flash a refusal it may not owe.
+export function notLacking(
+  authority: Authority | undefined,
+  needs: readonly AdminCapability[],
+): boolean {
+  return lacking(authority, needs).length === 0;
+}

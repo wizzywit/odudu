@@ -1,7 +1,7 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority, usePrincipal } from '#/features/session';
 import { useEffectiveRoles } from '#/features/subjects/repository/useAccess.ts';
-import { useDirtyRecords } from '#/features/subjects/repository/useDirtyRecords.ts';
+import { useDirtyRecords } from '#/shared/repository/useDirtyRecords.ts';
 import { useSubjectRecord } from '#/features/subjects/repository/useSubjectRecord.ts';
 import { SUBJECT_TABS, TAB_RECORDS, type SubjectTab } from '#/features/subjects/service.ts';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';

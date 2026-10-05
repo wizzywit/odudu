@@ -5,28 +5,25 @@ import { useCreateGroup } from '#/features/groups/repository/useCreateGroup.ts';
 import { useGo } from '#/features/groups/repository/useGo.ts';
 import { useGroupNamed } from '#/features/groups/repository/useGroupRecord.ts';
 import {
+  createHeld,
   DESCRIPTION_MAX,
   DESCRIPTION_RULE,
   groupHref,
   groupsHref,
   parentUnavailable,
+  NAME_TAKEN,
+  newGroupPlace,
 } from '#/features/groups/service.ts';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch.ts';
-import { beyondCaller, writeRefusal } from '#/shared/service/capabilities.ts';
-
-const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
-import { fieldErrorsOf } from '#/shared/service/fieldErrors.ts';
+import { requiredProblem, withoutField } from '#/shared/service/fieldErrors.ts';
+import { createdText, createFailure, lookupText } from '#/shared/service/failure.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
 import type { GatewayFailure } from '#/shared/transport/gateway.ts';
 
 type Field = 'name' | 'description' | 'parent_id';
 type Errors = Partial<Record<Field, string>>;
-
-function without(errors: Errors, field: Field): Errors {
-  return Object.fromEntries(Object.entries(errors).filter(([name]) => name !== field));
-}
 
 export interface NewGroup {
   listHref: string;
@@ -55,11 +52,6 @@ export interface NewGroup {
   check: () => void;
 }
 
-function sentence(text: string): string {
-  const said = text.charAt(0).toUpperCase() + text.slice(1);
-  return said.endsWith('.') ? said : `${said}.`;
-}
-
 export function useNewGroup(tenant: string): NewGroup {
   const refusal = useRefusal(tenant);
   const creation = useCreateGroup(tenant);
@@ -78,53 +70,27 @@ export function useNewGroup(tenant: string): NewGroup {
     picker.options.find((group) => group.id === parentId) ??
     (asked.status === 'ready' ? asked.group : undefined);
   const caller = useAuthority(tenant)?.capabilities;
-  let held: string | null = null;
-  if (caller === undefined || (parentId !== null && parent === undefined)) {
-    held = 'Checking what the parent hands out first.';
-  } else if (parent !== undefined && parentId !== null) {
-    const beyond = beyondCaller(parent.admin_reach, caller);
-    held =
-      beyond.length === 0
-        ? null
-        : `A group made under ${parent.path} hands its members ${AND.format(beyond)}, which you do not hold, so you cannot make one there.`;
-  }
+  const held = createHeld(parentId, parent, caller);
 
   const land = (group: Group): void => {
-    push({ tone: 'success', message: `${group.path} was created.` });
+    push({ tone: 'success', message: createdText(group.path) });
     go(groupHref(tenant, group.id), { replace: true });
   };
 
+  const looked = lookupText('group', name, 'there');
+
   const failed = (failure: GatewayFailure): void => {
-    switch (failure.kind) {
-      case 'network':
-      case 'schema':
-        setUnconfirmed(true);
-        setMessage(
-          `Could not confirm whether ${name} was created. It has not been sent again; look for it before trying again.`,
-        );
-        return;
-      case 'defect':
-        setMessage(
-          'The console could not create the group. This is a fault in the console, not something you did.',
-        );
-        return;
-      case 'problem': {
-        const { problem } = failure;
-        if (problem.status === 409) {
-          setErrors({ name: sentence(problem.detail ?? 'That name is taken there') });
-          return;
-        }
-        const refused = writeRefusal(problem);
-        if (refused !== null) {
-          refusal.report(failure, 'manage-tenant');
-          setMessage(refused);
-          return;
-        }
-        const placed = fieldErrorsOf(problem, ['name', 'description', 'parent_id']);
-        setErrors(placed.fields);
-        setMessage(placed.other.length === 0 ? null : placed.other.join(' '));
-      }
-    }
+    const outcome = createFailure(failure, {
+      noun: 'group',
+      name,
+      fields: ['name', 'description', 'parent_id'],
+      taken: { field: 'name', fallback: NAME_TAKEN },
+      capability: 'manage-tenant',
+    });
+    if (outcome.unconfirmed) setUnconfirmed(true);
+    if (outcome.report) refusal.report(failure, 'manage-tenant');
+    setErrors(outcome.errors);
+    setMessage(outcome.message);
   };
 
   return {
@@ -134,12 +100,7 @@ export function useNewGroup(tenant: string): NewGroup {
     name,
     description,
     parentId,
-    place:
-      parentId === null
-        ? 'It will sit at the top level.'
-        : parent === undefined
-          ? null
-          : `It will sit under ${parent.path}.`,
+    place: newGroupPlace(parentId, parent),
     picker,
     unavailableOf: (candidate) => parentUnavailable(null, candidate, caller ?? []),
     held,
@@ -149,20 +110,21 @@ export function useNewGroup(tenant: string): NewGroup {
     busy: creation.busy,
     editName: (next) => {
       setName(next);
-      setErrors((was) => without(was, 'name'));
+      setErrors((was) => withoutField(was, 'name'));
     },
     editDescription: (next) => {
       setDescription(next);
-      setErrors((was) => without(was, 'description'));
+      setErrors((was) => withoutField(was, 'description'));
     },
     chooseParent: (ids) => {
       setParentId(ids[0] ?? null);
-      setErrors((was) => without(was, 'parent_id'));
+      setErrors((was) => withoutField(was, 'parent_id'));
     },
     submit: () => {
       if (creation.busy || unconfirmed || held !== null) return;
-      if (name.trim() === '') {
-        setErrors({ name: 'Enter a name.' });
+      const required = requiredProblem(name, 'Enter a name.');
+      if (required !== null) {
+        setErrors({ name: required });
         return;
       }
       setErrors({});
@@ -183,7 +145,7 @@ export function useNewGroup(tenant: string): NewGroup {
         .find(name, parentId)
         .then((result) => {
           if (!result.ok) {
-            setMessage(`Could not look for ${name}. Try again.`);
+            setMessage(looked.failed);
             return;
           }
           if (result.data !== null) {
@@ -191,12 +153,10 @@ export function useNewGroup(tenant: string): NewGroup {
             return;
           }
           setUnconfirmed(false);
-          setMessage(
-            `No group named ${name} was found there, so it was not created. Creating it again is safe.`,
-          );
+          setMessage(looked.missing);
         })
         .catch(() => {
-          setMessage(`Could not look for ${name}. Try again.`);
+          setMessage(looked.failed);
         });
     },
   };

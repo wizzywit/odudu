@@ -8,31 +8,33 @@ import {
   type RoleValues,
 } from '#/features/groups/repository/useGroupRecord.ts';
 import {
+  type Asked,
+  type Ceiling,
   defaultingOf,
   groupRolesRecord,
+  keptRoles,
   lossOf,
-  lossText,
+  type Mapped,
+  mappedRoles,
+  reachOfRoles,
+  roleIndex,
+  rolesConfirmation,
   roleUnavailable,
+  withKept,
 } from '#/features/groups/service.ts';
-import type { Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
-import type { Asked } from '#/features/groups/usecase/useGroupGeneral.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useRolePicker } from '#/shared/repository/useRolePicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
-import { writeRefusal } from '#/shared/service/capabilities.ts';
+import { asksFirst, lossBlocked, writeRefusal } from '#/shared/service/capabilities.ts';
+import { describeIds } from '#/shared/service/format.ts';
+import { removedFrom, sortedIds } from '#/shared/service/ids.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
 
 export function useGroupRolesRead(tenant: string, id: string): RecordState<SetGroupRolesResponse> {
   return useGroupRolesRecord(tenant, id);
 }
 
-export interface Mapped {
-  id: string;
-  name: string;
-  client_id: string | null;
-  client_key: string | null;
-  description: string | null;
-}
+export type { Mapped };
 
 export interface GroupRoles {
   save: SectionSave<RoleValues>;
@@ -47,10 +49,6 @@ export interface GroupRoles {
   asking: Asked | null;
   confirm: () => void;
   cancel: () => void;
-}
-
-function sorted(ids: readonly string[]): string[] {
-  return [...ids].sort();
 }
 
 export function useGroupRoles({
@@ -74,47 +72,12 @@ export function useGroupRoles({
   const picker = useRolePicker(tenant);
   const saves = useGroupSaves(tenant, group.id);
   const [asking, setAsking] = useState<Asked | null>(null);
-  const known = new Map<string, Mapped>([
-    ...data.items.map(
-      (role) =>
-        [
-          role.id,
-          {
-            id: role.id,
-            name: role.name,
-            client_id: role.client_id,
-            client_key: role.client_key,
-            description: null,
-          },
-        ] as const,
-    ),
-    ...picker.options.map(
-      (role) =>
-        [
-          role.id,
-          {
-            id: role.id,
-            name: role.name,
-            client_id: role.client_id,
-            client_key: role.client_key,
-            description: role.description,
-          },
-        ] as const,
-    ),
-  ]);
+  const known = roleIndex(data.items, picker.options);
   const caller = ceiling.status === 'ready' ? ceiling.caller : [];
-  const reachOf = (id: string): readonly string[] =>
-    data.items.find((role) => role.id === id)?.admin_reach ?? [];
   const why = (role: Role): string | null =>
     roleUnavailable(role, caller, defaultingOf(group), tenant);
   // A role mapped here that the caller could not give is one it cannot take.
-  const kept = data.items
-    .filter((role) => roleUnavailable(role, caller, null, tenant) !== null)
-    .map((role) => role.id);
-  const describe = (value: unknown): string => {
-    const ids = Array.isArray(value) ? value.map(String) : [];
-    return ids.length === 0 ? 'none' : ids.map((id) => known.get(id)?.name ?? id).join(', ');
-  };
+  const kept = keptRoles(data.items, caller, tenant);
   const save = useSectionSave({
     tenant,
     record: groupRolesRecord(group.id),
@@ -129,10 +92,10 @@ export function useGroupRoles({
     explain: writeRefusal,
     fields: {
       role_ids: {
-        value: sorted(data.items.map((role) => role.id)),
+        value: sortedIds(data.items.map((role) => role.id)),
         label: 'Roles',
         kind: 'plain',
-        describe,
+        describe: (value) => describeIds(value, (id) => known.get(id)?.name ?? id),
       },
     },
     save: async (gateway, input) => {
@@ -141,26 +104,24 @@ export function useGroupRoles({
       return result;
     },
   });
-  const removed = data.items
-    .map((role) => role.id)
-    .filter((id) => !save.values.role_ids.includes(id));
+  const removed = removedFrom(
+    data.items.map((role) => role.id),
+    save.values.role_ids,
+  );
   const loss = lossOf(
     own,
     caller,
     { kind: 'roles', path: group.path, removed },
-    removed.flatMap(reachOf),
+    reachOfRoles(data.items, removed),
   );
   return {
     save: {
       ...save,
-      blocked: loss.kind === 'checking' ? 'Checking what this takes from you first.' : save.blocked,
+      blocked: lossBlocked(loss) ?? save.blocked,
       submit: () => {
         if (loss.kind === 'checking') return false;
-        if (loss.kind === 'none') return save.submit();
-        setAsking({
-          title: 'Take roles your own access runs through?',
-          consequence: `Taking them off the group takes them from its members.${lossText(loss, group.path)} You may not be able to give it back yourself.`,
-        });
+        if (!asksFirst(loss)) return save.submit();
+        setAsking(rolesConfirmation(group.path, loss));
         return true;
       },
     },
@@ -168,12 +129,9 @@ export function useGroupRoles({
     picker,
     unavailableOf: why,
     choose: (ids) => {
-      save.edit('role_ids', sorted([...new Set([...ids, ...kept])]));
+      save.edit('role_ids', withKept(ids, kept));
     },
-    mapped: save.values.role_ids.map(
-      (id) =>
-        known.get(id) ?? { id, name: id, client_id: null, client_key: null, description: null },
-    ),
+    mapped: mappedRoles(save.values.role_ids, known),
     kept,
     asking,
     confirm: () => {

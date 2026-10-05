@@ -1,6 +1,22 @@
 import type { AdminCapability } from '#/shared/service/principal.ts';
 import { describe, expect, it } from 'vitest';
 import {
+  createHeld,
+  createUnderHref,
+  deleteConsequence,
+  groupCeiling,
+  groupReadiness,
+  keptRoles,
+  mappedRoles,
+  moveConfirmation,
+  newGroupPlace,
+  parentPathOf,
+  placeText,
+  reachOfRoles,
+  roleIndex,
+  rolesConfirmation,
+  subtreeDeletedText,
+  withKept,
   defaultBlock,
   defaultingOf,
   GROUP_TABS,
@@ -274,5 +290,200 @@ describe('the loss a write is asked about', () => {
       ' If you hold view-audit through these groups, this takes it from you, and this console with it.',
     );
     expect(lossOf({ status: 'unknown' }, ['view-audit'], change, [])).toEqual({ kind: 'none' });
+  });
+});
+
+describe('making a group', () => {
+  const eng = { ...group('g-eng', '/eng'), admin_reach: reach('manage-users', 'view-users') };
+  it('waits for the parent and the caller to be read, then holds a parent beyond the caller', () => {
+    expect(createHeld('g-eng', undefined, reach('manage-users'))).toBe(
+      'Checking what the parent hands out first.',
+    );
+    expect(createHeld(null, undefined, undefined)).toBe(
+      'Checking what the parent hands out first.',
+    );
+    expect(createHeld('g-eng', eng, reach('manage-users'))).toBe(
+      'A group made under /eng hands its members view-users, which you do not hold, so you cannot make one there.',
+    );
+    expect(createHeld('g-eng', eng, reach('manage-users', 'view-users'))).toBeNull();
+    expect(createHeld(null, undefined, reach())).toBeNull();
+  });
+
+  it('says where the group sits, as it will and as it is', () => {
+    expect(placeText(null, 'will')).toBe('It will sit at the top level.');
+    expect(placeText('/eng', 'will')).toBe('It will sit under /eng.');
+    expect(placeText(null, 'is')).toBe('At the top level.');
+    expect(placeText('/eng', 'is')).toBe('Under /eng.');
+  });
+});
+
+describe('where a new group will sit', () => {
+  it('is said once the parent is read, and at the top level for none', () => {
+    expect(newGroupPlace(null, undefined)).toBe('It will sit at the top level.');
+    expect(newGroupPlace('g-eng', undefined)).toBeNull();
+    expect(newGroupPlace('g-eng', group('g-eng', '/eng'))).toBe('It will sit under /eng.');
+  });
+});
+
+describe('where a group sits', () => {
+  const ops = { path: '/eng/ops', parent_id: 'g-eng' };
+  const known = new Map([['g-other', { path: '/other' }]]);
+  it('reads the parent from the picker, then from the group own path, else names the id', () => {
+    expect(parentPathOf(ops, null, known)).toBe('the top level');
+    expect(parentPathOf(ops, 'g-other', known)).toBe('/other');
+    expect(parentPathOf(ops, 'g-eng', known)).toBe('/eng');
+    expect(parentPathOf({ path: '/ops', parent_id: 'g-root' }, 'g-root', known)).toBe('');
+    expect(parentPathOf(ops, 'g-unknown', known)).toBe('g-unknown');
+  });
+});
+
+describe('what a write waits for', () => {
+  it('fails once the ceiling failed, and checks until it and the loss are known', () => {
+    const none = { kind: 'none' } as const;
+    expect(groupReadiness('failed', none)).toBe('failed');
+    expect(groupReadiness('checking', none)).toBe('checking');
+    expect(groupReadiness('ready', { kind: 'checking' })).toBe('checking');
+    expect(groupReadiness('ready', none)).toBe('ready');
+    expect(groupReadiness('ready', { kind: 'certain', lost: ['view-audit'] })).toBe('ready');
+  });
+});
+
+describe('what a group write asks first', () => {
+  const certain = { kind: 'certain', lost: ['view-audit'] } as const;
+  it('says what a move and a delete come to, with the loss appended', () => {
+    expect(moveConfirmation('/eng', certain)).toEqual({
+      title: 'Move a group your own access runs through?',
+      consequence:
+        '/eng would no longer receive what the groups above it hand down. You hold view-audit through the groups above it, so this takes it from you, and this console with it.',
+    });
+    expect(deleteConsequence('/eng', { kind: 'none' })).toBe(
+      'Deleting /eng deletes every group beneath it too, with every membership and role mapping of each, so their members lose the roles these groups gave them. It cannot be undone.',
+    );
+    expect(deleteConsequence('/eng', certain)).toContain(
+      ' You hold view-audit through these groups, so this takes it from you',
+    );
+    expect(subtreeDeletedText('/eng')).toBe('/eng and every group beneath it were deleted.');
+  });
+
+  it('says what taking roles off comes to', () => {
+    expect(rolesConfirmation('/eng', certain)).toEqual({
+      title: 'Take roles your own access runs through?',
+      consequence:
+        'Taking them off the group takes them from its members. You hold view-audit through /eng, so this takes it from you, and this console with it. You may not be able to give it back yourself.',
+    });
+  });
+});
+
+describe('the roles of a group', () => {
+  const items = [
+    {
+      id: 'r1',
+      name: 'auditor',
+      client_id: 'c',
+      client_key: 'k',
+      description: null,
+      admin_reach: reach('view-audit'),
+    },
+    {
+      id: 'r2',
+      name: 'plain',
+      client_id: null,
+      client_key: null,
+      description: null,
+      admin_reach: reach(),
+    },
+  ];
+  const options = [
+    {
+      id: 'r2',
+      name: 'plain',
+      description: 'Plain',
+      client_id: null,
+      client_key: null,
+      default_for_new_subjects: false,
+      created_at: '2026-09-28T08:41:53.858Z',
+      admin_reach: reach(),
+    },
+  ];
+
+  it('indexes the mapped roles, the picker overriding with its description', () => {
+    const index = roleIndex(items, options);
+    expect(index.get('r1')).toEqual({
+      id: 'r1',
+      name: 'auditor',
+      client_id: 'c',
+      client_key: 'k',
+      description: null,
+    });
+    expect(index.get('r2')?.description).toBe('Plain');
+  });
+
+  it('names an unknown id by itself', () => {
+    expect(mappedRoles(['r1', 'zz'], roleIndex(items, [])).map((each) => each.name)).toEqual([
+      'auditor',
+      'zz',
+    ]);
+    expect(mappedRoles(['zz'], roleIndex(items, []))[0]).toEqual({
+      id: 'zz',
+      name: 'zz',
+      client_id: null,
+      client_key: null,
+      description: null,
+    });
+  });
+
+  it('keeps the mapped roles the caller could not give, and adds them to every choice', () => {
+    expect(keptRoles(items, reach('manage-users'), 'acme')).toEqual(['r1']);
+    expect(keptRoles(items, reach('view-audit'), 'acme')).toEqual([]);
+    expect(withKept(['r2', 'r1'], ['r1'])).toEqual(['r1', 'r2']);
+    expect(withKept([], ['r1', 'r1'])).toEqual(['r1']);
+  });
+
+  it('adds up what the removed roles hand out', () => {
+    expect(reachOfRoles(items, ['r1', 'r2', 'gone'])).toEqual(['view-audit']);
+  });
+});
+
+describe('the ceiling of a group record', () => {
+  const record = {
+    ...group('g-eng', '/eng'),
+    admin_reach: reach('view-audit'),
+    subtree_admin_reach: reach(),
+    holds_default_group: false,
+  };
+  const authority = { capabilities: reach('view-audit', 'manage-users'), crossTenant: false };
+  const retry = (): void => undefined;
+
+  it('fails with the parent read, and checks until all three are known', () => {
+    expect(groupCeiling({ status: 'failed', retry }, authority, record)).toEqual({
+      status: 'failed',
+      retry,
+    });
+    expect(groupCeiling({ status: 'loading' }, authority, record)).toEqual({ status: 'checking' });
+    expect(groupCeiling({ status: 'none' }, undefined, record)).toEqual({ status: 'checking' });
+    expect(groupCeiling({ status: 'none' }, authority, undefined)).toEqual({ status: 'checking' });
+  });
+
+  it('takes the parent reach from the parent read, none at the top level', () => {
+    const top = groupCeiling({ status: 'none' }, authority, record);
+    expect(top).toMatchObject({ status: 'ready', parentReach: [], caller: authority.capabilities });
+    const parent = { ...record, id: 'g-p', admin_reach: reach('manage-users') };
+    expect(groupCeiling({ status: 'ready', group: parent }, authority, record)).toMatchObject({
+      status: 'ready',
+      parentReach: ['manage-users'],
+    });
+  });
+
+  it('offers a group under this one only to a caller holding all it hands out', () => {
+    const ready = groupCeiling({ status: 'none' }, authority, record);
+    expect(createUnderHref('acme', record, ready)).toBe('/console/acme/groups/new?parent=g-eng');
+    const narrow = groupCeiling(
+      { status: 'none' },
+      { ...authority, capabilities: reach('manage-users') },
+      record,
+    );
+    expect(createUnderHref('acme', record, narrow)).toBeNull();
+    expect(createUnderHref('acme', undefined, ready)).toBeNull();
+    expect(createUnderHref('acme', record, { status: 'checking' })).toBeNull();
   });
 });

@@ -69,8 +69,13 @@ export function amendGroup(
 ): Promise<GatewayResult<GroupRecord>> {
   const t = path(tenant);
   const id = segment(groupId);
+  const { description, ...rest } = changes;
   return gateway.request('PATCH', `admin/tenants/${t}/groups/${id}`, {
-    body: changes,
+    // The server keeps no empty description, so an emptied one is cleared.
+    body:
+      description === undefined
+        ? rest
+        : { ...rest, description: description === '' ? null : description },
     ifMatch,
     schema: groupRecordSchema,
   });

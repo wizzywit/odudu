@@ -9,14 +9,14 @@ import {
   type Place,
 } from '#/features/groups/usecase/useGroupGeneral.ts';
 import type { Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
-import { SectionNoticeOf } from '#/features/groups/view/SectionNoticeOf.tsx';
+import { SectionNoticeOf } from '#/features/groups/view/SectionNoticeOf';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { TextAreaField, ToggleField } from '#/shared/view/Field';
 import { GroupPicker } from '#/shared/view/GroupPicker';
 import { Section } from '#/shared/view/Section';
 import { Timestamp } from '#/shared/view/Timestamp';
-import styles from '#/features/groups/view/Tab.module.css';
+import styles from '#/features/groups/view/GroupRecordPage/Tab.module.css';
 
 function Fixed({ group }: { group: GroupRecord }) {
   const heading = useId();

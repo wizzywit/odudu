@@ -11,35 +11,39 @@ import {
   type ParentValues,
 } from '#/features/groups/repository/useGroupRecord.ts';
 import {
+  type Asked,
+  type Ceiling,
+  deleteConsequence,
   defaultBlock,
+  DEFAULT_LABEL,
+  PLACE_LABEL,
   DESCRIPTION_MAX,
   DESCRIPTION_RULE,
+  groupReadiness,
   groupRecord,
   groupsHref,
   lossOf,
-  lossText,
+  moveConfirmation,
   moveRefusal,
+  parentPathOf,
   parentUnavailable,
+  placeText,
   type Loss,
+  type Readiness,
+  subtreeDeletedText,
 } from '#/features/groups/service.ts';
-import type { Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import { writeRefusal } from '#/shared/service/capabilities.ts';
+import { asksFirst, writeRefusal } from '#/shared/service/capabilities.ts';
+import { writeFailureText } from '#/shared/service/failure.ts';
+import { flagText } from '#/shared/service/format.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
 
 export type { SectionSave };
 
-// Whether what a write is judged by has been read: until it has, the write
-// waits; if it could not be, the page's one line says so.
-export type Readiness = 'checking' | 'failed' | 'ready';
-
-export interface Asked {
-  title: string;
-  consequence: string;
-}
+export type { Asked, Readiness };
 
 export interface Place {
   save: SectionSave<ParentValues>;
@@ -84,22 +88,6 @@ export interface GroupGeneral {
   place: Place;
   defaults: Defaults;
   deletion: Deletion;
-}
-
-function failureText(path: string, result: GatewayFailure): string {
-  switch (result.kind) {
-    case 'network':
-      return `Could not confirm whether ${path} was deleted. It has not been sent again; look at the groups before trying again.`;
-    case 'schema':
-      return `${path} may have been deleted, but the answer could not be read. Reload to check.`;
-    case 'defect':
-      return `The console could not finish, so ${path} was not deleted. This is a fault in the console, not something you did.`;
-    case 'problem':
-      return (
-        writeRefusal(result.problem) ??
-        `${path} was not deleted: ${result.problem.detail ?? result.problem.title}`
-      );
-  }
 }
 
 export function useGroupGeneral({
@@ -153,18 +141,12 @@ export function useGroupGeneral({
   });
 
   const known = new Map<string, Group>(picker.options.map((each) => [each.id, each]));
-  // A path is its parent's with the name appended, so the parent read with
-  // the group needs no read of its own.
-  const readParent = group.path.slice(0, group.path.lastIndexOf('/'));
-  const pathOf = (id: unknown): string => {
-    if (typeof id !== 'string') return 'the top level';
-    return known.get(id)?.path ?? (id === group.parent_id ? readParent : id);
-  };
+  const pathOf = (id: unknown): string => parentPathOf(group, id, known);
   const parent = useSectionSave({
     tenant,
     record,
     section: 'place',
-    label: 'Place in the tree',
+    label: PLACE_LABEL,
     etag,
     capability: 'manage-tenant',
     gone,
@@ -180,10 +162,7 @@ export function useGroupGeneral({
     },
     save: async (gateway, input) => reading(await saves.parent(gateway, input)),
   });
-  const parentPath = (): string => {
-    const id = parent.values.parent_id;
-    return id === null ? 'At the top level.' : `Under ${pathOf(id)}.`;
-  };
+  const parentId = parent.values.parent_id;
 
   const defaults = useSectionSave({
     tenant,
@@ -198,9 +177,9 @@ export function useGroupGeneral({
     fields: {
       default_for_new_subjects: {
         value: group.default_for_new_subjects,
-        label: 'Joined by every new subject',
+        label: DEFAULT_LABEL,
         kind: 'plain',
-        describe: (value) => (value === true ? 'on' : 'off'),
+        describe: (value) => flagText(value, 'on', 'off'),
       },
     },
     save: saves.default,
@@ -225,13 +204,12 @@ export function useGroupGeneral({
     { kind: 'delete', path: group.path },
     group.subtree_admin_reach,
   );
-  const readiness = (loss: Loss): Readiness =>
-    ceiling.status === 'failed'
-      ? 'failed'
-      : ready === null || loss.kind === 'checking'
-        ? 'checking'
-        : 'ready';
-  const asks = (loss: Loss): boolean => loss.kind === 'certain' || loss.kind === 'possible';
+  const deleteCopy = {
+    name: group.path,
+    verb: 'deleted',
+    lookAt: 'the groups',
+    refused: writeRefusal,
+  };
 
   return {
     description,
@@ -241,17 +219,14 @@ export function useGroupGeneral({
       save: {
         ...parent,
         submit: () => {
-          if (!asks(moveLoss)) return parent.submit();
-          setAsking({
-            title: 'Move a group your own access runs through?',
-            consequence: `${group.path} would no longer receive what the groups above it hand down.${lossText(moveLoss, 'the groups above it')}`,
-          });
+          if (!asksFirst(moveLoss)) return parent.submit();
+          setAsking(moveConfirmation(group.path, moveLoss));
           return true;
         },
       },
       held: ready === null ? null : ready.lines.move,
-      state: readiness(moveLoss),
-      current: parentPath(),
+      state: groupReadiness(ceiling.status, moveLoss),
+      current: placeText(parentId === null ? null : pathOf(parentId), 'is'),
       picker,
       unavailableOf: (candidate) => parentUnavailable(group, candidate, caller),
       choose: (ids) => {
@@ -269,13 +244,13 @@ export function useGroupGeneral({
     defaults: {
       save: defaults,
       fixed: defaultBlock(group),
-      state: readiness({ kind: 'none' }),
+      state: groupReadiness(ceiling.status, { kind: 'none' }),
     },
     deletion: {
       held: ready === null ? null : ready.lines.remove,
-      state: readiness(deleteLoss),
+      state: groupReadiness(ceiling.status, deleteLoss),
       confirming: deleting,
-      consequence: `Deleting ${group.path} deletes every group beneath it too, with every membership and role mapping of each, so their members lose the roles these groups gave them. It cannot be undone.${lossText(deleteLoss, 'these groups')}`,
+      consequence: deleteConsequence(group.path, deleteLoss),
       busy: deletion.busy,
       problem,
       ask: () => {
@@ -294,19 +269,16 @@ export function useGroupGeneral({
           .then((result) => {
             if (result.ok) {
               setDeleting(false);
-              if (asks(deleteLoss)) reread();
-              push({
-                tone: 'success',
-                message: `${group.path} and every group beneath it were deleted.`,
-              });
+              if (asksFirst(deleteLoss)) reread();
+              push({ tone: 'success', message: subtreeDeletedText(group.path) });
               go(groupsHref(tenant), { replace: true });
               return;
             }
             refusal.report(result, 'manage-tenant');
-            setProblem(failureText(group.path, result));
+            setProblem(writeFailureText(result, deleteCopy));
           })
           .catch(() => {
-            setProblem(failureText(group.path, { ok: false, kind: 'defect' }));
+            setProblem(writeFailureText({ ok: false, kind: 'defect' }, deleteCopy));
           });
       },
     },

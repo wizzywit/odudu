@@ -10,8 +10,8 @@ import {
 } from '#/features/groups/service.ts';
 import { useAuditReadable, useGroupActivity } from '#/features/groups/usecase/useGroupActivity.ts';
 import { useGroupRecordPage, type Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
-import { GeneralTab } from '#/features/groups/view/GeneralTab.tsx';
-import { RolesTab } from '#/features/groups/view/RolesTab.tsx';
+import { GeneralTab } from '#/features/groups/view/GroupRecordPage/GeneralTab.tsx';
+import { RolesTab } from '#/features/groups/view/GroupRecordPage/RolesTab.tsx';
 import { ActivityTab } from '#/shared/view/ActivityTab';
 import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink';
@@ -19,7 +19,7 @@ import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { RecordPage } from '#/shared/view/RecordPage';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Note } from '#/shared/view/Note';
-import styles from '#/features/groups/view/Tab.module.css';
+import styles from '#/features/groups/view/GroupRecordPage/Tab.module.css';
 
 interface PanelProps {
   tenant: string;
