@@ -1520,3 +1520,10 @@ The last one came from a provider tab restored hours later, which brought back t
 **Typed fields.** Phone numbers are read with `libphonenumber-js`, loaded only with the chunk that shows them. Country names are CLDR's common English names, pinned in the repository rather than taken from whatever the browser ships. Autofill is off on another person's record, because WCAG 1.3.5 concerns the user's own data.
 
 **Two console rules are now lints.** Interfaces carry no property-level `readonly`; readonly arrays, tuples, maps and sets keep theirs. A read is never wrapped in `useMutation`; a confirmation that must reach the server goes through `useFreshRead`.
+
+**Configuration the gap audit placed in P4d.** Token, code, login and email-link lifetimes are now tenant settings. Clients carry RFC 7591's pages, their own ID token algorithm, `default_max_age` and `require_auth_time`. A rotated-out secret stays valid for a bounded grace period. A tenant can let its users sign in with a verified address; an input containing `@` resolves to the address first, with both lookups always run. Groups and roles carry descriptions. Groups and scopes can be defaults. Scopes carry consent text and an order. A tenant chooses which audit event types it stores, though the admin pair can never be turned off. One admin route mails a link through any set of required actions, and every way a password is set retires every outstanding link that could set one.
+
+Two defects turned up only while capturing transcripts:
+
+- A mailed link that sets a password failed for a subject with no password, which is every subject an administrator creates.
+- Migration 0082 rewrote rows under `FORCE` row-level security without lifting it, so under a least-privilege owner it would have written nothing. Its backfill test now migrates as that owner.
