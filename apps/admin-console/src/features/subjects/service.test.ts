@@ -17,6 +17,7 @@ import {
   REQUIRED_ACTIONS,
   rolesRecord,
   splitRoles,
+  takesTenants,
   SUBJECT_TAB_LABELS,
   SUBJECT_TABS,
   subjectTabHref,
@@ -363,5 +364,32 @@ describe('what is asked before a save takes capabilities away', () => {
         removesTenants: true,
       })?.title,
     ).toBe('Revoke your own system administration?');
+  });
+});
+
+describe('whether leaving groups takes manage-tenants', () => {
+  const full = (via: unknown[]) => ({
+    id: 'r-full',
+    name: 'tenant-admin',
+    client_id: 'c',
+    client_key: 'odudu-admin',
+    via: via as never,
+  });
+  const byGroup = full([{ kind: 'group', group_id: 'g', group_path: '/admins' }]);
+
+  it('does when the last group beneath the mapped one is left', () => {
+    expect(takesTenants([byGroup], ['/admins/oncall'], [])).toBe(true);
+  });
+
+  it('does not while another group beneath it remains, or Full is held otherwise', () => {
+    expect(takesTenants([byGroup], ['/admins/oncall', '/admins'], ['/admins'])).toBe(false);
+    expect(
+      takesTenants(
+        [full([{ kind: 'direct' }, { kind: 'group', group_id: 'g', group_path: '/admins' }])],
+        ['/admins'],
+        [],
+      ),
+    ).toBe(false);
+    expect(takesTenants([byGroup], ['/ops'], [])).toBe(false);
   });
 });

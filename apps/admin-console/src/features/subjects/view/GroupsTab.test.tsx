@@ -4,6 +4,7 @@ import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { json, problem } from '#/testing/fakeTransport.ts';
 import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
+import { ADMIN, systemRoutes } from '#/testing/tenantsFixtures.ts';
 import { A, ADA_AT, ADA_ID, group, S, subjectRoutes } from '#/testing/subjectsFixtures.ts';
 
 afterEach(() => {
@@ -86,6 +87,62 @@ it('keeps a departure asked about during a save held when that save is refused',
     'aria-selected',
     'true',
   );
+});
+
+it("asks for the name, typed, before leaving a group takes another's manage-tenants", async () => {
+  const user = userEvent.setup();
+  const VS = `${ADMIN}/system/subjects/s-vera`;
+  const ONCALL = group('g-oncall', '/admins/oncall');
+  const { sent } = renderConsoleAt(
+    '/console/system/subjects/s-vera?tab=groups',
+    systemRoutes({
+      [`GET ${VS}`]: json(
+        {
+          id: 's-vera',
+          type: 'user',
+          username: 'vera',
+          email: null,
+          enabled: true,
+          created_at: '2026-09-28T08:41:53.858Z',
+        },
+        200,
+        { etag: '"v1"' },
+      ),
+      [`GET ${VS}/effective-roles`]: json({
+        items: [
+          {
+            id: 'r-full',
+            name: 'tenant-admin',
+            client_id: 'c-admin',
+            client_key: 'odudu-admin',
+            via: [{ kind: 'group', group_id: 'g-admins', group_path: '/admins' }],
+          },
+          {
+            id: 'r-tenants',
+            name: 'manage-tenants',
+            client_id: 'c-admin',
+            client_key: 'odudu-admin',
+            via: [{ kind: 'composite', parent_role_id: 'r-full', parent_name: 'tenant-admin' }],
+          },
+        ],
+      }),
+      [`GET ${VS}/groups`]: json({ items: [ONCALL] }, 200, { etag: '"g1"' }),
+      [`GET ${ADMIN}/system/groups`]: json({ items: [ONCALL] }),
+      [`PUT ${VS}/groups`]: json({ items: [] }, 200, { etag: '"g2"' }),
+    }),
+  );
+  const section = await screen.findByRole('region', { name: 'Groups' });
+  await user.click(await within(section).findByRole('option', { name: /oncall/u }));
+  await user.click(within(section).getByRole('button', { name: 'Save Groups' }));
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Take system administration from vera?',
+  });
+  expect(sent.some((s) => s.method === 'PUT')).toBe(false);
+  await user.type(within(dialog).getByRole('textbox'), 'vera');
+  await user.click(within(dialog).getByRole('button', { name: 'Save Groups' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PUT')).toMatchObject({ body: { group_ids: [] } });
+  });
 });
 
 it('shows a limited operator the memberships and no way to change them', async () => {

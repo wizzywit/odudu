@@ -1,6 +1,7 @@
 import {
   USERNAME_RULE,
   type Credential,
+  type EffectiveRoleAssignment,
   type HeldAdminCapability,
   type Lockout,
   type Profile,
@@ -423,4 +424,35 @@ export function removalConfirmation({
 
 export function onlyHolderText(name: string, tenant: string, counted: string): string {
   return `${name} is the only enabled holder of ${counted}, so ${tenant} would be left with nobody holding it. Give it to somebody else first.`;
+}
+
+function under(path: string, mapped: string): boolean {
+  return path === mapped || path.startsWith(`${mapped}/`);
+}
+
+// Whether a membership change takes manage-tenants away: it is held only
+// through groups (its own, or Full's), some group the subject was in reached
+// one of them, and none it is left in does. A role mapped to a group reaches
+// every group beneath it.
+export function takesTenants(
+  effective: readonly EffectiveRoleAssignment[],
+  before: readonly string[],
+  after: readonly string[],
+): boolean {
+  const carriers = effective.filter(
+    (role) => isAdminRole(role) && (role.name === 'manage-tenants' || role.name === 'tenant-admin'),
+  );
+  const otherwise = carriers.some((role) =>
+    role.via.some(
+      (via) =>
+        via.kind === 'direct' || (via.kind === 'composite' && via.parent_name !== 'tenant-admin'),
+    ),
+  );
+  const mapped = carriers.flatMap((role) =>
+    role.via.flatMap((via) => (via.kind === 'group' ? [via.group_path] : [])),
+  );
+  if (otherwise || mapped.length === 0) return false;
+  const reaches = (paths: readonly string[]): boolean =>
+    paths.some((path) => mapped.some((group) => under(path, group)));
+  return reaches(before) && !reaches(after);
 }

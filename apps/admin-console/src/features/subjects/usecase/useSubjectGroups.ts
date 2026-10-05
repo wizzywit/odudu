@@ -2,6 +2,7 @@ import type { Group, SetSubjectGroupsResponse, Subject } from '@odudu/contracts/
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/features/session/index.ts';
 import {
+  useEffectiveRoles,
   useGroupsRecord,
   useSaveGroups,
   type GroupValues,
@@ -9,13 +10,16 @@ import {
 import {
   accessRefusal,
   groupsRecord,
+  removalConfirmation,
   subjectName,
+  takesTenants,
   type Confirmation,
 } from '#/features/subjects/service.ts';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
+import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 
 export function useSubjectGroupsRead(
   tenant: string,
@@ -63,6 +67,7 @@ export function useSubjectGroups(
   const reread = useRereadAuthority(tenant);
   const [confirming, setConfirming] = useState<Confirmation | null>(null);
   const saveGroups = useSaveGroups(tenant, subject.id);
+  const effective = useEffectiveRoles(tenant, subject.id);
   const picker = useGroupPicker(tenant);
   const known = new Map<string, Group>(
     [...data.items, ...picker.options].map((group) => [group.id, group]),
@@ -98,12 +103,33 @@ export function useSubjectGroups(
     },
   });
   const left = data.items.filter((group) => !save.values.group_ids.includes(group.id));
+  const kept = save.values.group_ids.map((id) => known.get(id)?.path ?? id);
+  const removesTenants =
+    tenant === SYSTEM_TENANT &&
+    effective.status === 'ready' &&
+    takesTenants(
+      effective.data.items,
+      data.items.map((group) => group.path),
+      kept,
+    );
   return {
     name,
     canManage,
     save: {
       ...save,
       submit: () => {
+        if (removesTenants) {
+          const asked = removalConfirmation({
+            name,
+            self,
+            removed: ['manage-tenants'],
+            removesTenants: true,
+          });
+          if (asked !== null) {
+            setConfirming(asked);
+            return true;
+          }
+        }
         if (!self || left.length === 0) return save.submit();
         setConfirming({
           title: 'Leave groups of your own?',

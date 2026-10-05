@@ -59,6 +59,9 @@ function Groups({ groups }: { groups: SubjectGroups }) {
         consequence={groups.confirming?.consequence ?? ''}
         confirmLabel="Save Groups"
         tone="danger"
+        {...(typeof groups.confirming?.typed === 'string'
+          ? { typed: groups.confirming.typed }
+          : {})}
         onConfirm={groups.confirm}
         onCancel={groups.cancel}
       />
