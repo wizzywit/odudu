@@ -1,6 +1,7 @@
 export { verifyClientSecret } from '#/service/client';
 export {
   coerceTenantSetting,
+  listSettingValues,
   tenantSettingProblems,
   TENANT_SETTING_ORDERINGS,
   TENANT_SETTING_RANGES,

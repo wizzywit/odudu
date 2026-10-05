@@ -103,7 +103,7 @@ describe('the audit_event_types setting', () => {
     ).toEqual(EVERY_TYPE);
   });
 
-  it.each([[['admin_mutation', 'admin_access', 'logins']], ['admin_mutation'], [7]])(
+  it.each([[['admin_mutation', 'admin_access', 'logins']], ['admin_mutation,admin_access'], [7]])(
     'refuses %j, which is not a list of event types',
     async (value) => {
       const t = await fixture.createTenant(`aet-${newId()}`);

@@ -127,6 +127,13 @@ function coerceList(raw: string | readonly string[], values: readonly string[]):
   return values.filter((value) => named.includes(value));
 }
 
+/** A list setting's possible members, or null for a setting that is not a list. */
+export function listSettingValues(name: string): readonly string[] | null {
+  if (!isSettingName(name)) return null;
+  const setting: TenantSetting = SETTINGS[name];
+  return setting.type === 'list' ? (setting.values ?? []) : null;
+}
+
 export function coerceTenantSetting(name: string, raw: string | readonly string[]): CoerceOutcome {
   if (!isSettingName(name)) {
     return { kind: 'unknown_setting', known: TENANT_SETTING_NAMES };

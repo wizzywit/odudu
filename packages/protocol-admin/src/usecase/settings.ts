@@ -3,6 +3,7 @@ import {
   isSystemTenantId,
   SYSTEM_TENANT_DISABLE_REFUSED,
   coerceTenantSetting,
+  listSettingValues,
   TENANT_SETTING_NAMES,
   tenantSettingsRepository,
   TenantSettingCheckViolationError,
@@ -102,6 +103,12 @@ type CoerceAllResult = { kind: 'ok'; settings: readonly CoercedSetting[] } | Ame
 function coerceAll(values: Readonly<Record<string, TenantSettingValue>>): CoerceAllResult {
   const settings: CoercedSetting[] = [];
   for (const [name, raw] of Object.entries(values)) {
+    // The comma-separated spelling is `seed tenant --set`'s; this API takes a
+    // list setting as an array and nothing else.
+    const listValues = listSettingValues(name);
+    if (listValues !== null && !Array.isArray(raw)) {
+      return { kind: 'invalid_value', name, expected: 'list', values: listValues };
+    }
     const outcome = coerceTenantSetting(name, typeof raw === 'object' ? raw : String(raw));
     if (outcome.kind === 'unknown_setting') {
       return { kind: 'unknown_setting', name, known: TENANT_SETTING_NAMES };
