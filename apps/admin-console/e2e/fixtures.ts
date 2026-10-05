@@ -78,7 +78,7 @@ export async function expectFitsViewport(page: Page, where = page.url()): Promis
       .map(
         ({ node, right }) =>
           `<${node.tagName.toLowerCase()} class="${node.getAttribute('class') ?? ''}"> ` +
-          `${String(Math.round(right - view))}px beyond: ${(node.textContent ?? '').trim().slice(0, 60)}`,
+          `${String(Math.round(right - view))}px beyond: ${node.textContent.trim().slice(0, 60)}`,
       );
     return { by: document.documentElement.scrollWidth - view, past };
   });
