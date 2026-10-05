@@ -17,6 +17,7 @@ import {
   isAdminRole,
   isHolding,
   lossText,
+  type Asked,
   writeRefusal,
 } from '#/shared/service/capabilities.ts';
 import { andList } from '#/shared/service/format.ts';
@@ -250,10 +251,7 @@ export function lossOf(
 // is checking; if it could not be, the page's one line says so.
 export type Readiness = 'checking' | 'failed' | 'ready';
 
-export interface Asked {
-  title: string;
-  consequence: string;
-}
+export type { Asked };
 
 export type GroupRead =
   | { status: 'none' }
@@ -355,6 +353,26 @@ export function parentPathOf(
   if (typeof id !== 'string') return 'the top level';
   const read = group.path.slice(0, group.path.lastIndexOf('/'));
   return known.get(id)?.path ?? (id === group.parent_id ? read : id);
+}
+
+export function parentPlace(
+  group: Pick<GroupRecord, 'path' | 'parent_id'>,
+  id: string | null,
+  known: ReadonlyMap<string, Pick<Group, 'path'>>,
+): string | null {
+  return id === null ? null : parentPathOf(group, id, known);
+}
+
+export function ceilingCaller(ceiling: Ceiling): readonly AdminCapability[] {
+  return ceiling.status === 'ready' ? ceiling.caller : [];
+}
+
+export function ceilingParentReach(ceiling: Ceiling): readonly string[] {
+  return ceiling.status === 'ready' ? ceiling.parentReach : [];
+}
+
+export function ceilingLines(ceiling: Ceiling): ReachLines | null {
+  return ceiling.status === 'ready' ? ceiling.lines : null;
 }
 
 export function moveConfirmation(path: string, loss: Loss): Asked {

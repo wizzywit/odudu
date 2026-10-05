@@ -14,6 +14,7 @@ import {
   defaultBlock,
   DEFAULT_LABEL,
   defaultsChecking,
+  deleteChecking,
   deletionFixed,
   DESCRIPTION_MAX,
   DESCRIPTION_RULE,
@@ -143,7 +144,7 @@ export function useRoleGeneral({
     deletion: {
       fixed: deletionFixed(role),
       held: isDeleteHeld(ceiling),
-      checking: ready === null || loss.kind === 'checking',
+      checking: deleteChecking(ceiling, loss),
       confirming: deleting,
       consequence: roleDeleteConsequence(role.name, loss),
       busy: deletion.busy,

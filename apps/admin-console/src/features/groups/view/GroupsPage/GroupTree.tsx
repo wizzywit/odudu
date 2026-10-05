@@ -5,7 +5,7 @@ import { useGroupNode, type GroupNode } from '#/features/groups/usecase/useGroup
 import { Button } from '#/shared/view/Button';
 import { ListSkeleton } from '#/shared/view/Skeleton';
 import { StatusTag } from '#/shared/view/StatusTag';
-import styles from '#/features/groups/view/GroupTree/GroupTree.module.css';
+import styles from '#/features/groups/view/GroupsPage/GroupTree.module.css';
 
 function Children({
   tenant,

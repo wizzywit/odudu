@@ -20,6 +20,7 @@ import {
   compositesOffered,
   compositesRecord,
   NEST_LABEL,
+  removalAction,
   removalBlock,
   roleSelfLoss,
   unnestedText,
@@ -28,8 +29,8 @@ import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useRolePicker } from '#/shared/repository/useRolePicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import { asksFirst, judgedLoss, type Loss } from '#/shared/service/capabilities.ts';
-import { describeIds } from '#/shared/service/format.ts';
+import { judgedLoss, type Loss } from '#/shared/service/capabilities.ts';
+import { describeId } from '#/shared/service/format.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
 
 export function useCompositesRead(
@@ -114,8 +115,7 @@ export function useRoleComposites({
         value: null,
         label: NEST_LABEL,
         kind: 'plain',
-        describe: (value) =>
-          describeIds(typeof value === 'string' ? [value] : [], (id) => known.get(id)?.name ?? id),
+        describe: (value) => describeId(value, (id) => known.get(id)?.name ?? id),
       },
     },
     save,
@@ -136,7 +136,7 @@ export function useRoleComposites({
       const result = await removal.remove({ child: child.id, ifMatch: etag });
       if (result.ok) {
         push({ tone: 'success', message: unnestedText(child.name, role.name) });
-        if (asksFirst(lossOf(child))) reread();
+        if (removalAction(lossOf(child)) !== 'run') reread();
         return true;
       }
       refusal.report(result, 'manage-tenant');
@@ -164,7 +164,9 @@ export function useRoleComposites({
     message,
     remove: (child) => {
       const lost = lossOf(child);
-      if (!asksFirst(lost)) return run(child);
+      const action = removalAction(lost);
+      if (action === 'wait') return Promise.resolve(false);
+      if (action === 'run') return run(child);
       setAsking({ child, asked: compositeRemovalConfirmation(role.name, child.name, lost) });
       return Promise.resolve(false);
     },

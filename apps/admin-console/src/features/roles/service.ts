@@ -11,8 +11,11 @@ import {
   ceilingOf,
   isAdminRole,
   isHolding,
+  asksFirst,
   lossText,
+  type Asked,
   type Loss,
+  type OwnAccessRead,
   writeRefusal,
 } from '#/shared/service/capabilities.ts';
 import { writeFailureText } from '#/shared/service/failure.ts';
@@ -177,10 +180,7 @@ export function roleSelfLoss(
   }
 }
 
-export interface Asked {
-  title: string;
-  consequence: string;
-}
+export type { Asked };
 
 // What the role reaches, which its record carries, and the caller's own
 // capabilities: every ceiling on its writes is judged by both, so nothing is
@@ -231,7 +231,10 @@ export function deletionFixed(role: Role): string | null {
 
 // Each removal asks first where it takes from yourself, so none is offered
 // while that is still being read.
-export function compositesOffered(ceiling: Ceiling, own: { status: string }): boolean {
+export function compositesOffered(
+  ceiling: Ceiling,
+  own: { status: OwnAccessRead['status'] },
+): boolean {
   return ceiling.status === 'ready' && own.status !== 'loading';
 }
 
@@ -261,6 +264,17 @@ export function compositeRemovalFailureText(
     stale: `${role}'s composites changed since you opened them, so ${child} was not taken out. They have been read again; look before trying again.`,
     refused: (problem) => compositeRefusal(child, problem),
   });
+}
+
+export type RemovalAction = 'wait' | 'ask' | 'run';
+
+export function removalAction(loss: Loss): RemovalAction {
+  if (loss.kind === 'checking') return 'wait';
+  return asksFirst(loss) ? 'ask' : 'run';
+}
+
+export function deleteChecking(ceiling: Ceiling, loss: Loss): boolean {
+  return ceiling.status !== 'ready' || loss.kind === 'checking';
 }
 
 export function roleDeleteConsequence(name: string, loss: Loss): string {

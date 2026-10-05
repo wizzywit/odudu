@@ -70,6 +70,10 @@ it('reads, amends, marks and deletes a group, each write on the ETag given', asy
   expect(await readGroup(gateway, 'acme', 'g-plat')).toMatchObject({ ok: true, etag: '"p1"' });
   await amendGroup(gateway, 'acme', 'g-plat', { parent_id: null }, '"p1"');
   expect(fake.sent.at(-1)).toMatchObject({ body: { parent_id: null }, ifMatch: '"p1"' });
+  await amendGroup(gateway, 'acme', 'g-plat', { description: '' }, '"p1"');
+  expect(fake.sent.at(-1)?.body).toEqual({ description: null });
+  await amendGroup(gateway, 'acme', 'g-plat', { description: 'Builds' }, '"p1"');
+  expect(fake.sent.at(-1)?.body).toEqual({ description: 'Builds' });
   await setGroupDefault(gateway, 'acme', 'g-plat', true, '"p2"');
   expect(fake.sent.at(-1)).toMatchObject({ body: { default: true }, ifMatch: '"p2"' });
   expect(await deleteGroup(gateway, 'acme', 'g-plat')).toMatchObject({ ok: true });

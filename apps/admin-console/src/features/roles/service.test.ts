@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { AdminCapability } from '#/shared/service/principal.ts';
 import {
   addRefusal,
+  deleteChecking,
+  removalAction,
   type CopyRead,
   compositeRemovalConfirmation,
   compositeRemovalFailureText,
@@ -371,5 +373,22 @@ describe('adding a composite', () => {
       'Refused: the role chosen already includes this role, so nesting it here would make a loop.',
     );
     expect(addRefusal({ type: 'about:blank', status: 500 })).toBeNull();
+  });
+});
+
+describe('what a removal does first', () => {
+  it('waits while the loss is read, asks when it takes from the caller, else runs', () => {
+    expect(removalAction({ kind: 'checking' })).toBe('wait');
+    expect(removalAction({ kind: 'none' })).toBe('run');
+    expect(removalAction(certain)).toBe('ask');
+    expect(removalAction({ kind: 'possible', lost: ['view-audit'] })).toBe('ask');
+  });
+
+  it('checks a deletion until the ceiling and the loss are known', () => {
+    const ready = { status: 'ready', caller: [], deleteHeld: null } as const;
+    expect(deleteChecking({ status: 'checking' }, { kind: 'none' })).toBe(true);
+    expect(deleteChecking(ready, { kind: 'checking' })).toBe(true);
+    expect(deleteChecking(ready, { kind: 'none' })).toBe(false);
+    expect(deleteChecking(ready, certain)).toBe(false);
   });
 });

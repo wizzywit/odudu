@@ -13,6 +13,10 @@ import {
 import {
   type Asked,
   type Ceiling,
+  ceilingCaller,
+  ceilingLines,
+  ceilingParentReach,
+  parentPlace,
   deleteConsequence,
   defaultBlock,
   DEFAULT_LABEL,
@@ -185,18 +189,14 @@ export function useGroupGeneral({
     save: saves.default,
   });
 
-  const ready = ceiling.status === 'ready' ? ceiling : null;
-  const caller = ready?.caller ?? [];
-  const destination = parent.values.parent_id;
+  const caller = ceilingCaller(ceiling);
+  const lines = ceilingLines(ceiling);
+  const destination = parentPlace(group, parentId, known);
   const moveLoss: Loss = lossOf(
     own,
     caller,
-    {
-      kind: 'move',
-      path: group.path,
-      to: destination === null ? null : pathOf(destination),
-    },
-    ready?.parentReach ?? [],
+    { kind: 'move', path: group.path, to: destination },
+    ceilingParentReach(ceiling),
   );
   const deleteLoss: Loss = lossOf(
     own,
@@ -224,9 +224,9 @@ export function useGroupGeneral({
           return true;
         },
       },
-      held: ready === null ? null : ready.lines.move,
+      held: lines?.move ?? null,
       state: groupReadiness(ceiling.status, moveLoss),
-      current: placeText(parentId === null ? null : pathOf(parentId), 'is'),
+      current: placeText(destination, 'is'),
       picker,
       unavailableOf: (candidate) => parentUnavailable(group, candidate, caller),
       choose: (ids) => {
@@ -247,7 +247,7 @@ export function useGroupGeneral({
       state: groupReadiness(ceiling.status, { kind: 'none' }),
     },
     deletion: {
-      held: ready === null ? null : ready.lines.remove,
+      held: lines?.remove ?? null,
       state: groupReadiness(ceiling.status, deleteLoss),
       confirming: deleting,
       consequence: deleteConsequence(group.path, deleteLoss),

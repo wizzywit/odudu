@@ -11,6 +11,10 @@ import {
   moveConfirmation,
   newGroupPlace,
   parentPathOf,
+  parentPlace,
+  ceilingCaller,
+  ceilingLines,
+  ceilingParentReach,
   placeText,
   reachOfRoles,
   roleIndex,
@@ -485,5 +489,33 @@ describe('the ceiling of a group record', () => {
     expect(createUnderHref('acme', record, narrow)).toBeNull();
     expect(createUnderHref('acme', undefined, ready)).toBeNull();
     expect(createUnderHref('acme', record, { status: 'checking' })).toBeNull();
+  });
+});
+
+describe('reading a ceiling', () => {
+  const authority = { capabilities: reach('manage-users'), crossTenant: false };
+  const record = {
+    ...group('g-eng', '/eng'),
+    admin_reach: reach(),
+    subtree_admin_reach: reach('view-users'),
+    holds_default_group: false,
+  };
+  const ready = groupCeiling({ status: 'none' }, authority, record);
+
+  it('gives the caller, the parent reach and the lines once ready, and nothing before', () => {
+    expect(ceilingCaller(ready)).toEqual(['manage-users']);
+    expect(ceilingParentReach(ready)).toEqual([]);
+    expect(ceilingLines(ready)?.remove).toContain('view-users');
+    expect(ceilingCaller({ status: 'checking' })).toEqual([]);
+    expect(ceilingParentReach({ status: 'checking' })).toEqual([]);
+    expect(ceilingLines({ status: 'checking' })).toBeNull();
+  });
+});
+
+describe('the place a parent id names', () => {
+  it('is null for the top level, else the path as the group is read', () => {
+    const ops = { path: '/eng/ops', parent_id: 'g-eng' };
+    expect(parentPlace(ops, null, new Map())).toBeNull();
+    expect(parentPlace(ops, 'g-eng', new Map())).toBe('/eng');
   });
 });

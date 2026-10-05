@@ -70,6 +70,10 @@ it('reads, amends, marks and deletes a role, each write on the ETag given', asyn
   expect(await readRole(gateway, 'acme', 'r-aud')).toMatchObject({ ok: true, etag: '"a1"' });
   await amendRole(gateway, 'acme', 'r-aud', { description: null }, '"a1"');
   expect(fake.sent.at(-1)).toMatchObject({ body: { description: null }, ifMatch: '"a1"' });
+  await amendRole(gateway, 'acme', 'r-aud', { description: '' }, '"a1"');
+  expect(fake.sent.at(-1)?.body).toEqual({ description: null });
+  await amendRole(gateway, 'acme', 'r-aud', { description: 'Reads' }, '"a1"');
+  expect(fake.sent.at(-1)?.body).toEqual({ description: 'Reads' });
   await setRoleDefault(gateway, 'acme', 'r-aud', true, '"a2"');
   expect(fake.sent.at(-1)).toMatchObject({ body: { default: true }, ifMatch: '"a2"' });
   expect(await deleteRole(gateway, 'acme', 'r-aud')).toMatchObject({ ok: true });
