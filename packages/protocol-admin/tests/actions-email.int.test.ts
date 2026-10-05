@@ -166,7 +166,7 @@ describe('POST /subjects/:id/actions-email', () => {
     [
       'a client_id naming no client',
       () => ({ actions: ['configure-totp'], client_id: 'nonesuch', redirect_uri: REDIRECT }),
-      'client_id',
+      'redirect_uri',
     ],
     [
       'a redirect_uri the client never registered',
@@ -226,5 +226,34 @@ describe('POST /subjects/:id/actions-email', () => {
         [['configure-totp'], false],
       ]),
     );
+  });
+
+  it('answers a missing client and an unregistered redirect alike, after the 404 and the ceiling', async () => {
+    const t = await fixture.createTenant(`act-${newId()}`);
+    const ada = await seedUser(fixture, t.id, 'ada', 'ada@example.com');
+    const clientId = await clientWithRedirect(t.name);
+    const strip = (res: LightMyRequestResponse) => {
+      const { instance: _instance, ...rest } = res.json<Record<string, unknown>>();
+      return rest;
+    };
+    const noClient = await send(fixture, t.name, ada, {
+      actions: ['configure-totp'],
+      client_id: 'nonesuch',
+      redirect_uri: REDIRECT,
+    });
+    const unregistered = await send(fixture, t.name, ada, {
+      actions: ['configure-totp'],
+      client_id: clientId,
+      redirect_uri: 'https://evil.example/cb',
+    });
+    expect(strip(noClient)).toEqual(strip(unregistered));
+    expect(JSON.stringify(strip(noClient))).not.toContain('nonesuch');
+
+    const unknownSubject = await send(fixture, t.name, newId(), {
+      actions: ['configure-totp'],
+      client_id: 'nonesuch',
+      redirect_uri: REDIRECT,
+    });
+    expect(unknownSubject.statusCode).toBe(404);
   });
 });

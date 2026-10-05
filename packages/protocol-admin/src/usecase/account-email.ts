@@ -22,6 +22,8 @@ export type AccountLinkPurpose =
       readonly kind: 'execute_actions';
       readonly actions: readonly RequiredAction[];
       readonly redirectUri: string | null;
+      /** The row id of the client that registered `redirectUri`, re-checked at redemption. */
+      readonly redirectClientId: string | null;
     };
 
 /** What a link is minted for and who it goes to; the minting is @odudu/account's. */
@@ -117,22 +119,29 @@ async function purposeOf(tx: TenantScopedDatabase, input: AccountEmailInput): Pr
     }
     return {
       kind: 'ok',
-      purpose: { kind: input.kind, actions, redirectUri: null },
+      purpose: { kind: input.kind, actions, redirectUri: null, redirectClientId: null },
       detail: { actions },
     };
   }
   if (input.clientId === null) {
     return refuse('client_id', 'a redirect_uri is one a client registered; name it with client_id');
   }
+  // One answer whether the client is missing or never registered the URI:
+  // a `manage-users` caller learns nothing about clients from it.
   const client = await clientRepository(tx).byClientId(input.clientId);
-  if (client === null) return refuse('client_id', `names no client ${input.clientId}`);
-  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
-  if (!(config?.redirectUris ?? []).includes(input.redirectUri)) {
-    return refuse('redirect_uri', `is not one of ${input.clientId}'s registered redirect URIs`);
+  const config =
+    client === null ? null : await clientOidcConfigRepository(tx).byClientId(client.id);
+  if (client === null || !(config?.redirectUris ?? []).includes(input.redirectUri)) {
+    return refuse('redirect_uri', 'is not a redirect URI the named client registered');
   }
   return {
     kind: 'ok',
-    purpose: { kind: input.kind, actions, redirectUri: input.redirectUri },
+    purpose: {
+      kind: input.kind,
+      actions,
+      redirectUri: input.redirectUri,
+      redirectClientId: client.id,
+    },
     detail: { actions, client_id: input.clientId, redirect_uri: input.redirectUri },
   };
 }
@@ -145,9 +154,6 @@ export async function sendAccountEmail(
   deps: AccountEmailDeps,
   input: AccountEmailInput,
 ): Promise<AccountEmailOutcome> {
-  const purposed = await purposeOf(tx, input);
-  if (purposed.kind === 'refused') return purposed.outcome;
-  const { purpose, detail } = purposed;
   if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
   const user = await tx
     .select({ email: users.email })
@@ -157,6 +163,9 @@ export async function sendAccountEmail(
   const action = ACTIONS[input.kind];
   const refused = await refuseOverTargetCeiling(tx, deps.audit, action, input);
   if (refused !== null) return refused;
+  const purposed = await purposeOf(tx, input);
+  if (purposed.kind === 'refused') return purposed.outcome;
+  const { purpose, detail } = purposed;
 
   const email = user[0]?.email ?? null;
   if (email === null) return { kind: 'no_email' };

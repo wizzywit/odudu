@@ -4618,9 +4618,15 @@ signs its subject in by their mailbox the same way, and it is spent once.
 **A `redirect_uri` is only ever one the client registered.** The link's last
 page offers it as "Back to the application", so it must equal, exactly, one
 of the `redirect_uris` of the client `client_id` names, or the request is
-refused with `400` naming the field; a `redirect_uri` without a `client_id`,
-or a `client_id` without a `redirect_uri`, is refused the same way. Any other
-target would make this server's page an open redirect under its own name.
+refused with `400` naming `redirect_uri`; a `redirect_uri` without a
+`client_id`, or a `client_id` without a `redirect_uri`, is refused the same
+way, naming `client_id`. Any other target would make this server's page an
+open redirect under its own name. A client that does not exist and one that
+never registered the URI get the same answer, so a caller with
+`manage-users` alone learns nothing about another client's registration
+from it, and both are checked only after the subject is found and the
+target ceiling passes, so an unknown subject is still `404` and one above
+the caller `403`.
 
 The `409`s are the reset's: `about:blank#no-email`, `about:blank#no-mail-relay`,
 and `about:blank#reset-password-off` when `update-password` is named while
