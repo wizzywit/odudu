@@ -1,7 +1,7 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
 import { render, screen, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
-import type { Gated } from '#/features/overview/service.ts';
+import type { Gated } from '#/features/overview/service';
 import { LatestAudit } from '#/features/overview/view/LatestAudit';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 

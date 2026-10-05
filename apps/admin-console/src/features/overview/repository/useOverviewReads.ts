@@ -15,7 +15,7 @@ import {
   type OverviewReads,
   type Read,
   type ReadName,
-} from '#/features/overview/service.ts';
+} from '#/features/overview/service';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 

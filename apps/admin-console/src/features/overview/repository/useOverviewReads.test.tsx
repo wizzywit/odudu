@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { expect, it } from 'vitest';
 import { useOverviewReads } from '#/features/overview/repository/useOverviewReads.ts';
-import type { OverviewAsks } from '#/features/overview/service.ts';
+import type { OverviewAsks } from '#/features/overview/service';
 import { createQueryClient } from '#/shared/repository/queryClient.ts';
 import { TransportContext } from '#/shared/transport/useTransport.ts';
 import { fakeTransport, json, pending, problem, type Answer } from '#/testing/fakeTransport.ts';

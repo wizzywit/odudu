@@ -1,7 +1,7 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
 import type { ReactNode } from 'react';
 import { Link } from 'react-aria-components';
-import type { Gated } from '#/features/overview/service.ts';
+import type { Gated } from '#/features/overview/service';
 import { Panel } from '#/features/overview/view/Panel';
 import { AuditActor } from '#/shared/view/AuditActor';
 import { Button } from '#/shared/view/Button';

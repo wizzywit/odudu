@@ -8,7 +8,7 @@ import {
   type KeysView,
   type PublishedKey,
   type Read,
-} from '#/features/overview/service.ts';
+} from '#/features/overview/service';
 import { Panel } from '#/features/overview/view/Panel';
 import { Button } from '#/shared/view/Button';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';

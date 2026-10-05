@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import type { AttentionState } from '#/features/overview/service.ts';
+import type { AttentionState } from '#/features/overview/service';
 import { AttentionPanel } from '#/features/overview/view/AttentionPanel';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 

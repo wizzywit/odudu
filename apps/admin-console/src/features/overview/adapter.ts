@@ -10,7 +10,7 @@ import {
   type SmtpConfig,
 } from '@odudu/contracts/admin';
 import { z } from 'zod';
-import type { Collection, Discovery, Jwks } from '#/features/overview/service.ts';
+import type { Collection, Discovery, Jwks } from '#/features/overview/service';
 import { readAuditPage } from '#/shared/adapter/audit.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 

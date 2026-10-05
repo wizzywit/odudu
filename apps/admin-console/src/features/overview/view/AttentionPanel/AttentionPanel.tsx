@@ -4,7 +4,7 @@ import {
   openPlaceLabel,
   UNCHECKED_LEAD,
   type AttentionState,
-} from '#/features/overview/service.ts';
+} from '#/features/overview/service';
 import { Panel } from '#/features/overview/view/Panel';
 import { Button } from '#/shared/view/Button';
 import { ListSkeleton } from '#/shared/view/Skeleton';

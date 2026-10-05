@@ -18,7 +18,7 @@ import {
   type Gated,
   type KeysView,
   type Read,
-} from '#/features/overview/service.ts';
+} from '#/features/overview/service';
 
 export interface Overview {
   discovery: Read<DiscoveryView>;
