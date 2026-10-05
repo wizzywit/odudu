@@ -328,6 +328,8 @@ test("a group's description is changed by keyboard alone, from the tree", async 
 });
 
 test('the groups and roles pages fit a phone', async ({ page }) => {
+  // Eight pages, each waited on until loaded: more than one test's budget.
+  test.slow();
   await page.setViewportSize(PHONE);
   await signIn(page, admin);
   const pages = [
