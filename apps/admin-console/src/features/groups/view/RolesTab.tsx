@@ -1,4 +1,4 @@
-import type { Group } from '@odudu/contracts/admin';
+import type { GroupRecord } from '@odudu/contracts/admin';
 import {
   useGroupRoles,
   useGroupRolesRead,
@@ -47,14 +47,6 @@ function Roles({ path, roles }: { path: string; roles: GroupRoles }) {
       notice={<SectionNoticeOf title="Roles" save={s} />}
     >
       <Listed path={path} mapped={roles.mapped} />
-      {roles.reachFailed === null ? null : (
-        <p className={styles.rule}>
-          What these roles reach could not be read, so no role is offered until it is.{' '}
-          <Button size="small" variant="quiet" onPress={roles.reachFailed}>
-            Read it again
-          </Button>
-        </p>
-      )}
       {roles.offered ? (
         <RolePicker
           label={`Roles ${path} carries`}
@@ -63,9 +55,9 @@ function Roles({ path, roles }: { path: string; roles: GroupRoles }) {
           unavailableOf={roles.unavailableOf}
           onChange={roles.choose}
         />
-      ) : roles.reachFailed === null ? (
+      ) : (
         <p className={styles.rule}>Checking what you may give or take here…</p>
-      ) : null}
+      )}
       {roles.kept.length === 0 ? null : (
         <p className={styles.rule}>
           A role you could not give is one you cannot take away either, so it stays whatever else is
@@ -92,7 +84,7 @@ function Ready({
   ...read
 }: {
   tenant: string;
-  group: Group;
+  group: GroupRecord;
   ceiling: Ceiling;
   data: Parameters<typeof useGroupRoles>[0]['data'];
   etag: string;
@@ -108,7 +100,7 @@ export function RolesTab({
   ceiling,
 }: {
   tenant: string;
-  group: Group;
+  group: GroupRecord;
   ceiling: Ceiling;
 }) {
   const read = useGroupRolesRead(tenant, group.id);

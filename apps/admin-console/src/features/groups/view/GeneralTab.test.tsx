@@ -267,6 +267,28 @@ it('never offers a parent handing out what the caller lacks', async () => {
   );
 });
 
+it('never offers a capability-handing parent to a group holding a default, and says why', async () => {
+  renderConsoleAt(
+    AT,
+    groupRoutes(undefined, {
+      [`GET ${G}/g-plat`]: json(record(PLATFORM, [], true), 200, { etag: '"g-plat-1"' }),
+      [`GET ${G}`]: json({
+        items: [
+          { ...FINANCE, admin_reach: ['view-users'] },
+          { ...ENG, admin_reach: [] },
+        ],
+      }),
+    }),
+  );
+  const parents = await screen.findByRole('listbox', { name: 'Parent' });
+  expect(within(parents).getByRole('option', { name: /finance/u })).toHaveTextContent(
+    'a group every new subject joins, or holds one beneath it, may reach no admin capability',
+  );
+  expect(within(parents).getByRole('option', { name: /eng/u })).not.toHaveTextContent(
+    'may reach no admin capability',
+  );
+});
+
 it('holds a delete while what it takes from yourself is read', async () => {
   renderConsoleAt(
     '/console/acme/groups/g-eng',

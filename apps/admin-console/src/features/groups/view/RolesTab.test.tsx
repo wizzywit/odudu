@@ -9,6 +9,8 @@ import {
   ENG,
   G,
   groupRoutes,
+  mapped,
+  record,
   PORTAL_READER,
 } from '#/testing/groupsFixtures.ts';
 import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
@@ -28,8 +30,8 @@ it('lists the roles a group carries, a client role told apart, and replaces them
   const { sent } = renderConsoleAt(
     AT,
     groupRoutes(undefined, {
-      [`GET ${R}`]: json({ items: [assigned(PORTAL_READER)] }, 200, { etag: '"r1"' }),
-      [`PUT ${R}`]: json({ items: [assigned(AUDITOR), assigned(PORTAL_READER)] }, 200, {
+      [`GET ${R}`]: json({ items: [mapped(PORTAL_READER)] }, 200, { etag: '"r1"' }),
+      [`PUT ${R}`]: json({ items: [mapped(AUDITOR), mapped(PORTAL_READER)] }, 200, {
         etag: '"r2"',
       }),
     }),
@@ -52,12 +54,44 @@ it('lists the roles a group carries, a client role told apart, and replaces them
   });
 });
 
+it('reads each mapped role reach from the one answer', async () => {
+  const { sent } = renderConsoleAt(
+    AT,
+    groupRoutes(undefined, {
+      [`GET ${R}`]: json({ items: [mapped(AUDITOR), mapped(PORTAL_READER)] }, 200, {
+        etag: '"r1"',
+      }),
+    }),
+  );
+  const section = await screen.findByRole('region', { name: 'Roles' });
+  await within(section).findByRole('listbox', { name: 'Roles /eng carries' });
+  expect(sent.filter((s) => /\/roles\/[^/]+$/u.test(s.path))).toEqual([]);
+});
+
+it('offers no capability-handing role to a group with a default beneath it, and says why', async () => {
+  renderConsoleAt(
+    AT,
+    groupRoutes(undefined, {
+      [`GET ${G}/g-eng`]: json(record(ENG, [], true), 200, { etag: '"g-eng-1"' }),
+      [`GET ${R}`]: json({ items: [] }, 200, { etag: '"r1"' }),
+    }),
+  );
+  const section = await screen.findByRole('region', { name: 'Roles' });
+  const options = await within(section).findByRole('listbox', { name: 'Roles /eng carries' });
+  expect(
+    within(options).getByRole('option', { name: 'view-users, a role of client odudu-admin' }),
+  ).toHaveTextContent('Every new subject joins a group beneath this one');
+  expect(
+    within(options).getByRole('option', { name: 'auditor, a tenant role' }),
+  ).not.toHaveTextContent('Every new subject joins');
+});
+
 it('keeps a capability the caller lacks out of reach, given or taken', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(
     AT,
     groupRoutes(['manage-tenant', 'view-users'], {
-      [`GET ${R}`]: json({ items: [assigned(KEYS)] }, 200, { etag: '"r1"' }),
+      [`GET ${R}`]: json({ items: [mapped(KEYS)] }, 200, { etag: '"r1"' }),
       [`PUT ${R}`]: json({ items: [] }, 200, { etag: '"r2"' }),
     }),
   );
@@ -85,7 +119,7 @@ it('asks first when a role taken off the group is one you hold through it', asyn
   const { sent } = renderConsoleAt(
     AT,
     groupRoutes(undefined, {
-      [`GET ${R}`]: json({ items: [assigned(AUDIT)] }, 200, { etag: '"r1"' }),
+      [`GET ${R}`]: json({ items: [mapped(AUDIT)] }, 200, { etag: '"r1"' }),
       [`GET ${S}/s1/effective-roles`]: json({
         items: [
           {
@@ -124,7 +158,7 @@ it('passes axe in both themes, mapped and asking', async () => {
         consoleAt(
           AT,
           groupRoutes(undefined, {
-            [`GET ${R}`]: json({ items: [assigned(AUDIT), assigned(PORTAL_READER)] }, 200, {
+            [`GET ${R}`]: json({ items: [mapped(AUDIT), mapped(PORTAL_READER)] }, 200, {
               etag: '"r1"',
             }),
             [`GET ${S}/s1/effective-roles`]: json({

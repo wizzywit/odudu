@@ -140,26 +140,41 @@ export function defaultBlock(group: Group): string | null {
 // Its members would receive what the new parent hands out, so the caller
 // may choose only a parent within its own capabilities.
 export function parentUnavailable(
-  group: Pick<Group, 'id' | 'path'> | null,
+  group: Pick<GroupRecord, 'id' | 'path' | 'holds_default_group'> | null,
   candidate: Group,
   caller: readonly AdminCapability[],
 ): string | null {
   const loop = group === null ? null : moveUnavailable(group, candidate);
   if (loop !== null) return loop;
+  if (group?.holds_default_group === true && candidate.admin_reach.length > 0) {
+    return `its members receive ${AND.format(candidate.admin_reach)}, and a group every new subject joins, or holds one beneath it, may reach no admin capability`;
+  }
   const beyond = beyondCaller(candidate.admin_reach, caller);
   return beyond.length === 0
     ? null
     : `its members receive ${AND.format(beyond)}, which you do not hold`;
 }
 
+export type Defaulting = 'itself' | 'beneath' | null;
+
+export function defaultingOf(
+  group: Pick<Group, 'default_for_new_subjects'> & { holds_default_group: boolean },
+): Defaulting {
+  if (group.default_for_new_subjects) return 'itself';
+  return group.holds_default_group ? 'beneath' : null;
+}
+
 export function roleUnavailable(
   role: { name: string; client_key: string | null; admin_reach: readonly string[] },
   caller: readonly AdminCapability[],
-  isDefault: boolean,
+  defaulting: Defaulting,
   tenant: string,
 ): string | null {
-  if (isDefault && role.admin_reach.length > 0) {
+  if (defaulting === 'itself' && role.admin_reach.length > 0) {
     return 'Every new subject joins this group, so it may hand out no admin capability.';
+  }
+  if (defaulting === 'beneath' && role.admin_reach.length > 0) {
+    return 'Every new subject joins a group beneath this one and so receives what this one hands out, so it may hand out no admin capability.';
   }
   if (isAdminRole(role) && isHolding(role.name)) return ceilingOf(tenant, role.name, caller);
   const beyond = beyondCaller(role.admin_reach, caller);

@@ -35,9 +35,31 @@ export function group(
   };
 }
 
-// A group as its own record answers it, with what deleting it would take.
-export function record(each: GroupAnswer, subtree: readonly string[] = []) {
-  return { ...each, subtree_admin_reach: subtree };
+// A group as its own record answers it, with what deleting it would take and
+// whether it or a group beneath it is a default for new subjects.
+export function record(
+  each: GroupAnswer,
+  subtree: readonly string[] = [],
+  holdsDefault: boolean = each.default_for_new_subjects,
+) {
+  return { ...each, subtree_admin_reach: subtree, holds_default_group: holdsDefault };
+}
+
+// A role as the group's roles answer carries it, with what it reaches.
+export function mapped(each: {
+  id: string;
+  name: string;
+  client_id: string | null;
+  client_key: string | null;
+  admin_reach?: readonly string[];
+}) {
+  return {
+    id: each.id,
+    name: each.name,
+    client_id: each.client_id,
+    client_key: each.client_key,
+    admin_reach: each.admin_reach ?? [],
+  };
 }
 
 export const ENG = group('g-eng', '/eng', null, { description: 'Builds the product' });

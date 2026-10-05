@@ -1,14 +1,19 @@
-import type { Group, Role, SetGroupRolesResponse } from '@odudu/contracts/admin';
+import type { GroupRecord, Role, SetGroupRolesResponse } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/features/session/index.ts';
 import { useOwnRoles } from '#/features/subjects/index.ts';
 import {
   useGroupRolesRecord,
   useGroupSaves,
-  useRolesReach,
   type RoleValues,
 } from '#/features/groups/repository/useGroupRecord.ts';
-import { groupRolesRecord, lossOf, lossText, roleUnavailable } from '#/features/groups/service.ts';
+import {
+  defaultingOf,
+  groupRolesRecord,
+  lossOf,
+  lossText,
+  roleUnavailable,
+} from '#/features/groups/service.ts';
 import type { Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
 import type { Asked } from '#/features/groups/usecase/useGroupGeneral.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
@@ -39,8 +44,6 @@ export interface GroupRoles {
   mapped: readonly Mapped[];
   // Mapped roles this caller may not take away, each kept by every save.
   kept: readonly string[];
-  // What the mapped roles reach could not be read; reads it again.
-  reachFailed: (() => void) | null;
   asking: Asked | null;
   confirm: () => void;
   cancel: () => void;
@@ -59,7 +62,7 @@ export function useGroupRoles({
   ceiling,
 }: {
   tenant: string;
-  group: Group;
+  group: GroupRecord;
   data: SetGroupRolesResponse;
   etag: string;
   gone: boolean;
@@ -100,20 +103,13 @@ export function useGroupRoles({
     ),
   ]);
   const caller = ceiling.status === 'ready' ? ceiling.caller : [];
-  const mappedReach = useRolesReach(
-    tenant,
-    data.items.map((role) => role.id),
-  );
   const reachOf = (id: string): readonly string[] =>
-    mappedReach.status === 'ready' ? (mappedReach.reach.get(id) ?? []) : [];
+    data.items.find((role) => role.id === id)?.admin_reach ?? [];
   const why = (role: Role): string | null =>
-    roleUnavailable(role, caller, group.default_for_new_subjects, tenant);
+    roleUnavailable(role, caller, defaultingOf(group), tenant);
   // A role mapped here that the caller could not give is one it cannot take.
   const kept = data.items
-    .filter(
-      (role) =>
-        roleUnavailable({ ...role, admin_reach: reachOf(role.id) }, caller, false, tenant) !== null,
-    )
+    .filter((role) => roleUnavailable(role, caller, null, tenant) !== null)
     .map((role) => role.id);
   const describe = (value: unknown): string => {
     const ids = Array.isArray(value) ? value.map(String) : [];
@@ -154,7 +150,6 @@ export function useGroupRoles({
     { kind: 'roles', path: group.path, removed },
     removed.flatMap(reachOf),
   );
-  const ready = ceiling.status === 'ready' && mappedReach.status === 'ready';
   return {
     save: {
       ...save,
@@ -169,8 +164,7 @@ export function useGroupRoles({
         return true;
       },
     },
-    offered: ready,
-    reachFailed: mappedReach.status === 'failed' ? mappedReach.retry : null,
+    offered: ceiling.status === 'ready',
     picker,
     unavailableOf: why,
     choose: (ids) => {

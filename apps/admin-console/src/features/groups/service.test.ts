@@ -2,6 +2,7 @@ import type { AdminCapability } from '#/shared/service/principal.ts';
 import { describe, expect, it } from 'vitest';
 import {
   defaultBlock,
+  defaultingOf,
   GROUP_TABS,
   groupHref,
   groupRecord,
@@ -102,6 +103,7 @@ describe('what a group hands out', () => {
     ...group('g-mid', '/top/mid'),
     admin_reach: reach('view-audit'),
     subtree_admin_reach: reach('manage-keys', 'view-audit'),
+    holds_default_group: false,
     ...extra,
   });
 
@@ -137,6 +139,31 @@ describe('what a group hands out', () => {
     );
   });
 
+  it('holds a group with a default beneath it out of a parent that hands out a capability', () => {
+    const top = { ...group('g-admins', '/admins'), admin_reach: reach('view-users') };
+    const holder = record({ holds_default_group: true });
+    expect(parentUnavailable(holder, top, ['view-users'])).toBe(
+      'its members receive view-users, and a group every new subject joins, or holds one beneath it, may reach no admin capability',
+    );
+    expect(parentUnavailable(holder, { ...top, admin_reach: [] }, [])).toBeNull();
+  });
+
+  it('names the default beneath a group as the reason a role cannot be given', () => {
+    const bundle = { name: 'bundle', client_key: null, admin_reach: reach('view-users') };
+    expect(roleUnavailable(bundle, ['view-users'], 'beneath', 'acme')).toBe(
+      'Every new subject joins a group beneath this one and so receives what this one hands out, so it may hand out no admin capability.',
+    );
+    expect(defaultingOf({ default_for_new_subjects: false, holds_default_group: true })).toBe(
+      'beneath',
+    );
+    expect(defaultingOf({ default_for_new_subjects: true, holds_default_group: true })).toBe(
+      'itself',
+    );
+    expect(
+      defaultingOf({ default_for_new_subjects: false, holds_default_group: false }),
+    ).toBeNull();
+  });
+
   it('says why a role cannot be given or taken here, however deep it nests a capability', () => {
     const reaching = (name: string, reach: string[], clientKey: string | null = null) => ({
       name,
@@ -147,17 +174,17 @@ describe('what a group hands out', () => {
       roleUnavailable(
         reaching('manage-keys', ['manage-keys'], 'odudu-admin'),
         ['view-users'],
-        false,
+        null,
         'acme',
       ),
     ).toBe('You do not hold manage-keys, so you cannot give or take it.');
-    expect(roleUnavailable(reaching('bundle', ['view-audit']), ['view-users'], false, 'acme')).toBe(
+    expect(roleUnavailable(reaching('bundle', ['view-audit']), ['view-users'], null, 'acme')).toBe(
       'It reaches view-audit, which you do not hold, so you cannot give or take it.',
     );
-    expect(roleUnavailable(reaching('bundle', ['view-users']), ['view-users'], true, 'acme')).toBe(
-      'Every new subject joins this group, so it may hand out no admin capability.',
-    );
-    expect(roleUnavailable(reaching('auditor', []), [], true, 'acme')).toBeNull();
+    expect(
+      roleUnavailable(reaching('bundle', ['view-users']), ['view-users'], 'itself', 'acme'),
+    ).toBe('Every new subject joins this group, so it may hand out no admin capability.');
+    expect(roleUnavailable(reaching('auditor', []), [], 'itself', 'acme')).toBeNull();
   });
 });
 

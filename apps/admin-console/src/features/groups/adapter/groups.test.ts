@@ -30,7 +30,7 @@ function group(id: string, path: string, parent: string | null = null) {
 }
 
 function record(g: ReturnType<typeof group>) {
-  return { ...g, subtree_admin_reach: [] };
+  return { ...g, subtree_admin_reach: [], holds_default_group: false };
 }
 
 const ENG = group('g-eng', '/eng');
@@ -76,7 +76,7 @@ it('reads, amends, marks and deletes a group, each write on the ETag given', asy
 });
 
 it("reads and replaces a group's roles on the ETag it read", async () => {
-  const role = { id: 'r1', name: 'auditor', client_id: null, client_key: null };
+  const role = { id: 'r1', name: 'auditor', client_id: null, client_key: null, admin_reach: [] };
   const fake = fakeTransport({
     [`GET ${G}/g-eng/roles`]: json({ items: [role] }, 200, { etag: '"r1"' }),
     [`PUT ${G}/g-eng/roles`]: json({ items: [] }, 200, { etag: '"r2"' }),

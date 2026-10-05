@@ -1,5 +1,5 @@
 import type { GroupRecord, SetGroupRolesResponse } from '@odudu/contracts/admin';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   amendGroup,
   deleteGroup,
@@ -9,7 +9,6 @@ import {
   setGroupRoles,
 } from '#/features/groups/adapter/groups.ts';
 import { groupRecord, groupRolesRecord } from '#/features/groups/service.ts';
-import { readRole } from '#/shared/adapter/directory.ts';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
@@ -152,37 +151,4 @@ export function useGroupDeletion(tenant: string, id: string): GroupDeletion {
     mutationFn: async () => after(await deleteGroup(gateway, tenant, id)),
   });
   return { busy: mutation.isPending, run: () => mutation.mutateAsync() };
-}
-
-export type ReachRead =
-  | { status: 'loading' }
-  | { status: 'ready'; reach: ReadonlyMap<string, readonly string[]> }
-  | { status: 'failed'; retry: () => void };
-
-// What each role mapped here reaches: the mapping names roles by id and
-// name alone, so each is read on its own, once.
-export function useRolesReach(tenant: string, ids: readonly string[]): ReachRead {
-  const { gateway } = useTransport();
-  const client = useQueryClient();
-  const reads = useQueries({
-    queries: ids.map((id) => ({
-      queryKey: ['role', tenant, id] as const,
-      queryFn: () => readRole(gateway, tenant, id),
-    })),
-  });
-  if (reads.some((read) => read.data === undefined)) return { status: 'loading' };
-  const reach = new Map<string, readonly string[]>();
-  for (const [index, read] of reads.entries()) {
-    const id = ids[index];
-    if (read.data?.ok !== true || id === undefined) {
-      return {
-        status: 'failed',
-        retry: () => {
-          client.invalidateQueries({ queryKey: ['role', tenant] }).catch(() => undefined);
-        },
-      };
-    }
-    reach.set(id, read.data.data.admin_reach);
-  }
-  return { status: 'ready', reach };
 }
