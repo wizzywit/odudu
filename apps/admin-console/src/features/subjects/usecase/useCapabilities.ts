@@ -180,9 +180,11 @@ export function useCapabilityEditor({
   const base = inOrder(tenant, split.holdings);
   const removed = base.filter((holding) => !chosen.includes(holding));
   // What else, beyond the boxes, keeps the counted capability with them.
-  const keptOtherwise = (held.get(counted)?.through ?? []).some(
-    (path) => path !== `within ${TENANT_ADMIN}`,
-  );
+  // Full counts too when a group or another role carries it, since the box
+  // only takes away what is assigned here.
+  const keptOtherwise =
+    (held.get(counted)?.through ?? []).some((path) => path !== `within ${TENANT_ADMIN}`) ||
+    (counted !== TENANT_ADMIN && (held.get('tenant-admin')?.through.length ?? 0) > 0);
   const carriers = [...new Set<Holding>(['tenant-admin', counted])].filter((holding) =>
     chosen.includes(holding),
   );

@@ -267,6 +267,51 @@ it('says so when it is your own, and reads whoami again once it lands', async ()
   });
 });
 
+it('counts Full held through a group as keeping manage-tenants', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    SYSTEM_AT,
+    systemHolders({
+      [`GET ${SYS}/count`]: json({ count: 1, capped: false }),
+      [`GET ${SYS}/s-vera/effective-roles`]: json({
+        items: [
+          {
+            id: 'r-full',
+            name: 'tenant-admin',
+            client_id: 'c-admin',
+            client_key: 'odudu-admin',
+            via: [{ kind: 'group', group_id: 'g', group_path: '/admins' }],
+          },
+          {
+            id: 'r-tenants',
+            name: 'manage-tenants',
+            client_id: 'c-admin',
+            client_key: 'odudu-admin',
+            via: [
+              { kind: 'direct' },
+              { kind: 'composite', parent_role_id: 'r-full', parent_name: 'tenant-admin' },
+            ],
+          },
+        ],
+      }),
+    }),
+  );
+  const list = await screen.findByRole('list', { name: 'Administrators of system' });
+  await user.click(within(list).getByRole('button', { name: 'Change vera’s capabilities' }));
+  const section = await within(list).findByRole('region', { name: 'Admin capabilities' });
+  const box = await within(section).findByRole('checkbox', { name: 'manage-tenants' });
+  await waitFor(() => {
+    expect(within(section).getAllByText(/through group \/admins/u).length).toBeGreaterThan(0);
+  });
+  expect(box).toBeEnabled();
+  await user.click(box);
+  await user.click(within(section).getByRole('button', { name: 'Save Admin capabilities' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PUT')).toMatchObject({ body: { role_ids: [] } });
+  });
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+});
+
 it('passes axe in both themes, with a holder open', async () => {
   const user = userEvent.setup();
   expect(
