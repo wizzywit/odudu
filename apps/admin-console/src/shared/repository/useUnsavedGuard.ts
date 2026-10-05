@@ -39,6 +39,12 @@ export const useUnsavedGuard = create<UnsavedGuard>()((set, get) => ({
       else next.set(section, label);
       return { dirty: next };
     });
+    // A save that lands after the question was asked leaves nothing to lose.
+    const { pending, dirty } = get();
+    if (pending !== null && dirty.size === 0) {
+      set({ pending: null });
+      pending.proceed();
+    }
   },
   unsaved: () => [...get().dirty.values()],
   request: (proceed, refuse = NOTHING) => {

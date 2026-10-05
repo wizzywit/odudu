@@ -104,6 +104,22 @@ const seededSchema = z.object({
     renamed: z.string(),
     // The prefix every subject a test creates starts with.
     prefix: z.string(),
+    // Joins a group and is given a role.
+    member: z.string(),
+    // Given a required action, then signs in to meet it.
+    asked: account,
+    // Given an admin capability by a tenant administrator.
+    holder: z.string(),
+    // Holds view-audit, and is given more from the System area by keyboard.
+    listed: z.string(),
+    // A tenant administrator who ends their own sessions.
+    ender: account,
+    // Whose groups change behind an open page, for a 412.
+    raced: z.string(),
+    // A tenant administrator whose console session a test ends mid-edit,
+    // and the subject whose profile they were editing.
+    resumer: account,
+    drafted: z.string(),
   }),
 });
 

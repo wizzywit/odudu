@@ -63,6 +63,14 @@ export default function globalSetup(): void {
     renamer: { tenant: `${run}-t`, username: 'hamilton', password: password() },
     renamed: 'rena',
     prefix: `made-${run}`,
+    member: 'curie',
+    asked: { tenant: `${run}-s`, username: 'lise', password: password() },
+    holder: 'sklodowska',
+    listed: 'yalow',
+    ender: { tenant: `${run}-s`, username: 'rosalind', password: password() },
+    raced: 'hodgkin',
+    resumer: { tenant: `${run}-s`, username: 'kovalevskaya', password: password() },
+    drafted: 'germain',
   };
   const tenants = {
     general: `${run}-d`,
@@ -112,6 +120,32 @@ export default function globalSetup(): void {
   subject(subjects.issued);
   subject({ tenant: subjects.admin.tenant, username: subjects.doomed, password: password() });
   administrator(subjects.departing);
+  subject(
+    { tenant: subjects.admin.tenant, username: subjects.member, password: password() },
+    `--email=${subjects.member}@example.test`,
+  );
+  for (const username of [subjects.holder, subjects.listed, subjects.raced, subjects.drafted]) {
+    subject({ tenant: subjects.admin.tenant, username, password: password() });
+  }
+  subject(subjects.asked);
+  grant({ ...subjects.admin, username: subjects.listed }, 'odudu-admin:view-audit');
+  administrator(subjects.ender);
+  administrator(subjects.resumer);
+  for (const name of ['ops', 'finance']) {
+    seed(['group', '--tenant', subjects.admin.tenant, '--name', name]);
+  }
+  for (const name of ['auditor', 'billing-reader']) {
+    seed(['role', '--tenant', subjects.admin.tenant, '--name', name]);
+  }
+  seed([
+    'map-group-role',
+    '--tenant',
+    subjects.admin.tenant,
+    '--group',
+    '/finance',
+    '--role',
+    'billing-reader',
+  ]);
   seed(['tenant', '--name', subjects.renamer.tenant]);
   administrator(subjects.renamer);
   subject({ tenant: subjects.renamer.tenant, username: subjects.renamed, password: password() });

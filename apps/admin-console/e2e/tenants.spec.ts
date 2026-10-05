@@ -88,7 +88,7 @@ test('a system administrator creates a tenant whose first administrator signs in
   // The grant landed: the tenant lists them among its administrators.
   await page.getByRole('link', { name: `Open ${name}` }).click();
   await page.getByRole('tab', { name: 'Administrators' }).click();
-  await expect(page.getByRole('grid', { name: `Administrators of ${name}` })).toContainText(
+  await expect(page.getByRole('list', { name: `Administrators of ${name}` })).toContainText(
     'first',
   );
   await expect(page.getByText('1 administrator')).toBeVisible();

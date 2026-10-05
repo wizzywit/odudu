@@ -23,7 +23,7 @@ function beyondText(name: string, beyond: readonly string[]): string {
 
 export function CapabilitySection({ editing }: { editing: CapabilityEditing }) {
   const s = editing.save;
-  const locked = editing.beyond.length > 0;
+  const locked = editing.canManage && editing.beyond.length > 0;
   return (
     <Section
       title="Admin capabilities"
