@@ -4,7 +4,7 @@ import {
   type Asked,
   type Loss,
   writeRefusal,
-} from '#/shared/service/capabilities.ts';
+} from '#/shared/service/capabilities';
 import { writeFailureText } from '#/shared/service/failure.ts';
 import type { GatewayFailure } from '#/shared/service/result.ts';
 import { compositeRefusal } from '#/features/roles/service/blocks.ts';

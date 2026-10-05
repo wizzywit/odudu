@@ -13,7 +13,7 @@ import {
   adminClientOfRoles,
   holdingRoleIds,
   type Holding,
-} from '#/shared/service/capabilities.ts';
+} from '#/shared/service/capabilities';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 
 export function readSubjectGroups(

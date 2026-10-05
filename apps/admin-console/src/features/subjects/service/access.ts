@@ -1,4 +1,4 @@
-import { holdingLabel, type Holding } from '#/shared/service/capabilities.ts';
+import { holdingLabel, type Holding } from '#/shared/service/capabilities';
 import { andList } from '#/shared/service/format.ts';
 import { type AdminCapability } from '#/shared/service/principal.ts';
 import type { GatewayFailure } from '#/shared/service/result.ts';

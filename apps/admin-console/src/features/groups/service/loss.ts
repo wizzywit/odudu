@@ -5,7 +5,7 @@ import {
   type Loss,
   type OwnAccess,
   type OwnAccessRead,
-} from '#/shared/service/capabilities.ts';
+} from '#/shared/service/capabilities';
 import type { AdminCapability } from '#/shared/service/principal.ts';
 import { within } from '#/features/groups/service/blocks.ts';
 

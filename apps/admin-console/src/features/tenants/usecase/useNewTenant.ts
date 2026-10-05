@@ -36,7 +36,7 @@ import {
 } from '#/features/tenants/service';
 import { lacking } from '#/shared/service/access.ts';
 import { administratorNeeds } from '#/shared/service/administrators.ts';
-import { holdingOptions, holdingsIn, type HoldingOption } from '#/shared/service/capabilities.ts';
+import { holdingOptions, holdingsIn, type HoldingOption } from '#/shared/service/capabilities';
 import { withoutField } from '#/shared/service/fieldErrors.ts';
 import { inOrderOf } from '#/shared/service/ids.ts';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';

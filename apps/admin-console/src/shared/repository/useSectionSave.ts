@@ -27,7 +27,7 @@ import {
   type SectionField,
   type SectionFields,
   type SectionState,
-} from '#/shared/service/sectionSave.ts';
+} from '#/shared/service/sectionSave';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
 import type { Problem } from '#/shared/transport/problem.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';

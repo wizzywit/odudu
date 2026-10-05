@@ -29,7 +29,7 @@ import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useRolePicker } from '#/shared/repository/useRolePicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import { judgedLoss, type Loss } from '#/shared/service/capabilities.ts';
+import { judgedLoss, type Loss } from '#/shared/service/capabilities';
 import { describeId } from '#/shared/service/format.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
 

@@ -1,5 +1,5 @@
 import type { Group, GroupRecord } from '@odudu/contracts/admin';
-import { beyondCaller, type Loss } from '#/shared/service/capabilities.ts';
+import { beyondCaller, type Loss } from '#/shared/service/capabilities';
 import { andList } from '#/shared/service/format.ts';
 import type { AdminCapability, Authority } from '#/shared/service/principal.ts';
 import { type ReachLines, reachLines } from '#/features/groups/service/blocks.ts';

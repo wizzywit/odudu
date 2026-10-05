@@ -1,6 +1,6 @@
 import { type Profile } from '@odudu/contracts/admin';
 import { flagText } from '#/shared/service/format.ts';
-import type { SectionFields } from '#/shared/service/sectionSave.ts';
+import type { SectionFields } from '#/shared/service/sectionSave';
 
 type Claim = keyof Omit<Profile, 'email_verified' | 'phone_number_verified' | 'profile_updated_at'>;
 

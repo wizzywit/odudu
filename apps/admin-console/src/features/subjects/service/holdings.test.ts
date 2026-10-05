@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Holding } from '#/shared/service/capabilities.ts';
+import type { Holding } from '#/shared/service/capabilities';
 import {
   adminRolesBlocked,
   capabilitiesRemoveTenants,

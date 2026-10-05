@@ -39,7 +39,7 @@ import {
 import { useGroupPicker } from '#/shared/repository/useGroupPicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import { asksFirst, writeRefusal } from '#/shared/service/capabilities.ts';
+import { asksFirst, writeRefusal } from '#/shared/service/capabilities';
 import { writeFailureText } from '#/shared/service/failure.ts';
 import { flagText } from '#/shared/service/format.ts';
 import type { PickerState } from '#/shared/service/picker.ts';

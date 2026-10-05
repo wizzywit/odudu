@@ -3,7 +3,7 @@ import {
   type AdministratorRequest,
 } from '#/shared/service/administrators.ts';
 import { writeFailureText } from '#/shared/service/failure.ts';
-import { holdingLabel, isHolding } from '#/shared/service/capabilities.ts';
+import { holdingLabel, isHolding } from '#/shared/service/capabilities';
 import type { GatewayFailure } from '#/shared/service/result.ts';
 
 export function grantFailureText(

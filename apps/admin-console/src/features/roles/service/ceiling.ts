@@ -1,5 +1,5 @@
 import type { EffectiveRoleAssignment, Role } from '@odudu/contracts/admin';
-import { adminLoss, type Asked, type OwnAccessRead } from '#/shared/service/capabilities.ts';
+import { adminLoss, type Asked, type OwnAccessRead } from '#/shared/service/capabilities';
 import type { AdminCapability, Authority } from '#/shared/service/principal.ts';
 import { deleteBlock, isBuiltin } from '#/features/roles/service/blocks.ts';
 

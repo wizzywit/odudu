@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import type { Conflict } from '#/shared/service/conflict.ts';
-import type { SaveStatus } from '#/shared/service/sectionSave.ts';
+import type { SaveStatus } from '#/shared/service/sectionSave';
 import { SectionNotice } from '#/shared/view/SectionNotice/SectionNotice.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 

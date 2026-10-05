@@ -9,7 +9,7 @@ import {
   type Held,
   type Holding,
   type HoldingOption,
-} from '#/shared/service/capabilities.ts';
+} from '#/shared/service/capabilities';
 import { andList } from '#/shared/service/format.ts';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
 import { type Loaded } from '#/features/subjects/service/create.ts';

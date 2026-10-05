@@ -34,7 +34,7 @@ import { administratorCapability } from '#/shared/service/administrators.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { notLacking } from '#/shared/service/access.ts';
-import { holdingsIn, type Holding, type HoldingOption } from '#/shared/service/capabilities.ts';
+import { holdingsIn, type Holding, type HoldingOption } from '#/shared/service/capabilities';
 import { inOrderOf, removedFrom } from '#/shared/service/ids.ts';
 import type { AdminCapability } from '#/shared/service/principal.ts';
 

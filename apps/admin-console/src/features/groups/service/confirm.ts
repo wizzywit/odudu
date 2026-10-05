@@ -1,4 +1,4 @@
-import { type Loss, lossText, type Asked } from '#/shared/service/capabilities.ts';
+import { type Loss, lossText, type Asked } from '#/shared/service/capabilities';
 
 export function moveConfirmation(path: string, loss: Loss): Asked {
   return {

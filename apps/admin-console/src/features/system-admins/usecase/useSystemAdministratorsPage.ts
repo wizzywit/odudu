@@ -20,7 +20,7 @@ import {
   holdingsProblem,
   TENANT_ADMIN,
 } from '#/shared/service/administrators.ts';
-import { holdingOptions, holdingsIn, type HoldingOption } from '#/shared/service/capabilities.ts';
+import { holdingOptions, holdingsIn, type HoldingOption } from '#/shared/service/capabilities';
 import { inOrderOf } from '#/shared/service/ids.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';

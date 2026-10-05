@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COUNTRY_NAMES_SOURCE } from '#/shared/service/countryNames.ts';
+import { COUNTRY_NAMES_SOURCE } from '#/shared/service/countryNames';
 import {
   countryOptions,
   englishCountryName,

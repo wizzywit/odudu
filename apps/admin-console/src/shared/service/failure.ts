@@ -1,4 +1,4 @@
-import { writeRefusal } from '#/shared/service/capabilities.ts';
+import { writeRefusal } from '#/shared/service/capabilities';
 import { fieldErrorsOf } from '#/shared/service/fieldErrors.ts';
 import { sentence } from '#/shared/service/format.ts';
 import type { GatewayFailure, GatewayResult, Problem } from '#/shared/service/result.ts';

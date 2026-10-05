@@ -27,7 +27,7 @@ import {
 } from '#/features/roles/service';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import { asksFirst, judgedLoss, writeRefusal } from '#/shared/service/capabilities.ts';
+import { asksFirst, judgedLoss, writeRefusal } from '#/shared/service/capabilities';
 import { deletedText } from '#/shared/service/failure.ts';
 import { flagText } from '#/shared/service/format.ts';
 import type { GatewayFailure } from '#/shared/transport/gateway.ts';

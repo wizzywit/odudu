@@ -1,4 +1,4 @@
-import { roleOwnerText } from '#/shared/service/capabilities.ts';
+import { roleOwnerText } from '#/shared/service/capabilities';
 import { StatusTag } from '#/shared/view/StatusTag';
 
 // Told apart in words, not by colour, wherever a role is listed.

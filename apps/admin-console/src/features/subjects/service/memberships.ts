@@ -1,5 +1,5 @@
 import { type EffectiveRoleAssignment } from '@odudu/contracts/admin';
-import { isAdminRole } from '#/shared/service/capabilities.ts';
+import { isAdminRole } from '#/shared/service/capabilities';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 import { type Confirmation } from '#/features/subjects/service/access.ts';
 import { type Loaded } from '#/features/subjects/service/create.ts';

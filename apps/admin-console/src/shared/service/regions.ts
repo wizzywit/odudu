@@ -1,4 +1,4 @@
-import { COUNTRY_ALIASES, COUNTRY_NAMES } from '#/shared/service/countryNames.ts';
+import { COUNTRY_ALIASES, COUNTRY_NAMES } from '#/shared/service/countryNames';
 
 // ISO 3166-1 alpha-2 regions, and XK, which CLDR names Kosovo.
 export interface Region {

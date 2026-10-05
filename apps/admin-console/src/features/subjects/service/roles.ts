@@ -7,7 +7,7 @@ import {
   isAdminRole,
   isHolding,
   type Holding,
-} from '#/shared/service/capabilities.ts';
+} from '#/shared/service/capabilities';
 import { type Authority } from '#/shared/service/principal.ts';
 import { type Loaded } from '#/features/subjects/service/create.ts';
 

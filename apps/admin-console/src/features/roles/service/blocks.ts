@@ -6,7 +6,7 @@ import {
   isAdminRole,
   isHolding,
   writeRefusal,
-} from '#/shared/service/capabilities.ts';
+} from '#/shared/service/capabilities';
 import { andList } from '#/shared/service/format.ts';
 import type { AdminCapability } from '#/shared/service/principal.ts';
 

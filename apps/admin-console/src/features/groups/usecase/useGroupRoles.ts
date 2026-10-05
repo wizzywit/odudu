@@ -25,7 +25,7 @@ import {
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useRolePicker } from '#/shared/repository/useRolePicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
-import { asksFirst, lossBlocked, writeRefusal } from '#/shared/service/capabilities.ts';
+import { asksFirst, lossBlocked, writeRefusal } from '#/shared/service/capabilities';
 import { describeIds } from '#/shared/service/format.ts';
 import { removedFrom, sortedIds } from '#/shared/service/ids.ts';
 import type { PickerState } from '#/shared/service/picker.ts';

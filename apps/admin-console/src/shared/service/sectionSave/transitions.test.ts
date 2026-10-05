@@ -1,31 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import {
-  afterSave,
-  changedFrom,
   conflictsOf,
   discardedSection,
   editedSection,
-  fieldValues,
   initialSection,
   mineKept,
   rebasedSection,
-  rereadPhase,
-  saveFailureText,
-  saveOutcome,
   savingSection,
   sectionBlocked,
   startable,
   theirsTaken,
   unsavedAfter,
-  withoutFields,
+} from '#/shared/service/sectionSave/transitions.ts';
+import {
   BLOCKED_BY_CONFLICT,
   BLOCKED_GONE,
   BLOCKED_UNREAD,
   type SectionState,
-} from '#/shared/service/sectionSave.ts';
-import type { GatewayFailure } from '#/shared/service/result.ts';
+} from '#/shared/service/sectionSave/state.ts';
 
 const BASE = { name: 'a', tags: ['x'] };
+
 type V = typeof BASE;
 
 function state(extra: Partial<SectionState<V>> = {}): SectionState<V> {
@@ -41,29 +36,6 @@ function state(extra: Partial<SectionState<V>> = {}): SectionState<V> {
     ...extra,
   };
 }
-
-function problem(
-  status: number,
-  extra: { detail?: string; errors?: { path: string; message: string }[] } = {},
-): GatewayFailure {
-  return {
-    ok: false,
-    kind: 'problem',
-    problem: { type: 'about:blank', title: `T${String(status)}`, status, ...extra },
-  };
-}
-
-describe('the section values', () => {
-  it('reads the values off the fields, and which of them an edit changed', () => {
-    const fields = {
-      name: { value: 'a', label: 'Name', kind: 'plain' as const },
-      tags: { value: ['x'], label: 'Tags', kind: 'plain' as const },
-    };
-    expect(fieldValues(fields)).toEqual(BASE);
-    expect(changedFrom(BASE, { name: 'b', tags: ['x'], stray: 1 })).toEqual({ name: 'b' });
-    expect(withoutFields({ name: 'b', tags: [] }, ['name'])).toEqual({ tags: [] });
-  });
-});
 
 describe('initialSection', () => {
   it('starts clean with nothing kept', () => {
@@ -159,18 +131,21 @@ describe('what a save leaves', () => {
       tags: ['y'],
     });
   });
+
   it('starts only when idle, with edits, and not gone or unread', () => {
     expect(startable(state({ edits: { name: 'b' } }), false)).toBe(true);
     expect(startable(state(), false)).toBe(false);
     expect(startable(state({ edits: { name: 'b' } }), true)).toBe(false);
     expect(startable(state({ edits: { name: 'b' }, phase: 'unread' }), false)).toBe(false);
   });
+
   it('says why Save is held', () => {
     expect(sectionBlocked(true, 1, 'idle')).toBe(BLOCKED_GONE);
     expect(sectionBlocked(false, 1, 'idle')).toBe(BLOCKED_BY_CONFLICT);
     expect(sectionBlocked(false, 0, 'unread')).toBe(BLOCKED_UNREAD);
     expect(sectionBlocked(false, 0, 'idle')).toBeUndefined();
   });
+
   it('projects the conflicts with the labels and the secret mark', () => {
     const fields = {
       name: { value: 'theirs', label: 'Name', kind: 'plain' as const },
@@ -188,98 +163,5 @@ describe('what a save leaves', () => {
       ['name', 'Name', 'theirs', 'mine', false],
       ['tags', 'Tags', ['x'], undefined, true],
     ]);
-  });
-  it('settles on the phase of the outcome, and clears what was saved', () => {
-    const saved = afterSave(
-      state({ edits: { name: 'b', tags: ['y'] }, fieldErrors: { name: 'old' } }),
-      { phase: 'saved', fieldErrors: {}, refetch: false, refused: false },
-      { name: 'b', tags: ['x'] },
-    );
-    expect(saved).toMatchObject({ phase: 'saved', edits: { tags: ['y'] }, fieldErrors: {} });
-    const refused = afterSave(
-      state({ edits: { name: 'b' } }),
-      { phase: 'refused', message: 'no', refetch: false, refused: true },
-      { name: 'b' },
-    );
-    expect(refused).toMatchObject({ phase: 'refused', message: 'no', edits: { name: 'b' } });
-  });
-});
-
-describe('saveOutcome', () => {
-  const ctx = { label: 'Settings', capability: 'manage-tenant', fields: ['name'] };
-  const ok = { ok: true as const, status: 200, data: null, etag: 'e', next: null };
-
-  it('toasts a save', () => {
-    expect(saveOutcome(ok, ctx)).toEqual({
-      phase: 'saved',
-      fieldErrors: {},
-      toast: { tone: 'success', message: 'Settings saved' },
-      refetch: false,
-      refused: false,
-    });
-  });
-  it('re-reads after a 412, and does nothing visible for a 401', () => {
-    expect(saveOutcome(problem(412), ctx)).toMatchObject({ phase: 'stale', refetch: true });
-    expect(saveOutcome(problem(401), ctx)).toMatchObject({ phase: 'idle', refetch: false });
-    expect(rereadPhase(true)).toBe('unread');
-    expect(rereadPhase(false)).toBe('stale');
-  });
-  it('places a 400 under its fields and toasts what has no field', () => {
-    const rejected = problem(400, {
-      errors: [
-        { path: 'name', message: 'long' },
-        { path: 'zzz', message: 'odd' },
-      ],
-    });
-    expect(saveOutcome(rejected, ctx)).toMatchObject({
-      phase: 'invalid',
-      fieldErrors: { name: 'long' },
-      toast: { tone: 'error', message: 'Settings was not saved: zzz: odd' },
-    });
-    const bare = saveOutcome(problem(400, { errors: [{ path: 'name', message: 'long' }] }), ctx);
-    expect(bare.toast).toBeUndefined();
-  });
-  it('words a 409 and a 403, the explanation first', () => {
-    expect(saveOutcome(problem(409, { detail: 'guard' }), ctx)).toMatchObject({
-      phase: 'refused',
-      message: 'guard',
-    });
-    expect(saveOutcome(problem(409), { ...ctx, explain: () => 'explained' }).message).toBe(
-      'explained',
-    );
-    expect(saveOutcome(problem(403), ctx)).toMatchObject({
-      phase: 'refused',
-      message: 'Settings was not saved: it needs the manage-tenant capability.',
-      refused: true,
-    });
-    expect(saveOutcome(problem(403), { ...ctx, explain: () => 'explained' }).message).toBe(
-      'explained',
-    );
-  });
-  it('fails with a toast for anything else', () => {
-    expect(saveOutcome({ ok: false, kind: 'defect' }, ctx)).toMatchObject({
-      phase: 'failed',
-      toast: { tone: 'error', message: saveFailureText('Settings', { ok: false, kind: 'defect' }) },
-    });
-  });
-});
-
-describe('saveFailureText', () => {
-  it('says what is known and what to do', () => {
-    expect(saveFailureText('Settings', { ok: false, kind: 'network' })).toBe(
-      'Could not confirm that Settings was saved. Your changes are still here, and saving again is safe.',
-    );
-    expect(saveFailureText('Settings', { ok: false, kind: 'schema' })).toBe(
-      'Settings may have been saved, but its answer could not be read. Reload to check.',
-    );
-    expect(saveFailureText('Settings', { ok: false, kind: 'defect' })).toBe(
-      'The console could not save Settings. This is a fault in the console, not something you did.',
-    );
-    expect(saveFailureText('Settings', problem(404))).toBe(
-      'Settings was not saved: it no longer exists.',
-    );
-    expect(saveFailureText('Settings', problem(500, { detail: 'boom' }))).toBe(
-      'Settings was not saved: boom',
-    );
   });
 });

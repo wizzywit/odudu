@@ -21,7 +21,7 @@ import { actionsRecord, groupsRecord, rolesRecord } from '#/features/subjects/se
 import { readSubjectRoles, setSubjectRoles } from '#/shared/adapter/administrators.ts';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
-import type { Holding } from '#/shared/service/capabilities.ts';
+import type { Holding } from '#/shared/service/capabilities';
 import { uniqueIds } from '#/shared/service/ids.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
