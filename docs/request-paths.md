@@ -4533,22 +4533,24 @@ Against the stack and the link [docs/admin-paths.md](admin-paths.md)'s
 `POST /subjects/:id/actions-email` section mailed — the twelfth stack's
 `required-actions-demo`, whose `grace` had no password yet — the page, the
 submission, then what `grace` now owes, read through the admin API with
-`$ADMIN_TOKEN` as there, and the same submission again:
+`$ADMIN_TOKEN` as there, and the same submission again — its page is the
+spent-link one, not the missing- or weak-password one the same endpoint
+also answers `400` with:
 
 ```bash
 curl -sS -D - \
-  'http://localhost:3082/tenants/required-actions-demo/login-actions/action-token?key=RK2yZYeq330vzTfYQQbYoNAmekDPir3Vsvm0A_AdfCA'
+  'http://localhost:3082/tenants/required-actions-demo/login-actions/action-token?key=wKQx5jVfvqU4iCPjtFGg_-MFnY1HTosPYNRcPKMd-I0'
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a109bf-b2f8-7c1f-b252-5544bd873400
+x-request-id: 01a109f6-7134-753a-bce5-bc4a29d7d662
 content-type: text/html
 content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
 x-frame-options: DENY
 referrer-policy: no-referrer
 content-length: 595
-Date: Mon, 05 Oct 2026 01:48:40 GMT
+Date: Mon, 05 Oct 2026 02:48:28 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -4563,7 +4565,7 @@ Keep-Alive: timeout=72
 <li>Set up an authenticator app</li>
 </ul>
 <form method="post" action="/tenants/required-actions-demo/login-actions/action-token">
-  <input type="hidden" name="key" value="RK2yZYeq330vzTfYQQbYoNAmekDPir3Vsvm0A_AdfCA">
+  <input type="hidden" name="key" value="wKQx5jVfvqU4iCPjtFGg_-MFnY1HTosPYNRcPKMd-I0">
   <label>New password <input type="password" name="password" autocomplete="new-password"></label>
   <button type="submit">Continue</button>
 </form>
@@ -4573,19 +4575,19 @@ Keep-Alive: timeout=72
 
 ```bash
 curl -sS -D - -X POST http://localhost:3082/tenants/required-actions-demo/login-actions/action-token \
-  --data-urlencode 'key=RK2yZYeq330vzTfYQQbYoNAmekDPir3Vsvm0A_AdfCA' \
+  --data-urlencode 'key=wKQx5jVfvqU4iCPjtFGg_-MFnY1HTosPYNRcPKMd-I0' \
   --data-urlencode 'password=a-new-passphrase-for-ops'
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a109bf-b304-7201-9964-0a776386a060
+x-request-id: 01a109f6-7140-7f2b-9a36-6a8bca55ab29
 content-type: text/html
 content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
 x-frame-options: DENY
 referrer-policy: no-referrer
 content-length: 302
-Date: Mon, 05 Oct 2026 01:48:40 GMT
+Date: Mon, 05 Oct 2026 02:48:28 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -4605,16 +4607,23 @@ Keep-Alive: timeout=72
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3082/admin/tenants/required-actions-demo/subjects/01a109bf-b119-7510-a588-18f191c6bef5/required-actions; echo
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
+  http://localhost:3082/admin/tenants/required-actions-demo/subjects/01a109f6-6f97-7579-a5ed-5c486dcd23aa/required-actions; echo
+curl -sS -w '\n' -X POST \
   http://localhost:3082/tenants/required-actions-demo/login-actions/action-token \
-  --data-urlencode 'key=RK2yZYeq330vzTfYQQbYoNAmekDPir3Vsvm0A_AdfCA' \
+  --data-urlencode 'key=wKQx5jVfvqU4iCPjtFGg_-MFnY1HTosPYNRcPKMd-I0' \
   --data-urlencode 'password=another-passphrase-for-ops'
 ```
 
 ```
 {"actions":["configure-totp"]}
-400
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Can&#39;t use this link</title></head>
+<body>
+<h1>This link can't be used</h1>
+<p>It may have already been used or expired. Request a new one and try again.</p>
+</body>
+</html>
 ```
 
 ## Password expiry, and changing a password

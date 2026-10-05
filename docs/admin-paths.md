@@ -228,12 +228,15 @@ only when run by hand, `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS=true`,
 `ada-t8c2`'s, got fresh for each section the way "Getting the token" shows.
 Every tenant, client, role, group, scope and subject a section names was
 created there for it through the endpoints below, each section says which,
-so its ids refer to nothing on the stacks above. Its `odudu` service was
-rebuilt at `6a212077`, whose only change lets a mailed link give a subject
-with no password its first, before the required-actions transcripts under
-`POST /subjects/:id/actions-email` and the audit types under `GET /audit`
-were captured. It was torn down with `docker compose down -v` when the
-capture finished.
+so its ids refer to nothing on the stacks above. It was torn down with
+`docker compose down -v` when the capture finished. The required-actions
+transcripts under `POST /subjects/:id/actions-email` and in
+[docs/request-paths.md](request-paths.md#following-a-required-actions-link),
+and the audit types under `GET /audit`, ran on a later bring-up of the same
+project from an empty volume, built at `0eddc329`, once a link's redirect
+was checked after the subject and an unregistered one answered alike, with
+`seed admin --username ada-t8c2` run against it and each section's tenant
+made there for it; it was torn down the same way.
 
 ## The shape of it
 
@@ -4554,7 +4557,7 @@ setting, then a relay for `ops-demo` at the stack's own `postgres` container,
 port 25, where nothing listens:
 
 ```bash
-G=01a0ee8a-c58a-716c-96a6-edcab4ca1a70
+G=01a109f6-6f97-7579-a5ed-5c486dcd23aa
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/$G/password-reset"; echo
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"reset_password_allowed":true}' "$P/settings" | grep -o '"reset_password_allowed":[a-z]*'
@@ -4669,15 +4672,15 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"type":"about:blank#reset-password-off","title":"Conflict","status":409,"detail":"reset_password_allowed is off, so the tenant would refuse the link; turn it on with PATCH /settings first","instance":"01a109bf-b12a-7908-bdf5-badc3b34a200"}
+{"type":"about:blank#reset-password-off","title":"Conflict","status":409,"detail":"reset_password_allowed is off, so the tenant would refuse the link; turn it on with PATCH /settings first","instance":"01a109f6-6fa7-741c-ad56-e947aea1e1a5"}
 "reset_password_allowed":true
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uri: is not one of actions-app's registered redirect URIs","errors":[{"path":"redirect_uri","message":"is not one of actions-app's registered redirect URIs"}],"instance":"01a109bf-b168-7b17-96a5-bdf7f124150c"}
-{"type":"about:blank","title":"Error","status":400,"detail":"body/actions/0 must be equal to one of the allowed values","errors":[{"path":"actions[0]","message":"must be equal to one of the allowed values"}],"instance":"01a109bf-b17f-7921-908a-2b52a175a4a4"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uri: is not a redirect URI the named client registered","errors":[{"path":"redirect_uri","message":"is not a redirect URI the named client registered"}],"instance":"01a109f6-6fd7-7642-ab5c-7bf6eb6e2bec"}
+{"type":"about:blank","title":"Error","status":400,"detail":"body/actions/0 must be equal to one of the allowed values","errors":[{"path":"actions[0]","message":"must be equal to one of the allowed values"}],"instance":"01a109f6-6ff2-7ff6-9117-f7ae82d61a9b"}
 HTTP/1.1 202 Accepted
-x-request-id: 01a109bf-b189-768c-b5c1-9b6f91462cab
+x-request-id: 01a109f6-6ffc-70c6-a224-e298f011bdf3
 cache-control: no-store
 content-length: 0
-Date: Mon, 05 Oct 2026 01:48:40 GMT
+Date: Mon, 05 Oct 2026 02:48:27 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -4701,7 +4704,7 @@ Update your required-actions-demo account|Your administrator asks you to update 
 
 Do so by visiting this link:
 
-http://localhost:3082/tenants/required-actions-demo/login-actions/action-token?key=RK2yZYeq330vzTfYQQbYoNAmekDPir3Vsvm0A_AdfCA
+http://localhost:3082/tenants/required-actions-demo/login-actions/action-token?key=wKQx5jVfvqU4iCPjtFGg_-MFnY1HTosPYNRcPKMd-I0
 
 If you were not expecting this, you can ignore this message.
 ```
@@ -7954,7 +7957,7 @@ authentication {"count":1,"capped":false}
 session {"count":1,"capped":false}
 token {"count":1,"capped":false}
 {"audit_event_types":["admin_mutation","admin_access","token","credential"]}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"1 tenant setting(s) outside the permitted range, listed under errors","errors":[{"path":"audit_event_types","message":"must include admin_mutation and admin_access, which can never be turned off; admin_mutation is missing"}],"instance":"01a109c0-9b94-7272-b44f-a67c82329648"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"1 tenant setting(s) refused, listed under errors","errors":[{"path":"audit_event_types","message":"must include admin_mutation and admin_access, which can never be turned off; admin_mutation is missing"}],"instance":"01a109f6-7586-7863-93ba-e73e8b24afc1"}
 authentication {"count":1,"capped":false}
 session {"count":1,"capped":false}
 token {"count":2,"capped":false}
