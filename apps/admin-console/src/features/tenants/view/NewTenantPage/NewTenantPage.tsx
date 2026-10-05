@@ -15,8 +15,8 @@ import {
   type CreationFlow,
 } from '#/features/tenants/service.ts';
 import { useAdministratorTitle } from '#/features/tenants/usecase/useAdministratorTitle.ts';
-import { ReplaceUnfinished } from '#/features/tenants/view/ReplaceUnfinished.tsx';
-import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
+import { ReplaceUnfinished } from '#/features/tenants/view/ReplaceUnfinished';
+import { SystemGate } from '#/features/tenants/view/SystemGate';
 import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink';
 import { ChecklistField } from '#/shared/view/ChecklistField';
@@ -24,7 +24,7 @@ import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { TextField } from '#/shared/view/Field';
 import { PageHeader } from '#/shared/view/PageHeader';
 import { SecretDialog } from '#/shared/view/SecretDialog';
-import styles from '#/features/tenants/view/NewTenantPage.module.css';
+import styles from '#/features/tenants/view/NewTenantPage/NewTenantPage.module.css';
 
 const STEPS = ['The tenant', 'Its first administrator', 'Done'] as const;
 

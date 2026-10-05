@@ -1,1 +1,1 @@
-export { SystemAdministratorsPage } from '#/features/system-admins/view/SystemAdministratorsPage.tsx';
+export { SystemAdministratorsPage } from '#/features/system-admins/view/SystemAdministratorsPage';

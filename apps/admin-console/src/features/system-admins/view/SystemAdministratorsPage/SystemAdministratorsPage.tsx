@@ -12,7 +12,7 @@ import { ChecklistField } from '#/shared/view/ChecklistField';
 import { PageHeader } from '#/shared/view/PageHeader';
 import { Picker } from '#/shared/view/Picker';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
-import styles from '#/features/system-admins/view/SystemAdministratorsPage.module.css';
+import styles from '#/features/system-admins/view/SystemAdministratorsPage/SystemAdministratorsPage.module.css';
 
 const TITLE = 'System administrators';
 

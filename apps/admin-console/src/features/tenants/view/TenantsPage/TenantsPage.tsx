@@ -2,7 +2,7 @@ import type { Tenant } from '@odudu/contracts/admin';
 import { Link } from 'react-aria-components';
 import { enterHref, IMPORT_TENANT_HREF, NEW_TENANT_HREF } from '#/features/tenants/service.ts';
 import { useTenantsList } from '#/features/tenants/usecase/useTenantsList.ts';
-import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
+import { SystemGate } from '#/features/tenants/view/SystemGate';
 import { ButtonLink } from '#/shared/view/ButtonLink';
 import type { Column } from '#/shared/view/DataTable';
 import { SelectField } from '#/shared/view/Field';
@@ -10,7 +10,7 @@ import { ResourceListPage } from '#/shared/view/ResourceListPage';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Timestamp } from '#/shared/view/Timestamp';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
-import styles from '#/features/tenants/view/TenantsPage.module.css';
+import styles from '#/features/tenants/view/TenantsPage/TenantsPage.module.css';
 
 const COLUMNS: readonly Column<Tenant>[] = [
   {

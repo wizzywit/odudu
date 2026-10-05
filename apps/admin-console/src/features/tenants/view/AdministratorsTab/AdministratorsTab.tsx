@@ -3,7 +3,7 @@ import { CapabilityHolders } from '#/features/subjects';
 import { useTenantAdministrators } from '#/features/tenants/usecase/useTenantAdministrators.ts';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 import { Button } from '#/shared/view/Button';
-import styles from '#/features/tenants/view/AdministratorsTab.module.css';
+import styles from '#/features/tenants/view/AdministratorsTab/AdministratorsTab.module.css';
 
 // `canAdd` is false once whoami says adding would be refused; the page says
 // what it needs, and no add is offered.

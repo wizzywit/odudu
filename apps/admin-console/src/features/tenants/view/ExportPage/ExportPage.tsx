@@ -1,5 +1,5 @@
 import { areaAt, PageNotFound, useArea } from '#/features/shell';
-import { ExportPanel } from '#/features/tenants/view/ExportPanel.tsx';
+import { ExportPanel } from '#/features/tenants/view/ExportPanel';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { PageHeader } from '#/shared/view/PageHeader';
 import { Skeleton } from '#/shared/view/Skeleton';

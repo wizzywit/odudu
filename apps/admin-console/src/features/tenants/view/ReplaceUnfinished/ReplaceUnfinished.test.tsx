@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import { ReplaceUnfinished } from '#/features/tenants/view/ReplaceUnfinished.tsx';
+import { ReplaceUnfinished } from '#/features/tenants/view/ReplaceUnfinished/ReplaceUnfinished.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { render } from '@testing-library/react';
 

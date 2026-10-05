@@ -5,13 +5,13 @@ import {
   useImportTenantPage,
   type ImportTenantPage as ImportState,
 } from '#/features/tenants/usecase/useImportTenantPage.ts';
-import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
+import { SystemGate } from '#/features/tenants/view/SystemGate';
 import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink';
 import { TextField } from '#/shared/view/Field';
 import { PageHeader } from '#/shared/view/PageHeader';
 import { SecretDialog } from '#/shared/view/SecretDialog';
-import styles from '#/features/tenants/view/ImportTenantPage.module.css';
+import styles from '#/features/tenants/view/ImportTenantPage/ImportTenantPage.module.css';
 
 const ACCEPTED = ['application/json', 'application/vnd.odudu.tenant+json', '.json'];
 

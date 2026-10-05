@@ -7,7 +7,7 @@ import { TextField } from '#/shared/view/Field';
 import { Section } from '#/shared/view/Section';
 import { SectionNotice } from '#/shared/view/SectionNotice';
 import { StatusTag } from '#/shared/view/StatusTag';
-import styles from '#/features/tenants/view/GeneralTab.module.css';
+import styles from '#/features/tenants/view/GeneralTab/GeneralTab.module.css';
 
 export function GeneralTab({
   name,

@@ -4,10 +4,10 @@ import {
   useTenantRecordPage,
   type TenantRecordAccess,
 } from '#/features/tenants/usecase/useTenantRecordPage.ts';
-import { AdministratorsTab } from '#/features/tenants/view/AdministratorsTab.tsx';
-import { ExportPanel } from '#/features/tenants/view/ExportPanel.tsx';
-import { GeneralTab } from '#/features/tenants/view/GeneralTab.tsx';
-import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
+import { AdministratorsTab } from '#/features/tenants/view/AdministratorsTab';
+import { ExportPanel } from '#/features/tenants/view/ExportPanel';
+import { GeneralTab } from '#/features/tenants/view/GeneralTab';
+import { SystemGate } from '#/features/tenants/view/SystemGate';
 import { ButtonLink } from '#/shared/view/ButtonLink';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { PageHeader } from '#/shared/view/PageHeader';
