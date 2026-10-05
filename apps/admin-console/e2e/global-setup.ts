@@ -30,6 +30,9 @@ function administrator(account: Account, ...extra: string[]): void {
   grant(account, TENANT_ADMIN);
 }
 
+// A name with nothing to break at, nested twice, so a path is far wider than a phone.
+const UNBROKEN = 'segment'.repeat(8);
+
 // The groups and roles the Groups and Roles tests change, each changed by one
 // test alone. `deep` nests `middle`, which nests view-users, so its reach is
 // deeper than the console reads.
@@ -48,6 +51,8 @@ function seedGroupsRoles(tenant: string): void {
     ['keyed'],
     ['dup'],
     ['dup', '/finance'],
+    [UNBROKEN],
+    [UNBROKEN, `/${UNBROKEN}`],
   ];
   for (const [name, parent] of groups) {
     seed([

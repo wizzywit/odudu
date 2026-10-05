@@ -5,6 +5,8 @@ import { psql, seeded } from './stack.ts';
 const { groupsRoles } = seeded();
 const { admin, limited, member } = groupsRoles;
 const TENANT = admin.tenant;
+const UNBROKEN = 'segment'.repeat(8);
+const UNBROKEN_PATH = `/${UNBROKEN}/${UNBROKEN}`;
 const PHONE = { width: 390, height: 844 };
 
 function sqlText(value: string): string {
@@ -332,6 +334,8 @@ test('the groups and roles pages fit a phone', async ({ page }) => {
     `/console/${TENANT}/groups`,
     `/console/${TENANT}/groups/${groupId('/eng')}`,
     `/console/${TENANT}/groups/${groupId('/eng')}?tab=roles`,
+    `/console/${TENANT}/groups/${groupId(UNBROKEN_PATH)}`,
+    `/console/${TENANT}/groups/${groupId(UNBROKEN_PATH)}?tab=roles`,
     `/console/${TENANT}/roles`,
     `/console/${TENANT}/roles/${roleId('auditor')}`,
     `/console/${TENANT}/roles/${roleId('auditor')}?tab=composites`,

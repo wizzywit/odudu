@@ -1,5 +1,6 @@
 .tabs {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* The list is the head of the panel: one hairline frame around both, the

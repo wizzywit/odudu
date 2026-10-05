@@ -13,7 +13,9 @@
   font-weight: 500;
   line-height: 1;
   letter-spacing: 0.01em;
-  white-space: nowrap;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
   color: var(--ink-primary);
   background: var(--surface-panel);
   cursor: pointer;

@@ -1,10 +1,12 @@
 .tab {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
 }
 
 .fixed {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
   margin: 0;
 }
@@ -22,6 +24,7 @@
 
 .panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   padding: var(--space-4);
   border: var(--hairline);
@@ -38,6 +41,7 @@
 .message,
 .rule {
   margin: 0;
+  overflow-wrap: anywhere;
   max-inline-size: 72ch;
 }
 
