@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Creation, CreationFlow } from '#/features/tenants/service.ts';
+import type { Creation, CreationFlow } from '#/features/tenants/service';
 
 // A tenant's administrator flow is named for its tenant, so each has a key.
 function keyOf(flow: CreationFlow): string {

@@ -1,4 +1,4 @@
-import { enterHref, tenantsTrail, type TenantRecordAccess } from '#/features/tenants/service.ts';
+import { enterHref, tenantsTrail, type TenantRecordAccess } from '#/features/tenants/service';
 import {
   useTenantRecordAccess,
   useTenantRecordPage,

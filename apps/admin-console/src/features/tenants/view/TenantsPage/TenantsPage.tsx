@@ -1,6 +1,6 @@
 import type { Tenant } from '@odudu/contracts/admin';
 import { Link } from 'react-aria-components';
-import { enterHref, IMPORT_TENANT_HREF, NEW_TENANT_HREF } from '#/features/tenants/service.ts';
+import { enterHref, IMPORT_TENANT_HREF, NEW_TENANT_HREF } from '#/features/tenants/service';
 import { useTenantsList } from '#/features/tenants/usecase/useTenantsList.ts';
 import { SystemGate } from '#/features/tenants/view/SystemGate';
 import { ButtonLink } from '#/shared/view/ButtonLink';

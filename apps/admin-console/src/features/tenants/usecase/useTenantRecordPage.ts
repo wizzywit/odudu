@@ -7,7 +7,7 @@ import {
   TENANT_TABS,
   type TenantRecordAccess,
   type TenantTab,
-} from '#/features/tenants/service.ts';
+} from '#/features/tenants/service';
 import { useDirtySections } from '#/shared/repository/useDirtySections.ts';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';

@@ -8,7 +8,7 @@ import {
   type Tenant,
 } from '@odudu/contracts/admin';
 import { z } from 'zod';
-import type { ImportedSecret } from '#/features/tenants/service.ts';
+import type { ImportedSecret } from '#/features/tenants/service';
 import type { Gateway, GatewayResult, RawBody } from '#/shared/transport/gateway.ts';
 
 function tenantPath(name: string): string {

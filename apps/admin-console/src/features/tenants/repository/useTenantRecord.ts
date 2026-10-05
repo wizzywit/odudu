@@ -1,7 +1,7 @@
 import type { Tenant } from '@odudu/contracts/admin';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { amendTenant, readTenant } from '#/features/tenants/adapter/tenants.ts';
-import { tenantRecord } from '#/features/tenants/service.ts';
+import { tenantRecord } from '#/features/tenants/service';
 import {
   recordKey,
   useRecord,

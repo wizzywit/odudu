@@ -10,7 +10,7 @@ import {
   freshCreation,
   type Creation,
   type CreationFlow,
-} from '#/features/tenants/service.ts';
+} from '#/features/tenants/service';
 import { createSubject, findSubject, issuePassword } from '#/shared/adapter/administrators.ts';
 import {
   defect,

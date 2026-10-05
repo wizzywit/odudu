@@ -20,7 +20,7 @@ import {
   type ChosenFile,
   type Found,
   type ImportedSecret,
-} from '#/features/tenants/service.ts';
+} from '#/features/tenants/service';
 import {
   useBeginAdministrator,
   type BeginAdministrator,

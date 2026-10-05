@@ -6,7 +6,7 @@ import {
   useTenantEnabled,
   type GeneralValues,
 } from '#/features/tenants/repository/useTenantRecord.ts';
-import { disableFixed, tenantChangeFailure, tenantRecord } from '#/features/tenants/service.ts';
+import { disableFixed, tenantChangeFailure, tenantRecord } from '#/features/tenants/service';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { enabledText } from '#/shared/service/failure.ts';

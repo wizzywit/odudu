@@ -17,7 +17,7 @@ import {
   tenantAdministratorTrail,
   tenantsTrail,
   type CreationFlow,
-} from '#/features/tenants/service.ts';
+} from '#/features/tenants/service';
 import { useAdministratorTitle } from '#/features/tenants/usecase/useAdministratorTitle.ts';
 import { ReplaceUnfinished } from '#/features/tenants/view/ReplaceUnfinished';
 import { SystemGate } from '#/features/tenants/view/SystemGate';

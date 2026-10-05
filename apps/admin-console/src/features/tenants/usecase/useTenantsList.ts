@@ -2,7 +2,7 @@ import type { Tenant } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session';
 import { useGo } from '#/features/tenants/repository/useGo.ts';
 import { useTenantList } from '#/features/tenants/repository/useTenantList.ts';
-import { tenantHref } from '#/features/tenants/service.ts';
+import { tenantHref } from '#/features/tenants/service';
 import { lacking } from '#/shared/service/access.ts';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';

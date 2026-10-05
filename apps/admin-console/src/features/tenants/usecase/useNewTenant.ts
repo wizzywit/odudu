@@ -33,7 +33,7 @@ import {
   type CreationFlow,
   type StepCall,
   type Unfinished,
-} from '#/features/tenants/service.ts';
+} from '#/features/tenants/service';
 import { lacking } from '#/shared/service/access.ts';
 import { administratorNeeds } from '#/shared/service/administrators.ts';
 import { holdingOptions, holdingsIn, type HoldingOption } from '#/shared/service/capabilities.ts';

@@ -1,5 +1,5 @@
 import { useAuthority } from '#/features/session';
-import { systemAdminsHrefOf } from '#/features/tenants/service.ts';
+import { systemAdminsHrefOf } from '#/features/tenants/service';
 import { administratorCapability, administratorNeeds } from '#/shared/service/administrators.ts';
 import { lacking, notLacking } from '#/shared/service/access.ts';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';

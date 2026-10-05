@@ -9,7 +9,7 @@ import {
   fileSize,
   savedText,
   type Exported,
-} from '#/features/tenants/service.ts';
+} from '#/features/tenants/service';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import type { AdminCapability } from '#/shared/service/principal.ts';
 

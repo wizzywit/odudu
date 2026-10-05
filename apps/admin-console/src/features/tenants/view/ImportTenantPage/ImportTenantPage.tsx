@@ -1,6 +1,6 @@
 import { useId, type SubmitEvent } from 'react';
 import { FileTrigger } from 'react-aria-components';
-import { tenantsTrail } from '#/features/tenants/service.ts';
+import { tenantsTrail } from '#/features/tenants/service';
 import {
   useImportTenantPage,
   type ImportTenantPage as ImportState,

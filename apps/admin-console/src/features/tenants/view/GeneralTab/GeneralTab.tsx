@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import type { Tenant } from '#/features/tenants/service.ts';
+import type { Tenant } from '#/features/tenants/service';
 import { useTenantGeneral } from '#/features/tenants/usecase/useTenantGeneral.ts';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
