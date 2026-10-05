@@ -358,6 +358,28 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     ).toBe(true);
   });
 
+  it('rejects a service topic file importing a feature index.ts, in the folder form', async () => {
+    const found = await violations('console-service-imports-only-service');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('features/subjects/service/crossFeature.ts') &&
+          v.to.endsWith('features/clients/index.ts'),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a service topic file importing another feature's service, in the folder form", async () => {
+    const found = await violations('console-feature-imports-only-index');
+    expect(
+      found.some(
+        (v) =>
+          v.from.endsWith('features/subjects/service/crossFeature.ts') &&
+          v.to.endsWith('features/clients/service/topic.ts'),
+      ),
+    ).toBe(true);
+  });
+
   it("rejects a console feature's index.ts re-exporting its repository, adapter or shared code", async () => {
     const found = await violations('console-index-exports-view-usecase-service');
     const from = found.filter((v) => v.from.endsWith('features/audit/index.ts'));

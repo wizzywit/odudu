@@ -508,8 +508,7 @@ apps/admin-console/src/
 **The layer is the first path segment under the feature**, a folder when the
 layer has several files and a single file named for the layer when it has
 one; `service` is always a folder (§6.3.1). A layer a feature does not need
-does not exist. Every file is therefore
-classified by its path alone.
+does not exist. Every file is therefore classified by its path alone.
 
 Browser storage is an outside system like the gateway, so it belongs to an
 adapter: a feature's `adapter/` may hold its own `localStorage` or

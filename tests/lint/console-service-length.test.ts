@@ -1,14 +1,13 @@
-import { readFile } from 'node:fs/promises';
-import { glob } from 'node:fs/promises';
+import { glob, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // A service file holds one topic and stays short enough to read in one sitting:
-// 300 lines at most, tests excepted. A longer file is split by topic into
+// 300 lines at most, `.ts` or `.tsx`, tests excepted. A longer file is split by topic into
 // siblings of the same service folder, never allowed past the limit.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
-const CONSOLE_SERVICES = 'apps/admin-console/src/**/service/**/*.ts';
+const CONSOLE_SERVICES = 'apps/admin-console/src/**/service/**/*.{ts,tsx}';
 const FIXTURES = 'tests/lint/fixtures/console-service-length';
 const LIMIT = 300;
 
@@ -18,7 +17,7 @@ export function lengthOf(source: string): number {
 }
 
 export function violation(file: string, source: string): string | null {
-  if (file.endsWith('.test.ts')) return null;
+  if (/\.test\.tsx?$/u.test(file)) return null;
   const length = lengthOf(source);
   return length > LIMIT
     ? `${file} is ${String(length)} lines, over the ${String(LIMIT)} a service file may hold`
@@ -46,14 +45,14 @@ describe("the console's service files", { timeout: 60_000 }, () => {
   });
 
   it('pass every conforming fixture, a test file of any length among them', async () => {
-    const files = await read(`${FIXTURES}/pass/**/service/**/*.ts`);
+    const files = await read(`${FIXTURES}/pass/**/service/**/*.{ts,tsx}`);
     expect(files.size).toBe(3);
     for (const [file, source] of files) expect(violation(file, source), file).toBeNull();
   });
 
   it('fail every non-conforming fixture, naming the file and its length', async () => {
-    const files = await read(`${FIXTURES}/fail/**/service/**/*.ts`);
-    expect(files.size).toBe(2);
+    const files = await read(`${FIXTURES}/fail/**/service/**/*.{ts,tsx}`);
+    expect(files.size).toBe(3);
     for (const [file, source] of files) {
       expect(violation(file, source), file).toBe(
         `${file} is ${String(lengthOf(source))} lines, over the 300 a service file may hold`,
