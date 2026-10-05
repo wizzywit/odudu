@@ -227,8 +227,9 @@ cannot be used to enumerate who has registered; a send failure (a down or
 rate-limiting SMTP server) is absorbed and logged rather than surfaced, for
 the same reason. A redemption that sets the password already in force is
 refused, for the reason the password-policy section below gives. Completing
-one reset also retires every other outstanding reset-password link for the
-same subject, and turning `reset_password_allowed` off closes redemption as
+one reset also retires every other outstanding link that can set the
+subject's password — reset links, and required-actions links naming
+`update-password` — as does any other way the password is set, and turning `reset_password_allowed` off closes redemption as
 well as the request form.
 See [the password reset section of docs/request-paths.md](docs/request-paths.md#password-reset)
 for the walkthrough.

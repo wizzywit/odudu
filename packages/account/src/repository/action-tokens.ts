@@ -1,6 +1,6 @@
 import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { createHash, randomBytes } from 'node:crypto';
 import { actionTokens, type ActionTokenRecord, type ActionTokenType } from '#/schema/action-tokens';
 
@@ -131,22 +131,26 @@ export function actionTokenRepository(tx: TenantScopedDatabase) {
       return row === undefined ? null : toRecord(row);
     },
 
-    // Called alongside a successful consume, in the same transaction: a
-    // completed reset has to retire every other outstanding reset-password
-    // link for the same subject, not just the one just spent, or a second
-    // mailed link (a prior request, or one an attacker triggered) stays
-    // redeemable for its own five minutes after the legitimate owner has
-    // already regained the account. The just-consumed row is unaffected —
-    // this only ever touches rows still `consumed_at IS NULL`.
-    async invalidateOutstanding(subjectId: string, type: ActionTokenType): Promise<void> {
+    // Called alongside a successful consume, in the same transaction:
+    // whatever sets a subject's password retires every other outstanding
+    // link that could set it — each reset link, and each actions link naming
+    // `update-password` — or a second mailed link stays redeemable after the
+    // owner has regained the account. Rows already consumed are untouched.
+    async invalidateOutstandingPasswordLinks(subjectId: string): Promise<void> {
       await tx
         .update(actionTokens)
         .set({ consumedAt: new Date() })
         .where(
           and(
             eq(actionTokens.subjectId, subjectId),
-            eq(actionTokens.type, type),
             isNull(actionTokens.consumedAt),
+            or(
+              eq(actionTokens.type, 'reset_password'),
+              and(
+                eq(actionTokens.type, 'execute_actions'),
+                sql`'update-password' = ANY(${actionTokens.actions})`,
+              ),
+            ),
           ),
         );
     },

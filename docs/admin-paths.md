@@ -4606,8 +4606,8 @@ audit row for all three, so they cannot drift.
 **What the link does.** Opening it shows the actions, and consumes nothing,
 so a mail scanner's `GET` does not spend it. Submitting it sets a new
 password where `update-password` is named, under the reset link's rules — the
-tenant's policy, the previous password refused, every outstanding reset link
-retired — and owes every other action, so the subject's next sign-in parks on
+tenant's policy, the previous password refused, every outstanding
+password-setting link retired — and owes every other action, so the subject's next sign-in parks on
 each, as it does for one an administrator set. **The link alone never enrols
 a factor**: possession of a mailbox stands in for a forgotten password, as a
 reset link's does, but enrolling a TOTP secret or a passkey still takes a
@@ -4719,8 +4719,9 @@ and every audit row for it.
 Three things are done alongside it. **Any lockout is cleared**: an
 administrator restoring access is not the attacker a lockout exists to
 slow down, and a password nobody can spend helps nobody. **Every
-outstanding reset-password link is retired**, as a redeemed reset retires
-its siblings, so a link mailed before the account was recovered cannot
+outstanding link that can set the password is retired** — reset links, and
+required-actions links naming `update-password` — as a redeemed reset
+retires its siblings, so a link mailed before the account was recovered cannot
 reopen it. And the change it forces is held to the tenant's password
 policy, while the issued password itself is not: the policy governs a
 password somebody chooses, and a sign-in only verifies a password against

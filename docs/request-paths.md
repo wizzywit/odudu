@@ -4375,8 +4375,9 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3000/tenants/
 400
 ```
 
-A completed reset also retires every other outstanding reset-password link
-for the same subject, not only the one just spent — a second mailed link
+A completed reset also retires every other outstanding link that can set the
+same subject's password — reset links, and [required-actions links](#following-a-required-actions-link)
+naming `update-password` — not only the one just spent — a second mailed link
 from an earlier request the user forgot about, or one an attacker
 triggered, dies the moment the legitimate one is redeemed rather than
 staying valid for its own five minutes. And turning `reset_password_allowed`
@@ -4520,7 +4521,7 @@ actions it was sent for. Opening it renders the actions and consumes
 nothing, so a mail scanner's `GET` does not spend it; the form carries a
 password field only when `update-password` is among them. Submitting it
 sets that password under the reset link's rules — the tenant's policy, the
-previous password refused, every outstanding reset link retired, a
+previous password refused, every outstanding password-setting link retired, a
 `password.reset` row in the trail — and **owes every other action rather
 than doing it**: enrolling a TOTP secret, a passkey or recovery codes still
 takes a sign-in with the password and any factor the subject already holds,

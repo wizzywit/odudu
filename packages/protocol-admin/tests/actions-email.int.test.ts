@@ -201,4 +201,30 @@ describe('POST /subjects/:id/actions-email', () => {
     expect((await send(fixture, t.name, root, body, ['view-users'])).statusCode).toBe(403);
     expect(await outboxOf(fixture, t.id)).toEqual([]);
   });
+
+  it('is retired by POST …/password, which sets the password another way', async () => {
+    const t = await fixture.createTenant(`act-${newId()}`);
+    await allowReset(fixture, t.id);
+    const ada = await seedUser(fixture, t.id, 'ada', 'ada@example.com');
+    expect((await send(fixture, t.name, ada, { actions: ['update-password'] })).statusCode).toBe(
+      202,
+    );
+    expect((await send(fixture, t.name, ada, { actions: ['configure-totp'] })).statusCode).toBe(
+      202,
+    );
+    const token = await fixture.adminToken(t.name, ['manage-users']);
+    const issued = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/subjects/${ada}/password`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(issued.statusCode).toBe(201);
+    const rows = await tokensOf(fixture, t.id, ada);
+    expect(rows.map((row) => [row.actions, row.consumedAt !== null])).toEqual(
+      expect.arrayContaining([
+        [['update-password'], true],
+        [['configure-totp'], false],
+      ]),
+    );
+  });
 });

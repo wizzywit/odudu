@@ -261,7 +261,7 @@ export interface AdminRoutesDeps {
   // sender of its own, which a tenant with no relay falls back to — what
   // `GET /smtp` reports as `effective`. Off by default.
   deploymentSmtp?: boolean;
-  // Spends a subject's outstanding reset-password links when an
+  // Spends a subject's outstanding password-setting links when an
   // administrator issues it a one-time password. The links belong to
   // @odudu/account, which the composition root wires this to.
   retireResetLinks: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;

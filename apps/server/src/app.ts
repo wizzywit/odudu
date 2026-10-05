@@ -306,7 +306,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       deploymentSmtp: deps.deploymentSmtp ?? false,
       outboxMaxAttempts: deps.outboxMaxAttempts ?? DEFAULT_OUTBOX_MAX_ATTEMPTS,
       retireResetLinks: (tx, subjectId) =>
-        actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
+        actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subjectId),
       sendAccountLink: async (tx, request) => {
         if (deps.publicBaseUrl === undefined) return 'unavailable';
         const tenant = { ...request, issuerBase: deps.publicBaseUrl };

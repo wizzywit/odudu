@@ -241,4 +241,51 @@ describe('a link that takes its subject through required actions', () => {
     expect((await submit(seeded, keyOf(link), NEW_PASSWORD)).statusCode).toBe(400);
     expect(await passwordIs(seeded, OLD_PASSWORD)).toBe(true);
   });
+
+  it('is retired by a completed reset, and retires one itself', async () => {
+    const seeded = await seed(true);
+    const actions = await mail(seeded, ['update-password', 'configure-totp'], null);
+    const reset = await mailReset(seeded);
+    expect((await submit(seeded, keyOf(reset), NEW_PASSWORD)).statusCode).toBe(200);
+    expect((await submit(seeded, keyOf(actions), 'yet another long passphrase')).statusCode).toBe(
+      400,
+    );
+
+    const first = await mail(seeded, ['update-password'], null);
+    const sibling = await mail(seeded, ['update-password', 'configure-passkey'], null);
+    const laterReset = await mailReset(seeded);
+    expect((await submit(seeded, keyOf(first), 'a fourth long passphrase')).statusCode).toBe(200);
+    expect((await submit(seeded, keyOf(sibling), 'a fifth long passphrase')).statusCode).toBe(400);
+    expect((await submit(seeded, keyOf(laterReset), 'a sixth long passphrase')).statusCode).toBe(
+      400,
+    );
+    expect(await passwordIs(seeded, 'a fourth long passphrase')).toBe(true);
+  });
+
+  it('leaves a link that sets no password to a reset', async () => {
+    const seeded = await seed(true);
+    const actions = await mail(seeded, ['configure-totp'], null);
+    const reset = await mailReset(seeded);
+    expect((await submit(seeded, keyOf(reset), NEW_PASSWORD)).statusCode).toBe(200);
+    expect((await submit(seeded, keyOf(actions))).statusCode).toBe(200);
+  });
 });
+
+async function mailReset(seeded: Seeded): Promise<string> {
+  const link = await withTenant(app.db, seeded.tenantId, async (tx) => {
+    await enqueueResetLink(
+      tx,
+      {
+        tenantId: seeded.tenantId,
+        tenantName: seeded.tenantName,
+        tenantDisplayName: seeded.tenantName,
+        issuerBase: 'https://idp.example.test',
+      },
+      { subjectId: seeded.subjectId, email: 'ada@example.test' },
+    );
+    const rows = await tx.select().from(emailOutbox);
+    return /visiting this link:\n\n(\S+)/.exec(rows[rows.length - 1]?.bodyText ?? '')?.[1];
+  });
+  if (link === undefined) throw new Error('no reset link was mailed');
+  return link;
+}

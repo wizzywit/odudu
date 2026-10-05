@@ -127,7 +127,7 @@ export async function completeRequiredActions(
       if (setsPassword && newPassword !== undefined) {
         await deps.setPassword(tx, record.subjectId, newPassword);
         await deps.clearPasswordUpdateAction(tx, record.subjectId);
-        await tokens.invalidateOutstanding(record.subjectId, 'reset_password');
+        await tokens.invalidateOutstandingPasswordLinks(record.subjectId);
         await auditRepository(tx).record({
           eventType: 'credential',
           action: 'password.reset',

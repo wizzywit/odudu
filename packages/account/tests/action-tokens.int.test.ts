@@ -267,7 +267,7 @@ describe('peek', () => {
 });
 
 describe('invalidateOutstanding', () => {
-  it('consumes every outstanding token of the given type for the subject, and no other', async () => {
+  it('consumes every outstanding link that can set the password, and no other', async () => {
     const { token: first } = await issue({
       subjectId: subject,
       type: 'reset_password',
@@ -286,12 +286,29 @@ describe('invalidateOutstanding', () => {
       ttlSeconds: TEST_TTL_SECONDS,
     });
 
+    const { token: setsPassword } = await issue({
+      subjectId: subject,
+      type: 'execute_actions',
+      actions: ['update-password', 'configure-totp'],
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+    const { token: setsNoPassword } = await issue({
+      subjectId: subject,
+      type: 'execute_actions',
+      actions: ['configure-totp'],
+      ttlSeconds: TEST_TTL_SECONDS,
+    });
+
     await withTenant(app.db, tenantId, (tx) =>
-      actionTokenRepository(tx).invalidateOutstanding(subject, 'reset_password'),
+      actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subject),
     );
 
     await expect(consume(first, 'reset_password')).resolves.toBeNull();
     await expect(consume(second, 'reset_password')).resolves.toBeNull();
+    await expect(consume(setsPassword, 'execute_actions')).resolves.toBeNull();
+    await expect(consume(setsNoPassword, 'execute_actions')).resolves.toMatchObject({
+      subjectId: subject,
+    });
     await expect(consume(verifyToken, 'verify_email')).resolves.toMatchObject({
       subjectId: subject,
     });
@@ -307,7 +324,7 @@ describe('invalidateOutstanding', () => {
     if (consumedAt === undefined) throw new Error('token was not consumed');
 
     await withTenant(app.db, tenantId, (tx) =>
-      actionTokenRepository(tx).invalidateOutstanding(subject, 'reset_password'),
+      actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subject),
     );
 
     const rows = await rawSelectAllActionTokens();
@@ -332,7 +349,7 @@ describe('invalidateOutstanding', () => {
     );
 
     await withTenant(app.db, tenantId, (tx) =>
-      actionTokenRepository(tx).invalidateOutstanding(subject, 'reset_password'),
+      actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subject),
     );
 
     await expect(consume(mineToken, 'reset_password')).resolves.toBeNull();
@@ -359,9 +376,9 @@ describe('invalidateOutstanding', () => {
         expect(found).not.toBeNull();
       },
       attempt: async (tx, seeded) =>
-        actionTokenRepository(tx).invalidateOutstanding(seeded.subjectId, 'reset_password'),
+        actionTokenRepository(tx).invalidateOutstandingPasswordLinks(seeded.subjectId),
       expectBlocked: () => {
-        // invalidateOutstanding returns void; the assertion that matters is
+        // invalidateOutstandingPasswordLinks returns void; the assertion that matters is
         // verifyTenantAUnaffected below — an UPDATE an RLS policy narrows to
         // zero rows still "succeeds" with nothing touched.
       },

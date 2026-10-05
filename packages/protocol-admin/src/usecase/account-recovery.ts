@@ -70,7 +70,7 @@ export type IssuePasswordOutcome =
   { kind: 'not_found' } | TargetCeilingRefusal | { kind: 'issued'; password: string };
 
 // The same write a redeemed reset link makes (`credentialRepository.setPassword`),
-// with `update-password` owed and every other reset link retired, as a reset
+// with `update-password` owed and every other password-setting link retired, as a reset
 // retires its siblings. The lockout is cleared: an administrator restoring
 // access is not the attacker a lockout exists to slow down. Like a reset, it
 // ends no session and revokes no grant. Never checked against the password

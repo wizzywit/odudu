@@ -142,8 +142,8 @@ export type CompletePasswordResetResult =
   | { kind: 'invalid_password'; violations: PolicyViolation[] };
 
 // One transaction: consuming the token, setting the new password, and
-// retiring every other outstanding reset-password link for the same
-// subject all commit or roll back together, so a reader never observes a
+// retiring every other outstanding link that can set the same subject's
+// password all commit or roll back together, so a reader never observes a
 // spent link with the old password still active, nor a sibling link still
 // redeemable after the account is recovered. The policy is checked against
 // a non-consuming `peek` first: a weak password must not burn a link the
@@ -179,7 +179,7 @@ export async function completePasswordReset(
 
       await deps.setPassword(tx, record.subjectId, newPassword);
       await deps.clearPasswordUpdateAction(tx, record.subjectId);
-      await actionTokenRepository(tx).invalidateOutstanding(record.subjectId, 'reset_password');
+      await actionTokenRepository(tx).invalidateOutstandingPasswordLinks(record.subjectId);
       await auditRepository(tx).record({
         eventType: 'credential',
         action: 'password.reset',

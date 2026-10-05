@@ -255,7 +255,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
         deploymentSmtp: options.deploymentSmtp ?? false,
         outboxMaxAttempts: DEFAULT_OUTBOX_MAX_ATTEMPTS,
         retireResetLinks: (tx, subjectId) =>
-          actionTokenRepository(tx).invalidateOutstanding(subjectId, 'reset_password'),
+          actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subjectId),
         sendAccountLink: async (tx, request) => {
           if (options.publicBaseUrl === false) return 'unavailable';
           const tenant = { ...request, issuerBase: FIXTURE_CONSOLE_BASE_URL };
