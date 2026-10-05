@@ -9,7 +9,6 @@ import {
   type DatabaseHandle,
 } from '@odudu/db';
 import { userCredentials } from '@odudu/domain-identity';
-import { clients } from '@odudu/domain-tenant';
 import {
   capturingSender,
   emailOutbox,
@@ -469,11 +468,7 @@ describe('a required-actions link, through the real composition root', () => {
           issuerBase: PUBLIC_BASE_URL,
         },
         { subjectId, email: EMAIL },
-        {
-          actions: ['update-password', 'configure-totp'],
-          redirectUri: null,
-          redirectClientId: null,
-        },
+        { actions: ['update-password', 'configure-totp'] },
       ),
     );
 
@@ -525,7 +520,7 @@ describe('a required-actions link, through the real composition root', () => {
           issuerBase: PUBLIC_BASE_URL,
         },
         { subjectId, email: EMAIL },
-        { actions: ['update-password'], redirectUri: null, redirectClientId: null },
+        { actions: ['update-password'] },
       ),
     );
 
@@ -578,65 +573,8 @@ describe('a required-actions link, through the real composition root', () => {
       await app.close();
     }
   });
-
-  it('never links back to the client from the page a finished link answers with', async () => {
-    const tenantName = `actions-${newId()}`;
-    const seeded = await seed({
-      tenant: tenantName,
-      clientId: 'reset-spa',
-      redirectUris: [REDIRECT_URI],
-      username: 'ada',
-      password: PASSWORD,
-      email: EMAIL,
-    });
-    const subjectId = seeded.userSubjectId;
-    if (subjectId === undefined) throw new Error('seed made no user');
-    const client = (
-      await owner.db
-        .select({ id: clients.id })
-        .from(clients)
-        .where(and(eq(clients.tenantId, seeded.tenantId), eq(clients.clientId, 'reset-spa')))
-    )[0];
-    if (client === undefined) throw new Error('seed made no client');
-
-    const app = buildTestApp();
-    await app.ready();
-    try {
-      await withTenant(appDb.db, seeded.tenantId, (tx) =>
-        enqueueActionsLink(
-          tx,
-          {
-            tenantId: seeded.tenantId,
-            tenantName,
-            tenantDisplayName: tenantName,
-            issuerBase: PUBLIC_BASE_URL,
-          },
-          { subjectId, email: EMAIL },
-          { actions: ['configure-totp'], redirectUri: REDIRECT_URI, redirectClientId: client.id },
-        ),
-      );
-      const sender = capturingSender();
-      await drainOutbox(sender);
-      const done = await submitActions(app, extractLink(sender.sent[0] ?? fail()));
-      expect(done.statusCode).toBe(200);
-      expect(done.body).not.toContain('<a ');
-      expect(done.body).not.toContain(REDIRECT_URI);
-    } finally {
-      await app.close();
-    }
-  });
 });
 
 function fail(): never {
   throw new Error('no actions mail sent');
-}
-
-async function submitActions(instance: FastifyInstance, link: string) {
-  const key = new URL(link).searchParams.get('key') ?? '';
-  return instance.inject({
-    method: 'POST',
-    url: new URL(link).pathname,
-    payload: new URLSearchParams({ key }).toString(),
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-  });
 }
