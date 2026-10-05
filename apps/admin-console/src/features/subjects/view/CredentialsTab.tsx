@@ -22,8 +22,6 @@ import {
 } from '#/features/subjects/usecase/useSubjectMail.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import { ChecklistField } from '#/shared/view/ChecklistField.tsx';
-import { TextField } from '#/shared/view/Field.tsx';
-import { UrlField } from '#/shared/view/UrlField.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
@@ -333,23 +331,6 @@ function Email({ name, mail }: { name: string; mail: SubjectMail }) {
           value={actions.actions}
           error={actions.errors.actions}
           onChange={actions.choose}
-        />
-        <TextField
-          label="Return to client"
-          description="Optional: the client_id that registered the address below. Give both, or neither."
-          value={actions.clientId}
-          error={actions.errors.client_id}
-          mono
-          autoComplete="off"
-          onChange={actions.editClientId}
-        />
-        <UrlField
-          label="Return to address"
-          description="Optional: offered as Back to the application on the link's last page."
-          value={actions.redirectUri}
-          error={actions.errors.redirect_uri}
-          autoComplete="off"
-          onChange={actions.editRedirectUri}
         />
         <div className={styles.actions}>
           <Button type="submit" isDisabled={actions.busy}>

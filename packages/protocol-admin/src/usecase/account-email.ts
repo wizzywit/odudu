@@ -1,8 +1,7 @@
 import { requiredActionSchema, type RequiredAction } from '@odudu/contracts/admin';
 import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { users } from '@odudu/domain-identity';
-import { clientRepository, tenantSettingsRepository } from '@odudu/domain-tenant';
-import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
+import { tenantSettingsRepository } from '@odudu/domain-tenant';
 import { eq } from 'drizzle-orm';
 import { tenantSmtpRepository } from '#/repository/tenant-smtp';
 import {
@@ -21,9 +20,6 @@ export type AccountLinkPurpose =
   | {
       readonly kind: 'execute_actions';
       readonly actions: readonly RequiredAction[];
-      readonly redirectUri: string | null;
-      /** The row id of the client that registered `redirectUri`, re-checked at redemption. */
-      readonly redirectClientId: string | null;
     };
 
 /** What a link is minted for and who it goes to; the minting is @odudu/account's. */
@@ -72,8 +68,6 @@ export type AccountEmailPurpose =
   | {
       readonly kind: 'execute_actions';
       readonly actions: readonly RequiredAction[];
-      readonly clientId: string | null;
-      readonly redirectUri: string | null;
     };
 
 export type AccountEmailInput = TargetCeilingInput & {
@@ -82,7 +76,6 @@ export type AccountEmailInput = TargetCeilingInput & {
 } & AccountEmailPurpose;
 
 export type AccountEmailOutcome =
-  | { kind: 'invalid_value'; field: 'client_id' | 'redirect_uri'; description: string }
   | { kind: 'not_found' }
   | TargetCeilingRefusal
   | { kind: 'no_email' }
@@ -99,51 +92,13 @@ const ACTIONS = {
 
 const ACTION_ORDER: readonly RequiredAction[] = requiredActionSchema.options;
 
-type Purposed =
-  | { kind: 'refused'; outcome: Extract<AccountEmailOutcome, { kind: 'invalid_value' }> }
-  | { kind: 'ok'; purpose: AccountLinkPurpose; detail: Record<string, unknown> };
-
-// A redirect the link's last page offers must be one the named client
-// registered, compared exactly, as /authorize compares one: the page is this
-// server's, so any other target would be an open redirect under its name.
-async function purposeOf(tx: TenantScopedDatabase, input: AccountEmailInput): Promise<Purposed> {
-  if (input.kind !== 'execute_actions') return { kind: 'ok', purpose: input, detail: {} };
+function purposeOf(input: AccountEmailInput): {
+  purpose: AccountLinkPurpose;
+  detail: Record<string, unknown>;
+} {
+  if (input.kind !== 'execute_actions') return { purpose: input, detail: {} };
   const actions = ACTION_ORDER.filter((action) => input.actions.includes(action));
-  const refuse = (field: 'client_id' | 'redirect_uri', description: string): Purposed => ({
-    kind: 'refused',
-    outcome: { kind: 'invalid_value', field, description },
-  });
-  if (input.redirectUri === null) {
-    if (input.clientId !== null) {
-      return refuse('client_id', 'client_id names whose redirect_uri the page offers; send both');
-    }
-    return {
-      kind: 'ok',
-      purpose: { kind: input.kind, actions, redirectUri: null, redirectClientId: null },
-      detail: { actions },
-    };
-  }
-  if (input.clientId === null) {
-    return refuse('client_id', 'a redirect_uri is one a client registered; name it with client_id');
-  }
-  // One answer whether the client is missing or never registered the URI:
-  // a `manage-users` caller learns nothing about clients from it.
-  const client = await clientRepository(tx).byClientId(input.clientId);
-  const config =
-    client === null ? null : await clientOidcConfigRepository(tx).byClientId(client.id);
-  if (client === null || !(config?.redirectUris ?? []).includes(input.redirectUri)) {
-    return refuse('redirect_uri', 'is not a redirect URI the named client registered');
-  }
-  return {
-    kind: 'ok',
-    purpose: {
-      kind: input.kind,
-      actions,
-      redirectUri: input.redirectUri,
-      redirectClientId: client.id,
-    },
-    detail: { actions, client_id: input.clientId, redirect_uri: input.redirectUri },
-  };
+  return { purpose: { kind: input.kind, actions }, detail: { actions } };
 }
 
 // Each refusal is one the link would otherwise meet later, silently: an
@@ -163,9 +118,7 @@ export async function sendAccountEmail(
   const action = ACTIONS[input.kind];
   const refused = await refuseOverTargetCeiling(tx, deps.audit, action, input);
   if (refused !== null) return refused;
-  const purposed = await purposeOf(tx, input);
-  if (purposed.kind === 'refused') return purposed.outcome;
-  const { purpose, detail } = purposed;
+  const { purpose, detail } = purposeOf(input);
 
   const email = user[0]?.email ?? null;
   if (email === null) return { kind: 'no_email' };

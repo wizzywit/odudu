@@ -8,9 +8,6 @@ import { type ActionLinkTenant } from '#/usecase/reset-password';
 
 export interface ActionsLink {
   readonly actions: readonly string[];
-  readonly redirectUri: string | null;
-  /** The row id of the client that registered `redirectUri`. */
-  readonly redirectClientId: string | null;
 }
 
 /**
@@ -33,8 +30,6 @@ export async function enqueueActionsLink(
     type: 'execute_actions',
     email: user.email,
     actions,
-    redirectUri: link.redirectUri,
-    redirectClientId: link.redirectClientId,
     ttlSeconds: await tokens.lifetimeOf(tenant.tenantId, 'execute_actions'),
   });
   const url = `${tenant.issuerBase}/tenants/${tenant.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;

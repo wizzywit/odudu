@@ -27,12 +27,8 @@ export interface Mail {
 
 export interface ActionsMail extends Mail {
   actions: readonly RequiredAction[];
-  clientId: string;
-  redirectUri: string;
-  errors: Readonly<Partial<Record<'actions' | 'client_id' | 'redirect_uri', string>>>;
+  errors: Readonly<Partial<Record<'actions', string>>>;
   choose: (actions: readonly string[]) => void;
-  editClientId: (value: string) => void;
-  editRedirectUri: (value: string) => void;
 }
 
 export interface SubjectMail {
@@ -56,8 +52,6 @@ export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
   const [running, setRunning] = useState<Kind | null>(null);
   const [outcomes, setOutcomes] = useState<Partial<Record<Kind, MailOutcome>>>({});
   const [actions, setActions] = useState<readonly RequiredAction[]>([]);
-  const [clientId, setClientId] = useState('');
-  const [redirectUri, setRedirectUri] = useState('');
   const [errors, setErrors] = useState<ActionsMail['errors']>({});
   const clear = (field: keyof ActionsMail['errors']): void => {
     setErrors((was) => Object.fromEntries(Object.entries(was).filter(([key]) => key !== field)));
@@ -126,7 +120,7 @@ export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
         }
         refusal.report(result, 'manage-users');
         if (kind === 'actions' && result.kind === 'problem' && result.problem.status === 400) {
-          const placed = fieldErrorsOf(result.problem, ['actions', 'client_id', 'redirect_uri']);
+          const placed = fieldErrorsOf(result.problem, ['actions']);
           setErrors(placed.fields);
           if (placed.other.length === 0) return;
         }
@@ -165,20 +159,10 @@ export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
       busy: running === 'actions',
       outcome: outcomes.actions ?? null,
       actions,
-      clientId,
-      redirectUri,
       errors,
       choose: (next) => {
         clear('actions');
         setActions(inOrder(next));
-      },
-      editClientId: (value) => {
-        clear('client_id');
-        setClientId(value);
-      },
-      editRedirectUri: (value) => {
-        clear('redirect_uri');
-        setRedirectUri(value);
       },
       send: () => {
         if (actions.length === 0) {
@@ -186,21 +170,10 @@ export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
           return;
         }
         setErrors({});
-        const client = clientId.trim();
-        const redirect = redirectUri.trim();
-        if ((client === '') !== (redirect === '')) {
-          const together = 'Give the client and the address together, or neither.';
-          setErrors(client === '' ? { client_id: together } : { redirect_uri: together });
-          return;
-        }
-        const back = {
-          ...(client === '' ? {} : { client_id: client }),
-          ...(redirect === '' ? {} : { redirect_uri: redirect }),
-        };
         const count = actions.length === 1 ? '1 action' : `${String(actions.length)} actions`;
         run(
           'actions',
-          { kind: 'actions', body: { actions: [...actions], ...back } },
+          { kind: 'actions', body: { actions: [...actions] } },
           `A link through ${count} was sent to ${address}. Following it asks for each, in order.`,
         );
       },

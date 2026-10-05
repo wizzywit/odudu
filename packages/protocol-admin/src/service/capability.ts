@@ -382,9 +382,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Queues a link to the subject\u2019s own address that takes them through `actions`, ' +
       'a non-empty subset of the required actions `PUT …/required-actions` takes. Following ' +
       'it sets a new password where `update-password` is named, and owes the rest, so the ' +
-      'next sign-in asks for each; the link alone never enrols a factor. A `redirect_uri` ' +
-      'is what its last page offers to go back to, and must be one the client `client_id` ' +
-      'names registered, or `400`. The link is never in this response or the audit trail. ' +
+      'next sign-in asks for each; the link alone never enrols a factor. The ' +
+      'link is never in this response or the audit trail. ' +
       'The same `409`s as `POST …/password-reset`, `reset-password-off` only when ' +
       '`update-password` is named. Rate-limited per origin.' +
       TARGET_CEILING,

@@ -47,12 +47,6 @@ function accountEmailHandler(deps: AccountEmailRouteDeps, purposeOf: PurposeOf):
       }),
     );
     switch (outcome.kind) {
-      case 'invalid_value':
-        return sendProblem(
-          reply,
-          request,
-          fieldProblem([{ path: outcome.field, message: outcome.description }]),
-        );
       case 'queued':
         return reply.code(202).send();
       case 'not_found':
@@ -130,8 +124,6 @@ export function sendActionsEmailHandler(deps: AccountEmailRouteDeps): AdminRoute
     return {
       kind: 'execute_actions',
       actions: body.actions,
-      clientId: body.client_id ?? null,
-      redirectUri: body.redirect_uri ?? null,
     };
   });
 }

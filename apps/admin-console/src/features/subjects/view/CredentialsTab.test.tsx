@@ -308,54 +308,22 @@ it('explains in place a mail the tenant could not send, and where that is put ri
   );
 });
 
-it('emails a link through chosen required actions, with an optional way back', async () => {
+it('emails a link through chosen required actions, and offers no way back', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(
     AT,
-    subjectRoutes(undefined, {
-      [`POST ${C}/actions-email`]: inTurn(
-        problem(400, 'about:blank', 'Bad Request', {
-          detail: 'redirect_uri: is not a redirect URI the named client registered',
-          errors: [
-            { path: 'redirect_uri', message: 'is not a redirect URI the named client registered' },
-          ],
-        }),
-        accepted(),
-      ),
-    }),
+    subjectRoutes(undefined, { [`POST ${C}/actions-email`]: accepted() }),
   );
   const mail = await screen.findByRole('region', { name: 'Email' });
   const send = within(mail).getByRole('button', { name: 'Email required actions' });
   await user.click(send);
   expect(await within(mail).findByText('Choose at least one action.')).toBeVisible();
   await user.click(within(mail).getByRole('checkbox', { name: 'Set up an authenticator app' }));
-  await user.type(within(mail).getByRole('textbox', { name: 'Return to client' }), 'billing');
-  await user.type(
-    within(mail).getByRole('textbox', { name: 'Return to address' }),
-    'https://evil.example/cb',
-  );
-  await user.click(send);
-  expect(
-    await within(mail).findByText('is not a redirect URI the named client registered'),
-  ).toBeVisible();
-  await user.clear(within(mail).getByRole('textbox', { name: 'Return to address' }));
-  await user.type(
-    within(mail).getByRole('textbox', { name: 'Return to address' }),
-    'https://billing.example/cb',
-  );
+  expect(within(mail).queryByRole('textbox', { name: /Return to/u })).toBeNull();
   await user.click(send);
   expect(await within(mail).findByText(/A link through 1 action was sent/u)).toBeVisible();
   expect(sent.filter((s) => s.path === `${C}/actions-email`).map((s) => s.body)).toEqual([
-    {
-      actions: ['configure-totp'],
-      client_id: 'billing',
-      redirect_uri: 'https://evil.example/cb',
-    },
-    {
-      actions: ['configure-totp'],
-      client_id: 'billing',
-      redirect_uri: 'https://billing.example/cb',
-    },
+    { actions: ['configure-totp'] },
   ]);
 });
 

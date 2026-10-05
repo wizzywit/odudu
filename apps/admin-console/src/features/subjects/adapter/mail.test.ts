@@ -18,16 +18,12 @@ it('asks for each mail by its own route, and sends the actions link its body', a
   const gateway = fake.transport.gateway;
   expect(await sendPasswordReset(gateway, 'acme', 's1')).toMatchObject({ ok: true, status: 202 });
   expect(await sendVerification(gateway, 'acme', 's1')).toMatchObject({ ok: true });
-  await sendActionsEmail(gateway, 'acme', 's1', {
-    actions: ['configure-totp'],
-    client_id: 'app',
-    redirect_uri: 'https://app.example/cb',
-  });
+  await sendActionsEmail(gateway, 'acme', 's1', { actions: ['configure-totp'] });
   await sendActionsEmail(gateway, 'acme', 's1', { actions: ['update-password'] });
   expect(fake.sent.map((sent) => sent.body)).toEqual([
     undefined,
     undefined,
-    { actions: ['configure-totp'], client_id: 'app', redirect_uri: 'https://app.example/cb' },
+    { actions: ['configure-totp'] },
     { actions: ['update-password'] },
   ]);
 });

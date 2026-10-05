@@ -36,7 +36,6 @@ let http: FastifyInstance;
 const owed: { subjectId: string; actions: readonly string[] }[] = [];
 
 const OLD_PASSWORD = 'correct horse battery';
-const STILL_REGISTERED = { clientId: newId(), uri: 'https://app.example/cb?a=1&b="x"' };
 const NEW_PASSWORD = 'a much longer new passphrase';
 
 beforeAll(async () => {
@@ -112,12 +111,7 @@ async function seed(resetPasswordAllowed: boolean): Promise<Seeded> {
   return { tenantName, tenantId, subjectId };
 }
 
-async function mail(
-  seeded: Seeded,
-  actions: readonly string[],
-  redirectUri: string | null,
-  redirectClientId: string | null = redirectUri === null ? null : STILL_REGISTERED.clientId,
-): Promise<string> {
+async function mail(seeded: Seeded, actions: readonly string[]): Promise<string> {
   const link = await withTenant(app.db, seeded.tenantId, async (tx) => {
     const tenant = {
       tenantId: seeded.tenantId,
@@ -126,7 +120,7 @@ async function mail(
       issuerBase: 'https://idp.example.test',
     };
     const user = { subjectId: seeded.subjectId, email: 'ada@example.test' };
-    await enqueueActionsLink(tx, tenant, user, { actions, redirectUri, redirectClientId });
+    await enqueueActionsLink(tx, tenant, user, { actions });
     const rows = await tx.select().from(emailOutbox);
     return /visiting this link:\n\n(\S+)/.exec(rows[rows.length - 1]?.bodyText ?? '')?.[1];
   });
@@ -177,11 +171,7 @@ describe('a link that takes its subject through required actions', () => {
         { subjectId: seeded.subjectId, email: 'ada@example.test' },
       );
     });
-    const link = await mail(
-      seeded,
-      ['configure-totp', 'update-password'],
-      'https://app.example/cb?a=1&b="x"',
-    );
+    const link = await mail(seeded, ['configure-totp', 'update-password']);
 
     const first = await open(link);
     const second = await open(link);
@@ -196,7 +186,6 @@ describe('a link that takes its subject through required actions', () => {
     expect(done.statusCode).toBe(200);
     expect(done.body).toContain('<li>Set up an authenticator app</li>');
     expect(done.body).not.toContain('href');
-    expect(done.body).not.toContain('app.example');
     expect(done.headers['content-security-policy']).toContain("default-src 'none'");
     expect(await passwordIs(seeded, NEW_PASSWORD)).toBe(true);
     expect(owed.filter((entry) => entry.subjectId === seeded.subjectId)).toEqual([
@@ -212,7 +201,7 @@ describe('a link that takes its subject through required actions', () => {
 
   it('asks for no password when the link names none, and leaves it unchanged', async () => {
     const seeded = await seed(false);
-    const link = await mail(seeded, ['generate-recovery-codes', 'configure-passkey'], null);
+    const link = await mail(seeded, ['generate-recovery-codes', 'configure-passkey']);
     const page = await open(link);
     expect(page.statusCode).toBe(200);
     expect(page.body).not.toContain('name="password"');
@@ -228,7 +217,7 @@ describe('a link that takes its subject through required actions', () => {
 
   it('keeps a link usable through a missing or weak password, then accepts a good one', async () => {
     const seeded = await seed(true);
-    const link = await mail(seeded, ['update-password'], null);
+    const link = await mail(seeded, ['update-password']);
     const missing = await submit(seeded, keyOf(link));
     expect(missing.statusCode).toBe(400);
     expect(missing.body).toContain('A new password is required.');
@@ -239,7 +228,7 @@ describe('a link that takes its subject through required actions', () => {
 
   it('is stopped by the reset kill switch when it sets a password', async () => {
     const seeded = await seed(false);
-    const link = await mail(seeded, ['update-password'], null);
+    const link = await mail(seeded, ['update-password']);
     expect((await open(link)).statusCode).toBe(400);
     expect((await submit(seeded, keyOf(link), NEW_PASSWORD)).statusCode).toBe(400);
     expect(await passwordIs(seeded, OLD_PASSWORD)).toBe(true);
@@ -247,15 +236,15 @@ describe('a link that takes its subject through required actions', () => {
 
   it('is retired by a completed reset, and retires one itself', async () => {
     const seeded = await seed(true);
-    const actions = await mail(seeded, ['update-password', 'configure-totp'], null);
+    const actions = await mail(seeded, ['update-password', 'configure-totp']);
     const reset = await mailReset(seeded);
     expect((await submit(seeded, keyOf(reset), NEW_PASSWORD)).statusCode).toBe(200);
     expect((await submit(seeded, keyOf(actions), 'yet another long passphrase')).statusCode).toBe(
       400,
     );
 
-    const first = await mail(seeded, ['update-password'], null);
-    const sibling = await mail(seeded, ['update-password', 'configure-passkey'], null);
+    const first = await mail(seeded, ['update-password']);
+    const sibling = await mail(seeded, ['update-password', 'configure-passkey']);
     const laterReset = await mailReset(seeded);
     expect((await submit(seeded, keyOf(first), 'a fourth long passphrase')).statusCode).toBe(200);
     expect((await submit(seeded, keyOf(sibling), 'a fifth long passphrase')).statusCode).toBe(400);
@@ -267,7 +256,7 @@ describe('a link that takes its subject through required actions', () => {
 
   it('leaves a link that sets no password to a reset', async () => {
     const seeded = await seed(true);
-    const actions = await mail(seeded, ['configure-totp'], null);
+    const actions = await mail(seeded, ['configure-totp']);
     const reset = await mailReset(seeded);
     expect((await submit(seeded, keyOf(reset), NEW_PASSWORD)).statusCode).toBe(200);
     expect((await submit(seeded, keyOf(actions))).statusCode).toBe(200);

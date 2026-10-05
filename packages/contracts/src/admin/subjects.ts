@@ -183,14 +183,10 @@ export const setRequiredActionsResponseSchema = z.object({
 });
 export type SetRequiredActionsResponse = z.infer<typeof setRequiredActionsResponseSchema>;
 
-// A mailed link takes the subject through `actions`. A `redirect_uri` is
-// what the link's last page offers to go back to, and must be one the client
-// `client_id` names registered; neither, and the page offers nothing.
-export const sendActionsEmailRequestSchema = z.object({
-  actions: z.array(requiredActionSchema).min(1),
-  client_id: z.string().min(1).optional(),
-  redirect_uri: z.string().min(1).optional(),
-});
+// A mailed link takes the subject through `actions`.
+export const sendActionsEmailRequestSchema = z
+  .object({ actions: z.array(requiredActionSchema).min(1) })
+  .strict();
 export type SendActionsEmailRequest = z.infer<typeof sendActionsEmailRequestSchema>;
 
 export const setRolesRequestSchema = z.object({

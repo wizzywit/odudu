@@ -26,8 +26,6 @@ afterAll(async () => {
   await unrelayed?.stop();
 });
 
-const REDIRECT = 'https://app.example/callback';
-
 async function seedUser(
   on: AdminFixture,
   tenantId: string,
@@ -74,29 +72,14 @@ async function tokensOf(on: AdminFixture, tenantId: string, subjectId: string) {
   );
 }
 
-async function clientWithRedirect(tenantName: string): Promise<string> {
-  const token = await fixture.adminToken(tenantName, ['manage-clients']);
-  const res = await fixture.http.inject({
-    method: 'POST',
-    url: `/admin/tenants/${tenantName}/clients`,
-    headers: { authorization: `Bearer ${token}` },
-    payload: { client_id: `app-${newId()}`, redirect_uris: [REDIRECT] },
-  });
-  expect(res.statusCode, res.body).toBe(201);
-  return res.json<{ client_id: string }>().client_id;
-}
-
 describe('POST /subjects/:id/actions-email', () => {
   it('queues one link naming the actions, and never answers or audits the link', async () => {
     const t = await fixture.createTenant(`act-${newId()}`);
     await allowReset(fixture, t.id);
     const ada = await seedUser(fixture, t.id, 'ada', 'ada@example.com');
-    const clientId = await clientWithRedirect(t.name);
 
     const res = await send(fixture, t.name, ada, {
       actions: ['configure-totp', 'update-password', 'configure-totp'],
-      client_id: clientId,
-      redirect_uri: REDIRECT,
     });
     expect(res.statusCode, res.body).toBe(202);
     expect(res.body).toBe('');
@@ -107,8 +90,8 @@ describe('POST /subjects/:id/actions-email', () => {
     expect(queued[0]?.bodyText).toContain('Choose a new password');
     expect(queued[0]?.bodyText).toContain('Set up an authenticator app');
     const issued = await tokensOf(fixture, t.id, ada);
-    expect(issued.map((row) => [row.type, row.actions, row.redirectUri])).toEqual([
-      ['execute_actions', ['update-password', 'configure-totp'], REDIRECT],
+    expect(issued.map((row) => [row.type, row.actions])).toEqual([
+      ['execute_actions', ['update-password', 'configure-totp']],
     ]);
 
     const rows = await withTenant(fixture.app.db, t.id, (tx) =>
@@ -117,25 +100,19 @@ describe('POST /subjects/:id/actions-email', () => {
     expect(rows.map((row) => ({ outcome: row.outcome, detail: row.detail }))).toEqual([
       {
         outcome: 'allowed',
-        detail: {
-          actions: ['update-password', 'configure-totp'],
-          client_id: clientId,
-          redirect_uri: REDIRECT,
-        },
+        detail: { actions: ['update-password', 'configure-totp'] },
       },
     ]);
     expect(JSON.stringify(rows)).not.toContain('key=');
   });
 
-  it('needs no reset setting when no password is asked for, nor a redirect', async () => {
+  it('needs no reset setting when no password is asked for', async () => {
     const t = await fixture.createTenant(`act-${newId()}`);
     const ada = await seedUser(fixture, t.id, 'ada', 'ada@example.com');
     const res = await send(fixture, t.name, ada, { actions: ['configure-passkey'] });
     expect(res.statusCode, res.body).toBe(202);
     const issued = await tokensOf(fixture, t.id, ada);
-    expect(issued.map((row) => [row.actions, row.redirectUri])).toEqual([
-      [['configure-passkey'], null],
-    ]);
+    expect(issued.map((row) => row.actions)).toEqual([['configure-passkey']]);
   });
 
   it('answers the same 409s the reset does, each queueing nothing', async () => {
@@ -159,29 +136,19 @@ describe('POST /subjects/:id/actions-email', () => {
     ['no action', () => ({ actions: [] }), 'actions'],
     ['an action the server does not support', () => ({ actions: ['verify-email'] }), 'actions'],
     [
-      'a redirect_uri with no client_id',
-      () => ({ actions: ['configure-totp'], redirect_uri: REDIRECT }),
+      'a redirect_uri, which nothing reads',
+      () => ({ actions: ['configure-totp'], redirect_uri: 'https://app.example/callback' }),
+      'redirect_uri',
+    ],
+    [
+      'a client_id, which nothing reads',
+      () => ({ actions: ['configure-totp'], client_id: 'app' }),
       'client_id',
-    ],
-    [
-      'a client_id naming no client',
-      () => ({ actions: ['configure-totp'], client_id: 'nonesuch', redirect_uri: REDIRECT }),
-      'redirect_uri',
-    ],
-    [
-      'a redirect_uri the client never registered',
-      (clientId: string) => ({
-        actions: ['configure-totp'],
-        client_id: clientId,
-        redirect_uri: 'https://evil.example/cb',
-      }),
-      'redirect_uri',
     ],
   ])('refuses %s with 400 naming the field', async (_label, bodyFor, field) => {
     const t = await fixture.createTenant(`act-${newId()}`);
     const ada = await seedUser(fixture, t.id, 'ada', 'ada@example.com');
-    const clientId = await clientWithRedirect(t.name);
-    const res = await send(fixture, t.name, ada, bodyFor(clientId));
+    const res = await send(fixture, t.name, ada, bodyFor());
     expect(res.statusCode).toBe(400);
     expect(res.body).toContain(field);
     expect(await outboxOf(fixture, t.id)).toEqual([]);
@@ -226,34 +193,5 @@ describe('POST /subjects/:id/actions-email', () => {
         [['configure-totp'], false],
       ]),
     );
-  });
-
-  it('answers a missing client and an unregistered redirect alike, after the 404 and the ceiling', async () => {
-    const t = await fixture.createTenant(`act-${newId()}`);
-    const ada = await seedUser(fixture, t.id, 'ada', 'ada@example.com');
-    const clientId = await clientWithRedirect(t.name);
-    const strip = (res: LightMyRequestResponse) =>
-      Object.fromEntries(
-        Object.entries(res.json<Record<string, unknown>>()).filter(([key]) => key !== 'instance'),
-      );
-    const noClient = await send(fixture, t.name, ada, {
-      actions: ['configure-totp'],
-      client_id: 'nonesuch',
-      redirect_uri: REDIRECT,
-    });
-    const unregistered = await send(fixture, t.name, ada, {
-      actions: ['configure-totp'],
-      client_id: clientId,
-      redirect_uri: 'https://evil.example/cb',
-    });
-    expect(strip(noClient)).toEqual(strip(unregistered));
-    expect(JSON.stringify(strip(noClient))).not.toContain('nonesuch');
-
-    const unknownSubject = await send(fixture, t.name, newId(), {
-      actions: ['configure-totp'],
-      client_id: 'nonesuch',
-      redirect_uri: REDIRECT,
-    });
-    expect(unknownSubject.statusCode).toBe(404);
   });
 });
