@@ -549,14 +549,30 @@ than its runtime.
 Inside `apps/admin-console` only: a component is `PascalCase.tsx`; a file
 exporting a hook is `useCamelCase.ts` (or `.tsx`), in whatever layer it
 sits; anything else is `camelCase.ts`; a test repeats its subject's name
-with `.test`; a CSS module sits beside its component. A lint test in
+with `.test`; a CSS module sits in its component's folder (§6.3.1). A lint test in
 `tests/lint/` fails the build on a `use*` file exporting no hook, on a hook
 exported from a file not named `use*`, and on a component file not in
 PascalCase. `eslint-plugin-react-hooks` holds hooks to their rules.
-A `#/` import names its file's extension (`#/app/App.tsx`), because under
+A `#/` import of a file names its extension (`#/app/App.tsx`), because under
 `moduleResolution: bundler` TypeScript does not probe extensions for a
 `package.json` `imports` target, and one `"#/*": "./src/*"` must reach both
-`.ts` and `.tsx`.
+`.ts` and `.tsx`. The same holds for a folder: `imports` never reaches its
+`index.ts`, so the console's tsconfig repeats the alias as `paths`
+(`"#/*": ["./src/*"]`), which does. `tests/lint/console-alias-agrees.test.ts`
+fails the build if the two disagree.
+
+#### 6.3.1 Component folders
+
+A view component lives in a folder named after it: `X/X.tsx`,
+`X/X.module.css`, `X/X.test.tsx` and an `index.ts` that only re-exports.
+Components that share one stylesheet share its folder (`Field/` holds the
+field components drawn from `Field.module.css`). An import names the folder,
+as in `#/shared/view/Button`, and a feature the same way
+(`#/features/session`). `tests/lint/console-folder-imports.test.ts` fails the
+build on an import that names an `index.ts`, and on an import of a file inside
+another component's folder; a folder's own files reach one another by path,
+since relative imports are banned and its index cannot import itself, and a
+test may read a sibling's stylesheet source.
 
 Every property the console declares, in any interface or type, `.ts` and
 `.tsx` alike, is a plain property, not `readonly`. The guarantee is kept on

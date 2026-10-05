@@ -1611,3 +1611,24 @@ $ pnpm exec eslint apps/admin-console/src/shared/view/Button \
     apps/admin-console/src/features/groups/view/GeneralTab.tsx
 (exit 0, no output)
 ```
+
+What converting `shared/view` found:
+
+- Six field components drew from `Field.module.css`, so they share the
+  `Field/` folder rather than reach into it. `Skeleton` drew its table from
+  `DataTable`'s classes and `ButtonLink` took `Button`'s; they now call
+  `DataTableShape` and `buttonClass`. A paragraph that three features
+  styled with `CapabilityNote`'s class became the `Note` component.
+- The gallery's "every component shown" check read file names; it now reads
+  each file's exports, so a family folder cannot hide a component.
+- A signed-out user on a tenant address still sees the console frame for
+  the moment between the session answer and the sign-in card. The frame is
+  drawn only after the 200 ms delay, and the card is the same swap the page
+  always made; there is nothing to fix short of knowing the answer first.
+
+A folder's `index.ts` is a barrel, and a barrel pulled the phone numbering
+plans into the entry chunk: `PhoneField` has top-level calls, so Rollup kept
+it once anything in `Field/` was imported. `apps/admin-console/package.json`
+now declares `sideEffects` as the stylesheets and `zodConfig.ts`, the only
+modules imported for their effect, so an unused re-export is dropped.
+`tests/lint/console-phone-chunk.test.ts` is what caught it.
