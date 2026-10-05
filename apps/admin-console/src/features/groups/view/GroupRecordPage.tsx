@@ -13,7 +13,7 @@ import { useGroupRecordPage, type Ceiling } from '#/features/groups/usecase/useG
 import { GeneralTab } from '#/features/groups/view/GeneralTab.tsx';
 import { RolesTab } from '#/features/groups/view/RolesTab.tsx';
 import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';

@@ -4,7 +4,7 @@ import {
   type SubjectConsents,
 } from '#/features/subjects/usecase/useSubjectSessions.ts';
 import { Panel } from '#/features/subjects/view/SessionsTab.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';

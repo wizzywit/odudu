@@ -69,8 +69,8 @@ export default defineConfig({
           // font and layout tests read these files' source.
           css: {
             include: [
-              /\/shared\/view\/(?:tokens\.css|fonts\.css|\w+\.module\.css\?raw)/u,
-              /\/features\/[\w-]+\/view\/\w+\.module\.css\?raw/u,
+              /\/shared\/view\/(?:tokens\.css|fonts\.css|[\w/]+\.module\.css\?raw)/u,
+              /\/features\/[\w-]+\/view\/[\w/]+\.module\.css\?raw/u,
             ],
           },
           setupFiles: [...SETUP, join(REPO_ROOT, CONSOLE, 'tests/setup.ts')],

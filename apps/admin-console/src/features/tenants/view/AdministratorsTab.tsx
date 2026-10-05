@@ -2,7 +2,7 @@ import { Link } from 'react-aria-components';
 import { CapabilityHolders } from '#/features/subjects/index.ts';
 import { useTenantAdministrators } from '#/features/tenants/usecase/useTenantAdministrators.ts';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import styles from '#/features/tenants/view/AdministratorsTab.module.css';
 
 // `canAdd` is false once whoami says adding would be refused; the page says

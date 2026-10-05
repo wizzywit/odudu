@@ -1,6 +1,6 @@
 import type { Principal } from '#/features/session/service.ts';
 import { SessionStatus } from '#/features/session/view/SessionStatus.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import styles from '#/features/session/view/SignIn.module.css';
 
 // A page rather than a quiet switch: the tab was showing one administrator

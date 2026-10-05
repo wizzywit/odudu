@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { Count } from '#/shared/view/Count.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';

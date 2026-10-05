@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import { describeValue, type Conflict } from '#/shared/service/conflict.ts';
 import type { ConflictSource } from '#/shared/service/sectionSave.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import styles from '#/shared/view/ConflictPanel.module.css';
 
 function shown(conflict: Conflict, value: unknown): string {

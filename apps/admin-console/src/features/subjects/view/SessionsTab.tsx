@@ -7,7 +7,7 @@ import {
 } from '#/features/subjects/usecase/useSubjectSessions.ts';
 import { formatAbsolute } from '#/shared/service/format.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';

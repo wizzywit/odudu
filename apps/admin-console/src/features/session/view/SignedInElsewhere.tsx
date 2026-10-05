@@ -1,7 +1,7 @@
 import { Link } from 'react-aria-components';
 import type { Principal } from '#/features/session/service.ts';
 import { SessionStatus } from '#/features/session/view/SessionStatus.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import styles from '#/features/session/view/SignIn.module.css';
 
 // A page, not a dialog: nothing destructive has been asked for yet, and

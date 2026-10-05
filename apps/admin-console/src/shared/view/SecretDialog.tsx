@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { CheckboxButton, CheckboxField } from 'react-aria-components';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { CopyValue } from '#/shared/view/CopyValue.tsx';
 import { DialogFrame } from '#/shared/view/DialogFrame.tsx';
 import styles from '#/shared/view/SecretDialog.module.css';

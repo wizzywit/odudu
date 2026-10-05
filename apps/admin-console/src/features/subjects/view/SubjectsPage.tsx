@@ -2,7 +2,7 @@ import { SUBJECT_CAPABILITY_FILTER, type Subject } from '@odudu/contracts/admin'
 import { subjectName } from '#/features/subjects/service.ts';
 import { useSubjectsList } from '#/features/subjects/usecase/useSubjectsList.ts';
 import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import type { Column } from '#/shared/view/DataTable.tsx';
 import { SelectField } from '#/shared/view/Field.tsx';

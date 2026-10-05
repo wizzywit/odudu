@@ -10,7 +10,7 @@ import {
 import type { Ceiling } from '#/features/roles/usecase/useRoleRecordPage.ts';
 import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
 import { SectionNoticeOf } from '#/features/roles/view/SectionNoticeOf.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { TextAreaField, ToggleField } from '#/shared/view/Field.tsx';
 import { Section } from '#/shared/view/Section.tsx';

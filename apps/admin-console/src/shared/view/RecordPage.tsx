@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { RecordView } from '#/shared/service/record.ts';
 import type { Crumb } from '#/shared/view/Breadcrumb.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { ReadOnlyFields } from '#/shared/view/Field.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';

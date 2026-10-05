@@ -10,7 +10,7 @@ import {
   SelectValue,
   type Key,
 } from 'react-aria-components';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { InlineFields, type SelectOption } from '#/shared/view/Field.tsx';
 import { KeyHint } from '#/shared/view/KeyHint.tsx';
 import styles from '#/shared/view/FilterBar.module.css';

@@ -10,7 +10,7 @@ import {
 } from '#/features/groups/usecase/useGroupGeneral.ts';
 import type { Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
 import { SectionNoticeOf } from '#/features/groups/view/SectionNoticeOf.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { TextAreaField, ToggleField } from '#/shared/view/Field.tsx';
 import { GroupPicker } from '#/shared/view/GroupPicker.tsx';

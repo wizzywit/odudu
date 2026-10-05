@@ -1,5 +1,5 @@
 import { Button as AriaButton, type ButtonProps as AriaButtonProps } from 'react-aria-components';
-import styles from '#/shared/view/Button.module.css';
+import styles from '#/shared/view/Button/Button.module.css';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger';
 

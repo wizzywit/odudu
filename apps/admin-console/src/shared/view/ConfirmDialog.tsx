@@ -1,5 +1,5 @@
 import { useId, useState, type SubmitEvent, type ReactNode } from 'react';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { KeyHint } from '#/shared/view/KeyHint.tsx';
 import { DialogFrame } from '#/shared/view/DialogFrame.tsx';
 import { TextField } from '#/shared/view/Field.tsx';

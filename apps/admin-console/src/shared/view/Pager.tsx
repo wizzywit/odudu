@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { advance, canAdvance, retreat, type CursorTrail } from '#/shared/service/cursorTrail.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import styles from '#/shared/view/Pager.module.css';
 
 export function Pager({

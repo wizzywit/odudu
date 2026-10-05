@@ -6,7 +6,7 @@ import {
 } from '#/features/subjects/usecase/useCapabilities.ts';
 import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
 import { Link } from 'react-aria-components';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { ChecklistField } from '#/shared/view/ChecklistField.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';

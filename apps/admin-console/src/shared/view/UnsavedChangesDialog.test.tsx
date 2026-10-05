@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { UnsavedChangesDialog } from '#/shared/view/UnsavedChangesDialog.tsx';

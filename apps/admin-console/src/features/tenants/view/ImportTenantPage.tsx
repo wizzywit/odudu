@@ -6,7 +6,7 @@ import {
   type ImportTenantPage as ImportState,
 } from '#/features/tenants/usecase/useImportTenantPage.ts';
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { TextField } from '#/shared/view/Field.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';

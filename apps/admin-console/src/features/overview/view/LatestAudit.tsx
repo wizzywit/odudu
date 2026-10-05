@@ -4,7 +4,7 @@ import { Link } from 'react-aria-components';
 import type { Gated } from '#/features/overview/service.ts';
 import { Panel } from '#/features/overview/view/Panel.tsx';
 import { AuditActor } from '#/shared/view/AuditActor.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';

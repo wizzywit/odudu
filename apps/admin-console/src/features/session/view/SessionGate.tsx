@@ -4,7 +4,7 @@ import { usePlaceholderDue } from '#/features/session/usecase/usePlaceholderDela
 import { SignedInContext } from '#/features/session/usecase/useSignedIn.ts';
 import { PrincipalChanged } from '#/features/session/view/PrincipalChanged.tsx';
 import { SessionStatus } from '#/features/session/view/SessionStatus.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import styles from '#/features/session/view/SignIn.module.css';
 import { Skeleton } from '#/shared/view/Skeleton.tsx';

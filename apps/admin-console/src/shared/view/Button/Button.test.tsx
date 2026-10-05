@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import rawCss from '#/shared/view/Button.module.css?raw';
-import { Button } from '#/shared/view/Button.tsx';
+import rawCss from '#/shared/view/Button/Button.module.css?raw';
+import { Button } from '#/shared/view/Button/Button.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 it('presses from the pointer and from the keyboard', async () => {

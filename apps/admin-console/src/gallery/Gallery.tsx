@@ -10,7 +10,7 @@ import { AuditActor } from '#/shared/view/AuditActor.tsx';
 import { AppShell } from '#/shared/view/AppShell.tsx';
 import { BirthdateField } from '#/shared/view/BirthdateField.tsx';
 import { Breadcrumb } from '#/shared/view/Breadcrumb.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { KeyHint, PlatformContext } from '#/shared/view/KeyHint.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';

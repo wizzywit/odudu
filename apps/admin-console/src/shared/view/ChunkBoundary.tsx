@@ -1,6 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { ChunkLoadError } from '#/shared/service/chunkLoad.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 
 interface ChunkBoundaryProps {

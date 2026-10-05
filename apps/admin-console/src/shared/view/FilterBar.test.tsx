@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import buttonCss from '#/shared/view/Button.module.css?raw';
+import buttonCss from '#/shared/view/Button/Button.module.css?raw';
 import fieldCss from '#/shared/view/Field.module.css?raw';
 import { SelectField } from '#/shared/view/Field.tsx';
 import { FilterBar } from '#/shared/view/FilterBar.tsx';

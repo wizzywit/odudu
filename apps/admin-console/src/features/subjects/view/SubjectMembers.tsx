@@ -1,7 +1,7 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { subjectName } from '#/features/subjects/service.ts';
 import { useMembers, useMembersReadable } from '#/features/subjects/usecase/useMembers.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { Count } from '#/shared/view/Count.tsx';

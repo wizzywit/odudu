@@ -8,7 +8,7 @@ import {
   type RefObject,
 } from 'react';
 import { Dialog, DialogTrigger, Modal, ModalOverlay } from 'react-aria-components';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { KeyHint } from '#/shared/view/KeyHint.tsx';
 import styles from '#/shared/view/AppShell.module.css';
 

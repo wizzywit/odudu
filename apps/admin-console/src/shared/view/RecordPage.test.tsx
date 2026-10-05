@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import type { RecordView } from '#/shared/service/record.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { TextField } from '#/shared/view/Field.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';

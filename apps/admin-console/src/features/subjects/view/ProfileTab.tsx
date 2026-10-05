@@ -12,7 +12,7 @@ import {
   type ClaimSection,
   type SectionSave,
 } from '#/features/subjects/usecase/useSubjectProfile.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { BirthdateField } from '#/shared/view/BirthdateField.tsx';

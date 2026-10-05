@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import type { Column } from '#/shared/view/DataTable.tsx';
 import { ResourceListPage } from '#/shared/view/ResourceListPage.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';

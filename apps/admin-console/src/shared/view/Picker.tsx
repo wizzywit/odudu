@@ -9,7 +9,7 @@ import {
   type Selection,
 } from 'react-aria-components';
 import type { PickerState } from '#/shared/service/picker.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ListSkeleton } from '#/shared/view/Skeleton.tsx';
 import styles from '#/shared/view/Picker.module.css';

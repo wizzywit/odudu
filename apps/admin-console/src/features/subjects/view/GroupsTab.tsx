@@ -6,7 +6,7 @@ import {
   type SubjectGroups,
 } from '#/features/subjects/usecase/useSubjectGroups.ts';
 import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { GroupPicker } from '#/shared/view/GroupPicker.tsx';

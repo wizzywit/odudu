@@ -7,7 +7,7 @@ import {
   type SubmitEvent,
   type ReactNode,
 } from 'react';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { FieldsReadOnly } from '#/shared/view/Field.tsx';
 import { SaveBar } from '#/shared/view/SaveBar.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';

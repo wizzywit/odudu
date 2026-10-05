@@ -6,7 +6,7 @@ import {
 } from '#/features/subjects/usecase/useCapabilityHolders.ts';
 import { SubjectCapabilities } from '#/features/subjects/view/CapabilityEditor.tsx';
 import { grantableIn } from '#/shared/service/capabilities.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { Count } from '#/shared/view/Count.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';

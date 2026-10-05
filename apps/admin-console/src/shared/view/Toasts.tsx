@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent } from 'react';
 import type { Toast } from '#/shared/service/toast.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import styles from '#/shared/view/Toasts.module.css';
 
 const SUCCESS_LIFETIME_MS = 5_000;

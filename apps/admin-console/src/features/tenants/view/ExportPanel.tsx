@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { useTenantExport } from '#/features/tenants/usecase/useTenantExport.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ToggleField } from '#/shared/view/Field.tsx';
 import styles from '#/features/tenants/view/ExportPanel.module.css';

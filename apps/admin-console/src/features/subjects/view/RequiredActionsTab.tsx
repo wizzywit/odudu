@@ -5,7 +5,7 @@ import {
   useRequiredActionsRead,
 } from '#/features/subjects/usecase/useRequiredActions.ts';
 import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ChecklistField } from '#/shared/view/ChecklistField.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { ReadOnlyFields } from '#/shared/view/Field.tsx';

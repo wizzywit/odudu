@@ -20,7 +20,7 @@ import {
   type MailOutcome,
   type SubjectMail,
 } from '#/features/subjects/usecase/useSubjectMail.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ChecklistField } from '#/shared/view/ChecklistField.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';

@@ -2,7 +2,7 @@ import type { Role } from '@odudu/contracts/admin';
 import { AreaGate, areaAt } from '#/features/shell/index.ts';
 import { useRolesList } from '#/features/roles/usecase/useRolesList.ts';
 import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import type { Column } from '#/shared/view/DataTable.tsx';
 import { SelectField } from '#/shared/view/Field.tsx';

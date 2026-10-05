@@ -1,7 +1,7 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 import { AuditActor } from '#/shared/view/AuditActor.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { CopyValue } from '#/shared/view/CopyValue.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';

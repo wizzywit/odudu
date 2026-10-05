@@ -2,7 +2,7 @@ import type { Group } from '@odudu/contracts/admin';
 import { useId } from 'react';
 import { Link } from 'react-aria-components';
 import { useGroupNode, type GroupNode } from '#/features/groups/usecase/useGroupsList.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ListSkeleton } from '#/shared/view/Skeleton.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import styles from '#/features/groups/view/GroupTree.module.css';

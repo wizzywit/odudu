@@ -2,7 +2,7 @@ import type { SubmitEvent } from 'react';
 import { subjectsTrail } from '#/features/subjects/service.ts';
 import { useNewSubject } from '#/features/subjects/usecase/useNewSubject.ts';
 import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { TextField } from '#/shared/view/Field.tsx';

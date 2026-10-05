@@ -1,4 +1,4 @@
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import styles from '#/shared/view/CapabilityNote.module.css';
 
 const LIST = new Intl.ListFormat('en-GB', { type: 'conjunction' });

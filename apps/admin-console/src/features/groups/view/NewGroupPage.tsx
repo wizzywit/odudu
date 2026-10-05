@@ -2,7 +2,7 @@ import { useId, type SubmitEvent } from 'react';
 import { AreaGate, areaAt } from '#/features/shell/index.ts';
 import { groupsTrail } from '#/features/groups/service.ts';
 import { useNewGroup } from '#/features/groups/usecase/useNewGroup.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { TextAreaField, TextField } from '#/shared/view/Field.tsx';
 import { GroupPicker } from '#/shared/view/GroupPicker.tsx';

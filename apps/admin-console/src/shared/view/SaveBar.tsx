@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { KeyHint } from '#/shared/view/KeyHint.tsx';
 import styles from '#/shared/view/SaveBar.module.css';
 

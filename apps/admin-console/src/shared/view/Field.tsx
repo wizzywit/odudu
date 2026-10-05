@@ -29,7 +29,7 @@ import {
   type Key,
 } from 'react-aria-components';
 import { formatDuration } from '#/shared/service/format.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import styles from '#/shared/view/Field.module.css';
 
 export interface Chrome {

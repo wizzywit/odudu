@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { VisuallyHidden } from 'react-aria-components';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import styles from '#/shared/view/CopyValue.module.css';
 
 type Outcome = 'idle' | 'copied' | 'failed';

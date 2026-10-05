@@ -7,7 +7,7 @@ import {
 } from '#/features/system-admins/usecase/useSystemAdministratorsPage.ts';
 import { SystemGate } from '#/features/tenants/index.ts';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { ChecklistField } from '#/shared/view/ChecklistField.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import { Picker } from '#/shared/view/Picker.tsx';

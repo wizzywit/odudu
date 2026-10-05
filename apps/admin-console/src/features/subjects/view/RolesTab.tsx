@@ -8,7 +8,7 @@ import { useSubjectRoles, type SubjectRoles } from '#/features/subjects/usecase/
 import { CapabilitySection } from '#/features/subjects/view/CapabilityEditor.tsx';
 import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
 import { provenanceText } from '#/shared/service/capabilities.ts';
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { RolePicker } from '#/shared/view/RolePicker.tsx';

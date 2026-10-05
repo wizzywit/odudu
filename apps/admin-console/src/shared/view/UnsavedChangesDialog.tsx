@@ -1,4 +1,4 @@
-import { Button } from '#/shared/view/Button.tsx';
+import { Button } from '#/shared/view/Button';
 import { DialogFrame } from '#/shared/view/DialogFrame.tsx';
 
 const LIST = new Intl.ListFormat('en', { type: 'conjunction' });

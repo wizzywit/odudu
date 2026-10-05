@@ -1564,3 +1564,50 @@ Found by the review of that work and fixed with it:
 - **Required actions.** Trying the console showed that every required action ran the login again: two or three password forms, and three codes to enrol TOTP. A completed action now resumes the same authentication session. Each factor is recorded as it passes, and the enrolment code counts as the second.
 - **Second-factor bypass.** The same work found an older bypass. A reused password-only SSO session could be handed fresh recovery codes for a subject who had since enrolled TOTP. Reuse is now judged against the flow as the subject currently stands, and a disabled subject's session is never reused.
 - **Cross-origin redirect.** The login and logout pages' `form-action 'self'` stopped Chromium from following the redirect to a client on another origin. They now name that client's redirect origin, taken from the validated request (ADR 0018's amendment). CI's Config OP plan uses no browser, which is why nothing caught it.
+
+## Part 4 — folder imports
+
+A view component lives in a folder `X/` and is imported as the folder
+(`#/shared/view/Button`). The spike moved `shared/view/Button` into
+`Button/` (`Button.tsx`, `Button.module.css`, `Button.test.tsx`, an
+`index.ts` that re-exports) and changed its importers.
+
+With only `package.json` `"imports": {"#/*": "./src/*"}`, the typecheck
+failed and nothing else did:
+
+```
+$ pnpm --filter @odudu/admin-console exec tsc --noEmit
+src/features/groups/view/GeneralTab.tsx(13,24): error TS2307: Cannot find
+module '#/shared/view/Button' or its corresponding type declarations.
+... (63 errors)
+```
+
+An `imports` target is an exact path, and TypeScript does not look for
+`<dir>/index.ts` through it. Vite, Vitest and dependency-cruiser did resolve
+it. Vitest's `css.include` patterns (`vitest.config.ts`) matched only
+`\w+.module.css?raw`, so a stylesheet inside a folder came back as `''`;
+they now take `[\w/]+`.
+
+The fix is `compilerOptions.paths: { "#/*": ["./src/*"] }` in
+`apps/admin-console/tsconfig.json`, which does the directory lookup. The alias
+now lives in two places, so `tests/lint/console-alias-agrees.test.ts` fails the
+build when they disagree. A folder's `index.ts` re-exports its own files by
+`#/shared/view/Button/Button.tsx`, because relative imports are banned.
+
+Re-run with the `paths` entry and the pattern fix:
+
+```
+$ pnpm --filter @odudu/admin-console exec tsc --noEmit
+(exit 0, no output)
+$ pnpm --filter @odudu/admin-console exec vite build
+✓ built in 272ms
+$ pnpm exec vitest run --config vitest.config.ts \
+    apps/admin-console/src/shared/view/Button apps/admin-console/src/shared/view/FilterBar
+ Test Files  3 passed (3)
+      Tests  14 passed (14)
+$ pnpm exec depcruise --config .dependency-cruiser.cjs apps/admin-console
+✔ no dependency violations found (645 modules, 2429 dependencies cruised)
+$ pnpm exec eslint apps/admin-console/src/shared/view/Button \
+    apps/admin-console/src/features/groups/view/GeneralTab.tsx
+(exit 0, no output)
+```
