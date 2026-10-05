@@ -206,3 +206,26 @@ it('carries the page’s view-only line under its header, above the search', () 
   const search = screen.getByRole('searchbox');
   expect(note.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
+
+it('draws the rows its own way where a table would not do, keeping the pager', () => {
+  render(
+    <ResourceListPage
+      list={state()}
+      title="Clients"
+      noun={{ one: 'client', other: 'clients' }}
+      columns={COLUMNS}
+      rowKey={(row) => row.id}
+      capability="manage-clients"
+      renderRows={(rows) => (
+        <ul aria-label="Drawn clients">
+          {rows.map((row) => (
+            <li key={row.id}>{row.name}</li>
+          ))}
+        </ul>
+      )}
+    />,
+  );
+  expect(screen.getByRole('list', { name: 'Drawn clients' })).toHaveTextContent('Billing portal');
+  expect(screen.queryByRole('grid')).toBeNull();
+  expect(screen.getByRole('button', { name: /Load more/u })).toBeVisible();
+});

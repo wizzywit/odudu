@@ -29,6 +29,7 @@ export function ResourceListPage<T>({
   nothingYetAction,
   notice,
   viewOnly,
+  renderRows,
 }: {
   list: ResourceListState<T>;
   title: string;
@@ -50,6 +51,8 @@ export function ResourceListPage<T>({
   notice?: ReactNode;
   // The one line saying what the caller may not change here.
   viewOnly?: ReactNode;
+  // Draws the rows where a table would not do, as a tree; the pager stays.
+  renderRows?: (rows: readonly T[]) => ReactNode;
 }) {
   const count =
     list.count === null ? null : (
@@ -82,6 +85,7 @@ export function ResourceListPage<T>({
           capability={capability}
           {...(nothingYet === undefined ? {} : { nothingYet })}
           {...(nothingYetAction === undefined ? {} : { nothingYetAction })}
+          {...(renderRows === undefined ? {} : { renderRows })}
         />
       </div>
     </>
@@ -146,6 +150,7 @@ function Body<T>({
   capability,
   nothingYet,
   nothingYetAction,
+  renderRows,
 }: {
   list: ResourceListState<T>;
   title: string;
@@ -156,6 +161,7 @@ function Body<T>({
   capability: string;
   nothingYet?: ReactNode;
   nothingYetAction?: ReactNode;
+  renderRows?: (rows: readonly T[]) => ReactNode;
 }) {
   switch (list.status) {
     case 'loading':
@@ -200,13 +206,17 @@ function Body<T>({
   }
   return (
     <>
-      <DataTable
-        label={title}
-        columns={columns}
-        rows={list.rows}
-        rowKey={rowKey}
-        {...(onRowAction === undefined ? {} : { onRowAction })}
-      />
+      {renderRows === undefined ? (
+        <DataTable
+          label={title}
+          columns={columns}
+          rows={list.rows}
+          rowKey={rowKey}
+          {...(onRowAction === undefined ? {} : { onRowAction })}
+        />
+      ) : (
+        renderRows(list.rows)
+      )}
       <Pager
         label={title}
         trail={list.trail}

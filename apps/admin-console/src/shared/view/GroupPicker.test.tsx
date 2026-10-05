@@ -63,6 +63,27 @@ it("shows a group's description beside its place in the tree", () => {
   expect(option).toHaveTextContent('engineering/engineering · Everybody who ships code');
 });
 
+it('says why a group cannot be chosen, and does not choose it', async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  render(
+    <GroupPicker
+      label="Parent"
+      picker={picker(GROUPS)}
+      selected={[]}
+      onChange={onChange}
+      selectionMode="single"
+      unavailableOf={(group) => (group.id === 'g2' ? 'the group itself' : null)}
+    />,
+  );
+  const option = within(screen.getByRole('listbox', { name: 'Parent' })).getByRole('option', {
+    name: /platform/u,
+  });
+  expect(option).toHaveTextContent('/engineering/platform · the group itself');
+  await user.click(option);
+  expect(onChange).not.toHaveBeenCalled();
+});
+
 it('passes axe in both themes', async () => {
   expect(
     await axeInBothThemes(() => (

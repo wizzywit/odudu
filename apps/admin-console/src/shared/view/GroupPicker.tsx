@@ -8,12 +8,15 @@ export function GroupPicker({
   selected,
   onChange,
   selectionMode = 'multiple',
+  unavailableOf,
 }: {
   label: string;
   picker: PickerState<Group>;
   selected: readonly string[];
   onChange: (ids: string[]) => void;
   selectionMode?: 'single' | 'multiple';
+  // Why a group cannot be chosen here, or null when it can.
+  unavailableOf?: (group: Group) => string | null;
 }) {
   return (
     <Picker
@@ -31,6 +34,7 @@ export function GroupPicker({
       selected={selected}
       onChange={onChange}
       selectionMode={selectionMode}
+      {...(unavailableOf === undefined ? {} : { unavailableOf })}
     />
   );
 }
