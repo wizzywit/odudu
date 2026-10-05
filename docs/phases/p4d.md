@@ -1527,3 +1527,11 @@ Two defects turned up only while capturing transcripts:
 
 - A mailed link that sets a password failed for a subject with no password, which is every subject an administrator creates.
 - Migration 0082 rewrote rows under `FORCE` row-level security without lifting it, so under a least-privilege owner it would have written nothing. Its backfill test now migrates as that owner.
+
+**Subjects, second half.**
+
+- **Tabs.** A subject's record gains Groups, Roles, Required actions, Sessions, Consents, Grants and Activity. Credentials gains the three emailed actions.
+- **Administrators.** The list of administrators is one list everywhere. It reads, in one query, every holder of any admin capability and what each holds: `capability=any` and `admin_capabilities` on the subjects list. A holder's set is edited in place, with ADR 0040's ceiling shown for each capability.
+- **Record writes.** Every write on a record is held to the ceiling, not just the capability editor's. A record that is read-only says each reason it is, and judges nothing until effective roles have loaded.
+- **Self-loss.** Removing your own capabilities, directly or by leaving a group, asks first.
+- **Full administrators.** A new tenant's first administrator stays Full. Without one, nobody in the tenant could grant every capability, and the last-administrator guard would protect nothing.
