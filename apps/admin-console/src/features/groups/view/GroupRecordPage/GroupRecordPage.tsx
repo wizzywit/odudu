@@ -7,7 +7,7 @@ import {
   GROUP_TABS,
   groupsTrail,
   type GroupTab,
-} from '#/features/groups/service.ts';
+} from '#/features/groups/service';
 import { useAuditReadable, useGroupActivity } from '#/features/groups/usecase/useGroupActivity.ts';
 import { useGroupRecordPage, type Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
 import { GeneralTab } from '#/features/groups/view/GroupRecordPage/GeneralTab.tsx';

@@ -8,7 +8,7 @@ import {
   groupCeiling,
   type GroupTab,
   TAB_RECORDS,
-} from '#/features/groups/service.ts';
+} from '#/features/groups/service';
 import { useDirtyRecords } from '#/shared/repository/useDirtyRecords.ts';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
 import { dirtyTabs, tabNamed, type RecordView } from '#/shared/service/record.ts';

@@ -13,7 +13,7 @@ import {
   parentUnavailable,
   NAME_TAKEN,
   newGroupPlace,
-} from '#/features/groups/service.ts';
+} from '#/features/groups/service';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch.ts';

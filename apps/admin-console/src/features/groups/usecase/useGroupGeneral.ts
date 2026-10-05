@@ -35,7 +35,7 @@ import {
   type Loss,
   type Readiness,
   subtreeDeletedText,
-} from '#/features/groups/service.ts';
+} from '#/features/groups/service';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';

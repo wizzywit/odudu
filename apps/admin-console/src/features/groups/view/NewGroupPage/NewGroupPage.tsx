@@ -1,6 +1,6 @@
 import { useId, type SubmitEvent } from 'react';
 import { AreaGate, areaAt } from '#/features/shell';
-import { groupsTrail } from '#/features/groups/service.ts';
+import { groupsTrail } from '#/features/groups/service';
 import { useNewGroup } from '#/features/groups/usecase/useNewGroup.ts';
 import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink';

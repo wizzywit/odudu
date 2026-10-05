@@ -8,7 +8,7 @@ import {
   setGroupDefault,
   setGroupRoles,
 } from '#/features/groups/adapter/groups.ts';
-import { groupRecord, groupRolesRecord, type GroupRead } from '#/features/groups/service.ts';
+import { groupRecord, groupRolesRecord, type GroupRead } from '#/features/groups/service';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';

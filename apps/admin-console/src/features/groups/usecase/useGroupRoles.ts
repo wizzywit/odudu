@@ -21,7 +21,7 @@ import {
   rolesConfirmation,
   roleUnavailable,
   withKept,
-} from '#/features/groups/service.ts';
+} from '#/features/groups/service';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useRolePicker } from '#/shared/repository/useRolePicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';

@@ -1,6 +1,6 @@
 import type { GroupRecord } from '@odudu/contracts/admin';
 import { useId } from 'react';
-import { NAME_FIXED } from '#/features/groups/service.ts';
+import { NAME_FIXED } from '#/features/groups/service';
 import {
   useGroupGeneral,
   type Defaults,
