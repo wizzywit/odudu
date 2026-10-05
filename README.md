@@ -383,7 +383,9 @@ registration and the reset request — share a budget per client address:
 with `Retry-After` and an empty body, decided before the body is parsed or
 any account looked up, so a refusal cannot say whether the address or the
 account existed. There is no value that switches it off; a deployment
-putting many users behind one address raises the limit.
+putting many users behind one address raises the limit. An administrator's three mail sends —
+`…/password-reset`, `…/verification` and `…/actions-email` — draw on the
+same budget.
 
 Two limitations, stated because neither is visible from the outside.
 **The throttle is per instance**: it is a window in the process's memory, so
@@ -461,7 +463,9 @@ required-action machinery nor `apps/server`.
 **No mail is sent on the request path.** Every flow that mails — address
 verification, self-registration and password reset, and an administrator's
 `POST /admin/tenants/{tenant}/subjects/{id}/password-reset` and
-`…/verification`, which queue the same links — writes the message to
+`…/verification`, which queue the same links, and `…/actions-email`, which
+queues a link taking the subject through named required actions — writes
+the message to
 `email_outbox` in the same transaction that mints the token it carries, and
 answers. A sender claims batches of due messages with `FOR UPDATE SKIP
 LOCKED`, one tenant at a time, and runs either on the server's own schedule

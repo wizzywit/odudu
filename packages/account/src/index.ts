@@ -66,3 +66,15 @@ export {
   renderRegistrationFailedPage,
   renderRegistrationSucceededPage,
 } from '#/view/registration-html';
+export {
+  enqueueActionsLink,
+  completeRequiredActions,
+  type ActionsLink,
+  type CompleteRequiredActionsDeps,
+  type CompleteRequiredActionsResult,
+} from '#/usecase/execute-actions';
+export {
+  isLinkedRequiredAction,
+  orderedActions,
+  type LinkedRequiredAction,
+} from '#/service/required-actions';

@@ -1,6 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import formbody from '@fastify/formbody';
-import { actionTokenRepository, enqueueResetLink, enqueueVerificationLink } from '@odudu/account';
+import {
+  actionTokenRepository,
+  enqueueActionsLink,
+  enqueueResetLink,
+  enqueueVerificationLink,
+} from '@odudu/account';
 import {
   generateSigningKey,
   signingKeyRepository,
@@ -255,7 +260,9 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
           if (options.publicBaseUrl === false) return 'unavailable';
           const tenant = { ...request, issuerBase: FIXTURE_CONSOLE_BASE_URL };
           if (request.kind === 'reset_password') await enqueueResetLink(tx, tenant, request);
-          else await enqueueVerificationLink(tx, tenant, request);
+          else if (request.kind === 'verify_email') {
+            await enqueueVerificationLink(tx, tenant, request);
+          } else await enqueueActionsLink(tx, tenant, request, request);
           return 'queued';
         },
       },

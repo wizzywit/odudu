@@ -57,6 +57,7 @@ const SAMPLE_BODIES: Readonly<Partial<Record<string, unknown>>> = {
   'POST /admin/tenants/:tenant/clients': { client_id: `sample-${newId()}` },
   'POST /admin/tenants/:tenant/roles': { name: 'sample' },
   'PUT /admin/tenants/:tenant/roles/:id/default': { default: false },
+  'POST /admin/tenants/:tenant/subjects/:id/actions-email': { actions: ['configure-totp'] },
   'PUT /admin/tenants/:tenant/groups/:id/default': { default: false },
   'POST /admin/tenants/:tenant/roles/:id/composites': { child_role_id: 'placeholder' },
   'POST /admin/tenants/:tenant/groups': { name: 'sample' },

@@ -288,6 +288,7 @@ const REFUSED_ACTION: Readonly<Record<string, string>> = {
   'DELETE /admin/tenants/:tenant/subjects/:id/sessions': 'session.end_all',
   'DELETE /admin/tenants/:tenant/subjects/:id/sessions/:sid': 'session.end',
   'POST /admin/tenants/:tenant/subjects/:id/password-reset': 'subject.password_reset_send',
+  'POST /admin/tenants/:tenant/subjects/:id/actions-email': 'subject.actions_email_send',
   'POST /admin/tenants/:tenant/subjects/:id/verification': 'subject.verification_send',
   'DELETE /admin/tenants/:tenant/subjects/:id/grants/:clientId': 'grant.revoke',
 };
@@ -298,6 +299,7 @@ const BODIES: Readonly<Record<string, unknown>> = {
   'PUT /admin/tenants/:tenant/subjects/:id/required-actions': { actions: [] },
   'PUT /admin/tenants/:tenant/subjects/:id/roles': { role_ids: [] },
   'PUT /admin/tenants/:tenant/subjects/:id/groups': { group_ids: [] },
+  'POST /admin/tenants/:tenant/subjects/:id/actions-email': { actions: ['configure-totp'] },
 };
 
 function sweep(key: string, target: Target, token: string): Promise<LightMyRequestResponse> {

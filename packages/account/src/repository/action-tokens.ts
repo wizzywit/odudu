@@ -29,6 +29,8 @@ export interface IssueActionToken {
   subjectId: string;
   type: ActionTokenType;
   email?: string;
+  actions?: readonly string[];
+  redirectUri?: string | null;
   ttlSeconds: number;
 }
 
@@ -40,6 +42,8 @@ function toRecord(row: typeof actionTokens.$inferSelect): ActionTokenRecord {
     type: row.type as ActionTokenType,
     tokenHash: row.tokenHash,
     email: row.email,
+    actions: row.actions,
+    redirectUri: row.redirectUri,
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     consumedAt: row.consumedAt,
@@ -49,7 +53,9 @@ function toRecord(row: typeof actionTokens.$inferSelect): ActionTokenRecord {
 export function actionTokenRepository(tx: TenantScopedDatabase) {
   return {
     // The tenant's lifetime for a link of this type
-    // (packages/db/drizzle/0082_tenant_lifetimes.sql).
+    // (packages/db/drizzle/0082_tenant_lifetimes.sql). A link taking its
+    // subject through required actions signs them in by their mailbox, as a
+    // reset link does, so it takes the reset link's lifetime.
     async lifetimeOf(tenantId: string, type: ActionTokenType): Promise<number> {
       const rows = await tx
         .select({
@@ -72,6 +78,8 @@ export function actionTokenRepository(tx: TenantScopedDatabase) {
         type: input.type,
         tokenHash: sha256Hex(token),
         email: input.email ?? null,
+        actions: input.actions === undefined ? null : [...input.actions],
+        redirectUri: input.redirectUri ?? null,
         expiresAt: new Date(Date.now() + input.ttlSeconds * 1000),
         consumedAt: null,
       });

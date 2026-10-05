@@ -1,6 +1,8 @@
+import { requiredActionSchema, type RequiredAction } from '@odudu/contracts/admin';
 import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { users } from '@odudu/domain-identity';
-import { tenantSettingsRepository } from '@odudu/domain-tenant';
+import { clientRepository, tenantSettingsRepository } from '@odudu/domain-tenant';
+import { clientOidcConfigRepository } from '@odudu/protocol-oidc';
 import { eq } from 'drizzle-orm';
 import { tenantSmtpRepository } from '#/repository/tenant-smtp';
 import {
@@ -10,11 +12,22 @@ import {
   type TargetCeilingRefusal,
 } from '#/usecase/subjects';
 
-export type AccountEmailKind = 'reset_password' | 'verify_email';
+export type AccountEmailKind = 'reset_password' | 'verify_email' | 'execute_actions';
+
+/** What a link does: one of the two self-service links, or one taking its subject through actions. */
+export type AccountLinkPurpose =
+  | { readonly kind: 'reset_password' }
+  | { readonly kind: 'verify_email' }
+  | {
+      readonly kind: 'execute_actions';
+      readonly actions: readonly RequiredAction[];
+      readonly redirectUri: string | null;
+    };
 
 /** What a link is minted for and who it goes to; the minting is @odudu/account's. */
-export interface AccountLinkRequest {
-  readonly kind: AccountEmailKind;
+export type AccountLinkRequest = AccountLinkPurpose & AccountLinkAddress;
+
+interface AccountLinkAddress {
   readonly tenantId: string;
   readonly tenantName: string;
   readonly tenantDisplayName: string;
@@ -33,7 +46,8 @@ export type SendAccountLink = (
 ) => Promise<'queued' | 'unavailable'>;
 
 export interface AccountEmailAuditEvent {
-  readonly action: 'subject.password_reset_send' | 'subject.verification_send';
+  readonly action:
+    'subject.password_reset_send' | 'subject.verification_send' | 'subject.actions_email_send';
   readonly resourceType: 'subject';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -50,13 +64,23 @@ export interface AccountEmailDeps {
   readonly deploymentSmtp: boolean;
 }
 
-export interface AccountEmailInput extends TargetCeilingInput {
-  readonly kind: AccountEmailKind;
+/** Which link an administrator asks for, as the route reads it from the request. */
+export type AccountEmailPurpose =
+  | { readonly kind: 'reset_password' | 'verify_email' }
+  | {
+      readonly kind: 'execute_actions';
+      readonly actions: readonly RequiredAction[];
+      readonly clientId: string | null;
+      readonly redirectUri: string | null;
+    };
+
+export type AccountEmailInput = TargetCeilingInput & {
   readonly tenantId: string;
   readonly tenantName: string;
-}
+} & AccountEmailPurpose;
 
 export type AccountEmailOutcome =
+  | { kind: 'invalid_value'; field: 'client_id' | 'redirect_uri'; description: string }
   | { kind: 'not_found' }
   | TargetCeilingRefusal
   | { kind: 'no_email' }
@@ -68,7 +92,50 @@ export type AccountEmailOutcome =
 const ACTIONS = {
   reset_password: 'subject.password_reset_send',
   verify_email: 'subject.verification_send',
+  execute_actions: 'subject.actions_email_send',
 } as const;
+
+const ACTION_ORDER: readonly RequiredAction[] = requiredActionSchema.options;
+
+type Purposed =
+  | { kind: 'refused'; outcome: Extract<AccountEmailOutcome, { kind: 'invalid_value' }> }
+  | { kind: 'ok'; purpose: AccountLinkPurpose; detail: Record<string, unknown> };
+
+// A redirect the link's last page offers must be one the named client
+// registered, compared exactly, as /authorize compares one: the page is this
+// server's, so any other target would be an open redirect under its name.
+async function purposeOf(tx: TenantScopedDatabase, input: AccountEmailInput): Promise<Purposed> {
+  if (input.kind !== 'execute_actions') return { kind: 'ok', purpose: input, detail: {} };
+  const actions = ACTION_ORDER.filter((action) => input.actions.includes(action));
+  const refuse = (field: 'client_id' | 'redirect_uri', description: string): Purposed => ({
+    kind: 'refused',
+    outcome: { kind: 'invalid_value', field, description },
+  });
+  if (input.redirectUri === null) {
+    if (input.clientId !== null) {
+      return refuse('client_id', 'client_id names whose redirect_uri the page offers; send both');
+    }
+    return {
+      kind: 'ok',
+      purpose: { kind: input.kind, actions, redirectUri: null },
+      detail: { actions },
+    };
+  }
+  if (input.clientId === null) {
+    return refuse('client_id', 'a redirect_uri is one a client registered; name it with client_id');
+  }
+  const client = await clientRepository(tx).byClientId(input.clientId);
+  if (client === null) return refuse('client_id', `names no client ${input.clientId}`);
+  const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+  if (!(config?.redirectUris ?? []).includes(input.redirectUri)) {
+    return refuse('redirect_uri', `is not one of ${input.clientId}'s registered redirect URIs`);
+  }
+  return {
+    kind: 'ok',
+    purpose: { kind: input.kind, actions, redirectUri: input.redirectUri },
+    detail: { actions, client_id: input.clientId, redirect_uri: input.redirectUri },
+  };
+}
 
 // Each refusal is one the link would otherwise meet later, silently: an
 // address that is not there, a tenant whose reset page refuses every link,
@@ -78,6 +145,9 @@ export async function sendAccountEmail(
   deps: AccountEmailDeps,
   input: AccountEmailInput,
 ): Promise<AccountEmailOutcome> {
+  const purposed = await purposeOf(tx, input);
+  if (purposed.kind === 'refused') return purposed.outcome;
+  const { purpose, detail } = purposed;
   if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
   const user = await tx
     .select({ email: users.email })
@@ -90,7 +160,10 @@ export async function sendAccountEmail(
 
   const email = user[0]?.email ?? null;
   if (email === null) return { kind: 'no_email' };
-  if (input.kind === 'reset_password') {
+  const setsPassword =
+    purpose.kind === 'reset_password' ||
+    (purpose.kind === 'execute_actions' && purpose.actions.includes('update-password'));
+  if (setsPassword) {
     const settings = await tenantSettingsRepository(tx).byId(input.tenantId);
     if (settings?.reset_password_allowed !== true) return { kind: 'reset_password_off' };
   }
@@ -102,7 +175,7 @@ export async function sendAccountEmail(
     .from(tenants)
     .where(eq(tenants.id, input.tenantId));
   const sent = await deps.sendLink(tx, {
-    kind: input.kind,
+    ...purpose,
     tenantId: input.tenantId,
     tenantName: input.tenantName,
     tenantDisplayName: tenant[0]?.displayName ?? input.tenantName,
@@ -119,6 +192,7 @@ export async function sendAccountEmail(
     actorTenantId: input.actorTenantId,
     actorClientId: input.actorClientId,
     outcome: 'allowed',
+    detail,
   });
   return { kind: 'queued' };
 }

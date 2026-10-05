@@ -32,7 +32,9 @@ const UNDECLARED_TABLES = new Set(['__drizzle_migrations']);
 // pg_get_constraintdef's own rendering, so it is compared verbatim.
 const EXPECTED_CHECKS: Record<string, string> = {
   'action_tokens.action_tokens_type_check':
-    "CHECK ((type = ANY (ARRAY['verify_email'::text, 'reset_password'::text])))",
+    "CHECK ((type = ANY (ARRAY['verify_email'::text, 'reset_password'::text, 'execute_actions'::text])))",
+  'action_tokens.action_tokens_actions_check':
+    "CHECK (((type = 'execute_actions'::text) = ((actions IS NOT NULL) AND (cardinality(actions) > 0))))",
   'tenants.tenants_audit_retention_days_range':
     'CHECK (((audit_retention_days >= 1) AND (audit_retention_days <= 3650)))',
   'audit_events.audit_events_outcome':

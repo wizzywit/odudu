@@ -1,5 +1,8 @@
+import { enqueueActionsLink } from '@odudu/account';
+import { requiredActionRepository } from '@odudu/authn-flows';
 import {
   tenants,
+  withTenant,
   createDatabase,
   MIGRATIONS_DIR,
   runMigrations,
@@ -435,6 +438,57 @@ describe('password reset, through the real composition root', () => {
       const withNewPassword = await attemptLogin(app, tenantName, 'a brand new password');
       expect(withNewPassword.body).not.toContain('Change your password');
       expect(withNewPassword.headers.location).toContain('code=');
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('a required-actions link, through the real composition root', () => {
+  it('sets the password and leaves the rest for the next sign-in to ask', async () => {
+    const tenantName = `actions-${newId()}`;
+    const seeded = await seed({
+      tenant: tenantName,
+      clientId: 'reset-spa',
+      redirectUris: [REDIRECT_URI],
+      username: 'ada',
+      password: PASSWORD,
+      email: EMAIL,
+    });
+    await setResetPasswordAllowed(seeded.tenantId, true);
+    const subjectId = seeded.userSubjectId;
+    if (subjectId === undefined) throw new Error('seed made no user');
+    await withTenant(appDb.db, seeded.tenantId, (tx) =>
+      enqueueActionsLink(
+        tx,
+        {
+          tenantId: seeded.tenantId,
+          tenantName,
+          tenantDisplayName: tenantName,
+          issuerBase: PUBLIC_BASE_URL,
+        },
+        { subjectId, email: EMAIL },
+        { actions: ['update-password', 'configure-totp'], redirectUri: null },
+      ),
+    );
+
+    const sender = capturingSender();
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      await drainOutbox(sender);
+      const message = sender.sent[0];
+      if (message === undefined) throw new Error('no actions mail sent');
+      const submitted = await submitNewPassword(app, extractLink(message), 'a brand new password');
+      expect(submitted.statusCode).toBe(200);
+
+      const pending = await withTenant(appDb.db, seeded.tenantId, (tx) =>
+        requiredActionRepository(tx).pendingFor(subjectId),
+      );
+      expect(pending).toEqual(['configure-totp']);
+      const signIn = await attemptLogin(app, tenantName, 'a brand new password');
+      expect(signIn.statusCode).toBe(200);
+      expect(signIn.headers.location).toBeUndefined();
     } finally {
       await app.close();
     }

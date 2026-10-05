@@ -36,32 +36,32 @@ isolated in the database by PostgreSQL row-level security (ADR 0009). Every
 protocol endpoint lives under `/tenants/{tenant}/`, so the tenant is chosen by
 the URL and never by a header or a parameter.
 
-| Method | Path                                                         | What it is                                                  |
-| ------ | ------------------------------------------------------------ | ----------------------------------------------------------- |
-| `GET`  | `/tenants/{tenant}/.well-known/openid-configuration`         | Discovery document                                          |
-| `GET`  | `/tenants/{tenant}/protocol/openid-connect/certs`            | JWKS (public signing keys)                                  |
-| `GET`  | `/tenants/{tenant}/protocol/openid-connect/auth`             | Authorization endpoint                                      |
-| `POST` | `/tenants/{tenant}/protocol/openid-connect/auth`             | Authorization endpoint (form)                               |
-| `POST` | `/tenants/{tenant}/login-actions/authenticate`               | Login form submission                                       |
-| `POST` | `/tenants/{tenant}/login-actions/consent`                    | Consent screen submission (allow/deny)                      |
-| `POST` | `/tenants/{tenant}/login-actions/select-account`             | Account chooser submission                                  |
-| `POST` | `/tenants/{tenant}/login-actions/required-action`            | Complete a pending required action (enrolment, password)    |
-| `POST` | `/tenants/{tenant}/login-actions/passkey-challenge`          | Request options for a usernameless passkey assertion        |
-| `GET`  | `/tenants/{tenant}/login-actions/registration`               | Self-registration form                                      |
-| `POST` | `/tenants/{tenant}/login-actions/registration`               | Self-registration submission                                |
-| `GET`  | `/tenants/{tenant}/login-actions/action-token`               | Redeem a mailed action token (verify email, reset password) |
-| `POST` | `/tenants/{tenant}/login-actions/action-token`               | Submit a new password against a reset-password token        |
-| `GET`  | `/tenants/{tenant}/login-actions/reset-password`             | Password reset request form                                 |
-| `POST` | `/tenants/{tenant}/login-actions/reset-password`             | Password reset request submission                           |
-| `POST` | `/tenants/{tenant}/protocol/openid-connect/token`            | Token endpoint                                              |
-| `POST` | `/tenants/{tenant}/protocol/openid-connect/token/introspect` | Token introspection (RFC 7662)                              |
-| `POST` | `/tenants/{tenant}/protocol/openid-connect/revoke`           | Token revocation (RFC 7009)                                 |
-| `GET`  | `/tenants/{tenant}/protocol/openid-connect/userinfo`         | UserInfo                                                    |
-| `POST` | `/tenants/{tenant}/protocol/openid-connect/userinfo`         | UserInfo (form)                                             |
-| `GET`  | `/tenants/{tenant}/protocol/openid-connect/logout`           | RP-initiated logout (`end_session_endpoint`)                |
-| `POST` | `/tenants/{tenant}/protocol/openid-connect/logout`           | RP-initiated logout (form-serialized), confirmation form    |
-| `POST` | `/tenants/{tenant}/clients-registrations/openid-connect`     | Dynamic client registration (RFC 7591)                      |
-| `GET`  | `/health/live`, `/health/ready`                              | Liveness, readiness                                         |
+| Method | Path                                                         | What it is                                                                    |
+| ------ | ------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `GET`  | `/tenants/{tenant}/.well-known/openid-configuration`         | Discovery document                                                            |
+| `GET`  | `/tenants/{tenant}/protocol/openid-connect/certs`            | JWKS (public signing keys)                                                    |
+| `GET`  | `/tenants/{tenant}/protocol/openid-connect/auth`             | Authorization endpoint                                                        |
+| `POST` | `/tenants/{tenant}/protocol/openid-connect/auth`             | Authorization endpoint (form)                                                 |
+| `POST` | `/tenants/{tenant}/login-actions/authenticate`               | Login form submission                                                         |
+| `POST` | `/tenants/{tenant}/login-actions/consent`                    | Consent screen submission (allow/deny)                                        |
+| `POST` | `/tenants/{tenant}/login-actions/select-account`             | Account chooser submission                                                    |
+| `POST` | `/tenants/{tenant}/login-actions/required-action`            | Complete a pending required action (enrolment, password)                      |
+| `POST` | `/tenants/{tenant}/login-actions/passkey-challenge`          | Request options for a usernameless passkey assertion                          |
+| `GET`  | `/tenants/{tenant}/login-actions/registration`               | Self-registration form                                                        |
+| `POST` | `/tenants/{tenant}/login-actions/registration`               | Self-registration submission                                                  |
+| `GET`  | `/tenants/{tenant}/login-actions/action-token`               | Redeem a mailed action token (verify email, reset password, required actions) |
+| `POST` | `/tenants/{tenant}/login-actions/action-token`               | Submit a new password, or the required actions, against a token               |
+| `GET`  | `/tenants/{tenant}/login-actions/reset-password`             | Password reset request form                                                   |
+| `POST` | `/tenants/{tenant}/login-actions/reset-password`             | Password reset request submission                                             |
+| `POST` | `/tenants/{tenant}/protocol/openid-connect/token`            | Token endpoint                                                                |
+| `POST` | `/tenants/{tenant}/protocol/openid-connect/token/introspect` | Token introspection (RFC 7662)                                                |
+| `POST` | `/tenants/{tenant}/protocol/openid-connect/revoke`           | Token revocation (RFC 7009)                                                   |
+| `GET`  | `/tenants/{tenant}/protocol/openid-connect/userinfo`         | UserInfo                                                                      |
+| `POST` | `/tenants/{tenant}/protocol/openid-connect/userinfo`         | UserInfo (form)                                                               |
+| `GET`  | `/tenants/{tenant}/protocol/openid-connect/logout`           | RP-initiated logout (`end_session_endpoint`)                                  |
+| `POST` | `/tenants/{tenant}/protocol/openid-connect/logout`           | RP-initiated logout (form-serialized), confirmation form                      |
+| `POST` | `/tenants/{tenant}/clients-registrations/openid-connect`     | Dynamic client registration (RFC 7591)                                        |
+| `GET`  | `/health/live`, `/health/ready`                              | Liveness, readiness                                                           |
 
 `/login-actions/authenticate` is deliberately outside the
 `/protocol/openid-connect/` namespace: that namespace is the OIDC wire

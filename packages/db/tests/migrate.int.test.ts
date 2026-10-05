@@ -41,6 +41,7 @@ describe('migrations', () => {
 
     expect(rows.map((row) => row.column_name)).toEqual([
       'access_token_ttl_seconds',
+      'audit_event_types',
       'audit_retention_days',
       'authorization_code_ttl_seconds',
       'brute_force_failure_reset_seconds',

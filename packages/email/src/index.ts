@@ -2,8 +2,10 @@ export { type EmailMessage, type EmailSender } from '#/service/sender';
 export {
   renderVerifyEmail,
   renderResetPassword,
+  renderRequiredActions,
   type VerifyEmailInput,
   type ResetPasswordInput,
+  type RequiredActionsInput,
 } from '#/service/templates';
 export { smtpSender, type SmtpConfig } from '#/adapter/smtp';
 export { capturingSender } from '#/adapter/capturing';

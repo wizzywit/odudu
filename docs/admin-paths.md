@@ -335,6 +335,7 @@ not re-run — each says so, and why, where it appears.
 | `POST`   | `/admin/tenants/{tenant}/subjects/:id/password`                  | Issue a one-time password                  |
 | `POST`   | `/admin/tenants/{tenant}/subjects/:id/password-reset`            | Send a reset-password link                 |
 | `POST`   | `/admin/tenants/{tenant}/subjects/:id/verification`              | Resend a verification link                 |
+| `POST`   | `/admin/tenants/{tenant}/subjects/:id/actions-email`             | Email a link through required actions      |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/lockout`                   | Read a subject's brute-force lockout       |
 | `DELETE` | `/admin/tenants/{tenant}/subjects/:id/lockout`                   | Clear a brute-force lockout                |
 | `DELETE` | `/admin/tenants/{tenant}/lockouts`                               | Clear every lockout in the tenant          |
@@ -4599,6 +4600,49 @@ Keep-Alive: timeout=72
 {"type":"about:blank#no-email","title":"Conflict","status":409,"detail":"the subject has no email address to send to","instance":"01a0ee8c-62de-71e8-afbb-2a704e8fa724"}
 {"items":[{"id":"01a0ee8c-62ab-7858-b95a-960db8f34277","occurred_at":"2026-09-29T19:02:52.832Z","event_type":"admin_mutation","action":"subject.password_reset_send","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"subject","resource_id":"01a0ee8a-c58a-716c-96a6-edcab4ca1a70","request_id":"01a0ee8c-6291-7ba8-91e6-d08ea702a515","ip":"172.22.0.1","detail":{}}]}
 ```
+
+## `POST /subjects/:id/actions-email`
+
+Requires `manage-users`. The body names the required actions the link takes
+the subject through — `{"actions": […]}`, at least one of `update-password`,
+`configure-totp`, `configure-passkey` and `generate-recovery-codes`, the
+vocabulary `PUT /subjects/:id/required-actions` takes, anything else refused
+with `400` — and optionally a `redirect_uri` with the `client_id` that
+registered it. The link is minted and mailed to the subject's own address by
+`enqueueActionsLink` (`@odudu/account`), and the answer is `202` with no
+body. The two routes above are the same core with a fixed link: one
+`sendAccountEmail` (`packages/protocol-admin/src/usecase/account-email.ts`)
+does the lookups, the target ceiling, the three `409`s, the mail and the
+audit row for all three, so they cannot drift.
+
+**What the link does.** Opening it shows the actions, and consumes nothing,
+so a mail scanner's `GET` does not spend it. Submitting it sets a new
+password where `update-password` is named, under the reset link's rules — the
+tenant's policy, the previous password refused, every outstanding reset link
+retired — and owes every other action, so the subject's next sign-in parks on
+each, as it does for one an administrator set. **The link alone never enrols
+a factor**: possession of a mailbox stands in for a forgotten password, as a
+reset link's does, but enrolling a TOTP secret or a passkey still takes a
+sign-in with the password and whatever factor the subject already holds. The
+link lives as long as a reset link (`reset_password_ttl_seconds`), since it
+signs its subject in by their mailbox the same way, and it is spent once.
+
+**A `redirect_uri` is only ever one the client registered.** The link's last
+page offers it as "Back to the application", so it must equal, exactly, one
+of the `redirect_uris` of the client `client_id` names, or the request is
+refused with `400` naming the field; a `redirect_uri` without a `client_id`,
+or a `client_id` without a `redirect_uri`, is refused the same way. Any other
+target would make this server's page an open redirect under its own name.
+
+The `409`s are the reset's: `about:blank#no-email`, `about:blank#no-mail-relay`,
+and `about:blank#reset-password-off` when `update-password` is named while
+the tenant's `reset_password_allowed` is off — its reset page would refuse
+the link, and an outstanding link stops working the moment the setting is
+turned off. It is held to the target ceiling and throttled per origin with
+the sign-in, registration and reset submissions, as the two routes above
+are. The link is never in the response, and the audit row,
+`subject.actions_email_send`, names the actions, the client and the
+redirect and nothing else.
 
 ## `POST /subjects/:id/password`
 

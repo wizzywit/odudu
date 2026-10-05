@@ -187,6 +187,7 @@ import {
   type OperationsRouteDeps,
 } from '#/view/routes/operations';
 import {
+  sendActionsEmailHandler,
   sendPasswordResetHandler,
   sendVerificationHandler,
   type AccountEmailRouteDeps,
@@ -264,9 +265,9 @@ export interface AdminRoutesDeps {
   // administrator issues it a one-time password. The links belong to
   // @odudu/account, which the composition root wires this to.
   retireResetLinks: (tx: TenantScopedDatabase, subjectId: string) => Promise<void>;
-  // Mints a reset-password or verification link and queues its mail, the
-  // write @odudu/account's self-service doors make; wired at the composition
-  // root with the public base URL a link is addressed under.
+  // Mints a reset-password, verification or required-actions link and queues
+  // its mail, the write @odudu/account's own doors make; wired at the
+  // composition root with the public base URL a link is addressed under.
   sendAccountLink: SendAccountLink;
   // `ODUDU_OUTBOX_MAX_ATTEMPTS`, the attempts the mail sender makes before it
   // stops offering a message: what `GET …/mail` reports as `failed`.
@@ -570,6 +571,8 @@ function buildAdminRoutes(
         sendPasswordResetHandler(accountEmailDeps),
       'POST /admin/tenants/:tenant/subjects/:id/verification':
         sendVerificationHandler(accountEmailDeps),
+      'POST /admin/tenants/:tenant/subjects/:id/actions-email':
+        sendActionsEmailHandler(accountEmailDeps),
       'GET /admin/tenants/:tenant/subjects/:id/lockout': readLockoutHandler(accountRecoveryDeps),
       'DELETE /admin/tenants/:tenant/subjects/:id/lockout':
         clearLockoutHandler(accountRecoveryDeps),

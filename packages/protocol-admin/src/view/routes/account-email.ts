@@ -1,12 +1,13 @@
+import { sendActionsEmailRequestSchema } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import {
   sendAccountEmail,
   type AccountEmailDeps,
-  type AccountEmailKind,
+  type AccountEmailPurpose,
 } from '#/usecase/account-email';
-import { problem, sendProblem } from '#/view/problem';
+import { fieldProblem, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
-import { type AdminRouteHandler } from '#/view/routes/router';
+import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 import { targetCeilingProblem } from '#/view/routes/subjects';
 
 export interface AccountEmailRouteDeps extends AccountEmailDeps {
@@ -17,22 +18,25 @@ export interface AccountEmailRouteDeps extends AccountEmailDeps {
   ) => Promise<ReadonlySet<string>>;
 }
 
-function accountEmailHandler(
-  deps: AccountEmailRouteDeps,
-  kind: AccountEmailKind,
-): AdminRouteHandler {
+type PurposeOf = (request: AdminRequest) => AccountEmailPurpose;
+
+// The two self-service links and the actions link share this one core:
+// the same lookups, ceiling, refusals, mail and audit, told apart only by
+// the link they ask `@odudu/account` to mint.
+function accountEmailHandler(deps: AccountEmailRouteDeps, purposeOf: PurposeOf): AdminRouteHandler {
   return async (request, reply, principal, targetTenantId) => {
     const { id, tenant: tenantName } = request.params;
     if (id === undefined || tenantName === undefined) {
       throw new Error('protocol-admin: account email route received no :tenant/:id');
     }
+    const purpose = purposeOf(request);
     const callerCapabilities = await deps.callerCapabilities(
       principal.issuerTenantId,
       principal.subjectId,
     );
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
       sendAccountEmail(tx, deps, {
-        kind,
+        ...purpose,
         tenantId: targetTenantId,
         tenantName,
         subjectId: id,
@@ -43,6 +47,12 @@ function accountEmailHandler(
       }),
     );
     switch (outcome.kind) {
+      case 'invalid_value':
+        return sendProblem(
+          reply,
+          request,
+          fieldProblem([{ path: outcome.field, message: outcome.description }]),
+        );
       case 'queued':
         return reply.code(202).send();
       case 'not_found':
@@ -106,9 +116,22 @@ function accountEmailHandler(
 }
 
 export function sendPasswordResetHandler(deps: AccountEmailRouteDeps): AdminRouteHandler {
-  return accountEmailHandler(deps, 'reset_password');
+  return accountEmailHandler(deps, () => ({ kind: 'reset_password' }));
 }
 
 export function sendVerificationHandler(deps: AccountEmailRouteDeps): AdminRouteHandler {
-  return accountEmailHandler(deps, 'verify_email');
+  return accountEmailHandler(deps, () => ({ kind: 'verify_email' }));
+}
+
+export function sendActionsEmailHandler(deps: AccountEmailRouteDeps): AdminRouteHandler {
+  return accountEmailHandler(deps, (request) => {
+    // Already validated by the router against this schema; parsing narrows the type.
+    const body = sendActionsEmailRequestSchema.parse(request.body);
+    return {
+      kind: 'execute_actions',
+      actions: body.actions,
+      clientId: body.client_id ?? null,
+      redirectUri: body.redirect_uri ?? null,
+    };
+  });
 }

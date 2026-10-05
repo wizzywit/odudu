@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderResetPassword, renderVerifyEmail } from '#/service/templates';
+import { renderRequiredActions, renderResetPassword, renderVerifyEmail } from '#/service/templates';
 
 describe('renderVerifyEmail', () => {
   it('puts the action link in both the text and the html body', () => {
@@ -57,5 +57,21 @@ describe('renderResetPassword', () => {
       tenantDisplayName: '<script>alert(1)</script>',
     });
     expect(msg.html).not.toContain('<script>');
+  });
+});
+
+describe('renderRequiredActions', () => {
+  it('lists each action, escaped in the html body, and carries the link in both', () => {
+    const msg = renderRequiredActions({
+      to: 'ada@example.test',
+      link: 'https://idp.example/x?key=abc',
+      tenantDisplayName: 'Demo <Co>',
+      actions: ['Choose a new password', 'Set up <an> app'],
+    });
+    expect(msg.text).toContain('- Choose a new password\n- Set up <an> app');
+    expect(msg.text).toContain('visiting this link:\n\nhttps://idp.example/x?key=abc');
+    expect(msg.html).toContain('<li>Set up &lt;an&gt; app</li>');
+    expect(msg.html).not.toContain('<Co>');
+    expect(msg.html).toContain('https://idp.example/x?key=abc');
   });
 });

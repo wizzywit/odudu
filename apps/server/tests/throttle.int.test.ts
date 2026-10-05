@@ -304,7 +304,7 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
     }
   });
 
-  it('holds an administrator’s reset and verification sends to the self-service budget', async () => {
+  it('holds an administrator’s mail sends to the self-service budget', async () => {
     const tenantName = `throttle-${newId()}`;
     await seed({
       tenant: tenantName,
@@ -322,14 +322,20 @@ describe('the per-origin throttle on the routes that cost CPU', () => {
           url: `/admin/tenants/${tenantName}/subjects/${subject}/${tail}`,
           headers: { authorization: 'Bearer not-a-token' },
           remoteAddress,
+          ...(tail === 'actions-email' ? { payload: { actions: ['configure-totp'] } } : {}),
         });
       const answered: number[] = [];
       for (let attempt = 0; attempt < DEFAULT_THROTTLE.limit; attempt += 1) {
         answered.push(
-          (await send(attempt % 2 === 0 ? 'password-reset' : 'verification', ORIGIN)).statusCode,
+          (
+            await send(
+              ['password-reset', 'verification', 'actions-email'][attempt % 3] ?? '',
+              ORIGIN,
+            )
+          ).statusCode,
         );
       }
-      const refused = await send('password-reset', ORIGIN);
+      const refused = await send('actions-email', ORIGIN);
       const elsewhere = await send('verification', OTHER_ORIGIN);
 
       expect(answered).toEqual(Array.from({ length: DEFAULT_THROTTLE.limit }, () => 401));
