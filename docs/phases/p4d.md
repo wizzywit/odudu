@@ -1556,3 +1556,11 @@ Found by the review of that work and fixed with it:
 - The emailed actions page linked "Back to the application" to the bare `redirect_uri`, whose callback carries no `code` or `state`. It now says to sign in to the application. The `redirect_uri`/`client_id` pair on `actions-email` is still validated, stored and audited, and nothing reads it back: the usecase's `redirectStillRegistered` check and the `done` result's `redirectUri` were removed as dead. Whether the pair stays in the admin API is a contract question for the admin API's owner.
 - The code form was titled "Sign in" with a "Sign in" button. It is now "Enter your authentication code" with "Verify"; the recovery-code-only form is "Enter a recovery code".
 - A bracketed IPv6 loopback `redirect_uri` still gets `form-action 'self'` only, a closed failure recorded in ADR 0018.
+
+**Groups, roles, and a sign-in that resumes.**
+
+- **Ceilings without a request per node.** Groups and roles answer their own admin reach (`admin_reach`, `subtree_admin_reach`, `holds_default_group`), so the console judges every group and role write before offering it.
+- **The move race.** A move that races a sibling for its name answers 409, not 500. The test forces the race with a trigger and an advisory lock.
+- **Required actions.** Trying the console showed that every required action ran the login again: two or three password forms, and three codes to enrol TOTP. A completed action now resumes the same authentication session. Each factor is recorded as it passes, and the enrolment code counts as the second.
+- **Second-factor bypass.** The same work found an older bypass. A reused password-only SSO session could be handed fresh recovery codes for a subject who had since enrolled TOTP. Reuse is now judged against the flow as the subject currently stands, and a disabled subject's session is never reused.
+- **Cross-origin redirect.** The login and logout pages' `form-action 'self'` stopped Chromium from following the redirect to a client on another origin. They now name that client's redirect origin, taken from the validated request (ADR 0018's amendment). CI's Config OP plan uses no browser, which is why nothing caught it.
