@@ -112,11 +112,11 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
             description: subject.email ?? (subject.type === 'user' ? 'No email' : subject.type),
           })}
       noun="subject"
-      {...(page.beyond.length > 0
-        ? { viewOnly: <BeyondNote name={name} beyond={page.beyond} /> }
-        : page.changeNeeds.length === 0
-          ? {}
-          : { viewOnly: <ViewOnlyNote noun="subjects" needs={page.changeNeeds} /> })}
+      {...(page.changeNeeds.length > 0
+        ? { viewOnly: <ViewOnlyNote noun="subjects" needs={page.changeNeeds} /> }
+        : page.beyond.length > 0
+          ? { viewOnly: <BeyondNote name={name} beyond={page.beyond} /> }
+          : {})}
       label="Subject sections"
       tab={page.tab}
       onTabChange={page.selectTab}

@@ -63,3 +63,9 @@
 .editor:empty {
   display: none;
 }
+
+.count {
+  margin: 0;
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+}

@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import {
   expect,
   expectAccessible,
@@ -31,6 +31,15 @@ function heldRoles(username: string): string {
   return psql(
     `select coalesce(string_agg(r.name, ',' order by r.name), '') from subject_roles sr join roles r on r.id = sr.role_id where sr.subject_id = '${subjectId(username)}'`,
   );
+}
+
+// Moves focus with Tab alone until it lands on `target`.
+async function tabTo(page: Page, target: Locator): Promise<void> {
+  for (let pressed = 0; pressed < 40; pressed += 1) {
+    if (await target.evaluate((node) => node === document.activeElement)) return;
+    await page.keyboard.press('Tab');
+  }
+  await expect(target).toBeFocused();
 }
 
 async function openSubject(page: Page, username: string, tab: Tab): Promise<void> {
@@ -108,13 +117,20 @@ test("a system administrator changes a holder's capabilities from the tenant's r
   );
   await expectAccessible(page);
 
-  await holders.getByRole('button', { name: `Change ${subjects.listed}’s capabilities` }).focus();
+  await page.getByRole('searchbox', { name: 'Search by Username' }).focus();
+  await page.keyboard.type(subjects.listed);
+  await page.keyboard.press('Enter');
+  await expect(holders.getByRole('link')).toHaveText([subjects.listed]);
+  await tabTo(
+    page,
+    holders.getByRole('button', { name: `Change ${subjects.listed}’s capabilities` }),
+  );
   await page.keyboard.press('Enter');
   const section = holders.getByRole('region', { name: 'Admin capabilities' });
-  await section.getByRole('checkbox', { name: 'manage-sessions' }).focus();
+  await tabTo(page, section.getByRole('checkbox', { name: 'manage-sessions' }));
   await page.keyboard.press('Space');
   await expectAccessible(page);
-  await section.getByRole('button', { name: 'Save Admin capabilities' }).focus();
+  await tabTo(page, section.getByRole('button', { name: 'Save Admin capabilities' }));
   await page.keyboard.press('Enter');
   await expect(holders.getByRole('list', { name: `What ${subjects.listed} holds` })).toContainText(
     'manage-sessions',
@@ -163,7 +179,7 @@ test('an administrator ends their own sessions, is told so first, and is signed 
   await page.getByRole('tab', { name: 'Sessions' }).click();
   await page.getByRole('button', { name: 'End every session' }).click();
   const dialog = page.getByRole('alertdialog', { name: 'End every session of your own?' });
-  await expect(dialog).toContainText('the one this console signed you in through');
+  await expect(dialog).toContainText('The one this console signed you in through is among them');
   await expectAccessible(page);
   await dialog.getByRole('button', { name: 'End every session' }).click();
   await page.getByRole('tab', { name: 'Activity' }).click();
@@ -260,7 +276,12 @@ test('a Profile edit made as the session ends is restored after signing in again
     (response) =>
       new URL(response.url()).pathname === '/console/api/session' && response.status() === 200,
   );
+  // The way back runs through the tenant's own sign-in, not around it.
+  const authorize = page.waitForRequest((request) =>
+    new URL(request.url()).pathname.endsWith(`/tenants/${TENANT}/protocol/openid-connect/auth`),
+  );
   await page.getByRole('button', { name: 'Save Name' }).click();
+  await authorize;
   await back;
   forgiveEnded(problems);
 

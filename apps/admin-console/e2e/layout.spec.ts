@@ -149,18 +149,18 @@ test.describe('the way back to system', () => {
 
 // Every control in the bar on one line shares that line's centre.
 async function expectOneCentreLine(page: Page, singleRow: boolean): Promise<void> {
-  const bar = page.getByRole('search', { name: 'Filter system administrators' });
+  const bar = page.getByRole('search', { name: 'Filter administrators' });
   const controls = [
     bar.locator('[data-fixed]'),
     bar.getByRole('searchbox'),
     bar.getByRole('button', { name: 'Search', exact: true }),
     bar.getByRole('button', { name: /Status/u }),
-    bar.getByText(/^\d+\+? system administrators?$/u),
+    bar.getByRole('button', { name: /Holds/u }),
     bar.getByRole('button', { name: 'Clear filters' }),
     bar.getByText(/^or press/u),
   ];
   const boxes = await Promise.all(controls.map(box));
-  expect(new Set(boxes.slice(0, 4).map((b) => Math.round(b.h)))).toEqual(new Set([40]));
+  expect(new Set(boxes.slice(0, 5).map((b) => Math.round(b.h)))).toEqual(new Set([40]));
   const rows: { first: number; centres: number[] }[] = [];
   for (const b of boxes) {
     const centre = b.y + b.h / 2;
@@ -177,7 +177,7 @@ async function expectOneCentreLine(page: Page, singleRow: boolean): Promise<void
 async function openNarrowedAdministrators(page: Page): Promise<void> {
   await signIn(page, system);
   await page.goto('/console/system/system-admins?enabled=true');
-  await expect(page.getByRole('grid', { name: 'System administrators' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Administrators of system' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Clear filters' })).toBeVisible();
 }
 

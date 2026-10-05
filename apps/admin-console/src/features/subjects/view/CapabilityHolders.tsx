@@ -181,11 +181,6 @@ export function CapabilityHolders({
         onSearch={list.setSearch}
         onClear={list.clear}
         active={list.narrowed}
-        count={
-          list.count === null ? null : (
-            <Count count={list.count.count} capped={list.count.capped} noun={NOUN} />
-          )
-        }
       >
         <SelectField
           label="Status"
@@ -204,6 +199,11 @@ export function CapabilityHolders({
           }}
         />
       </FilterBar>
+      {list.count === null ? null : (
+        <p className={styles.count}>
+          <Count count={list.count.count} capped={list.count.capped} noun={NOUN} />
+        </p>
+      )}
       {body}
     </div>
   );

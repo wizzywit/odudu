@@ -30,9 +30,9 @@ async function openSystemAdministrators(page: Page): Promise<Locator> {
   await expect(
     page.getByRole('heading', { level: 1, name: 'System administrators' }),
   ).toBeVisible();
-  const grid = page.getByRole('grid', { name: 'System administrators' });
-  await expect(grid).toBeVisible();
-  return grid;
+  const list = page.getByRole('list', { name: 'Administrators of system' });
+  await expect(list).toBeVisible();
+  return list;
 }
 
 async function takeSecret(dialog: Locator): Promise<string> {
@@ -56,6 +56,25 @@ async function expectNowhere(page: Page, secret: string): Promise<void> {
 async function search(page: Page, username: string): Promise<void> {
   await page.getByRole('searchbox', { name: 'Search by Username' }).fill(username);
   await page.getByRole('searchbox', { name: 'Search by Username' }).press('Enter');
+  await expect(
+    page.getByRole('list', { name: 'Administrators of system' }).getByRole('link'),
+  ).toHaveText([username]);
+}
+
+async function chooseSubject(page: Page, username: string): Promise<void> {
+  const choose = page.getByRole('group', { name: 'Subject in system' });
+  await choose.getByRole('searchbox', { name: 'Search subjects by username' }).fill(username);
+  await choose.getByRole('button', { name: 'Search' }).click();
+  await choose.getByRole('option', { name: new RegExp(username, 'u') }).click();
+}
+
+// Moves focus with Tab alone until it lands on `target`.
+async function tabTo(page: Page, target: Locator): Promise<void> {
+  for (let pressed = 0; pressed < 40; pressed += 1) {
+    if (await target.evaluate((node) => node === document.activeElement)) return;
+    await page.keyboard.press('Tab');
+  }
+  await expect(target).toBeFocused();
 }
 
 test('a system administrator is created with a password shown once, and lands in the list', async ({
@@ -64,11 +83,10 @@ test('a system administrator is created with a password shown once, and lands in
 }) => {
   const username = systemAdmins.created;
   await signIn(page, system);
-  const grid = await openSystemAdministrators(page);
-  await expect(grid).toContainText(system.username);
+  await openSystemAdministrators(page);
   await expectAccessible(page);
 
-  await page.getByRole('button', { name: 'Create a system administrator' }).click();
+  await page.getByRole('button', { name: 'Create a new subject as an administrator' }).click();
   await expect(
     page.getByRole('heading', { level: 1, name: 'Add a system administrator' }),
   ).toBeVisible();
@@ -88,10 +106,12 @@ test('a system administrator is created with a password shown once, and lands in
 
   await page.getByRole('link', { name: 'Back to System administrators' }).click();
   await search(page, username);
-  await expect(page.getByRole('grid', { name: 'System administrators' })).toContainText(username);
+  await expect(page.getByRole('list', { name: `What ${username} holds` })).toHaveText(
+    'Full (tenant-admin) · directly',
+  );
   await expectNowhere(page, password);
   await page.reload();
-  await expect(page.getByRole('grid', { name: 'System administrators' })).toContainText(username);
+  await expect(page.getByRole('list', { name: `What ${username} holds` })).toBeVisible();
   await expectNowhere(page, password);
 
   const theirs = await browser.newContext();
@@ -104,21 +124,20 @@ test('a system administrator is created with a password shown once, and lands in
   await theirs.close();
 });
 
-test('an existing subject of system is chosen and granted tenant-admin', async ({ page }) => {
+test('an existing subject of system is chosen and given Full', async ({ page }) => {
   const { username } = systemAdmins.candidate;
   expect(adminRoles(username)).toBe('');
   await signIn(page, system);
   await openSystemAdministrators(page);
-  const choose = page.getByRole('group', { name: 'Subject in system' });
-  await choose.getByRole('searchbox', { name: 'Search subjects by username' }).fill(username);
-  await choose.getByRole('button', { name: 'Search' }).click();
-  await choose.getByRole('option', { name: new RegExp(username, 'u') }).click();
+  await chooseSubject(page, username);
+  await expect(page.getByRole('checkbox', { name: 'Full (tenant-admin)' })).toBeChecked();
   await expectAccessible(page);
-  await page.getByRole('button', { name: `Grant tenant-admin to ${username}` }).click();
-  await expect(page.getByText(`${username} is now a system administrator.`)).toBeVisible();
+  await page.getByRole('button', { name: `Give it to ${username}` }).click();
+  await expect(
+    page.getByText(`${username} now holds Full (tenant-admin) in system.`),
+  ).toBeVisible();
   expect(adminRoles(username)).toBe('tenant-admin');
   await search(page, username);
-  await expect(page.getByRole('grid', { name: 'System administrators' })).toContainText(username);
   await expectAccessible(page);
 });
 
@@ -131,12 +150,12 @@ test('the grant picker marks a current holder and will not choose them', async (
   await choose.getByRole('button', { name: 'Search' }).click();
   const holder = choose.getByRole('option', { name: new RegExp(username, 'u') });
   await expect(holder).toHaveAttribute('aria-disabled', 'true');
-  await expect(holder).toContainText('already a system administrator');
-  await expect(page.getByRole('button', { name: 'Grant tenant-admin' })).toBeDisabled();
+  await expect(holder).toContainText('already holds a capability');
+  await expect(page.getByRole('button', { name: 'Give it to the chosen subject' })).toBeDisabled();
   await expectAccessible(page);
 });
 
-test('a grant that meets roles changed under it says so beside Grant, and changes nothing', async ({
+test('a grant that meets roles changed under it says so beside the button, and changes nothing', async ({
   page,
   problems,
 }) => {
@@ -156,88 +175,87 @@ test('a grant that meets roles changed under it says so beside Grant, and change
           })
         : route.fallback(),
   );
-  const choose = page.getByRole('group', { name: 'Subject in system' });
-  await choose.getByRole('searchbox', { name: 'Search subjects by username' }).fill(username);
-  await choose.getByRole('button', { name: 'Search' }).click();
-  await choose.getByRole('option', { name: new RegExp(username, 'u') }).click();
-  await page.getByRole('button', { name: `Grant tenant-admin to ${username}` }).click();
+  await chooseSubject(page, username);
+  await page.getByRole('button', { name: `Give it to ${username}` }).click();
   await expect(
     page
-      .getByRole('region', { name: 'Grant to an existing subject' })
+      .getByRole('region', { name: 'Add an administrator' })
       .getByRole('status', { name: 'Last grant' }),
-  ).toHaveText(
-    `${username} was not granted tenant-admin: their roles changed while this ran. Try again.`,
-  );
+  ).toHaveText(`${username} was not given it: their roles changed while this ran. Try again.`);
   expect(adminRoles(username)).toBe(before);
   await expectAccessible(page);
   forgive(problems, '/roles');
 });
 
-test('a revoke is typed, by keyboard alone, and your own says so', async ({ page }) => {
+test('taking system administration is typed, by keyboard alone, and your own says so', async ({
+  page,
+}) => {
   const { username } = systemAdmins.revokee;
   expect(adminRoles(username)).toBe('tenant-admin');
   await signIn(page, system);
   await openSystemAdministrators(page);
 
-  await page.getByRole('button', { name: `Revoke ${system.username}` }).click();
+  await search(page, system.username);
+  await page.getByRole('button', { name: `Change ${system.username}’s capabilities` }).click();
+  const mine = page.getByRole('region', { name: 'Admin capabilities' });
+  await mine.getByText('Full (tenant-admin)', { exact: true }).click();
+  await mine.getByRole('button', { name: 'Save Admin capabilities' }).click();
   const own = page.getByRole('alertdialog', { name: 'Revoke your own system administration?' });
-  await expect(own).toContainText('You are revoking your own system administration');
+  await expect(own).toContainText('You are taking Full (tenant-admin) from yourself');
   await expectAccessible(page);
   await own.getByRole('button', { name: 'Cancel' }).click();
   await expect(own).toBeHidden();
+  await mine.getByRole('button', { name: /Discard/u }).click();
 
   const box = page.getByRole('searchbox', { name: 'Search by Username' });
   await box.focus();
+  await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.type(username);
   await page.keyboard.press('Enter');
-  const grid = page.getByRole('grid', { name: 'System administrators' });
-  await expect(grid.getByRole('row')).toHaveCount(2);
-  const revoke = page.getByRole('button', { name: `Revoke ${username}` });
-  for (let pressed = 0; pressed < 20; pressed += 1) {
-    if (await revoke.evaluate((node) => node === document.activeElement)) break;
-    const inGrid = await grid.evaluate((node) => node.contains(document.activeElement));
-    await page.keyboard.press(inGrid ? 'ArrowRight' : 'Tab');
-  }
-  await expect(revoke).toBeFocused();
+  const list = page.getByRole('list', { name: 'Administrators of system' });
+  await expect(list.getByRole('link')).toHaveText([username]);
+  const change = list.getByRole('button', { name: `Change ${username}’s capabilities` });
+  await tabTo(page, change);
   await page.keyboard.press('Enter');
-  const dialog = page.getByRole('alertdialog', { name: `Revoke ${username}?` });
-  await expect(dialog).toContainText(`${username} loses tenant-admin and manage-tenants`);
-  await expect(dialog.getByRole('button', { name: 'Revoke' })).toBeDisabled();
+  const section = list.getByRole('region', { name: 'Admin capabilities' });
+  const full = section.getByRole('checkbox', { name: 'Full (tenant-admin)' });
+  await tabTo(page, full);
+  await page.keyboard.press('Space');
+  const save = section.getByRole('button', { name: 'Save Admin capabilities' });
+  await tabTo(page, save);
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('alertdialog', {
+    name: `Take system administration from ${username}?`,
+  });
+  await expect(dialog).toContainText(`${username} loses Full (tenant-admin)`);
+  await expect(dialog.getByRole('button', { name: 'Save Admin capabilities' })).toBeDisabled();
   await expectAccessible(page);
   await page.keyboard.type(username);
   await page.keyboard.press('Enter');
   await expect(dialog).toBeHidden();
-  await expect(page.getByText(`${username} is no longer a system administrator.`)).toBeVisible();
-  // The list was searched down to them, so it now matches nobody.
-  await expect(page.getByText(`No system administrators match “${username}”`)).toBeVisible();
+  await expect(page.getByText('Admin capabilities saved')).toBeVisible();
   expect(adminRoles(username)).toBe('');
   await expectAccessible(page);
 });
 
-test('the only enabled holder cannot be revoked, and the page says why beforehand', async ({
-  page,
-}) => {
+test('the only enabled holder keeps it, and the editor says why beforehand', async ({ page }) => {
   await signIn(page, system);
-  // Every other test shares system, so it keeps its many holders; the two
-  // reads that decide this state are narrowed to this principal alone.
+  // Every other test shares system, so it keeps its many holders; the count
+  // that decides this state is answered for this principal alone.
   const SUBJECTS = '/console/api/admin/tenants/system/subjects';
   await page.route(
     (url) => url.pathname === `${SUBJECTS}/count` && url.searchParams.get('enabled') === 'true',
     (route) => route.fulfill({ json: { count: 1, capped: false } }),
   );
-  await page.route(
-    (url) => url.pathname === SUBJECTS && url.searchParams.get('capability') === 'manage-tenants',
-    async (route) => {
-      const url = new URL(route.request().url());
-      url.searchParams.set('username', system.username);
-      await route.fulfill({ response: await route.fetch({ url: url.toString() }) });
-    },
-  );
   await openSystemAdministrators(page);
-  const revoke = page.getByRole('button', { name: `Revoke ${system.username}` });
-  await expect(revoke).toBeDisabled();
-  await expect(revoke).toHaveAccessibleDescription(
-    `${system.username} is the only enabled system administrator, so revoking them is refused: system would be left with nobody who holds manage-tenants. Add another first.`,
+  await search(page, system.username);
+  await page.getByRole('button', { name: `Change ${system.username}’s capabilities` }).click();
+  const full = page
+    .getByRole('region', { name: 'Admin capabilities' })
+    .getByRole('checkbox', { name: 'Full (tenant-admin)' });
+  await expect(full).toBeDisabled();
+  await expect(full).toHaveAccessibleDescription(
+    new RegExp(`${system.username} is the only enabled holder of manage-tenants`, 'u'),
   );
   await expectAccessible(page);
 });
@@ -251,11 +269,10 @@ test('an operator holding manage-tenants and view-users alone is offered none of
   ).toHaveText(['Tenants', 'System administrators', 'Overview', 'Subjects', 'Switch tenant']);
   await openSystemAdministrators(page);
   await expect(page.getByRole('note')).toContainText(
-    'You can view system administrators but not create them or grant or revoke tenant-admin (needs manage-users',
+    'You can view system administrators but not create them or change what they hold (needs manage-users',
   );
-  await expect(page.getByRole('button', { name: 'Create a system administrator' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /^Revoke /u })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /^Grant tenant-admin/u })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Add an administrator' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /capabilities/u })).toHaveCount(0);
   await expectAccessible(page);
 });
 
@@ -272,7 +289,6 @@ test('the System administrators page fits a phone', async ({ page }) => {
   );
   expect(overflow).toBeLessThanOrEqual(0);
   // Empty, yet in the accessibility tree, so what fills it is announced.
-  await expect(page.getByRole('status', { name: 'Last revoke' })).toBeAttached();
   await expect(page.getByRole('status', { name: 'Last grant' })).toBeAttached();
   await expectAccessible(page);
 });
