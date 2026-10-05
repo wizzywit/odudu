@@ -36,6 +36,7 @@ let http: FastifyInstance;
 const owed: { subjectId: string; actions: readonly string[] }[] = [];
 
 const OLD_PASSWORD = 'correct horse battery';
+const STILL_REGISTERED = { clientId: newId(), uri: 'https://app.example/cb?a=1&b="x"' };
 const NEW_PASSWORD = 'a much longer new passphrase';
 
 beforeAll(async () => {
@@ -67,6 +68,10 @@ beforeAll(async () => {
     evaluatePassword,
     unchangedPasswordViolations: () => Promise.resolve([]),
     clearPasswordUpdateAction: () => Promise.resolve(),
+    redirectStillRegistered: (_tx, clientId, redirectUri) =>
+      Promise.resolve(
+        clientId === STILL_REGISTERED.clientId && redirectUri === STILL_REGISTERED.uri,
+      ),
     addRequiredActions: (_tx, _tenantId, subjectId, actions) => {
       owed.push({ subjectId, actions });
       return Promise.resolve();
@@ -115,6 +120,7 @@ async function mail(
   seeded: Seeded,
   actions: readonly string[],
   redirectUri: string | null,
+  redirectClientId: string | null = redirectUri === null ? null : STILL_REGISTERED.clientId,
 ): Promise<string> {
   const link = await withTenant(app.db, seeded.tenantId, async (tx) => {
     const tenant = {
@@ -124,7 +130,7 @@ async function mail(
       issuerBase: 'https://idp.example.test',
     };
     const user = { subjectId: seeded.subjectId, email: 'ada@example.test' };
-    await enqueueActionsLink(tx, tenant, user, { actions, redirectUri });
+    await enqueueActionsLink(tx, tenant, user, { actions, redirectUri, redirectClientId });
     const rows = await tx.select().from(emailOutbox);
     return /visiting this link:\n\n(\S+)/.exec(rows[rows.length - 1]?.bodyText ?? '')?.[1];
   });
@@ -268,6 +274,15 @@ describe('a link that takes its subject through required actions', () => {
     const reset = await mailReset(seeded);
     expect((await submit(seeded, keyOf(reset), NEW_PASSWORD)).statusCode).toBe(200);
     expect((await submit(seeded, keyOf(actions))).statusCode).toBe(200);
+  });
+
+  it('drops the way back when the client no longer registers it', async () => {
+    const seeded = await seed(false);
+    const link = await mail(seeded, ['configure-totp'], 'https://app.example/removed');
+    const done = await submit(seeded, keyOf(link));
+    expect(done.statusCode).toBe(200);
+    expect(done.body).not.toContain('<a ');
+    expect(done.body).not.toContain('removed');
   });
 });
 

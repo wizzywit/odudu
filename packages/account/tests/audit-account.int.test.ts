@@ -217,6 +217,7 @@ beforeAll(async () => {
     },
     clearPasswordUpdateAction: () => Promise.resolve(),
     addRequiredActions: () => Promise.resolve(),
+    redirectStillRegistered: () => Promise.resolve(false),
   });
   await http.ready();
 }, 120_000);

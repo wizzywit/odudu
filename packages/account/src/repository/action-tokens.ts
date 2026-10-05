@@ -31,6 +31,7 @@ export interface IssueActionToken {
   email?: string;
   actions?: readonly string[];
   redirectUri?: string | null;
+  redirectClientId?: string | null;
   ttlSeconds: number;
 }
 
@@ -44,6 +45,7 @@ function toRecord(row: typeof actionTokens.$inferSelect): ActionTokenRecord {
     email: row.email,
     actions: row.actions,
     redirectUri: row.redirectUri,
+    redirectClientId: row.redirectClientId,
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     consumedAt: row.consumedAt,
@@ -80,6 +82,7 @@ export function actionTokenRepository(tx: TenantScopedDatabase) {
         email: input.email ?? null,
         actions: input.actions === undefined ? null : [...input.actions],
         redirectUri: input.redirectUri ?? null,
+        redirectClientId: input.redirectClientId ?? null,
         expiresAt: new Date(Date.now() + input.ttlSeconds * 1000),
         consumedAt: null,
       });

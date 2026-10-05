@@ -4621,7 +4621,9 @@ of the `redirect_uris` of the client `client_id` names, or the request is
 refused with `400` naming `redirect_uri`; a `redirect_uri` without a
 `client_id`, or a `client_id` without a `redirect_uri`, is refused the same
 way, naming `client_id`. Any other target would make this server's page an
-open redirect under its own name. A client that does not exist and one that
+open redirect under its own name. It is checked again when the link is
+followed: the page offers it only while that client is enabled and still
+registers it. A client that does not exist and one that
 never registered the URI get the same answer, so a caller with
 `manage-users` alone learns nothing about another client's registration
 from it, and both are checked only after the subject is found and the

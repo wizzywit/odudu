@@ -242,6 +242,7 @@ function buildHttpApp(): FastifyInstance {
     // apps/server/tests/reset-password.int.test.ts holds the real wiring.
     clearPasswordUpdateAction: () => Promise.resolve(),
     addRequiredActions: () => Promise.resolve(),
+    redirectStillRegistered: () => Promise.resolve(false),
   });
   return instance;
 }

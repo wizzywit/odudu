@@ -652,6 +652,13 @@
       "when": 1789049381735,
       "tag": "0092_execute_actions_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1789049381736,
+      "tag": "0093_action_token_redirect_client",
+      "breakpoints": true
     }
   ]
 }

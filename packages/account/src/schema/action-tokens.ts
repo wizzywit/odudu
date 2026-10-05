@@ -19,6 +19,7 @@ export const actionTokens = pgTable('action_tokens', {
   // and the client redirect URI its last page offers to go back to.
   actions: text('actions').array(),
   redirectUri: text('redirect_uri'),
+  redirectClientId: uuid('redirect_client_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   consumedAt: timestamp('consumed_at', { withTimezone: true }),
@@ -35,6 +36,7 @@ export interface ActionTokenRecord {
   email: string | null;
   actions: readonly string[] | null;
   redirectUri: string | null;
+  redirectClientId: string | null;
   createdAt: Date;
   expiresAt: Date;
   consumedAt: Date | null;

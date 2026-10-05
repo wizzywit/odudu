@@ -9,6 +9,8 @@ import { type ActionLinkTenant } from '#/usecase/reset-password';
 export interface ActionsLink {
   readonly actions: readonly string[];
   readonly redirectUri: string | null;
+  /** The row id of the client that registered `redirectUri`. */
+  readonly redirectClientId: string | null;
 }
 
 /**
@@ -32,6 +34,7 @@ export async function enqueueActionsLink(
     email: user.email,
     actions,
     redirectUri: link.redirectUri,
+    redirectClientId: link.redirectClientId,
     ttlSeconds: await tokens.lifetimeOf(tenant.tenantId, 'execute_actions'),
   });
   const url = `${tenant.issuerBase}/tenants/${tenant.tenantName}/login-actions/action-token?key=${encodeURIComponent(token)}`;
@@ -71,6 +74,12 @@ export interface CompleteRequiredActionsDeps {
     tx: TenantScopedDatabase,
     subjectId: string,
   ) => Promise<void>;
+  /** Whether the client still registers the URI the link was minted to offer. */
+  readonly redirectStillRegistered: (
+    tx: TenantScopedDatabase,
+    clientId: string,
+    redirectUri: string,
+  ) => Promise<boolean>;
   /** Owes the subject each action, so its next sign-in asks for it. */
   readonly addRequiredActions: (
     tx: TenantScopedDatabase,
@@ -140,10 +149,15 @@ export async function completeRequiredActions(
       const remaining = actions.filter((action) => action !== 'update-password');
       if (remaining.length > 0)
         await deps.addRequiredActions(tx, deps.tenantId, record.subjectId, remaining);
+      const { redirectUri, redirectClientId } = record;
+      const offered =
+        redirectUri !== null &&
+        redirectClientId !== null &&
+        (await deps.redirectStillRegistered(tx, redirectClientId, redirectUri));
       return {
         kind: 'done',
         remaining: remaining.map(actionLabel),
-        redirectUri: record.redirectUri,
+        redirectUri: offered ? redirectUri : null,
       };
     },
     deps.request,

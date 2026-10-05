@@ -165,6 +165,7 @@ async function buildHttpApp(): Promise<FastifyInstance> {
     unchangedPasswordViolations: () => Promise.resolve([]),
     clearPasswordUpdateAction: () => Promise.resolve(),
     addRequiredActions: () => Promise.resolve(),
+    redirectStillRegistered: () => Promise.resolve(false),
   });
   await instance.ready();
   return instance;
