@@ -18,7 +18,7 @@ import {
   subjectName,
   type Confirmation,
   type Membership,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';

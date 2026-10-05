@@ -1,6 +1,6 @@
 import type { EffectiveRoleAssignment, Subject } from '@odudu/contracts/admin';
 import { useId } from 'react';
-import { roleOwnerOf } from '#/features/subjects/service.ts';
+import { roleOwnerOf } from '#/features/subjects/service';
 import {
   useCapabilityEditor,
   useSubjectRolesRead,

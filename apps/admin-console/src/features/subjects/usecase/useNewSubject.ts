@@ -10,7 +10,7 @@ import {
   subjectsHref,
   USERNAME_RULE_TEXT,
   usernameProblem,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { createFailure, lookupText } from '#/shared/service/failure.ts';
 import { withoutField } from '#/shared/service/fieldErrors.ts';

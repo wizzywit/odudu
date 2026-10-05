@@ -26,7 +26,7 @@ import {
   sessionsEndedText,
   subjectName,
   type GrantClient,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import {
   useConfirmedChange,
   type Confirming,

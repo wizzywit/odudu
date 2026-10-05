@@ -1,4 +1,4 @@
-import { beyondText } from '#/features/subjects/service.ts';
+import { beyondText } from '#/features/subjects/service';
 import { Button } from '#/shared/view/Button';
 import { Note } from '#/shared/view/Note';
 

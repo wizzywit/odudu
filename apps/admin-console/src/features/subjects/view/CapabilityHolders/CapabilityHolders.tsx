@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-aria-components';
-import { holderFilterOptions } from '#/features/subjects/service.ts';
+import { holderFilterOptions } from '#/features/subjects/service';
 import {
   useCapabilityHolders,
   type Holder,

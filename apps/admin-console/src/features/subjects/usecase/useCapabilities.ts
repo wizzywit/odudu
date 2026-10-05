@@ -29,7 +29,7 @@ import {
   subjectTabHref,
   type Confirmation,
   type HeldElsewhere,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import { administratorCapability } from '#/shared/service/administrators.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';

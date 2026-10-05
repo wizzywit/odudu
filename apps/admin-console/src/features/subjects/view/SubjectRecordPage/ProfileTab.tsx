@@ -1,11 +1,11 @@
 import { useId } from 'react';
 import { Link } from 'react-aria-components';
-import { signsInAsItself, type Profile, type Subject } from '#/features/subjects/service.ts';
+import { signsInAsItself, type Profile, type Subject } from '#/features/subjects/service';
 import {
   useSubjectAccount,
   type SubjectAccount,
 } from '#/features/subjects/usecase/useSubjectAccount.ts';
-import type { ClaimField } from '#/features/subjects/service.ts';
+import type { ClaimField } from '#/features/subjects/service';
 import {
   useSubjectClaims,
   useSubjectProfileRead,

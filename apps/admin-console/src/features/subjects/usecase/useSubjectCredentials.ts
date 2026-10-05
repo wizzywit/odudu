@@ -17,7 +17,7 @@ import {
   subjectName,
   type Asking,
   type CredentialDialog,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 
 export type { Asking };

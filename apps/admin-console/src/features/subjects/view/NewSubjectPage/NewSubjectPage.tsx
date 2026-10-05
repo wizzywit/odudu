@@ -1,5 +1,5 @@
 import type { SubmitEvent } from 'react';
-import { subjectsTrail } from '#/features/subjects/service.ts';
+import { subjectsTrail } from '#/features/subjects/service';
 import { useNewSubject } from '#/features/subjects/usecase/useNewSubject.ts';
 import { SubjectsGate } from '#/features/subjects/view/SubjectsGate';
 import { Button } from '#/shared/view/Button';

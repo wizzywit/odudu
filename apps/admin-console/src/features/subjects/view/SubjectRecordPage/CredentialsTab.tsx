@@ -10,7 +10,7 @@ import {
   type Credential,
   type Lockout,
   type Subject,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import {
   useSubjectCredentials,
   type SubjectCredentials,

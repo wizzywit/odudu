@@ -8,7 +8,7 @@ import {
   subjectHref,
   subjectName,
   type HeldLine,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 import { isSelf } from '#/shared/service/principal.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';

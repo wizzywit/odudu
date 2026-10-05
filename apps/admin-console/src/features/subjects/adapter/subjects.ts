@@ -16,7 +16,7 @@ import {
   type Subject,
 } from '@odudu/contracts/admin';
 import { z } from 'zod';
-import type { CredentialChange } from '#/features/subjects/service.ts';
+import type { CredentialChange } from '#/features/subjects/service';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 
 const nothing = z.undefined();

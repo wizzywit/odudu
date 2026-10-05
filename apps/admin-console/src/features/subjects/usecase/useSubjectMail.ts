@@ -12,7 +12,7 @@ import {
   subjectName,
   subjectTabHref,
   type MailOutcome,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import { withoutField } from '#/shared/service/fieldErrors.ts';
 
 export type { MailOutcome };

@@ -15,7 +15,7 @@ import {
   type RecordState,
 } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
-import { profileRecord, subjectRecord } from '#/features/subjects/service.ts';
+import { profileRecord, subjectRecord } from '#/features/subjects/service';
 import { isStale } from '#/shared/service/failure.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';

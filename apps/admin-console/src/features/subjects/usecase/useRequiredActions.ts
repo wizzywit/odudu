@@ -11,7 +11,7 @@ import {
   describeActions,
   requiredActionsInOrder,
   subjectName,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 

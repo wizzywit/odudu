@@ -17,7 +17,7 @@ import {
 } from '#/features/subjects/adapter/access.ts';
 import { readSubjectCount } from '#/features/subjects/adapter/subjects.ts';
 import { useSubjectRead, type Read } from '#/features/subjects/repository/useSubjectRead.ts';
-import { actionsRecord, groupsRecord, rolesRecord } from '#/features/subjects/service.ts';
+import { actionsRecord, groupsRecord, rolesRecord } from '#/features/subjects/service';
 import { readSubjectRoles, setSubjectRoles } from '#/shared/adapter/administrators.ts';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';

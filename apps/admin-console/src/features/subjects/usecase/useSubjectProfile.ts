@@ -14,7 +14,7 @@ import {
   type ClaimField,
   verificationFields,
   type ProfileSection,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 

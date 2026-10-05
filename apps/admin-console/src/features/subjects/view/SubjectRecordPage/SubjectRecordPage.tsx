@@ -6,7 +6,7 @@ import {
   subjectsTrail,
   type Subject,
   type SubjectTab,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import { useSubjectRecordPage } from '#/features/subjects/usecase/useSubjectRecordPage.ts';
 import { ActivityPanel } from '#/features/subjects/view/SubjectRecordPage/ActivityPanel.tsx';
 import { ConsentsTab } from '#/features/subjects/view/SubjectRecordPage/ConsentsTab.tsx';

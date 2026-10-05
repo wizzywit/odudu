@@ -18,7 +18,7 @@ import {
   subjectWriteFailure,
   usernameMode,
   type UsernameMode,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { deletedText, enabledText } from '#/shared/service/failure.ts';

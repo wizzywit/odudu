@@ -10,7 +10,7 @@ import {
   subjectBeyond,
   TAB_RECORDS,
   type SubjectTab,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
 import { lacking } from '#/shared/service/access.ts';
 import { isSelf, type AdminCapability } from '#/shared/service/principal.ts';

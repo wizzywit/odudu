@@ -16,7 +16,7 @@ import {
   splitRoles,
   subjectName,
   type Assignment,
-} from '#/features/subjects/service.ts';
+} from '#/features/subjects/service';
 import { useRolePicker } from '#/shared/repository/useRolePicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { describeIds } from '#/shared/service/format.ts';

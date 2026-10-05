@@ -1,6 +1,6 @@
 import { useAuthority, usePrincipal } from '#/features/session';
 import { useEffectiveRoles, useMemberships } from '#/features/subjects/repository/useAccess.ts';
-import { ownRolesOf, type OwnRoles } from '#/features/subjects/service.ts';
+import { ownRolesOf, type OwnRoles } from '#/features/subjects/service';
 import { holds } from '#/shared/service/access.ts';
 
 export type { OwnRoles };

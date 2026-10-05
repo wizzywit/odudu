@@ -2,7 +2,7 @@ import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session';
 import { useGo } from '#/features/subjects/repository/useGo.ts';
 import { useSubjectList } from '#/features/subjects/repository/useSubjectList.ts';
-import { createSubjectHref, subjectHref } from '#/features/subjects/service.ts';
+import { createSubjectHref, subjectHref } from '#/features/subjects/service';
 import { lacking } from '#/shared/service/access.ts';
 import type { AdminCapability } from '#/shared/service/principal.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
