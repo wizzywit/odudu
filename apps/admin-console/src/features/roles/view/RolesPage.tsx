@@ -1,7 +1,7 @@
 import type { Role } from '@odudu/contracts/admin';
 import { AreaGate, areaAt } from '#/features/shell/index.ts';
 import { useRolesList } from '#/features/roles/usecase/useRolesList.ts';
-import { Owner } from '#/features/roles/view/Owner.tsx';
+import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import type { Column } from '#/shared/view/DataTable.tsx';
@@ -18,7 +18,7 @@ const COLUMNS: readonly Column<Role>[] = [
     isRowHeader: true,
     cell: (role) => <code className={styles.name}>{role.name}</code>,
   },
-  { id: 'owner', header: 'Belongs to', cell: (role) => <Owner role={role} /> },
+  { id: 'owner', header: 'Belongs to', cell: (role) => <RoleOwner role={role} /> },
   { id: 'description', header: 'Description', cell: (role) => role.description ?? '—' },
   {
     id: 'default',
@@ -47,6 +47,10 @@ function List({ tenant }: { tenant: string }) {
   const page = useRolesList(tenant);
   const client = page.list.filters.client;
   const one = client !== undefined && client !== 'tenant';
+  // Its own rows name the client, by the name a person knows it by.
+  const key = one
+    ? page.list.rows.find((role) => role.client_id === client)?.client_key
+    : undefined;
   return (
     <ResourceListPage
       list={page.list}
@@ -65,7 +69,7 @@ function List({ tenant }: { tenant: string }) {
           <p className={styles.narrowed}>
             <span>
               {'Only the roles of client '}
-              <code>{client}</code>.
+              <code title={client}>{key ?? client}</code>.
             </span>
             <Button
               size="small"

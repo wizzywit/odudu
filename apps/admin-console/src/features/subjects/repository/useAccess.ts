@@ -67,6 +67,19 @@ export function useEffectiveRoles(
   );
 }
 
+// A subject's own memberships, read only where asked: the principal's, to
+// say exactly what a write to a group would take from it.
+export function useMemberships(
+  tenant: string,
+  id: string,
+  asked: boolean,
+): Read<SetSubjectGroupsResponse> {
+  const { gateway } = useTransport();
+  return useSubjectRead(['memberships', tenant, id], asked, () =>
+    readSubjectGroups(gateway, tenant, id),
+  );
+}
+
 export function useAdminRoleIds(tenant: string): Read<ReadonlyMap<Holding, string>> {
   const { gateway } = useTransport();
   return useSubjectRead(['admin-roles', tenant], true, () => readAdminRoles(gateway, tenant));
@@ -90,7 +103,12 @@ function useAfterAccessChange(tenant: string, id: string) {
   const client = useQueryClient();
   return <R>(result: GatewayResult<R>): GatewayResult<R> => {
     if (result.ok) {
-      for (const key of [effectiveKey(tenant, id), ['holders', tenant], ['list', tenant]]) {
+      for (const key of [
+        effectiveKey(tenant, id),
+        ['memberships', tenant, id],
+        ['holders', tenant],
+        ['list', tenant],
+      ]) {
         client.invalidateQueries({ queryKey: key }).catch(() => undefined);
       }
     }

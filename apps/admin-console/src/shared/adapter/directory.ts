@@ -1,8 +1,10 @@
 import {
   listGroupsResponseSchema,
   listRolesResponseSchema,
+  roleSchema,
   type ListGroupsResponse,
   type ListRolesResponse,
+  type Role,
 } from '@odudu/contracts/admin';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 
@@ -33,5 +35,18 @@ export function readGroupPage(
     {
       schema: listGroupsResponseSchema,
     },
+  );
+}
+
+// One role with what it reaches, for a list that names a role by id alone.
+export function readRole(
+  gateway: Gateway,
+  tenant: string,
+  roleId: string,
+): Promise<GatewayResult<Role>> {
+  return gateway.request(
+    'GET',
+    `admin/tenants/${encodeURIComponent(tenant)}/roles/${encodeURIComponent(roleId)}`,
+    { schema: roleSchema },
   );
 }

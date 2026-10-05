@@ -1,3 +1,4 @@
+import type { GroupRecord } from '@odudu/contracts/admin';
 import type { ReactNode } from 'react';
 import { AreaGate, areaAt } from '#/features/shell/index.ts';
 import { SubjectMembers } from '#/features/subjects/index.ts';
@@ -5,7 +6,6 @@ import {
   GROUP_TAB_LABELS,
   GROUP_TABS,
   groupsTrail,
-  type Group,
   type GroupTab,
 } from '#/features/groups/service.ts';
 import { useAuditReadable, useGroupActivity } from '#/features/groups/usecase/useGroupActivity.ts';
@@ -14,6 +14,7 @@ import { GeneralTab } from '#/features/groups/view/GeneralTab.tsx';
 import { RolesTab } from '#/features/groups/view/RolesTab.tsx';
 import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
 import { Button } from '#/shared/view/Button.tsx';
+import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
@@ -22,7 +23,7 @@ import styles from '#/features/groups/view/Tab.module.css';
 
 interface PanelProps {
   tenant: string;
-  group: Group;
+  group: GroupRecord;
   etag: string;
   gone: boolean;
   ceiling: Ceiling;
@@ -101,6 +102,15 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
         ? { status: <StatusTag tone="active">joined by every new subject</StatusTag> }
         : {})}
       {...(group?.description == null ? {} : { description: group.description })}
+      {...(page.createUnderHref === null
+        ? {}
+        : {
+            actions: (
+              <ButtonLink href={page.createUnderHref} size="small">
+                {`Create a group under ${title}`}
+              </ButtonLink>
+            ),
+          })}
       noun="group"
       viewOnly={<Lines ceiling={page.ceiling} />}
       readOnly={false}

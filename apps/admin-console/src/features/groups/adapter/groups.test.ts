@@ -8,7 +8,6 @@ import {
   readGroupCount,
   readGroupPage,
   readGroupRoles,
-  readGroupTrail,
   setGroupDefault,
   setGroupRoles,
 } from '#/features/groups/adapter/groups.ts';
@@ -26,7 +25,12 @@ function group(id: string, path: string, parent: string | null = null) {
     default_for_new_subjects: false,
     path,
     created_at: '2026-09-28T08:41:53.858Z',
+    admin_reach: [],
   };
+}
+
+function record(g: ReturnType<typeof group>) {
+  return { ...g, subtree_admin_reach: [] };
 }
 
 const ENG = group('g-eng', '/eng');
@@ -47,7 +51,7 @@ it('reads one level of the tree, and counts it', async () => {
 });
 
 it('creates a group under a parent, with a description only when given', async () => {
-  const fake = fakeTransport({ [`POST ${G}`]: json(PLATFORM, 201, { etag: '"p1"' }) });
+  const fake = fakeTransport({ [`POST ${G}`]: json(record(PLATFORM), 201, { etag: '"p1"' }) });
   const gateway = fake.transport.gateway;
   await createGroup(gateway, 'acme', { name: 'platform', description: '', parentId: 'g-eng' });
   expect(fake.sent.at(-1)?.body).toEqual({ name: 'platform', parent_id: 'g-eng' });
@@ -57,9 +61,9 @@ it('creates a group under a parent, with a description only when given', async (
 
 it('reads, amends, marks and deletes a group, each write on the ETag given', async () => {
   const fake = fakeTransport({
-    [`GET ${G}/g-plat`]: json(PLATFORM, 200, { etag: '"p1"' }),
-    [`PATCH ${G}/g-plat`]: json(PLATFORM, 200, { etag: '"p2"' }),
-    [`PUT ${G}/g-plat/default`]: json(PLATFORM, 200, { etag: '"p3"' }),
+    [`GET ${G}/g-plat`]: json(record(PLATFORM), 200, { etag: '"p1"' }),
+    [`PATCH ${G}/g-plat`]: json(record(PLATFORM), 200, { etag: '"p2"' }),
+    [`PUT ${G}/g-plat/default`]: json(record(PLATFORM), 200, { etag: '"p3"' }),
     [`DELETE ${G}/g-plat`]: () => new Response(null, { status: 204 }),
   });
   const gateway = fake.transport.gateway;
@@ -87,26 +91,6 @@ it("reads and replaces a group's roles on the ETag it read", async () => {
   expect(fake.sent.at(-1)).toMatchObject({ body: { role_ids: [] }, ifMatch: '"r1"' });
 });
 
-it('reads the groups above one, nearest last, with the roles each hands down', async () => {
-  const TOP = group('g-top', '/top');
-  const MID = group('g-mid', '/top/mid', 'g-top');
-  const role = { id: 'r-full', name: 'tenant-admin', client_id: 'c', client_key: 'odudu-admin' };
-  const fake = fakeTransport({
-    [`GET ${G}/g-mid`]: json(MID, 200, { etag: '"m"' }),
-    [`GET ${G}/g-top`]: json(TOP, 200, { etag: '"t"' }),
-    [`GET ${G}/g-mid/roles`]: json({ items: [] }, 200, { etag: '"mr"' }),
-    [`GET ${G}/g-top/roles`]: json({ items: [role] }, 200, { etag: '"tr"' }),
-  });
-  const trail = await readGroupTrail(fake.transport.gateway, 'acme', 'g-mid');
-  expect(trail).toMatchObject({
-    ok: true,
-    data: [
-      { group: TOP, roles: [role] },
-      { group: MID, roles: [] },
-    ],
-  });
-});
-
 it('finds a group by its name under a parent, for a creation whose answer was lost', async () => {
   const fake = fakeTransport({
     [`GET ${G}`]: (request) =>
@@ -127,4 +111,20 @@ it('finds a group by its name under a parent, for a creation whose answer was lo
     data: null,
   });
   expect(fake.sent.at(-1)?.search.get('parent')).toBe('root');
+});
+
+it('follows the pages of a prefix search until the names run past the one looked for', async () => {
+  const fake = fakeTransport({
+    [`GET ${G}`]: (request) =>
+      json(
+        request.search.get('cursor') === null
+          ? { items: [group('g-1', '/qa-1'), group('g-2', '/qa')], next: 'c1' }
+          : { items: [group('g-3', '/qb')] },
+      )(request),
+  });
+  expect(await findGroup(fake.transport.gateway, 'acme', 'qb', null)).toMatchObject({
+    ok: true,
+    data: { id: 'g-3' },
+  });
+  expect(fake.sent).toHaveLength(2);
 });

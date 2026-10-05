@@ -34,17 +34,30 @@ export function useCompositesRecord(
   });
 }
 
-// What a role nests changes what its holders hold, and what the lists show.
-function useAfterRoleChange(tenant: string) {
+// What a role nests changes what its holders hold, what every role and group
+// above it reaches, and what the lists show; a deleted role's own reads are
+// left to lapse, since reading them again would only find it gone.
+function useAfterRoleChange(tenant: string, deleted: string | null = null) {
   const client = useQueryClient();
   return <R>(result: GatewayResult<R>): GatewayResult<R> => {
     if (result.ok) {
+      const gone = deleted === null ? null : roleRecord(deleted);
+      client
+        .invalidateQueries({
+          predicate: ({ queryKey: [kind, at, which] }) =>
+            at === tenant &&
+            (((kind === 'role' || kind === 'group') && which !== deleted) ||
+              (kind === 'record' &&
+                typeof which === 'string' &&
+                (which.startsWith('roles/') || which.startsWith('groups/')) &&
+                (gone === null || !which.startsWith(gone)))),
+        })
+        .catch(() => undefined);
       for (const key of [
         ['list', tenant],
         ['picker', tenant, 'roles'],
         ['effective-roles', tenant],
         ['holders', tenant],
-        ['group-trail', tenant],
       ]) {
         client.invalidateQueries({ queryKey: key }).catch(() => undefined);
       }
@@ -119,7 +132,7 @@ export interface RoleDeletion {
 
 export function useRoleDeletion(tenant: string, id: string): RoleDeletion {
   const { gateway } = useTransport();
-  const after = useAfterRoleChange(tenant);
+  const after = useAfterRoleChange(tenant, id);
   // The record's own entries are left to lapse: removing them while its page
   // is still mounted would read them again, and find nothing.
   const mutation = useMutation({

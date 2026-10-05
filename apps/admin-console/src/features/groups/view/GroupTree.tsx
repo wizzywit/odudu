@@ -3,7 +3,6 @@ import { useId } from 'react';
 import { Link } from 'react-aria-components';
 import { useGroupNode, type GroupNode } from '#/features/groups/usecase/useGroupsList.ts';
 import { Button } from '#/shared/view/Button.tsx';
-import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { ListSkeleton } from '#/shared/view/Skeleton.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import styles from '#/features/groups/view/GroupTree.module.css';
@@ -87,9 +86,6 @@ function Node({ tenant, group }: { tenant: string; group: Group }) {
             ? `Hide the groups under ${group.path}`
             : `Show the groups under ${group.path}`}
         </Button>
-        <ButtonLink href={node.createHref} size="small" variant="quiet">
-          {`Create a group under ${group.path}`}
-        </ButtonLink>
       </div>
       {node.open ? (
         <div id={level} className={styles.under}>

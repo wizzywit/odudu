@@ -80,6 +80,7 @@ export function group(id: string, path: string, description: string | null = nul
     default_for_new_subjects: false,
     path,
     created_at: '2026-09-28T08:41:53.858Z',
+    admin_reach: [],
   };
 }
 
@@ -92,7 +93,16 @@ export function role(id: string, name: string, clientKey: string | null = null) 
     client_key: clientKey,
     default_for_new_subjects: false,
     created_at: '2026-09-28T08:41:53.858Z',
+    admin_reach: reachOf(name, clientKey),
   };
+}
+
+// What a built-in capability reaches: itself, and view-users with manage-users;
+// Full every capability of an ordinary tenant.
+function reachOf(name: string, clientKey: string | null): string[] {
+  if (clientKey !== 'odudu-admin') return [];
+  if (name === 'tenant-admin') return EVERY_TENANT_CAPABILITY;
+  return name === 'manage-users' ? ['view-users', 'manage-users'] : [name];
 }
 
 // The built-in admin client's roles, as the role list answers them.

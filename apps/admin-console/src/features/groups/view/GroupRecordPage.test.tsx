@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { inTurn, json, problem } from '#/testing/fakeTransport.ts';
-import { A, G, groupRoutes } from '#/testing/groupsFixtures.ts';
+import { A, ENG, G, groupRoutes, record } from '#/testing/groupsFixtures.ts';
 import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
 
 afterEach(() => {
@@ -15,7 +15,7 @@ const AT = '/console/acme/groups/g-eng';
 it("heads a group's page with its path and description, and offers its tabs", async () => {
   renderConsoleAt(AT, groupRoutes());
   expect(await screen.findByRole('heading', { level: 1, name: '/eng' })).toBeVisible();
-  expect(screen.getByText('Builds the product')).toBeVisible();
+  expect(screen.getAllByText('Builds the product')[0]).toBeVisible();
   const tabs = screen.getByRole('tablist', { name: 'Group sections' });
   expect(
     within(tabs)
@@ -52,14 +52,14 @@ it('tells a caller without view-audit or view-users what Activity and Members ne
   );
 });
 
-it('holds every write that depends on what it hands out until that is read', async () => {
+it('holds every write that depends on what its parent hands down until that is read', async () => {
   const user = userEvent.setup();
   renderConsoleAt(
-    AT,
+    '/console/acme/groups/g-plat',
     groupRoutes(undefined, {
-      [`GET ${G}/g-eng/roles`]: inTurn(
+      [`GET ${G}/g-eng`]: inTurn(
         problem(500, 'about:blank', 'Internal Server Error'),
-        json({ items: [] }, 200, { etag: '"r"' }),
+        json(record(ENG), 200, { etag: '"g-eng-1"' }),
       ),
     }),
   );
@@ -67,10 +67,32 @@ it('holds every write that depends on what it hands out until that is read', asy
     await screen.findByText(/could not be read, so no move, delete or role change/u),
   ).toBeVisible();
   expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
+  expect(screen.queryByText(/^Checking/u)).toBeNull();
   await user.click(screen.getByRole('button', { name: 'Read it again' }));
   expect(
-    await screen.findByRole('button', { name: 'Delete /eng and every group beneath it' }),
+    await screen.findByRole('button', { name: 'Delete /eng/platform and every group beneath it' }),
   ).toBeVisible();
+});
+
+it('offers a group under it only to a caller holding all it hands out', async () => {
+  renderConsoleAt(AT, groupRoutes());
+  expect(await screen.findByRole('link', { name: 'Create a group under /eng' })).toHaveAttribute(
+    'href',
+    '/console/acme/groups/new?parent=g-eng',
+  );
+});
+
+it('offers no group under one handing out what the caller lacks', async () => {
+  renderConsoleAt(
+    AT,
+    groupRoutes(['manage-tenant'], {
+      [`GET ${G}/g-eng`]: json(record({ ...ENG, admin_reach: ['view-users'] }), 200, {
+        etag: '"g-eng-1"',
+      }),
+    }),
+  );
+  await screen.findByRole('button', { name: 'Delete /eng and every group beneath it' });
+  expect(screen.queryByRole('link', { name: 'Create a group under /eng' })).toBeNull();
 });
 
 it('says so when there is no such group', async () => {

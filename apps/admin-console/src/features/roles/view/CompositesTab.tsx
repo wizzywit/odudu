@@ -6,7 +6,7 @@ import {
   type RoleComposites,
 } from '#/features/roles/usecase/useRoleComposites.ts';
 import type { Ceiling } from '#/features/roles/usecase/useRoleRecordPage.ts';
-import { Owner } from '#/features/roles/view/Owner.tsx';
+import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
 import { SectionNoticeOf } from '#/features/roles/view/SectionNoticeOf.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
@@ -35,7 +35,7 @@ function Nested({ role, composites }: { role: Role; composites: RoleComposites }
         <ul aria-label={`Nested in ${role.name}`} className={styles.roles}>
           {composites.children.map(({ role: child, held }) => (
             <li key={child.id} className={styles.child}>
-              <code>{child.name}</code> <Owner role={child} />
+              <code>{child.name}</code> <RoleOwner role={child} />
               {child.description === null || child.description === '' ? null : (
                 <span className={styles.rule}>{child.description}</span>
               )}
@@ -85,6 +85,7 @@ function Add({ role, composites }: { role: Role; composites: RoleComposites }) {
   return (
     <Section
       title="Add a composite"
+      saveLabel={`Nest it in ${role.name}`}
       description={`Nests one more role in ${role.name}; whoever holds ${role.name} holds it from their next token.`}
       dirty={s.dirty}
       saving={s.saving}

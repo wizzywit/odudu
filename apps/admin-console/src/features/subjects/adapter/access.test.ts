@@ -29,6 +29,7 @@ function role(id: string, name: string, clientKey: string | null, clientId: stri
     client_id: clientId,
     client_key: clientKey,
     default_for_new_subjects: false,
+    admin_reach: [],
     created_at: '2026-09-28T08:41:53.858Z',
   };
 }

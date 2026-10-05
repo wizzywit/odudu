@@ -1,17 +1,22 @@
-import type { EffectiveRoleAssignment, Group, RoleProvenance } from '@odudu/contracts/admin';
+import type { Group, GroupRecord, RoleProvenance } from '@odudu/contracts/admin';
 import type { Crumb } from '#/shared/service/breadcrumb.ts';
 import {
   adminLoss,
   beyondCaller,
+  judgedLoss,
+  type Loss,
+  type OwnAccess,
+  type OwnAccessRead,
   ceilingOf,
   isAdminRole,
   isHolding,
-  reachOf,
   writeRefusal,
 } from '#/shared/service/capabilities.ts';
 import type { AdminCapability } from '#/shared/service/principal.ts';
 
-export type { Group };
+export type { Group, GroupRecord };
+export { lossText, possibleLoss } from '#/shared/service/capabilities.ts';
+export type { Loss, OwnAccess };
 
 export function groupsHref(tenant: string): string {
   return `/console/${encodeURIComponent(tenant)}/groups`;
@@ -61,14 +66,19 @@ export const TAB_RECORDS: Readonly<Record<GroupTab, (id: string) => readonly str
 export const NAME_FIXED =
   "A group's name is fixed once it is made: the groups claim carries its path, and a relying party that matches on it would otherwise pass or fail by a token's age.";
 
-export const DESCRIPTION_RULE = 'At most 1000 characters. Leave it empty for none.';
+export { DESCRIPTION_MAX } from '@odudu/contracts/admin';
+
+export const DESCRIPTION_RULE = 'Leave it empty for none.';
 
 function within(path: string, above: string): boolean {
   return path === above || path.startsWith(`${above}/`);
 }
 
 // A parent that is the group or sits beneath it would make a loop.
-export function moveUnavailable(group: Group, candidate: Group): string | null {
+export function moveUnavailable(
+  group: Pick<Group, 'id' | 'path'>,
+  candidate: Pick<Group, 'id' | 'path'>,
+): string | null {
   if (candidate.id === group.id) return 'the group itself';
   if (within(candidate.path, group.path)) {
     return `beneath ${group.path}, so the move would make a loop`;
@@ -78,34 +88,17 @@ export function moveUnavailable(group: Group, candidate: Group): string | null {
 
 type RefusedProblem = Parameters<typeof writeRefusal>[0];
 
+const TAKEN = /^a group named (".*") already exists there$/u;
+
 export function moveRefusal(problem: RefusedProblem): string | null {
-  if (problem.status === 409 && problem.type === 'about:blank') {
+  if (problem.status === 409 && problem.detail === 'would create a group reparent cycle') {
     return 'Refused: the parent chosen sits beneath this group, so the move would make a loop. Nothing was changed.';
   }
+  const taken = problem.status === 409 ? TAKEN.exec(problem.detail ?? '') : null;
+  if (taken !== null) {
+    return `Refused: the parent chosen already holds a group named ${taken[1] ?? ''}, and two groups beside each other cannot share a name. Nothing was changed.`;
+  }
   return writeRefusal(problem);
-}
-
-export interface Step {
-  group: Group;
-  roles: readonly { name: string; client_key: string | null }[];
-}
-
-// The admin capabilities a group's members receive through it: what it maps
-// itself, and what every group above it hands down.
-export interface Reach {
-  own: readonly AdminCapability[];
-  inherited: readonly AdminCapability[];
-}
-
-export function groupReach(tenant: string, trail: readonly Step[]): Reach {
-  const above = trail.slice(0, -1);
-  return {
-    own: reachOf(tenant, trail.at(-1)?.roles ?? []),
-    inherited: reachOf(
-      tenant,
-      above.flatMap((step) => step.roles),
-    ),
-  };
 }
 
 const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
@@ -117,20 +110,21 @@ export interface ReachLines {
   remove: string | null;
 }
 
-// A move takes away what the old parents hand down, and a delete everything
-// its members hold through it; neither may take what the caller lacks.
+// A move takes away what the old parent's chain hands down, and a delete
+// what its subtree's members hold through it; neither may take what the
+// caller lacks. The server works both out (`admin_reach`).
 export function reachLines(
-  path: string,
-  reach: Reach,
+  group: GroupRecord,
+  parentReach: readonly string[],
   caller: readonly AdminCapability[],
 ): ReachLines {
-  const moved = beyondCaller(reach.inherited, caller);
-  const removed = beyondCaller([...new Set([...reach.own, ...reach.inherited])], caller);
+  const moved = beyondCaller(parentReach, caller);
+  const removed = beyondCaller(group.subtree_admin_reach, caller);
   return {
     move:
       moved.length === 0
         ? null
-        : `The groups above ${path} hand out ${AND.format(moved)}, which you do not hold, so you cannot move it: its members would lose that.`,
+        : `The groups above ${group.path} hand out ${AND.format(moved)}, which you do not hold, so you cannot move it: its members would lose that.`,
     remove:
       removed.length === 0
         ? null
@@ -138,49 +132,90 @@ export function reachLines(
   };
 }
 
-export function defaultBlock(reach: Reach, isDefault: boolean): string | null {
-  const reached = [...new Set([...reach.inherited, ...reach.own])];
-  if (isDefault || reached.length === 0) return null;
-  return `Every new subject would join it and so receive ${AND.format(reached)}, and a group every new subject joins may reach no admin capability. Take those roles off it, or off the groups above it, first.`;
+export function defaultBlock(group: Group): string | null {
+  if (group.default_for_new_subjects || group.admin_reach.length === 0) return null;
+  return `Every new subject would join it and so receive ${AND.format(group.admin_reach)}, and a group every new subject joins may reach no admin capability. Take those roles off it, or off the groups above it, first.`;
+}
+
+// Its members would receive what the new parent hands out, so the caller
+// may choose only a parent within its own capabilities.
+export function parentUnavailable(
+  group: Pick<Group, 'id' | 'path'> | null,
+  candidate: Group,
+  caller: readonly AdminCapability[],
+): string | null {
+  const loop = group === null ? null : moveUnavailable(group, candidate);
+  if (loop !== null) return loop;
+  const beyond = beyondCaller(candidate.admin_reach, caller);
+  return beyond.length === 0
+    ? null
+    : `its members receive ${AND.format(beyond)}, which you do not hold`;
 }
 
 export function roleUnavailable(
-  role: { name: string; client_key: string | null },
+  role: { name: string; client_key: string | null; admin_reach: readonly string[] },
   caller: readonly AdminCapability[],
   isDefault: boolean,
   tenant: string,
 ): string | null {
-  if (!isAdminRole(role) || !isHolding(role.name)) return null;
-  if (isDefault)
+  if (isDefault && role.admin_reach.length > 0) {
     return 'Every new subject joins this group, so it may hand out no admin capability.';
-  return ceilingOf(tenant, role.name, caller);
+  }
+  if (isAdminRole(role) && isHolding(role.name)) return ceilingOf(tenant, role.name, caller);
+  const beyond = beyondCaller(role.admin_reach, caller);
+  return beyond.length === 0
+    ? null
+    : `It reaches ${AND.format(beyond)}, which you do not hold, so you cannot give or take it.`;
 }
 
 export type Change =
   | { kind: 'delete'; path: string }
-  | { kind: 'move'; path: string }
+  | { kind: 'move'; path: string; to: string | null }
   | { kind: 'roles'; path: string; removed: readonly string[] };
 
 function viaGroup(via: RoleProvenance, matches: (path: string) => boolean): boolean {
   return via.kind === 'group' && matches(via.group_path);
 }
 
-// What a principal holding `own` loses: a group's members hold what it maps
-// and what every group above it maps, so a delete takes both from anybody in
-// its subtree, and a move takes what the old parents handed down.
-export function selfLoss(own: readonly EffectiveRoleAssignment[], change: Change): string[] {
+// What the principal loses: a role mapped to a group reaches each member of
+// it and of every group beneath it, so an edge through `above` goes when
+// every membership beneath `above` goes or leaves it.
+export function selfLoss(own: OwnAccess, change: Change): string[] {
   const { path } = change;
+  const reachedBy = (above: string): readonly string[] =>
+    own.groups.filter((member) => within(member, above));
+  const allInside = (above: string): boolean => {
+    const members = reachedBy(above);
+    return members.length > 0 && members.every((member) => within(member, path));
+  };
   switch (change.kind) {
     case 'delete':
-      return adminLoss(own, (via) =>
-        viaGroup(via, (each) => within(each, path) || within(path, each)),
-      );
+      return adminLoss(own.roles, (via) => viaGroup(via, (above) => allInside(above)));
     case 'move':
-      return adminLoss(own, (via) => viaGroup(via, (each) => each !== path && within(path, each)));
+      return adminLoss(own.roles, (via) =>
+        viaGroup(
+          via,
+          (above) =>
+            above !== path &&
+            within(path, above) &&
+            allInside(above) &&
+            (change.to === null || !within(change.to, above)),
+        ),
+      );
     case 'roles':
       return adminLoss(
-        own,
-        (via, role) => change.removed.includes(role.id) && viaGroup(via, (each) => each === path),
+        own.roles,
+        (via, role) => change.removed.includes(role.id) && viaGroup(via, (above) => above === path),
       );
   }
+}
+
+// What a write to a group takes from the principal itself (`judgedLoss`).
+export function lossOf(
+  own: OwnAccessRead,
+  caller: readonly AdminCapability[],
+  change: Change,
+  taken: readonly string[],
+): Loss {
+  return judgedLoss(own, (access) => selfLoss(access, change), caller, taken);
 }

@@ -113,3 +113,27 @@ it('passes axe in both themes, copying', async () => {
     ),
   ).toEqual({ light: [], dark: [] });
 });
+
+it('says before Create which composites a copy will leave out, and nests only the rest', async () => {
+  const user = userEvent.setup();
+  const deep = { ...role('r-deep', 'deep'), admin_reach: ['view-audit'] };
+  const { sent, router } = renderConsoleAt(
+    `${AT}?copy=r-aud`,
+    roleRoutes(['manage-tenant'], {
+      [`GET ${R}/r-aud/composites`]: json({ items: [READER, deep] }, 200, { etag: '"c"' }),
+      [`POST ${R}`]: json(MADE, 201),
+      [`POST ${R}/r-new/composites`]: () => new Response(null, { status: 204 }),
+    }),
+  );
+  expect(await screen.findByText('A copy of auditor, nesting reader.')).toBeVisible();
+  expect(screen.getByRole('list', { name: 'Not copied' })).toHaveTextContent(
+    'deep · It reaches view-audit, which you do not hold, so you cannot give or take it.',
+  );
+  await user.type(screen.getByRole('textbox', { name: 'Name' }), 'billing{Enter}');
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/acme/roles/r-new');
+  });
+  expect(sent.filter((s) => s.path === `${R}/r-new/composites`).map((s) => s.body)).toEqual([
+    { child_role_id: 'r-read' },
+  ]);
+});

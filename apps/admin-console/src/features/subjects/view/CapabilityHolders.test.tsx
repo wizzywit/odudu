@@ -41,6 +41,7 @@ function adminRole(id: string, name: string) {
     client_id: 'c-admin',
     client_key: 'odudu-admin',
     default_for_new_subjects: false,
+    admin_reach: [],
     created_at: '2026-09-28T08:41:53.858Z',
   };
 }

@@ -2,8 +2,8 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
-import { inTurn, json, problem } from '#/testing/fakeTransport.ts';
-import { A, R, roleRoutes } from '#/testing/rolesFixtures.ts';
+import { json, pending } from '#/testing/fakeTransport.ts';
+import { A, roleRoutes } from '#/testing/rolesFixtures.ts';
 import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
 import { ADA, S } from '#/testing/subjectsFixtures.ts';
 
@@ -50,22 +50,11 @@ it("reads the role's own activity", async () => {
   });
 });
 
-it('holds what depends on its composites until they are read', async () => {
-  const user = userEvent.setup();
-  renderConsoleAt(
-    AT,
-    roleRoutes(undefined, {
-      [`GET ${R}/r-portal/composites`]: inTurn(
-        problem(500, 'about:blank', 'Oops'),
-        json({ items: [] }, 200, { etag: '"c"' }),
-      ),
-    }),
-  );
-  expect(
-    await screen.findByText(/could not be read, so no delete, default or composite/u),
-  ).toBeVisible();
-  await user.click(screen.getByRole('button', { name: 'Read it again' }));
-  expect(await screen.findByRole('button', { name: 'Delete reader' })).toBeVisible();
+it('offers no delete until whoami says what the caller holds', async () => {
+  renderConsoleAt(AT, roleRoutes(undefined, { [`GET ${A}/whoami`]: pending() }));
+  expect(await screen.findByRole('heading', { level: 1, name: 'reader' })).toBeVisible();
+  expect((await screen.findAllByText('Checking what it nests…')).length).toBeGreaterThan(0);
+  expect(screen.queryByRole('button', { name: 'Delete reader' })).toBeNull();
 });
 
 it('passes axe in both themes, on Members and refused', async () => {

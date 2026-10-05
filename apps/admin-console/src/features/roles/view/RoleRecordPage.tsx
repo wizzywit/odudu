@@ -12,9 +12,8 @@ import { useAuditReadable, useRoleActivity } from '#/features/roles/usecase/useR
 import { useRoleRecordPage, type Ceiling } from '#/features/roles/usecase/useRoleRecordPage.ts';
 import { CompositesTab } from '#/features/roles/view/CompositesTab.tsx';
 import { GeneralTab } from '#/features/roles/view/GeneralTab.tsx';
-import { Owner } from '#/features/roles/view/Owner.tsx';
+import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
 import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
-import { Button } from '#/shared/view/Button.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
@@ -65,17 +64,6 @@ const PANELS: Readonly<Record<RoleTab, (props: PanelProps) => ReactNode>> = {
 };
 
 function Lines({ ceiling }: { ceiling: Ceiling }) {
-  if (ceiling.status === 'failed') {
-    return (
-      <p role="note" className={noteStyles.note}>
-        What this role nests could not be read, so no delete, default or composite change is offered
-        until it is.{' '}
-        <Button size="small" variant="quiet" onPress={ceiling.retry}>
-          Read it again
-        </Button>
-      </p>
-    );
-  }
   if (ceiling.status !== 'ready' || ceiling.deleteHeld === null) return null;
   return (
     <p role="note" className={noteStyles.note}>
@@ -102,7 +90,7 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
         : {
             status: (
               <>
-                <Owner role={role} />
+                <RoleOwner role={role} />
                 {role.default_for_new_subjects ? (
                   <StatusTag tone="active">given to every new subject</StatusTag>
                 ) : null}

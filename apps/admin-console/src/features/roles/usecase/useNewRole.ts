@@ -1,9 +1,15 @@
 import type { Role } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session/index.ts';
+import { useAuthority, useRefusal } from '#/features/session/index.ts';
 import { useCopySource, useCreateRole } from '#/features/roles/repository/useCreateRole.ts';
 import { useGo } from '#/features/roles/repository/useGo.ts';
-import { DESCRIPTION_RULE, roleHref, rolesHref } from '#/features/roles/service.ts';
+import {
+  childUnavailable,
+  DESCRIPTION_MAX,
+  DESCRIPTION_RULE,
+  roleHref,
+  rolesHref,
+} from '#/features/roles/service.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch.ts';
 import { writeRefusal } from '#/shared/service/capabilities.ts';
@@ -28,7 +34,14 @@ export type Copying =
   | { status: 'none' }
   | { status: 'loading' }
   | { status: 'failed' }
-  | { status: 'ready'; name: string; children: readonly string[] };
+  | {
+      status: 'ready';
+      name: string;
+      // What the copy will nest.
+      children: readonly string[];
+      // What it will not, since the caller could not nest it, and why.
+      left: readonly { name: string; why: string }[];
+    };
 
 export interface PartialCopy {
   text: string;
@@ -39,6 +52,7 @@ export interface PartialCopy {
 export interface NewRole {
   listHref: string;
   descriptionRule: string;
+  descriptionLimit: number;
   copying: Copying;
   name: string;
   description: string;
@@ -69,7 +83,15 @@ export function useNewRole(tenant: string): NewRole {
   const [unconfirmed, setUnconfirmed] = useState(false);
   const [partial, setPartial] = useState<PartialCopy | null>(null);
   const shown = description ?? (source.status === 'ready' ? (source.role.description ?? '') : '');
-  const children = source.status === 'ready' ? source.children : [];
+  const caller = useAuthority(tenant)?.capabilities;
+  // A copy is a new tenant role, nested in nothing and handed to nobody yet,
+  // so each child is judged as a nesting into one.
+  const fresh = { id: '', default_for_new_subjects: false };
+  const judged = (source.status === 'ready' ? source.children : []).map((child) => ({
+    child,
+    why: caller === undefined ? null : childUnavailable(fresh, child, [], caller, tenant),
+  }));
+  const children = judged.filter((each) => each.why === null).map((each) => each.child);
 
   // A copy missing some of its composites stays here, saying so, since a
   // toast is never the only copy of something to act on.
@@ -139,7 +161,8 @@ export function useNewRole(tenant: string): NewRole {
     copying = {
       status: 'ready',
       name: source.role.name,
-      children: source.children.map((child) => child.name),
+      children: children.map((child) => child.name),
+      left: judged.flatMap(({ child, why }) => (why === null ? [] : [{ name: child.name, why }])),
     };
   } else if (source.status !== 'none') {
     copying = { status: source.status };
@@ -148,6 +171,7 @@ export function useNewRole(tenant: string): NewRole {
   return {
     listHref: rolesHref(tenant),
     descriptionRule: DESCRIPTION_RULE,
+    descriptionLimit: DESCRIPTION_MAX,
     copying,
     name,
     description: shown,
@@ -155,7 +179,7 @@ export function useNewRole(tenant: string): NewRole {
     message,
     unconfirmed,
     partial,
-    busy: creation.busy || source.status === 'loading',
+    busy: creation.busy || source.status === 'loading' || caller === undefined,
     editName: (next) => {
       setName(next);
       setErrors((was) => without(was, 'name'));
@@ -165,7 +189,15 @@ export function useNewRole(tenant: string): NewRole {
       setErrors((was) => without(was, 'description'));
     },
     submit: () => {
-      if (creation.busy || unconfirmed || partial !== null || source.status === 'loading') return;
+      if (
+        creation.busy ||
+        unconfirmed ||
+        partial !== null ||
+        source.status === 'loading' ||
+        caller === undefined
+      ) {
+        return;
+      }
       if (name.trim() === '') {
         setErrors({ name: 'Enter a name.' });
         return;

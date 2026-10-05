@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { json, problem } from '#/testing/fakeTransport.ts';
-import { G, groupRoutes, PLATFORM } from '#/testing/groupsFixtures.ts';
+import { G, groupRoutes, PLATFORM, record } from '#/testing/groupsFixtures.ts';
 import { consoleAt, resetConsole } from '#/testing/renderConsole.tsx';
 
 afterEach(() => {
@@ -19,7 +19,7 @@ it("announces a section's refusal in one line, and passes axe in both themes", a
         consoleAt(
           '/console/acme/groups/g-plat',
           groupRoutes(undefined, {
-            [`GET ${G}/g-plat`]: json(PLATFORM, 200, { etag: '"p1"' }),
+            [`GET ${G}/g-plat`]: json(record(PLATFORM), 200, { etag: '"p1"' }),
             [`PUT ${G}/g-plat/default`]: problem(403, 'about:blank', 'Forbidden', {
               detail:
                 'a group every new subject joins may reach no admin capability, and this one would reach: view-users',

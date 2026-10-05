@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import { Owner } from '#/features/roles/view/Owner.tsx';
+import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 const TENANT = { client_id: null, client_key: null };
@@ -10,9 +10,9 @@ const ADMIN = { client_id: 'c-admin', client_key: 'odudu-admin' };
 it('says in words whose role it is', () => {
   render(
     <>
-      <Owner role={TENANT} />
-      <Owner role={CLIENT} />
-      <Owner role={ADMIN} />
+      <RoleOwner role={TENANT} />
+      <RoleOwner role={CLIENT} />
+      <RoleOwner role={ADMIN} />
     </>,
   );
   expect(screen.getByText('tenant role')).toBeVisible();
@@ -24,7 +24,7 @@ it('passes axe in both themes', async () => {
   expect(
     await axeInBothThemes(() => (
       <p>
-        <Owner role={TENANT} /> <Owner role={CLIENT} /> <Owner role={ADMIN} />
+        <RoleOwner role={TENANT} /> <RoleOwner role={CLIENT} /> <RoleOwner role={ADMIN} />
       </p>
     )),
   ).toEqual({ light: [], dark: [] });

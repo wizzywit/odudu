@@ -1,16 +1,17 @@
-import type { SubmitEvent } from 'react';
+import { useId, type SubmitEvent } from 'react';
 import { AreaGate, areaAt } from '#/features/shell/index.ts';
 import { groupsTrail } from '#/features/groups/service.ts';
 import { useNewGroup } from '#/features/groups/usecase/useNewGroup.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
-import { TextField } from '#/shared/view/Field.tsx';
+import { TextAreaField, TextField } from '#/shared/view/Field.tsx';
 import { GroupPicker } from '#/shared/view/GroupPicker.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import styles from '#/features/groups/view/Form.module.css';
 
 function Form({ tenant }: { tenant: string }) {
   const page = useNewGroup(tenant);
+  const held = useId();
   const submit = (event: SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
     page.submit();
@@ -26,9 +27,10 @@ function Form({ tenant }: { tenant: string }) {
         mono
         autoFocus
       />
-      <TextField
+      <TextAreaField
         label="Description"
         description={page.descriptionRule}
+        limit={page.descriptionLimit}
         value={page.description}
         error={page.errors.description}
         onChange={page.editDescription}
@@ -40,6 +42,7 @@ function Form({ tenant }: { tenant: string }) {
           selected={page.parentId === null ? [] : [page.parentId]}
           onChange={page.chooseParent}
           selectionMode="single"
+          unavailableOf={page.unavailableOf}
         />
         <p className={styles.rule}>
           <span className={styles.place}>{page.place ?? 'Reading where it will sit…'}</span> Its
@@ -56,12 +59,22 @@ function Form({ tenant }: { tenant: string }) {
             {`Look for ${page.name}`}
           </Button>
         ) : (
-          <Button type="submit" variant="primary" isDisabled={page.busy}>
+          <Button
+            type="submit"
+            variant="primary"
+            isDisabled={page.busy || page.held !== null}
+            {...(page.held === null ? {} : { 'aria-describedby': held })}
+          >
             {page.busy ? 'Creating…' : 'Create group'}
           </Button>
         )}
         <ButtonLink href={page.listHref}>Cancel</ButtonLink>
       </div>
+      {page.held === null ? null : (
+        <p id={held} className={styles.rule}>
+          {page.held}
+        </p>
+      )}
       <p role="status" className={styles.message}>
         {page.message}
       </p>

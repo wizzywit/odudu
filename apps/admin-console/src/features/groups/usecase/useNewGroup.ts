@@ -1,14 +1,22 @@
 import type { Group } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session/index.ts';
+import { useAuthority, useRefusal } from '#/features/session/index.ts';
 import { useCreateGroup } from '#/features/groups/repository/useCreateGroup.ts';
 import { useGo } from '#/features/groups/repository/useGo.ts';
 import { useGroupNamed } from '#/features/groups/repository/useGroupRecord.ts';
-import { DESCRIPTION_RULE, groupHref, groupsHref } from '#/features/groups/service.ts';
+import {
+  DESCRIPTION_MAX,
+  DESCRIPTION_RULE,
+  groupHref,
+  groupsHref,
+  parentUnavailable,
+} from '#/features/groups/service.ts';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch.ts';
-import { writeRefusal } from '#/shared/service/capabilities.ts';
+import { beyondCaller, writeRefusal } from '#/shared/service/capabilities.ts';
+
+const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
 import { fieldErrorsOf } from '#/shared/service/fieldErrors.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
 import type { GatewayFailure } from '#/shared/transport/gateway.ts';
@@ -23,6 +31,7 @@ function without(errors: Errors, field: Field): Errors {
 export interface NewGroup {
   listHref: string;
   descriptionRule: string;
+  descriptionLimit: number;
   name: string;
   description: string;
   parentId: string | null;
@@ -37,6 +46,11 @@ export interface NewGroup {
   editName: (name: string) => void;
   editDescription: (description: string) => void;
   chooseParent: (ids: readonly string[]) => void;
+  // Why a parent cannot hold a group made by this caller.
+  unavailableOf: (candidate: Group) => string | null;
+  // Why Create is held: the parent chosen is beyond the caller, or what it
+  // hands out is still being read.
+  held: string | null;
   submit: () => void;
   check: () => void;
 }
@@ -60,7 +74,20 @@ export function useNewGroup(tenant: string): NewGroup {
   const [unconfirmed, setUnconfirmed] = useState(false);
   const picker = useGroupPicker(tenant);
   const asked = useGroupNamed(tenant, parentId);
-  const parent = picker.options.find((group) => group.id === parentId) ?? asked;
+  const parent =
+    picker.options.find((group) => group.id === parentId) ??
+    (asked.status === 'ready' ? asked.group : undefined);
+  const caller = useAuthority(tenant)?.capabilities;
+  let held: string | null = null;
+  if (caller === undefined || (parentId !== null && parent === undefined)) {
+    held = 'Checking what the parent hands out first.';
+  } else if (parent !== undefined && parentId !== null) {
+    const beyond = beyondCaller(parent.admin_reach, caller);
+    held =
+      beyond.length === 0
+        ? null
+        : `A group made under ${parent.path} hands its members ${AND.format(beyond)}, which you do not hold, so you cannot make one there.`;
+  }
 
   const land = (group: Group): void => {
     push({ tone: 'success', message: `${group.path} was created.` });
@@ -103,6 +130,7 @@ export function useNewGroup(tenant: string): NewGroup {
   return {
     listHref: groupsHref(tenant),
     descriptionRule: DESCRIPTION_RULE,
+    descriptionLimit: DESCRIPTION_MAX,
     name,
     description,
     parentId,
@@ -113,6 +141,8 @@ export function useNewGroup(tenant: string): NewGroup {
           ? null
           : `It will sit under ${parent.path}.`,
     picker,
+    unavailableOf: (candidate) => parentUnavailable(null, candidate, caller ?? []),
+    held,
     errors,
     message,
     unconfirmed,
@@ -130,7 +160,7 @@ export function useNewGroup(tenant: string): NewGroup {
       setErrors((was) => without(was, 'parent_id'));
     },
     submit: () => {
-      if (creation.busy || unconfirmed) return;
+      if (creation.busy || unconfirmed || held !== null) return;
       if (name.trim() === '') {
         setErrors({ name: 'Enter a name.' });
         return;

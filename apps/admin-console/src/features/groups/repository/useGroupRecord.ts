@@ -1,22 +1,21 @@
-import type { Group, SetGroupRolesResponse } from '@odudu/contracts/admin';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { GroupRecord, SetGroupRolesResponse } from '@odudu/contracts/admin';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   amendGroup,
   deleteGroup,
   readGroup,
   readGroupRoles,
-  readGroupTrail,
   setGroupDefault,
   setGroupRoles,
-  type TrailStep,
 } from '#/features/groups/adapter/groups.ts';
 import { groupRecord, groupRolesRecord } from '#/features/groups/service.ts';
+import { readRole } from '#/shared/adapter/directory.ts';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
-export function useGroupRecord(tenant: string, id: string): RecordState<Group> {
+export function useGroupRecord(tenant: string, id: string): RecordState<GroupRecord> {
   return useRecord({
     tenant,
     record: groupRecord(id),
@@ -35,61 +34,56 @@ export function useGroupRolesRecord(
   });
 }
 
-// A group known by its id alone, such as the parent a creation was asked
-// from; nothing is read for none.
-export function useGroupNamed(tenant: string, id: string | null): Group | undefined {
-  const { gateway } = useTransport();
-  const query = useQuery({
-    queryKey: ['group', tenant, id],
-    enabled: id !== null,
-    queryFn: () => (id === null ? Promise.resolve(null) : readGroup(gateway, tenant, id)),
-  });
-  return query.data?.ok === true ? query.data.data : undefined;
-}
-
-export type TrailRead =
+export type GroupRead =
+  | { status: 'none' }
   | { status: 'loading' }
-  | { status: 'ready'; steps: readonly TrailStep[] }
+  | { status: 'ready'; group: GroupRecord }
   | { status: 'failed'; retry: () => void };
 
-function trailKey(tenant: string, id: string) {
-  return ['group-trail', tenant, id] as const;
+function groupKey(tenant: string, id: string | null) {
+  return ['group', tenant, id] as const;
 }
 
-// The group and every group above it, with their roles: what its members
-// receive through it, which every ceiling on its writes is judged by.
-export function useGroupTrail(tenant: string, id: string): TrailRead {
+// A group known by its id alone, such as a record's parent or the parent a
+// creation was asked from; nothing is read for none.
+export function useGroupNamed(tenant: string, id: string | null): GroupRead {
   const { gateway } = useTransport();
   const client = useQueryClient();
   const query = useQuery({
-    queryKey: trailKey(tenant, id),
-    queryFn: () => readGroupTrail(gateway, tenant, id),
+    queryKey: groupKey(tenant, id),
+    enabled: id !== null,
+    queryFn: () => (id === null ? Promise.resolve(null) : readGroup(gateway, tenant, id)),
   });
+  if (id === null) return { status: 'none' };
   const result = query.data;
-  if (result === undefined) return { status: 'loading' };
-  if (result.ok) return { status: 'ready', steps: result.data };
+  if (result === undefined || result === null) return { status: 'loading' };
+  if (result.ok) return { status: 'ready', group: result.data };
   return {
     status: 'failed',
     retry: () => {
       client
-        .invalidateQueries({ queryKey: trailKey(tenant, id), exact: true })
+        .invalidateQueries({ queryKey: groupKey(tenant, id), exact: true })
         .catch(() => undefined);
     },
   };
 }
 
-// A group's place or roles change what every group beneath it hands out,
-// what its members hold, and what the lists show.
-// A deleted group's own trail is left to lapse: reading it again would only
-// find it gone.
+// What a group hands out follows from its roles and its place, so every
+// group read is read again but a deleted one's, which would only find it gone.
 function useAfterGroupChange(tenant: string, deleted: string | null = null) {
   const client = useQueryClient();
   return <R>(result: GatewayResult<R>): GatewayResult<R> => {
     if (result.ok) {
+      const gone = deleted === null ? null : groupRecord(deleted);
       client
         .invalidateQueries({
-          queryKey: ['group-trail', tenant],
-          predicate: (query) => deleted === null || query.queryKey[2] !== deleted,
+          predicate: ({ queryKey: [kind, at, which] }) =>
+            at === tenant &&
+            ((kind === 'group' && which !== deleted) ||
+              (kind === 'record' &&
+                typeof which === 'string' &&
+                which.startsWith('groups/') &&
+                (gone === null || !which.startsWith(gone)))),
         })
         .catch(() => undefined);
       for (const key of [
@@ -158,4 +152,37 @@ export function useGroupDeletion(tenant: string, id: string): GroupDeletion {
     mutationFn: async () => after(await deleteGroup(gateway, tenant, id)),
   });
   return { busy: mutation.isPending, run: () => mutation.mutateAsync() };
+}
+
+export type ReachRead =
+  | { status: 'loading' }
+  | { status: 'ready'; reach: ReadonlyMap<string, readonly string[]> }
+  | { status: 'failed'; retry: () => void };
+
+// What each role mapped here reaches: the mapping names roles by id and
+// name alone, so each is read on its own, once.
+export function useRolesReach(tenant: string, ids: readonly string[]): ReachRead {
+  const { gateway } = useTransport();
+  const client = useQueryClient();
+  const reads = useQueries({
+    queries: ids.map((id) => ({
+      queryKey: ['role', tenant, id] as const,
+      queryFn: () => readRole(gateway, tenant, id),
+    })),
+  });
+  if (reads.some((read) => read.data === undefined)) return { status: 'loading' };
+  const reach = new Map<string, readonly string[]>();
+  for (const [index, read] of reads.entries()) {
+    const id = ids[index];
+    if (read.data?.ok !== true || id === undefined) {
+      return {
+        status: 'failed',
+        retry: () => {
+          client.invalidateQueries({ queryKey: ['role', tenant] }).catch(() => undefined);
+        },
+      };
+    }
+    reach.set(id, read.data.data.admin_reach);
+  }
+  return { status: 'ready', reach };
 }

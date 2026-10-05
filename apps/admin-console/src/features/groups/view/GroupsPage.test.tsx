@@ -41,17 +41,18 @@ it('shows the top of the tree, and a level beneath a group when asked', async ()
   expect(await within(under).findByText('No groups under /eng/platform yet.')).toBeVisible();
 });
 
-it('offers a group to be created at the top, or under any group', async () => {
+it('offers a group to be created at the top, and two stops for each node', async () => {
   renderConsoleAt(AT, groupRoutes());
   expect(await screen.findByRole('link', { name: 'Create a group' })).toHaveAttribute(
     'href',
     '/console/acme/groups/new',
   );
   const tree = await screen.findByRole('list', { name: 'Groups' });
-  expect(within(tree).getByRole('link', { name: 'Create a group under /eng' })).toHaveAttribute(
-    'href',
-    '/console/acme/groups/new?parent=g-eng',
-  );
+  const node = within(tree).getByRole('link', { name: 'eng' }).closest('li');
+  expect(
+    within(node ?? tree).getAllByRole('link').length +
+      within(node ?? tree).getAllByRole('button').length,
+  ).toBe(2);
 });
 
 it('searches every level by name, and shows each match where it sits', async () => {

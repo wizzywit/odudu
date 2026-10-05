@@ -124,25 +124,16 @@ export function includedBy(holding: Holding, chosen: readonly string[]): Holding
   return parent !== undefined && chosen.includes(parent) ? parent : null;
 }
 
-// The capabilities a set of roles hands out by naming them: an admin role
-// carries itself and what it nests. A role nesting one is not seen here.
-export function reachOf(
-  tenant: string,
-  roles: readonly { name: string; client_key: string | null }[],
-): AdminCapability[] {
-  const reached = new Set<AdminCapability>();
-  for (const role of roles) {
-    if (!isAdminRole(role)) continue;
-    if (role.name === TENANT_ADMIN) {
-      for (const capability of grantableIn(tenant)) reached.add(capability);
-    } else if (isCapability(role.name)) {
-      reached.add(role.name);
-      for (const [child, parent] of Object.entries(NESTED)) {
-        if (parent === role.name && isCapability(child)) reached.add(child);
-      }
-    }
-  }
-  return ADMIN_CAPABILITIES.filter((capability) => reached.has(capability));
+// Whose a role is, in words: a client's role reaches a token under its
+// client's name, and the built-in admin client's roles are the capabilities.
+export function roleOwnerText(role: {
+  client_id: string | null;
+  client_key: string | null;
+}): string {
+  if (role.client_id === null) return 'tenant role';
+  return role.client_key === ADMIN_CLIENT_KEY
+    ? 'admin capability'
+    : `role of client ${role.client_key ?? role.client_id}`;
 }
 
 const AND_ALL = new Intl.ListFormat('en-GB', { type: 'conjunction' });
@@ -212,4 +203,52 @@ export function adminLoss(
   return own
     .filter((role) => lost.has(role.id) && isAdminRole(role))
     .flatMap((role) => (isHolding(role.name) ? [role.name] : []));
+}
+
+// The principal's own roles and the groups it belongs to directly, as far as
+// they could be read.
+export interface OwnAccess {
+  roles: readonly EffectiveRoleAssignment[];
+  // The paths of the groups it belongs to directly.
+  groups: readonly string[];
+}
+
+export type OwnAccessRead =
+  { status: 'loading' } | { status: 'unknown' } | ({ status: 'ready' } & OwnAccess);
+
+// Without the principal's own access, what it holds that a write takes from
+// whoever holds it there.
+export function possibleLoss(
+  caller: readonly AdminCapability[],
+  taken: readonly string[],
+): AdminCapability[] {
+  return caller.filter((capability) => taken.includes(capability));
+}
+
+export type Loss =
+  | { kind: 'checking' }
+  | { kind: 'none' }
+  | { kind: 'certain' | 'possible'; lost: readonly string[] };
+
+// What a write takes from the principal itself: exactly where its own access
+// was read, and otherwise whatever it holds that the write takes from
+// whoever holds it there. Until either is known, the write waits.
+export function judgedLoss(
+  own: OwnAccessRead,
+  exact: (access: OwnAccess) => readonly string[],
+  caller: readonly AdminCapability[],
+  taken: readonly string[],
+): Loss {
+  if (own.status === 'loading') return { kind: 'checking' };
+  const lost = own.status === 'ready' ? exact(own) : possibleLoss(caller, taken);
+  if (lost.length === 0) return { kind: 'none' };
+  return { kind: own.status === 'ready' ? 'certain' : 'possible', lost };
+}
+
+export function lossText(loss: Loss, through: string): string {
+  if (loss.kind === 'checking' || loss.kind === 'none') return '';
+  const held = AND_ALL.format(loss.lost);
+  return loss.kind === 'certain'
+    ? ` You hold ${held} through ${through}, so this takes it from you, and this console with it.`
+    : ` If you hold ${held} through ${through}, this takes it from you, and this console with it.`;
 }

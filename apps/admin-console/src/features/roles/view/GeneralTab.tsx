@@ -8,11 +8,11 @@ import {
   type RoleGeneral,
 } from '#/features/roles/usecase/useRoleGeneral.ts';
 import type { Ceiling } from '#/features/roles/usecase/useRoleRecordPage.ts';
-import { Owner } from '#/features/roles/view/Owner.tsx';
+import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
 import { SectionNoticeOf } from '#/features/roles/view/SectionNoticeOf.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { TextField, ToggleField } from '#/shared/view/Field.tsx';
+import { TextAreaField, ToggleField } from '#/shared/view/Field.tsx';
 import { Section } from '#/shared/view/Section.tsx';
 import { Timestamp } from '#/shared/view/Timestamp.tsx';
 import styles from '#/features/roles/view/Tab.module.css';
@@ -34,7 +34,7 @@ function Fixed({ role }: { role: Role }) {
         <div>
           <dt>Belongs to</dt>
           <dd>
-            <Owner role={role} />
+            <RoleOwner role={role} />
           </dd>
         </div>
         <div>
@@ -63,9 +63,10 @@ function Description({ general }: { general: RoleGeneral }) {
       blocked={s.blocked}
       notice={<SectionNoticeOf title="Description" save={s} />}
     >
-      <TextField
+      <TextAreaField
         label="Description"
         description={general.descriptionRule}
+        limit={general.descriptionLimit}
         value={s.values.description}
         error={s.fieldErrors.description}
         changed={s.changed.includes('description')}

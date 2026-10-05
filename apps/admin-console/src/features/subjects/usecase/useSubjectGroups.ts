@@ -1,4 +1,4 @@
-import type { Group, SetSubjectGroupsResponse, Subject } from '@odudu/contracts/admin';
+import type { Group, GroupFields, SetSubjectGroupsResponse, Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/features/session/index.ts';
 import {
@@ -69,7 +69,7 @@ export function useSubjectGroups(
   const saveGroups = useSaveGroups(tenant, subject.id);
   const effective = useEffectiveRoles(tenant, subject.id);
   const picker = useGroupPicker(tenant);
-  const known = new Map<string, Group>(
+  const known = new Map<string, GroupFields>(
     [...data.items, ...picker.options].map((group) => [group.id, group]),
   );
   const describe = (value: unknown): string =>

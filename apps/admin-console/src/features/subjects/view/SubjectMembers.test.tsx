@@ -38,8 +38,8 @@ it("lists a group's direct members, each opening its subject", async () => {
   });
 });
 
-it('says reading members needs view-users when it is refused', async () => {
-  renderConsoleAt(
+it('says reading members needs view-users, and sends no read whoami says is refused', async () => {
+  const { sent } = renderConsoleAt(
     AT,
     groupRoutes(['manage-tenant'], { [`GET ${S}`]: problem(403, 'about:blank', 'Forbidden') }),
   );
@@ -47,6 +47,7 @@ it('says reading members needs view-users when it is refused', async () => {
     'Members needs the view-users capability.',
   );
   expect(screen.queryByRole('link', { name: 'Open them in Subjects' })).toBeNull();
+  expect(sent.some((s) => s.path === S)).toBe(false);
 });
 
 it('says a group has no members yet', async () => {

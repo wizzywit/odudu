@@ -7,7 +7,6 @@ import {
   ceilingOf,
   isAdminRole,
   isHolding,
-  reachOf,
   writeRefusal,
 } from '#/shared/service/capabilities.ts';
 import type { AdminCapability } from '#/shared/service/principal.ts';
@@ -65,7 +64,9 @@ export const TAB_RECORDS: Readonly<Record<RoleTab, (id: string) => readonly stri
 export const NAME_FIXED =
   "A role's name is fixed once it is made: tokens carry it in their roles claim, and a relying party that matches on it would otherwise pass or fail by a token's age. A tenant role can be copied under another name instead.";
 
-export const DESCRIPTION_RULE = 'At most 1000 characters. Leave it empty for none.';
+export { DESCRIPTION_MAX } from '@odudu/contracts/admin';
+
+export const DESCRIPTION_RULE = 'Leave it empty for none.';
 
 // Every role of the built-in admin client, which the server guards by the
 // client rather than by the role's name.
@@ -73,53 +74,46 @@ export function isBuiltin(role: Pick<Role, 'client_key'>): boolean {
   return role.client_key === ADMIN_CLIENT_KEY;
 }
 
-export function ownerText(role: Pick<Role, 'client_key' | 'client_id'>): string {
-  if (role.client_id === null) return 'tenant role';
-  return isBuiltin(role)
-    ? 'admin capability'
-    : `role of client ${role.client_key ?? role.client_id}`;
-}
-
 const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
 
-type Named = Pick<Role, 'name' | 'client_key'>;
+type Reaching = Pick<Role, 'name' | 'client_key' | 'admin_reach'>;
 
-// What the role hands out by itself and through the roles nested in it, one
-// level down; a capability nested deeper is the server's to find.
-export function roleReach(tenant: string, role: Named, children: readonly Named[]) {
-  return reachOf(tenant, [role, ...children]);
-}
-
-export function deleteBlock(
-  tenant: string,
-  role: Role,
-  children: readonly Named[],
-  caller: readonly AdminCapability[],
-): string | null {
+// `admin_reach` is the server's judgement of what a role hands out, however
+// deep it nests a capability: the same one each ceiling on its writes makes.
+export function deleteBlock(role: Role, caller: readonly AdminCapability[]): string | null {
   if (isBuiltin(role)) {
     return `${role.name} is a capability of the built-in admin client, so it cannot be deleted: every administrator holding it would lose it.`;
   }
-  const beyond = beyondCaller(roleReach(tenant, role, children), caller);
+  const beyond = beyondCaller(role.admin_reach, caller);
   return beyond.length === 0
     ? null
     : `${role.name} reaches ${AND.format(beyond)}, which you do not hold, so you cannot delete it.`;
 }
 
-export function defaultBlock(
-  tenant: string,
-  role: Role,
-  children: readonly Named[],
-): string | null {
+export function defaultBlock(role: Role): string | null {
   if (isBuiltin(role)) {
     return 'A capability of the built-in admin client is never handed to every new subject.';
   }
-  const reached = roleReach(tenant, role, children);
-  if (role.default_for_new_subjects || reached.length === 0) return null;
-  return `It reaches ${AND.format(reached)}, and a role every new subject receives may reach no admin capability. Take those composites out of it first.`;
+  if (role.default_for_new_subjects || role.admin_reach.length === 0) return null;
+  return `It reaches ${AND.format(role.admin_reach)}, and a role every new subject receives may reach no admin capability. Take those composites out of it first.`;
+}
+
+// Giving a role or taking it out passes on what it reaches, so either is
+// held to the caller's own capabilities.
+export function removalBlock(
+  child: Reaching,
+  caller: readonly AdminCapability[],
+  tenant: string,
+): string | null {
+  if (isAdminRole(child) && isHolding(child.name)) return ceilingOf(tenant, child.name, caller);
+  const beyond = beyondCaller(child.admin_reach, caller);
+  return beyond.length === 0
+    ? null
+    : `It reaches ${AND.format(beyond)}, which you do not hold, so you cannot give or take it.`;
 }
 
 export function childUnavailable(
-  parent: Role,
+  parent: Pick<Role, 'id' | 'default_for_new_subjects'>,
   child: Role,
   children: readonly Pick<Role, 'id'>[],
   caller: readonly AdminCapability[],
@@ -127,21 +121,10 @@ export function childUnavailable(
 ): string | null {
   if (child.id === parent.id) return 'this role itself';
   if (children.some((each) => each.id === child.id)) return 'nested here already';
-  if (!isAdminRole(child) || !isHolding(child.name)) return null;
-  if (parent.default_for_new_subjects) {
+  if (parent.default_for_new_subjects && child.admin_reach.length > 0) {
     return 'Every new subject receives this role, so it may nest no admin capability.';
   }
-  return ceilingOf(tenant, child.name, caller);
-}
-
-// Taking a capability out of a role takes it from whoever holds it there.
-export function removalBlock(
-  child: Named,
-  caller: readonly AdminCapability[],
-  tenant: string,
-): string | null {
-  if (!isAdminRole(child) || !isHolding(child.name)) return null;
-  return ceilingOf(tenant, child.name, caller);
+  return removalBlock(child, caller, tenant);
 }
 
 type RefusedProblem = Parameters<typeof writeRefusal>[0];

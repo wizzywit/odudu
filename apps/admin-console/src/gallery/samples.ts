@@ -173,6 +173,7 @@ function role(id: string, name: string, clientKey: string | null, description: s
     client_key: clientKey,
     default_for_new_subjects: false,
     created_at: '2026-09-28T13:41:05Z',
+    admin_reach: [],
   };
 }
 
@@ -191,6 +192,7 @@ export const GROUPS: readonly Group[] = [
     default_for_new_subjects: false,
     path: '/engineering',
     created_at: '2026-09-28T13:41:05Z',
+    admin_reach: [],
   },
   {
     id: 'g2',
@@ -200,6 +202,7 @@ export const GROUPS: readonly Group[] = [
     default_for_new_subjects: false,
     path: '/engineering/platform',
     created_at: '2026-09-28T13:41:05Z',
+    admin_reach: [],
   },
 ];
 

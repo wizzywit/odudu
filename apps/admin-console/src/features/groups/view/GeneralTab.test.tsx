@@ -2,10 +2,19 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
-import { inTurn, json, problem } from '#/testing/fakeTransport.ts';
-import { adminRole, G, group, groupRoutes, PLATFORM } from '#/testing/groupsFixtures.ts';
+import { inTurn, json, pending, problem } from '#/testing/fakeTransport.ts';
+import {
+  adminRole,
+  ENG,
+  FINANCE,
+  G,
+  group,
+  groupRoutes,
+  PLATFORM,
+  record,
+} from '#/testing/groupsFixtures.ts';
 import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
-import { assigned } from '#/testing/subjectsFixtures.ts';
+import { assigned, EVERY_TENANT_CAPABILITY, S } from '#/testing/subjectsFixtures.ts';
 
 afterEach(() => {
   resetConsole();
@@ -13,14 +22,15 @@ afterEach(() => {
 });
 
 const AT = '/console/acme/groups/g-plat';
-const FULL = adminRole('tenant-admin');
 
 it("shows a group's name as fixed, and saves its description on the ETag it read", async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(
     AT,
     groupRoutes(undefined, {
-      [`PATCH ${G}/g-plat`]: json({ ...PLATFORM, description: 'Runs it' }, 200, { etag: '"p2"' }),
+      [`PATCH ${G}/g-plat`]: json(record({ ...PLATFORM, description: 'Runs it' }), 200, {
+        etag: '"p2"',
+      }),
     }),
   );
   expect(await screen.findByRole('heading', { level: 1, name: '/eng/platform' })).toBeVisible();
@@ -48,8 +58,8 @@ it('shows a description changed elsewhere beside yours, and sends nothing more',
     AT,
     groupRoutes(undefined, {
       [`GET ${G}/g-plat`]: inTurn(
-        json(PLATFORM, 200, { etag: '"g-plat-1"' }),
-        json({ ...PLATFORM, description: 'Theirs' }, 200, { etag: '"g-plat-2"' }),
+        json(record(PLATFORM), 200, { etag: '"g-plat-1"' }),
+        json(record({ ...PLATFORM, description: 'Theirs' }), 200, { etag: '"g-plat-2"' }),
       ),
       [`PATCH ${G}/g-plat`]: problem(412, 'about:blank', 'Precondition Failed'),
     }),
@@ -104,9 +114,13 @@ it('marks a group joined by every new subject, and holds it back while it hands 
   const { sent } = renderConsoleAt(
     AT,
     groupRoutes(undefined, {
-      [`PUT ${G}/g-plat/default`]: json({ ...PLATFORM, default_for_new_subjects: true }, 200, {
-        etag: '"p3"',
-      }),
+      [`PUT ${G}/g-plat/default`]: json(
+        record({ ...PLATFORM, default_for_new_subjects: true }),
+        200,
+        {
+          etag: '"p3"',
+        },
+      ),
     }),
   );
   const section = await screen.findByRole('region', { name: 'New subjects' });
@@ -122,12 +136,12 @@ it('marks a group joined by every new subject, and holds it back while it hands 
   });
 });
 
-it('says why a group above handing out a capability cannot be made a default', async () => {
+it('says why a group handing out a capability, however deep, cannot be made a default', async () => {
   renderConsoleAt(
     AT,
     groupRoutes(undefined, {
-      [`GET ${G}/g-eng/roles`]: json({ items: [assigned(adminRole('view-users'))] }, 200, {
-        etag: '"r"',
+      [`GET ${G}/g-plat`]: json(record({ ...PLATFORM, admin_reach: ['view-users'] }), 200, {
+        etag: '"g-plat-1"',
       }),
     }),
   );
@@ -168,7 +182,14 @@ it('offers no delete or move a limited operator could not make, and says why in 
   renderConsoleAt(
     AT,
     groupRoutes(['manage-tenant'], {
-      [`GET ${G}/g-eng/roles`]: json({ items: [assigned(FULL)] }, 200, { etag: '"r"' }),
+      [`GET ${G}/g-eng`]: json(record({ ...ENG, admin_reach: EVERY_TENANT_CAPABILITY }), 200, {
+        etag: '"g-eng-1"',
+      }),
+      [`GET ${G}/g-plat`]: json(
+        record({ ...PLATFORM, admin_reach: EVERY_TENANT_CAPABILITY }, EVERY_TENANT_CAPABILITY),
+        200,
+        { etag: '"g-plat-1"' },
+      ),
     }),
   );
   expect(
@@ -196,7 +217,21 @@ it('passes axe in both themes, open and limited', async () => {
         consoleAt(
           AT,
           groupRoutes(['manage-tenant'], {
-            [`GET ${G}/g-eng/roles`]: json({ items: [assigned(FULL)] }, 200, { etag: '"r"' }),
+            [`GET ${G}/g-eng`]: json(
+              record({ ...ENG, admin_reach: EVERY_TENANT_CAPABILITY }),
+              200,
+              {
+                etag: '"g-eng-1"',
+              },
+            ),
+            [`GET ${G}/g-plat`]: json(
+              record(
+                { ...PLATFORM, admin_reach: EVERY_TENANT_CAPABILITY },
+                EVERY_TENANT_CAPABILITY,
+              ),
+              200,
+              { etag: '"g-plat-1"' },
+            ),
           }),
         ).element,
       () => screen.findByText(/so you cannot delete it/u),
@@ -204,16 +239,95 @@ it('passes axe in both themes, open and limited', async () => {
   ).toEqual({ light: [], dark: [] });
 });
 
-it('reads a group a third level down through each parent', async () => {
+it('reads only the parent of a group a third level down, for what it hands down', async () => {
   const deep = group('g-deep', '/eng/platform/deep', 'g-plat');
-  renderConsoleAt(
+  const { sent } = renderConsoleAt(
     '/console/acme/groups/g-deep',
     groupRoutes(undefined, {
-      [`GET ${G}/g-deep`]: json(deep, 200, { etag: '"d"' }),
+      [`GET ${G}/g-deep`]: json(record(deep), 200, { etag: '"d"' }),
       [`GET ${G}/g-deep/roles`]: json({ items: [] }, 200, { etag: '"dr"' }),
     }),
   );
   const place = await screen.findByRole('region', { name: 'Place in the tree' });
   expect(within(place).getByText('Under /eng/platform.')).toBeVisible();
   expect(await within(place).findByRole('listbox', { name: 'Parent' })).toBeVisible();
+  expect(sent.some((each) => each.path === `${G}/g-eng`)).toBe(false);
+});
+
+it('never offers a parent handing out what the caller lacks', async () => {
+  renderConsoleAt(
+    AT,
+    groupRoutes(['manage-tenant'], {
+      [`GET ${G}`]: json({ items: [{ ...FINANCE, admin_reach: ['view-users'] }] }),
+    }),
+  );
+  const parents = await screen.findByRole('listbox', { name: 'Parent' });
+  expect(within(parents).getByRole('option', { name: /finance/u })).toHaveTextContent(
+    'its members receive view-users, which you do not hold',
+  );
+});
+
+it('holds a delete while what it takes from yourself is read', async () => {
+  renderConsoleAt(
+    '/console/acme/groups/g-eng',
+    groupRoutes(undefined, { [`GET ${S}/s1/effective-roles`]: pending() }),
+  );
+  expect(await screen.findByText('Checking what its members hold through it…')).toBeVisible();
+  expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
+});
+
+it('says exactly what a delete takes from yourself, from your own groups', async () => {
+  const user = userEvent.setup();
+  const USERS = adminRole('manage-users');
+  renderConsoleAt(
+    '/console/acme/groups/g-eng',
+    groupRoutes(undefined, {
+      [`GET ${G}/g-eng`]: json(
+        record({ ...ENG, admin_reach: ['view-users', 'manage-users'] }, [
+          'view-users',
+          'manage-users',
+        ]),
+        200,
+        { etag: '"g-eng-1"' },
+      ),
+      [`GET ${S}/s1/effective-roles`]: json({
+        items: [
+          {
+            ...assigned(USERS),
+            via: [{ kind: 'group', group_id: 'g-eng', group_path: '/eng' }],
+          },
+        ],
+      }),
+      [`GET ${S}/s1/groups`]: json({ items: [PLATFORM] }, 200, { etag: '"m"' }),
+    }),
+  );
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete /eng and every group beneath it' }),
+  );
+  expect(await screen.findByRole('alertdialog', { name: 'Delete /eng?' })).toHaveTextContent(
+    'You hold manage-users through these groups, so this takes it from you',
+  );
+});
+
+it('asks without view-users whether you hold what a delete takes', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    '/console/acme/groups/g-eng',
+    groupRoutes(['manage-tenant', 'view-audit'], {
+      [`GET ${G}/g-eng`]: json(
+        record({ ...ENG, admin_reach: ['view-audit'] }, ['view-audit']),
+        200,
+        {
+          etag: '"g-eng-1"',
+        },
+      ),
+    }),
+  );
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete /eng and every group beneath it' }),
+  );
+  expect(await screen.findByRole('alertdialog', { name: 'Delete /eng?' })).toHaveTextContent(
+    'If you hold view-audit through these groups, this takes it from you',
+  );
+  expect(sent.some((each) => each.path.startsWith(`${S}/s1`))).toBe(false);
 });

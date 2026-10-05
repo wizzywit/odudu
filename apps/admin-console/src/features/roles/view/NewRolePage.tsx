@@ -4,7 +4,7 @@ import { rolesTrail } from '#/features/roles/service.ts';
 import { useNewRole, type Copying } from '#/features/roles/usecase/useNewRole.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
-import { TextField } from '#/shared/view/Field.tsx';
+import { TextAreaField, TextField } from '#/shared/view/Field.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
 import styles from '#/features/roles/view/Form.module.css';
 
@@ -24,13 +24,26 @@ function CopyNote({ copying }: { copying: Copying }) {
       );
     case 'ready':
       return (
-        <p className={styles.rule}>
+        <div className={styles.rule}>
           <span className={styles.place}>
             {`A copy of ${copying.name}, nesting ${copying.children.length === 0 ? 'nothing' : AND.format(copying.children)}.`}
           </span>{' '}
           Its description comes along. What it nests is added one role at a time after the copy is
           made, so a refusal of one leaves the rest in place.
-        </p>
+          {copying.left.length === 0 ? null : (
+            <>
+              {' '}
+              Not copied, since you could not nest it:
+              <ul aria-label="Not copied" className={styles.left}>
+                {copying.left.map((each) => (
+                  <li key={each.name}>
+                    <code>{each.name}</code> · {each.why}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
       );
   }
 }
@@ -53,9 +66,10 @@ function Form({ tenant }: { tenant: string }) {
         mono
         autoFocus
       />
-      <TextField
+      <TextAreaField
         label="Description"
         description={page.descriptionRule}
+        limit={page.descriptionLimit}
         value={page.description}
         error={page.errors.description}
         onChange={page.editDescription}

@@ -48,6 +48,7 @@ import { Pager } from '#/shared/view/Pager.tsx';
 import { Rail } from '#/shared/view/Rail.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { ResourceListPage } from '#/shared/view/ResourceListPage.tsx';
+import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
 import { RolePicker } from '#/shared/view/RolePicker.tsx';
 import { SaveBar } from '#/shared/view/SaveBar.tsx';
 import { SecretDialog } from '#/shared/view/SecretDialog.tsx';
@@ -798,6 +799,13 @@ export function Gallery({
               <StatusTag tone="danger">locked out</StatusTag>
               <StatusTag>retired</StatusTag>
               <StatusTag tone="system-authority">system</StatusTag>
+            </div>
+          </Specimen>
+          <Specimen label="RoleOwner">
+            <div className={styles.row}>
+              <RoleOwner role={{ client_id: null, client_key: null }} />
+              <RoleOwner role={{ client_id: 'c-portal', client_key: 'portal' }} />
+              <RoleOwner role={{ client_id: 'c-admin', client_key: 'odudu-admin' }} />
             </div>
           </Specimen>
           <Specimen label="CopyValue">

@@ -14,6 +14,7 @@ function role(id: string, name: string, client: string | null) {
     client_id: client,
     client_key: client === null ? null : 'odudu-admin',
     default_for_new_subjects: false,
+    admin_reach: [],
     created_at: '2026-09-28T08:41:53.858Z',
   };
 }

@@ -15,6 +15,7 @@ function role(id: string, name: string, clientKey: string | null = null): Role {
     client_key: clientKey,
     default_for_new_subjects: false,
     created_at: '2026-09-28T13:41:05Z',
+    admin_reach: [],
   };
 }
 

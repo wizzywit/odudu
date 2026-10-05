@@ -27,7 +27,6 @@ export function useGroupsList(tenant: string): GroupsList {
 
 export interface GroupNode {
   href: string;
-  createHref: string;
   open: boolean;
   toggle: () => void;
   children: ReturnType<typeof useGroupChildren>;
@@ -38,7 +37,6 @@ export function useGroupNode(tenant: string, group: Group): GroupNode {
   const children = useGroupChildren(tenant, group.id, open);
   return {
     href: groupHref(tenant, group.id),
-    createHref: newGroupHref(tenant, group.id),
     open,
     toggle: () => {
       setOpen((was) => !was);

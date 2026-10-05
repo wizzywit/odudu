@@ -11,6 +11,7 @@ import {
 } from '#/features/roles/repository/useRoleRecord.ts';
 import {
   defaultBlock,
+  DESCRIPTION_MAX,
   DESCRIPTION_RULE,
   isBuiltin,
   roleRecord,
@@ -20,12 +21,10 @@ import {
 import type { Ceiling } from '#/features/roles/usecase/useRoleRecordPage.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import { writeRefusal } from '#/shared/service/capabilities.ts';
+import { judgedLoss, lossText, writeRefusal } from '#/shared/service/capabilities.ts';
 import type { GatewayFailure } from '#/shared/transport/gateway.ts';
 
 export type { SectionSave };
-
-const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
 
 export interface Defaults {
   save: SectionSave<DefaultValues>;
@@ -52,6 +51,7 @@ export interface Deletion {
 export interface RoleGeneral {
   description: SectionSave<DescriptionValues>;
   descriptionRule: string;
+  descriptionLimit: number;
   defaults: Defaults;
   deletion: Deletion;
 }
@@ -137,18 +137,20 @@ export function useRoleGeneral({
     save: saves.default,
   });
   const ready = ceiling.status === 'ready' ? ceiling : null;
-  const loss =
-    own.status === 'ready' ? roleSelfLoss(own.roles, { kind: 'delete', id: role.id }) : [];
+  const loss = judgedLoss(
+    own,
+    (access) => roleSelfLoss(access.roles, { kind: 'delete', id: role.id }),
+    ready?.caller ?? [],
+    role.admin_reach,
+  );
+  const asks = loss.kind === 'certain' || loss.kind === 'possible';
   return {
     description,
     descriptionRule: DESCRIPTION_RULE,
+    descriptionLimit: DESCRIPTION_MAX,
     defaults: {
       save: defaults,
-      fixed: isBuiltin(role)
-        ? defaultBlock(tenant, role, [])
-        : ready === null
-          ? null
-          : defaultBlock(tenant, role, ready.children),
+      fixed: defaultBlock(role),
       checking: ready === null && !isBuiltin(role),
     },
     deletion: {
@@ -156,13 +158,9 @@ export function useRoleGeneral({
         ? `${role.name} is a capability of the built-in admin client, so it cannot be deleted: every administrator holding it would lose it.`
         : null,
       held: ready?.deleteHeld != null,
-      checking: ready === null,
+      checking: ready === null || loss.kind === 'checking',
       confirming: deleting,
-      consequence: `${role.name} is taken from every subject, group and scope it is given to, and out of every role it is nested in; what it nests is no longer held through it. It cannot be undone.${
-        loss.length === 0
-          ? ''
-          : ` You hold ${AND.format(loss)} through it, so you lose that too, and this console with it, unless you hold it some other way.`
-      }`,
+      consequence: `${role.name} is taken from every subject, group and scope it is given to, and out of every role it is nested in; what it nests is no longer held through it. It cannot be undone.${lossText(loss, role.name)}`,
       busy: deletion.busy,
       problem,
       ask: () => {
@@ -181,7 +179,7 @@ export function useRoleGeneral({
           .then((result) => {
             if (result.ok) {
               setDeleting(false);
-              if (loss.length > 0) reread();
+              if (asks) reread();
               push({ tone: 'success', message: `${role.name} was deleted.` });
               go(rolesHref(tenant), { replace: true });
               return;

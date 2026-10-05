@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { inTurn, json, offline, problem } from '#/testing/fakeTransport.ts';
-import { ENG, G, group, groupRoutes } from '#/testing/groupsFixtures.ts';
+import { ENG, G, group, groupRoutes, record } from '#/testing/groupsFixtures.ts';
 import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
 
 afterEach(() => {
@@ -17,7 +17,7 @@ it('creates a group under the parent it was asked from, and lands on it', async 
   const user = userEvent.setup();
   const { sent, router } = renderConsoleAt(
     `${AT}?parent=g-eng`,
-    groupRoutes(undefined, { [`POST ${G}`]: json(MADE, 201, { etag: '"n1"' }) }),
+    groupRoutes(undefined, { [`POST ${G}`]: json(record(MADE), 201, { etag: '"n1"' }) }),
   );
   expect(await screen.findByRole('heading', { level: 1, name: 'Create a group' })).toBeVisible();
   expect(
@@ -43,7 +43,7 @@ it('puts a group at the top level once its parent is let go', async () => {
   const user = userEvent.setup();
   const { sent } = renderConsoleAt(
     `${AT}?parent=g-eng`,
-    groupRoutes(undefined, { [`POST ${G}`]: json(group('g-top', '/qa'), 201) }),
+    groupRoutes(undefined, { [`POST ${G}`]: json(record(group('g-top', '/qa')), 201) }),
   );
   const parent = await screen.findByRole('listbox', { name: 'Parent' });
   await user.click(await within(parent).findByRole('option', { name: /^eng/u }));
@@ -109,4 +109,20 @@ it('passes axe in both themes', async () => {
       () => screen.findByText('It will sit under /eng.'),
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('holds Create under a parent handing out what the caller lacks, and says why', async () => {
+  const { sent } = renderConsoleAt(
+    `${AT}?parent=g-eng`,
+    groupRoutes(['manage-tenant'], {
+      [`GET ${G}`]: json({ items: [{ ...ENG, admin_reach: ['view-users'] }] }),
+    }),
+  );
+  expect(
+    await screen.findByText(
+      'A group made under /eng hands its members view-users, which you do not hold, so you cannot make one there.',
+    ),
+  ).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Create group' })).toBeDisabled();
+  expect(sent.some((s) => s.method === 'POST')).toBe(false);
 });

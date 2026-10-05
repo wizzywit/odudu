@@ -13,18 +13,8 @@ import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { RolePicker } from '#/shared/view/RolePicker.tsx';
 import { Section } from '#/shared/view/Section.tsx';
 import { FormSkeleton } from '#/shared/view/Skeleton.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
+import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
 import styles from '#/features/groups/view/Tab.module.css';
-
-// A client's role reaches a token under its client's name, so it is told
-// apart from a tenant role of the same name by more than colour.
-export function Owner({ client }: { client: string | null }) {
-  return client === null ? (
-    <StatusTag tone="neutral">tenant role</StatusTag>
-  ) : (
-    <StatusTag tone="neutral">{`client ${client}`}</StatusTag>
-  );
-}
 
 function Listed({ path, mapped }: { path: string; mapped: readonly Mapped[] }) {
   if (mapped.length === 0) return <p className={styles.rule}>{`${path} carries no role.`}</p>;
@@ -32,7 +22,7 @@ function Listed({ path, mapped }: { path: string; mapped: readonly Mapped[] }) {
     <ul aria-label={`Carried by ${path}`} className={styles.roles}>
       {mapped.map((role) => (
         <li key={role.id}>
-          <code>{role.name}</code> <Owner client={role.client} />
+          <code>{role.name}</code> <RoleOwner role={role} />
           {role.description === null || role.description === '' ? null : (
             <span className={styles.rule}>{` ${role.description}`}</span>
           )}
@@ -57,6 +47,14 @@ function Roles({ path, roles }: { path: string; roles: GroupRoles }) {
       notice={<SectionNoticeOf title="Roles" save={s} />}
     >
       <Listed path={path} mapped={roles.mapped} />
+      {roles.reachFailed === null ? null : (
+        <p className={styles.rule}>
+          What these roles reach could not be read, so no role is offered until it is.{' '}
+          <Button size="small" variant="quiet" onPress={roles.reachFailed}>
+            Read it again
+          </Button>
+        </p>
+      )}
       {roles.offered ? (
         <RolePicker
           label={`Roles ${path} carries`}
@@ -65,9 +63,9 @@ function Roles({ path, roles }: { path: string; roles: GroupRoles }) {
           unavailableOf={roles.unavailableOf}
           onChange={roles.choose}
         />
-      ) : (
+      ) : roles.reachFailed === null ? (
         <p className={styles.rule}>Checking what you may give or take here…</p>
-      )}
+      ) : null}
       {roles.kept.length === 0 ? null : (
         <p className={styles.rule}>
           A role you could not give is one you cannot take away either, so it stays whatever else is

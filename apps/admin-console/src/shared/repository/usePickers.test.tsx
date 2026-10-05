@@ -20,6 +20,7 @@ function role(id: string) {
     client_id: null,
     client_key: null,
     default_for_new_subjects: false,
+    admin_reach: [],
     created_at: '2026-09-28T13:41:05Z',
   };
 }

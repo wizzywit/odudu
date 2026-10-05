@@ -29,6 +29,7 @@ const GROUPS: readonly Group[] = [
     default_for_new_subjects: false,
     path: '/engineering',
     created_at: '2026-09-28T13:41:05Z',
+    admin_reach: [],
   },
   {
     id: 'g2',
@@ -38,6 +39,7 @@ const GROUPS: readonly Group[] = [
     default_for_new_subjects: false,
     path: '/engineering/platform',
     created_at: '2026-09-28T13:41:05Z',
+    admin_reach: [],
   },
 ];
 

@@ -1,9 +1,10 @@
 import {
   countResponseSchema,
-  groupSchema,
+  groupRecordSchema,
   setGroupRolesResponseSchema,
   type CountResponse,
   type Group,
+  type GroupRecord,
   type SetGroupRolesResponse,
 } from '@odudu/contracts/admin';
 import { z } from 'zod';
@@ -37,7 +38,7 @@ export function createGroup(
   gateway: Gateway,
   tenant: string,
   input: { name: string; description: string; parentId: string | null },
-): Promise<GatewayResult<Group>> {
+): Promise<GatewayResult<GroupRecord>> {
   const t = path(tenant);
   return gateway.request('POST', `admin/tenants/${t}/groups`, {
     body: {
@@ -45,7 +46,7 @@ export function createGroup(
       ...(input.description === '' ? {} : { description: input.description }),
       ...(input.parentId === null ? {} : { parent_id: input.parentId }),
     },
-    schema: groupSchema,
+    schema: groupRecordSchema,
   });
 }
 
@@ -53,10 +54,10 @@ export function readGroup(
   gateway: Gateway,
   tenant: string,
   groupId: string,
-): Promise<GatewayResult<Group>> {
+): Promise<GatewayResult<GroupRecord>> {
   const t = path(tenant);
   const id = segment(groupId);
-  return gateway.request('GET', `admin/tenants/${t}/groups/${id}`, { schema: groupSchema });
+  return gateway.request('GET', `admin/tenants/${t}/groups/${id}`, { schema: groupRecordSchema });
 }
 
 export function amendGroup(
@@ -65,13 +66,13 @@ export function amendGroup(
   groupId: string,
   changes: { description?: string | null; parent_id?: string | null },
   ifMatch: string,
-): Promise<GatewayResult<Group>> {
+): Promise<GatewayResult<GroupRecord>> {
   const t = path(tenant);
   const id = segment(groupId);
   return gateway.request('PATCH', `admin/tenants/${t}/groups/${id}`, {
     body: changes,
     ifMatch,
-    schema: groupSchema,
+    schema: groupRecordSchema,
   });
 }
 
@@ -81,13 +82,13 @@ export function setGroupDefault(
   groupId: string,
   value: boolean,
   ifMatch: string,
-): Promise<GatewayResult<Group>> {
+): Promise<GatewayResult<GroupRecord>> {
   const t = path(tenant);
   const id = segment(groupId);
   return gateway.request('PUT', `admin/tenants/${t}/groups/${id}/default`, {
     body: { default: value },
     ifMatch,
-    schema: groupSchema,
+    schema: groupRecordSchema,
   });
 }
 
@@ -129,40 +130,24 @@ export function setGroupRoles(
   });
 }
 
-export interface TrailStep {
-  group: Group;
-  roles: SetGroupRolesResponse['items'];
-}
-
-// A group and every group above it, the topmost first, each with the roles
-// it hands to the members of every group beneath it.
-export async function readGroupTrail(
-  gateway: Gateway,
-  tenant: string,
-  groupId: string,
-): Promise<GatewayResult<TrailStep[]>> {
-  const steps: TrailStep[] = [];
-  let next: string | null = groupId;
-  while (next !== null) {
-    const [group, roles]: [GatewayResult<Group>, GatewayResult<SetGroupRolesResponse>] =
-      await Promise.all([readGroup(gateway, tenant, next), readGroupRoles(gateway, tenant, next)]);
-    if (!group.ok) return group;
-    if (!roles.ok) return roles;
-    steps.unshift({ group: group.data, roles: roles.data.items });
-    next = group.data.parent_id;
-  }
-  return { ok: true, status: 200, etag: null, next: null, data: steps };
-}
-
-// The search is a prefix, so an exact match is picked out of its answer.
+// The search is a prefix, sorted by the folded name, so the exact match is
+// picked out page by page until the names run past it.
 export async function findGroup(
   gateway: Gateway,
   tenant: string,
   name: string,
   parentId: string | null,
 ): Promise<GatewayResult<Group | null>> {
+  const folded = name.toLowerCase();
   const query = new URLSearchParams({ name, parent: parentId ?? 'root', limit: '200' });
-  const result = await readGroupPage(gateway, tenant, query);
-  if (!result.ok) return result;
-  return { ...result, data: result.data.items.find((group) => group.name === name) ?? null };
+  for (;;) {
+    const result = await readGroupPage(gateway, tenant, query);
+    if (!result.ok) return result;
+    const found = result.data.items.find((group) => group.name === name);
+    const last = result.data.items.at(-1)?.name.toLowerCase() ?? folded;
+    if (found !== undefined || result.data.next === undefined || last > folded) {
+      return { ...result, data: found ?? null };
+    }
+    query.set('cursor', result.data.next);
+  }
 }

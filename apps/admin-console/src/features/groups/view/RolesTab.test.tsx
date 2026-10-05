@@ -3,7 +3,14 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 import { json } from '#/testing/fakeTransport.ts';
-import { adminRole, AUDITOR, G, groupRoutes, PORTAL_READER } from '#/testing/groupsFixtures.ts';
+import {
+  adminRole,
+  AUDITOR,
+  ENG,
+  G,
+  groupRoutes,
+  PORTAL_READER,
+} from '#/testing/groupsFixtures.ts';
 import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
 import { assigned, S } from '#/testing/subjectsFixtures.ts';
 
@@ -87,6 +94,7 @@ it('asks first when a role taken off the group is one you hold through it', asyn
           },
         ],
       }),
+      [`GET ${S}/s1/groups`]: json({ items: [ENG] }, 200, { etag: '"m"' }),
       [`PUT ${R}`]: json({ items: [] }, 200, { etag: '"r2"' }),
     }),
   );
@@ -108,16 +116,38 @@ it('asks first when a role taken off the group is one you hold through it', asyn
 });
 
 it('passes axe in both themes, mapped and asking', async () => {
+  const user = userEvent.setup();
+  const AUDIT = adminRole('view-audit');
   expect(
     await axeInBothThemes(
       () =>
         consoleAt(
           AT,
           groupRoutes(undefined, {
-            [`GET ${R}`]: json({ items: [assigned(PORTAL_READER)] }, 200, { etag: '"r1"' }),
+            [`GET ${R}`]: json({ items: [assigned(AUDIT), assigned(PORTAL_READER)] }, 200, {
+              etag: '"r1"',
+            }),
+            [`GET ${S}/s1/effective-roles`]: json({
+              items: [
+                {
+                  ...assigned(AUDIT),
+                  via: [{ kind: 'group', group_id: 'g-eng', group_path: '/eng' }],
+                },
+              ],
+            }),
+            [`GET ${S}/s1/groups`]: json({ items: [ENG] }, 200, { etag: '"m"' }),
           }),
         ).element,
-      () => screen.findByRole('listbox', { name: 'Roles /eng carries' }),
+      async () => {
+        const options = await screen.findByRole('listbox', { name: 'Roles /eng carries' });
+        await user.click(
+          within(options).getByRole('option', { name: 'view-audit, a role of client odudu-admin' }),
+        );
+        await user.click(screen.getByRole('button', { name: 'Save Roles' }));
+        await screen.findByRole('alertdialog', {
+          name: 'Take roles your own access runs through?',
+        });
+      },
     ),
   ).toEqual({ light: [], dark: [] });
 });

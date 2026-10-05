@@ -69,6 +69,7 @@ it("changes a holder's capabilities in place", async () => {
           ...full,
           description: null,
           default_for_new_subjects: false,
+          admin_reach: [],
           created_at: GRACE.created_at,
         },
         {
@@ -77,6 +78,7 @@ it("changes a holder's capabilities in place", async () => {
           name: 'view-audit',
           description: null,
           default_for_new_subjects: false,
+          admin_reach: [],
           created_at: GRACE.created_at,
         },
       ],

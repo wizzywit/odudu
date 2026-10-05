@@ -1,5 +1,6 @@
 import type { EffectiveRoleAssignment } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
+import type { AdminCapability } from '#/shared/service/principal.ts';
 import {
   childUnavailable,
   compositeRefusal,
@@ -19,8 +20,14 @@ import {
   compositesRecord,
 } from '#/features/roles/service.ts';
 
-function role(id: string, name: string, clientKey: string | null = null, extra = {}) {
+function role(
+  id: string,
+  name: string,
+  clientKey: string | null = null,
+  reach: AdminCapability[] = [],
+) {
   return {
+    admin_reach: reach,
     id,
     name,
     description: null,
@@ -28,14 +35,15 @@ function role(id: string, name: string, clientKey: string | null = null, extra =
     client_key: clientKey,
     default_for_new_subjects: false,
     created_at: '2026-09-28T08:41:53.858Z',
-    ...extra,
   };
 }
 
 const AUDITOR = role('r-aud', 'auditor');
 const READER = role('r-read', 'reader');
-const USERS = role('r-users', 'manage-users', 'odudu-admin');
-const FULL = role('r-full', 'tenant-admin', 'odudu-admin');
+const USERS = role('r-users', 'manage-users', 'odudu-admin', ['view-users', 'manage-users']);
+const FULL = role('r-full', 'tenant-admin', 'odudu-admin', ['view-users', 'manage-users']);
+// A tenant role nesting a capability two levels down.
+const DEEP = role('r-deep', 'deep', null, ['view-audit']);
 
 describe('addresses', () => {
   it('puts a role under its tenant, and a copy beside a new one', () => {
@@ -64,31 +72,29 @@ describe('the built-in roles', () => {
   });
 
   it('are never deleted, never made a default and keep their composites', () => {
-    expect(deleteBlock('acme', USERS, [], [])).toBe(
+    expect(deleteBlock(USERS, [])).toBe(
       'manage-users is a capability of the built-in admin client, so it cannot be deleted: every administrator holding it would lose it.',
     );
-    expect(defaultBlock('acme', USERS, [])).toBe(
+    expect(defaultBlock(USERS)).toBe(
       'A capability of the built-in admin client is never handed to every new subject.',
     );
   });
 });
 
-describe('the ceiling on a role', () => {
+describe('the ceiling on a role, by what the server says it reaches', () => {
   it('holds a delete back when what the role reaches is beyond the caller', () => {
-    expect(deleteBlock('acme', AUDITOR, [USERS], ['manage-tenant'])).toBe(
-      'auditor reaches view-users and manage-users, which you do not hold, so you cannot delete it.',
+    expect(deleteBlock(DEEP, ['manage-tenant'])).toBe(
+      'deep reaches view-audit, which you do not hold, so you cannot delete it.',
     );
-    expect(deleteBlock('acme', AUDITOR, [READER], ['manage-tenant'])).toBeNull();
+    expect(deleteBlock(AUDITOR, ['manage-tenant'])).toBeNull();
   });
 
-  it('holds a default back while the role reaches an admin capability', () => {
-    expect(defaultBlock('acme', AUDITOR, [USERS])).toBe(
-      'It reaches view-users and manage-users, and a role every new subject receives may reach no admin capability. Take those composites out of it first.',
+  it('holds a default back while the role reaches an admin capability, however deep', () => {
+    expect(defaultBlock(DEEP)).toBe(
+      'It reaches view-audit, and a role every new subject receives may reach no admin capability. Take those composites out of it first.',
     );
-    expect(defaultBlock('acme', AUDITOR, [READER])).toBeNull();
-    expect(
-      defaultBlock('acme', { ...AUDITOR, default_for_new_subjects: true }, [USERS]),
-    ).toBeNull();
+    expect(defaultBlock(AUDITOR)).toBeNull();
+    expect(defaultBlock({ ...DEEP, default_for_new_subjects: true })).toBeNull();
   });
 
   it('says why a role cannot be nested here, or taken out', () => {
@@ -101,12 +107,15 @@ describe('the ceiling on a role', () => {
     expect(childUnavailable(AUDITOR, FULL, [], ['manage-users'], 'acme')).toBe(
       'Full carries capabilities you do not hold, so you cannot give or take it.',
     );
+    expect(childUnavailable(AUDITOR, DEEP, [], ['manage-users'], 'acme')).toBe(
+      'It reaches view-audit, which you do not hold, so you cannot give or take it.',
+    );
     expect(
       childUnavailable(
         { ...AUDITOR, default_for_new_subjects: true },
-        USERS,
+        DEEP,
         [],
-        ['manage-users'],
+        ['view-audit'],
         'acme',
       ),
     ).toBe('Every new subject receives this role, so it may nest no admin capability.');

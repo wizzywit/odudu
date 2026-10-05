@@ -21,9 +21,8 @@ import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useRolePicker } from '#/shared/repository/useRolePicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
+import { judgedLoss, lossText, type Loss } from '#/shared/service/capabilities.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
-
-const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
 
 export function useCompositesRead(
   tenant: string,
@@ -117,10 +116,13 @@ export function useRoleComposites({
     save,
   });
 
-  const lossOf = (child: Role): string[] =>
-    own.status === 'ready'
-      ? roleSelfLoss(own.roles, { kind: 'remove', id: role.id, child: child.id })
-      : [];
+  const lossOf = (child: Role): Loss =>
+    judgedLoss(
+      own,
+      (access) => roleSelfLoss(access.roles, { kind: 'remove', id: role.id, child: child.id }),
+      caller,
+      child.admin_reach,
+    );
 
   const run = async (child: Role): Promise<boolean> => {
     setRemoving(child.id);
@@ -129,7 +131,7 @@ export function useRoleComposites({
       const result = await removal.remove({ child: child.id, ifMatch: etag });
       if (result.ok) {
         push({ tone: 'success', message: `${child.name} is no longer nested in ${role.name}.` });
-        if (lossOf(child).length > 0) reread();
+        if (lossOf(child).kind !== 'none') reread();
         return true;
       }
       refusal.report(result, 'manage-tenant');
@@ -161,7 +163,9 @@ export function useRoleComposites({
       role: child,
       held: removalBlock(child, caller, tenant),
     })),
-    offered: ceiling.status === 'ready',
+    // Each removal asks first where it takes from yourself, so none is
+    // offered while that is still being read.
+    offered: ceiling.status === 'ready' && own.status !== 'loading',
     add,
     picker,
     unavailableOf: (candidate) => childUnavailable(role, candidate, data.items, caller, tenant),
@@ -172,12 +176,12 @@ export function useRoleComposites({
     message,
     remove: (child) => {
       const lost = lossOf(child);
-      if (lost.length === 0) return run(child);
+      if (lost.kind === 'none') return run(child);
       setAsking({
         child,
         asked: {
           title: 'Take out a role your own access runs through?',
-          consequence: `You hold ${AND.format(lost)} through ${child.name} nested in ${role.name}. Taking it out takes that from you too, and this console with it, unless you hold it some other way.`,
+          consequence: `Whoever holds ${role.name} no longer holds ${child.name} through it.${lossText(lost, `${child.name} nested in ${role.name}`)}`,
         },
       });
       return Promise.resolve(false);

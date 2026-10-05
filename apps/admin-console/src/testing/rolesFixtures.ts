@@ -42,6 +42,7 @@ export function roleRoutes(
     [`GET ${A}/subjects`]: json({ items: [] }),
     [`GET ${A}/subjects/count`]: json({ count: 0, capped: false }),
     [`GET ${A}/subjects/s1/effective-roles`]: json({ items: [] }),
+    [`GET ${A}/subjects/s1/groups`]: json({ items: [] }, 200, { etag: '"m0"' }),
     ...extra,
   };
 }

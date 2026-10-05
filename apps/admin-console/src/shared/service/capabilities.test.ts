@@ -10,7 +10,7 @@ import {
   isAdminRole,
   provenanceText,
   adminLoss,
-  reachOf,
+  roleOwnerText,
   writeRefusal,
 } from '#/shared/service/capabilities.ts';
 
@@ -112,18 +112,13 @@ describe('includedBy', () => {
   });
 });
 
-describe('reachOf', () => {
-  const admin = (name: string) => ({ name, client_key: ADMIN_CLIENT_KEY });
-  it('names every capability the admin roles among them carry, and nothing else', () => {
-    expect(reachOf('acme', [admin('manage-users'), { name: 'auditor', client_key: null }])).toEqual(
-      ['view-users', 'manage-users'],
+describe('roleOwnerText', () => {
+  it('says whose a role is in words', () => {
+    expect(roleOwnerText({ client_id: null, client_key: null })).toBe('tenant role');
+    expect(roleOwnerText({ client_id: 'c', client_key: 'portal' })).toBe('role of client portal');
+    expect(roleOwnerText({ client_id: 'c', client_key: ADMIN_CLIENT_KEY })).toBe(
+      'admin capability',
     );
-    expect(reachOf('acme', [{ name: 'manage-users', client_key: null }])).toEqual([]);
-  });
-
-  it('counts Full as everything it carries, in the tenant it is held in', () => {
-    expect(reachOf('acme', [admin('tenant-admin')])).toEqual(grantableIn('acme'));
-    expect(reachOf('system', [admin('tenant-admin')])).toContain('manage-tenants');
   });
 });
 

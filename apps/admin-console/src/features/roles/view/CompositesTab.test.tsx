@@ -38,7 +38,7 @@ it('nests a role on the ETag the list was read with, and reads the list again', 
     'this role itself',
   );
   await user.click(within(options).getByRole('option', { name: 'reader, a tenant role' }));
-  await user.click(within(add).getByRole('button', { name: 'Save Add a composite' }));
+  await user.click(within(add).getByRole('button', { name: 'Nest it in auditor' }));
   expect(await screen.findByRole('list', { name: 'Nested in auditor' })).toHaveTextContent(
     'reader',
   );
@@ -61,7 +61,7 @@ it('explains a loop where it was asked for', async () => {
   const add = await screen.findByRole('region', { name: 'Add a composite' });
   const options = await within(add).findByRole('listbox', { name: 'Role to nest in auditor' });
   await user.click(within(options).getByRole('option', { name: 'reader, a tenant role' }));
-  await user.click(within(add).getByRole('button', { name: 'Save Add a composite' }));
+  await user.click(within(add).getByRole('button', { name: 'Nest it in auditor' }));
   expect(
     await within(add).findByText(
       'Refused: the role chosen already includes this role, so nesting it here would make a loop.',
@@ -126,4 +126,16 @@ it('passes axe in both themes, nested and fixed', async () => {
       () => screen.findByRole('listbox', { name: 'Role to nest in auditor' }),
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('never offers a role reaching what the caller lacks, however deep it nests it', async () => {
+  const deep = { ...READER, id: 'r-deep', name: 'deep', admin_reach: ['view-audit'] };
+  renderConsoleAt(
+    AT,
+    roleRoutes(['manage-tenant'], { [`GET ${R}`]: json({ items: [READER, deep] }) }),
+  );
+  const options = await screen.findByRole('listbox', { name: 'Role to nest in auditor' });
+  expect(within(options).getByRole('option', { name: 'deep, a tenant role' })).toHaveTextContent(
+    'It reaches view-audit, which you do not hold, so you cannot give or take it.',
+  );
 });

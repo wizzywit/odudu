@@ -5,12 +5,23 @@ import { ADMIN_ROLES, EVERY_TENANT_CAPABILITY, role } from '#/testing/subjectsFi
 export const A = '/console/api/admin/tenants/acme';
 export const G = `${A}/groups`;
 
+export interface GroupAnswer {
+  id: string;
+  name: string;
+  description: string | null;
+  parent_id: string | null;
+  default_for_new_subjects: boolean;
+  path: string;
+  created_at: string;
+  admin_reach: readonly string[];
+}
+
 export function group(
   id: string,
   path: string,
   parent: string | null = null,
-  extra: Record<string, unknown> = {},
-) {
+  extra: Partial<GroupAnswer> = {},
+): GroupAnswer {
   return {
     id,
     name: path.split('/').at(-1) ?? path,
@@ -19,8 +30,14 @@ export function group(
     default_for_new_subjects: false,
     path,
     created_at: '2026-09-28T08:41:53.858Z',
+    admin_reach: [],
     ...extra,
   };
+}
+
+// A group as its own record answers it, with what deleting it would take.
+export function record(each: GroupAnswer, subtree: readonly string[] = []) {
+  return { ...each, subtree_admin_reach: subtree };
 }
 
 export const ENG = group('g-eng', '/eng', null, { description: 'Builds the product' });
@@ -63,14 +80,21 @@ export function groupRoutes(
       json({ count: listed(request).length, capped: false })(request),
     ...Object.fromEntries(
       GROUPS.flatMap((each) => [
-        [`GET ${G}/${each.id}`, json(each, 200, { etag: `"${each.id}-1"` })],
+        [`GET ${G}/${each.id}`, json(record(each), 200, { etag: `"${each.id}-1"` })],
         [`GET ${G}/${each.id}/roles`, json({ items: [] }, 200, { etag: `"${each.id}-r1"` })],
       ]),
     ),
     [`GET ${A}/roles`]: json({ items: [AUDITOR, PORTAL_READER, ...ADMIN_ROLES] }),
+    ...Object.fromEntries(
+      [AUDITOR, PORTAL_READER, ...ADMIN_ROLES].map((each) => [
+        `GET ${A}/roles/${each.id}`,
+        json(each, 200, { etag: `"${each.id}-1"` }),
+      ]),
+    ),
     [`GET ${A}/audit`]: json({ items: [] }),
     [`GET ${A}/subjects`]: json({ items: [] }),
     [`GET ${A}/subjects/count`]: json({ count: 0, capped: false }),
+    [`GET ${A}/subjects/s1/groups`]: json({ items: [] }, 200, { etag: '"m0"' }),
     ...extra,
   };
 }

@@ -68,11 +68,13 @@ it('gives a role to every new subject, and says why one reaching a capability ca
   });
 });
 
-it('holds the toggle back while what it nests reaches a capability', async () => {
+it('holds the toggle back while what it reaches, however deep, is an admin capability', async () => {
   renderConsoleAt(
     AT,
     roleRoutes(undefined, {
-      [`GET ${R}/r-aud/composites`]: json({ items: [USERS] }, 200, { etag: '"c"' }),
+      [`GET ${R}/r-aud`]: json({ ...AUDITOR, admin_reach: ['view-users', 'manage-users'] }, 200, {
+        etag: '"r-aud-1"',
+      }),
     }),
   );
   const section = await screen.findByRole('region', { name: 'New subjects' });
@@ -131,7 +133,9 @@ it('deletes a role after saying what goes with it, and what you lose yourself', 
   await user.click(await screen.findByRole('button', { name: 'Delete auditor' }));
   const dialog = await screen.findByRole('alertdialog', { name: 'Delete auditor?' });
   expect(dialog).toHaveTextContent('taken from every subject, group and scope');
-  expect(dialog).toHaveTextContent('You hold manage-users through it');
+  expect(dialog).toHaveTextContent(
+    'You hold manage-users through auditor, so this takes it from you',
+  );
   await user.click(within(dialog).getByRole('button', { name: 'Delete auditor' }));
   await waitFor(() => {
     expect(router.state.location.pathname).toBe('/acme/roles');
@@ -142,7 +146,9 @@ it('offers no delete a limited operator could not make, and says why in one line
   renderConsoleAt(
     AT,
     roleRoutes(['manage-tenant'], {
-      [`GET ${R}/r-aud/composites`]: json({ items: [USERS] }, 200, { etag: '"c"' }),
+      [`GET ${R}/r-aud`]: json({ ...AUDITOR, admin_reach: ['view-users', 'manage-users'] }, 200, {
+        etag: '"r-aud-1"',
+      }),
     }),
   );
   expect(

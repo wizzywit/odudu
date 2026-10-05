@@ -1,4 +1,4 @@
-import type { Group } from '@odudu/contracts/admin';
+import type { Group, GroupRecord } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/features/session/index.ts';
 import { useOwnRoles } from '#/features/subjects/index.ts';
@@ -12,13 +12,15 @@ import {
 } from '#/features/groups/repository/useGroupRecord.ts';
 import {
   defaultBlock,
+  DESCRIPTION_MAX,
   DESCRIPTION_RULE,
   groupRecord,
   groupsHref,
+  lossOf,
+  lossText,
   moveRefusal,
-  moveUnavailable,
-  selfLoss,
-  type Change,
+  parentUnavailable,
+  type Loss,
 } from '#/features/groups/service.ts';
 import type { Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker.ts';
@@ -30,7 +32,9 @@ import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.t
 
 export type { SectionSave };
 
-const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
+// Whether what a write is judged by has been read: until it has, the write
+// waits; if it could not be, the page's one line says so.
+export type Readiness = 'checking' | 'failed' | 'ready';
 
 export interface Asked {
   title: string;
@@ -41,8 +45,7 @@ export interface Place {
   save: SectionSave<ParentValues>;
   // Why a move is not offered, or null when it is.
   held: string | null;
-  // What the move would take is still being read.
-  checking: boolean;
+  state: Readiness;
   // Where the group sits as the section holds it.
   current: string;
   picker: PickerState<Group>;
@@ -58,14 +61,13 @@ export interface Defaults {
   save: SectionSave<DefaultValues>;
   // Why it cannot be made a default, said in place of the toggle.
   fixed: string | null;
-  // Whatever it hands out is still being read, so nothing is offered yet.
-  checking: boolean;
+  state: Readiness;
 }
 
 export interface Deletion {
   // Why it cannot be deleted, or null when it can; nothing is offered until known.
   held: string | null;
-  checking: boolean;
+  state: Readiness;
   confirming: boolean;
   consequence: string;
   busy: boolean;
@@ -78,6 +80,7 @@ export interface Deletion {
 export interface GroupGeneral {
   description: SectionSave<DescriptionValues>;
   descriptionRule: string;
+  descriptionLimit: number;
   place: Place;
   defaults: Defaults;
   deletion: Deletion;
@@ -99,12 +102,6 @@ function failureText(path: string, result: GatewayFailure): string {
   }
 }
 
-function lossText(lost: readonly string[]): string {
-  return lost.length === 0
-    ? ''
-    : ` You hold ${AND.format(lost)} through these groups, so you may lose it with them, and this console with it, unless you hold it some other way.`;
-}
-
 export function useGroupGeneral({
   tenant,
   group,
@@ -113,7 +110,7 @@ export function useGroupGeneral({
   ceiling,
 }: {
   tenant: string;
-  group: Group;
+  group: GroupRecord;
   etag: string;
   gone: boolean;
   ceiling: Ceiling;
@@ -130,8 +127,6 @@ export function useGroupGeneral({
   const [deleting, setDeleting] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const record = groupRecord(group.id);
-  const lost = (change: Change): string[] =>
-    own.status === 'ready' ? selfLoss(own.roles, change) : [];
   const onRefused = (failure: GatewayFailure): void => {
     refusal.report(failure, 'manage-tenant');
   };
@@ -212,29 +207,53 @@ export function useGroupGeneral({
   });
 
   const ready = ceiling.status === 'ready' ? ceiling : null;
-  const moveLoss = lost({ kind: 'move', path: group.path });
-  const deleteLoss = lost({ kind: 'delete', path: group.path });
+  const caller = ready?.caller ?? [];
+  const destination = parent.values.parent_id;
+  const moveLoss: Loss = lossOf(
+    own,
+    caller,
+    {
+      kind: 'move',
+      path: group.path,
+      to: destination === null ? null : pathOf(destination),
+    },
+    ready?.parentReach ?? [],
+  );
+  const deleteLoss: Loss = lossOf(
+    own,
+    caller,
+    { kind: 'delete', path: group.path },
+    group.subtree_admin_reach,
+  );
+  const readiness = (loss: Loss): Readiness =>
+    ceiling.status === 'failed'
+      ? 'failed'
+      : ready === null || loss.kind === 'checking'
+        ? 'checking'
+        : 'ready';
+  const asks = (loss: Loss): boolean => loss.kind === 'certain' || loss.kind === 'possible';
 
   return {
     description,
     descriptionRule: DESCRIPTION_RULE,
+    descriptionLimit: DESCRIPTION_MAX,
     place: {
       save: {
         ...parent,
         submit: () => {
-          if (moveLoss.length === 0) return parent.submit();
+          if (!asks(moveLoss)) return parent.submit();
           setAsking({
             title: 'Move a group your own access runs through?',
-            consequence: `${group.path} would no longer receive what the groups above it hand down.${lossText(moveLoss)}`,
+            consequence: `${group.path} would no longer receive what the groups above it hand down.${lossText(moveLoss, 'the groups above it')}`,
           });
           return true;
         },
       },
-      held: ready === null ? 'Checking what the groups above it hand down…' : ready.lines.move,
-      checking: ready === null,
+      held: ready === null ? null : ready.lines.move,
+      state: readiness(moveLoss),
       current: parentPath(),
       picker,
-      unavailableOf: (candidate) => moveUnavailable(group, candidate),
+      unavailableOf: (candidate) => parentUnavailable(group, candidate, caller),
       choose: (ids) => {
         parent.edit('parent_id', ids[0] ?? null);
       },
@@ -249,14 +268,14 @@ export function useGroupGeneral({
     },
     defaults: {
       save: defaults,
-      fixed: ready === null ? null : defaultBlock(ready.reach, group.default_for_new_subjects),
-      checking: ready === null,
+      fixed: defaultBlock(group),
+      state: readiness({ kind: 'none' }),
     },
     deletion: {
       held: ready === null ? null : ready.lines.remove,
-      checking: ready === null,
+      state: readiness(deleteLoss),
       confirming: deleting,
-      consequence: `Deleting ${group.path} deletes every group beneath it too, with every membership and role mapping of each, so their members lose the roles these groups gave them. It cannot be undone.${lossText(deleteLoss)}`,
+      consequence: `Deleting ${group.path} deletes every group beneath it too, with every membership and role mapping of each, so their members lose the roles these groups gave them. It cannot be undone.${lossText(deleteLoss, 'these groups')}`,
       busy: deletion.busy,
       problem,
       ask: () => {
@@ -275,7 +294,7 @@ export function useGroupGeneral({
           .then((result) => {
             if (result.ok) {
               setDeleting(false);
-              if (deleteLoss.length > 0) reread();
+              if (asks(deleteLoss)) reread();
               push({
                 tone: 'success',
                 message: `${group.path} and every group beneath it were deleted.`,

@@ -71,3 +71,9 @@ it('passes axe in both themes, listed and refused', async () => {
     ),
   ).toEqual({ light: [], dark: [] });
 });
+
+it("names a narrowed list's client by its own client_id, the row id kept on hover", async () => {
+  renderConsoleAt(`${AT}?client=c-portal`, roleRoutes());
+  const named = await screen.findByText('portal');
+  expect(named).toHaveAttribute('title', 'c-portal');
+});

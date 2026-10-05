@@ -1,4 +1,4 @@
-import type { Group } from '@odudu/contracts/admin';
+import type { GroupRecord } from '@odudu/contracts/admin';
 import { useId } from 'react';
 import { NAME_FIXED } from '#/features/groups/service.ts';
 import {
@@ -12,13 +12,13 @@ import type { Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
 import { SectionNoticeOf } from '#/features/groups/view/SectionNoticeOf.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { TextField, ToggleField } from '#/shared/view/Field.tsx';
+import { TextAreaField, ToggleField } from '#/shared/view/Field.tsx';
 import { GroupPicker } from '#/shared/view/GroupPicker.tsx';
 import { Section } from '#/shared/view/Section.tsx';
 import { Timestamp } from '#/shared/view/Timestamp.tsx';
 import styles from '#/features/groups/view/Tab.module.css';
 
-function Fixed({ group }: { group: Group }) {
+function Fixed({ group }: { group: GroupRecord }) {
   const heading = useId();
   return (
     <section aria-labelledby={heading} className={styles.panel}>
@@ -64,9 +64,10 @@ function Description({ general }: { general: GroupGeneral }) {
       blocked={s.blocked}
       notice={<SectionNoticeOf title="Description" save={s} />}
     >
-      <TextField
+      <TextAreaField
         label="Description"
         description={general.descriptionRule}
+        limit={general.descriptionLimit}
         value={s.values.description}
         error={s.fieldErrors.description}
         changed={s.changed.includes('description')}
@@ -93,7 +94,10 @@ function PlaceSection({ place }: { place: Place }) {
       notice={<SectionNoticeOf title="Place in the tree" save={s} />}
     >
       <p className={styles.text}>{place.current}</p>
-      {place.held === null ? (
+      {place.state === 'checking' ? (
+        <p className={styles.rule}>Checking what the groups above it hand down…</p>
+      ) : null}
+      {place.state === 'ready' && place.held === null ? (
         <>
           <GroupPicker
             label="Parent"
@@ -105,8 +109,6 @@ function PlaceSection({ place }: { place: Place }) {
           />
           <p className={styles.rule}>Choose the parent again to move it to the top level.</p>
         </>
-      ) : place.checking ? (
-        <p className={styles.rule}>{place.held}</p>
       ) : null}
       <ConfirmDialog
         isOpen={place.asking !== null}
@@ -124,8 +126,10 @@ function PlaceSection({ place }: { place: Place }) {
 function DefaultSection({ defaults }: { defaults: Defaults }) {
   const s = defaults.save;
   let body;
-  if (defaults.checking) {
+  if (defaults.state === 'checking') {
     body = <p className={styles.rule}>Checking what it hands out…</p>;
+  } else if (defaults.state === 'failed') {
+    body = null;
   } else if (defaults.fixed === null) {
     body = (
       <ToggleField
@@ -160,7 +164,7 @@ function DefaultSection({ defaults }: { defaults: Defaults }) {
 // Left out where the ceiling rules it out; the page's one line says why.
 function Danger({ path, deletion }: { path: string; deletion: Deletion }) {
   const heading = useId();
-  if (deletion.held !== null) return null;
+  if (deletion.held !== null || deletion.state === 'failed') return null;
   return (
     <section aria-labelledby={heading} className={styles.panel}>
       <h2 id={heading} className={styles.heading}>
@@ -169,7 +173,7 @@ function Danger({ path, deletion }: { path: string; deletion: Deletion }) {
       <p className={styles.text}>
         A delete takes the whole subtree: no group beneath it survives as a new top-level group.
       </p>
-      {deletion.checking ? (
+      {deletion.state === 'checking' ? (
         <p className={styles.rule}>Checking what its members hold through it…</p>
       ) : (
         <div className={styles.actions}>
@@ -202,7 +206,7 @@ export function GeneralTab({
   ceiling,
 }: {
   tenant: string;
-  group: Group;
+  group: GroupRecord;
   etag: string;
   gone: boolean;
   ceiling: Ceiling;
