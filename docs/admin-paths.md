@@ -238,11 +238,14 @@ so its ids refer to nothing on the stacks above. It was torn down with
 `docker compose down -v` when the capture finished. The required-actions
 transcripts under `POST /subjects/:id/actions-email` and in
 [docs/request-paths.md](request-paths.md#following-a-required-actions-link),
-and the audit types under `GET /audit`, ran on a later bring-up of the same
-project from an empty volume, built at `0eddc329`, once a link's redirect
-was checked after the subject and an unregistered one answered alike, with
-`seed admin --username ada-t8c2` run against it and each section's tenant
-made there for it; it was torn down the same way.
+and the audit types under `GET /audit`, ran on a later stack: compose project `odudu-t8d2` on port 3086, its Postgres
+on 5466, built at `6feb06b7` and brought up from an empty volume with
+`ODUDU_OUTBOX_ENABLED=false`, `ODUDU_REAP_ENABLED=false` and
+`ODUDU_THROTTLE_LIMIT=1000`, with `seed admin --username ada` run against it. The
+tenant `required-actions-demo` and its client `actions-app` came from `odudu seed
+--tenant required-actions-demo --client actions-app --redirect-uri
+https://app.example/callback --user seeder`; it was torn down with `docker
+compose down -v` when the capture finished.
 
 **The fourteenth stack.** Every transcript that shows a role or a group
 answer ran against one more stack, once each such answer carried `admin_reach`,
@@ -4697,15 +4700,15 @@ sign-in with the password and whatever factor the subject already holds. The
 link lives as long as a reset link (`reset_password_ttl_seconds`), since it
 signs its subject in by their mailbox the same way, and it is spent once.
 
-**A `redirect_uri` is only ever one the client registered.** The link's last
-page offers it as "Back to the application", so it must equal, exactly, one
-of the `redirect_uris` of the client `client_id` names, or the request is
-refused with `400` naming `redirect_uri`; a `redirect_uri` without a
-`client_id`, or a `client_id` without a `redirect_uri`, is refused the same
-way, naming `client_id`. Any other target would make this server's page an
-open redirect under its own name. It is checked again when the link is
-followed: the page offers it only while that client is enabled and still
-registers it. A client that does not exist and one that
+**A `redirect_uri` is only ever one the client registered.** It must equal,
+exactly, one of the `redirect_uris` of the client `client_id` names, or the
+request is refused with `400` naming `redirect_uri`; a `redirect_uri` without
+a `client_id`, or a `client_id` without a `redirect_uri`, is refused the same
+way, naming `client_id`. The link's last page no longer links to it: that
+callback carries no `code` or `state`, which a client reads as a failed or
+forged one, so the page says to sign in to the application instead. The pair
+is still validated, stored with the link and named in the audit row, and is
+checked again when the link is followed. A client that does not exist and one that
 never registered the URI get the same answer, so a caller with
 `manage-users` alone learns nothing about another client's registration
 from it, and both are checked only after the subject is found and the
@@ -4722,17 +4725,17 @@ are. The link is never in the response, and the audit row,
 `subject.actions_email_send`, names the actions, the client and the
 redirect and nothing else.
 
-Against the twelfth stack, in a tenant `required-actions-demo` made for it,
+Against the `odudu-t8d2` stack named under the twelfth stack above, in a tenant `required-actions-demo` made for it,
 with a relay at the stack's own `postgres` container, port 25, where nothing
 listens, a public client `actions-app` registered
 `https://app.example/callback`, and `grace` made through `POST /subjects`
-with an address and no password; `P=http://localhost:3082/admin/tenants/required-actions-demo`.
+with an address and no password; `P=http://localhost:3086/admin/tenants/required-actions-demo`.
 A link asking for a password while the tenant's reset is off, the setting
 turned on, a redirect the client never registered, an action the server
 does not take, then the send that is accepted, and its audit row:
 
 ```bash
-G=01a109bf-b119-7510-a588-18f191c6bef5
+G=01a10bee-17d6-7f85-8cf7-950a77cbcfd4
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"actions":["configure-totp","update-password"]}' "$P/subjects/$G/actions-email"; echo
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
@@ -4751,15 +4754,15 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"type":"about:blank#reset-password-off","title":"Conflict","status":409,"detail":"reset_password_allowed is off, so the tenant would refuse the link; turn it on with PATCH /settings first","instance":"01a109f6-6fa7-741c-ad56-e947aea1e1a5"}
+{"type":"about:blank#reset-password-off","title":"Conflict","status":409,"detail":"reset_password_allowed is off, so the tenant would refuse the link; turn it on with PATCH /settings first","instance":"01a10bee-1806-788d-850c-64758ad7dade"}
 "reset_password_allowed":true
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uri: is not a redirect URI the named client registered","errors":[{"path":"redirect_uri","message":"is not a redirect URI the named client registered"}],"instance":"01a109f6-6fd7-7642-ab5c-7bf6eb6e2bec"}
-{"type":"about:blank","title":"Error","status":400,"detail":"body/actions/0 must be equal to one of the allowed values","errors":[{"path":"actions[0]","message":"must be equal to one of the allowed values"}],"instance":"01a109f6-6ff2-7ff6-9117-f7ae82d61a9b"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uri: is not a redirect URI the named client registered","errors":[{"path":"redirect_uri","message":"is not a redirect URI the named client registered"}],"instance":"01a10bee-184b-79c9-8231-1baac19343ff"}
+{"type":"about:blank","title":"Error","status":400,"detail":"body/actions/0 must be equal to one of the allowed values","errors":[{"path":"actions[0]","message":"must be equal to one of the allowed values"}],"instance":"01a10bee-1872-7f64-8c82-5de3d9144a0a"}
 HTTP/1.1 202 Accepted
-x-request-id: 01a109f6-6ffc-70c6-a224-e298f011bdf3
+x-request-id: 01a10bee-187e-7435-95f7-3ebfbc9f3052
 cache-control: no-store
 content-length: 0
-Date: Mon, 05 Oct 2026 02:48:27 GMT
+Date: Mon, 05 Oct 2026 11:58:35 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
@@ -4783,7 +4786,7 @@ Update your required-actions-demo account|Your administrator asks you to update 
 
 Do so by visiting this link:
 
-http://localhost:3082/tenants/required-actions-demo/login-actions/action-token?key=wKQx5jVfvqU4iCPjtFGg_-MFnY1HTosPYNRcPKMd-I0
+http://localhost:3086/tenants/required-actions-demo/login-actions/action-token?key=_rt1ViHEsgUP9YYb_k-e_wCJkNdECOnTOYReAUa-uXQ
 
 If you were not expecting this, you can ignore this message.
 ```
@@ -7047,18 +7050,16 @@ curl -sS -D - -c jar -b jar \
 ```
 
 The `auth_session_id` is the one the login form that request rendered
-carried. _(Not re-run since 2026-10-05, when a page continuing an
-authorization request began naming its client's origin in `form-action`:
-this one now sends `form-action 'self' https://portal.demo.example`, as the
-re-run [consent screen](request-paths.md#the-consent-screen) shows for its
-own client. The twelfth stack's `billing` scope and grants are not
-reproducible on a fresh one. Every other line is as shown.)_
+carried. _(The `content-security-policy` line is left out: this page now
+sends `form-action 'self' https://portal.demo.example`, as the re-run
+[consent screen](request-paths.md#the-consent-screen) shows for its own
+client, and the twelfth stack's `billing` scope and grants cannot be rebuilt
+on a fresh one. Every other line is as shown.)_
 
 ````
 HTTP/1.1 200 OK
 x-request-id: 01a109bb-ebef-720a-b749-5783b7fe7027
 content-type: text/html
-content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
 x-frame-options: DENY
 referrer-policy: no-referrer
 content-length: 796

@@ -1549,7 +1549,10 @@ Now every factor that succeeds is written down, an empty submission against a se
 
 Why the conformance runs never showed it: CI runs Config OP, which drives no browser. The only Basic OP run (`results/basic-op-2026-09-12-…`, 02:31Z) predates the policy, which landed at 19:25Z that day in `a0507a2f`. The Dynamic OP run on 2026-09-19 completed no authorization request: every module failed earlier, on PKCE or `private_key_jwt`. The proxy does not hide it, because `https://proxy` and the suite's callback on `localhost.emobix.co.uk:8443` are different origins. assumption: the suite's HtmlUnit browser may not enforce `form-action` at all, so a passing Basic OP run would not have proved the opposite either.
 
-Owed by this phase and not done here, both found by the investigation:
+Found by the review of that work and fixed with it:
 
-- The emailed actions link's "Back to the application" is the bare `redirect_uri`, so the client gets a callback with no `code` and no `state` (`packages/account/src/view/`).
-- The OTP form is titled "Sign in" with a "Sign in" button, so a code prompt reads as another sign-in (`packages/protocol-oidc/src/view/authorize-html.ts`).
+- **A reused password-only SSO session was never judged against the flow.** For a subject who had since enrolled TOTP and still owed recovery codes, `GET /authorize` promoted it and rendered the codes page, which replaces the subject's codes on every render: a second-factor bypass by reload, and the same session then met a 400 at every consent and required-action POST. `/authorize` and the account chooser now ask `authenticatorsSatisfyFlow` of the reused session's `amr` before promoting it, and show the login form when it fails, as `prompt=login` does (`prompt=none` answers `login_required`). The recovery-codes page also refuses unless `authenticatedSubject` names the subject.
+- **A subject disabled between the password and the resume still finished the login** through the consent door or a finished required action. `completeLogin` now refuses before consuming the session.
+- The emailed actions page linked "Back to the application" to the bare `redirect_uri`, whose callback carries no `code` or `state`. It now says to sign in to the application. The `redirect_uri`/`client_id` pair on `actions-email` is still validated and stored, and nothing renders it; whether it should stay in the admin API is the admin API's to decide.
+- The code form was titled "Sign in" with a "Sign in" button. It is now "Enter your authentication code" with "Verify"; the recovery-code-only form is "Enter a recovery code".
+- A bracketed IPv6 loopback `redirect_uri` still gets `form-action 'self'` only, a closed failure recorded in ADR 0018.

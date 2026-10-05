@@ -144,6 +144,8 @@ Nothing caught it, for the reason the previous amendment gives: a CSP
 refusal is invisible in a response. The console and its e2e harness share
 the server's origin, curl applies no policy, and no OIDF browser-driven plan
 completed a login under this policy (see `docs/phases/p4d.md`).
+assumption: the suite's HtmlUnit browser may not enforce `form-action` at
+all, so a passing run would not have shown the fix either way.
 
 The policy now:
 
@@ -159,9 +161,17 @@ The policy now:
 **The page decides, not the caller**, as for the nonce. The value is the
 `redirect_uri` that `/authorize` validated and parked, carried on the
 `RenderedPage` as `redirectsTo`, and `pageHeaders` derives the source
-expression from it. Nothing the browser submits reaches it. A value that
-cannot be written exactly as one source expression adds nothing, and so do
+expression from it. The browser submits an `auth_session_id`, which selects
+which parked request is read, but never the value itself: reaching another
+session's would take holding its unguessable id. A value that cannot be
+written exactly as one source expression adds nothing, and so do
 `javascript:`, `data:` and similar schemes.
+
+**Known gap: a bracketed IPv6 loopback.** An RFC 8252 §7.3 redirect such as
+`http://[::1]:8080/cb` is not written as a source expression, so its pages
+keep `form-action 'self'` and Chromium still blocks the redirect. The
+failure is closed, not open; a client on `127.0.0.1` or `localhost` is
+unaffected, and the policy is not widened to cover it.
 
 Rejected along the way:
 

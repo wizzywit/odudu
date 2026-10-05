@@ -556,7 +556,10 @@ some.
 authorization request from the same browser complete without the form:
 `/authorize` resolves it, and `prompt` decides whether that is allowed —
 `prompt=none` succeeds where a request with no session gets
-`login_required`, and `prompt=login` forces the form past a live session.
+`login_required`, and `prompt=login` forces the form past a live session. A session whose
+factors no longer satisfy the tenant's flow for its subject — a
+password-only one, once the subject has enrolled TOTP — is not reused
+either: the form is shown, and `prompt=none` answers `login_required`.
 A session is live until the earlier of `sso_session_idle_seconds`
 (default `1800`) measured from its last use and `sso_session_max_seconds`
 (default `36000`) from when it was established; both are per tenant, both
