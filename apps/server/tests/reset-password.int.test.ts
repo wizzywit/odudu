@@ -545,6 +545,40 @@ describe('a required-actions link, through the real composition root', () => {
     }
   });
 
+  it('lets a reset link give a subject with no password its first one', async () => {
+    const tenantName = `reset-${newId()}`;
+    const seeded = await seed({
+      tenant: tenantName,
+      clientId: 'reset-spa',
+      redirectUris: [REDIRECT_URI],
+      username: 'ada',
+      password: PASSWORD,
+      email: EMAIL,
+    });
+    await setResetPasswordAllowed(seeded.tenantId, true);
+    const subjectId = seeded.userSubjectId;
+    if (subjectId === undefined) throw new Error('seed made no user');
+    await owner.db.delete(userCredentials).where(eq(userCredentials.subjectId, subjectId));
+
+    const sender = capturingSender();
+    const app = buildTestApp();
+    await app.ready();
+    try {
+      expect((await requestReset(app, tenantName, EMAIL)).statusCode).toBe(200);
+      await drainOutbox(sender);
+      const submitted = await submitNewPassword(
+        app,
+        extractLink(sender.sent[0] ?? fail()),
+        'a brand new password',
+      );
+      expect(submitted.statusCode).toBe(200);
+      const signIn = await attemptLogin(app, tenantName, 'a brand new password');
+      expect(signIn.headers.location).toContain('code=');
+    } finally {
+      await app.close();
+    }
+  });
+
   it('offers the way back while the client registers it, and not once it is disabled', async () => {
     const tenantName = `actions-${newId()}`;
     const seeded = await seed({
