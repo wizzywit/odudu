@@ -1,10 +1,10 @@
-import type { Subject } from '@odudu/contracts/admin';
 import { useId } from 'react';
 import { CapabilityHolders } from '#/features/subjects';
 import {
   useSystemAdministratorsPage,
   type SystemAdministrators,
 } from '#/features/system-admins/usecase/useSystemAdministratorsPage.ts';
+import { subjectName } from '#/features/system-admins/service.ts';
 import { SystemGate } from '#/features/tenants';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 import { Button } from '#/shared/view/Button';
@@ -15,10 +15,6 @@ import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
 import styles from '#/features/system-admins/view/SystemAdministratorsPage/SystemAdministratorsPage.module.css';
 
 const TITLE = 'System administrators';
-
-function nameOf(subject: Subject): string {
-  return subject.username ?? subject.id;
-}
 
 function Add({ page }: { page: SystemAdministrators }) {
   const heading = useId();
@@ -37,7 +33,7 @@ function Add({ page }: { page: SystemAdministrators }) {
         noun={{ one: 'subject', other: 'subjects' }}
         picker={page.picker}
         idOf={(subject) => subject.id}
-        nameOf={nameOf}
+        nameOf={subjectName}
         detailOf={(subject) => subject.email ?? subject.type}
         unavailableOf={page.unavailableOf}
         capability="view-users"
@@ -58,7 +54,7 @@ function Add({ page }: { page: SystemAdministrators }) {
       />
       <div className={styles.actions}>
         <Button variant="primary" isDisabled={chosen === null || page.busy} onPress={page.grant}>
-          {chosen === null ? 'Give it to the chosen subject' : `Give it to ${nameOf(chosen)}`}
+          {chosen === null ? 'Give it to the chosen subject' : `Give it to ${subjectName(chosen)}`}
         </Button>
         {page.createNeeds.length > 0 ? null : (
           <Button onPress={page.begin.start}>Create a new subject as an administrator</Button>

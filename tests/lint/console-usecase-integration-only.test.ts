@@ -15,7 +15,14 @@ import { describe, expect, it } from 'vitest';
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const SRC = 'apps/admin-console/src';
 const FIXTURES = 'tests/lint/fixtures/console-usecase-integration-only';
-const CLEAN: readonly string[] = ['shared', 'groups', 'roles', 'subjects'];
+const CLEAN: readonly string[] = [
+  'shared',
+  'groups',
+  'roles',
+  'subjects',
+  'tenants',
+  'system-admins',
+];
 
 type Layer = 'usecase' | 'repository';
 
