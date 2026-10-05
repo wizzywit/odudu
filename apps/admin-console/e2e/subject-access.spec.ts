@@ -182,8 +182,9 @@ test('an administrator ends their own sessions, is told so first, and is signed 
   await expect(dialog).toContainText('The one this console signed you in through is among them');
   await expectAccessible(page);
   await dialog.getByRole('button', { name: 'End every session' }).click();
-  await page.getByRole('tab', { name: 'Activity' }).click();
-  await expect(page.getByLabel('Username')).toBeVisible();
+  // The ending is noticed by whichever request comes next, and the list's own
+  // refetch may get there first, so the test only waits for sign-in to show.
+  await expect(page.getByLabel('Username')).toBeVisible({ timeout: 15_000 });
   forgiveEnded(problems);
 });
 
