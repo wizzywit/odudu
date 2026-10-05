@@ -21,9 +21,9 @@ function record(value: unknown): Record<string, unknown> {
 
 describe("the console's #/* alias", () => {
   it('names the same directory in package.json and in tsconfig', async () => {
-    const imports = record(record(await json('package.json'))['imports']);
-    const options = record(record(await json('tsconfig.json'))['compilerOptions']);
-    const paths = record(options['paths']);
+    const imports = record(record(await json('package.json')).imports);
+    const options = record(record(await json('tsconfig.json')).compilerOptions);
+    const paths = record(options.paths);
     expect(imports['#/*']).toBe('./src/*');
     expect(paths['#/*']).toEqual([imports['#/*']]);
   });
