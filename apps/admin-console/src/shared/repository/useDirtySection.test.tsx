@@ -29,7 +29,7 @@ it('forgets the section when it goes', () => {
   expect(unsaved()).toEqual([]);
 });
 
-it('going does not let a departure held for its edits through', () => {
+it('going closes a question left asking about nothing, and the departure goes ahead', () => {
   const { unmount } = renderHook(() => {
     useDirtySection('client/general', 'General', true);
   });
@@ -40,8 +40,8 @@ it('going does not let a departure held for its edits through', () => {
     });
   });
   unmount();
-  expect(left).toBe(false);
-  expect(useUnsavedGuard.getState().pending).not.toBeNull();
+  expect(left).toBe(true);
+  expect(useUnsavedGuard.getState().pending).toBeNull();
 });
 
 it('says so again after a leave that did not take it off the screen', () => {

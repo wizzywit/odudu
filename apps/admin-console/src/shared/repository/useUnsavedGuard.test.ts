@@ -40,14 +40,35 @@ it('lets a held departure through once nothing is left unsaved under it', () => 
   expect(guard().pending).toBeNull();
 });
 
-it('holds a departure still when the dirty section goes because it was unmounted, not saved', () => {
+it('closes a question left asking about nothing, and lets the departure go ahead', () => {
   guard().setDirty('client/general', 'General');
+  const leave = vi.fn();
+  const stay = vi.fn();
+  guard().request(leave, stay);
+  guard().forget('client/general');
+  expect(leave).toHaveBeenCalledOnce();
+  expect(stay).not.toHaveBeenCalled();
+  expect(guard().pending).toBeNull();
+});
+
+it('keeps the question while another dirty section remains after one goes', () => {
+  guard().setDirty('client/general', 'General');
+  guard().setDirty('client/tokens', 'Tokens');
   const leave = vi.fn();
   guard().request(leave);
   guard().forget('client/general');
-  expect(leave).not.toHaveBeenCalled();
   expect(guard().pending).not.toBeNull();
-  expect(guard().unsaved()).toEqual([]);
+  expect(guard().unsaved()).toEqual(['Tokens']);
+});
+
+it('refuses a stale question before letting a departure through with nothing unsaved', () => {
+  useUnsavedGuard.setState({ pending: { proceed: vi.fn(), refuse: vi.fn() } });
+  const stale = guard().pending;
+  const leave = vi.fn();
+  expect(guard().request(leave)).toBe(true);
+  expect(stale?.refuse).toHaveBeenCalledOnce();
+  expect(leave).toHaveBeenCalledOnce();
+  expect(guard().pending).toBeNull();
 });
 
 it('stays when told to, dropping the held departure', () => {
