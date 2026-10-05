@@ -16,6 +16,7 @@ import {
   type Subject,
 } from '@odudu/contracts/admin';
 import { z } from 'zod';
+import type { CredentialChange } from '#/features/subjects/service.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 
 const nothing = z.undefined();
@@ -202,9 +203,6 @@ export async function readUsernameEditable(
   });
   return result.ok ? { ...result, data: result.data.username_editable } : result;
 }
-
-export type CredentialChange =
-  { kind: 'factor'; credentialId: string } | { kind: 'recovery-codes' } | { kind: 'lockout' };
 
 export function changeCredential(
   gateway: Gateway,

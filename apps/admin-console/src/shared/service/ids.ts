@@ -8,6 +8,6 @@ export function inOrderOf<T extends string>(order: readonly T[], chosen: Iterabl
   return order.filter((each) => set.has(each));
 }
 
-export function removedFrom(before: readonly string[], after: readonly string[]): string[] {
+export function removedFrom<T extends string>(before: readonly T[], after: readonly string[]): T[] {
   return before.filter((id) => !after.includes(id));
 }

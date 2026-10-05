@@ -59,12 +59,12 @@ export function fieldErrorsOf(
   return { fields, other };
 }
 
-export function withoutField<F extends string>(
-  errors: Partial<Record<F, string>>,
+export function withoutField<F extends string, V = string>(
+  errors: Partial<Record<F, V>>,
   field: F,
-): Partial<Record<F, string>> {
+): Partial<Record<F, V>> {
   return Object.fromEntries(Object.entries(errors).filter(([name]) => name !== field)) as Partial<
-    Record<F, string>
+    Record<F, V>
   >;
 }
 

@@ -92,6 +92,12 @@ it('drops one field from the errors and leaves the rest', () => {
   expect(errors).toEqual({ name: 'a', description: 'b' });
 });
 
+it('drops a key from any record that is keyed by name, whatever it holds', () => {
+  expect(withoutField<'reset' | 'actions', number>({ reset: 1, actions: 2 }, 'reset')).toEqual({
+    actions: 2,
+  });
+});
+
 it('asks for a value only when it is blank', () => {
   expect(requiredProblem('', 'Enter a name.')).toBe('Enter a name.');
   expect(requiredProblem('  ', 'Enter a name.')).toBe('Enter a name.');

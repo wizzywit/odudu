@@ -9,8 +9,8 @@ import {
   changeCredential,
   readCredentials,
   readLockout,
-  type CredentialChange,
 } from '#/features/subjects/adapter/subjects.ts';
+import type { CredentialChange } from '#/features/subjects/service.ts';
 import { issuePassword } from '#/shared/adapter/administrators.ts';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce.ts';
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
