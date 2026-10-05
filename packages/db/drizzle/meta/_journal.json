@@ -617,6 +617,34 @@
       "when": 1789049381730,
       "tag": "0087_group_role_descriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1789049381731,
+      "tag": "0088_default_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1789049381732,
+      "tag": "0089_scope_client_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1789049381733,
+      "tag": "0090_scope_consent_text",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1789049381734,
+      "tag": "0091_audit_event_types",
+      "breakpoints": true
     }
   ]
 }

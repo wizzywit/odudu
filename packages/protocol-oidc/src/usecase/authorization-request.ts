@@ -25,6 +25,7 @@ import {
   decideConsentGate,
   refusedForUnverifiedEmail,
   type ClientPages,
+  type ScopeLabels,
   type ConsentGateDeps,
   type LoginSubmissionDeps,
 } from '#/usecase/login-submission';
@@ -59,6 +60,7 @@ export type AuthorizationRequestOutcome =
       authSessionId: string;
       clientName: string;
       clientPages: ClientPages;
+      scopeLabels: ScopeLabels;
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
@@ -504,6 +506,7 @@ export async function handleAuthorizationRequest(
         authSessionId,
         clientName: gate.clientName,
         clientPages: gate.clientPages,
+        scopeLabels: gate.scopeLabels,
         defaultScopes: gate.defaultScopes,
         optionalScopes: gate.optionalScopes,
         alreadyGranted: gate.alreadyGranted,
@@ -735,6 +738,7 @@ export async function handleSelectAccountSubmission(
       authSessionId,
       clientName: gate.clientName,
       clientPages: gate.clientPages,
+      scopeLabels: gate.scopeLabels,
       defaultScopes: gate.defaultScopes,
       optionalScopes: gate.optionalScopes,
       alreadyGranted: gate.alreadyGranted,

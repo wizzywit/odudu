@@ -39,9 +39,10 @@ afterAll(async () => {
 const INT4_MAX = 2_147_483_647;
 
 // A text CHECK the predicate does not restate: `name` is not a setting,
-// and `client_registration_policy`'s values are SETTINGS' own enumeration,
-// which `coerceTenantSetting` already refuses outside.
-const NOT_RANGES = new Set(['name', 'client_registration_policy']);
+// and `client_registration_policy`'s values and `audit_event_types`' members
+// are SETTINGS' own enumerations, which `coerceTenantSetting` and
+// `tenantSettingProblems` already refuse outside.
+const NOT_RANGES = new Set(['name', 'client_registration_policy', 'audit_event_types']);
 
 function columnOf(name: TenantSettingName): string {
   const entry = TENANT_SETTING_COLUMNS.find((column) => column.name === name);

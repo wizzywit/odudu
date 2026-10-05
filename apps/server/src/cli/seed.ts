@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { tenantSettingsRepository, sendVerificationEmail } from '@odudu/account';
 import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
-import { groupRepository, roleRepository } from '@odudu/domain-authz';
+import { grantNewSubjectDefaults, groupRepository, roleRepository } from '@odudu/domain-authz';
 import { generateSigningKey, signingKeyRepository } from '@odudu/crypto';
 import {
   createDatabase,
@@ -41,6 +41,7 @@ import {
   coerceTenantSetting,
   TENANT_SETTING_COLUMNS,
   tenantSettingProblems,
+  type TenantSettingValue,
 } from '@odudu/domain-tenant';
 import { consoleBaseUrl, loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
@@ -476,6 +477,7 @@ async function performSeed(
         username: opts.username,
         ...(opts.email !== undefined ? { email: opts.email } : {}),
       });
+      await grantNewSubjectDefaults(tx, userSubject.id);
       await credentialRepository(tx).insert({
         tenantId,
         subjectId: userSubject.id,
@@ -674,6 +676,7 @@ export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin>
         tenantId,
         username: options.username,
       });
+      await grantNewSubjectDefaults(tx, subject.id);
       await credentialRepository(tx).insert({
         tenantId,
         subjectId: subject.id,
@@ -1050,7 +1053,7 @@ interface ParsedSetting {
   // what the operator typed, which is what the result echoes back.
   name: string;
   column: string;
-  value: boolean | number | string;
+  value: TenantSettingValue;
 }
 
 // `--set name=value`, repeatable. The name is a column name, which is what a
@@ -1288,6 +1291,7 @@ async function runUserCommand(
       username,
       ...(email !== undefined ? { email } : {}),
     });
+    await grantNewSubjectDefaults(tx, subject.id);
     await credentialRepository(tx).insert({
       tenantId,
       subjectId: subject.id,

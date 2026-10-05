@@ -2,12 +2,26 @@ import { z } from 'zod';
 import { roleAssignmentSchema } from '#/admin/subjects';
 import { createdAtSchema, cursorQuerySchema, idSchema, searchPrefixSchema } from '#/admin/shared';
 
+export const clientScopeAssignmentSchema = z.enum(['default', 'optional']);
+
+/** The longest consent text a scope holds, by its CHECK. */
+export const CONSENT_TEXT_MAX = 500;
+export const consentTextSchema = z.string().min(1).max(CONSENT_TEXT_MAX);
+export const displayOrderSchema = z.number().int().min(0).max(2_147_483_647);
+
+// `default_client_assignment` is how a client created afterwards is assigned
+// the scope — by an administrator, dynamic registration or `odudu seed` —
+// and null when it is not. The consent screen lists scopes by
+// `display_order`, then name, each by its `consent_text` where it has one.
 export const clientScopeSchema = z.object({
   id: idSchema,
   name: z.string(),
   description: z.string().nullable(),
   include_in_id_token: z.boolean(),
   include_in_access_token: z.boolean(),
+  default_client_assignment: clientScopeAssignmentSchema.nullable(),
+  consent_text: z.string().nullable(),
+  display_order: z.number().int(),
   created_at: createdAtSchema,
 });
 export type ClientScope = z.infer<typeof clientScopeSchema>;
@@ -31,6 +45,9 @@ export const createScopeRequestSchema = z.object({
   description: z.string().min(1).nullable().optional(),
   include_in_id_token: z.boolean().optional(),
   include_in_access_token: z.boolean().optional(),
+  default_client_assignment: clientScopeAssignmentSchema.nullable().optional(),
+  consent_text: consentTextSchema.nullable().optional(),
+  display_order: displayOrderSchema.optional(),
 });
 export type CreateScopeRequest = z.infer<typeof createScopeRequestSchema>;
 
@@ -49,8 +66,6 @@ export const setScopeRolesResponseSchema = z.object({
   items: z.array(roleAssignmentSchema),
 });
 export type SetScopeRolesResponse = z.infer<typeof setScopeRolesResponseSchema>;
-
-export const clientScopeAssignmentSchema = z.enum(['default', 'optional']);
 
 /** One scope as a client carries it — shared by the client shape and the assignment answer. */
 export const clientScopeAssignmentViewSchema = z.object({

@@ -2,6 +2,7 @@ import {
   addRoleCompositeRequestSchema,
   listRoleCompositesResponseSchema,
   setRoleDefaultRequestSchema,
+  setGroupDefaultRequestSchema,
   amendClientRequestSchema,
   listAuditQuerySchema,
   listAuditResponseSchema,
@@ -872,7 +873,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     successStatus: 204,
     bodySchema: addRoleCompositeRequestSchema,
     description:
-      'Nests `child_role_id` under this role. Refused with `403` when the child reaches an admin capability the caller does not hold, or any admin capability at all while a default role reaches this one; `409` on a cycle, and on a parent belonging to the tenant\u2019s built-in admin client, whose shape provisioning fixes. Answers the composites\u2019 new `ETag`, the one `GET …/composites` answers; `If-Match` is optional, and a stale one is refused with `412`.',
+      'Nests `child_role_id` under this role. Refused with `403` when the child reaches an admin capability the caller does not hold, or any admin capability at all while a default role or a default group reaches this one; `409` on a cycle, and on a parent belonging to the tenant\u2019s built-in admin client, whose shape provisioning fixes. Answers the composites\u2019 new `ETag`, the one `GET …/composites` answers; `If-Match` is optional, and a stale one is refused with `412`.',
   },
   {
     method: 'GET',
@@ -970,6 +971,15 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
       DELTA_CEILING +
       LAST_ADMINISTRATOR,
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/groups/:id/default',
+    capability: 'manage-tenant',
+    responseSchema: groupSchema,
+    bodySchema: setGroupDefaultRequestSchema,
+    description:
+      'Sets whether every subject created afterwards — by an administrator, by self-registration or by `odudu seed` — joins this group; an imported subject keeps the memberships its document lists. `true` is refused with `403` when the group\u2019s roles, or any ancestor\u2019s, reach an admin capability, whoever the caller is; `false` is never refused. While a group is a default, mapping a role that reaches a capability to it or to an ancestor, nesting one under a role it reaches, and moving it or an ancestor under a chain that reaches one are refused the same way. Answers the group\u2019s `ETag`; `If-Match` is optional, and a stale one is refused with `412`.',
   },
   {
     method: 'GET',

@@ -13,6 +13,7 @@ function toRecord(row: typeof groups.$inferSelect): GroupRecord {
     parentId: row.parentId,
     name: row.name,
     description: row.description,
+    defaultForNewSubjects: row.defaultForNewSubjects,
     path: row.path,
     createdAt: row.createdAt,
   };
@@ -169,6 +170,26 @@ export function groupRepository(tx: TenantScopedDatabase) {
       if (rows.length === 0) {
         throw new OduduError('group_not_found', `no group with id ${groupId}`);
       }
+    },
+
+    async setDefaultForNewSubjects(groupId: string, value: boolean): Promise<void> {
+      const rows = await tx
+        .update(groups)
+        .set({ defaultForNewSubjects: value })
+        .where(eq(groups.id, groupId))
+        .returning({ id: groups.id });
+      if (rows.length === 0) {
+        throw new OduduError('group_not_found', `no group with id ${groupId}`);
+      }
+    },
+
+    async defaultsForTenant(): Promise<GroupRecord[]> {
+      const rows = await tx
+        .select()
+        .from(groups)
+        .where(eq(groups.defaultForNewSubjects, true))
+        .orderBy(asc(groups.id));
+      return rows.map(toRecord);
     },
 
     async byPath(path: string): Promise<GroupRecord | null> {

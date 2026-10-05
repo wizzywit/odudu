@@ -82,6 +82,7 @@ const DOCUMENT: TenantDocument = {
     verify_email_ttl_seconds: 43_200,
     reset_password_ttl_seconds: 300,
     login_with_email: false,
+    audit_event_types: ['admin_mutation', 'admin_access'],
   },
   flow: [{ authenticator: 'password', requirement: 'required' }],
   clients: [CLIENT],
@@ -96,7 +97,12 @@ const DOCUMENT: TenantDocument = {
     },
   ],
   groups: [
-    { path: '/finance', description: null, roles: [{ name: 'billing-reader', client: null }] },
+    {
+      path: '/finance',
+      description: null,
+      default_for_new_subjects: false,
+      roles: [{ name: 'billing-reader', client: null }],
+    },
   ],
   scopes: [
     {
@@ -104,6 +110,9 @@ const DOCUMENT: TenantDocument = {
       description: null,
       include_in_id_token: true,
       include_in_access_token: false,
+      default_client_assignment: 'default',
+      consent_text: null,
+      display_order: 0,
       builtin: true,
       roles: [],
       mappers: [],

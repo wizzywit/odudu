@@ -15,6 +15,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
   // never a plain column set, since it is what recomputes `path` for this
   // group and every descendant, and refuses a cycle.
   path: 'path is denormalized from name and parent_id; it is recomputed by reparenting, never written directly',
+  default_for_new_subjects:
+    'default_for_new_subjects changes who joins a group silently at signup; set it with PUT /admin/tenants/{tenant}/groups/{id}/default, not a general amendment',
   created_at: 'created_at is history',
 };
 

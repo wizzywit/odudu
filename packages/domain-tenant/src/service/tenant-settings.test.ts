@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { coerceTenantSetting, TENANT_SETTING_NAMES } from '#/service/tenant-settings';
+import {
+  coerceTenantSetting,
+  TENANT_SETTING_NAMES,
+  tenantSettingProblems,
+} from '#/service/tenant-settings';
 
 describe('the settings a tenant exposes for configuration', () => {
   it('names every one of them, and nothing that identifies the tenant', () => {
@@ -142,5 +146,32 @@ describe('coercing a value that arrived as a string', () => {
       value: true,
     });
     expect(coerceTenantSetting('username_editable', 'yes').kind).toBe('invalid_value');
+  });
+});
+
+describe('the audit_event_types list setting', () => {
+  it('reads a comma-separated value as the set it names, in the listed order', () => {
+    expect(coerceTenantSetting('audit_event_types', 'token, admin_access,admin_mutation')).toEqual({
+      kind: 'coerced',
+      column: 'auditEventTypes',
+      value: ['admin_mutation', 'admin_access', 'token'],
+    });
+  });
+
+  it('refuses a member it does not list', () => {
+    expect(coerceTenantSetting('audit_event_types', ['admin_mutation', 'logins'])).toMatchObject({
+      kind: 'invalid_value',
+      expected: 'list',
+    });
+  });
+
+  it('names the setting when a value leaves out the admin pair', () => {
+    expect(tenantSettingProblems({ audit_event_types: ['admin_access', 'token'] })).toEqual([
+      {
+        name: 'audit_event_types',
+        message:
+          'must include admin_mutation and admin_access, which can never be turned off; admin_mutation is missing',
+      },
+    ]);
   });
 });

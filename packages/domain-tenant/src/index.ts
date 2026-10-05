@@ -8,6 +8,7 @@ export {
   TENANT_SETTING_COLUMNS,
   type CoerceOutcome,
   type TenantSettingName,
+  type TenantSettingValue,
   type TenantSettingColumn,
   type TenantSettingProblem,
   type TenantSettingRange,

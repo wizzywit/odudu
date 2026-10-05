@@ -52,6 +52,7 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
     name: 'value',
     description: 'value',
     parent_id: 'value',
+    default_for_new_subjects: 'value',
   },
   role: {
     name: 'value',
@@ -60,6 +61,9 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
   },
   scope: {
     name: 'value',
+    default_client_assignment: 'value',
+    consent_text: 'value',
+    display_order: 'value',
   },
   signing_key: {
     status: 'value',

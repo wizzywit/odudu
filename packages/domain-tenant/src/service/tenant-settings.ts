@@ -51,13 +51,26 @@ const SETTINGS = {
   verify_email_ttl_seconds: { column: 'verifyEmailTtlSeconds', type: 'integer' },
   reset_password_ttl_seconds: { column: 'resetPasswordTtlSeconds', type: 'integer' },
   login_with_email: { column: 'loginWithEmail', type: 'boolean' },
+  // The audit trail's admin pair can never be left out: a security trail an
+  // attacker holding an administrator's token could switch off is no trail.
+  audit_event_types: {
+    column: 'auditEventTypes',
+    type: 'list',
+    values: ['admin_mutation', 'admin_access', 'authentication', 'session', 'token', 'credential'],
+    required: ['admin_mutation', 'admin_access'],
+  },
 } as const satisfies Record<string, TenantSetting>;
 
 interface TenantSetting {
   readonly column: TenantColumn;
-  readonly type: 'boolean' | 'integer' | 'text';
+  readonly type: 'boolean' | 'integer' | 'text' | 'list';
   readonly values?: readonly string[];
+  /** A list setting's members no value may leave out. */
+  readonly required?: readonly string[];
 }
+
+/** What a setting holds: a list setting is a set of its `values`, in their order. */
+export type TenantSettingValue = boolean | number | string | readonly string[];
 
 export type TenantSettingName = keyof typeof SETTINGS;
 
@@ -77,9 +90,13 @@ export const TENANT_SETTING_COLUMNS: readonly TenantSettingColumn[] = Object.ent
 );
 
 export type CoerceOutcome =
-  | { kind: 'coerced'; column: TenantColumn; value: boolean | number | string }
+  | { kind: 'coerced'; column: TenantColumn; value: TenantSettingValue }
   | { kind: 'unknown_setting'; known: readonly string[] }
-  | { kind: 'invalid_value'; expected: 'boolean' | 'integer' | 'text'; values?: readonly string[] };
+  | {
+      kind: 'invalid_value';
+      expected: 'boolean' | 'integer' | 'text' | 'list';
+      values?: readonly string[];
+    };
 
 function isSettingName(value: string): value is TenantSettingName {
   return Object.hasOwn(SETTINGS, value);
@@ -100,11 +117,31 @@ function coerceInteger(raw: string): number | null {
   return /^-?\d+$/u.test(raw) ? Number(raw) : null;
 }
 
-export function coerceTenantSetting(name: string, raw: string): CoerceOutcome {
+// A list arrives as an array from the admin API and comma-separated from
+// `seed tenant --set`; either way it is stored as a set, in the order its
+// `values` name, so two spellings of one choice compare equal.
+function coerceList(raw: string | readonly string[], values: readonly string[]): string[] | null {
+  const members = typeof raw === 'string' ? raw.split(',').map((member) => member.trim()) : raw;
+  const named = members.filter((member) => member !== '');
+  if (!named.every((member) => values.includes(member))) return null;
+  return values.filter((value) => named.includes(value));
+}
+
+export function coerceTenantSetting(name: string, raw: string | readonly string[]): CoerceOutcome {
   if (!isSettingName(name)) {
     return { kind: 'unknown_setting', known: TENANT_SETTING_NAMES };
   }
   const setting: TenantSetting = SETTINGS[name];
+  if (setting.type === 'list') {
+    const values = setting.values ?? [];
+    const list = coerceList(raw, values);
+    return list === null
+      ? { kind: 'invalid_value', expected: 'list', values }
+      : { kind: 'coerced', column: setting.column, value: list };
+  }
+  if (typeof raw !== 'string') {
+    return { kind: 'invalid_value', expected: setting.type };
+  }
   if (setting.type === 'text') {
     const values = setting.values;
     if (values !== undefined && !values.includes(raw)) {
@@ -189,6 +226,18 @@ export function tenantSettingProblems(
       problems.push({ name, message: `must be between ${String(min)} and ${String(max)}` });
     } else if (value > INTEGER_CEILING) {
       problems.push({ name, message: `must be at most ${String(INTEGER_CEILING)}` });
+    }
+  }
+  for (const { name } of TENANT_SETTING_COLUMNS) {
+    const value = values[name];
+    const setting: TenantSetting = SETTINGS[name];
+    if (setting.required === undefined || !Array.isArray(value)) continue;
+    const missing = setting.required.filter((member) => !value.includes(member));
+    if (missing.length > 0) {
+      problems.push({
+        name,
+        message: `must include ${setting.required.join(' and ')}, which can never be turned off; ${missing.join(' and ')} is missing`,
+      });
     }
   }
   for (const [lower, upper] of TENANT_SETTING_ORDERINGS) {

@@ -2,6 +2,7 @@ import {
   amendGroupRequestSchema,
   createGroupRequestSchema,
   listGroupsQuerySchema,
+  setGroupDefaultRequestSchema,
   setGroupRolesRequestSchema,
   type SetGroupRolesResponse,
 } from '@odudu/contracts/admin';
@@ -17,6 +18,7 @@ import {
   listGroups,
   readGroup,
   readGroupRoles,
+  setGroupDefault,
   setGroupRoles,
   type AmendGroupOutcome,
   type Audit,
@@ -31,6 +33,7 @@ import {
   problem,
   sendProblem,
   lastAdministratorProblem,
+  type Problem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
@@ -44,6 +47,15 @@ export interface GroupsRouteDeps {
     issuerTenantId: string,
     subjectId: string,
   ) => Promise<ReadonlySet<string>>;
+}
+
+function defaultGroupCapabilityProblem(capabilities: readonly string[]): Problem {
+  return problem(
+    403,
+    'about:blank',
+    'Forbidden',
+    `a group every new subject joins may reach no admin capability, and this one would reach: ${capabilities.join(', ')}`,
+  );
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -223,6 +235,8 @@ function amendmentProblem(
       );
     case 'capability_ceiling':
       return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
+    case 'default_group_capability':
+      return sendProblem(reply, request, defaultGroupCapabilityProblem(outcome.capabilities));
   }
 }
 
@@ -364,6 +378,8 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
         );
       case 'capability_ceiling':
         return sendProblem(reply, request, ceilingProblem(outcome.requested, outcome.removed));
+      case 'default_group_capability':
+        return sendProblem(reply, request, defaultGroupCapabilityProblem(outcome.capabilities));
       case 'precondition_required':
         return sendProblem(reply, request, ifMatchRequired('a group\u2019s roles'));
       case 'precondition_failed':
@@ -373,6 +389,43 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
         const wire: SetGroupRolesResponse = { items: [...outcome.roles] };
         return reply.code(200).send(wire);
       }
+    }
+  };
+}
+
+export function setGroupDefaultHandler(deps: GroupsRouteDeps): AdminRouteHandler {
+  return async (request, reply, principal, targetTenantId) => {
+    const id = request.params.id;
+    if (id === undefined) {
+      throw new Error('protocol-admin: PUT group default route received no :id');
+    }
+    const body = setGroupDefaultRequestSchema.parse(request.body);
+
+    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
+      setGroupDefault(
+        tx,
+        { audit: deps.audit },
+        {
+          groupId: id,
+          value: body.default,
+          ifMatch: ifMatchHeader(request),
+          actorSubjectId: principal.subjectId,
+          actorTenantId: principal.issuerTenantId,
+          actorClientId: principal.clientDbId,
+        },
+      ),
+    );
+
+    switch (outcome.kind) {
+      case 'not_found':
+        return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
+      case 'default_group_capability':
+        return sendProblem(reply, request, defaultGroupCapabilityProblem(outcome.capabilities));
+      case 'precondition_failed':
+        return sendProblem(reply, request, ifMatchStale());
+      case 'ok':
+        reply.header('etag', outcome.etag);
+        return reply.code(200).send(outcome.group);
     }
   };
 }

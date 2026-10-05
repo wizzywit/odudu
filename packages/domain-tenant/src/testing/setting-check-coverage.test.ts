@@ -14,6 +14,7 @@ const COLUMNS = new Set([
   'client_registration_policy',
   'max_clients',
   'password_min_length',
+  'audit_event_types',
 ]);
 
 // As pg_get_constraintdef prints the CHECKs on `tenants` today
@@ -25,6 +26,7 @@ const CURRENT = [
   "CHECK ((name ~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$'::text))",
   'CHECK (((password_min_length >= 8) AND (password_min_length <= 256)))',
   'CHECK ((sso_session_idle_seconds <= sso_session_max_seconds))',
+  "CHECK (((audit_event_types @> ARRAY['admin_mutation'::text, 'admin_access'::text]) AND (audit_event_types <@ ARRAY['admin_mutation'::text, 'admin_access'::text, 'authentication'::text, 'session'::text, 'token'::text, 'credential'::text])))",
 ];
 
 describe('readSettingCheck', () => {

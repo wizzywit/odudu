@@ -9,7 +9,7 @@ import {
   withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
-import { effectiveRoles, roleRepository } from '@odudu/domain-authz';
+import { effectiveRoles, groupRepository, roleRepository } from '@odudu/domain-authz';
 import { subjects, users } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
@@ -834,6 +834,42 @@ describe('seeded client lifetimes', () => {
   });
 });
 
+describe('seed client and the tenant’s default scopes', () => {
+  it('assigns what the tenant marks, and not what it unmarks', async () => {
+    const options = uniqueOptions();
+    const first = await seed(options);
+    await withTenant(owner.db, first.tenantId, async (tx) => {
+      const scopes = clientScopeRepository(tx);
+      // The owner bypasses row-level security, so the tenant is named here.
+      const phone = (await scopes.allForTenant()).find(
+        (scope) => scope.tenantId === first.tenantId && scope.name === 'phone',
+      );
+      if (phone === undefined) throw new Error('expected the provisioned phone scope');
+      await scopes.amend(phone.id, { defaultClientAssignment: null });
+      await scopes.create({
+        tenantId: first.tenantId,
+        name: 'reports:read',
+        defaultClientAssignment: 'default',
+      });
+    });
+    await seed([
+      'client',
+      '--tenant',
+      options.tenant,
+      '--client-id',
+      'marked-spa',
+      '--public',
+      '--redirect-uri',
+      'https://app.example/callback',
+    ]);
+
+    const expected = [...TENANT_DEFAULT_SCOPE_NAMES.filter((name) => name !== 'phone')];
+    expect(await assignedScopes(first.tenantId, 'marked-spa')).toEqual(
+      [...expected, 'reports:read'].sort(),
+    );
+  });
+});
+
 describe('seed client --post-logout-redirect-uri', () => {
   it('registers the URIs RP-Initiated Logout matches against', async () => {
     const options = uniqueOptions();
@@ -1076,6 +1112,42 @@ describe('seed user --require-password-change', () => {
 
   it('queues nothing without it', async () => {
     expect(await seedUser()).toEqual([]);
+  });
+});
+
+describe('seed user and the tenant’s defaults', () => {
+  it('joins the default groups and receives the default roles', async () => {
+    const tenant = `defaults-${newId()}`;
+    const created = await seed(['tenant', '--name', tenant]);
+    if (created.command !== 'tenant') throw new Error('expected tenant');
+    const { groupId, roleId } = await withTenant(owner.db, created.tenantId, async (tx) => {
+      const group = await groupRepository(tx).create({
+        tenantId: created.tenantId,
+        name: 'everyone',
+        parentId: null,
+      });
+      await groupRepository(tx).setDefaultForNewSubjects(group.id, true);
+      const role = await roleRepository(tx).create({ tenantId: created.tenantId, name: 'reader' });
+      await roleRepository(tx).setDefaultForNewSubjects(role.id, true);
+      return { groupId: group.id, roleId: role.id };
+    });
+
+    const result = await seed([
+      'user',
+      '--tenant',
+      tenant,
+      '--username',
+      'grace',
+      '--password',
+      'correct horse battery',
+    ]);
+    if (result.command !== 'user') throw new Error('expected user');
+    await withTenant(owner.db, result.tenantId, async (tx) => {
+      const groups = await groupRepository(tx).groupsOfSubject(result.userSubjectId);
+      expect(groups.map((group) => group.id)).toEqual([groupId]);
+      const reach = await effectiveRoles(tx, result.userSubjectId);
+      expect(reach.map((role) => role.roleId)).toContain(roleId);
+    });
   });
 });
 

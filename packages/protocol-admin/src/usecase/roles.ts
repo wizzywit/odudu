@@ -1,12 +1,13 @@
 import { type ListRolesQuery, type Role } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { roleRepository, roles, rolesReachableFrom } from '@odudu/domain-authz';
+import { roleRepository, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
 import { isUuid, OduduError } from '@odudu/kernel';
-import { and, asc, eq, gt, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, type SQL } from 'drizzle-orm';
 import { redactedDiff } from '#/service/audit-detail';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { checkDescription } from '#/service/description';
+import { defaultReachRoleIds, lockDefaultReach } from '#/usecase/default-reach';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_ROLE_FIELDS, refusalFor } from '#/service/role-patch';
@@ -544,29 +545,6 @@ async function lockRolesForComposite(
   await tx.select({ id: roles.id }).from(roles).where(inArray(roles.id, ids)).for('update');
 }
 
-// A default role is handed to every subject created afterwards — through
-// self-registration too, where the tenant allows it — so nothing it reaches
-// may be an admin capability, whoever the caller is. Every composite added
-// and every `true` default takes this lock, after its row locks and before
-// it reads the graph: an edge that reaches no capability yet can still
-// connect a default to one another writer is adding deeper down, so the
-// lock must serialise all of them, not only those whose child reaches one.
-// Removing an edge only shrinks what a default reaches, so it goes without.
-async function lockDefaultRoleReach(tx: TenantScopedDatabase): Promise<void> {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtext('role_default_reach'), hashtext(current_setting('app.tenant_id')))`,
-  );
-}
-
-async function reachedByDefaultRole(tx: TenantScopedDatabase, roleId: string): Promise<boolean> {
-  const defaults = await roleRepository(tx).defaultsForTenant();
-  const reached = await rolesReachableFrom(
-    tx,
-    defaults.map((role) => role.id),
-  );
-  return reached.some((role) => role.roleId === roleId);
-}
-
 // The capability ceiling (CWE-269), applied to a composite edge instead of
 // a subject's role set: everything `child_role_id` reaches — itself
 // included — must already be within the caller's own capabilities, or the
@@ -584,7 +562,7 @@ export async function addRoleComposite(
   if (!isUuid(input.childRoleId)) return { kind: 'unknown_child_role' };
 
   await lockRolesForComposite(tx, input.parentRoleId, input.childRoleId);
-  await lockDefaultRoleReach(tx);
+  await lockDefaultReach(tx);
 
   const parent = await roleRepository(tx).byId(input.parentRoleId);
   if (parent === null) return { kind: 'not_found' };
@@ -632,7 +610,7 @@ export async function addRoleComposite(
   }
 
   if (requestedCapabilities.size > 0) {
-    if (await reachedByDefaultRole(tx, input.parentRoleId)) {
+    if ((await defaultReachRoleIds(tx)).has(input.parentRoleId)) {
       const capabilities = [...requestedCapabilities].sort();
       await deps.audit(tx, {
         action: 'role.composite_add',
@@ -825,7 +803,7 @@ export async function setRoleDefault(
   if (matches(input.ifMatch, etagOf(before)) === 'mismatch') return { kind: 'precondition_failed' };
 
   if (input.value) {
-    await lockDefaultRoleReach(tx);
+    await lockDefaultReach(tx);
     const capabilities = [...(await capabilitiesReachableFrom(tx, [input.roleId]))].sort();
     if (capabilities.length > 0) {
       await deps.audit(tx, {

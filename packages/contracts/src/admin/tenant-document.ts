@@ -70,6 +70,7 @@ export const tenantSettingsDocumentSchema = z.strictObject({
   verify_email_ttl_seconds: count,
   reset_password_ttl_seconds: count,
   login_with_email: z.boolean(),
+  audit_event_types: z.array(z.string()),
 });
 export type TenantSettingsDocument = z.infer<typeof tenantSettingsDocumentSchema>;
 
@@ -146,6 +147,7 @@ export type ExportedRole = z.infer<typeof exportedRoleSchema>;
 export const exportedGroupSchema = z.strictObject({
   path: z.string(),
   description: z.string().nullable(),
+  default_for_new_subjects: z.boolean(),
   roles: z.array(roleReferenceSchema),
 });
 export type ExportedGroup = z.infer<typeof exportedGroupSchema>;
@@ -155,6 +157,9 @@ export const exportedScopeSchema = z.strictObject({
   description: z.string().nullable(),
   include_in_id_token: z.boolean(),
   include_in_access_token: z.boolean(),
+  default_client_assignment: clientScopeAssignmentSchema.nullable(),
+  consent_text: z.string().nullable(),
+  display_order: z.number().int(),
   builtin: z.boolean(),
   roles: z.array(roleReferenceSchema),
   mappers: z.array(z.string()),

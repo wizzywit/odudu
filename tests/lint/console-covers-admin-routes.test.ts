@@ -56,6 +56,7 @@ const TODO: readonly string[] = [
   'DELETE /admin/tenants/:tenant/groups/:id',
   'GET /admin/tenants/:tenant/groups/:id/roles',
   'PUT /admin/tenants/:tenant/groups/:id/roles',
+  'PUT /admin/tenants/:tenant/groups/:id/default',
   'GET /admin/tenants/:tenant/scopes',
   'POST /admin/tenants/:tenant/scopes',
   'GET /admin/tenants/:tenant/scopes/:id',

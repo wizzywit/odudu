@@ -145,6 +145,13 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'clients.clients_description_length': 'CHECK ((char_length(description) <= 1000))',
   'groups.groups_description_length': 'CHECK ((char_length(description) <= 1000))',
   'roles.roles_description_length': 'CHECK ((char_length(description) <= 1000))',
+  'client_scopes.client_scopes_default_client_assignment_check':
+    "CHECK ((default_client_assignment = ANY (ARRAY['default'::text, 'optional'::text])))",
+  'client_scopes.client_scopes_consent_text_length':
+    'CHECK (((char_length(consent_text) >= 1) AND (char_length(consent_text) <= 500)))',
+  'client_scopes.client_scopes_display_order_floor': 'CHECK ((display_order >= 0))',
+  'tenants.tenants_audit_event_types_check':
+    "CHECK (((audit_event_types @> ARRAY['admin_mutation'::text, 'admin_access'::text]) AND (audit_event_types <@ ARRAY['admin_mutation'::text, 'admin_access'::text, 'authentication'::text, 'session'::text, 'token'::text, 'credential'::text])))",
   'client_oidc_config.client_oidc_config_id_token_alg_check':
     "CHECK ((id_token_signed_response_alg = ANY (ARRAY['RS256'::text, 'ES256'::text])))",
   'client_oidc_config.client_oidc_config_default_max_age_range': 'CHECK ((default_max_age >= 0))',

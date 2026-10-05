@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 import { roles } from '#/schema/roles';
 
@@ -13,6 +13,7 @@ export const groups = pgTable('groups', {
   parentId: uuid('parent_id'),
   name: text('name').notNull(),
   description: text('description'),
+  defaultForNewSubjects: boolean('default_for_new_subjects').notNull().default(false),
   // Denormalized and maintained only by groupRepository: `/engineering` for
   // a root group, `/engineering/platform` for its child. Read, never
   // derived, so a group's ancestry is one column away rather than a
@@ -30,6 +31,7 @@ export interface GroupRecord {
   parentId: string | null;
   name: string;
   description: string | null;
+  defaultForNewSubjects: boolean;
   path: string;
   createdAt: Date;
 }

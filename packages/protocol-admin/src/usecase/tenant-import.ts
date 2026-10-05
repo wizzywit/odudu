@@ -27,6 +27,8 @@ import {
   clientScopeRepository,
   TENANT_SETTING_COLUMNS,
   TenantSettingCheckViolationError,
+  coerceTenantSetting,
+  type TenantSettingValue,
   tenantSettingsRepository,
 } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
@@ -122,11 +124,14 @@ async function writeSettings(
     ...document.settings,
     ...document.registration_policy,
   };
-  const columns: Record<string, boolean | number | string> = {};
+  const columns: Record<string, TenantSettingValue> = {};
   for (const { name, column } of TENANT_SETTING_COLUMNS) {
     const value = values[name];
     if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') {
       if (name !== 'display_name') columns[column] = value;
+    } else if (Array.isArray(value) && value.every((member) => typeof member === 'string')) {
+      const coerced = coerceTenantSetting(name, value);
+      if (coerced.kind === 'coerced') columns[column] = coerced.value;
     }
   }
   await tenantSettingsRepository(tx).amend(tenantId, columns);
@@ -257,6 +262,9 @@ async function writeGroups(
       parentId: parentPath === '' ? null : required(groupIds, parentPath, 'group'),
       description: group.description,
     });
+    if (group.default_for_new_subjects) {
+      await groups.setDefaultForNewSubjects(created.id, true);
+    }
     groupIds.set(group.path, created.id);
     await groups.setRoles(created.id, roleIdsOf(roleIds, group.roles));
   }
@@ -282,6 +290,9 @@ async function writeScopes(
       description: scope.description,
       includeInIdToken: scope.include_in_id_token,
       includeInAccessToken: scope.include_in_access_token,
+      defaultClientAssignment: scope.default_client_assignment,
+      consentText: scope.consent_text,
+      displayOrder: scope.display_order,
     };
     let scopeId: string;
     if (scope.builtin) {

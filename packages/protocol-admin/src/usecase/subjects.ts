@@ -9,6 +9,7 @@ import {
 } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
+  grantNewSubjectDefaults,
   groupRepository,
   roleRepository,
   roles,
@@ -386,9 +387,9 @@ export interface ComposeUserSubjectInput {
 // Shared by self-registration (`createAccount`, apps/server/src/app.ts) and
 // administrative creation below, so the two doors cannot drift on what "a
 // new subject" means: a subject, its user row, and the tenant's
-// `default_for_new_subjects` roles. Self-registration adds a password
-// credential on top of this; the admin door below adds an `update-password`
-// required action instead.
+// `default_for_new_subjects` roles and groups. Self-registration adds a
+// password credential on top of this; the admin door below adds an
+// `update-password` required action instead.
 export async function composeUserSubject(
   tx: TenantScopedDatabase,
   input: ComposeUserSubjectInput,
@@ -400,10 +401,7 @@ export async function composeUserSubject(
     username: input.username,
     email: input.email,
   });
-  const defaults = await roleRepository(tx).defaultsForTenant();
-  for (const role of defaults) {
-    await roleRepository(tx).assignToSubject(subject.id, role.id);
-  }
+  await grantNewSubjectDefaults(tx, subject.id);
   return { subjectId: subject.id };
 }
 

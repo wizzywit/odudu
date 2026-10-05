@@ -312,7 +312,12 @@ async function exportGroups(
   roleById: ReadonlyMap<string, RoleRow>,
 ): Promise<{ groups: ExportedGroup[]; pathById: Map<string, string> }> {
   const rows = await tx
-    .select({ id: groups.id, path: groups.path, description: groups.description })
+    .select({
+      id: groups.id,
+      path: groups.path,
+      description: groups.description,
+      defaultForNewSubjects: groups.defaultForNewSubjects,
+    })
     .from(groups)
     .where(eq(groups.tenantId, tenantId));
   const mapped = await tx
@@ -324,6 +329,7 @@ async function exportGroups(
     groups: [...rows].sort(byKey((row) => row.path)).map((row) => ({
       path: row.path,
       description: row.description,
+      default_for_new_subjects: row.defaultForNewSubjects,
       roles: rolesByGroup.get(row.id) ?? [],
     })),
     pathById: new Map(rows.map((row) => [row.id, row.path])),
@@ -342,6 +348,9 @@ async function exportScopes(
       description: clientScopes.description,
       includeInIdToken: clientScopes.includeInIdToken,
       includeInAccessToken: clientScopes.includeInAccessToken,
+      defaultClientAssignment: clientScopes.defaultClientAssignment,
+      consentText: clientScopes.consentText,
+      displayOrder: clientScopes.displayOrder,
     })
     .from(clientScopes)
     .where(eq(clientScopes.tenantId, tenantId));
@@ -383,6 +392,9 @@ async function exportScopes(
     description: row.description,
     include_in_id_token: row.includeInIdToken,
     include_in_access_token: row.includeInAccessToken,
+    default_client_assignment: row.defaultClientAssignment,
+    consent_text: row.consentText,
+    display_order: row.displayOrder,
     builtin: builtinNames.has(row.name),
     roles: rolesByScope.get(row.id) ?? [],
     mappers: [...(mappersByScope.get(row.id) ?? [])].sort(),

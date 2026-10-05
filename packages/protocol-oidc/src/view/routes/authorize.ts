@@ -110,6 +110,7 @@ async function renderAuthorizationOutcome(
         authSessionId: outcome.authSessionId,
         clientName: outcome.clientName,
         clientPages: outcome.clientPages,
+        scopeLabels: outcome.scopeLabels,
         defaultScopes: outcome.defaultScopes,
         optionalScopes: outcome.optionalScopes,
         alreadyGranted: outcome.alreadyGranted,

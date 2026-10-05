@@ -7,6 +7,7 @@ import { and, asc, eq, gt, inArray, isNull, type SQL } from 'drizzle-orm';
 import {
   capabilitiesOfGroupsAndAncestors,
   capabilitiesOfSubtree,
+  capabilitiesReachableFrom,
   overreach,
   replacementOverreach,
 } from '#/service/capability-ceiling';
@@ -15,6 +16,8 @@ import { checkDescription } from '#/service/description';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { groupWireShape } from '#/service/group-wire';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
+import { redactedDiff } from '#/service/audit-detail';
+import { holdsDefaultGroup, lockDefaultReach } from '#/usecase/default-reach';
 import {
   guardLastAdministrator,
   type LastAdministratorRefusal,
@@ -29,7 +32,8 @@ import { roleAssignmentColumns, type RoleAssignment } from '#/usecase/subjects';
 const COLLECTION = 'groups';
 
 export interface GroupAuditEvent {
-  readonly action: 'group.create' | 'group.amend' | 'group.delete' | 'group.roles_set';
+  readonly action:
+    'group.create' | 'group.amend' | 'group.delete' | 'group.roles_set' | 'group.default_set';
   readonly resourceType: 'group';
   readonly resourceId: string;
   readonly actorSubjectId: string;
@@ -247,6 +251,7 @@ export type AmendGroupOutcome =
   | { kind: 'precondition_failed' }
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'cycle' }
+  | { kind: 'default_group_capability'; capabilities: readonly string[] }
   | { kind: 'ok'; group: Group; etag: string }
   | LastAdministratorRefusal;
 
@@ -353,6 +358,26 @@ async function amendGroupUnguarded(
         detail: { denied },
       });
       return { kind: 'capability_ceiling', requested: granted, removed };
+    }
+  }
+
+  if (typeof parentId === 'string') {
+    await lockDefaultReach(tx);
+    if (await holdsDefaultGroup(tx, input.groupId)) {
+      const capabilities = [...(await capabilitiesOfGroupsAndAncestors(tx, [parentId]))].sort();
+      if (capabilities.length > 0) {
+        await deps.audit(tx, {
+          action: 'group.amend',
+          resourceType: 'group',
+          resourceId: input.groupId,
+          actorSubjectId: input.actorSubjectId,
+          actorTenantId: input.actorTenantId,
+          actorClientId: input.actorClientId,
+          outcome: 'refused',
+          detail: { denied: capabilities },
+        });
+        return { kind: 'default_group_capability', capabilities };
+      }
     }
   }
 
@@ -484,6 +509,7 @@ export type SetGroupRolesOutcome =
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'precondition_required' }
   | { kind: 'precondition_failed' }
+  | { kind: 'default_group_capability'; capabilities: readonly string[] }
   | { kind: 'ok'; roles: readonly RoleAssignment[]; etag: string }
   | LastAdministratorRefusal;
 
@@ -608,6 +634,24 @@ async function setGroupRolesUnguarded(
     return { kind: 'capability_ceiling', requested: breach.granted, removed: breach.removed };
   }
 
+  await lockDefaultReach(tx);
+  if (await holdsDefaultGroup(tx, input.groupId)) {
+    const capabilities = [...(await capabilitiesReachableFrom(tx, uniqueRoleIds))].sort();
+    if (capabilities.length > 0) {
+      await deps.audit(tx, {
+        action: 'group.roles_set',
+        resourceType: 'group',
+        resourceId: input.groupId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { denied: capabilities },
+      });
+      return { kind: 'default_group_capability', capabilities };
+    }
+  }
+
   await groupRepository(tx).setRoles(input.groupId, uniqueRoleIds);
 
   await deps.audit(tx, {
@@ -622,4 +666,72 @@ async function setGroupRolesUnguarded(
 
   const mapped = await mappedRoles(tx, input.groupId);
   return { kind: 'ok', roles: mapped, etag: etagOf({ items: mapped }) };
+}
+
+export interface SetGroupDefaultInput {
+  readonly groupId: string;
+  readonly value: boolean;
+  readonly ifMatch: string | undefined;
+  readonly actorSubjectId: string;
+  readonly actorTenantId: string;
+  readonly actorClientId: string;
+}
+
+export interface SetGroupDefaultDeps {
+  readonly audit: Audit;
+}
+
+export type SetGroupDefaultOutcome =
+  | { kind: 'not_found' }
+  | { kind: 'default_group_capability'; capabilities: readonly string[] }
+  | { kind: 'precondition_failed' }
+  | { kind: 'ok'; group: Group; etag: string };
+
+// The role default's rule (`setRoleDefault`, #/usecase/roles.ts) applied to
+// what membership hands out: the group's own roles and every ancestor's, which
+// `effectiveRoles` gives its members. No capability at all, whoever the
+// caller is. Unsetting is never refused.
+export async function setGroupDefault(
+  tx: TenantScopedDatabase,
+  deps: SetGroupDefaultDeps,
+  input: SetGroupDefaultInput,
+): Promise<SetGroupDefaultOutcome> {
+  if (!isUuid(input.groupId)) return { kind: 'not_found' };
+  const locked = await lockGroupForAmend(tx, input.groupId);
+  if (locked === null) return { kind: 'not_found' };
+  const before = groupWireShape(locked);
+  if (matches(input.ifMatch, etagOf(before)) === 'mismatch') return { kind: 'precondition_failed' };
+
+  if (input.value) {
+    await lockDefaultReach(tx);
+    const capabilities = [...(await capabilitiesOfGroupsAndAncestors(tx, [input.groupId]))].sort();
+    if (capabilities.length > 0) {
+      await deps.audit(tx, {
+        action: 'group.default_set',
+        resourceType: 'group',
+        resourceId: input.groupId,
+        actorSubjectId: input.actorSubjectId,
+        actorTenantId: input.actorTenantId,
+        actorClientId: input.actorClientId,
+        outcome: 'refused',
+        detail: { denied: capabilities },
+      });
+      return { kind: 'default_group_capability', capabilities };
+    }
+  }
+
+  await groupRepository(tx).setDefaultForNewSubjects(input.groupId, input.value);
+  const after: Group = { ...before, default_for_new_subjects: input.value };
+
+  await deps.audit(tx, {
+    action: 'group.default_set',
+    resourceType: 'group',
+    resourceId: input.groupId,
+    actorSubjectId: input.actorSubjectId,
+    actorTenantId: input.actorTenantId,
+    actorClientId: input.actorClientId,
+    outcome: 'allowed',
+    detail: redactedDiff('group', before, after),
+  });
+  return { kind: 'ok', group: after, etag: etagOf(after) };
 }

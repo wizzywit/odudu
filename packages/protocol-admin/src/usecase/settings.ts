@@ -9,6 +9,7 @@ import {
   tenantSettingProblems,
   type TenantSettingProblem,
   type TenantSettingsRecord,
+  type TenantSettingValue,
 } from '@odudu/domain-tenant';
 import { etagOf, matches } from '#/service/etag';
 
@@ -47,7 +48,7 @@ export async function readSettings(
 
 export interface AmendSettingsInput {
   readonly tenantId: string;
-  readonly values: Readonly<Record<string, boolean | number | string>>;
+  readonly values: Readonly<Record<string, TenantSettingValue>>;
   readonly ifMatch: string | undefined;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
@@ -64,7 +65,7 @@ export type AmendSettingsOutcome =
   | {
       kind: 'invalid_value';
       name: string;
-      expected: 'boolean' | 'integer' | 'text';
+      expected: 'boolean' | 'integer' | 'text' | 'list';
       values?: readonly string[];
     }
   | { kind: 'out_of_range'; problems: readonly TenantSettingProblem[] }
@@ -90,7 +91,7 @@ export class AmendSettingsRefusedError extends Error {
 interface CoercedSetting {
   readonly name: string;
   readonly column: string;
-  readonly value: boolean | number | string;
+  readonly value: TenantSettingValue;
 }
 
 type CoerceAllResult = { kind: 'ok'; settings: readonly CoercedSetting[] } | AmendSettingsOutcome;
@@ -98,10 +99,10 @@ type CoerceAllResult = { kind: 'ok'; settings: readonly CoercedSetting[] } | Ame
 // Every supplied name goes through `coerceTenantSetting` — the same map
 // `seed tenant --set` applies through — before any of them touches the
 // database, so a typo in the second field never leaves the first applied.
-function coerceAll(values: Readonly<Record<string, boolean | number | string>>): CoerceAllResult {
+function coerceAll(values: Readonly<Record<string, TenantSettingValue>>): CoerceAllResult {
   const settings: CoercedSetting[] = [];
   for (const [name, raw] of Object.entries(values)) {
-    const outcome = coerceTenantSetting(name, String(raw));
+    const outcome = coerceTenantSetting(name, typeof raw === 'object' ? raw : String(raw));
     if (outcome.kind === 'unknown_setting') {
       return { kind: 'unknown_setting', name, known: TENANT_SETTING_NAMES };
     }

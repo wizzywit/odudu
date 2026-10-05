@@ -5,6 +5,7 @@ export function groupWireShape(group: {
   name: string;
   description: string | null;
   parentId: string | null;
+  defaultForNewSubjects: boolean;
   path: string;
   createdAt: Date;
 }): Group {
@@ -13,6 +14,7 @@ export function groupWireShape(group: {
     name: group.name,
     description: group.description,
     parent_id: group.parentId,
+    default_for_new_subjects: group.defaultForNewSubjects,
     path: group.path,
     created_at: group.createdAt.toISOString(),
   };

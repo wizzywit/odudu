@@ -319,12 +319,22 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           clientOidcConfigRepository(tx).byClientId(clientId),
           clientScopeRepository(tx).forClientByAssignment(clientId),
         ]);
-        const defaultScopes = assignments
+        const ordered = [...assignments].sort(
+          (a, b) =>
+            a.scope.displayOrder - b.scope.displayOrder ||
+            (a.scope.name < b.scope.name ? -1 : a.scope.name > b.scope.name ? 1 : 0),
+        );
+        const defaultScopes = ordered
           .filter((row) => row.assignment === 'default')
           .map((row) => row.scope.name);
-        const optionalScopes = assignments
+        const optionalScopes = ordered
           .filter((row) => row.assignment === 'optional')
           .map((row) => row.scope.name);
+        const scopeLabels = Object.fromEntries(
+          ordered.flatMap((row) =>
+            row.scope.consentText === null ? [] : [[row.scope.name, row.scope.consentText]],
+          ),
+        );
         const scopeIdByName = new Map(assignments.map((row) => [row.scope.name, row.scope.id]));
         return {
           clientName: client?.name ?? '',
@@ -333,6 +343,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
             policyUri: config?.policyUri ?? null,
             tosUri: config?.tosUri ?? null,
           },
+          scopeLabels,
           consentRequired: config?.consentRequired ?? false,
           defaultScopes,
           optionalScopes,

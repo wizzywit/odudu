@@ -64,6 +64,7 @@ import {
   listGroupsHandler,
   readGroupHandler,
   readGroupRolesHandler,
+  setGroupDefaultHandler,
   setGroupRolesHandler,
   type GroupsRouteDeps,
 } from '#/view/routes/groups';
@@ -639,6 +640,7 @@ function buildAdminRoutes(
       'DELETE /admin/tenants/:tenant/groups/:id': deleteGroupHandler(groupsDeps),
       'GET /admin/tenants/:tenant/groups/:id/roles': readGroupRolesHandler(groupsDeps),
       'PUT /admin/tenants/:tenant/groups/:id/roles': setGroupRolesHandler(groupsDeps),
+      'PUT /admin/tenants/:tenant/groups/:id/default': setGroupDefaultHandler(groupsDeps),
       'GET /admin/tenants/:tenant/scopes': listScopesHandler(scopesDeps),
       'GET /admin/tenants/:tenant/scopes/count': countScopesHandler(countsDeps),
       'POST /admin/tenants/:tenant/scopes': createScopeHandler(scopesDeps),

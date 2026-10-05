@@ -246,6 +246,7 @@ export function registerLoginRoute(app: FastifyInstance, deps: LoginRouteDeps): 
           authSessionId: outcome.authSessionId,
           clientName: outcome.clientName,
           clientPages: outcome.clientPages,
+          scopeLabels: outcome.scopeLabels,
           defaultScopes: outcome.defaultScopes,
           optionalScopes: outcome.optionalScopes,
           alreadyGranted: outcome.alreadyGranted,

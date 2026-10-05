@@ -1,4 +1,4 @@
-import { type TenantScopedDatabase } from '@odudu/db';
+import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
 import { and, count, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { type PgInsertValue } from 'drizzle-orm/pg-core';
@@ -7,6 +7,7 @@ import {
   assertActionKnown,
   assertDetailAllowed,
   isAuditReason,
+  AUDIT_EVENT_TYPES,
   type AuditEventInput,
   type AuditEventType,
 } from '#/service/vocabulary';
@@ -93,6 +94,31 @@ function validatedRow(event: AuditEventInput): PgInsertValue<typeof auditEvents>
   };
 }
 
+const ALWAYS_STORED: ReadonlySet<AuditEventType> = new Set(['admin_mutation', 'admin_access']);
+
+// The tenant's `audit_event_types` (0091_audit_event_types.sql), read where the
+// row is written so a change applies from the next event on. A tenant this
+// transaction cannot see stores everything.
+async function storedTypes(tx: TenantScopedDatabase): Promise<ReadonlySet<string>> {
+  const rows = await tx
+    .select({ types: tenants.auditEventTypes })
+    .from(tenants)
+    .where(sql`${tenants.id} = ${ROW_TENANT}`);
+  const types = rows[0]?.types;
+  return types === undefined ? new Set(AUDIT_EVENT_TYPES) : new Set(types);
+}
+
+async function storedOf(
+  tx: TenantScopedDatabase,
+  events: readonly AuditEventInput[],
+): Promise<readonly AuditEventInput[]> {
+  if (events.every((event) => ALWAYS_STORED.has(event.eventType))) return events;
+  const stored = await storedTypes(tx);
+  return events.filter(
+    (event) => ALWAYS_STORED.has(event.eventType) || stored.has(event.eventType),
+  );
+}
+
 export function auditRepository(tx: TenantScopedDatabase) {
   return {
     // No tenantId field: audit_events.tenant_id defaults to the same
@@ -100,14 +126,18 @@ export function auditRepository(tx: TenantScopedDatabase) {
     // transaction to — the tenant the event happened to, not whichever
     // tenant issued the caller's own token.
     async record(event: AuditEventInput): Promise<void> {
-      await tx.insert(auditEvents).values(validatedRow(event));
+      const row = validatedRow(event);
+      if ((await storedOf(tx, [event])).length === 0) return;
+      await tx.insert(auditEvents).values(row);
     },
 
     // Every event is checked before any is written, and all of them go in
     // one statement: a caller whose row count varies with what happened
     // still issues the same number of statements either way.
     async recordAll(events: readonly AuditEventInput[]): Promise<void> {
-      const rows = events.map(validatedRow);
+      const validated = events.map((event) => ({ event, row: validatedRow(event) }));
+      const kept = new Set(await storedOf(tx, events));
+      const rows = validated.filter(({ event }) => kept.has(event)).map(({ row }) => row);
       if (rows.length === 0) return;
       await tx.insert(auditEvents).values(rows);
     },

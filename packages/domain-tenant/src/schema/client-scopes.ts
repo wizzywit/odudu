@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from '@odudu/db';
 import { clients } from '#/schema/clients';
 
@@ -20,6 +20,11 @@ export const clientScopes = pgTable('client_scopes', {
   // no explicit flags lands in both tokens. Added in migration 0019, after
   // include_in_id_token (0016) shipped without it.
   includeInAccessToken: boolean('include_in_access_token').notNull().default(true),
+  // How a client created afterwards is assigned this scope; null, not at all
+  // (packages/db/drizzle/0089_scope_client_default.sql).
+  defaultClientAssignment: text('default_client_assignment').$type<ClientScopeAssignment>(),
+  consentText: text('consent_text'),
+  displayOrder: integer('display_order').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   // Search key, in the C collation, filled by the database
   // (packages/db/drizzle/0075_list_indexes_roles_groups_scopes.sql).
@@ -40,6 +45,9 @@ export interface ClientScopeRecord {
   description: string | null;
   includeInIdToken: boolean;
   includeInAccessToken: boolean;
+  defaultClientAssignment: ClientScopeAssignment | null;
+  consentText: string | null;
+  displayOrder: number;
   createdAt: Date;
 }
 

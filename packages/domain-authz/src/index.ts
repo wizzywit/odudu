@@ -20,3 +20,4 @@ export {
   descendantsOf,
   type NewGroup,
 } from '#/repository/groups';
+export { grantNewSubjectDefaults } from '#/repository/new-subject-defaults';

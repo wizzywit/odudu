@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor, SCOPE_FIELDS } from '#/service/scope-patch';
 
 describe('the client scope amendment allowlist', () => {
-  it('admits description and both include flags', () => {
+  it('admits description, both include flags, the client default and the consent fields', () => {
     expect(AMENDABLE_SCOPE_FIELDS).toEqual([
       'description',
       'include_in_id_token',
       'include_in_access_token',
+      'default_client_assignment',
+      'consent_text',
+      'display_order',
     ]);
   });
 

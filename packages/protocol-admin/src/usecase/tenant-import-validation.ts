@@ -16,6 +16,7 @@ import {
   isValidTenantName,
   TENANT_DEFAULT_SCOPE_NAMES,
   TENANT_NAME_RULE,
+  coerceTenantSetting,
   tenantSettingProblems,
 } from '@odudu/domain-tenant';
 import {
@@ -26,6 +27,7 @@ import {
 } from '@odudu/protocol-oidc';
 import { checkDescription } from '#/service/description';
 import { fieldPath } from '#/service/field-path';
+import { checkConsentText, checkDisplayOrder } from '#/service/scope-consent';
 import { validateFlowSteps } from '#/service/flow-validation';
 import { CLAIM_KEY, PHONE_E164_MESSAGE, shapeInvalidityFor } from '#/usecase/profile';
 import { tooManySubjectsDetail } from '#/usecase/tenant-export';
@@ -327,6 +329,12 @@ function scopeProblems(
     if (!SCOPE_NAME.test(scope.name)) {
       problems.add(`${path}.name`, 'a scope name is an RFC 6749 scope-token');
     }
+    const consentText = checkConsentText(scope.consent_text);
+    if (consentText.kind === 'invalid') problems.add(`${path}.consent_text`, consentText.message);
+    const displayOrder = checkDisplayOrder(scope.display_order);
+    if (displayOrder.kind === 'invalid') {
+      problems.add(`${path}.display_order`, displayOrder.message);
+    }
     referenceProblems(scope.roles, `${path}.roles`, graph, problems);
     scope.mappers.forEach((mapper, mapperIndex) => {
       if (!mappers.has(mapper)) {
@@ -546,6 +554,21 @@ function invariantProblems(
       ceiling([child], `${path}.composites[${String(childIndex)}]`);
     });
   });
+  const rolesByPath = new Map(document.groups.map((group) => [group.path, group.roles]));
+  document.groups.forEach((group, index) => {
+    if (!group.default_for_new_subjects) return;
+    const inherited: RoleReference[] = [];
+    for (let path = group.path; path !== ''; path = path.slice(0, path.lastIndexOf('/'))) {
+      inherited.push(...(rolesByPath.get(path) ?? []));
+    }
+    const reached = graph.capabilities(inherited);
+    if (reached.length > 0) {
+      problems.add(
+        `document.groups[${String(index)}].default_for_new_subjects`,
+        `a group every new subject joins reaches ${reached.join(', ')}`,
+      );
+    }
+  });
   document.groups.forEach((group, index) => {
     ceiling(group.roles, `document.groups[${String(index)}].roles`);
   });
@@ -592,6 +615,13 @@ export function validateTenantImport(
   subjectProblems(document, graph, problems);
   for (const problem of tenantSettingProblems(document.settings)) {
     problems.add(`document.settings.${problem.name}`, problem.message);
+  }
+  const auditTypes = coerceTenantSetting('audit_event_types', document.settings.audit_event_types);
+  if (auditTypes.kind === 'invalid_value') {
+    problems.add(
+      'document.settings.audit_event_types',
+      `names an event type other than ${(auditTypes.values ?? []).join(', ')}`,
+    );
   }
   flowAndSmtpProblems(document, environment, problems);
   const metadata = clientProblems(document, graph, environment, problems);

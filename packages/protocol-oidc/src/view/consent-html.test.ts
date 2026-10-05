@@ -9,6 +9,7 @@ const BASE = {
   defaultScopes: ['openid', 'profile'],
   optionalScopes: ['offline_access', 'email'],
   alreadyGranted: ['email'],
+  scopeLabels: {},
 };
 
 describe('renderConsentPage', () => {
@@ -104,5 +105,17 @@ describe('renderConsentPage', () => {
     expect(page.body).not.toContain('<html');
     expect(page.html).toContain('<!doctype html>');
     expect(page.html).toContain(page.body);
+  });
+
+  it('shows a scope by its consent text, escaped, and posts its name', () => {
+    const page = renderConsentPage({
+      ...BASE,
+      scopeLabels: { profile: 'Your <name> & "picture"', email: 'Your address' },
+    });
+    expect(page.body).toContain('<li>Your &lt;name&gt; &amp; &quot;picture&quot;</li>');
+    expect(page.body).toContain('value="email" checked> Your address</label>');
+    expect(page.body).toContain('<li>openid</li>');
+    expect(page.body).not.toContain('<name>');
+    expect(page.script).toBeNull();
   });
 });

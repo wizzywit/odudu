@@ -127,6 +127,7 @@ export type LoginSubmissionOutcome =
       authSessionId: string;
       clientName: string;
       clientPages: ClientPages;
+      scopeLabels: ScopeLabels;
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
@@ -231,6 +232,10 @@ export interface ClientPages {
   tosUri: string | null;
 }
 
+// The consent text of each scope that has one, by scope name; a scope with
+// none is shown by its name.
+export type ScopeLabels = Readonly<Record<string, string>>;
+
 // What a consent decision needs about the client beyond decideConsent's own
 // pure inputs: a name to put on the page, and the name<->id mapping a
 // consent POST needs to turn a ticked checkbox (a scope name) back into
@@ -240,6 +245,7 @@ export interface ClientPages {
 export interface ConsentContext {
   clientName: string;
   clientPages: ClientPages;
+  scopeLabels: ScopeLabels;
   consentRequired: boolean;
   defaultScopes: string[];
   optionalScopes: string[];
@@ -261,6 +267,7 @@ export type ConsentGateOutcome =
       kind: 'ask';
       clientName: string;
       clientPages: ClientPages;
+      scopeLabels: ScopeLabels;
       defaultScopes: string[];
       optionalScopes: string[];
       alreadyGranted: string[];
@@ -305,6 +312,7 @@ export async function decideConsentGate(
     kind: 'ask',
     clientName: context.clientName,
     clientPages: context.clientPages,
+    scopeLabels: context.scopeLabels,
     defaultScopes: decision.defaultScopes,
     optionalScopes: decision.optionalScopes,
     alreadyGranted: decision.alreadyGranted,
@@ -675,6 +683,7 @@ export async function handleLoginSubmission(
       authSessionId,
       clientName: gate.clientName,
       clientPages: gate.clientPages,
+      scopeLabels: gate.scopeLabels,
       defaultScopes: gate.defaultScopes,
       optionalScopes: gate.optionalScopes,
       alreadyGranted: gate.alreadyGranted,

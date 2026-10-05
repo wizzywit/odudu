@@ -13,6 +13,7 @@ export const groupSchema = z.object({
   name: z.string(),
   description: z.string().nullable(),
   parent_id: idSchema.nullable(),
+  default_for_new_subjects: z.boolean(),
   path: z.string(),
   created_at: createdAtSchema,
 });
@@ -50,6 +51,11 @@ export type CreateGroupRequest = z.infer<typeof createGroupRequestSchema>;
 // ADR 0039, and `path` follows from it and the parent.
 export const amendGroupRequestSchema = z.record(z.string(), z.unknown());
 export type AmendGroupRequest = z.infer<typeof amendGroupRequestSchema>;
+
+export const setGroupDefaultRequestSchema = z.object({
+  default: z.boolean(),
+});
+export type SetGroupDefaultRequest = z.infer<typeof setGroupDefaultRequestSchema>;
 
 export const setGroupRolesRequestSchema = z.object({
   role_ids: z.array(idSchema),

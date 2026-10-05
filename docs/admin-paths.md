@@ -389,6 +389,7 @@ not re-run — each says so, and why, where it appears.
 | `DELETE` | `/admin/tenants/{tenant}/groups/:id`                             | Delete a group                             |
 | `GET`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Read a group's roles                       |
 | `PUT`    | `/admin/tenants/{tenant}/groups/:id/roles`                       | Replace a group's roles                    |
+| `PUT`    | `/admin/tenants/{tenant}/groups/:id/default`                     | Set whether new subjects join a group      |
 | `GET`    | `/admin/tenants/{tenant}/scopes`                                 | List client scopes                         |
 | `GET`    | `/admin/tenants/{tenant}/scopes/count`                           | Count client scopes                        |
 | `POST`   | `/admin/tenants/{tenant}/scopes`                                 | Create a client scope                      |
@@ -6090,9 +6091,11 @@ Requires `manage-tenant`. The body is `{"default": true}` or
 `If-Match` is optional: sent, it is compared with the role as it stands
 under the write's own lock, and a stale one is refused with `412`. A role
 marked default is granted to **every subject created afterwards** —
-through `POST /subjects` and through self-registration alike, which share
-`composeUserSubject` (`packages/protocol-admin/src/usecase/subjects.ts`) —
-and to none that already exist; unmarking it takes it from nobody who
+through `POST /subjects`, self-registration and `odudu seed` alike, which
+all call `grantNewSubjectDefaults`
+(`packages/domain-authz/src/repository/new-subject-defaults.ts`) — and to
+none that already exist, nor to a subject an import moves in with the roles
+its document lists; unmarking it takes it from nobody who
 already holds it. Each change is audited as `role.default_set`, with the
 flag's before and after in `detail`.
 
@@ -6557,13 +6560,73 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$T/audit?outcome=refused&from=
 {"action":"group.roles_set","resource_type":"group","resource_id":"01a0e59a-b40e-70ab-a0d2-6aee1c1e9e6c","detail":{"denied":["tenant-admin","view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit"]}}
 ```
 
+## `PUT /groups/:id/default`
+
+Requires `manage-tenant`. The body is `{"default": true}` or
+`{"default": false}`, and the answer is the group with its `ETag`; the
+group's `default_for_new_subjects` shows the flag on every read, and
+`PATCH /groups/:id` refuses it with a reason naming this route. `If-Match`
+is optional, and a stale one is refused with `412`. A default group is
+joined by **every subject created afterwards** — through `POST /subjects`,
+self-registration and `odudu seed` (`seed user`, the bootstrap user and
+`seed admin`), all through `grantNewSubjectDefaults`
+(`packages/domain-authz/src/repository/new-subject-defaults.ts`), which
+hands out the default roles in the same pass — and by none that already
+exist. A subject an import brings is one being moved rather than created:
+it arrives with exactly the groups and roles its document lists, a default
+group's membership included where it held one, so the import never hands
+back a membership an administrator removed, and a tenant re-exports what it
+imported. Each change is audited as `group.default_set`, with the
+flag's before and after in `detail`.
+
+**A default group may reach no admin capability**, on the rule
+`PUT /roles/:id/default` holds a role to: membership hands out the roles
+mapped to the group and to every ancestor (ADR 0040's ceiling reaches as
+far), so `true` is refused with `403`, whoever the caller is, when any of
+them reaches a role of the built-in admin client. While a group is a
+default, each write that could widen what it hands out is refused the same
+way, with a `refused` row: `PUT /groups/:id/roles` on it or on an ancestor
+mapping a role that reaches a capability, `POST /roles/:id/composites`
+nesting one under a role it reaches, and `PATCH /groups/:id` moving it or
+an ancestor under a chain that reaches one. Every one of these takes the
+lock the role defaults take (`lockDefaultReach`,
+`packages/protocol-admin/src/usecase/default-reach.ts`) after its own row
+lock, so two writers cannot each pass the check alone. An import is held to
+the same rule: a document marking a group default whose chain reaches a
+capability is refused at that group's `default_for_new_subjects`.
+
 ## `GET /scopes`, `POST /scopes`, `GET /scopes/:id`, `PATCH /scopes/:id` and `DELETE /scopes/:id`
 
 All five require `manage-tenant`. `include_in_id_token` and
 `include_in_access_token` (both default `true`) decide which token a
-scope's claims land in; `PATCH` amends either, plus `description` — `name`
-is refused, since it is the scope token a client requests and a token
-carries. A duplicate name answers `409`. `DELETE` cascades:
+scope's claims land in; `PATCH` amends either, plus `description` and
+`default_client_assignment` — `name` is refused, since it is the scope token
+a client requests and a token carries. A duplicate name answers `409`.
+
+**`default_client_assignment` is the tenant's default client scopes.** A
+scope marked `default` or `optional` is assigned, that way, to every client
+created afterwards — by `POST /clients`, by dynamic registration, by
+`odudu seed` and by `seed client`, which all call `provisionClientDefaults`
+(`packages/domain-tenant/src/usecase/provision-defaults.ts`) — and `null`
+leaves it to be assigned deliberately. A new tenant marks the vocabulary it
+provisions as that code always assigned it: `openid`, `profile`, `email`,
+`address`, `phone`, `roles` and `groups` `default`, `offline_access`
+`optional`, and `0089_scope_client_default.sql` marked an upgraded tenant's
+scopes of those names the same way. A mark changes no client that already
+exists. It is a scope's own column rather than a tenant setting listing
+names, because the assignment kind belongs to each scope, and a deleted
+scope takes its mark with it instead of leaving a name that matches
+nothing.
+
+**`consent_text` and `display_order` are what the consent screen shows.**
+The screen lists a client's requested scopes by `display_order` (an integer,
+`0` by default, never negative), then by name, the pre-approved ones first
+and the optional ones after, and shows each by its `consent_text` where it
+has one — at most 500 characters, or `null` for the bare scope name — every
+value through the page's own `escapeHtml`, with the page's policy unchanged:
+it still carries no script. The text is one string for now; a text per
+locale is P4b's, with the rest of the translated pages. Both travel in the
+tenant document and are amended by `PATCH`. `DELETE` cascades:
 `client_scope_assignments_scope_fk` and `client_scope_roles_scope_fk`
 (`packages/db/drizzle/0016_client_scopes.sql`, `0017_roles.sql`) both name
 `ON DELETE CASCADE`, not `RESTRICT`, so deleting an assigned, role-mapped
@@ -7587,6 +7650,21 @@ SMTP configuration. `detail` is a redacted before/after diff, allowlisted
 per resource type: a secret, a password hash or a private key never
 appears in it, whichever of the two it would have been, and a field on
 neither list is absent rather than shown.
+
+**Which event types are stored is the tenant's `audit_event_types`
+setting**, a list drawn from the six types `?event_type=` filters on, every
+one by default. `PATCH /settings` takes it as an array (and
+`odudu seed tenant --set audit_event_types=…` comma-separated), and it is
+answered in the order the types are listed here: `admin_mutation`,
+`admin_access`, `authentication`, `session`, `token`, `credential`. The
+audit writer (`auditRepository`, `packages/domain-audit/src/repository/audit.ts`)
+reads it in the transaction that writes each row, so **a change applies from
+the moment it is saved**, to the next event on, and **it never deletes a row
+already stored** — those stay until `audit_retention_days` takes them.
+`admin_mutation` and `admin_access` are always stored: a value leaving
+either out is refused with `400`, the error naming `audit_event_types`, and
+a CHECK on the column refuses it again underneath. A security trail an
+attacker holding an administrator's token could switch off is no trail.
 
 **Each row names its actor when it is read**, beside the ids it stores:
 `actor_name` is a user's username, or the `client_id` whose service account

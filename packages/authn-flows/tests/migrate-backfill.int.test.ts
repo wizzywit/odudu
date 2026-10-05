@@ -239,3 +239,54 @@ describe('the client lifetime rewrite, run by a schema owner that is not a super
     expect(forced.map((table) => table.relforcerowsecurity)).toEqual([true, true]);
   }, 180_000);
 });
+
+// The last migration before client scopes carry their own default assignment.
+const BEFORE_THE_SCOPE_DEFAULTS = 88;
+
+describe('the scope default assignment, run by a schema owner that is not a superuser', () => {
+  let scopesHandle: DatabaseHandle | undefined;
+
+  afterAll(async () => {
+    await scopesHandle?.close();
+  });
+
+  it('marks the provisioned vocabulary as it was assigned, and nothing else', async () => {
+    const database = `${OWNER}_scope_defaults`;
+    await adminHandle?.sql.unsafe(`CREATE DATABASE ${database} OWNER ${OWNER}`);
+    const url = new URL(container.adminUrl);
+    url.username = OWNER;
+    url.password = OWNER;
+    url.pathname = `/${database}`;
+    scopesHandle = createDatabase(url.toString(), { max: 2 });
+    const db = scopesHandle;
+
+    const tenantId = newId();
+    await runMigrations(db.db, await migrationsThrough(BEFORE_THE_SCOPE_DEFAULTS));
+    await withTenant(db.db, tenantId, async (tx) => {
+      await tx.execute(
+        sql`insert into tenants (id, name) values (${tenantId}, ${`t-${tenantId}`})`,
+      );
+      for (const name of ['openid', 'offline_access', 'reports:read']) {
+        await tx.execute(sql`
+          insert into client_scopes (id, tenant_id, name) values (${newId()}, ${tenantId}, ${name})`);
+      }
+    });
+
+    await runMigrations(db.db, MIGRATIONS_DIR);
+
+    const rows = await withTenant(db.db, tenantId, (tx) =>
+      tx.execute<{ name: string; default_client_assignment: string | null }>(
+        sql`select name, default_client_assignment from client_scopes order by name`,
+      ),
+    );
+    expect(rows.map((row) => ({ ...row }))).toEqual([
+      { name: 'offline_access', default_client_assignment: 'optional' },
+      { name: 'openid', default_client_assignment: 'default' },
+      { name: 'reports:read', default_client_assignment: null },
+    ]);
+    const forced = await db.sql<{ relforcerowsecurity: boolean }[]>`
+      select relforcerowsecurity from pg_class where relname = 'client_scopes'
+    `;
+    expect(forced.map((table) => table.relforcerowsecurity)).toEqual([true]);
+  }, 180_000);
+});

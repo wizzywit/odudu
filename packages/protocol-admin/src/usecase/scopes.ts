@@ -24,6 +24,7 @@ import {
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
+import { checkConsentText, checkDisplayOrder } from '#/service/scope-consent';
 import {
   prefixRangeConditions,
   requireSearchKey,
@@ -69,6 +70,9 @@ export function scopeWireShape(scope: {
   description: string | null;
   includeInIdToken: boolean;
   includeInAccessToken: boolean;
+  defaultClientAssignment: ClientScopeAssignment | null;
+  consentText: string | null;
+  displayOrder: number;
   createdAt: Date;
 }): ClientScope {
   return {
@@ -77,6 +81,9 @@ export function scopeWireShape(scope: {
     description: scope.description,
     include_in_id_token: scope.includeInIdToken,
     include_in_access_token: scope.includeInAccessToken,
+    default_client_assignment: scope.defaultClientAssignment,
+    consent_text: scope.consentText,
+    display_order: scope.displayOrder,
     created_at: scope.createdAt.toISOString(),
   };
 }
@@ -179,6 +186,9 @@ export async function listScopes(
         description: row.description,
         includeInIdToken: row.includeInIdToken,
         includeInAccessToken: row.includeInAccessToken,
+        defaultClientAssignment: row.defaultClientAssignment,
+        consentText: row.consentText,
+        displayOrder: row.displayOrder,
         createdAt: row.createdAt,
       }),
     ),
@@ -202,6 +212,9 @@ export interface CreateScopeInput {
   readonly description: string | null;
   readonly includeInIdToken: boolean | undefined;
   readonly includeInAccessToken: boolean | undefined;
+  readonly defaultClientAssignment: ClientScopeAssignment | null;
+  readonly consentText: string | null;
+  readonly displayOrder: number;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -232,6 +245,9 @@ export async function createScope(
     ...(input.includeInAccessToken !== undefined
       ? { includeInAccessToken: input.includeInAccessToken }
       : {}),
+    defaultClientAssignment: input.defaultClientAssignment,
+    consentText: input.consentText,
+    displayOrder: input.displayOrder,
   });
 
   await deps.audit(tx, {
@@ -274,6 +290,9 @@ interface ScopePatchInput {
   description?: { value: string | null };
   includeInIdToken?: { value: boolean };
   includeInAccessToken?: { value: boolean };
+  defaultClientAssignment?: { value: ClientScopeAssignment | null };
+  consentText?: { value: string | null };
+  displayOrder?: { value: number };
 }
 
 // Locks the scope for the rest of the transaction, the same reasoning
@@ -354,20 +373,49 @@ export async function amendScope(
     patch.includeInAccessToken = { value };
   }
 
-  if (
-    patch.description !== undefined ||
-    patch.includeInIdToken !== undefined ||
-    patch.includeInAccessToken !== undefined
-  ) {
-    await clientScopeRepository(tx).amend(input.scopeId, {
-      ...(patch.description !== undefined ? { description: patch.description.value } : {}),
-      ...(patch.includeInIdToken !== undefined
-        ? { includeInIdToken: patch.includeInIdToken.value }
-        : {}),
-      ...(patch.includeInAccessToken !== undefined
-        ? { includeInAccessToken: patch.includeInAccessToken.value }
-        : {}),
-    });
+  if ('default_client_assignment' in input.values) {
+    const value = input.values.default_client_assignment;
+    if (value !== null && value !== 'default' && value !== 'optional') {
+      return {
+        kind: 'invalid_value',
+        field: 'default_client_assignment',
+        description: 'default_client_assignment must be default, optional or null',
+      };
+    }
+    patch.defaultClientAssignment = { value };
+  }
+
+  if ('consent_text' in input.values) {
+    const checked = checkConsentText(input.values.consent_text);
+    if (checked.kind === 'invalid') {
+      return { kind: 'invalid_value', field: 'consent_text', description: checked.message };
+    }
+    patch.consentText = { value: checked.value };
+  }
+  if ('display_order' in input.values) {
+    const checked = checkDisplayOrder(input.values.display_order);
+    if (checked.kind === 'invalid') {
+      return { kind: 'invalid_value', field: 'display_order', description: checked.message };
+    }
+    patch.displayOrder = { value: checked.value };
+  }
+
+  const columns = {
+    ...(patch.description !== undefined ? { description: patch.description.value } : {}),
+    ...(patch.includeInIdToken !== undefined
+      ? { includeInIdToken: patch.includeInIdToken.value }
+      : {}),
+    ...(patch.includeInAccessToken !== undefined
+      ? { includeInAccessToken: patch.includeInAccessToken.value }
+      : {}),
+    ...(patch.defaultClientAssignment !== undefined
+      ? { defaultClientAssignment: patch.defaultClientAssignment.value }
+      : {}),
+    ...(patch.consentText !== undefined ? { consentText: patch.consentText.value } : {}),
+    ...(patch.displayOrder !== undefined ? { displayOrder: patch.displayOrder.value } : {}),
+  };
+  if (Object.keys(columns).length > 0) {
+    await clientScopeRepository(tx).amend(input.scopeId, columns);
   }
 
   await deps.audit(tx, {

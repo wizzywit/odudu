@@ -71,7 +71,13 @@ principal it names bounds it; a refusal nothing bounds — an unregistered
 ([ADR 0037](docs/adr/0037-refusal-rows-are-bounded-by-the-principal-they-name.md)).
 Refresh rows dominate the table's growth, and each tenant's
 `audit_retention_days` is what bounds them (see
-[`odudu reap`](#running-it) below).
+[`odudu reap`](#running-it) below). A tenant's `audit_event_types` setting
+chooses which of the six event types the trail stores — every one by
+default. A type left out is not written from the moment the setting is
+saved, and the rows already stored are kept until retention takes them;
+`admin_mutation` and `admin_access` can never be left out, and a value
+without them is refused with `400` naming the setting, since a security
+trail an attacker can switch off is no trail.
 
 A role reaches a token only when it is mapped to a scope the client is
 assigned, because `clients.full_scope_allowed` is off by default — a client
@@ -171,7 +177,17 @@ puts `auth_time` in every ID token. `POST /admin/tenants/{tenant}/clients/{id}/s
 keeps a rotated-out secret authenticating for up to a week beside the new
 one (none by default), and `odudu reap` clears it, audited, once that window
 ends. Groups and roles carry a `description` bounded at `1000` too, returned
-in their list items and carried by the tenant document. Outgoing mail goes through
+in their list items and carried by the tenant document. A group marked with
+`PUT /admin/tenants/{tenant}/groups/{id}/default` is joined by every subject
+created afterwards — by an administrator, self-registration or
+`odudu seed`; an imported subject keeps the memberships its document lists —
+and, like a default role, may reach no admin capability
+through its roles or an ancestor's. A scope's `default_client_assignment`
+(`default`, `optional` or `null`) decides whether a client created
+afterwards — by the admin API, dynamic registration or `odudu seed` — is
+assigned it; a new tenant marks its standard vocabulary the way new clients
+always received it. A scope's `consent_text` (up to 500 characters) and
+`display_order` decide what the consent screen says for it and where. Outgoing mail goes through
 `ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
 `ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`;
 leave `ODUDU_SMTP_HOST` unset and the server logs every message instead of

@@ -95,6 +95,14 @@ export const tenants = pgTable('tenants', {
   // Whether the login form accepts a verified email address as well as a
   // username (packages/db/drizzle/0083_login_with_email.sql).
   loginWithEmail: boolean('login_with_email').notNull().default(false),
+  // The audit event types the trail stores; the admin pair always
+  // (packages/db/drizzle/0091_audit_event_types.sql).
+  auditEventTypes: text('audit_event_types')
+    .array()
+    .notNull()
+    .default(
+      sql`ARRAY['admin_mutation', 'admin_access', 'authentication', 'session', 'token', 'credential']`,
+    ),
   // Search keys, in the C collation, filled by the database
   // (packages/db/drizzle/0074_list_indexes_tenants_clients.sql).
   nameSearch: text('name_search').generatedAlwaysAs(sql`lower(name)`),

@@ -17,10 +17,16 @@ export interface ConsentPageInput {
   defaultScopes: readonly string[];
   optionalScopes: readonly string[];
   alreadyGranted: readonly string[];
+  // An administrator's words for a scope, shown in place of its name.
+  scopeLabels: Readonly<Record<string, string>>;
 }
 
-function renderDefaultScope(scope: string): string {
-  return `<li>${escapeHtml(scope)}</li>`;
+function labelOf(scope: string, labels: ConsentPageInput['scopeLabels']): string {
+  return Object.hasOwn(labels, scope) ? (labels[scope] ?? scope) : scope;
+}
+
+function renderDefaultScope(scope: string, labels: ConsentPageInput['scopeLabels']): string {
+  return `<li>${escapeHtml(labelOf(scope, labels))}</li>`;
 }
 
 // OIDC Core §16.18's SHOULD: "the authorization server clearly identifies
@@ -33,11 +39,15 @@ const LONG_TERM_GRANT_NOTE: ReadonlyMap<string, string> = new Map([
   ['offline_access', ' — grants ongoing access, even while you are not present'],
 ]);
 
-function renderOptionalScope(scope: string, granted: ReadonlySet<string>): string {
+function renderOptionalScope(
+  scope: string,
+  granted: ReadonlySet<string>,
+  labels: ConsentPageInput['scopeLabels'],
+): string {
   const checked = granted.has(scope) ? ' checked' : '';
-  const escaped = escapeHtml(scope);
+  const label = escapeHtml(labelOf(scope, labels));
   const note = escapeHtml(LONG_TERM_GRANT_NOTE.get(scope) ?? '');
-  return `<label><input type="checkbox" name="scope" value="${escaped}"${checked}> ${escaped}${note}</label>`;
+  return `<label><input type="checkbox" name="scope" value="${escapeHtml(scope)}"${checked}> ${label}${note}</label>`;
 }
 
 function renderPageLinks(pages: ConsentPageInput['clientPages'], clientName: string): string {
@@ -60,9 +70,11 @@ function renderPageLinks(pages: ConsentPageInput['clientPages'], clientName: str
 export function renderConsentPage(input: ConsentPageInput): RenderedPage {
   const action = `/tenants/${escapeHtml(input.tenant)}/login-actions/consent`;
   const granted = new Set(input.alreadyGranted);
-  const defaultList = input.defaultScopes.map(renderDefaultScope).join('\n  ');
+  const defaultList = input.defaultScopes
+    .map((scope) => renderDefaultScope(scope, input.scopeLabels))
+    .join('\n  ');
   const optionalList = input.optionalScopes
-    .map((scope) => renderOptionalScope(scope, granted))
+    .map((scope) => renderOptionalScope(scope, granted, input.scopeLabels))
     .join('\n  ');
   return page(
     'Allow access?',

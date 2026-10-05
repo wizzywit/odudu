@@ -32,7 +32,9 @@ function settingValueProblem(
   const expects =
     outcome.values === undefined
       ? `expects ${outcome.expected === 'integer' ? 'an integer' : `a ${outcome.expected}`}`
-      : `must be one of ${outcome.values.join(', ')}`;
+      : outcome.expected === 'list'
+        ? `expects a list drawn from ${outcome.values.join(', ')}`
+        : `must be one of ${outcome.values.join(', ')}`;
   return fieldProblem(
     [{ path: outcome.name, message: expects }],
     `tenant setting ${outcome.name} ${expects}`,

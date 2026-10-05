@@ -2771,9 +2771,10 @@ curl -sS -X POST http://localhost:3000/tenants/register-demo/login-actions/regis
 ```
 
 The subject, the `users` row, the password credential and the tenant's
-default roles — those `PUT /admin/tenants/{tenant}/roles/{id}/default`
-marks, none of which may reach an admin capability
-([docs/admin-paths.md](admin-paths.md)) — are all created in one transaction, and the `verify_email`
+default roles and groups — those `PUT /admin/tenants/{tenant}/roles/{id}/default`
+and `PUT /admin/tenants/{tenant}/groups/{id}/default` mark, none of which may
+reach an admin capability ([docs/admin-paths.md](admin-paths.md)) — are all
+created in one transaction, and the `verify_email`
 token is issued inside that same transaction — the mail goes out only after
 it commits, the same ordering [Address verification](#address-verification)
 establishes. With `ODUDU_SMTP_HOST` unset, the link lands in the container's
@@ -7070,6 +7071,11 @@ client never assigned the scope at all is refused outright, with
 unassigned scope gets (see [Discovery](#1-discovery) above).
 
 ### The consent screen
+
+The scopes it lists are ordered by each scope's `display_order`, then its
+name, and each is shown by the scope's `consent_text` where an
+administrator gave it one ([docs/admin-paths.md](admin-paths.md), under
+`PATCH /scopes/:id`); the scopes below have neither, so they show by name.
 
 `demo-spa`'s own `consent_required` is `false`, so nothing above ever saw
 this screen. It exists for a client whose `consent_required` is `true` —
