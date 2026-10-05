@@ -123,3 +123,93 @@ export function includedBy(holding: Holding, chosen: readonly string[]): Holding
   const parent = NESTED[holding];
   return parent !== undefined && chosen.includes(parent) ? parent : null;
 }
+
+// The capabilities a set of roles hands out by naming them: an admin role
+// carries itself and what it nests. A role nesting one is not seen here.
+export function reachOf(
+  tenant: string,
+  roles: readonly { name: string; client_key: string | null }[],
+): AdminCapability[] {
+  const reached = new Set<AdminCapability>();
+  for (const role of roles) {
+    if (!isAdminRole(role)) continue;
+    if (role.name === TENANT_ADMIN) {
+      for (const capability of grantableIn(tenant)) reached.add(capability);
+    } else if (isCapability(role.name)) {
+      reached.add(role.name);
+      for (const [child, parent] of Object.entries(NESTED)) {
+        if (parent === role.name && isCapability(child)) reached.add(child);
+      }
+    }
+  }
+  return ADMIN_CAPABILITIES.filter((capability) => reached.has(capability));
+}
+
+const AND_ALL = new Intl.ListFormat('en-GB', { type: 'conjunction' });
+
+// The capabilities one part of a ceiling refusal's detail names after `lead`.
+function namedAfter(parts: readonly string[], lead: string): string[] {
+  const part = parts.find((each) => each.startsWith(lead));
+  return part === undefined ? [] : part.slice(lead.length).split(', ');
+}
+
+// What a group, role or scope write refused by its guards means, worded
+// where it was made; the server's own reason is kept when it is not the
+// capability ceiling's (ADR 0040). Null for anything else.
+export function writeRefusal(
+  problem: { type: string; status: number; detail?: string | undefined },
+  capability = 'manage-tenant',
+): string | null {
+  const detail = problem.detail;
+  if (problem.status === 409 && problem.type === 'about:blank#last-administrator') {
+    const who = detail === undefined ? '' : ` (${detail})`;
+    return `Refused: it would leave this tenant with no enabled administrator${who}. Make somebody else an administrator first.`;
+  }
+  if (problem.status !== 403) return null;
+  if (detail === undefined || detail === '') {
+    return `Refused: it needs the ${capability} capability, or reaches a capability you do not hold.`;
+  }
+  const parts = detail.split('; ');
+  const granted = namedAfter(parts, 'the caller does not hold: ');
+  const removed = namedAfter(parts, 'this removes capabilities the caller does not hold: ');
+  if (granted.length + removed.length === 0) return `Refused: ${detail}.`;
+  const would = [
+    ...(granted.length === 0 ? [] : [`hand out ${AND_ALL.format(granted)}`]),
+    ...(removed.length === 0
+      ? []
+      : [`take ${AND_ALL.format(removed)} from whoever holds it through here`]),
+  ];
+  const tail =
+    granted.length + removed.length > 1
+      ? 'none of which you hold yourself'
+      : 'which you do not hold yourself';
+  return `Refused: it would ${would.join(' and ')}, ${tail}.`;
+}
+
+// The admin capabilities a principal stops holding once every way `gone`
+// names is taken away; a role nested in one that goes, goes with it.
+export function adminLoss(
+  own: readonly EffectiveRoleAssignment[],
+  gone: (via: RoleProvenance, role: EffectiveRoleAssignment) => boolean,
+): Holding[] {
+  const lost = new Set<string>();
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const role of own) {
+      if (lost.has(role.id) || role.via.length === 0) continue;
+      const each = role.via.every((via) =>
+        via.kind === 'composite'
+          ? lost.has(via.parent_role_id) || gone(via, role)
+          : gone(via, role),
+      );
+      if (each) {
+        lost.add(role.id);
+        grew = true;
+      }
+    }
+  }
+  return own
+    .filter((role) => lost.has(role.id) && isAdminRole(role))
+    .flatMap((role) => (isHolding(role.name) ? [role.name] : []));
+}
