@@ -3,13 +3,13 @@ import { useAuthority } from '#/features/session';
 import { useGo } from '#/features/subjects/repository/useGo.ts';
 import { useMemberList } from '#/features/subjects/repository/useMemberList.ts';
 import { subjectHref, subjectsHref } from '#/features/subjects/service.ts';
-import { lacking } from '#/shared/service/access.ts';
+import { notLacking } from '#/shared/service/access.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
 // whoami is advice: a caller it says cannot read subjects is told so, rather
 // than sent a read the server would refuse.
 export function useMembersReadable(tenant: string): boolean {
-  return lacking(useAuthority(tenant), ['view-users']).length === 0;
+  return notLacking(useAuthority(tenant), ['view-users']);
 }
 
 export interface Members {

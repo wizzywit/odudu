@@ -1,7 +1,7 @@
 import { useAuthority } from '#/features/session';
 import { SYSTEM_ADMINS_HREF } from '#/features/tenants/service.ts';
 import { administratorCapability, administratorNeeds } from '#/shared/service/administrators.ts';
-import { lacking } from '#/shared/service/access.ts';
+import { lacking, notLacking } from '#/shared/service/access.ts';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 import {
   useBeginAdministrator,
@@ -28,7 +28,7 @@ export function useTenantAdministrators(tenant: string): TenantAdministrators {
   return {
     counted: administratorCapability(tenant),
     systemAdminsHref: tenant === SYSTEM_TENANT ? SYSTEM_ADMINS_HREF : null,
-    canChange: lacking(authority, ['manage-users']).length === 0,
+    canChange: notLacking(authority, ['manage-users']),
     begin: {
       ...begin,
       start: () => {

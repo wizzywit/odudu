@@ -25,7 +25,7 @@ import {
 } from '#/shared/service/administrators.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
-import { lacking } from '#/shared/service/access.ts';
+import { notLacking } from '#/shared/service/access.ts';
 import {
   beyondCaller,
   CAPABILITY_TEXT,
@@ -136,7 +136,7 @@ export function useCapabilityEditor({
   const held: ReadonlyMap<Holding, Held> =
     effective.status === 'ready' ? heldCapabilities(effective.data.items) : new Map();
   const beyond = caller === undefined ? [] : beyondCaller([...held.keys()], caller);
-  const canManage = allowed && lacking(authority, ['manage-users']).length === 0;
+  const canManage = allowed && notLacking(authority, ['manage-users']);
 
   const save = useSectionSave({
     tenant,

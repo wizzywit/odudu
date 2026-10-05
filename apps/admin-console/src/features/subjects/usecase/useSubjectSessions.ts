@@ -23,13 +23,13 @@ import {
   useConfirmedChange,
   type Confirming,
 } from '#/features/subjects/usecase/useConfirmedChange.ts';
-import { lacking } from '#/shared/service/access.ts';
+import { notLacking } from '#/shared/service/access.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
 // Sessions and grants are read and changed with manage-sessions alone:
 // there is no view-sessions.
 export function useHolds(tenant: string, capability: 'manage-sessions' | 'manage-users'): boolean {
-  return lacking(useAuthority(tenant), [capability]).length === 0;
+  return notLacking(useAuthority(tenant), [capability]);
 }
 
 export interface SubjectSessions {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   andList,
   counted,
+  describeId,
   describeIds,
   flagText,
   formatAbsolute,
@@ -99,5 +100,12 @@ describe('describeIds', () => {
     expect(describeIds(['a', 'b'], nameOf)).toBe('Alpha, b');
     expect(describeIds([], nameOf)).toBe('none');
     expect(describeIds('nope', nameOf)).toBe('none');
+  });
+});
+
+describe('describeId', () => {
+  it('names one id, and says none for anything that is not one', () => {
+    expect(describeId('a', (id) => id.toUpperCase())).toBe('A');
+    expect(describeId(null, (id) => id)).toBe('none');
   });
 });

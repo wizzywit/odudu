@@ -64,6 +64,11 @@ export function flagText(value: unknown, on: string, off: string): string {
   return value === true ? on : off;
 }
 
+// A conflict's way of showing one id, or none.
+export function describeId(value: unknown, nameOf: (id: string) => string): string {
+  return typeof value === 'string' ? nameOf(value) : 'none';
+}
+
 // A conflict's way of showing a list of ids: by name where one is known.
 export function describeIds(value: unknown, nameOf: (id: string) => string): string {
   const ids = Array.isArray(value) ? value.map(String) : [];

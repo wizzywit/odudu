@@ -224,6 +224,12 @@ export function possibleLoss(
   return caller.filter((capability) => taken.includes(capability));
 }
 
+// A write that takes something from the caller is confirmed first.
+export interface Asked {
+  title: string;
+  consequence: string;
+}
+
 export type Loss =
   | { kind: 'checking' }
   | { kind: 'none' }
