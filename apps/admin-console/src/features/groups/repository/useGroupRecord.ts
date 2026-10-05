@@ -80,12 +80,19 @@ export function useGroupTrail(tenant: string, id: string): TrailRead {
 
 // A group's place or roles change what every group beneath it hands out,
 // what its members hold, and what the lists show.
-function useAfterGroupChange(tenant: string) {
+// A deleted group's own trail is left to lapse: reading it again would only
+// find it gone.
+function useAfterGroupChange(tenant: string, deleted: string | null = null) {
   const client = useQueryClient();
   return <R>(result: GatewayResult<R>): GatewayResult<R> => {
     if (result.ok) {
+      client
+        .invalidateQueries({
+          queryKey: ['group-trail', tenant],
+          predicate: (query) => deleted === null || query.queryKey[2] !== deleted,
+        })
+        .catch(() => undefined);
       for (const key of [
-        ['group-trail', tenant],
         ['list', tenant],
         ['picker', tenant, 'groups'],
         ['effective-roles', tenant],
@@ -144,7 +151,7 @@ export interface GroupDeletion {
 
 export function useGroupDeletion(tenant: string, id: string): GroupDeletion {
   const { gateway } = useTransport();
-  const after = useAfterGroupChange(tenant);
+  const after = useAfterGroupChange(tenant, id);
   // The record's own entries are left to lapse: removing them while its page
   // is still mounted would read them again, and find nothing.
   const mutation = useMutation({

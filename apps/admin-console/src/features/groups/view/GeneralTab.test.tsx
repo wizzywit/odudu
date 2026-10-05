@@ -159,6 +159,9 @@ it('deletes a group and everything beneath it once its path is typed', async () 
     expect(router.state.location.pathname).toBe('/acme/groups');
   });
   expect(sent.filter((s) => s.method === 'DELETE')).toHaveLength(1);
+  // Nothing reads the deleted group again, which would only find it gone.
+  const after = sent.slice(sent.findIndex((s) => s.method === 'DELETE') + 1);
+  expect(after.filter((s) => s.path.startsWith(`${G}/g-eng`))).toEqual([]);
 });
 
 it('offers no delete or move a limited operator could not make, and says why in one line', async () => {
