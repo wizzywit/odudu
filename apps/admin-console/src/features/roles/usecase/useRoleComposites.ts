@@ -24,7 +24,7 @@ import {
   removalBlock,
   roleSelfLoss,
   unnestedText,
-} from '#/features/roles/service.ts';
+} from '#/features/roles/service';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useRolePicker } from '#/shared/repository/useRolePicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';

@@ -1,6 +1,6 @@
 import type { Role } from '@odudu/contracts/admin';
 import { useId } from 'react';
-import { NAME_FIXED } from '#/features/roles/service.ts';
+import { NAME_FIXED } from '#/features/roles/service';
 import {
   useRoleGeneral,
   type Defaults,

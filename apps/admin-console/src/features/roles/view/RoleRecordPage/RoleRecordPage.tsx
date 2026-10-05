@@ -7,7 +7,7 @@ import {
   rolesTrail,
   type Role,
   type RoleTab,
-} from '#/features/roles/service.ts';
+} from '#/features/roles/service';
 import { useAuditReadable, useRoleActivity } from '#/features/roles/usecase/useRoleActivity.ts';
 import { useRoleRecordPage, type Ceiling } from '#/features/roles/usecase/useRoleRecordPage.ts';
 import { CompositesTab } from '#/features/roles/view/RoleRecordPage/CompositesTab.tsx';

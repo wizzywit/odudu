@@ -15,7 +15,7 @@ import {
   partialCopy,
   roleHref,
   rolesHref,
-} from '#/features/roles/service.ts';
+} from '#/features/roles/service';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch.ts';
 import { requiredProblem, withoutField } from '#/shared/service/fieldErrors.ts';

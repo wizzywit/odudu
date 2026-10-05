@@ -7,7 +7,7 @@ import {
   readComposites,
   readRole,
 } from '#/features/roles/adapter/roles.ts';
-import type { CopyRead } from '#/features/roles/service.ts';
+import type { CopyRead } from '#/features/roles/service';
 import { useFreshRead } from '#/shared/repository/useFreshRead.ts';
 import type { GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';

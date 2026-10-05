@@ -9,7 +9,7 @@ import {
   removeComposite,
   setRoleDefault,
 } from '#/features/roles/adapter/roles.ts';
-import { compositesRecord, roleRecord } from '#/features/roles/service.ts';
+import { compositesRecord, roleRecord } from '#/features/roles/service';
 import { isStale } from '#/shared/service/failure.ts';
 import { recordKey, useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';

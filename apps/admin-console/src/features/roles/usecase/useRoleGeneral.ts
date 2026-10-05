@@ -24,7 +24,7 @@ import {
   roleRecord,
   roleSelfLoss,
   rolesHref,
-} from '#/features/roles/service.ts';
+} from '#/features/roles/service';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { asksFirst, judgedLoss, writeRefusal } from '#/shared/service/capabilities.ts';

@@ -8,7 +8,7 @@ import {
   roleCeiling,
   type RoleTab,
   TAB_RECORDS,
-} from '#/features/roles/service.ts';
+} from '#/features/roles/service';
 import { useDirtyRecords } from '#/shared/repository/useDirtyRecords.ts';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
 import { dirtyTabs, tabNamed, type RecordView } from '#/shared/service/record.ts';

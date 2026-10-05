@@ -1,6 +1,6 @@
 import type { SubmitEvent } from 'react';
 import { AreaGate, areaAt } from '#/features/shell';
-import { copyingText, rolesTrail } from '#/features/roles/service.ts';
+import { copyingText, rolesTrail } from '#/features/roles/service';
 import { useNewRole, type Copying } from '#/features/roles/usecase/useNewRole.ts';
 import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink';
