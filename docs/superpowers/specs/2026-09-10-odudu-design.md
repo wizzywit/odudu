@@ -65,6 +65,7 @@ they were rejected.
 | Dev credentials    | Environment-driven (`.env`, gitignored), loopback-bound       | 0015 |
 | Console            | Backend-for-frontend holding every token server-side          | 0038 |
 | Names              | Role, scope, group and tenant names are immutable identifiers | 0039 |
+| Performance        | Designed in at a stated volume, checked where checkable       | 0041 |
 
 The runtime choice rests on precedent: `node-oidc-provider` is an officially
 OpenID-certified provider written in JavaScript, and Logto ships the full

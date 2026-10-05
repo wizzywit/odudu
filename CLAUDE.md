@@ -409,6 +409,19 @@ still a breach.
 Domain packages never import protocol packages. Protocol packages never
 import each other.
 
+## Performance and scale
+
+Every increment is designed for one volume: 1,000,000 subjects and 10,000
+clients in a tenant, 10,000 tenants, 100,000,000 audit events. A phase spec
+says how each path it adds behaves there. On the server a collection read is
+bounded under `MAX_LIMIT`, a list or search is served by an index, a list
+endpoint makes a constant number of queries, and an in-process structure
+states its bound. In the console the React Compiler is on, nothing renders
+an unbounded collection, and hand-written `useMemo`, `useCallback` or
+`React.memo` appears only where a measurement asks for it. ADR 0041 has the
+reasoning; P11 still owns replicas, load and p99. Quote these rules in a
+brief, as the layering rules are.
+
 ## Non-negotiables
 
 - **No `any`.** Not as an annotation, not as a cast, not leaked in from an
