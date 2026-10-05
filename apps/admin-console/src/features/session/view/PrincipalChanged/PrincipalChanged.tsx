@@ -1,4 +1,4 @@
-import type { Principal } from '#/features/session/service.ts';
+import { continueAsLabel, signInAgainLabel, type Principal } from '#/features/session/service.ts';
 import { SessionStatus } from '#/features/session/view/SessionStatus';
 import { Button } from '#/shared/view/Button';
 import styles from '#/features/session/view/PrincipalChanged/PrincipalChanged.module.css';
@@ -28,10 +28,10 @@ export function PrincipalChanged({
       </p>
       <div className={styles.actions}>
         <Button variant="primary" onPress={onSignInAgain}>
-          {`Sign in as ${was.username} again`}
+          {signInAgainLabel(was)}
         </Button>
         <Button variant="quiet" onPress={onCarryOn}>
-          {`Continue as ${now.username}`}
+          {continueAsLabel(now)}
         </Button>
       </div>
     </SessionStatus>

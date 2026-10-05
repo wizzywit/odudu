@@ -1,7 +1,7 @@
 import { TENANT_NAME_RULE, UNSAFE_RETURN_TO } from '@odudu/contracts';
 import { isTenantName, SYSTEM_TENANT, type Principal } from '#/shared/service/principal.ts';
 import type { GatewayResult, Problem } from '#/shared/service/result.ts';
-import { isSessionEnded } from '#/shared/service/sessionEnded.ts';
+import { SESSION_ENDED_TYPE, isSessionEnded } from '#/shared/service/sessionEnded.ts';
 
 export {
   isTenantName,
@@ -11,7 +11,8 @@ export {
   type Principal,
 } from '#/shared/service/principal.ts';
 
-const ROOT = '/console/';
+export const CONSOLE_ROOT = '/console/';
+const ROOT = CONSOLE_ROOT;
 const RESOLVE_AGAINST = 'http://console.invalid';
 // Sign-in and the API are the gateway's own routes, not pages to return to.
 const NOT_PAGES = ['/console/auth/', '/console/api/'];
@@ -134,7 +135,7 @@ export function remembers(named: string | null, signedIn: boolean): boolean {
 }
 
 export type SignOutAnswer =
-  | { ok: true }
+  | { ok: true; redirect: string }
   | { ok: false; kind: 'network' | 'schema' }
   | { ok: false; kind: 'problem'; problem: Problem };
 
@@ -145,18 +146,6 @@ export function sessionGone(result: SignOutAnswer): boolean {
     result.ok ||
     result.kind === 'schema' ||
     (result.kind === 'problem' && isSessionEnded(result.problem))
-  );
-}
-
-// The admin API answers a tenant it does not know with a plain 401, and the
-// gateway passes that through with the session kept; a 401 that ended the
-// session carries the gateway's own problem type instead.
-export function isUnknownTenant(result: GatewayResult<unknown> | undefined): boolean {
-  return (
-    result?.ok === false &&
-    result.kind === 'problem' &&
-    result.problem.status === 401 &&
-    result.problem.type === 'about:blank'
   );
 }
 
@@ -269,4 +258,41 @@ export function signingInTitle(ended: boolean): string {
 
 export function signingInText(tenant: string | null): string {
   return tenant === null ? 'Opening the console…' : `Taking you to ${tenant}'s sign-in…`;
+}
+
+export function signInAgainLabel(was: Principal): string {
+  return `Sign in as ${was.username} again`;
+}
+
+export function continueAsLabel(now: Principal): string {
+  return `Continue as ${now.username}`;
+}
+
+export function signedInToTitle(tenant: string): string {
+  return `Signed in to ${tenant}`;
+}
+
+export function backToLabel(tenant: string): string {
+  return `Back to ${tenant}`;
+}
+
+export function signInToLabel(tenant: string): string {
+  return `Sign in to ${tenant}`;
+}
+
+export function enteredTenant(typed: string): string {
+  return typed.trim();
+}
+
+export function signOutDestination(result: SignOutAnswer): string {
+  return result.ok ? result.redirect : CONSOLE_ROOT;
+}
+
+// What a tab holds once the gateway has said its session is over.
+export function sessionEndedRead(): GatewayResult<Principal> {
+  return {
+    ok: false,
+    kind: 'problem',
+    problem: { type: SESSION_ENDED_TYPE, title: 'Unauthorized', status: 401 },
+  };
 }

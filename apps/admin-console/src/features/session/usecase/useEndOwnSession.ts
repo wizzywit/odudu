@@ -1,4 +1,5 @@
 import { useGatewaySessionEnd } from '#/features/session/repository/useGatewaySessionEnd.ts';
+import { CONSOLE_ROOT } from '#/features/session/service.ts';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import { useLeaveConsole } from '#/shared/repository/useLeaveConsole.ts';
 
@@ -11,6 +12,6 @@ export function useEndOwnSession(): () => Promise<void> {
   return async () => {
     await endSession();
     useDrafts.getState().forgetAll();
-    leave('/console/');
+    leave(CONSOLE_ROOT);
   };
 }

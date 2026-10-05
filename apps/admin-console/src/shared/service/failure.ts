@@ -16,6 +16,18 @@ export function isStale(result: GatewayResult<unknown>): boolean {
   return hasStatus(result, 412);
 }
 
+// The admin API answers a tenant it does not know with a plain 401, and the
+// gateway passes that through with the session kept; a 401 that ended the
+// session carries the gateway's own problem type instead.
+export function isUnknownTenant(result: GatewayResult<unknown> | undefined): boolean {
+  return (
+    result?.ok === false &&
+    result.kind === 'problem' &&
+    result.problem.status === 401 &&
+    result.problem.type === 'about:blank'
+  );
+}
+
 export function isMissing(result: GatewayResult<unknown>): boolean {
   return hasStatus(result, 404);
 }

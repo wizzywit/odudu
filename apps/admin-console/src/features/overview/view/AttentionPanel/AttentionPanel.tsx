@@ -1,5 +1,10 @@
 import { Link } from 'react-aria-components';
-import { isClear, type AttentionState } from '#/features/overview/service.ts';
+import {
+  isClear,
+  openPlaceLabel,
+  UNCHECKED_LEAD,
+  type AttentionState,
+} from '#/features/overview/service.ts';
 import { Panel } from '#/features/overview/view/Panel';
 import { Button } from '#/shared/view/Button';
 import { ListSkeleton } from '#/shared/view/Skeleton';
@@ -20,7 +25,7 @@ export function AttentionPanel({ attention }: { attention: AttentionState }) {
               <p className={styles.title}>{item.title}</p>
               <p className={styles.detail}>{item.detail}</p>
               <Link href={item.href} className={styles.link ?? ''}>
-                {`Open ${item.place}`}
+                {openPlaceLabel(item.place)}
               </Link>
             </li>
           ))}
@@ -36,7 +41,7 @@ export function AttentionPanel({ attention }: { attention: AttentionState }) {
       ) : null}
       {unchecked.length > 0 ? (
         <p role="note" className={styles.note}>
-          {'Some checks need a capability you do not hold: '}
+          {UNCHECKED_LEAD}
           {unchecked.map((capability, index) => (
             <span key={capability}>
               {index > 0 ? ', ' : null}

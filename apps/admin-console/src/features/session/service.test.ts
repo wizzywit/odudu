@@ -8,7 +8,6 @@ import {
   isReplacement,
   isSystemPrincipal,
   isTenantName,
-  isUnknownTenant,
   loginErrorMessage,
   loginNotice,
   loginUrl,
@@ -18,7 +17,16 @@ import {
   returnPath,
   sessionGone,
   shownPrincipal,
+  backToLabel,
+  continueAsLabel,
+  enteredTenant,
+  CONSOLE_ROOT,
+  sessionEndedRead,
+  signedInToTitle,
+  signInAgainLabel,
   signInLabel,
+  signInToLabel,
+  signOutDestination,
   signingInText,
   signingInTitle,
   SIGN_OUT_FAILED,
@@ -198,7 +206,7 @@ describe('the last tenant, remembered', () => {
 
 describe('whether a sign-out answer means the session is gone', () => {
   it('is yes for a sign-out, an answer that could not be read, and a session already over', () => {
-    expect(sessionGone({ ok: true })).toBe(true);
+    expect(sessionGone({ ok: true, redirect: '/console/' })).toBe(true);
     expect(sessionGone({ ok: false, kind: 'schema' })).toBe(true);
     expect(sessionGone(problem(401, 'about:blank#console-session-ended'))).toBe(true);
   });
@@ -211,14 +219,6 @@ describe('whether a sign-out answer means the session is gone', () => {
 });
 
 describe('a tenant the admin API does not know', () => {
-  it('is the plain 401 it passes through, not the gateway ended-session one', () => {
-    expect(isUnknownTenant(problem(401))).toBe(true);
-    expect(isUnknownTenant(problem(401, 'about:blank#console-session-ended'))).toBe(false);
-    expect(isUnknownTenant(problem(403))).toBe(false);
-    expect(isUnknownTenant({ ok: false, kind: 'network' })).toBe(false);
-    expect(isUnknownTenant(undefined)).toBe(false);
-  });
-
   it('is only said to be missing for a system administrator outside the system tenant', () => {
     expect(tenantMissing(root, 'ghost', true)).toBe(true);
     expect(tenantMissing(root, 'ghost', false)).toBe(false);
@@ -370,5 +370,45 @@ describe('the words of the sign-in pages', () => {
   it('says where the window is going, or that the console is opening', () => {
     expect(signingInText('acme')).toBe("Taking you to acme's sign-in…");
     expect(signingInText(null)).toBe('Opening the console…');
+  });
+});
+
+describe('the labels of the session pages', () => {
+  it('names the tenant or administrator each button acts for', () => {
+    expect(signInAgainLabel(grace)).toBe('Sign in as grace again');
+    expect(continueAsLabel(ada)).toBe('Continue as ada');
+    expect(signedInToTitle('acme')).toBe('Signed in to acme');
+    expect(backToLabel('acme')).toBe('Back to acme');
+    expect(signInToLabel('other')).toBe('Sign in to other');
+  });
+
+  it('takes the tenant a visitor typed without the spaces around it', () => {
+    expect(enteredTenant('  acme \n')).toBe('acme');
+    expect(enteredTenant('')).toBe('');
+  });
+});
+
+describe('where a sign-out leaves for', () => {
+  it('is the address the gateway named, else the console root', () => {
+    expect(signOutDestination({ ok: true, redirect: '/console/auth/bye' })).toBe(
+      '/console/auth/bye',
+    );
+    expect(signOutDestination({ ok: false, kind: 'network' })).toBe(CONSOLE_ROOT);
+    expect(CONSOLE_ROOT).toBe('/console/');
+  });
+});
+
+describe('the read a tab holds once its session ended', () => {
+  it('is the gateway session-ended 401, which boots to nobody', () => {
+    expect(bootOf({ result: sessionEndedRead(), was: grace })).toEqual({
+      kind: 'ready',
+      principal: null,
+      ended: grace,
+    });
+    expect(sessionEndedRead()).toEqual({
+      ok: false,
+      kind: 'problem',
+      problem: { type: 'about:blank#console-session-ended', title: 'Unauthorized', status: 401 },
+    });
   });
 });

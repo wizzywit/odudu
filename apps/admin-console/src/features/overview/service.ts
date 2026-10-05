@@ -457,3 +457,9 @@ export function limitText(limit: number): string {
 export function countAgainLabel(noun: string): string {
   return `Count ${noun} again`;
 }
+
+export function openPlaceLabel(place: string): string {
+  return `Open ${place}`;
+}
+
+export const UNCHECKED_LEAD = 'Some checks need a capability you do not hold: ';

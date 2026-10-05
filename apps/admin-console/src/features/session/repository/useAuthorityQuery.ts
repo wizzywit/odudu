@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { readAuthority } from '#/features/session/adapter/session.ts';
-import { isUnknownTenant, type Authority } from '#/features/session/service.ts';
+import type { Authority } from '#/features/session/service.ts';
+import { isUnknownTenant } from '#/shared/service/failure.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 // Keyed by the principal as well as the tenant, so what whoami told one

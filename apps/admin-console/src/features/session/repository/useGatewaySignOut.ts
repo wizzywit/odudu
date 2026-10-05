@@ -1,5 +1,5 @@
 import { logOut } from '#/features/session/adapter/logout.ts';
-import { sessionGone } from '#/features/session/service.ts';
+import { sessionGone, signOutDestination } from '#/features/session/service.ts';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import { useLeaveConsole } from '#/shared/repository/useLeaveConsole.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
@@ -13,7 +13,7 @@ export function useGatewaySignOut(): () => Promise<boolean> {
     const result = await logOut(auth);
     if (!sessionGone(result)) return false;
     useDrafts.getState().forgetAll();
-    leave(result.ok ? result.redirect : '/console/');
+    leave(signOutDestination(result));
     return true;
   };
 }

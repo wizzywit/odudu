@@ -1,5 +1,11 @@
 import { Link } from 'react-aria-components';
-import { tenantPage, type Principal } from '#/features/session/service.ts';
+import {
+  backToLabel,
+  signedInToTitle,
+  signInToLabel,
+  tenantPage,
+  type Principal,
+} from '#/features/session/service.ts';
 import { SessionStatus } from '#/features/session/view/SessionStatus';
 import { Button } from '#/shared/view/Button';
 import styles from '#/features/session/view/SignedInElsewhere/SignedInElsewhere.module.css';
@@ -16,17 +22,17 @@ export function SignedInElsewhere({
   onSignIn: () => void;
 }) {
   return (
-    <SessionStatus title={`Signed in to ${principal.tenant}`}>
+    <SessionStatus title={signedInToTitle(principal.tenant)}>
       <p>
         You&apos;re signed in to <strong>{principal.tenant}</strong> as{' '}
         <strong>{principal.username}</strong>.
       </p>
       <div className={styles.actions}>
         <Link href={tenantPage(principal.tenant)} className={styles.back ?? ''}>
-          {`Back to ${principal.tenant}`}
+          {backToLabel(principal.tenant)}
         </Link>
         <Button variant="primary" onPress={onSignIn}>
-          {`Sign in to ${tenant}`}
+          {signInToLabel(tenant)}
         </Button>
       </div>
     </SessionStatus>

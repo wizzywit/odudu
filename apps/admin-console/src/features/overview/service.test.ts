@@ -12,11 +12,13 @@ import {
   laneText,
   limitText,
   needsAttention,
+  openPlaceLabel,
   overviewAsks,
   publishedKeys,
   rawJson,
   readCapability,
   readOutcome,
+  UNCHECKED_LEAD,
   unreadableTitle,
   type AttentionInputs,
   type AreaOf,
@@ -570,5 +572,15 @@ describe('the words of the overview panels', () => {
 
   it('labels the button that counts again', () => {
     expect(countAgainLabel('clients')).toBe('Count clients again');
+  });
+});
+
+describe('the words of the attention panel', () => {
+  it('names the area a link opens', () => {
+    expect(openPlaceLabel('Email')).toBe('Open Email');
+  });
+
+  it('leads the capabilities the checks needed', () => {
+    expect(UNCHECKED_LEAD).toBe('Some checks need a capability you do not hold: ');
   });
 });

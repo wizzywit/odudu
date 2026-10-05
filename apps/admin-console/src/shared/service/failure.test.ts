@@ -7,6 +7,7 @@ import {
   isMissing,
   isRefused,
   isStale,
+  isUnknownTenant,
   lookupText,
   writeFailureText,
   type CreateSpec,
@@ -197,5 +198,18 @@ describe('success copy', () => {
     expect(deletedText('ops')).toBe('ops was deleted.');
     expect(enabledText('ada', true)).toBe('ada is enabled.');
     expect(enabledText('ada', false)).toBe('ada is disabled.');
+  });
+});
+
+describe('isUnknownTenant', () => {
+  it('is the plain 401 the admin API passes through, not the gateway ended-session one', () => {
+    expect(isUnknownTenant(problem(401))).toBe(true);
+    expect(isUnknownTenant(problem(401, { type: 'about:blank#console-session-ended' }))).toBe(
+      false,
+    );
+    expect(isUnknownTenant(problem(403))).toBe(false);
+    expect(isUnknownTenant(NETWORK)).toBe(false);
+    expect(isUnknownTenant(OK)).toBe(false);
+    expect(isUnknownTenant(undefined)).toBe(false);
   });
 });

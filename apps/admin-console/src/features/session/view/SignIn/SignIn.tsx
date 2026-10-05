@@ -1,5 +1,10 @@
 import { useState, type SubmitEvent } from 'react';
-import { signInLabel, type Principal } from '#/features/session/service.ts';
+import {
+  enteredTenant,
+  signInLabel,
+  signInToLabel,
+  type Principal,
+} from '#/features/session/service.ts';
 import { SessionStatus } from '#/features/session/view/SessionStatus';
 import { Button } from '#/shared/view/Button';
 import { TextField } from '#/shared/view/Field';
@@ -27,7 +32,7 @@ export function SignIn({
   const [error, setError] = useState<string | undefined>(undefined);
   const submit = (event: SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    const name = tenant.trim();
+    const name = enteredTenant(tenant);
     const problem = check(name);
     setError(problem);
     if (problem === undefined) onSignIn(name);
@@ -51,7 +56,7 @@ export function SignIn({
                 onSignIn(remembered);
               }}
             >
-              {`Sign in to ${remembered}`}
+              {signInToLabel(remembered)}
             </Button>
             <Button
               variant="quiet"
@@ -83,7 +88,7 @@ export function SignIn({
           />
           <div className={styles.actions}>
             <Button type="submit" variant="primary">
-              {signInLabel(enters, tenant.trim())}
+              {signInLabel(enters, enteredTenant(tenant))}
             </Button>
           </div>
         </form>

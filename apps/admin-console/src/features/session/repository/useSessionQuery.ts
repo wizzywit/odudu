@@ -6,24 +6,18 @@ import {
   draftOwner,
   isReplacement,
   remembers,
+  sessionEndedRead,
   shownPrincipal,
   type Principal,
   type SessionRead,
 } from '#/features/session/service.ts';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
-import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
-import { SESSION_ENDED_TYPE } from '#/shared/service/sessionEnded.ts';
+import type { Gateway } from '#/shared/transport/gateway.ts';
 import type { SessionEvents } from '#/shared/service/sessionEvents.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 const KEY = ['session'] as const;
-
-const ENDED: GatewayResult<Principal> = {
-  ok: false,
-  kind: 'problem',
-  problem: { type: SESSION_ENDED_TYPE, title: 'Unauthorized', status: 401 },
-};
 
 // An ended or replaced session's server data belongs to nobody now, so none
 // of it stays in the cache for whoever is signed in next.
@@ -84,7 +78,7 @@ export function useSessionQuery(): {
     },
     markEnded: (was) => {
       purge(client);
-      client.setQueryData<SessionRead>(KEY, { result: ENDED, was });
+      client.setQueryData<SessionRead>(KEY, { result: sessionEndedRead(), was });
     },
     carryOn: () => {
       const read = client.getQueryData<SessionRead>(KEY);
