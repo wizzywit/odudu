@@ -142,8 +142,11 @@ describe('a role names the client it belongs to, wherever roles are listed', () 
         typeof etag === 'string' ? etag : undefined,
       );
       expect(res.statusCode, `${tail}: ${res.body}`).toBe(200);
-      expect(res.json<{ items: unknown[] }>().items, tail).toEqual(expected);
-      expect((await call('GET', tail)).json<{ items: unknown[] }>().items, tail).toEqual(expected);
+      const answered = tail.startsWith('/groups/')
+        ? expected.map((each) => ({ ...each, admin_reach: [] }))
+        : expected;
+      expect(res.json<{ items: unknown[] }>().items, tail).toEqual(answered);
+      expect((await call('GET', tail)).json<{ items: unknown[] }>().items, tail).toEqual(answered);
     }
   });
 });
