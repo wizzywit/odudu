@@ -1,7 +1,15 @@
 import { isTenantName, TENANT_NAME_RULE } from '@odudu/contracts';
 import { TENANT_IMPORT_BODY_LIMIT, type ImportError, type Tenant } from '@odudu/contracts/admin';
+import {
+  ADMINISTRATOR_REQUEST_NEEDS,
+  HOLDINGS_REQUIRED,
+  type AdministratorCall,
+  type AdministratorRequest,
+} from '#/shared/service/administrators.ts';
 import type { Crumb } from '#/shared/service/breadcrumb.ts';
-import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
+import { andList } from '#/shared/service/format.ts';
+import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
+import { fieldErrorsOf, requiredProblem } from '#/shared/service/fieldErrors.ts';
 import type { GatewayFailure, Problem } from '#/shared/service/result.ts';
 
 export type { Tenant };
@@ -247,6 +255,176 @@ export function belongsTo(flow: CreationFlow, creation: Creation): boolean {
   );
 }
 
+// Whether the step is the first administrator of a tenant just made, or a
+// further one to a tenant that has some.
+export function choosesHoldings(step: { origin: string; granted: boolean }): boolean {
+  return step.origin === 'existing' && !step.granted;
+}
+
+// What the administrator step refuses to send, by the field it belongs under.
+export function administratorProblem(step: {
+  username: string;
+  holdings: readonly string[];
+}): { username: string } | { holdings: string } | null {
+  const username = requiredProblem(step.username, 'Enter a username for the administrator.');
+  if (username !== null) return { username };
+  if (step.holdings.length === 0) return { holdings: HOLDINGS_REQUIRED };
+  return null;
+}
+
+// A subject created but not finished, which starting over would drop.
+export interface Unfinished {
+  tenant: string;
+  username: string;
+  // Whether tenant-admin landed, leaving only the one-time password.
+  granted: boolean;
+}
+
+export function unfinishedOf(creation: Creation): Unfinished | null {
+  if (creation.step !== 'administrator' || creation.subjectId === null) return null;
+  return { tenant: creation.tenant, username: creation.username, granted: creation.granted };
+}
+
+// What they hold, as a sentence fragment.
+export function holdsText(holdings?: readonly string[]): string {
+  if (holdings === undefined || holdings.includes('tenant-admin') || holdings.length === 0) {
+    return 'tenant-admin';
+  }
+  return andList(holdings);
+}
+
+export function systemHoldsText(holds: string): string {
+  return holds === 'tenant-admin'
+    ? 'is a system administrator, holding tenant-admin in'
+    : `holds ${holds} in`;
+}
+
+// Starting over from a tenant's own administrator adds another to it.
+export function againOf(flow: CreationFlow): 'tenant' | 'administrator' {
+  return flow === 'tenant' ? 'tenant' : 'administrator';
+}
+
+// A request of a step: what it names when it fails, which fields a refusal
+// is placed under, and the capability a 403 says is missing.
+export interface StepCall {
+  what: string;
+  fields: readonly string[];
+  needed: AdminCapability;
+}
+
+export function createTenantCall(name: string): StepCall {
+  return {
+    what: `${name} was created`,
+    fields: ['name', 'display_name'],
+    needed: 'manage-tenants',
+  };
+}
+
+export function findTenantCall(name: string): StepCall {
+  return { what: `${name} exists`, fields: [], needed: 'manage-tenants' };
+}
+
+export function findAdministratorCall(username: string): StepCall {
+  return {
+    what: `looking for ${username}`,
+    fields: [],
+    needed: ADMINISTRATOR_REQUEST_NEEDS.find,
+  };
+}
+
+export function stepFailureText(call: StepCall, failure: GatewayFailure): string {
+  const { what, needed } = call;
+  switch (failure.kind) {
+    case 'network':
+      return `Could not confirm that ${what}. Nothing was sent again; check before trying again.`;
+    case 'schema':
+      return `${what} may have happened, but the answer could not be read. Check before trying again.`;
+    case 'defect':
+      return `The console could not finish: ${what} did not happen. This is a fault in the console, not something you did.`;
+    case 'problem':
+      if (failure.problem.status === 403) return `Refused: ${what} needs the ${needed} capability.`;
+      return failure.problem.detail ?? failure.problem.title;
+  }
+}
+
+export interface StepRefusal {
+  // Null leaves the field errors as they are.
+  errors: Readonly<Record<string, string>> | null;
+  message: string | null;
+  // The answer was lost: offer to look rather than send again.
+  unconfirmed: boolean;
+}
+
+// A 400 or 409 is placed under the fields it names; what names none goes
+// under the first field, or is said for the step as a whole.
+export function stepRefusal(failure: GatewayFailure, call: StepCall): StepRefusal {
+  const unconfirmed = failure.kind === 'network';
+  if (
+    failure.kind !== 'problem' ||
+    (failure.problem.status !== 400 && failure.problem.status !== 409)
+  ) {
+    return { errors: null, message: stepFailureText(call, failure), unconfirmed };
+  }
+  const placed = fieldErrorsOf(failure.problem, call.fields);
+  const [first] = call.fields;
+  const other = placed.other.join(' ');
+  if (Object.keys(placed.fields).length > 0) {
+    return { errors: placed.fields, message: null, unconfirmed };
+  }
+  if (first !== undefined && other !== '') {
+    return { errors: { [first]: other }, message: null, unconfirmed };
+  }
+  return {
+    errors: {},
+    message: other === '' ? stepFailureText(call, failure) : other,
+    unconfirmed,
+  };
+}
+
+export type AdministratorFailure =
+  { kind: 'lost'; message: string } | { kind: 'refused'; call: StepCall };
+
+// A lost answer to the create is looked for; one to a later call is safe to
+// continue from, since only what did not land is repeated.
+export function administratorFailure(
+  failure: GatewayFailure,
+  call: AdministratorCall,
+  request: AdministratorRequest,
+  username: string,
+): AdministratorFailure {
+  const needed = ADMINISTRATOR_REQUEST_NEEDS[request];
+  if (failure.kind === 'network' && call === 'create') {
+    return { kind: 'refused', call: { what: `${username} was created`, fields: [], needed } };
+  }
+  if (failure.kind === 'network') {
+    return {
+      kind: 'lost',
+      message: `Could not confirm the last step for ${username}. Continuing again is safe: it repeats only what did not land.`,
+    };
+  }
+  return {
+    kind: 'refused',
+    call:
+      call === 'create'
+        ? { what: `creating ${username}`, fields: ['username', 'email'], needed }
+        : { what: `finishing ${username}`, fields: [], needed },
+  };
+}
+
+export function tenantNotCreatedText(name: string): string {
+  return `${name} was not created. Create it again.`;
+}
+
+export function administratorLookupText(username: string, found: boolean): string {
+  return found
+    ? `${username} was created. Continue to finish.`
+    : `${username} was not created. Create the administrator again.`;
+}
+
+export function systemAdminsHrefOf(tenant: string): string | null {
+  return tenant === SYSTEM_TENANT ? SYSTEM_ADMINS_HREF : null;
+}
+
 const SYSTEM_BASE = '/console/system';
 
 export const TENANTS_HREF = `${SYSTEM_BASE}/tenants`;
@@ -306,4 +484,37 @@ export function tenantHref(name: string): string {
 
 export function enterHref(name: string): string {
   return `/console/${encodeURIComponent(name)}`;
+}
+
+export type CreationPage =
+  | { step: 'tenant' }
+  | {
+      step: 'administrator';
+      tenant: string;
+      origin: 'created' | 'imported' | 'existing';
+      systemAdminsHref: string | null;
+    }
+  | { step: 'done'; tenant: string; systemAdminsHref: string | null };
+
+// Where the page is among the steps, what it is called, and the way back.
+export function creationHeading(
+  flow: CreationFlow,
+  current: CreationPage,
+): { at: number; title: string; breadcrumb: readonly Crumb[] } {
+  const at = current.step === 'tenant' ? 0 : current.step === 'administrator' ? 1 : 2;
+  if (current.step === 'tenant') {
+    return { at, title: 'Create a tenant', breadcrumb: tenantsTrail('Create a tenant') };
+  }
+  if (current.systemAdminsHref !== null) {
+    const title = 'Add a system administrator';
+    return { at, title, breadcrumb: systemAdminsTrail(title) };
+  }
+  const origin =
+    flow === 'tenant' ? 'created' : current.step === 'done' ? 'existing' : current.origin;
+  const title = administratorTitle(current.tenant, origin);
+  return {
+    at,
+    title,
+    breadcrumb: flow === 'tenant' ? tenantsTrail(title) : tenantAdministratorTrail(current.tenant),
+  };
 }

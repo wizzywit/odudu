@@ -16,7 +16,24 @@ import {
   flowOf,
   FRESH_CREATION,
   freshCreation,
+  administratorFailure,
+  administratorLookupText,
+  administratorProblem,
+  againOf,
+  choosesHoldings,
   chosenFileOf,
+  createTenantCall,
+  creationHeading,
+  findAdministratorCall,
+  findTenantCall,
+  holdsText,
+  stepFailureText,
+  stepRefusal,
+  systemAdminsHrefOf,
+  systemHoldsText,
+  tenantNotCreatedText,
+  unfinishedOf,
+  type StepCall,
   exportFileName,
   fileChosenProblem,
   fileRequiredProblem,
@@ -298,5 +315,262 @@ describe('the import page', () => {
     });
     expect(importedLink('acme', true)).toBeNull();
     expect(importedLink(null, false)).toBeNull();
+  });
+});
+
+describe('the guided administrator step', () => {
+  const NETWORK = { ok: false, kind: 'network' } as const;
+  const problem = (status: number, extra: object = {}) =>
+    ({
+      ok: false,
+      kind: 'problem',
+      problem: { type: 'about:blank', title: 'Title', status, ...extra },
+    }) as const;
+  const call: StepCall = {
+    what: 'acme was created',
+    fields: ['name', 'display_name'],
+    needed: 'manage-tenants',
+  };
+
+  it('offers the choice of holdings only to a further administrator not yet given them', () => {
+    expect(choosesHoldings({ origin: 'existing', granted: false })).toBe(true);
+    expect(choosesHoldings({ origin: 'existing', granted: true })).toBe(false);
+    expect(choosesHoldings({ origin: 'created', granted: false })).toBe(false);
+    expect(choosesHoldings({ origin: 'imported', granted: false })).toBe(false);
+  });
+
+  it('asks for a username before holdings, and each under its own field', () => {
+    expect(administratorProblem({ username: '', holdings: [] })).toEqual({
+      username: 'Enter a username for the administrator.',
+    });
+    expect(administratorProblem({ username: ' ', holdings: ['tenant-admin'] })).toEqual({
+      username: 'Enter a username for the administrator.',
+    });
+    expect(administratorProblem({ username: 'ada', holdings: [] })).toEqual({
+      holdings: 'Choose Full, or at least one capability.',
+    });
+    expect(administratorProblem({ username: 'ada', holdings: ['view-audit'] })).toBeNull();
+  });
+
+  it('drops a creation only when a subject was already made', () => {
+    expect(unfinishedOf(FRESH_CREATION)).toBeNull();
+    expect(unfinishedOf(administratorOf('acme', 'existing'))).toBeNull();
+    expect(
+      unfinishedOf({
+        step: 'administrator',
+        tenant: 'acme',
+        origin: 'existing',
+        username: 'ada',
+        email: '',
+        subjectId: 's1',
+        granted: true,
+        holdings: ['tenant-admin'],
+      }),
+    ).toEqual({ tenant: 'acme', username: 'ada', granted: true });
+    expect(unfinishedOf({ step: 'done', tenant: 'acme', username: 'ada' })).toBeNull();
+  });
+
+  it('says what an administrator was given, tenant-admin when Full or nothing was named', () => {
+    expect(holdsText(undefined)).toBe('tenant-admin');
+    expect(holdsText([])).toBe('tenant-admin');
+    expect(holdsText(['view-audit', 'tenant-admin'])).toBe('tenant-admin');
+    expect(holdsText(['view-audit'])).toBe('view-audit');
+    expect(holdsText(['view-audit', 'view-users'])).toBe('view-audit and view-users');
+    expect(holdsText(['view-audit', 'view-users', 'manage-users'])).toBe(
+      'view-audit, view-users and manage-users',
+    );
+  });
+
+  it('words what a system administrator holds, Full or a part of it', () => {
+    expect(systemHoldsText('tenant-admin')).toBe(
+      'is a system administrator, holding tenant-admin in',
+    );
+    expect(systemHoldsText('view-audit')).toBe('holds view-audit in');
+  });
+
+  it('starts over to a tenant from a tenant, and to an administrator from any other flow', () => {
+    expect(againOf('tenant')).toBe('tenant');
+    expect(againOf('system-administrator')).toBe('administrator');
+    expect(againOf('administrator/acme')).toBe('administrator');
+  });
+
+  it('names where the system administrators are managed, for system alone', () => {
+    expect(systemAdminsHrefOf('system')).toBe('/console/system/system-admins');
+    expect(systemAdminsHrefOf('acme')).toBeNull();
+  });
+
+  it('names each request by what its failure says, and the capability it needs', () => {
+    expect(createTenantCall('acme')).toEqual(call);
+    expect(findTenantCall('acme')).toEqual({
+      what: 'acme exists',
+      fields: [],
+      needed: 'manage-tenants',
+    });
+    expect(findAdministratorCall('ada')).toEqual({
+      what: 'looking for ada',
+      fields: [],
+      needed: 'view-users',
+    });
+  });
+
+  it('words each failure of a request', () => {
+    expect(stepFailureText(call, NETWORK)).toBe(
+      'Could not confirm that acme was created. Nothing was sent again; check before trying again.',
+    );
+    expect(stepFailureText(call, { ok: false, kind: 'schema' })).toBe(
+      'acme was created may have happened, but the answer could not be read. Check before trying again.',
+    );
+    expect(stepFailureText(call, { ok: false, kind: 'defect' })).toBe(
+      'The console could not finish: acme was created did not happen. This is a fault in the console, not something you did.',
+    );
+    expect(stepFailureText(call, problem(403))).toBe(
+      'Refused: acme was created needs the manage-tenants capability.',
+    );
+    expect(stepFailureText(call, problem(500, { detail: 'boom' }))).toBe('boom');
+    expect(stepFailureText(call, problem(500))).toBe('Title');
+  });
+
+  it('places a 400 or 409 under the fields it names', () => {
+    const errors = [{ path: 'display_name', message: 'too long' }];
+    expect(stepRefusal(problem(400, { errors }), call)).toEqual({
+      errors: { display_name: 'too long' },
+      message: null,
+      unconfirmed: false,
+    });
+  });
+
+  it('puts what names no field under the first, and then under none when there is no field', () => {
+    const errors = [{ path: 'document.x', message: 'bad' }];
+    expect(stepRefusal(problem(409, { errors }), call)).toEqual({
+      errors: { name: 'document.x: bad' },
+      message: null,
+      unconfirmed: false,
+    });
+    expect(stepRefusal(problem(409, { errors }), { ...call, fields: [] })).toEqual({
+      errors: {},
+      message: 'document.x: bad',
+      unconfirmed: false,
+    });
+    expect(stepRefusal(problem(400), { ...call, fields: [] })).toEqual({
+      errors: {},
+      message: 'Title',
+      unconfirmed: false,
+    });
+  });
+
+  it('leaves the field errors alone for any other failure, and asks for a look after a lost answer', () => {
+    expect(stepRefusal(NETWORK, call)).toEqual({
+      errors: null,
+      message: stepFailureText(call, NETWORK),
+      unconfirmed: true,
+    });
+    expect(stepRefusal(problem(403), call)).toEqual({
+      errors: null,
+      message: 'Refused: acme was created needs the manage-tenants capability.',
+      unconfirmed: false,
+    });
+  });
+
+  it('looks for the administrator after a lost create, and continues after a lost later call', () => {
+    expect(administratorFailure(NETWORK, 'create', 'create', 'ada')).toEqual({
+      kind: 'refused',
+      call: { what: 'ada was created', fields: [], needed: 'manage-users' },
+    });
+    expect(administratorFailure(NETWORK, 'grant', 'set-roles', 'ada')).toEqual({
+      kind: 'lost',
+      message:
+        'Could not confirm the last step for ada. Continuing again is safe: it repeats only what did not land.',
+    });
+  });
+
+  it('places a refused create under username and email, and a refused grant under none', () => {
+    expect(administratorFailure(problem(409), 'create', 'create', 'ada')).toEqual({
+      kind: 'refused',
+      call: { what: 'creating ada', fields: ['username', 'email'], needed: 'manage-users' },
+    });
+    expect(administratorFailure(problem(403), 'grant', 'clients', 'ada')).toEqual({
+      kind: 'refused',
+      call: { what: 'finishing ada', fields: [], needed: 'manage-clients' },
+    });
+    expect(
+      administratorFailure({ ok: false, kind: 'defect' }, 'password', 'password', 'ada'),
+    ).toEqual({
+      kind: 'refused',
+      call: { what: 'finishing ada', fields: [], needed: 'manage-users' },
+    });
+  });
+
+  it('says what a look for the tenant or the administrator found', () => {
+    expect(tenantNotCreatedText('acme')).toBe('acme was not created. Create it again.');
+    expect(administratorLookupText('ada', true)).toBe('ada was created. Continue to finish.');
+    expect(administratorLookupText('ada', false)).toBe(
+      'ada was not created. Create the administrator again.',
+    );
+  });
+});
+
+describe('the heading of the creation page', () => {
+  it('is the tenant step, first under Tenants', () => {
+    expect(creationHeading('tenant', { step: 'tenant' })).toEqual({
+      at: 0,
+      title: 'Create a tenant',
+      breadcrumb: tenantsTrail('Create a tenant'),
+    });
+  });
+
+  it("is a system administrator's step under System administrators, whichever flow", () => {
+    const step = {
+      step: 'administrator',
+      tenant: 'system',
+      origin: 'existing',
+      systemAdminsHref: '/x',
+    } as const;
+    expect(creationHeading('system-administrator', step)).toEqual({
+      at: 1,
+      title: 'Add a system administrator',
+      breadcrumb: systemAdminsTrail('Add a system administrator'),
+    });
+    expect(
+      creationHeading('system-administrator', {
+        step: 'done',
+        tenant: 'system',
+        systemAdminsHref: '/x',
+      }).at,
+    ).toBe(2);
+  });
+
+  it('is the first administrator of a tenant just made, under Tenants', () => {
+    const step = {
+      step: 'administrator',
+      tenant: 'acme',
+      origin: 'created',
+      systemAdminsHref: null,
+    } as const;
+    expect(creationHeading('tenant', step)).toEqual({
+      at: 1,
+      title: 'First administrator of acme',
+      breadcrumb: tenantsTrail('First administrator of acme'),
+    });
+  });
+
+  it("is another administrator of an existing tenant, under that tenant's record", () => {
+    const step = {
+      step: 'administrator',
+      tenant: 'acme',
+      origin: 'existing',
+      systemAdminsHref: null,
+    } as const;
+    expect(creationHeading('administrator/acme', step)).toEqual({
+      at: 1,
+      title: 'Add an administrator to acme',
+      breadcrumb: tenantAdministratorTrail('acme'),
+    });
+    expect(
+      creationHeading('administrator/acme', {
+        step: 'done',
+        tenant: 'acme',
+        systemAdminsHref: null,
+      }),
+    ).toMatchObject({ at: 2, title: 'Add an administrator to acme' });
   });
 });

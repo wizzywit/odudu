@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { useAuthority, usePrincipal, useRefusal } from '#/features/session';
-import { holds } from '#/features/shell';
+import { draftOwner, useAuthority, usePrincipal, useRefusal } from '#/features/session';
 import {
   useCreationProgress,
   useFindSubject,
@@ -9,30 +8,37 @@ import {
 } from '#/features/tenants/repository/useCreation.ts';
 import { useSystemIssuer } from '#/features/tenants/repository/useSystemIssuer.ts';
 import {
+  administratorFailure,
+  administratorLookupText,
   administratorOf,
+  administratorProblem,
+  againOf,
+  choosesHoldings,
+  createTenantCall,
   enterHref,
+  findAdministratorCall,
+  findTenantCall,
   freshCreation,
+  holdsText,
   issuerPreview,
   NAME_RULE,
   nameProblem,
-  SYSTEM_ADMINS_HREF,
+  stepRefusal,
+  systemAdminsHrefOf,
+  systemHoldsText,
   tenantHref,
+  tenantNotCreatedText,
+  unfinishedOf,
   type Creation,
   type CreationFlow,
+  type StepCall,
+  type Unfinished,
 } from '#/features/tenants/service.ts';
-import {
-  ADMINISTRATOR_REQUEST_NEEDS,
-  administratorNeeds,
-} from '#/shared/service/administrators.ts';
-import {
-  CAPABILITY_TEXT,
-  ceilingOf,
-  fullText,
-  holdingLabel,
-  holdingsIn,
-  includedBy,
-} from '#/shared/service/capabilities.ts';
-import { fieldErrorsOf } from '#/shared/service/fieldErrors.ts';
+import { lacking } from '#/shared/service/access.ts';
+import { administratorNeeds } from '#/shared/service/administrators.ts';
+import { holdingOptions, holdingsIn, type HoldingOption } from '#/shared/service/capabilities.ts';
+import { withoutField } from '#/shared/service/fieldErrors.ts';
+import { inOrderOf } from '#/shared/service/ids.ts';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
 import type { GatewayFailure } from '#/shared/transport/gateway.ts';
 
@@ -89,32 +95,19 @@ export interface AdministratorStep {
   closeSecret: () => void;
 }
 
-export interface HoldingOption {
-  id: string;
-  label: string;
-  description: string;
-  note: string | null;
-  unavailable: string | null;
-}
-
 export interface DoneStep {
   step: 'done';
   tenant: string;
   username: string;
   // What they were given, as a sentence fragment: "tenant-admin".
   holds: string;
+  // What a system administrator is said to hold, around "in system".
+  systemHolds: string;
   // Starting over from a tenant's own administrator adds another to it.
   again: 'tenant' | 'administrator';
   systemAdminsHref: string | null;
   recordHref: string;
   enterHref: string;
-}
-
-export interface Unfinished {
-  tenant: string;
-  username: string;
-  // Whether tenant-admin landed, leaving only the one-time password.
-  granted: boolean;
 }
 
 export interface NewTenant {
@@ -126,35 +119,11 @@ export interface NewTenant {
   keep: () => void;
 }
 
-function holdsText(holdings: readonly string[]): string {
-  if (holdings.includes('tenant-admin') || holdings.length === 0) return 'tenant-admin';
-  if (holdings.length === 1) return String(holdings[0]);
-  return `${holdings.slice(0, -1).join(', ')} and ${String(holdings.at(-1))}`;
-}
-
-function systemAdminsOf(tenant: string): string | null {
-  return tenant === SYSTEM_TENANT ? SYSTEM_ADMINS_HREF : null;
-}
-
-function failureMessage(what: string, failure: GatewayFailure, needed: AdminCapability): string {
-  switch (failure.kind) {
-    case 'network':
-      return `Could not confirm that ${what}. Nothing was sent again; check before trying again.`;
-    case 'schema':
-      return `${what} may have happened, but the answer could not be read. Check before trying again.`;
-    case 'defect':
-      return `The console could not finish: ${what} did not happen. This is a fault in the console, not something you did.`;
-    case 'problem':
-      if (failure.problem.status === 403) return `Refused: ${what} needs the ${needed} capability.`;
-      return failure.problem.detail ?? failure.problem.title;
-  }
-}
-
 // Each page shows its own flow only: creating a tenant, or adding one of
 // system's administrators.
 export function useNewTenant(flow: CreationFlow): NewTenant {
   const principal = usePrincipal();
-  const owner = `${principal.tenant}/${principal.subjectId}`;
+  const owner = draftOwner(principal);
   const { creation, update } = useCreationProgress(owner, flow);
   const systemIssuer = useSystemIssuer();
   const tenantCreate = useTenantCreate();
@@ -162,7 +131,7 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
   const findSubject = useFindSubject();
   const refusal = useRefusal(SYSTEM_TENANT);
   const authority = useAuthority(SYSTEM_TENANT);
-  const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [unconfirmed, setUnconfirmed] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -175,34 +144,12 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
     update(next);
   };
 
-  const refused = (
-    what: string,
-    failure: GatewayFailure,
-    fields: readonly string[],
-    needed: AdminCapability,
-  ): void => {
-    refusal.report(failure, needed);
-    setUnconfirmed(failure.kind === 'network');
-    if (
-      failure.kind === 'problem' &&
-      (failure.problem.status === 400 || failure.problem.status === 409)
-    ) {
-      const placed = fieldErrorsOf(failure.problem, fields);
-      const [first] = fields;
-      const other = placed.other.join(' ');
-      if (Object.keys(placed.fields).length > 0) {
-        setErrors(placed.fields);
-        setMessage(null);
-      } else if (first !== undefined && other !== '') {
-        setErrors({ [first]: other });
-        setMessage(null);
-      } else {
-        setErrors({});
-        setMessage(other === '' ? failureMessage(what, failure, needed) : other);
-      }
-      return;
-    }
-    setMessage(failureMessage(what, failure, needed));
+  const refused = (call: StepCall, failure: GatewayFailure): void => {
+    refusal.report(failure, call.needed);
+    const outcome = stepRefusal(failure, call);
+    setUnconfirmed(outcome.unconfirmed);
+    if (outcome.errors !== null) setErrors(outcome.errors);
+    setMessage(outcome.message);
   };
 
   const replace = (): void => {
@@ -211,13 +158,9 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
   };
   const restart = {
     startOver: (): void => {
-      if (creation.step === 'administrator' && creation.subjectId !== null) {
-        setReplacing({
-          tenant: creation.tenant,
-          username: creation.username,
-          granted: creation.granted,
-        });
-      } else replace();
+      const unfinished = unfinishedOf(creation);
+      if (unfinished === null) replace();
+      else setReplacing(unfinished);
     },
     replacing,
     replace,
@@ -262,11 +205,10 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
             .create({ name, displayName })
             .then((result) => {
               if (result.ok) created(result.data.name);
-              else
-                refused(`${name} was created`, result, ['name', 'display_name'], 'manage-tenants');
+              else refused(createTenantCall(name), result);
             })
             .catch(() => {
-              refused(`${name} was created`, { ok: false, kind: 'defect' }, [], 'manage-tenants');
+              refused(createTenantCall(name), { ok: false, kind: 'defect' });
             });
         },
         check: () => {
@@ -274,10 +216,10 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
           tenantCreate
             .find(name)
             .then((result) => {
-              if (!result.ok) refused(`${name} exists`, result, [], 'manage-tenants');
+              if (!result.ok) refused(findTenantCall(name), result);
               else if (result.data === null) {
                 setUnconfirmed(false);
-                setMessage(`${name} was not created. Create it again.`);
+                setMessage(tenantNotCreatedText(name));
               } else created(result.data.name);
             })
             .catch(() => undefined)
@@ -291,22 +233,8 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
 
   if (creation.step === 'administrator') {
     const step = creation;
-    const needs =
-      authority === undefined
-        ? []
-        : administratorNeeds(step.tenant, step).filter((c) => !holds(authority, c));
-    const choosing = step.origin === 'existing' && !step.granted;
-    const holdingOptions = holdingsIn(step.tenant).map((holding) => {
-      const carrier = includedBy(holding, step.holdings);
-      return {
-        id: holding,
-        label: holdingLabel(holding),
-        description: holding === 'tenant-admin' ? fullText(step.tenant) : CAPABILITY_TEXT[holding],
-        note: carrier === null ? null : `Carried by ${holdingLabel(carrier)}.`,
-        unavailable:
-          authority === undefined ? null : ceilingOf(step.tenant, holding, authority.capabilities),
-      };
-    });
+    const needs = lacking(authority, administratorNeeds(step.tenant, step));
+    const choosing = choosesHoldings(step);
     const record = (done: { subjectId: string; granted: boolean }): void => {
       update({ ...step, ...done });
     };
@@ -316,7 +244,7 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
         step: 'administrator',
         tenant: step.tenant,
         origin: step.origin,
-        systemAdminsHref: systemAdminsOf(step.tenant),
+        systemAdminsHref: systemAdminsHrefOf(step.tenant),
         issuer: issuerPreview(systemIssuer, step.tenant),
         username: step.username,
         email: step.email,
@@ -329,14 +257,12 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
         needs,
         choosing,
         holdings: step.holdings,
-        holdingOptions,
+        holdingOptions: holdingOptions(step.tenant, step.holdings, authority?.capabilities),
         holdingsError: errors.holdings,
         chooseHoldings: (next) => {
           if (!choosing) return;
-          setErrors((was) =>
-            Object.fromEntries(Object.entries(was).filter(([field]) => field !== 'holdings')),
-          );
-          update({ ...step, holdings: holdingsIn(step.tenant).filter((h) => next.includes(h)) });
+          setErrors((was) => withoutField(was, 'holdings'));
+          update({ ...step, holdings: inOrderOf(holdingsIn(step.tenant), next) });
         },
         secret: administrator.secret,
         editUsername: (next) => {
@@ -347,12 +273,9 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
         },
         submit: () => {
           if (needs.length > 0) return;
-          if (step.username === '') {
-            setErrors({ username: 'Enter a username for the administrator.' });
-            return;
-          }
-          if (step.holdings.length === 0) {
-            setErrors({ holdings: 'Choose Full, or at least one capability.' });
+          const problem = administratorProblem(step);
+          if (problem !== null) {
+            setErrors(problem);
             return;
           }
           setErrors({});
@@ -362,23 +285,9 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
             ...step,
             onProgress: record,
             onFailure: (failure, call, request) => {
-              const needed = ADMINISTRATOR_REQUEST_NEEDS[request];
-              if (failure.kind === 'network' && call === 'create') {
-                refused(`${step.username} was created`, failure, [], needed);
-                return;
-              }
-              if (failure.kind === 'network') {
-                setMessage(
-                  `Could not confirm the last step for ${step.username}. Continuing again is safe: it repeats only what did not land.`,
-                );
-                return;
-              }
-              refused(
-                call === 'create' ? `creating ${step.username}` : `finishing ${step.username}`,
-                failure,
-                call === 'create' ? ['username', 'email'] : [],
-                needed,
-              );
+              const outcome = administratorFailure(failure, call, request, step.username);
+              if (outcome.kind === 'lost') setMessage(outcome.message);
+              else refused(outcome.call, failure);
             },
           });
         },
@@ -387,19 +296,11 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
           findSubject(step.tenant, step.username)
             .then((result) => {
               if (!result.ok) {
-                refused(
-                  `looking for ${step.username}`,
-                  result,
-                  [],
-                  ADMINISTRATOR_REQUEST_NEEDS.find,
-                );
-              } else if (result.data === null) {
-                setUnconfirmed(false);
-                setMessage(`${step.username} was not created. Create the administrator again.`);
+                refused(findAdministratorCall(step.username), result);
               } else {
                 setUnconfirmed(false);
-                setMessage(`${step.username} was created. Continue to finish.`);
-                record({ subjectId: result.data.id, granted: false });
+                setMessage(administratorLookupText(step.username, result.data !== null));
+                if (result.data !== null) record({ subjectId: result.data.id, granted: false });
               }
             })
             .catch(() => undefined)
@@ -420,15 +321,17 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
     };
   }
 
+  const holds = holdsText(creation.holdings);
   return {
     ...restart,
     current: {
       step: 'done',
       tenant: creation.tenant,
       username: creation.username,
-      holds: holdsText(creation.holdings ?? ['tenant-admin']),
-      again: flow === 'tenant' ? 'tenant' : 'administrator',
-      systemAdminsHref: systemAdminsOf(creation.tenant),
+      holds,
+      systemHolds: systemHoldsText(holds),
+      again: againOf(flow),
+      systemAdminsHref: systemAdminsHrefOf(creation.tenant),
       recordHref: tenantHref(creation.tenant),
       enterHref: enterHref(creation.tenant),
     },

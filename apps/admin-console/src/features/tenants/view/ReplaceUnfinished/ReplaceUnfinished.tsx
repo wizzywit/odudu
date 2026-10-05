@@ -1,4 +1,4 @@
-import type { Unfinished } from '#/features/tenants/usecase/useNewTenant.ts';
+import type { Unfinished } from '#/features/tenants/service.ts';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 
 export function ReplaceUnfinished({

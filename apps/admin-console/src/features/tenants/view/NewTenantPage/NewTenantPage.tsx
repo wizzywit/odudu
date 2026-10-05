@@ -7,7 +7,7 @@ import {
   type TenantStep,
 } from '#/features/tenants/usecase/useNewTenant.ts';
 import {
-  administratorTitle,
+  creationHeading,
   flowOf,
   systemAdminsTrail,
   tenantAdministratorTrail,
@@ -208,11 +208,8 @@ function Done({ step, onStartOver }: { step: DoneStep; onStartOver: () => void }
     return (
       <div className={styles.form}>
         <p className={styles.lead}>
-          <code>{step.username}</code>{' '}
-          {step.holds === 'tenant-admin'
-            ? 'is a system administrator, holding tenant-admin in'
-            : `holds ${step.holds} in`}{' '}
-          <code>system</code>, and changes the one-time password at their first sign-in.
+          <code>{step.username}</code> {step.systemHolds} <code>system</code>, and changes the
+          one-time password at their first sign-in.
         </p>
         <div className={styles.actions}>
           <ButtonLink href={step.systemAdminsHref} variant="primary">
@@ -243,23 +240,7 @@ function Done({ step, onStartOver }: { step: DoneStep; onStartOver: () => void }
 
 function Creation({ flow }: { flow: CreationFlow }) {
   const { current, startOver, replacing, replace, keep } = useNewTenant(flow);
-  const at = current.step === 'tenant' ? 0 : current.step === 'administrator' ? 1 : 2;
-  const systemAdmins = current.step === 'tenant' ? null : current.systemAdminsHref;
-  const title =
-    current.step === 'tenant'
-      ? 'Create a tenant'
-      : systemAdmins !== null
-        ? 'Add a system administrator'
-        : administratorTitle(
-            current.tenant,
-            flow === 'tenant' ? 'created' : current.step === 'done' ? 'existing' : current.origin,
-          );
-  const breadcrumb =
-    systemAdmins !== null
-      ? systemAdminsTrail(title)
-      : flow === 'tenant' || current.step === 'tenant'
-        ? tenantsTrail(title)
-        : tenantAdministratorTrail(current.tenant);
+  const { at, title, breadcrumb } = creationHeading(flow, current);
   return (
     <>
       <PageHeader
