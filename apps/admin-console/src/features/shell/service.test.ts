@@ -5,6 +5,7 @@ import {
   areaHref,
   currentHref,
   OVERVIEW,
+  pendingPage,
   railGroups,
   showsSystemArea,
   systemRecordHref,
@@ -147,5 +148,59 @@ describe('the way back to system', () => {
   it('is the tenant’s record under System › Tenants, where it was entered', () => {
     expect(systemRecordHref('acme')).toBe('/console/system/tenants/acme');
     expect(systemRecordHref('a b')).toBe('/console/system/tenants/a%20b');
+  });
+});
+
+describe('the page a tenant address stands for while the session is read', () => {
+  it('draws the overview panels for the tenant root, with or without a slash', () => {
+    const expected = { tenant: 'acme', shape: 'overview', title: 'Overview' };
+    expect(pendingPage('/console/acme')).toEqual(expected);
+    expect(pendingPage('/console/acme/')).toEqual(expected);
+    expect(pendingPage('/acme')).toEqual(expected);
+  });
+
+  it('draws a table for a list area and names it', () => {
+    expect(pendingPage('/console/acme/subjects')).toEqual({
+      tenant: 'acme',
+      shape: 'list',
+      title: 'Subjects',
+    });
+    expect(pendingPage('/console/system/tenants')?.shape).toBe('list');
+    expect(pendingPage('/console/acme/audit')?.shape).toBe('list');
+  });
+
+  it('draws a record for a page below a list, and a form for a creation page', () => {
+    expect(pendingPage('/console/acme/subjects/abc')).toEqual({
+      tenant: 'acme',
+      shape: 'record',
+      title: null,
+    });
+    expect(pendingPage('/console/system/tenants/acme')?.shape).toBe('record');
+    expect(pendingPage('/console/acme/groups/new')?.shape).toBe('form');
+    expect(pendingPage('/console/system/new-tenant')?.shape).toBe('form');
+    expect(pendingPage('/console/system/tenants/acme/new-administrator')?.shape).toBe('form');
+  });
+
+  it('draws a form for an area that is a single page', () => {
+    expect(pendingPage('/console/acme/settings')).toEqual({
+      tenant: 'acme',
+      shape: 'form',
+      title: 'Settings',
+    });
+  });
+
+  it('draws plain lines for an address no area owns', () => {
+    expect(pendingPage('/console/acme/nowhere')).toEqual({
+      tenant: 'acme',
+      shape: 'page',
+      title: null,
+    });
+  });
+
+  it('draws nothing for the bare root or a name no tenant can have', () => {
+    expect(pendingPage('/console')).toBeNull();
+    expect(pendingPage('/console/')).toBeNull();
+    expect(pendingPage('/')).toBeNull();
+    expect(pendingPage('/console/Not_A_Tenant/subjects')).toBeNull();
   });
 });

@@ -83,3 +83,20 @@ export function Rail({
     </nav>
   );
 }
+
+// The rail's place held while its contents are not known: the header and
+// bars where the groups will be, drawn and never read out.
+export function RailSkeleton({ header }: { header?: ReactNode }) {
+  return (
+    <div className={styles.rail}>
+      {header === undefined ? null : <div className={styles.header}>{header}</div>}
+      <div className={styles.groups}>
+        <span aria-hidden="true" className={styles.checkingBars}>
+          {[0, 1, 2, 3, 4, 5].map((bar) => (
+            <span key={bar} className={styles.checkingBar} />
+          ))}
+        </span>
+      </div>
+    </div>
+  );
+}

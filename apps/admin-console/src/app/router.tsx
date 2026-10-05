@@ -4,6 +4,7 @@ import {
   createRoute,
   createRouter,
   Outlet,
+  useLocation,
   useRouter,
   type RouterHistory,
 } from '@tanstack/react-router';
@@ -16,6 +17,8 @@ import {
   EVERY_AREA,
   OVERVIEW,
   PageNotFound,
+  pendingPage,
+  PendingFrame,
   TenantShell,
 } from '#/features/shell/index.ts';
 import { parseSearch, stringifySearch } from '#/shared/service/search.ts';
@@ -24,6 +27,7 @@ import { parseSearch, stringifySearch } from '#/shared/service/search.ts';
 // real href for a new tab while an ordinary click waits on the guard.
 function Root() {
   const router = useRouter();
+  const page = pendingPage(useLocation().pathname);
   return (
     <AriaRouterProvider
       navigate={(href) => {
@@ -31,7 +35,7 @@ function Root() {
       }}
     >
       <NavigationGuard />
-      <SessionGate>
+      <SessionGate pending={page === null ? undefined : <PendingFrame {...page} />}>
         <Outlet />
       </SessionGate>
     </AriaRouterProvider>

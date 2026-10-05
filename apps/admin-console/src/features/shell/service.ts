@@ -1,5 +1,6 @@
 import { holds, readable } from '#/shared/service/access.ts';
 import {
+  isTenantName,
   SYSTEM_TENANT,
   type AdminCapability,
   type Authority,
@@ -183,4 +184,39 @@ export function currentHref(
     .flatMap((group) => group.items)
     .flatMap((item) => [item.href, ...item.pages].filter(under).map((at) => ({ item, at })))
     .sort((a, b) => b.at.length - a.at.length)[0]?.item.href;
+}
+
+export type PendingShape = 'overview' | 'list' | 'record' | 'form' | 'page';
+
+export interface PendingPage {
+  tenant: string;
+  shape: PendingShape;
+  // Known only where an area names the page; a record's title is its own.
+  title: string | null;
+}
+
+// What an address will draw once the session is read, so the console's own
+// frame can hold its place: a table for a list, the overview's panels for
+// the root. Null where no tenant is named, and the tenant question comes
+// first.
+export function pendingPage(pathname: string): PendingPage | null {
+  const [tenant, ...rest] = pathname
+    .replace(/^\/console(?=\/|$)/u, '')
+    .split('/')
+    .filter((segment) => segment !== '')
+    .map(decodeURIComponent);
+  if (tenant === undefined || !isTenantName(tenant)) return null;
+  const [first, second, third] = rest;
+  if (first === undefined) return { tenant, shape: 'overview', title: OVERVIEW.label };
+  const owner = EVERY_AREA.find((a) => a.path === first);
+  if (second === undefined) {
+    if (owner !== undefined) {
+      return { tenant, shape: owner.list ? 'list' : 'form', title: owner.label };
+    }
+    const creating = EVERY_AREA.some((a) => a.pages.includes(first));
+    return { tenant, shape: creating ? 'form' : 'page', title: null };
+  }
+  if (owner?.list !== true) return { tenant, shape: 'page', title: null };
+  const creating = second === 'new' || third === 'new-administrator';
+  return { tenant, shape: creating ? 'form' : 'record', title: null };
 }

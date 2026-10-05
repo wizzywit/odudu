@@ -4,7 +4,7 @@ import styles from '#/shared/view/Skeleton.module.css';
 
 // One status line says what is loading; the shape of what will load is drawn
 // beside it and hidden, so it is seen and never read out.
-type Shape = 'lines' | 'table' | 'record' | 'form' | 'terms' | 'list';
+type Shape = 'lines' | 'table' | 'record' | 'form' | 'terms' | 'list' | 'panels';
 
 function Frame({ label, shape, children }: { label: string; shape: Shape; children: ReactNode }) {
   return (
@@ -58,37 +58,43 @@ export function TableSkeleton({
 }) {
   return (
     <Frame label={label} shape="table">
-      <div className={table.frame}>
-        <table className={table.table}>
-          <thead className={table.head}>
-            <tr>
+      <TableShape columns={columns} rows={rows} />
+    </Frame>
+  );
+}
+
+function TableShape({ columns, rows }: { columns: readonly SkeletonColumn[]; rows: number }) {
+  return (
+    <div className={table.frame}>
+      <table className={table.table}>
+        <thead className={table.head}>
+          <tr>
+            {columns.map((column) => (
+              <th
+                key={column.header}
+                className={classes(table.column, column.secondary === true && table.secondary)}
+              >
+                {column.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className={table.body}>
+          {times(rows).map((row) => (
+            <tr key={row} className={table.row}>
               {columns.map((column) => (
-                <th
+                <td
                   key={column.header}
-                  className={classes(table.column, column.secondary === true && table.secondary)}
+                  className={classes(table.cell, column.secondary === true && table.secondary)}
                 >
-                  {column.header}
-                </th>
+                  <span className={styles.bar} data-size="value" />
+                </td>
               ))}
             </tr>
-          </thead>
-          <tbody className={table.body}>
-            {times(rows).map((row) => (
-              <tr key={row} className={table.row}>
-                {columns.map((column) => (
-                  <td
-                    key={column.header}
-                    className={classes(table.cell, column.secondary === true && table.secondary)}
-                  >
-                    <span className={styles.bar} data-size="value" />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Frame>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -113,6 +119,14 @@ export function RecordSkeleton({
 }) {
   return (
     <Frame label={label} shape="record">
+      <RecordShape tabs={tabs} title={title} />
+    </Frame>
+  );
+}
+
+function RecordShape({ tabs, title }: { tabs: readonly string[]; title: boolean }) {
+  return (
+    <>
       {title ? (
         <div className={styles.title} data-part="title">
           <span className={styles.bar} data-size="title" />
@@ -132,7 +146,7 @@ export function RecordSkeleton({
           <Fields count={3} />
         </div>
       ))}
-    </Frame>
+    </>
   );
 }
 
@@ -174,4 +188,46 @@ export function ListSkeleton({ label, items = 3 }: { label: string; items?: numb
       </div>
     </Frame>
   );
+}
+
+export type PageShape = 'overview' | 'list' | 'record' | 'form' | 'page';
+
+const BLANK_COLUMNS: readonly SkeletonColumn[] = ['a', 'b', 'c', 'd'].map((header) => ({
+  header,
+}));
+
+// The whole body of a page whose address is known and whose content is not:
+// one status line over the shape the page will fill, whichever it is.
+export function PageSkeleton({ label, shape }: { label: string; shape: PageShape }) {
+  if (shape === 'overview') {
+    return (
+      <Frame label={label} shape="panels">
+        <div className={styles.panels}>
+          {times(3).map((panel) => (
+            <div key={panel} className={styles.panel} data-part="panel">
+              <span className={styles.bar} data-size="heading" />
+              <span className={styles.bar} data-size="line" />
+              <span className={styles.bar} data-size="line" />
+            </div>
+          ))}
+        </div>
+      </Frame>
+    );
+  }
+  if (shape === 'list') {
+    return (
+      <Frame label={label} shape="table">
+        <TableShape columns={BLANK_COLUMNS} rows={5} />
+      </Frame>
+    );
+  }
+  if (shape === 'record') {
+    return (
+      <Frame label={label} shape="record">
+        <RecordShape tabs={['General', 'Activity']} title />
+      </Frame>
+    );
+  }
+  if (shape === 'form') return <FormSkeleton label={label} fields={4} />;
+  return <Skeleton label={label} lines={4} />;
 }

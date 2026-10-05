@@ -79,3 +79,7 @@ export function signedInElsewhere(principal: Principal | null, tenant: string): 
 export function tenantPage(tenant: string): string {
   return `/console/${encodeURIComponent(tenant)}`;
 }
+
+// A session read that answers within this is over before a placeholder
+// would be seen, so none is drawn.
+export const PLACEHOLDER_DELAY_MS = 200;
