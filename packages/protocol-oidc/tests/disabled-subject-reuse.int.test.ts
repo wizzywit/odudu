@@ -281,7 +281,6 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-
 async function disable(tenantId: string, subjectId: string): Promise<void> {
   await withTenant(app.db, tenantId, (tx) => subjectRepository(tx).setEnabled(subjectId, false));
 }
