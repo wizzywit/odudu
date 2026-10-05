@@ -248,3 +248,19 @@ it('says nothing of the sort while it holds no edit', () => {
   );
   expect(screen.queryByRole('status')).toBeNull();
 });
+
+it('carries its own save label to the save bar', () => {
+  render(
+    <Section
+      title="Add a composite"
+      saveLabel="Nest it in auditor"
+      dirty
+      saving={false}
+      onSave={vi.fn()}
+      onDiscard={vi.fn()}
+    >
+      <p>Fields</p>
+    </Section>,
+  );
+  expect(screen.getByRole('button', { name: 'Nest it in auditor' })).toBeVisible();
+});

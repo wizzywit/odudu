@@ -9,6 +9,7 @@ import {
   NumberWithUnitField,
   ReadOnlyFields,
   SelectField,
+  TextAreaField,
   TextField,
   ToggleField,
   UrlListField,
@@ -483,4 +484,76 @@ it('offers no autofill unless a page declares the data the operator’s own', ()
     'autocomplete',
     'off',
   );
+});
+
+describe('TextAreaField', () => {
+  it('is a labelled multi-line textbox that reports each change, autofill off', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<TextAreaField label="Description" value="" limit={1000} onChange={onChange} />);
+    const box = screen.getByRole('textbox', { name: 'Description' });
+    expect(box.tagName).toBe('TEXTAREA');
+    expect(box).toHaveAttribute('autocomplete', 'off');
+    await user.type(box, 'A');
+    expect(onChange).toHaveBeenCalledWith('A');
+  });
+
+  it('counts what is written against its limit, and says when it runs over', () => {
+    const { rerender } = render(
+      <TextAreaField
+        label="Description"
+        description="Shown where it is chosen."
+        value="Runs it"
+        limit={10}
+        onChange={vi.fn()}
+      />,
+    );
+    const box = screen.getByRole('textbox', { name: 'Description' });
+    expect(describedBy(box)).toContain('7 of 10 characters');
+    expect(describedBy(box)).toContain('Shown where it is chosen.');
+    rerender(
+      <TextAreaField label="Description" value="Runs it daily" limit={10} onChange={vi.fn()} />,
+    );
+    expect(describedBy(screen.getByRole('textbox', { name: 'Description' }))).toContain(
+      '3 characters over the limit of 10',
+    );
+  });
+
+  it('puts an error under the field, and reads as text where nothing can be changed', () => {
+    const { unmount } = render(
+      <TextAreaField
+        label="Description"
+        value="x"
+        limit={10}
+        error="Too long."
+        onChange={vi.fn()}
+      />,
+    );
+    expect(describedBy(screen.getByRole('textbox', { name: 'Description' }))).toContain(
+      'Too long.',
+    );
+    unmount();
+    render(
+      <ReadOnlyFields when>
+        <TextAreaField label="Description" value="Runs it" limit={10} onChange={vi.fn()} />
+      </ReadOnlyFields>,
+    );
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.getByText('Runs it')).toBeVisible();
+  });
+
+  it('passes axe in both themes', async () => {
+    expect(
+      await axeInBothThemes(() => (
+        <TextAreaField
+          label="Description"
+          description="Shown where it is chosen."
+          value="Runs it"
+          limit={1000}
+          changed
+          onChange={vi.fn()}
+        />
+      )),
+    ).toEqual({ light: [], dark: [] });
+  });
 });

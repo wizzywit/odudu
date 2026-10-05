@@ -23,6 +23,7 @@ import {
   SwitchButton,
   SwitchField,
   Text,
+  TextArea,
   TextField as AriaTextField,
   VisuallyHidden,
   type Key,
@@ -248,6 +249,55 @@ export function TextField({
         {...(placeholder === undefined ? {} : { placeholder })}
       />
       <Description>{description}</Description>
+      <Message error={error} />
+    </AriaTextField>
+  );
+}
+
+const COUNT = new Intl.NumberFormat('en');
+
+function counted(length: number, limit: number): string {
+  if (length <= limit) return `${COUNT.format(length)} of ${COUNT.format(limit)} characters.`;
+  return `${COUNT.format(length - limit)} characters over the limit of ${COUNT.format(limit)}.`;
+}
+
+// Free text of some length, such as a description: the one control taller
+// than --control-height, with a count against the limit the server holds.
+export function TextAreaField({
+  label,
+  description,
+  error,
+  changed,
+  isDisabled,
+  value,
+  limit,
+  onChange,
+}: Chrome & { value: string; limit: number; onChange: (value: string) => void }) {
+  if (use(FieldsReadOnly)) {
+    return (
+      <ReadOnlyValue label={label} value={value} description={description} changed={changed} />
+    );
+  }
+  const over = value.length > limit;
+  return (
+    <AriaTextField
+      {...VALIDATION}
+      {...invalid(error)}
+      isDisabled={isDisabled ?? false}
+      value={value}
+      onChange={onChange}
+      autoComplete="off"
+      className={styles.field ?? ''}
+      data-changed={changed === true || undefined}
+    >
+      <Header label={label} {...(changed === undefined ? {} : { changed })} />
+      <TextArea className={styles.textarea ?? ''} data-control rows={3} spellCheck />
+      <Description>
+        {description === undefined ? null : <>{description} </>}
+        <span className={styles.count} data-over={over || undefined}>
+          {counted(value.length, limit)}
+        </span>
+      </Description>
       <Message error={error} />
     </AriaTextField>
   );

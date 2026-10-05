@@ -21,6 +21,21 @@ it('reads Saving… and takes no second press while a save is in flight', () => 
   expect(screen.getByRole('button', { name: 'Discard changes to General' })).toBeDisabled();
 });
 
+it('says what a save does, where Save alone would read oddly', () => {
+  render(
+    <SaveBar
+      section="Add a composite"
+      saveLabel="Nest it in auditor"
+      saving={false}
+      onDiscard={() => undefined}
+    />,
+  );
+  expect(screen.getByRole('button', { name: 'Nest it in auditor' })).toHaveTextContent(
+    'Nest it in auditor',
+  );
+  expect(screen.getByRole('button', { name: 'Discard changes to Add a composite' })).toBeVisible();
+});
+
 it('passes axe in both themes', async () => {
   expect(
     await axeInBothThemes(() => (

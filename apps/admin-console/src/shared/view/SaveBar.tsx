@@ -5,11 +5,14 @@ import styles from '#/shared/view/SaveBar.module.css';
 
 export function SaveBar({
   section,
+  saveLabel,
   saving,
   onDiscard,
   blocked,
 }: {
   section: string;
+  // What Save does, where "Save" and the section's name would read oddly.
+  saveLabel?: string | undefined;
   saving: boolean;
   onDiscard: () => void;
   // Why Save is held: a choice to make before anything can be sent.
@@ -17,7 +20,8 @@ export function SaveBar({
 }) {
   const shortcut = useId();
   const reason = useId();
-  const verb = saving ? 'Saving…' : 'Save';
+  const verb = saving ? 'Saving…' : (saveLabel ?? 'Save');
+  const named = saving || saveLabel === undefined ? `${verb} ${section}` : saveLabel;
   // Enter does nothing while Save cannot run, so no key is offered then.
   const held = saving || blocked !== undefined;
   return (
@@ -49,7 +53,7 @@ export function SaveBar({
             : saving
               ? {}
               : { 'aria-describedby': shortcut })}
-          aria-label={`${verb} ${section}`}
+          aria-label={named}
         >
           {verb}
         </Button>

@@ -73,6 +73,40 @@
   transition: border-color var(--motion-fast) var(--ease);
 }
 
+.textarea {
+  inline-size: 100%;
+  min-block-size: calc(var(--control-height) * 2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font: inherit;
+  font-size: var(--type-15);
+  line-height: 1.5;
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+  resize: vertical;
+  transition: border-color var(--motion-fast) var(--ease);
+}
+
+.textarea[data-hovered] {
+  border-color: var(--ink-muted);
+}
+
+.textarea[data-focus-visible],
+.textarea[data-focused] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+  border-color: var(--focus-ring);
+}
+
+.textarea[data-invalid] {
+  border-color: var(--signal-danger-ink);
+}
+
+.count[data-over] {
+  color: var(--signal-danger-ink);
+}
+
 .input[data-mono] {
   font-family: var(--font-mono);
   font-size: var(--type-13);
@@ -105,6 +139,7 @@
 }
 
 .field[data-changed] .input,
+.field[data-changed] .textarea,
 .field[data-changed] .trigger,
 .field[data-changed] .comboGroup,
 .group[data-changed] [data-control] {

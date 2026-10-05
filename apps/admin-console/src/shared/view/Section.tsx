@@ -25,9 +25,12 @@ export function Section({
   restored = false,
   notice,
   blocked,
+  saveLabel,
   children,
 }: {
   title: string;
+  // What Save does, where "Save" and the title would read oddly.
+  saveLabel?: string;
   description?: ReactNode;
   dirty: boolean;
   saving: boolean;
@@ -109,7 +112,13 @@ export function Section({
         ) : null}
         {dirty && !readOnly ? (
           <div className={styles.saveBar}>
-            <SaveBar section={title} saving={saving} onDiscard={onDiscard} blocked={blocked} />
+            <SaveBar
+              section={title}
+              saveLabel={saveLabel}
+              saving={saving}
+              onDiscard={onDiscard}
+              blocked={blocked}
+            />
           </div>
         ) : null}
       </form>
