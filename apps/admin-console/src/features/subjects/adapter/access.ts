@@ -10,8 +10,8 @@ import {
 import { readRolePage } from '#/shared/adapter/directory.ts';
 import {
   ADMIN_CLIENT_KEY,
-  isAdminRole,
-  isHolding,
+  adminClientOfRoles,
+  holdingRoleIds,
   type Holding,
 } from '#/shared/service/capabilities.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
@@ -93,18 +93,12 @@ export async function readAdminRoles(
 ): Promise<GatewayResult<ReadonlyMap<Holding, string>>> {
   const named = await readRolePage(gateway, tenant, new URLSearchParams({ name: 'tenant-admin' }));
   if (!named.ok) return named;
-  const client = named.data.items.find(
-    (role) => role.client_key === ADMIN_CLIENT_KEY && role.name === 'tenant-admin',
-  )?.client_id;
-  if (client === undefined || client === null) {
+  const client = adminClientOfRoles(named.data.items);
+  if (client === null) {
     console.error(`console defect: ${tenant} lists no tenant-admin of ${ADMIN_CLIENT_KEY}`);
     return { ok: false, kind: 'defect' };
   }
   const roles = await readRolePage(gateway, tenant, new URLSearchParams({ client, limit: '200' }));
   if (!roles.ok) return roles;
-  const ids = new Map<Holding, string>();
-  for (const role of roles.data.items) {
-    if (isAdminRole(role) && isHolding(role.name)) ids.set(role.name, role.id);
-  }
-  return { ...roles, data: ids };
+  return { ...roles, data: holdingRoleIds(roles.data.items) };
 }

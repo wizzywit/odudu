@@ -52,6 +52,25 @@ export function isHolding(name: string): name is Holding {
   return name === TENANT_ADMIN || isCapability(name);
 }
 
+export function adminClientOfRoles(
+  roles: readonly { name: string; client_id: string | null; client_key: string | null }[],
+): string | null {
+  return (
+    roles.find((role) => role.client_key === ADMIN_CLIENT_KEY && role.name === TENANT_ADMIN)
+      ?.client_id ?? null
+  );
+}
+
+export function holdingRoleIds(
+  roles: readonly { id: string; name: string; client_key: string | null }[],
+): ReadonlyMap<Holding, string> {
+  const ids = new Map<Holding, string>();
+  for (const role of roles) {
+    if (isAdminRole(role) && isHolding(role.name)) ids.set(role.name, role.id);
+  }
+  return ids;
+}
+
 export function isAdminRole(role: { name: string; client_key: string | null }): boolean {
   return role.client_key === ADMIN_CLIENT_KEY && isHolding(role.name);
 }
