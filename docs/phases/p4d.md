@@ -1631,4 +1631,15 @@ plans into the entry chunk: `PhoneField` has top-level calls, so Rollup kept
 it once anything in `Field/` was imported. `apps/admin-console/package.json`
 now declares `sideEffects` as the stylesheets and `zodConfig.ts`, the only
 modules imported for their effect, so an unused re-export is dropped.
-`tests/lint/console-phone-chunk.test.ts` is what caught it.
+That does not help when the import is used and sits in the same file as
+something heavy: `Skeleton` took `DataTableShape` from `DataTable.tsx` and
+carried react-aria's Table into the entry's static graph, about 95 kB more on
+first load. `DataTableShape` has its own file, and
+`tests/lint/console-phone-chunk.test.ts` now fails the build when the entry's
+static chunks carry the phone metadata or react-aria's Table, ComboBox or
+DateInput. First load (entry, zod, and the chunks it imports) was 703 kB at
+the base, 798 kB with the regression, and is 704 kB now.
+
+`Rail.module.css` and `DataTable.module.css` keep their own visually-hidden
+rule: both sit inside container queries, where `composes` is not allowed, so
+only the sign-in copy became `VisuallyHidden`.
