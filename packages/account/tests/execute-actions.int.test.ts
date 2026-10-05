@@ -199,7 +199,8 @@ describe('a link that takes its subject through required actions', () => {
     const done = await submit(seeded, keyOf(link), NEW_PASSWORD);
     expect(done.statusCode).toBe(200);
     expect(done.body).toContain('<li>Set up an authenticator app</li>');
-    expect(done.body).toContain('href="https://app.example/cb?a=1&amp;b=&quot;x&quot;"');
+    expect(done.body).not.toContain('href');
+    expect(done.body).not.toContain('app.example');
     expect(done.headers['content-security-policy']).toContain("default-src 'none'");
     expect(await passwordIs(seeded, NEW_PASSWORD)).toBe(true);
     expect(owed.filter((entry) => entry.subjectId === seeded.subjectId)).toEqual([
