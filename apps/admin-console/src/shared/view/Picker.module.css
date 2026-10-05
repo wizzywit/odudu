@@ -8,11 +8,15 @@
 
 .head {
   display: flex;
+  flex-wrap: wrap;
+  max-inline-size: 100%;
   align-items: baseline;
   gap: var(--space-3);
 }
 
 .label {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
   font-size: var(--type-13);
   font-weight: 600;
 }

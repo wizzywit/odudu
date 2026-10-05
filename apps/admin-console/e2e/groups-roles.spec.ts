@@ -344,6 +344,8 @@ test('the groups and roles pages fit a phone', async ({ page }) => {
     await page.goto(address);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.getByRole('progressbar')).toHaveCount(0);
+    await expect(page.locator('[role="status"]', { hasText: /^Loading/u })).toHaveCount(0);
+    await expect(page.getByText(/^Checking /u)).toHaveCount(0);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
