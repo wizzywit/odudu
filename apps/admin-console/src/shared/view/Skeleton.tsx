@@ -69,9 +69,9 @@ function TableShape({ columns, rows }: { columns: readonly SkeletonColumn[]; row
       <table className={table.table}>
         <thead className={table.head}>
           <tr>
-            {columns.map((column) => (
+            {columns.map((column, at) => (
               <th
-                key={column.header}
+                key={at}
                 className={classes(table.column, column.secondary === true && table.secondary)}
               >
                 {column.header}
@@ -82,9 +82,9 @@ function TableShape({ columns, rows }: { columns: readonly SkeletonColumn[]; row
         <tbody className={table.body}>
           {times(rows).map((row) => (
             <tr key={row} className={table.row}>
-              {columns.map((column) => (
+              {columns.map((column, at) => (
                 <td
-                  key={column.header}
+                  key={at}
                   className={classes(table.cell, column.secondary === true && table.secondary)}
                 >
                   <span className={styles.bar} data-size="value" />
@@ -192,9 +192,7 @@ export function ListSkeleton({ label, items = 3 }: { label: string; items?: numb
 
 export type PageShape = 'overview' | 'list' | 'record' | 'form' | 'page';
 
-const BLANK_COLUMNS: readonly SkeletonColumn[] = ['a', 'b', 'c', 'd'].map((header) => ({
-  header,
-}));
+const BLANK_COLUMNS: readonly SkeletonColumn[] = [0, 1, 2, 3].map(() => ({ header: '' }));
 
 // The whole body of a page whose address is known and whose content is not:
 // one status line over the shape the page will fill, whichever it is.
