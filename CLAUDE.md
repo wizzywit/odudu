@@ -279,7 +279,8 @@ characters, a body that reads as at most 8 lines, a blank line between
 them, and no tool-attribution trailer. A body line wider than 72 counts as
 the lines it reads as, so the budget cannot be met by rewrapping the same
 prose. Merge and revert subjects are exempt from the length rules, because
-both bodies are generated.
+both bodies are generated, and so is a commit Dependabot authors, which
+the `commit-messages` job skips.
 
 Enable the hook once per clone: `git config core.hooksPath .githooks`.
 
