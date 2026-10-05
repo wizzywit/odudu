@@ -1,13 +1,13 @@
 import type { Grant, Subject } from '@odudu/contracts/admin';
 import { useHolds, useSubjectGrants } from '#/features/subjects/usecase/useSubjectSessions.ts';
-import { PagedList, Panel } from '#/features/subjects/view/SessionsTab.tsx';
+import { PagedList, Panel } from '#/features/subjects/view/SubjectRecordPage/SessionsTab.tsx';
 import { Button } from '#/shared/view/Button';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import type { Column } from '#/shared/view/DataTable';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Timestamp } from '#/shared/view/Timestamp';
-import styles from '#/features/subjects/view/Tab.module.css';
+import styles from '#/features/subjects/view/SubjectRecordPage/Tab.module.css';
 
 const COLUMNS: readonly Column<Grant>[] = [
   { id: 'client', header: 'Client', isRowHeader: true, cell: (g) => <code>{g.client_key}</code> },

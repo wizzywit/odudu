@@ -1,7 +1,7 @@
 import { SUBJECT_CAPABILITY_FILTER, type Subject } from '@odudu/contracts/admin';
 import { subjectName } from '#/features/subjects/service.ts';
 import { useSubjectsList } from '#/features/subjects/usecase/useSubjectsList.ts';
-import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
+import { SubjectsGate } from '#/features/subjects/view/SubjectsGate';
 import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink';
 import type { Column } from '#/shared/view/DataTable';
@@ -10,7 +10,7 @@ import { ResourceListPage } from '#/shared/view/ResourceListPage';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Timestamp } from '#/shared/view/Timestamp';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
-import styles from '#/features/subjects/view/SubjectsPage.module.css';
+import styles from '#/features/subjects/view/SubjectsPage/SubjectsPage.module.css';
 
 const COLUMNS: readonly Column<Subject>[] = [
   {

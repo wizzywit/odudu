@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import type { SectionSave } from '#/features/subjects/usecase/useSubjectProfile.ts';
-import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
+import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf/SectionNoticeOf.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 function refused(message: string): SectionSave<{ ids: readonly string[] }> {

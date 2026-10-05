@@ -1,13 +1,13 @@
 import type { SubmitEvent } from 'react';
 import { subjectsTrail } from '#/features/subjects/service.ts';
 import { useNewSubject } from '#/features/subjects/usecase/useNewSubject.ts';
-import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
+import { SubjectsGate } from '#/features/subjects/view/SubjectsGate';
 import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { TextField } from '#/shared/view/Field';
 import { PageHeader } from '#/shared/view/PageHeader';
-import styles from '#/features/subjects/view/NewSubjectPage.module.css';
+import styles from '#/features/subjects/view/NewSubjectPage/NewSubjectPage.module.css';
 
 function Form({ tenant }: { tenant: string }) {
   const page = useNewSubject(tenant);

@@ -4,14 +4,14 @@ import {
   useRequiredActions,
   useRequiredActionsRead,
 } from '#/features/subjects/usecase/useRequiredActions.ts';
-import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
+import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf';
 import { Button } from '#/shared/view/Button';
 import { ChecklistField } from '#/shared/view/ChecklistField';
 import { EmptyState } from '#/shared/view/EmptyState';
 import { ReadOnlyFields } from '#/shared/view/Field';
 import { Section } from '#/shared/view/Section';
 import { FormSkeleton } from '#/shared/view/Skeleton';
-import styles from '#/features/subjects/view/Tab.module.css';
+import styles from '#/features/subjects/view/SubjectRecordPage/Tab.module.css';
 
 const OPTIONS = REQUIRED_ACTIONS.map(({ action, label, description }) => ({
   id: action,

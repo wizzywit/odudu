@@ -5,7 +5,7 @@ import {
   useCapabilityHolders,
   type Holder,
 } from '#/features/subjects/usecase/useCapabilityHolders.ts';
-import { SubjectCapabilities } from '#/features/subjects/view/CapabilityEditor.tsx';
+import { SubjectCapabilities } from '#/features/subjects/view/SubjectRecordPage';
 import { Button } from '#/shared/view/Button';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { Count } from '#/shared/view/Count';
@@ -16,7 +16,7 @@ import { Pager } from '#/shared/view/Pager';
 import { ListSkeleton } from '#/shared/view/Skeleton';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Timestamp } from '#/shared/view/Timestamp';
-import styles from '#/features/subjects/view/CapabilityHolders.module.css';
+import styles from '#/features/subjects/view/CapabilityHolders/CapabilityHolders.module.css';
 
 const NOUN = { one: 'administrator', other: 'administrators' };
 const SEARCH = [{ id: 'username', label: 'Username' }];

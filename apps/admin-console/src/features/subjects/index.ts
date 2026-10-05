@@ -1,8 +1,8 @@
-export { SubjectsPage } from '#/features/subjects/view/SubjectsPage.tsx';
+export { SubjectsPage } from '#/features/subjects/view/SubjectsPage';
 export { subjectHref, subjectsHref } from '#/features/subjects/service.ts';
-export { NewSubjectPage } from '#/features/subjects/view/NewSubjectPage.tsx';
-export { SubjectRecordPage } from '#/features/subjects/view/SubjectRecordPage.tsx';
-export { CapabilityHolders } from '#/features/subjects/view/CapabilityHolders.tsx';
+export { NewSubjectPage } from '#/features/subjects/view/NewSubjectPage';
+export { SubjectRecordPage } from '#/features/subjects/view/SubjectRecordPage';
+export { CapabilityHolders } from '#/features/subjects/view/CapabilityHolders';
 export { subjectTabHref } from '#/features/subjects/service.ts';
-export { SubjectMembers } from '#/features/subjects/view/SubjectMembers.tsx';
+export { SubjectMembers } from '#/features/subjects/view/SubjectMembers';
 export { useOwnRoles, type OwnRoles } from '#/features/subjects/usecase/useOwnRoles.ts';

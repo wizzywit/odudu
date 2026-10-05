@@ -1,6 +1,6 @@
 import { useSubjectActivity } from '#/features/subjects/usecase/useSubjectActivity.ts';
 import { ActivityTab } from '#/shared/view/ActivityTab';
-import styles from '#/features/subjects/view/Tab.module.css';
+import styles from '#/features/subjects/view/SubjectRecordPage/Tab.module.css';
 
 export function ActivityPanel({ tenant, id }: { tenant: string; id: string }) {
   const list = useSubjectActivity(tenant, id);

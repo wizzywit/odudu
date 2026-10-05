@@ -4,7 +4,7 @@ import {
   useSubjectRolesRead,
   type CapabilityEditing,
 } from '#/features/subjects/usecase/useCapabilities.ts';
-import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
+import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf';
 import { Link } from 'react-aria-components';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
@@ -13,7 +13,7 @@ import { EmptyState } from '#/shared/view/EmptyState';
 import { ReadOnlyFields } from '#/shared/view/Field';
 import { Section } from '#/shared/view/Section';
 import { FormSkeleton } from '#/shared/view/Skeleton';
-import styles from '#/features/subjects/view/Tab.module.css';
+import styles from '#/features/subjects/view/SubjectRecordPage/Tab.module.css';
 
 export function CapabilitySection({ editing }: { editing: CapabilityEditing }) {
   const s = editing.save;

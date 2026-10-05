@@ -10,7 +10,7 @@ import { EmptyState } from '#/shared/view/EmptyState';
 import { Pager } from '#/shared/view/Pager';
 import { TableSkeleton } from '#/shared/view/Skeleton';
 import { StatusTag } from '#/shared/view/StatusTag';
-import styles from '#/features/subjects/view/Tab.module.css';
+import styles from '#/features/subjects/view/SubjectMembers/SubjectMembers.module.css';
 
 const COLUMNS: readonly Column<Subject>[] = [
   {

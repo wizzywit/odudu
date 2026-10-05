@@ -3,14 +3,14 @@ import {
   useSubjectConsents,
   type SubjectConsents,
 } from '#/features/subjects/usecase/useSubjectSessions.ts';
-import { Panel } from '#/features/subjects/view/SessionsTab.tsx';
+import { Panel } from '#/features/subjects/view/SubjectRecordPage/SessionsTab.tsx';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { DataTable, type Column } from '#/shared/view/DataTable';
 import { EmptyState } from '#/shared/view/EmptyState';
 import { TableSkeleton } from '#/shared/view/Skeleton';
 import { Timestamp } from '#/shared/view/Timestamp';
-import styles from '#/features/subjects/view/Tab.module.css';
+import styles from '#/features/subjects/view/SubjectRecordPage/Tab.module.css';
 
 function columns(page: SubjectConsents): readonly Column<Consent>[] {
   const base: Column<Consent>[] = [

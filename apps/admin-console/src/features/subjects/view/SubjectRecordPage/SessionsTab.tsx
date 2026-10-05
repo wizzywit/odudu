@@ -15,7 +15,7 @@ import { EmptyState } from '#/shared/view/EmptyState';
 import { Pager } from '#/shared/view/Pager';
 import { TableSkeleton } from '#/shared/view/Skeleton';
 import { Timestamp } from '#/shared/view/Timestamp';
-import styles from '#/features/subjects/view/Tab.module.css';
+import styles from '#/features/subjects/view/SubjectRecordPage/Tab.module.css';
 
 // A list a tab pages through: its loading, failure and emptiness said the
 // way every list in the console says them.

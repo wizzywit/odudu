@@ -29,7 +29,7 @@ import { SecretDialog } from '#/shared/view/SecretDialog';
 import { FormSkeleton } from '#/shared/view/Skeleton';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Timestamp } from '#/shared/view/Timestamp';
-import styles from '#/features/subjects/view/Tab.module.css';
+import styles from '#/features/subjects/view/SubjectRecordPage/Tab.module.css';
 
 interface TabProps {
   tenant: string;

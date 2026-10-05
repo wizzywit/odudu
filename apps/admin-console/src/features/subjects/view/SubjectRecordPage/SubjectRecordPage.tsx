@@ -8,20 +8,20 @@ import {
   type SubjectTab,
 } from '#/features/subjects/service.ts';
 import { useSubjectRecordPage } from '#/features/subjects/usecase/useSubjectRecordPage.ts';
-import { ActivityPanel } from '#/features/subjects/view/ActivityPanel.tsx';
-import { ConsentsTab } from '#/features/subjects/view/ConsentsTab.tsx';
-import { GrantsTab } from '#/features/subjects/view/GrantsTab.tsx';
-import { SessionsTab } from '#/features/subjects/view/SessionsTab.tsx';
-import { CredentialsTab } from '#/features/subjects/view/CredentialsTab.tsx';
-import { GroupsTab } from '#/features/subjects/view/GroupsTab.tsx';
-import { RequiredActionsTab } from '#/features/subjects/view/RequiredActionsTab.tsx';
-import { RolesTab } from '#/features/subjects/view/RolesTab.tsx';
-import { ProfileTab } from '#/features/subjects/view/ProfileTab.tsx';
-import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
+import { ActivityPanel } from '#/features/subjects/view/SubjectRecordPage/ActivityPanel.tsx';
+import { ConsentsTab } from '#/features/subjects/view/SubjectRecordPage/ConsentsTab.tsx';
+import { GrantsTab } from '#/features/subjects/view/SubjectRecordPage/GrantsTab.tsx';
+import { SessionsTab } from '#/features/subjects/view/SubjectRecordPage/SessionsTab.tsx';
+import { CredentialsTab } from '#/features/subjects/view/SubjectRecordPage/CredentialsTab.tsx';
+import { GroupsTab } from '#/features/subjects/view/SubjectRecordPage/GroupsTab.tsx';
+import { RequiredActionsTab } from '#/features/subjects/view/SubjectRecordPage/RequiredActionsTab.tsx';
+import { RolesTab } from '#/features/subjects/view/SubjectRecordPage/RolesTab.tsx';
+import { ProfileTab } from '#/features/subjects/view/SubjectRecordPage/ProfileTab.tsx';
+import { SubjectsGate } from '#/features/subjects/view/SubjectsGate';
 import { RecordPage } from '#/shared/view/RecordPage';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
-import { BeyondNote, ReachFailed } from '#/features/subjects/view/BeyondNote.tsx';
+import { BeyondNote, ReachFailed } from '#/features/subjects/view/BeyondNote';
 
 interface PanelProps {
   tenant: string;

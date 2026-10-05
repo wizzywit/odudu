@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import { BeyondNote, ReachFailed } from '#/features/subjects/view/BeyondNote.tsx';
+import { BeyondNote, ReachFailed } from '#/features/subjects/view/BeyondNote/BeyondNote.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 it('names what the subject holds beyond the caller', () => {

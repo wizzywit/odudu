@@ -5,14 +5,14 @@ import {
   type Membership,
   type SubjectGroups,
 } from '#/features/subjects/usecase/useSubjectGroups.ts';
-import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
+import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { EmptyState } from '#/shared/view/EmptyState';
 import { GroupPicker } from '#/shared/view/GroupPicker';
 import { Section } from '#/shared/view/Section';
 import { FormSkeleton } from '#/shared/view/Skeleton';
-import styles from '#/features/subjects/view/Tab.module.css';
+import styles from '#/features/subjects/view/SubjectRecordPage/Tab.module.css';
 
 export function Memberships({ name, members }: { name: string; members: readonly Membership[] }) {
   if (members.length === 0) return <p className={styles.rule}>{`${name} belongs to no group.`}</p>;

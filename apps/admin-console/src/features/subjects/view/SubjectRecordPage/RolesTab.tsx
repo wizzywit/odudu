@@ -6,8 +6,8 @@ import {
   useSubjectRolesRead,
 } from '#/features/subjects/usecase/useCapabilities.ts';
 import { useSubjectRoles, type SubjectRoles } from '#/features/subjects/usecase/useSubjectRoles.ts';
-import { CapabilitySection } from '#/features/subjects/view/CapabilityEditor.tsx';
-import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
+import { CapabilitySection } from '#/features/subjects/view/SubjectRecordPage/CapabilityEditor.tsx';
+import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf';
 import { provenanceText } from '#/shared/service/capabilities.ts';
 import { Button } from '#/shared/view/Button';
 import { DataTable, type Column } from '#/shared/view/DataTable';
@@ -15,7 +15,7 @@ import { EmptyState } from '#/shared/view/EmptyState';
 import { RolePicker } from '#/shared/view/RolePicker';
 import { Section } from '#/shared/view/Section';
 import { FormSkeleton, TableSkeleton } from '#/shared/view/Skeleton';
-import styles from '#/features/subjects/view/Tab.module.css';
+import styles from '#/features/subjects/view/SubjectRecordPage/Tab.module.css';
 
 const EFFECTIVE: readonly Column<EffectiveRoleAssignment>[] = [
   { id: 'name', header: 'Role', isRowHeader: true, cell: (role) => <code>{role.name}</code> },
