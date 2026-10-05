@@ -51,6 +51,8 @@ test('a reload of a tenant page holds the console frame, then fills it in place'
   const placeholder = page.locator('[data-shape="table"]');
   await expect(placeholder).toBeVisible({ timeout: SLOW_MS + 5000 });
   await expect(page.getByRole('status')).toHaveCount(1);
+  // The shimmer is what axe cannot measure a contrast against.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await expectAccessible(page);
 
   const during = await page.locator('main').boundingBox();
