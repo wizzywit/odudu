@@ -53,4 +53,4 @@ export {
   countAgainLabel,
   openPlaceLabel,
   UNCHECKED_LEAD,
-} from '#/features/overview/service/words.ts';
+} from '#/features/overview/service/panelText.ts';

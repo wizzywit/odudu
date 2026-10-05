@@ -94,12 +94,10 @@ export {
   type CreationPage,
   creationHeading,
 } from '#/features/tenants/service/heading.ts';
+export { TENANT_TABS, type TenantTab, tenantRecord } from '#/features/tenants/service/tabs.ts';
 export {
-  TENANT_TABS,
-  type TenantTab,
-  tenantRecord,
   type TenantRecordAccess,
   tenantRecordAccess,
   disableFixed,
-  tenantChangeFailure,
-} from '#/features/tenants/service/record.ts';
+} from '#/features/tenants/service/access.ts';
+export { tenantChangeFailure } from '#/features/tenants/service/failure.ts';

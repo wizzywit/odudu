@@ -6,7 +6,7 @@ import {
   openPlaceLabel,
   UNCHECKED_LEAD,
   unreadableTitle,
-} from '#/features/overview/service/words.ts';
+} from '#/features/overview/service/panelText.ts';
 
 describe('the words of the overview panels', () => {
   it('says the lane of a published key', () => {
