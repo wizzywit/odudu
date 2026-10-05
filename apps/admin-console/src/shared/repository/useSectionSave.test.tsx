@@ -331,6 +331,31 @@ it('on a 412 re-reads the record and shows theirs beside yours, merging nothing'
   });
 });
 
+it('keep mine sends the save at once on the fresh ETag, with the panel already gone', async () => {
+  const user = userEvent.setup();
+  const theirs: Client = { ...LOADED, name: 'Payments' };
+  const { patches } = mount({
+    [GET]: inTurn(client(LOADED, '"e1"'), client(theirs, '"e2"')),
+    [PATCH]: inTurn(
+      problem(412, 'about:blank', 'Precondition Failed', { detail: 'If-Match no longer matches' }),
+      pending(),
+    ),
+  });
+  await rename(user, 'Billing');
+  await user.click(within(general()).getByRole('button', { name: 'Save General' }));
+  await screen.findByRole('table', { name: 'Changed in General since you opened it' });
+
+  await user.click(screen.getByRole('button', { name: 'Keep mine in General' }));
+  // The request is out before the answer, so a reader of the stored record
+  // has to wait for it; the panel and the focus do not.
+  expect(patches()).toHaveLength(2);
+  expect(patches()[1]).toEqual(
+    expect.objectContaining({ ifMatch: '"e2"', body: { name: 'Billing' } }),
+  );
+  expect(within(general()).getByText('status saving')).toBeVisible();
+  expect(screen.queryByRole('table')).toBeNull();
+});
+
 it('takes theirs by dropping only the conflicting edits', async () => {
   const user = userEvent.setup();
   const theirs: Client = { ...LOADED, name: 'Payments' };

@@ -221,7 +221,8 @@ test('a save refused with 412 shows theirs beside yours, and keeping mine lands 
   await page.getByRole('button', { name: 'Keep mine in General' }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'General' })).toBeFocused();
   await expect(table).toBeHidden();
-  expect(tenantColumn(name, 'display_name')).toBe('Mine');
+  // The panel and the focus move as the save is sent, not when it lands.
+  await expect.poll(() => tenantColumn(name, 'display_name')).toBe('Mine');
 });
 
 test('an export downloads as the bytes served, and imports again as a new tenant', async ({

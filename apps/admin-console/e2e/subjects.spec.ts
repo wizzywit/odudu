@@ -104,7 +104,8 @@ test('a profile edit refused with 412 shows theirs beside yours, and keeping min
   await page.getByRole('button', { name: 'Keep mine in Name' }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Name' })).toBeFocused();
   await expect(table).toBeHidden();
-  expect(userColumn(username, 'name')).toBe('Mine');
+  // The panel and the focus move as the save is sent, not when it lands.
+  await expect.poll(() => userColumn(username, 'name')).toBe('Mine');
 });
 
 test('a one-time password is shown once, and signs the subject in to a forced change', async ({
