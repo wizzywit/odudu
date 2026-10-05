@@ -1,30 +1,32 @@
 import type { ReactNode } from 'react';
 import { useSession } from '#/features/session/usecase/useSession.ts';
-import { usePlaceholderDue } from '#/features/session/usecase/usePlaceholderDelay.ts';
+import { usePlaceholderDue } from '#/features/session/usecase/usePlaceholderDue.ts';
 import { SignedInContext } from '#/features/session/usecase/useSignedIn.ts';
 import { PrincipalChanged } from '#/features/session/view/PrincipalChanged.tsx';
 import { SessionStatus } from '#/features/session/view/SessionStatus.tsx';
 import { Button } from '#/shared/view/Button';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import styles from '#/features/session/view/SignIn.module.css';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { QuietSkeletons, Skeleton } from '#/shared/view/Skeleton.tsx';
+import { VisuallyHidden } from '#/shared/view/VisuallyHidden';
 
-// Nothing is drawn for a fast read, and a screen reader is told throughout.
+// Nothing is drawn for a fast read. The status line is one element from the
+// first render to the last, so a screen reader is told throughout.
 function Reading({ frame }: { frame: ReactNode }) {
   const due = usePlaceholderDue();
-  if (!due) {
-    return (
-      <p role="status" className={styles.hidden}>
-        Reading your session
-      </p>
-    );
-  }
   return (
-    frame ?? (
-      <SessionStatus title="Odudu console">
-        <Skeleton label="Reading your session" lines={2} />
-      </SessionStatus>
-    )
+    <>
+      <VisuallyHidden role="status">Reading your session</VisuallyHidden>
+      {due ? (
+        <QuietSkeletons>
+          {frame ?? (
+            <SessionStatus title="Odudu console">
+              <Skeleton label="Reading your session" lines={2} />
+            </SessionStatus>
+          )}
+        </QuietSkeletons>
+      ) : null}
+    </>
   );
 }
 

@@ -30,7 +30,7 @@ it('draws the centred card at the bare root, once the read has taken a moment', 
   expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
   await later(1);
   expect(screen.getByRole('heading', { level: 1, name: 'Odudu console' })).toBeVisible();
-  expect(screen.getByText('Reading your session')).toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent('Reading your session');
 });
 
 it('draws the tenant frame, not the card, for a tenant page', async () => {
@@ -69,6 +69,16 @@ it('draws nothing visible, and one status line, for a fast read', async () => {
   expect(screen.getAllByRole('status')).toHaveLength(1);
 });
 
+it('keeps the one status element through the placeholder, so it is announced in place', async () => {
+  onFakeClock();
+  renderConsoleAt('/console/acme/subjects', { 'GET /console/api/session': pending() });
+  await later(199);
+  const line = screen.getByRole('status');
+  await later(1);
+  expect(screen.getByRole('status')).toBe(line);
+  expect(line).toHaveTextContent('Reading your session');
+});
+
 it('draws the real shell with no placeholder when the session answers at once', async () => {
   onFakeClock();
   renderConsoleAt('/console/acme', {
@@ -100,7 +110,7 @@ it('passes axe in both themes, loading, framed and failed', async () => {
   expect(
     await axeInBothThemes(
       () => loading().element,
-      () => screen.findByText('Reading your session'),
+      () => screen.findByRole('status'),
     ),
   ).toEqual({ light: [], dark: [] });
   const framed = () =>

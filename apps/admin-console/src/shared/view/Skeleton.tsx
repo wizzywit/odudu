@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { createContext, use, type ReactNode } from 'react';
 import table from '#/shared/view/DataTable.module.css';
 import styles from '#/shared/view/Skeleton.module.css';
 
@@ -6,10 +6,21 @@ import styles from '#/shared/view/Skeleton.module.css';
 // beside it and hidden, so it is seen and never read out.
 type Shape = 'lines' | 'table' | 'record' | 'form' | 'terms' | 'list' | 'panels';
 
+const Announces = createContext(true);
+
+// Placeholders inside say nothing themselves: a live region that stays
+// mounted around them already does, and a second one would read it twice.
+export function QuietSkeletons({ children }: { children: ReactNode }) {
+  return <Announces value={false}>{children}</Announces>;
+}
+
 function Frame({ label, shape, children }: { label: string; shape: Shape; children: ReactNode }) {
+  const announces = use(Announces);
   return (
-    <div role="status" className={styles.skeleton}>
-      <span className={styles.label}>{label}</span>
+    <div role={announces ? 'status' : undefined} className={styles.skeleton}>
+      <span aria-hidden={announces ? undefined : true} className={styles.label}>
+        {label}
+      </span>
       <div aria-hidden="true" className={styles.shape} data-shape={shape}>
         {children}
       </div>
