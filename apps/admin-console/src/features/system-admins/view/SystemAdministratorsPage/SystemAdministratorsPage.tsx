@@ -4,7 +4,7 @@ import {
   useSystemAdministratorsPage,
   type SystemAdministrators,
 } from '#/features/system-admins/usecase/useSystemAdministratorsPage.ts';
-import { subjectName } from '#/features/system-admins/service.ts';
+import { subjectName } from '#/features/system-admins/service';
 import { SystemGate } from '#/features/tenants';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 import { Button } from '#/shared/view/Button';

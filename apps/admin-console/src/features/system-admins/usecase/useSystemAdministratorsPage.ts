@@ -11,7 +11,7 @@ import {
   grantFailureText,
   pickerUnavailable,
   subjectName,
-} from '#/features/system-admins/service.ts';
+} from '#/features/system-admins/service';
 import { useBeginAdministrator, type BeginAdministrator } from '#/features/tenants';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import type { Change } from '#/shared/service/access.ts';
