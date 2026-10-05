@@ -191,6 +191,10 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
     subjectId: string,
     authenticators: readonly string[],
   ): Promise<boolean>;
+  // Which of `subjectIds` are enabled. A session of a subject disabled since
+  // it was made is not reused and not offered by the chooser: the login form
+  // is, and refuses them there.
+  enabledSubjects(tenantId: string, subjectIds: readonly string[]): Promise<ReadonlySet<string>>;
   // Starts a fresh authentication session already bound and authenticated
   // for `subjectId`, with `authenticators` as its satisfied set — the
   // reuse path's way of giving a consent decision something to park the
@@ -400,7 +404,13 @@ export async function handleAuthorizationRequest(
     },
     header,
   );
-  const resolvedSessions = sessions.map(toReusableSession);
+  const enabled = await deps.enabledSubjects(
+    tenant.id,
+    sessions.map((session) => session.subjectId),
+  );
+  const resolvedSessions = sessions
+    .filter((session) => enabled.has(session.subjectId))
+    .map(toReusableSession);
   // A hint, or a `claims` request's `sub`, names one subject, so only that
   // subject's sessions are reusable or offered by the chooser — both
   // constraints apply together when both are present. The chooser POST's
@@ -736,6 +746,9 @@ export async function handleSelectAccountSubmission(
   );
   if (refusal !== null) return reject('login_required');
 
+  if (!(await deps.enabledSubjects(tenant.id, [chosen.subjectId])).has(chosen.subjectId)) {
+    return startedLogin();
+  }
   if (!(await deps.sessionMeetsFlow(tenant.id, chosen.subjectId, chosen.authenticators))) {
     return startedLogin();
   }

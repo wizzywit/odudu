@@ -667,6 +667,16 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // gate and decideConsentGate's 'ask' branch both need to park the
       // request on and render a page against, with no factor actually
       // running.
+      enabledSubjects: (tenantId, subjectIds) =>
+        withTenant(deps.database.db, tenantId, async (tx) => {
+          const enabled = new Set<string>();
+          for (const subjectId of new Set(subjectIds)) {
+            if (subjectIsEnabled(await subjectRepository(tx).byId(subjectId))) {
+              enabled.add(subjectId);
+            }
+          }
+          return enabled;
+        }),
       sessionMeetsFlow: (tenantId, subjectId, authenticators) =>
         withTenant(deps.database.db, tenantId, (tx) =>
           authenticatorsSatisfyFlow(tx, tenantId, subjectId, authenticators),
