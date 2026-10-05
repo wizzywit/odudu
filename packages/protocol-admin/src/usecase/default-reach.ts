@@ -12,10 +12,10 @@ import { inArray, sql } from 'drizzle-orm';
 // A default role or a default group is handed to every subject created
 // afterwards — through self-registration too, where the tenant allows it — so
 // nothing it reaches may be an admin capability, whoever the caller is. Every
-// write that can widen that reach takes this lock, after its row locks and
-// before it reads the graph: an edge that reaches no capability yet can still
-// connect a default to one another writer is adding elsewhere, so the lock
-// serialises all of them. A write that only shrinks the reach goes without.
+// write that can widen that reach takes this lock before it reads the graph,
+// and after every row it will write or its foreign keys will check is locked:
+// a writer that took it first could then wait on a row another holds while
+// waiting for it. A write that only shrinks the reach goes without.
 export async function lockDefaultReach(tx: TenantScopedDatabase): Promise<void> {
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtext('role_default_reach'), hashtext(current_setting('app.tenant_id')))`,

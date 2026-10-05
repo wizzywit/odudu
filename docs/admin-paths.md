@@ -6689,8 +6689,12 @@ mapping a role that reaches a capability, `POST /roles/:id/composites`
 nesting one under a role it reaches, and `PATCH /groups/:id` moving it or
 an ancestor under a chain that reaches one. Every one of these takes the
 lock the role defaults take (`lockDefaultReach`,
-`packages/protocol-admin/src/usecase/default-reach.ts`) after its own row
-lock, so two writers cannot each pass the check alone. An import is held to
+`packages/protocol-admin/src/usecase/default-reach.ts`), so two writers
+cannot each pass the check alone, and takes it only once every row it will
+write, or its foreign keys will check, is locked — the roles a group is
+given, the subtree a reparent rewrites and its new parent — so no writer
+holding it ever waits on a row another writer holds while waiting for it
+(`default-reach-locks.int.test.ts`). An import is held to
 the same rule: a document marking a group default whose chain reaches a
 capability is refused at that group's `default_for_new_subjects`.
 

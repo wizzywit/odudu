@@ -1,6 +1,6 @@
 import { type Group, type ListGroupsQuery } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
+import { descendantsOf, groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
 import { isUuid, OduduError } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, isNull, type SQL } from 'drizzle-orm';
@@ -362,6 +362,18 @@ async function amendGroupUnguarded(
   }
 
   if (typeof parentId === 'string') {
+    // The rows the reparent rewrites, and the parent its foreign key checks,
+    // are locked before the default-reach lock, as every other writer of it
+    // locks its rows first (#/usecase/default-reach.ts).
+    const subtree = [...(await descendantsOf(tx, input.groupId))].sort();
+    if (subtree.length > 0) {
+      await tx
+        .select({ id: groups.id })
+        .from(groups)
+        .where(inArray(groups.id, subtree))
+        .for('update');
+    }
+    await tx.select({ id: groups.id }).from(groups).where(eq(groups.id, parentId)).for('key share');
     await lockDefaultReach(tx);
     if (await holdsDefaultGroup(tx, input.groupId)) {
       const capabilities = [...(await capabilitiesOfGroupsAndAncestors(tx, [parentId]))].sort();
@@ -603,7 +615,9 @@ async function setGroupRolesUnguarded(
       : await tx
           .select({ id: roles.id, name: roles.name })
           .from(roles)
-          .where(inArray(roles.id, queryableRoleIds));
+          .where(inArray(roles.id, queryableRoleIds))
+          .orderBy(asc(roles.id))
+          .for('key share');
   const foundIds = new Set(found.map((role) => role.id));
   const missing = uniqueRoleIds.filter((id) => !foundIds.has(id));
   if (missing.length > 0) {
