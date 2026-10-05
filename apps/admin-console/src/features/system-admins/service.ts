@@ -6,6 +6,7 @@ import {
   GRANT_NEEDS,
   type AdministratorRequest,
 } from '#/shared/service/administrators.ts';
+import { writeFailureText } from '#/shared/service/failure.ts';
 import { holdingLabel, isHolding } from '#/shared/service/capabilities.ts';
 import { SYSTEM_TENANT, type AdminCapability, type Authority } from '#/shared/service/principal.ts';
 import type { GatewayFailure } from '#/shared/service/result.ts';
@@ -67,7 +68,7 @@ export function grantFailureText(
     case 'schema':
       return `${name} may have been given it, but the answer could not be read. Check the list.`;
     case 'defect':
-      return `The console could not finish, so ${name} was not given it. This is a fault in the console, not something you did.`;
+      return writeFailureText(failure, { name, verb: 'given it', lookAt: 'the list' });
     case 'problem': {
       const { problem } = failure;
       const why =

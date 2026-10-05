@@ -7,7 +7,11 @@ import {
   type TenantStep,
 } from '#/features/tenants/usecase/useNewTenant.ts';
 import {
+  ADD_SYSTEM_ADMIN_TITLE,
+  CREATE_TENANT_TITLE,
   creationHeading,
+  firstAdministratorNote,
+  originText,
   flowOf,
   systemAdminsTrail,
   tenantAdministratorTrail,
@@ -105,20 +109,14 @@ function Tenant({ step }: { step: TenantStep }) {
   );
 }
 
-const ORIGIN: Readonly<Record<AdministratorStep['origin'], string>> = {
-  created: 'was created. It has no administrator yet, so nobody can sign in to its console.',
-  imported:
-    'was imported. An import creates no administrator, so nobody can sign in to its console yet.',
-  existing: 'gets another administrator.',
-};
-
 function Administrator({ step }: { step: AdministratorStep }) {
+  const note = firstAdministratorNote(step.origin, step.tenant);
   return (
     <>
       <p className={styles.lead}>
         {step.systemAdminsHref === null ? (
           <>
-            <code>{step.tenant}</code> {ORIGIN[step.origin]}
+            <code>{step.tenant}</code> {originText(step.origin)}
           </>
         ) : (
           <>
@@ -158,11 +156,7 @@ function Administrator({ step }: { step: AdministratorStep }) {
             />
           </>
         )}
-        {step.origin === 'existing' ? null : (
-          <p className={styles.lead}>
-            {`The first administrator holds Full, so somebody in ${step.tenant} can give every capability; narrow it afterwards under Administrators.`}
-          </p>
-        )}
+        {note === null ? null : <p className={styles.lead}>{note}</p>}
         {step.choosing ? (
           <ChecklistField
             label="What they hold"
@@ -270,8 +264,8 @@ export function NewTenantPage({ tenant }: { tenant: string }) {
   return (
     <SystemGate
       tenant={tenant}
-      title="Create a tenant"
-      breadcrumb={tenantsTrail('Create a tenant')}
+      title={CREATE_TENANT_TITLE}
+      breadcrumb={tenantsTrail(CREATE_TENANT_TITLE)}
     >
       <Creation flow="tenant" />
     </SystemGate>
@@ -284,8 +278,8 @@ export function NewSystemAdministratorPage({ tenant }: { tenant: string }) {
   return (
     <SystemGate
       tenant={tenant}
-      title="Add a system administrator"
-      breadcrumb={systemAdminsTrail('Add a system administrator')}
+      title={ADD_SYSTEM_ADMIN_TITLE}
+      breadcrumb={systemAdminsTrail(ADD_SYSTEM_ADMIN_TITLE)}
     >
       <Creation flow="system-administrator" />
     </SystemGate>
