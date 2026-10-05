@@ -9,20 +9,12 @@ import { describe, expect, it } from 'vitest';
 // service function. These are the shapes logic takes in a hook that can be
 // found without judgement; guards and `result.ok` choices are orchestration.
 //
-// CLEAN names what is already clean and widens as each feature is. There is
-// no allowlist of exceptions: a file outside CLEAN is unfinished, not waived.
+// Every feature's usecase and repository files are held to it, and so is
+// shared. There is no allowlist of exceptions and no waiver.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const SRC = 'apps/admin-console/src';
 const FIXTURES = 'tests/lint/fixtures/console-usecase-integration-only';
-const CLEAN: readonly string[] = [
-  'shared',
-  'groups',
-  'roles',
-  'subjects',
-  'tenants',
-  'system-admins',
-];
 
 type Layer = 'usecase' | 'repository';
 
@@ -191,14 +183,13 @@ async function read(pattern: string): Promise<Map<string, string>> {
 }
 
 function scopes(): string[] {
-  return CLEAN.flatMap((area) =>
-    area === 'shared'
-      ? [`${SRC}/shared/{usecase,repository}/**/*.ts`]
-      : [`${SRC}/features/${area}/{usecase,repository}/**/*.ts`],
-  );
+  return [
+    `${SRC}/shared/{usecase,repository}/**/*.ts`,
+    `${SRC}/features/*/{usecase,repository}/**/*.ts`,
+  ];
 }
 
-describe('the console usecases and repositories that are clean', { timeout: 60_000 }, () => {
+describe('the console usecases and repositories', { timeout: 60_000 }, () => {
   it('hold no logic that belongs to a service', async () => {
     const files = new Map<string, string>();
     for (const pattern of scopes()) {
