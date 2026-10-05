@@ -20,6 +20,7 @@ import {
   evaluatePassword,
   hashPassword,
   REUSED_PASSWORD,
+  subjectRepository,
   userRepository,
   verifyPassword,
 } from '@odudu/domain-identity';
@@ -347,8 +348,23 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     markVerified: async (tx, subjectId) => {
       await userRepository(tx).markEmailVerified(subjectId);
     },
+    // A subject an administrator created has no password until a link gives
+    // it its first, the way `POST …/subjects/:id/password` creates one.
     setPassword: async (tx, subjectId, password) => {
-      await credentialRepository(tx).setPassword(subjectId, await hashPassword(password));
+      const credentials = credentialRepository(tx);
+      const hash = await hashPassword(password);
+      if ((await credentials.passwordFor(subjectId)) !== null) {
+        await credentials.setPassword(subjectId, hash);
+        return;
+      }
+      const subject = await subjectRepository(tx).byId(subjectId);
+      if (subject === null) throw new Error(`no subject ${subjectId}`);
+      await credentials.insert({
+        tenantId: subject.tenantId,
+        subjectId,
+        type: 'password',
+        secret: { kind: 'password', hash },
+      });
     },
     getUsername: async (tx, subjectId) => {
       const user = await userRepository(tx).bySubjectId(subjectId);
