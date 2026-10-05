@@ -80,7 +80,12 @@ test('a fast session read draws no placeholder at all', async ({ page }) => {
     const seen = { shape: false };
     Object.assign(window, { shape: seen });
     new MutationObserver(() => {
-      if (document.querySelector('[data-shape]') !== null) seen.shape = true;
+      const drawn = [...document.querySelectorAll('[role="status"]')].some(
+        (status) =>
+          status.querySelector('[data-shape]') !== null &&
+          status.textContent?.startsWith('Reading your session') === true,
+      );
+      if (drawn) seen.shape = true;
     }).observe(document, { subtree: true, childList: true });
   });
   await page.goto(`/console/${TENANT}/subjects`);
