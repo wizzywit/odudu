@@ -74,7 +74,9 @@ rebuilt from this branch; the searches under `GET /admin/tenants` and
 `GET /clients` after a further rebuild that applied `0074`; and those under
 `GET /roles`, `GET /groups`, `GET /scopes` and `GET /keys` after one that
 applied `0075`, against roles and groups created in `demo` for them
-through the endpoints below, as each of those sections shows. The counts
+through the endpoints below, as each of those sections shows (the role and
+group ones, and the composites and defaults after them, have since been
+recaptured on the fourteenth stack, and say so). The counts
 under `GET /admin/tenants/count` were captured against it after a further
 rebuild, as that section says. The memberships under `GET /subjects/:id/groups` were captured
 against it after one more rebuild, in a tenant of their own, as that
@@ -151,7 +153,8 @@ step may name", "The owning client, by name", and the OpenAPI entry under
 **The sixth stack.** Every transcript whose output changed once a `400`
 named its field under `errors`, a create answered its `ETag`, SMTP reported
 `effective`, a flow answered `available` and a role named its owning
-client was captured again against one more stack: the same compose project
+client was captured again against one more stack (the role and group ones
+since recaptured on the fourteenth, and saying so): the same compose project
 `odudu-task2` on port 3080, brought up from an empty volume built from this
 branch, with `seed admin --username ada` run against it and every tenant,
 client, role, group, scope and subject a section names created there
@@ -216,7 +219,8 @@ rebuilt at `1507a6c3`, whose only change is the wording of the
 says.
 
 **The twelfth stack.** Every transcript whose output changed once groups and
-roles carried a `description`, groups `default_for_new_subjects`, scopes
+roles carried a `description` (the role and group ones since recaptured on the
+fourteenth, and saying so), groups `default_for_new_subjects`, scopes
 their client default and consent fields, a tenant `audit_event_types`, a
 client the fields `0084` to `0086` added and `odudu reap` its `cleared`
 report, and the sections on the routes and settings those changes added,
@@ -240,20 +244,23 @@ was checked after the subject and an unregistered one answered alike, with
 `seed admin --username ada-t8c2` run against it and each section's tenant
 made there for it; it was torn down the same way.
 
-**The thirteenth stack.** The sections on `admin_reach` and
-`subtree_admin_reach`, and the reparent refused for a taken name, ran against
-one more stack: compose project `odudu-t10` on port 3082, its Postgres on
-5464, built from this branch's working tree at `279a5926` with those fields
-added and brought up from an empty volume with `ODUDU_THROTTLE_LIMIT=1000`.
-Against it: `seed admin --username ada-t10`, a tenant `reach-demo` made with
-`odudu seed tenant`, and a subject `ada-t10` seeded there with a password and
-granted `odudu-admin:tenant-admin`, whose own admin token, got at
-`reach-demo` the way "Getting the token" shows, is `$ADMIN_TOKEN`. Each
-section says what else it made there. It was torn down with
-`docker compose down -v` when the capture finished. Every role and group
-answer captured on the stacks above predates the two fields, which each such
-answer now carries beside the stored ones; those transcripts were not
-recaptured, and show the stored fields alone.
+**The fourteenth stack.** Every transcript that shows a role or a group
+answer ran against one more stack, once each such answer carried `admin_reach`,
+a group's own record `subtree_admin_reach` and `holds_default_group`, and each
+role in a group's roles its own `admin_reach`: compose project `odudu-t10b` on
+port 3082, its Postgres on 5464, built from this branch at `539ffd7a` and
+brought up from an empty volume with `ODUDU_THROTTLE_LIMIT=1000`,
+`ODUDU_OUTBOX_ENABLED=false`, `ODUDU_REAP_ENABLED=false` and
+`ODUDU_LOGOUT_SENDER_ENABLED=false`. Against it: `seed admin --username
+ada-t10b`, then a subject `ada-sys` seeded in `system` with a password and
+granted `odudu-admin:tenant-admin`, whose own admin token, got the way "Getting
+the token" shows, is `$ADMIN_TOKEN` throughout. Every tenant, client, role,
+group and subject a section names was made there for it through the endpoints
+below, `seed client` and `seed user`, and each section says which, so the ids in
+them refer to nothing on the stacks above. The transcripts that show audit rows,
+counts and the answers to a subject's roles carry no role or group record and
+stay on the stacks they were captured against. It was torn down with
+`docker compose down -v` when the capture finished.
 
 ## The shape of it
 
@@ -526,14 +533,14 @@ same one the record's own `GET` answers, so the first save after a create
 needs no read first. A signing key and a registration token have no read
 of their own; theirs is the one their entry in the list is taken over,
 never over the one-time `token`. `POST /subjects/:id/password` creates no
-record, and answers none. Captured against the sixth stack, in a tenant
+record, and answers none. Captured against the fourteenth stack, in a tenant
 `etags-demo` created for it:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"name":"billing-viewer"}' http://localhost:3080/admin/tenants/etags-demo/roles
+  -d '{"name":"billing-viewer"}' http://localhost:3082/admin/tenants/etags-demo/roles
 curl -sS -D - -o /dev/null -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/etags-demo/roles/01a0ea4c-4996-7260-b924-f88ed7f2d974
+  http://localhost:3082/admin/tenants/etags-demo/roles/01a10bd4-90e5-79e8-92bd-8f9024ae8829
 ```
 
 The status line, the `etag` header and the body of each, other headers
@@ -541,10 +548,10 @@ left out:
 
 ```
 HTTP/1.1 201 Created
-etag: "13a0a2b0291e07a7160f502571cbb69ff6e1fc71e1dab86f24ca0f8899fa24ee"
-{"id":"01a0ea4c-4996-7260-b924-f88ed7f2d974","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:14:23.253Z"}
+etag: "aaa46b5cbb2af2891ff756bc81a28da18d1281e7fafa665df9106fc345c044a0"
+{"id":"01a10bd4-90e5-79e8-92bd-8f9024ae8829","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:30:42.533Z","admin_reach":[]}
 HTTP/1.1 200 OK
-etag: "13a0a2b0291e07a7160f502571cbb69ff6e1fc71e1dab86f24ca0f8899fa24ee"
+etag: "aaa46b5cbb2af2891ff756bc81a28da18d1281e7fafa665df9106fc345c044a0"
 ```
 
 ## Getting the token
@@ -5782,18 +5789,18 @@ column, so renaming the client in the database does not evade it. Any
 other role is deleted unless it reaches an admin capability the caller does
 not hold ([a removal is judged by what it removes](#a-removal-is-judged-by-what-it-removes)).
 
-A create, captured against the sixth stack in its `showcase` tenant:
+A create, captured against the fourteenth stack in its `showcase` tenant:
 
 ```bash
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "billing-viewer", "description": "read-only access to invoices"}' \
-  http://localhost:3080/admin/tenants/showcase/roles
+  http://localhost:3082/admin/tenants/showcase/roles
 ```
 
 ```
-{"id":"01a0ea58-d3a7-7fdf-a80d-4ff81ec35f77","name":"billing-viewer","description":"read-only access to invoices","client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.031Z"}
+{"id":"01a10bd4-d376-748b-a43b-f40458d88100","name":"billing-viewer","description":"read-only access to invoices","client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:30:59.574Z","admin_reach":[]}
 ```
 
 **Search and filters** follow `GET /subjects`: `?name=` is a prefix,
@@ -5803,39 +5810,39 @@ ordered by that folded name, then by `id`. **`?client=`** is the one exact
 filter, `AND`ed with it: `tenant` for the tenant roles alone, or a client's
 id for the roles scoped to that client. A cursor is bound to every filter
 it was minted under, and any other parameter is refused with `400` naming
-it. Captured against the sixth stack, in a tenant `roles-demo` created
-there for it, which held no roles of its own until these four were
-created, the last scoped to a public client `demo-spa`
-(`01a0ea58-d406-7a01-ae44-d5c21cc4c322`) created there too:
+it. Captured against the fourteenth stack, in a tenant `roles-demo` created
+there for it, which held no roles of its own but the built-in admin client's
+until these four were created, the last scoped to a public client `demo-spa`
+(`01a10bd4-d668-7670-afe0-844b224421c5`) made there with `seed client` first:
 
 ```bash
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "billing-viewer"}' \
-  http://localhost:3080/admin/tenants/roles-demo/roles
+  http://localhost:3082/admin/tenants/roles-demo/roles
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "Billing-Admin"}' \
-  http://localhost:3080/admin/tenants/roles-demo/roles
+  http://localhost:3082/admin/tenants/roles-demo/roles
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "support"}' \
-  http://localhost:3080/admin/tenants/roles-demo/roles
+  http://localhost:3082/admin/tenants/roles-demo/roles
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name": "billing-spa", "client_id": "01a0ea58-d406-7a01-ae44-d5c21cc4c322"}' \
-  http://localhost:3080/admin/tenants/roles-demo/roles
+  -d '{"name": "billing-spa", "client_id": "01a10bd4-d668-7670-afe0-844b224421c5"}' \
+  http://localhost:3082/admin/tenants/roles-demo/roles
 ```
 
 ```
-{"id":"01a0ea58-d421-7321-afe5-9d7a30ba1782","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.153Z"}
-{"id":"01a0ea58-d435-741e-bf5c-86256147d3ed","name":"Billing-Admin","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.173Z"}
-{"id":"01a0ea58-d448-7a6e-b7e7-585fcc1904f3","name":"support","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.192Z"}
-{"id":"01a0ea58-d45b-7c55-b5f0-e17efcae3798","name":"billing-spa","description":null,"client_id":"01a0ea58-d406-7a01-ae44-d5c21cc4c322","client_key":"demo-spa","default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.210Z"}
+{"id":"01a10bd4-d6d8-73f1-b60b-11d57d6bb686","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:00.438Z","admin_reach":[]}
+{"id":"01a10bd4-d6f3-7ca9-ab57-830ede1e570b","name":"Billing-Admin","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:00.467Z","admin_reach":[]}
+{"id":"01a10bd4-d70c-70c1-9fc7-09b29cce97db","name":"support","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:00.492Z","admin_reach":[]}
+{"id":"01a10bd4-d727-7bbc-b05f-a238bd2d00d2","name":"billing-spa","description":null,"client_id":"01a10bd4-d668-7670-afe0-844b224421c5","client_key":"demo-spa","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:00.518Z","admin_reach":[]}
 ```
 
 `BILLING` finds all three `billing` roles in folded order, tenant and
@@ -5845,19 +5852,19 @@ id keeps its one:
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/roles-demo/roles?name=BILLING"
+  "http://localhost:3082/admin/tenants/roles-demo/roles?name=BILLING"
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/roles-demo/roles?name=billing&client=tenant"
+  "http://localhost:3082/admin/tenants/roles-demo/roles?name=billing&client=tenant"
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/roles-demo/roles?client=01a0ea58-d406-7a01-ae44-d5c21cc4c322"
+  "http://localhost:3082/admin/tenants/roles-demo/roles?client=01a10bd4-d668-7670-afe0-844b224421c5"
 ```
 
 ```
-{"items":[{"id":"01a0ea58-d435-741e-bf5c-86256147d3ed","name":"Billing-Admin","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.173Z"},{"id":"01a0ea58-d45b-7c55-b5f0-e17efcae3798","name":"billing-spa","description":null,"client_id":"01a0ea58-d406-7a01-ae44-d5c21cc4c322","client_key":"demo-spa","default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.210Z"},{"id":"01a0ea58-d421-7321-afe5-9d7a30ba1782","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.153Z"}]}
-{"items":[{"id":"01a0ea58-d435-741e-bf5c-86256147d3ed","name":"Billing-Admin","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.173Z"},{"id":"01a0ea58-d421-7321-afe5-9d7a30ba1782","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.153Z"}]}
-{"items":[{"id":"01a0ea58-d45b-7c55-b5f0-e17efcae3798","name":"billing-spa","description":null,"client_id":"01a0ea58-d406-7a01-ae44-d5c21cc4c322","client_key":"demo-spa","default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.210Z"}]}
+{"items":[{"id":"01a10bd4-d6f3-7ca9-ab57-830ede1e570b","name":"Billing-Admin","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:00.467Z","admin_reach":[]},{"id":"01a10bd4-d727-7bbc-b05f-a238bd2d00d2","name":"billing-spa","description":null,"client_id":"01a10bd4-d668-7670-afe0-844b224421c5","client_key":"demo-spa","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:00.518Z","admin_reach":[]},{"id":"01a10bd4-d6d8-73f1-b60b-11d57d6bb686","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:00.438Z","admin_reach":[]}]}
+{"items":[{"id":"01a10bd4-d6f3-7ca9-ab57-830ede1e570b","name":"Billing-Admin","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:00.467Z","admin_reach":[]},{"id":"01a10bd4-d6d8-73f1-b60b-11d57d6bb686","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:00.438Z","admin_reach":[]}]}
+{"items":[{"id":"01a10bd4-d727-7bbc-b05f-a238bd2d00d2","name":"billing-spa","description":null,"client_id":"01a10bd4-d668-7670-afe0-844b224421c5","client_key":"demo-spa","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:00.518Z","admin_reach":[]}]}
 ```
 
 One at a time, the `Link` header carries the search forward:
@@ -5865,38 +5872,38 @@ One at a time, the `Link` header carries the search forward:
 ```bash
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/roles-demo/roles?name=billing&limit=1"
+  "http://localhost:3082/admin/tenants/roles-demo/roles?name=billing&limit=1"
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0ea58-d4a4-705d-ac59-ccdbeecbba7d
+x-request-id: 01a10bd4-d783-7e2e-8d08-0e26bdc54a64
 cache-control: no-store
-link: </admin/tenants/roles-demo/roles?limit=1&name=billing&cursor=eyJhZnRlciI6IjAxYTBlYTU4LWQ0MzUtNzQxZS1iZjVjLTg2MjU2MTQ3ZDNlZCIsInNvcnQiOiJiaWxsaW5nLWFkbWluIiwiY29sbGVjdGlvbiI6InJvbGVzIiwidGVuYW50SWQiOiIwMWEwZWE1OC1kM2JiLTcxMjYtYTUxNC1kYTljZDZmN2QxMzMiLCJmaWx0ZXJzIjoiM0w4aEJkRGMyWVZnelVseHhtSlVYZGluWHJDMG10NHZMTXF1TlNTdEdOdyJ9.vqL1q3wdEfgZM9ieC07LiickD_1XP4pHvMiYd9_e-Zs>; rel="next"
+link: </admin/tenants/roles-demo/roles?limit=1&name=billing&cursor=eyJhZnRlciI6IjAxYTEwYmQ0LWQ2ZjMtN2NhOS1hYjU3LTgzMGVkZTFlNTcwYiIsInNvcnQiOiJiaWxsaW5nLWFkbWluIiwiY29sbGVjdGlvbiI6InJvbGVzIiwidGVuYW50SWQiOiIwMWExMGJkNC1kNDg1LTc2NDItYmQxYS04YzY1MzBmYTk5NTgiLCJmaWx0ZXJzIjoiM0w4aEJkRGMyWVZnelVseHhtSlVYZGluWHJDMG10NHZMTXF1TlNTdEdOdyJ9.v_fTLZ_BVcFLmG1cpmnr-lJijG8KwzLcjOTkCAkdsM8>; rel="next"
 content-type: application/json; charset=utf-8
-content-length: 525
-Date: Mon, 28 Sep 2026 23:28:05 GMT
+content-length: 542
+Date: Mon, 05 Oct 2026 11:31:00 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a0ea58-d435-741e-bf5c-86256147d3ed","name":"Billing-Admin","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.173Z"}],"next":"eyJhZnRlciI6IjAxYTBlYTU4LWQ0MzUtNzQxZS1iZjVjLTg2MjU2MTQ3ZDNlZCIsInNvcnQiOiJiaWxsaW5nLWFkbWluIiwiY29sbGVjdGlvbiI6InJvbGVzIiwidGVuYW50SWQiOiIwMWEwZWE1OC1kM2JiLTcxMjYtYTUxNC1kYTljZDZmN2QxMzMiLCJmaWx0ZXJzIjoiM0w4aEJkRGMyWVZnelVseHhtSlVYZGluWHJDMG10NHZMTXF1TlNTdEdOdyJ9.vqL1q3wdEfgZM9ieC07LiickD_1XP4pHvMiYd9_e-Zs"}
+{"items":[{"id":"01a10bd4-d6f3-7ca9-ab57-830ede1e570b","name":"Billing-Admin","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:00.467Z","admin_reach":[]}],"next":"eyJhZnRlciI6IjAxYTEwYmQ0LWQ2ZjMtN2NhOS1hYjU3LTgzMGVkZTFlNTcwYiIsInNvcnQiOiJiaWxsaW5nLWFkbWluIiwiY29sbGVjdGlvbiI6InJvbGVzIiwidGVuYW50SWQiOiIwMWExMGJkNC1kNDg1LTc2NDItYmQxYS04YzY1MzBmYTk5NTgiLCJmaWx0ZXJzIjoiM0w4aEJkRGMyWVZnelVseHhtSlVYZGluWHJDMG10NHZMTXF1TlNTdEdOdyJ9.v_fTLZ_BVcFLmG1cpmnr-lJijG8KwzLcjOTkCAkdsM8"}
 ```
 
 Following that link, then replaying its cursor with `?client=tenant` added:
 
 ```bash
-CURSOR='eyJhZnRlciI6IjAxYTBlYTU4LWQ0MzUtNzQxZS1iZjVjLTg2MjU2MTQ3ZDNlZCIsInNvcnQiOiJiaWxsaW5nLWFkbWluIiwiY29sbGVjdGlvbiI6InJvbGVzIiwidGVuYW50SWQiOiIwMWEwZWE1OC1kM2JiLTcxMjYtYTUxNC1kYTljZDZmN2QxMzMiLCJmaWx0ZXJzIjoiM0w4aEJkRGMyWVZnelVseHhtSlVYZGluWHJDMG10NHZMTXF1TlNTdEdOdyJ9.vqL1q3wdEfgZM9ieC07LiickD_1XP4pHvMiYd9_e-Zs'
+CURSOR='eyJhZnRlciI6IjAxYTEwYmQ0LWQ2ZjMtN2NhOS1hYjU3LTgzMGVkZTFlNTcwYiIsInNvcnQiOiJiaWxsaW5nLWFkbWluIiwiY29sbGVjdGlvbiI6InJvbGVzIiwidGVuYW50SWQiOiIwMWExMGJkNC1kNDg1LTc2NDItYmQxYS04YzY1MzBmYTk5NTgiLCJmaWx0ZXJzIjoiM0w4aEJkRGMyWVZnelVseHhtSlVYZGluWHJDMG10NHZMTXF1TlNTdEdOdyJ9.v_fTLZ_BVcFLmG1cpmnr-lJijG8KwzLcjOTkCAkdsM8'
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/roles-demo/roles?limit=1&name=billing&cursor=$CURSOR"
+  "http://localhost:3082/admin/tenants/roles-demo/roles?limit=1&name=billing&cursor=$CURSOR"
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/roles-demo/roles?limit=1&name=billing&client=tenant&cursor=$CURSOR"
+  "http://localhost:3082/admin/tenants/roles-demo/roles?limit=1&name=billing&client=tenant&cursor=$CURSOR"
 ```
 
 ```
-{"items":[{"id":"01a0ea58-d45b-7c55-b5f0-e17efcae3798","name":"billing-spa","description":null,"client_id":"01a0ea58-d406-7a01-ae44-d5c21cc4c322","client_key":"demo-spa","default_for_new_subjects":false,"created_at":"2026-09-28T23:28:05.210Z"}],"next":"eyJhZnRlciI6IjAxYTBlYTU4LWQ0NWItN2M1NS1iNWYwLWUxN2VmY2FlMzc5OCIsInNvcnQiOiJiaWxsaW5nLXNwYSIsImNvbGxlY3Rpb24iOiJyb2xlcyIsInRlbmFudElkIjoiMDFhMGVhNTgtZDNiYi03MTI2LWE1MTQtZGE5Y2Q2ZjdkMTMzIiwiZmlsdGVycyI6IjNMOGhCZERjMllWZ3pVbHh4bUpVWGRpblhyQzBtdDR2TE1xdU5TU3RHTncifQ.nhc5AAVGM1CqXWTdxSwvW_4I6BXqLcJpr148nf35_AE"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a0ea58-d4ce-7b81-a7eb-d179705723d2"}
+{"items":[{"id":"01a10bd4-d727-7bbc-b05f-a238bd2d00d2","name":"billing-spa","description":null,"client_id":"01a10bd4-d668-7670-afe0-844b224421c5","client_key":"demo-spa","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:00.518Z","admin_reach":[]}],"next":"eyJhZnRlciI6IjAxYTEwYmQ0LWQ3MjctN2JiYy1iMDVmLWEyMzhiZDJkMDBkMiIsInNvcnQiOiJiaWxsaW5nLXNwYSIsImNvbGxlY3Rpb24iOiJyb2xlcyIsInRlbmFudElkIjoiMDFhMTBiZDQtZDQ4NS03NjQyLWJkMWEtOGM2NTMwZmE5OTU4IiwiZmlsdGVycyI6IjNMOGhCZERjMllWZ3pVbHh4bUpVWGRpblhyQzBtdDR2TE1xdU5TU3RHTncifQ.ijOveSgDATnglqazyZg9Bg3YQ16FbkWdHCndAD36v6E"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a10bd4-d7b2-7276-af2a-0852ca741785"}
 ```
 
 A `client` that is neither `tenant` nor an id, an unknown parameter, and
@@ -5908,27 +5915,27 @@ carries:
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/roles-demo/roles?client=spa"
+  "http://localhost:3082/admin/tenants/roles-demo/roles?client=spa"
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/roles-demo/roles?search=billing"
+  "http://localhost:3082/admin/tenants/roles-demo/roles?search=billing"
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "auditor", "name_search": "x"}' \
-  http://localhost:3080/admin/tenants/roles-demo/roles
+  http://localhost:3082/admin/tenants/roles-demo/roles
 curl -sS -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name_search": "x"}' \
-  http://localhost:3080/admin/tenants/roles-demo/roles/01a0ea58-d448-7a6e-b7e7-585fcc1904f3
+  http://localhost:3082/admin/tenants/roles-demo/roles/01a10bd4-d70c-70c1-9fc7-09b29cce97db
 ```
 
 ```
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring/client must be equal to constant, querystring/client must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\", querystring/client must match a schema in anyOf","errors":[{"path":"client","message":"must be equal to constant"},{"path":"client","message":"must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\""},{"path":"client","message":"must match a schema in anyOf"}],"instance":"01a0ea58-d4e5-7f4b-8797-0c8695b5c60f"}
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: search","errors":[{"path":"search","message":"must NOT have additional properties"}],"instance":"01a0ea58-d4ee-77ce-9808-436afc8c914d"}
-{"type":"about:blank","title":"Error","status":400,"detail":"body must NOT have additional properties: name_search","errors":[{"path":"name_search","message":"must NOT have additional properties"}],"instance":"01a0ea58-d4f8-7751-9c25-58f9d56e0333"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"name_search: name_search is not a role field","errors":[{"path":"name_search","message":"name_search is not a role field"}],"instance":"01a0ea58-d502-7dbb-9d1c-16d18b208caa"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/client must be equal to constant, querystring/client must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\", querystring/client must match a schema in anyOf","errors":[{"path":"client","message":"must be equal to constant"},{"path":"client","message":"must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\""},{"path":"client","message":"must match a schema in anyOf"}],"instance":"01a10bd4-d7c8-74da-80b9-cf4ba4610516"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: search","errors":[{"path":"search","message":"must NOT have additional properties"}],"instance":"01a10bd4-d7d3-7526-973e-335c0fc0a1d3"}
+{"type":"about:blank","title":"Error","status":400,"detail":"body must NOT have additional properties: name_search","errors":[{"path":"name_search","message":"must NOT have additional properties"}],"instance":"01a10bd4-d7e0-7c73-9077-69671a60f01e"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"name_search: name_search is not a role field","errors":[{"path":"name_search","message":"name_search is not a role field"}],"instance":"01a10bd4-d7ec-77d2-8e3f-858092080816"}
 ```
 
 Every `409` that guards the built-in admin client's roles writes a
@@ -5963,27 +5970,28 @@ it apart by, since a tenant role and a client's may share a name. Both are
 `null` for a tenant role. The same pair rides on every role list: a role's
 composites, and the `items` a subject's, a group's and a scope's roles
 answer beside `id` and `name`. `client_key` is refused
-by `PATCH` like `client_id`. Captured against the fifth stack in
-`etags-demo`: a role `reader` created on the public client `etags-app`, the
-tenant's roles filtered to that client, and a subject `ines` given `reader`
-and the tenant role `billing-viewer` under the `ETag` of her empty list:
+by `PATCH` like `client_id`. Captured against the fourteenth stack in
+`etags-demo`, whose public client `etags-app` was made with `seed client` and
+whose subject `ines` with `POST /subjects`: a role `reader` created on the
+client, the tenant's roles filtered to it, and `ines` given `reader` and the
+tenant role `billing-viewer` from above under the `ETag` of her empty list:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"name":"reader","client_id":"01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3"}' \
-  http://localhost:3080/admin/tenants/etags-demo/roles
+  -d '{"name":"reader","client_id":"01a10bd4-903e-716d-b038-29c8d3ee53ec"}' \
+  http://localhost:3082/admin/tenants/etags-demo/roles
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3080/admin/tenants/etags-demo/roles?client=01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3'
+  'http://localhost:3082/admin/tenants/etags-demo/roles?client=01a10bd4-903e-716d-b038-29c8d3ee53ec'
 curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
-  -d '{"role_ids":["01a0ea27-1cdb-7d21-8f0c-d7baaca12b15","01a0e9ec-6384-76f7-b433-4876e51cbff1"]}' \
-  http://localhost:3080/admin/tenants/etags-demo/subjects/01a0ea27-1d13-7293-a266-8d37c0064e7d/roles
+  -d '{"role_ids":["01a10bd4-9120-7c99-a4b7-9b35a2219dc8","01a10bd4-90e5-79e8-92bd-8f9024ae8829"]}' \
+  http://localhost:3082/admin/tenants/etags-demo/subjects/01a10bd4-90a5-7793-971d-100cba5bc688/roles
 ```
 
 ```
-{"id":"01a0ea27-1cdb-7d21-8f0c-d7baaca12b15","name":"reader","description":null,"client_id":"01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3","client_key":"etags-app","default_for_new_subjects":false,"created_at":"2026-09-28T22:33:46.970Z"}
-{"items":[{"id":"01a0ea27-1cdb-7d21-8f0c-d7baaca12b15","name":"reader","description":null,"client_id":"01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3","client_key":"etags-app","default_for_new_subjects":false,"created_at":"2026-09-28T22:33:46.970Z"}]}
-{"items":[{"id":"01a0e9ec-6384-76f7-b433-4876e51cbff1","name":"billing-viewer","client_id":null,"client_key":null},{"id":"01a0ea27-1cdb-7d21-8f0c-d7baaca12b15","name":"reader","client_id":"01a0e9ec-d64a-7d5d-a0ac-a01efd56b6f3","client_key":"etags-app"}]}
+{"id":"01a10bd4-9120-7c99-a4b7-9b35a2219dc8","name":"reader","description":null,"client_id":"01a10bd4-903e-716d-b038-29c8d3ee53ec","client_key":"etags-app","default_for_new_subjects":false,"created_at":"2026-10-05T11:30:42.591Z","admin_reach":[]}
+{"items":[{"id":"01a10bd4-9120-7c99-a4b7-9b35a2219dc8","name":"reader","description":null,"client_id":"01a10bd4-903e-716d-b038-29c8d3ee53ec","client_key":"etags-app","default_for_new_subjects":false,"created_at":"2026-10-05T11:30:42.591Z","admin_reach":[]}]}
+{"items":[{"id":"01a10bd4-90e5-79e8-92bd-8f9024ae8829","name":"billing-viewer","client_id":null,"client_key":null},{"id":"01a10bd4-9120-7c99-a4b7-9b35a2219dc8","name":"reader","client_id":"01a10bd4-903e-716d-b038-29c8d3ee53ec","client_key":"etags-app"}]}
 ```
 
 ### What a role reaches: `admin_reach`
@@ -6000,7 +6008,7 @@ derived on each read and never stored: the `ETag` is taken over the stored
 fields alone, so a composite added somewhere below a role does not stale a
 write to its description, and `PATCH` refuses it with a reason.
 
-Captured against the thirteenth stack: a tenant role `audit-lead` nesting
+Captured against the fourteenth stack: a tenant role `audit-lead` nesting
 `odudu-admin:view-audit`, and `audit-bundle` nesting `audit-lead`, each made
 there with `POST /roles` and `POST /roles/:id/composites` for it, `$P`
 that stack's `http://localhost:3082/admin/tenants/reach-demo`. `audit-bundle`
@@ -6008,20 +6016,20 @@ names no capability itself and reaches one two levels down — what its
 default is then refused for:
 
 ```bash
-curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" $P/roles/01a10b4e-3817-7c2d-b0cf-70a405d2a198
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/roles/01a10b4e-3817-7c2d-b0cf-70a405d2a198/composites; echo
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" $P/roles/01a10bd6-2cbc-706c-8d46-891aad99d5bb
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/roles/01a10bd6-2cbc-706c-8d46-891aad99d5bb/composites; echo
 curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"default":true}' $P/roles/01a10b4e-3817-7c2d-b0cf-70a405d2a198/default; echo
+  -d '{"default":true}' $P/roles/01a10bd6-2cbc-706c-8d46-891aad99d5bb/default; echo
 ```
 
 Each response's status line and `etag` where it has one, then its body:
 
 ```
 HTTP/1.1 200 OK
-etag: "f35d94729322104d722ea427be0440ac8518b14f00db3c0a4bb549c82285be30"
-{"id":"01a10b4e-3817-7c2d-b0cf-70a405d2a198","name":"audit-bundle","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T09:03:57.974Z","admin_reach":["view-audit"]}
-{"items":[{"id":"01a10b4e-37f5-7b2a-a36b-9c89dcd4129c","name":"audit-lead","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T09:03:57.941Z","admin_reach":["view-audit"]}]}
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: view-audit","instance":"01a10b4e-5c4a-724b-91e9-735be0f7f299"}
+etag: "7ecd0c326f94377e60c254866472c0d0b033d159f60df4629dc6ffd41ef7ecde"
+{"id":"01a10bd6-2cbc-706c-8d46-891aad99d5bb","name":"audit-bundle","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:32:27.964Z","admin_reach":["view-audit"]}
+{"items":[{"id":"01a10bd6-2ca5-763e-b394-ce919be96bc2","name":"audit-lead","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:32:27.940Z","admin_reach":["view-audit"]}]}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: view-audit","instance":"01a10bd6-2e73-7649-a48f-c17b297dca44"}
 ```
 
 ### The list a user manager picks from
@@ -6035,23 +6043,24 @@ manager may assign is still held to its own capabilities by the ceiling
 (ADR 0040). A caller refused one of these lists gets the usual `403`, and
 its `capability.refused` row names `view-users` under `detail.also_admits`
 beside the `manage-tenant` it names as `capability`, since either would
-have admitted it. Captured against the sixth stack in a tenant `admins-demo` created there
-for it, as `hana`, a subject created there holding `view-users` alone and
-signed in through the tenant's own admin client, first `whoami`, then two
-lists and a count:
+have admitted it. Captured against the fourteenth stack in a tenant `admins-demo`
+created there for it, as `hana`, a subject seeded there with `seed user`,
+granted `odudu-admin:view-users` alone with `seed grant-role` and signed in
+through the tenant's own admin client, first `whoami`, then two lists and a
+count:
 
 ```bash
-curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3080/admin/tenants/admins-demo/whoami
-curl -sS -H "Authorization: Bearer $HANA_TOKEN" 'http://localhost:3080/admin/tenants/admins-demo/roles?name=manage&limit=2'
-curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3080/admin/tenants/admins-demo/groups
-curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3080/admin/tenants/admins-demo/roles/count
+curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3082/admin/tenants/admins-demo/whoami
+curl -sS -H "Authorization: Bearer $HANA_TOKEN" 'http://localhost:3082/admin/tenants/admins-demo/roles?name=manage&limit=2'
+curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3082/admin/tenants/admins-demo/groups
+curl -sS -H "Authorization: Bearer $HANA_TOKEN" http://localhost:3082/admin/tenants/admins-demo/roles/count
 ```
 
 ```
-{"subjectId":"01a0ea59-5d33-7a1b-bce7-24b2c98cd01a","issuerTenantId":"01a0ea59-5cd2-7d04-a47c-25e735e7b213","capabilities":["view-users"],"crossTenant":false}
-{"items":[{"id":"01a0ea59-5ce4-7529-83fa-4fa19f286315","name":"manage-clients","description":null,"client_id":"01a0ea59-5cdb-7604-a205-088e108e7bc7","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-09-28T23:28:40.146Z"},{"id":"01a0ea59-5ce7-7289-a7bf-c6a5dc5d08ea","name":"manage-keys","description":null,"client_id":"01a0ea59-5cdb-7604-a205-088e108e7bc7","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-09-28T23:28:40.146Z"}],"next":"eyJhZnRlciI6IjAxYTBlYTU5LTVjZTctNzI4OS1hN2JmLWM2YTVkYzVkMDhlYSIsInNvcnQiOiJtYW5hZ2Uta2V5cyIsImNvbGxlY3Rpb24iOiJyb2xlcyIsInRlbmFudElkIjoiMDFhMGVhNTktNWNkMi03ZDA0LWE0N2MtMjVlNzM1ZTdiMjEzIiwiZmlsdGVycyI6IlJmN1o1Njk1VkFrc05UeHBDNUhuYnZuN1dYME5hV0d0MGdmVk9OblNpTmcifQ.Xwvy2zgnUWKd8-sdfe15i06YKp5_6Jqwszwzt__kdiM"}
+{"subjectId":"01a10bd4-f479-7550-825d-3c8550dce115","issuerTenantId":"01a10bd4-f16d-7850-b858-651e575d55f3","capabilities":["view-users"],"crossTenant":false}
+{"items":[{"id":"01a10bd4-f17f-7cf9-bb84-4ae17ae3e1a0","name":"manage-clients","description":null,"client_id":"01a10bd4-f176-7236-8562-d17d73d5ca00","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:07.245Z","admin_reach":["manage-clients"]},{"id":"01a10bd4-f181-794a-a3be-a2e7aa703a1a","name":"manage-keys","description":null,"client_id":"01a10bd4-f176-7236-8562-d17d73d5ca00","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:07.245Z","admin_reach":["manage-keys"]}],"next":"eyJhZnRlciI6IjAxYTEwYmQ0LWYxODEtNzk0YS1hM2JlLWEyZTdhYTcwM2ExYSIsInNvcnQiOiJtYW5hZ2Uta2V5cyIsImNvbGxlY3Rpb24iOiJyb2xlcyIsInRlbmFudElkIjoiMDFhMTBiZDQtZjE2ZC03ODUwLWI4NTgtNjUxZTU3NWQ1NWYzIiwiZmlsdGVycyI6IlJmN1o1Njk1VkFrc05UeHBDNUhuYnZuN1dYME5hV0d0MGdmVk9OblNpTmcifQ.hbcmmrbCixpSou6fDWJKHn8iiap4gM_BtpdZl_wJA_M"}
 {"items":[]}
-{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a0ea59-ad56-772d-9206-e80a8ad75f02"}
+{"type":"about:blank","title":"Forbidden","status":403,"instance":"01a10bd4-f7ef-7b52-b934-b29dfb03b749"}
 ```
 
 Then `kai`, created there the same way holding `manage-clients` alone,
@@ -6167,50 +6176,50 @@ An edge between ordinary roles is removed whatever it nests, unless what
 the child reaches includes an admin capability the caller does not hold
 ([a removal is judged by what it removes](#a-removal-is-judged-by-what-it-removes)).
 
-Captured against the sixth stack in `composites-demo`, created through
+Captured against the fourteenth stack in `composites-demo`, created through
 `POST /admin/tenants` for it. `billing-admin` nests `billing-viewer` and
 `invoice-editor`, each nested there through `POST /roles/:id/composites`:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5a-6e28-777a-b4f5-82d7512a7293/composites
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-586f-7d37-8635-d3d478ec27b0/composites
 ```
 
 ```
-{"items":[{"id":"01a0ea5a-6e3f-7002-a46e-54c9d5196212","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:29:50.143Z"},{"id":"01a0ea5a-6e54-7a44-a792-1e835b730a0e","name":"invoice-editor","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:29:50.164Z"}]}
+{"items":[{"id":"01a10bd5-5894-7574-967a-b9d73aca3cc2","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.651Z","admin_reach":[]},{"id":"01a10bd5-58b1-7f83-933d-edbb5b0d9d23","name":"invoice-editor","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.680Z","admin_reach":[]}]}
 ```
 
 `invoice-editor` removed, the same removal repeated, then the read again:
 
 ```bash
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5a-6e28-777a-b4f5-82d7512a7293/composites/01a0ea5a-6e54-7a44-a792-1e835b730a0e
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-586f-7d37-8635-d3d478ec27b0/composites/01a10bd5-58b1-7f83-933d-edbb5b0d9d23
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5a-6e28-777a-b4f5-82d7512a7293/composites/01a0ea5a-6e54-7a44-a792-1e835b730a0e
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-586f-7d37-8635-d3d478ec27b0/composites/01a10bd5-58b1-7f83-933d-edbb5b0d9d23
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5a-6e28-777a-b4f5-82d7512a7293/composites
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-586f-7d37-8635-d3d478ec27b0/composites
 ```
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a0ea5a-6ed8-7b76-bfdb-b055727a4621
+x-request-id: 01a10bd5-5a21-7f9e-9358-a6ddba04a460
 cache-control: no-store
-etag: "129cc9286852a3ca1c341782b23088a247ee02ee791b267c9c2516abe6f1c956"
-Date: Mon, 28 Sep 2026 23:29:50 GMT
+etag: "a90d843a406386c7b64d76101ec4d961177ac1f3e87c073b79619a8193246bb5"
+Date: Mon, 05 Oct 2026 11:31:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 HTTP/1.1 404 Not Found
-x-request-id: 01a0ea5a-6ef1-70c5-8875-10bc6b304fdc
+x-request-id: 01a10bd5-5a48-7b0f-bec0-64eb7de7a546
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 214
-Date: Mon, 28 Sep 2026 23:29:50 GMT
+Date: Mon, 05 Oct 2026 11:31:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"detail":"no composite 01a0ea5a-6e54-7a44-a792-1e835b730a0e under role 01a0ea5a-6e28-777a-b4f5-82d7512a7293","instance":"01a0ea5a-6ef1-70c5-8875-10bc6b304fdc"}
-{"items":[{"id":"01a0ea5a-6e3f-7002-a46e-54c9d5196212","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:29:50.143Z"}]}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no composite 01a10bd5-58b1-7f83-933d-edbb5b0d9d23 under role 01a10bd5-586f-7d37-8635-d3d478ec27b0","instance":"01a10bd5-5a48-7b0f-bec0-64eb7de7a546"}
+{"items":[{"id":"01a10bd5-5894-7574-967a-b9d73aca3cc2","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.651Z","admin_reach":[]}]}
 ```
 
 The guard. `tenant-admin` does nest `manage-users` — so a refusal is not a
@@ -6220,23 +6229,23 @@ edge, as `ada`, who holds `tenant-admin` itself:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5a-6dfb-7573-9ff4-b065d090b94e/composites
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-583e-7b19-a308-08d826338992/composites
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5a-6dfb-7573-9ff4-b065d090b94e/composites/01a0ea5a-6dfe-7770-8d9f-c403dd3516c9
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-583e-7b19-a308-08d826338992/composites/01a10bd5-5841-7874-aa25-572fc2a878e5
 ```
 
 ```
-{"items":[{"id":"01a0ea5a-6dff-7fc2-96a2-e7b54304342e","name":"manage-clients","description":null,"client_id":"01a0ea5a-6df3-7bfa-836b-27a177c6a1eb","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-09-28T23:29:50.058Z"},{"id":"01a0ea5a-6e01-7af0-8021-52b76e39eb39","name":"manage-keys","description":null,"client_id":"01a0ea5a-6df3-7bfa-836b-27a177c6a1eb","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-09-28T23:29:50.058Z"},{"id":"01a0ea5a-6e02-710f-ae5d-e14769b93a92","name":"manage-sessions","description":null,"client_id":"01a0ea5a-6df3-7bfa-836b-27a177c6a1eb","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-09-28T23:29:50.058Z"},{"id":"01a0ea5a-6e00-71f9-b002-511a57dc59f3","name":"manage-tenant","description":null,"client_id":"01a0ea5a-6df3-7bfa-836b-27a177c6a1eb","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-09-28T23:29:50.058Z"},{"id":"01a0ea5a-6dfe-7770-8d9f-c403dd3516c9","name":"manage-users","description":null,"client_id":"01a0ea5a-6df3-7bfa-836b-27a177c6a1eb","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-09-28T23:29:50.058Z"},{"id":"01a0ea5a-6e04-7458-8cfe-07b8efa16913","name":"view-audit","description":null,"client_id":"01a0ea5a-6df3-7bfa-836b-27a177c6a1eb","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-09-28T23:29:50.058Z"},{"id":"01a0ea5a-6dfd-76d2-a044-761e38240bf1","name":"view-users","description":null,"client_id":"01a0ea5a-6df3-7bfa-836b-27a177c6a1eb","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-09-28T23:29:50.058Z"}]}
+{"items":[{"id":"01a10bd5-5842-7490-b382-85389129dc00","name":"manage-clients","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["manage-clients"]},{"id":"01a10bd5-5844-71e3-bed0-0949a7ea38f5","name":"manage-keys","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["manage-keys"]},{"id":"01a10bd5-5846-7dc3-b7ac-1ec2d0a29eaf","name":"manage-sessions","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["manage-sessions"]},{"id":"01a10bd5-5843-76ad-acd9-600944633961","name":"manage-tenant","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["manage-tenant"]},{"id":"01a10bd5-5841-7874-aa25-572fc2a878e5","name":"manage-users","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["view-users","manage-users"]},{"id":"01a10bd5-5847-76e9-a6c2-5035c8b1c8e0","name":"view-audit","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["view-audit"]},{"id":"01a10bd5-5840-7456-ae39-b63101320c03","name":"view-users","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["view-users"]}]}
 HTTP/1.1 409 Conflict
-x-request-id: 01a0ea5a-6f37-773b-b988-dadf32b2cf0d
+x-request-id: 01a10bd5-5aa9-7257-9841-8d55f52532fc
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 283
-Date: Mon, 28 Sep 2026 23:29:50 GMT
+Date: Mon, 05 Oct 2026 11:31:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and removing a composite from it would strip that from every administrator holding it","instance":"01a0ea5a-6f37-773b-b988-dadf32b2cf0d"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"tenant-admin is a capability of odudu-admin, this tenant's built-in admin client, and removing a composite from it would strip that from every administrator holding it","instance":"01a10bd5-5aa9-7257-9841-8d55f52532fc"}
 ```
 
 The trail holds the removal that landed; the guarded one wrote its
@@ -6265,25 +6274,25 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 composite writes answer the list's new one — `POST` beside its `204`, and
 `DELETE` beside its. `If-Match` is optional on both, as it has always been:
 honoured when sent, and a stale one is refused with `412` before anything
-changes. Captured against the sixth stack in `etags-demo`, on its
+changes. Captured against the fourteenth stack in `etags-demo`, on its
 `billing-viewer` and a second role `billing-reader`
-(`01a0ea5b-0e98-7055-aa80-e2e010791e41`), starting from no composites:
+(`01a10bd4-90c5-717d-b188-344280ce610d`), starting from no composites:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/etags-demo/roles/01a0ea4c-4996-7260-b924-f88ed7f2d974/composites
+  http://localhost:3082/admin/tenants/etags-demo/roles/01a10bd4-90e5-79e8-92bd-8f9024ae8829/composites
 curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -H 'If-Match: "0000"' -d '{"child_role_id":"01a0ea5b-0e98-7055-aa80-e2e010791e41"}' \
-  http://localhost:3080/admin/tenants/etags-demo/roles/01a0ea4c-4996-7260-b924-f88ed7f2d974/composites
+  -H 'If-Match: "0000"' -d '{"child_role_id":"01a10bd4-90c5-717d-b188-344280ce610d"}' \
+  http://localhost:3082/admin/tenants/etags-demo/roles/01a10bd4-90e5-79e8-92bd-8f9024ae8829/composites
 curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
-  -d '{"child_role_id":"01a0ea5b-0e98-7055-aa80-e2e010791e41"}' \
-  http://localhost:3080/admin/tenants/etags-demo/roles/01a0ea4c-4996-7260-b924-f88ed7f2d974/composites
+  -d '{"child_role_id":"01a10bd4-90c5-717d-b188-344280ce610d"}' \
+  http://localhost:3082/admin/tenants/etags-demo/roles/01a10bd4-90e5-79e8-92bd-8f9024ae8829/composites
 curl -sS -D - -o /dev/null -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/etags-demo/roles/01a0ea4c-4996-7260-b924-f88ed7f2d974/composites
+  http://localhost:3082/admin/tenants/etags-demo/roles/01a10bd4-90e5-79e8-92bd-8f9024ae8829/composites
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
-  http://localhost:3080/admin/tenants/etags-demo/roles/01a0ea4c-4996-7260-b924-f88ed7f2d974/composites/01a0ea5b-0e98-7055-aa80-e2e010791e41
+  http://localhost:3082/admin/tenants/etags-demo/roles/01a10bd4-90e5-79e8-92bd-8f9024ae8829/composites/01a10bd4-90c5-717d-b188-344280ce610d
 ```
 
 Each one's status line, `etag` header and body, in that order. The last is
@@ -6295,13 +6304,13 @@ HTTP/1.1 200 OK
 etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
 {"items":[]}
 HTTP/1.1 412 Precondition Failed
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0ea5b-0eb9-72db-9e3a-6b9166459b3c"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a10bd4-9189-73aa-8144-d537d3d723dc"}
 HTTP/1.1 204 No Content
-etag: "36230dc1673b58470bf74054983efe2a77511ad0698be114ad8c288ef1506f28"
+etag: "d3a2f8e19b84fd992be23207e179afe9b80112fabeb7a204f9d2eec6ae178147"
 HTTP/1.1 200 OK
-etag: "36230dc1673b58470bf74054983efe2a77511ad0698be114ad8c288ef1506f28"
+etag: "d3a2f8e19b84fd992be23207e179afe9b80112fabeb7a204f9d2eec6ae178147"
 HTTP/1.1 412 Precondition Failed
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0ea5b-0f09-7ab4-8fa7-fc613ca84389"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a10bd4-91db-7ba1-a35e-922a461fed09"}
 ```
 
 ## `PUT /roles/:id/default`
@@ -6334,39 +6343,40 @@ each with a `refused` row too — the create's with no `resource_id`, since
 no role came of it.
 `false` is never refused.
 
-Captured against the sixth stack in `composites-demo`, with roles
-`member` and `helpdesk-lead` created there for it. `member` marked default,
-then a subject `rosa2` created and its roles read:
+Captured against the fourteenth stack in `composites-demo`, with roles
+`member` and `helpdesk-lead`, the second nesting `manage-users`, created there
+for it. `member` marked default, then a subject `rosa2` created and its roles
+read:
 
 ```bash
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"default": true}' \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5b-b15f-7803-aef7-fc6af8f80938/default
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-5936-7527-bfc2-3cf4b330308c/default
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"username": "rosa2"}' \
-  http://localhost:3080/admin/tenants/composites-demo/subjects
+  http://localhost:3082/admin/tenants/composites-demo/subjects
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/composites-demo/subjects/01a0ea5b-b1e1-71b6-b486-66fbc3402de4/roles
+  http://localhost:3082/admin/tenants/composites-demo/subjects/01a10bd5-5aee-79fd-b43f-ff27c9c9ad54/roles
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0ea5b-b1b7-70f4-8ceb-8e199454e7e1
+x-request-id: 01a10bd5-5ac6-7cc9-a1dd-46e31828a947
 cache-control: no-store
-etag: "da747fbe36ef2917de0bff1862d18797c1534292d5c38eace8552cda52a65846"
+etag: "7307e57f6bc03684f7a54461133050391dee92ead772649fe511876eb395eebf"
 content-type: application/json; charset=utf-8
-content-length: 187
-Date: Mon, 28 Sep 2026 23:31:12 GMT
+content-length: 204
+Date: Mon, 05 Oct 2026 11:31:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a0ea5b-b15f-7803-aef7-fc6af8f80938","name":"member","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":true,"created_at":"2026-09-28T23:31:12.863Z"}
-{"id":"01a0ea5b-b1e1-71b6-b486-66fbc3402de4","type":"user","username":"rosa2","email":null,"enabled":true,"created_at":"2026-09-28T23:31:12.992Z"}
-{"items":[{"id":"01a0ea5b-b15f-7803-aef7-fc6af8f80938","name":"member","client_id":null,"client_key":null}]}
+{"id":"01a10bd5-5936-7527-bfc2-3cf4b330308c","name":"member","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":true,"created_at":"2026-10-05T11:31:33.813Z","admin_reach":[]}
+{"id":"01a10bd5-5aee-79fd-b43f-ff27c9c9ad54","type":"user","username":"rosa2","email":null,"enabled":true,"created_at":"2026-10-05T11:31:34.254Z"}
+{"items":[{"id":"01a10bd5-5936-7527-bfc2-3cf4b330308c","name":"member","client_id":null,"client_key":null}]}
 ```
 
 Unmarked, then a second subject `sven2`, who does not get it:
@@ -6376,19 +6386,19 @@ curl -sS -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"default": false}' \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5b-b15f-7803-aef7-fc6af8f80938/default
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-5936-7527-bfc2-3cf4b330308c/default
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"username": "sven2"}' \
-  http://localhost:3080/admin/tenants/composites-demo/subjects
+  http://localhost:3082/admin/tenants/composites-demo/subjects
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/composites-demo/subjects/01a0ea5b-b22b-738e-a166-efc08fda74cf/roles
+  http://localhost:3082/admin/tenants/composites-demo/subjects/01a10bd5-5b41-7890-9d02-bd6a9780bf21/roles
 ```
 
 ```
-{"id":"01a0ea5b-b15f-7803-aef7-fc6af8f80938","name":"member","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:31:12.863Z"}
-{"id":"01a0ea5b-b22b-738e-a166-efc08fda74cf","type":"user","username":"sven2","email":null,"enabled":true,"created_at":"2026-09-28T23:31:13.066Z"}
+{"id":"01a10bd5-5936-7527-bfc2-3cf4b330308c","name":"member","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.813Z","admin_reach":[]}
+{"id":"01a10bd5-5b41-7890-9d02-bd6a9780bf21","type":"user","username":"sven2","email":null,"enabled":true,"created_at":"2026-10-05T11:31:34.337Z"}
 {"items":[]}
 ```
 
@@ -6398,29 +6408,29 @@ holds both and more, then reading it back:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5b-b175-7800-a7c4-d9b8a1155f7d/composites
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-5958-77b1-b858-d9bda6ecb6d0/composites
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"default": true}' \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5b-b175-7800-a7c4-d9b8a1155f7d/default
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-5958-77b1-b858-d9bda6ecb6d0/default
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5b-b175-7800-a7c4-d9b8a1155f7d
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-5958-77b1-b858-d9bda6ecb6d0
 ```
 
 ```
-{"items":[{"id":"01a0ea5a-6dfe-7770-8d9f-c403dd3516c9","name":"manage-users","description":null,"client_id":"01a0ea5a-6df3-7bfa-836b-27a177c6a1eb","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-09-28T23:29:50.058Z"}]}
+{"items":[{"id":"01a10bd5-5841-7874-aa25-572fc2a878e5","name":"manage-users","description":null,"client_id":"01a10bd5-5836-749c-aa8a-4b597ca19dde","client_key":"odudu-admin","default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.533Z","admin_reach":["view-users","manage-users"]}]}
 HTTP/1.1 403 Forbidden
-x-request-id: 01a0ea5b-b26b-7882-b22f-6ea4f53ef4bb
+x-request-id: 01a10bd5-5b85-74dd-ac79-5d075d174832
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 233
-Date: Mon, 28 Sep 2026 23:31:13 GMT
+Date: Mon, 05 Oct 2026 11:31:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: manage-users, view-users","instance":"01a0ea5b-b26b-7882-b22f-6ea4f53ef4bb"}
-{"id":"01a0ea5b-b175-7800-a7c4-d9b8a1155f7d","name":"helpdesk-lead","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:31:12.885Z"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: manage-users, view-users","instance":"01a10bd5-5b85-74dd-ac79-5d075d174832"}
+{"id":"01a10bd5-5958-77b1-b858-d9bda6ecb6d0","name":"helpdesk-lead","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.847Z","admin_reach":["view-users","manage-users"]}
 ```
 
 `PATCH` still refuses the field, and says where it is set:
@@ -6430,11 +6440,11 @@ curl -sS -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"default_for_new_subjects": true}' \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5b-b15f-7803-aef7-fc6af8f80938
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-5936-7527-bfc2-3cf4b330308c
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"default_for_new_subjects: default_for_new_subjects changes who a role is silently handed to at signup; set it with PUT /admin/tenants/{tenant}/roles/{id}/default, not a general amendment","errors":[{"path":"default_for_new_subjects","message":"default_for_new_subjects changes who a role is silently handed to at signup; set it with PUT /admin/tenants/{tenant}/roles/{id}/default, not a general amendment"}],"instance":"01a0ea5b-b294-7c39-9629-fedeac7a8fee"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"default_for_new_subjects: default_for_new_subjects changes who a role is silently handed to at signup; set it with PUT /admin/tenants/{tenant}/roles/{id}/default, not a general amendment","errors":[{"path":"default_for_new_subjects","message":"default_for_new_subjects changes who a role is silently handed to at signup; set it with PUT /admin/tenants/{tenant}/roles/{id}/default, not a general amendment"}],"instance":"01a10bd5-5bb6-70bb-bb59-bd2350e8942f"}
 ```
 
 The trail, newest first — the refusal naming what `helpdesk-lead` would
@@ -6465,32 +6475,32 @@ curl -sS -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"default": true}' \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5b-b15f-7803-aef7-fc6af8f80938/default
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-5936-7527-bfc2-3cf4b330308c/default
 curl -sS -D - -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"child_role_id": "01a0ea5a-6dfd-76d2-a044-761e38240bf1"}' \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5b-b15f-7803-aef7-fc6af8f80938/composites
+  -d '{"child_role_id": "01a10bd5-5840-7456-ae39-b63101320c03"}' \
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-5936-7527-bfc2-3cf4b330308c/composites
 curl -sS -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"default": false}' \
-  http://localhost:3080/admin/tenants/composites-demo/roles/01a0ea5b-b15f-7803-aef7-fc6af8f80938/default
+  http://localhost:3082/admin/tenants/composites-demo/roles/01a10bd5-5936-7527-bfc2-3cf4b330308c/default
 ```
 
 ```
-{"id":"01a0ea5b-b15f-7803-aef7-fc6af8f80938","name":"member","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":true,"created_at":"2026-09-28T23:31:12.863Z"}
+{"id":"01a10bd5-5936-7527-bfc2-3cf4b330308c","name":"member","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":true,"created_at":"2026-10-05T11:31:33.813Z","admin_reach":[]}
 HTTP/1.1 403 Forbidden
-x-request-id: 01a0ea5b-baea-7e53-b950-9905874ea2e8
+x-request-id: 01a10bd5-5bf0-7460-9683-f92098742e2d
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 219
-Date: Mon, 28 Sep 2026 23:31:15 GMT
+Date: Mon, 05 Oct 2026 11:31:34 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: view-users","instance":"01a0ea5b-baea-7e53-b950-9905874ea2e8"}
-{"id":"01a0ea5b-b15f-7803-aef7-fc6af8f80938","name":"member","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-09-28T23:31:12.863Z"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: view-users","instance":"01a10bd5-5bf0-7460-9683-f92098742e2d"}
+{"id":"01a10bd5-5936-7527-bfc2-3cf4b330308c","name":"member","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.813Z","admin_reach":[]}
 ```
 
 ## `GET /groups`, `POST /groups`, `GET /groups/:id`, `PATCH /groups/:id` and `DELETE /groups/:id`
@@ -6521,29 +6531,47 @@ everything under it. Both a reparent and a `DELETE` are also held to what
 they take away ([a removal is judged by what it removes](#a-removal-is-judged-by-what-it-removes)).
 
 ```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "engineering", "description": "Everyone who builds the product"}' \
+  http://localhost:3082/admin/tenants/reparent-demo/groups
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "platform"}' \
+  http://localhost:3082/admin/tenants/reparent-demo/groups
 curl -sS -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"parent_id": "01a109ba-89ef-7d81-8daf-7759f4b5bf57"}' \
-  http://localhost:3082/admin/tenants/reparent-demo/groups/01a109ba-8a04-7ec4-bcc0-0b50ecc0b1be
+  -d '{"parent_id": "01a10bd5-db89-7667-aef3-c72b84512143"}' \
+  http://localhost:3082/admin/tenants/reparent-demo/groups/01a10bd5-dba5-774c-b5c2-1e04647f251c
+curl -sS -X PATCH \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"parent_id": "01a10bd5-dba5-774c-b5c2-1e04647f251c"}' \
+  http://localhost:3082/admin/tenants/reparent-demo/groups/01a10bd5-db89-7667-aef3-c72b84512143
 ```
 
-Against the twelfth stack, in a tenant `reparent-demo` made for it: two
+Against the fourteenth stack, in a tenant `reparent-demo` made for it: two
 roots, `engineering`, created with a `description`, and `platform`, then
 `platform` reparented under `engineering` — `path` is recomputed by the
-write, never sent — then the reverse, refused:
+write, never sent — then the reverse, refused. Each write answers the
+group's record, with the derived fields described
+[below](#what-a-group-hands-out-admin_reach-subtree_admin_reach-and-holds_default_group):
 
 ```
-{"id":"01a109ba-89ef-7d81-8daf-7759f4b5bf57","name":"engineering","description":"Everyone who builds the product","parent_id":null,"default_for_new_subjects":false,"path":"/engineering","created_at":"2026-10-05T01:43:02.382Z"}
-{"id":"01a109ba-8a04-7ec4-bcc0-0b50ecc0b1be","name":"platform","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/platform","created_at":"2026-10-05T01:43:02.404Z"}
-{"id":"01a109ba-8a04-7ec4-bcc0-0b50ecc0b1be","name":"platform","description":null,"parent_id":"01a109ba-89ef-7d81-8daf-7759f4b5bf57","default_for_new_subjects":false,"path":"/engineering/platform","created_at":"2026-10-05T01:43:02.404Z"}
-{"type":"about:blank","title":"Conflict","status":409,"detail":"would create a group reparent cycle","instance":"01a109ba-8a44-7d24-82fd-f8c1c9d049e7"}
+{"id":"01a10bd5-db89-7667-aef3-c72b84512143","name":"engineering","description":"Everyone who builds the product","parent_id":null,"default_for_new_subjects":false,"path":"/engineering","created_at":"2026-10-05T11:32:07.176Z","admin_reach":[],"subtree_admin_reach":[],"holds_default_group":false}
+{"id":"01a10bd5-dba5-774c-b5c2-1e04647f251c","name":"platform","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/platform","created_at":"2026-10-05T11:32:07.205Z","admin_reach":[],"subtree_admin_reach":[],"holds_default_group":false}
+{"id":"01a10bd5-dba5-774c-b5c2-1e04647f251c","name":"platform","description":null,"parent_id":"01a10bd5-db89-7667-aef3-c72b84512143","default_for_new_subjects":false,"path":"/engineering/platform","created_at":"2026-10-05T11:32:07.205Z","admin_reach":[],"subtree_admin_reach":[],"holds_default_group":false}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"would create a group reparent cycle","instance":"01a10bd5-dbe3-782c-9496-99259a4c56c7"}
 ```
 
 **Search** is `?name=`, the same prefix match `GET /roles` above describes,
 over `groups.name_search`; it matches a group's own name, not its `path`.
-Captured against the twelfth stack, whose `demo` held no groups until
-`engineering`, `Engineering-Ops` and `finance` were created there as roots:
+Captured against the fourteenth stack, whose `demo` was made for it and held
+no groups until `engineering`, `Engineering-Ops` and `finance` were created
+there as roots:
 
 ```bash
 curl -sS -X POST \
@@ -6564,9 +6592,9 @@ curl -sS -X POST \
 ```
 
 ```
-{"id":"01a109ba-8a68-719f-810b-8ff86cf1e25e","name":"engineering","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/engineering","created_at":"2026-10-05T01:43:02.503Z"}
-{"id":"01a109ba-8a7d-77c6-8977-e69091826379","name":"Engineering-Ops","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/Engineering-Ops","created_at":"2026-10-05T01:43:02.524Z"}
-{"id":"01a109ba-8a90-7ece-9415-2dff8a669cf6","name":"finance","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/finance","created_at":"2026-10-05T01:43:02.544Z"}
+{"id":"01a10bd5-dd65-7a80-911a-cc2c507e344a","name":"engineering","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/engineering","created_at":"2026-10-05T11:32:07.652Z","admin_reach":[],"subtree_admin_reach":[],"holds_default_group":false}
+{"id":"01a10bd5-dd85-7eb2-92de-c42a6d943235","name":"Engineering-Ops","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/Engineering-Ops","created_at":"2026-10-05T11:32:07.684Z","admin_reach":[],"subtree_admin_reach":[],"holds_default_group":false}
+{"id":"01a10bd5-dda0-7ad1-8532-1c46e6455c80","name":"finance","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/finance","created_at":"2026-10-05T11:32:07.712Z","admin_reach":[],"subtree_admin_reach":[],"holds_default_group":false}
 ```
 
 ```bash
@@ -6579,14 +6607,14 @@ curl -sS \
 ```
 
 ```
-{"items":[{"id":"01a109ba-8a68-719f-810b-8ff86cf1e25e","name":"engineering","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/engineering","created_at":"2026-10-05T01:43:02.503Z"},{"id":"01a109ba-8a7d-77c6-8977-e69091826379","name":"Engineering-Ops","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/Engineering-Ops","created_at":"2026-10-05T01:43:02.524Z"}]}
-{"items":[{"id":"01a109ba-8a68-719f-810b-8ff86cf1e25e","name":"engineering","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/engineering","created_at":"2026-10-05T01:43:02.503Z"}],"next":"eyJhZnRlciI6IjAxYTEwOWJhLThhNjgtNzE5Zi04MTBiLThmZjg2Y2YxZTI1ZSIsInNvcnQiOiJlbmdpbmVlcmluZyIsImNvbGxlY3Rpb24iOiJncm91cHMiLCJ0ZW5hbnRJZCI6IjAxYTEwOWI2LTFkOGQtNzhkYS05ZGYwLTBkMjhiNzJjZTJlOCIsImZpbHRlcnMiOiJzTVFsYy1tTnM3SUxXZHhsYk9YOUJKRlA0dzlSb05MMXlpSVJ0bmxrQnZNIn0.yP0xF9owpV-QdZI27JYEb_EH6gI-3WAqfQTmdDMOjZs"}
+{"items":[{"id":"01a10bd5-dd65-7a80-911a-cc2c507e344a","name":"engineering","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/engineering","created_at":"2026-10-05T11:32:07.652Z","admin_reach":[]},{"id":"01a10bd5-dd85-7eb2-92de-c42a6d943235","name":"Engineering-Ops","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/Engineering-Ops","created_at":"2026-10-05T11:32:07.684Z","admin_reach":[]}]}
+{"items":[{"id":"01a10bd5-dd65-7a80-911a-cc2c507e344a","name":"engineering","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/engineering","created_at":"2026-10-05T11:32:07.652Z","admin_reach":[]}],"next":"eyJhZnRlciI6IjAxYTEwYmQ1LWRkNjUtN2E4MC05MTFhLWNjMmM1MDdlMzQ0YSIsInNvcnQiOiJlbmdpbmVlcmluZyIsImNvbGxlY3Rpb24iOiJncm91cHMiLCJ0ZW5hbnRJZCI6IjAxYTEwYmQ1LWRkMjgtNzExMi1iZTZhLWFmZGNmZTI2ZDBiOSIsImZpbHRlcnMiOiJzTVFsYy1tTnM3SUxXZHhsYk9YOUJKRlA0dzlSb05MMXlpSVJ0bmxrQnZNIn0.G4t9F9W-MuaGWLnZ4KuJyJdzAWhVRLRMEiE_nfqDnUU"}
 ```
 
 Following that cursor, then replaying it with `?name=` dropped:
 
 ```bash
-CURSOR='eyJhZnRlciI6IjAxYTEwOWJhLThhNjgtNzE5Zi04MTBiLThmZjg2Y2YxZTI1ZSIsInNvcnQiOiJlbmdpbmVlcmluZyIsImNvbGxlY3Rpb24iOiJncm91cHMiLCJ0ZW5hbnRJZCI6IjAxYTEwOWI2LTFkOGQtNzhkYS05ZGYwLTBkMjhiNzJjZTJlOCIsImZpbHRlcnMiOiJzTVFsYy1tTnM3SUxXZHhsYk9YOUJKRlA0dzlSb05MMXlpSVJ0bmxrQnZNIn0.yP0xF9owpV-QdZI27JYEb_EH6gI-3WAqfQTmdDMOjZs'
+CURSOR='eyJhZnRlciI6IjAxYTEwYmQ1LWRkNjUtN2E4MC05MTFhLWNjMmM1MDdlMzQ0YSIsInNvcnQiOiJlbmdpbmVlcmluZyIsImNvbGxlY3Rpb24iOiJncm91cHMiLCJ0ZW5hbnRJZCI6IjAxYTEwYmQ1LWRkMjgtNzExMi1iZTZhLWFmZGNmZTI2ZDBiOSIsImZpbHRlcnMiOiJzTVFsYy1tTnM3SUxXZHhsYk9YOUJKRlA0dzlSb05MMXlpSVJ0bmxrQnZNIn0.G4t9F9W-MuaGWLnZ4KuJyJdzAWhVRLRMEiE_nfqDnUU'
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   "http://localhost:3082/admin/tenants/demo/groups?limit=1&name=eng&cursor=$CURSOR"
@@ -6596,8 +6624,8 @@ curl -sS \
 ```
 
 ```
-{"items":[{"id":"01a109ba-8a7d-77c6-8977-e69091826379","name":"Engineering-Ops","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/Engineering-Ops","created_at":"2026-10-05T01:43:02.524Z"}]}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a109ba-8af2-7925-8ed3-9e1269aedc70"}
+{"items":[{"id":"01a10bd5-dd85-7eb2-92de-c42a6d943235","name":"Engineering-Ops","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/Engineering-Ops","created_at":"2026-10-05T11:32:07.684Z","admin_reach":[]}]}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a10bd5-de07-741a-aa7c-320313479de0"}
 ```
 
 ### The list a user manager picks from
@@ -6612,24 +6640,25 @@ under `GET /roles` gives, where it was captured.
 no parent, so a tree is drawn a level at a time rather than from every page
 of groups; `GET /groups/count` takes it too, and it `AND`s with `?name=`. A
 value that is neither a UUID nor `root` is refused with `400`. Against the
-twelfth stack, in an `ops-demo` of its own holding `/finance` and
-`/finance/payables` alone, `$P` its `http://localhost:3082/admin/tenants/ops-demo`:
+fourteenth stack, in an `ops-demo` of its own holding `/finance` and
+`/finance/payables` alone, made there with `POST /groups`, `$P` its
+`http://localhost:3082/admin/tenants/ops-demo`:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=root"; echo
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=01a109ba-8b46-73aa-98e5-54a2d4abddc6"; echo
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups/count?parent=01a109ba-8b46-73aa-98e5-54a2d4abddc6"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=01a10bd5-e00d-7a85-b3b3-f80e06a9f438"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups/count?parent=01a10bd5-e00d-7a85-b3b3-f80e06a9f438"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=top"; echo
 ```
 
 ```
-{"items":[{"id":"01a109ba-8b46-73aa-98e5-54a2d4abddc6","name":"finance","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/finance","created_at":"2026-10-05T01:43:02.726Z"}]}
-{"items":[{"id":"01a109ba-8b5c-7d8c-9337-c6abb3a36eee","name":"payables","description":null,"parent_id":"01a109ba-8b46-73aa-98e5-54a2d4abddc6","default_for_new_subjects":false,"path":"/finance/payables","created_at":"2026-10-05T01:43:02.746Z"}]}
+{"items":[{"id":"01a10bd5-e00d-7a85-b3b3-f80e06a9f438","name":"finance","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/finance","created_at":"2026-10-05T11:32:08.332Z","admin_reach":[]}]}
+{"items":[{"id":"01a10bd5-e02b-7107-9e64-b6c0eb005c1a","name":"payables","description":null,"parent_id":"01a10bd5-e00d-7a85-b3b3-f80e06a9f438","default_for_new_subjects":false,"path":"/finance/payables","created_at":"2026-10-05T11:32:08.362Z","admin_reach":[]}]}
 {"count":1,"capped":false}
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring/parent must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\", querystring/parent must be equal to constant, querystring/parent must match a schema in anyOf","errors":[{"path":"parent","message":"must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\""},{"path":"parent","message":"must be equal to constant"},{"path":"parent","message":"must match a schema in anyOf"}],"instance":"01a109ba-8bab-7f79-8a9c-ececd8c32911"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/parent must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\", querystring/parent must be equal to constant, querystring/parent must match a schema in anyOf","errors":[{"path":"parent","message":"must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\""},{"path":"parent","message":"must be equal to constant"},{"path":"parent","message":"must match a schema in anyOf"}],"instance":"01a10bd5-e081-7442-a6c4-d5cc8676e0dd"}
 ```
 
-### What a group hands out: `admin_reach` and `subtree_admin_reach`
+### What a group hands out: `admin_reach`, `subtree_admin_reach` and `holds_default_group`
 
 Every group answer carries `admin_reach`: what membership of the group hands
 out — the roles it and every group above it map, expanded through
@@ -6637,41 +6666,55 @@ out — the roles it and every group above it map, expanded through
 page in one query. A group's own record, and each write that answers it, also
 carries `subtree_admin_reach`: what deleting it takes from the subjects in it
 and beneath it, by `capabilitiesOfSubtree`, which is what the delete is held
-to. A subject's own groups (`GET /subjects/:id/groups`) carry neither. Both
-are derived, outside the `ETag`, and refused by `PATCH` with a reason.
+to. A record also carries `holds_default_group`: whether this group or one
+beneath it is a default for new subjects, which is the condition that bars
+moving it under a parent handing out an admin capability, and mapping it such
+a role (`PUT /groups/:id/default` below). A subject's own groups
+(`GET /subjects/:id/groups`) carry none of the three, and a group's roles
+(`GET /groups/:id/roles`) carry each role's own `admin_reach`. All of them are
+derived, outside the `ETag`, and refused by `PATCH` with a reason.
 
-Captured against the thirteenth stack: `/ops` mapped to `audit-bundle` above,
-its child `/ops/oncall`, and `/ops/oncall/pager` mapped to
-`odudu-admin:manage-keys`, each made there for it. `/ops/oncall` maps nothing
-itself, hands out what `/ops` does, and would take `manage-keys` too:
+Captured against the fourteenth stack, in `reach-demo`: `/ops` mapped to
+`audit-bundle` above, its child `/ops/oncall`, and `/ops/oncall/pager` mapped to
+`odudu-admin:manage-keys`, each made there for it with `POST /groups` and
+`PUT /groups/:id/roles`. `/ops/oncall` maps nothing itself, hands out what
+`/ops` does, and would take `manage-keys` too:
 
 ```bash
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/groups/01a10b4e-8179-7ea3-8421-973b86298b00; echo
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=01a10b4e-815a-73f6-a8b9-5e5d6e3b6e89"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/groups/01a10bd6-2d5b-707e-9610-8bb4deb9a2d8; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=01a10bd6-2d3d-743c-bcd6-7b868d510375"; echo
 ```
 
 ```
-{"id":"01a10b4e-8179-7ea3-8421-973b86298b00","name":"oncall","description":null,"parent_id":"01a10b4e-815a-73f6-a8b9-5e5d6e3b6e89","default_for_new_subjects":false,"path":"/ops/oncall","created_at":"2026-10-05T09:04:16.759Z","admin_reach":["view-audit"],"subtree_admin_reach":["manage-keys","view-audit"]}
-{"items":[{"id":"01a10b4e-8179-7ea3-8421-973b86298b00","name":"oncall","description":null,"parent_id":"01a10b4e-815a-73f6-a8b9-5e5d6e3b6e89","default_for_new_subjects":false,"path":"/ops/oncall","created_at":"2026-10-05T09:04:16.759Z","admin_reach":["view-audit"]}]}
+{"id":"01a10bd6-2d5b-707e-9610-8bb4deb9a2d8","name":"oncall","description":null,"parent_id":"01a10bd6-2d3d-743c-bcd6-7b868d510375","default_for_new_subjects":false,"path":"/ops/oncall","created_at":"2026-10-05T11:32:28.121Z","admin_reach":["view-audit"],"subtree_admin_reach":["manage-keys","view-audit"],"holds_default_group":false}
+{"items":[{"id":"01a10bd6-2d5b-707e-9610-8bb4deb9a2d8","name":"oncall","description":null,"parent_id":"01a10bd6-2d3d-743c-bcd6-7b868d510375","default_for_new_subjects":false,"path":"/ops/oncall","created_at":"2026-10-05T11:32:28.121Z","admin_reach":["view-audit"]}]}
 ```
 
 ### A reparent onto a name already taken
 
 A move rewrites the group's `path`, so a parent already holding a group of
 the same name refuses it with `409`, before anything is written — the same
-refusal `POST /groups` gives for the same name. On the same stack, with a
-`/finance/oncall` made there beside `/ops/oncall`, then the group read back:
+refusal `POST /groups` gives for the same name. A sibling that takes the name
+between that check and the rewrite is refused by the unique index on `path`
+at the write, and answers the same `409`, with the move and any description
+change taken back together. On the same stack, with a `/finance/oncall` made
+there beside `/ops/oncall`, both listed first, then the move, then the group
+read back:
 
 ```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=01a10bd6-2e1f-7da2-b99d-8af7b7e7dc57" | jq -c '.items[] | {path}'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=01a10bd6-2d3d-743c-bcd6-7b868d510375" | jq -c '.items[] | {path}'
 curl -sS -D - -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{{"parent_id":"{ids['FIN']}"}}' $P/groups/{ids['ONCALL']}
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/groups/{ids['ONCALL']} | jq -c '{{path, parent_id}}'
+  -d '{"parent_id":"01a10bd6-2e1f-7da2-b99d-8af7b7e7dc57"}' $P/groups/01a10bd6-2d5b-707e-9610-8bb4deb9a2d8
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/groups/01a10bd6-2d5b-707e-9610-8bb4deb9a2d8 | jq -c '{path, parent_id}'
 ```
 
 ```
+{"path":"/finance/oncall"}
+{"path":"/ops/oncall"}
 HTTP/1.1 409 Conflict
-{"type":"about:blank","title":"Conflict","status":409,"detail":"a group named \"oncall\" already exists there","instance":"01a10b4e-a109-7562-8528-990e8a088db9"}
-{"path":"/ops/oncall","parent_id":"01a10b4e-815a-73f6-a8b9-5e5d6e3b6e89"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"a group named \"oncall\" already exists there","instance":"01a10bd6-2ee5-745c-bb66-a51d6aad8e30"}
+{"path":"/ops/oncall","parent_id":"01a10bd6-2d3d-743c-bcd6-7b868d510375"}
 ```
 
 ## `GET /groups/:id/roles` and `PUT /groups/:id/roles`
@@ -6694,46 +6737,54 @@ with `412`. The list is read under the same lock the replacement runs
 under, so two callers sent at once are serialised — the second sees what
 the first wrote rather than matching the same pre-write state.
 
-Captured against the sixth stack, on `demo`'s `engineering` group and
-`billing-viewer` role:
+Captured against the fourteenth stack, on `demo`'s `engineering` group from
+the search above, a role `billing-viewer` made there first, and `auditor`, a
+tenant role nesting `odudu-admin:view-audit`, made there with `POST /roles`
+and `POST /roles/:id/composites`. Each role in the answer carries its own
+`admin_reach`, so a page judging a change to the mapping reads one answer, not
+one role at a time:
 
 ```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "billing-viewer"}' \
+  http://localhost:3082/admin/tenants/demo/roles
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/demo/groups/01a0ea5c-86b5-7ca9-858a-559fbdf1f804/roles
-
+  http://localhost:3082/admin/tenants/demo/groups/01a10bd5-dd65-7a80-911a-cc2c507e344a/roles
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
-  -d '{"role_ids": ["01a0ea58-0e45-76eb-be5f-bd76e03e4b6e"]}' \
-  http://localhost:3080/admin/tenants/demo/groups/01a0ea5c-86b5-7ca9-858a-559fbdf1f804/roles
+  -d '{"role_ids": ["01a10bd5-de6e-7d18-9b8b-a05afda127f4", "01a10bd5-de26-730e-a24d-632a39dce6d1"]}' \
+  http://localhost:3082/admin/tenants/demo/groups/01a10bd5-dd65-7a80-911a-cc2c507e344a/roles
 ```
 
 ```
+{"id":"01a10bd5-de6e-7d18-9b8b-a05afda127f4","name":"billing-viewer","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:32:07.918Z","admin_reach":[]}
 HTTP/1.1 200 OK
-x-request-id: 01a0ea5c-fb6a-7248-8c7c-d360d9f0796b
+x-request-id: 01a10bd5-de7e-7fcd-b562-696280a5669c
 cache-control: no-store
 etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
 content-type: application/json; charset=utf-8
 content-length: 12
-Date: Mon, 28 Sep 2026 23:32:37 GMT
+Date: Mon, 05 Oct 2026 11:32:07 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"items":[]}
-
 HTTP/1.1 200 OK
-x-request-id: 01a0ea5c-fb7f-7262-8379-cbd7bc176905
+x-request-id: 01a10bd5-de99-75e5-a726-7d31cf47b705
 cache-control: no-store
-etag: "da18ee68fe8192f473f7a652ecf0a6643b7a07b68bd4bc028673d434328f8572"
+etag: "8cbd27e13aebad32e9e6ea5227559c618a61a1407f780d5f503373664b63563c"
 content-type: application/json; charset=utf-8
-content-length: 116
-Date: Mon, 28 Sep 2026 23:32:37 GMT
+content-length: 260
+Date: Mon, 05 Oct 2026 11:32:07 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a0ea58-0e45-76eb-be5f-bd76e03e4b6e","name":"billing-viewer","client_id":null,"client_key":null}]}
+{"items":[{"id":"01a10bd5-de26-730e-a24d-632a39dce6d1","name":"auditor","client_id":null,"client_key":null,"admin_reach":["view-audit"]},{"id":"01a10bd5-de6e-7d18-9b8b-a05afda127f4","name":"billing-viewer","client_id":null,"client_key":null,"admin_reach":[]}]}
 ```
 
 ### A removal is judged by what it removes
@@ -6865,36 +6916,44 @@ holding it ever waits on a row another writer holds while waiting for it
 (`default-reach-locks.int.test.ts`). An import is held to
 the same rule: a document marking a group default whose chain reaches a
 capability is refused at that group's `default_for_new_subjects`.
+A group's record says which groups that reaches: `holds_default_group` is
+`true` for a default group and for every group above it, since each of them
+hands its roles down to the default, so a client can refuse the move or the
+role before sending it.
 
-Against the twelfth stack, in a tenant `defaults-demo` made for it: a root
+Against the fourteenth stack, in a tenant `defaults-demo` made for it: a root
 group `staff`, made with a `description`, and its child `everyone`, neither
 mapping a role. `everyone` made a default, then a subject created
-afterwards, its memberships narrowed with `jq`:
+afterwards, its memberships narrowed with `jq`, then `staff` read, whose
+`holds_default_group` is now `true` for the default beneath it:
 
 ```bash
 curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -d '{"default": true}' \
-  http://localhost:3082/admin/tenants/defaults-demo/groups/01a109bc-662b-766f-8f14-e5b4a1a51a3f/default
+  http://localhost:3082/admin/tenants/defaults-demo/groups/01a10bd5-e21f-7145-8078-e79e986ea65b/default
 NEW=$(curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -d '{"username":"newcomer"}' \
   http://localhost:3082/admin/tenants/defaults-demo/subjects | jq -r .id)
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
   "http://localhost:3082/admin/tenants/defaults-demo/subjects/$NEW/groups" | jq -c '[.items[].path]'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:3082/admin/tenants/defaults-demo/groups/01a10bd5-e200-7d85-9686-6a25421a8bbf
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a109bc-664b-744f-8927-24e62e623096
+x-request-id: 01a10bd5-e269-7dba-a8c0-ef9c9a2001b2
 cache-control: no-store
-etag: "792933a119637c51969100574f6271796b49a02533c7762d1d2419b1e9d6887a"
+etag: "fe7d1de863b9501ca09f07797c2e77fc63bd0087460ebbf86d00a8a60fecd4ba"
 content-type: application/json; charset=utf-8
-content-length: 230
-Date: Mon, 05 Oct 2026 01:45:04 GMT
+content-length: 299
+Date: Mon, 05 Oct 2026 11:32:08 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a109bc-662b-766f-8f14-e5b4a1a51a3f","name":"everyone","description":null,"parent_id":"01a109bc-6614-7754-98ea-34b518dd251d","default_for_new_subjects":true,"path":"/staff/everyone","created_at":"2026-10-05T01:45:04.298Z"}
+{"id":"01a10bd5-e21f-7145-8078-e79e986ea65b","name":"everyone","description":null,"parent_id":"01a10bd5-e200-7d85-9686-6a25421a8bbf","default_for_new_subjects":true,"path":"/staff/everyone","created_at":"2026-10-05T11:32:08.861Z","admin_reach":[],"subtree_admin_reach":[],"holds_default_group":true}
 ["/staff/everyone"]
+{"id":"01a10bd5-e200-7d85-9686-6a25421a8bbf","name":"staff","description":"Everyone on the payroll","parent_id":null,"default_for_new_subjects":false,"path":"/staff","created_at":"2026-10-05T11:32:08.831Z","admin_reach":[],"subtree_admin_reach":[],"holds_default_group":true}
 ```
 
 Then the guard, from the other side: mapping `odudu-admin:view-users` to
@@ -6904,16 +6963,16 @@ capability — then `PATCH` naming the flag, then the trail of each group:
 ```bash
 curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -H "If-Match: $STAFF_ROLES_ETAG" \
-  -d '{"role_ids": ["01a109bc-65ea-7553-a99e-0ca5a23eec96"]}' \
-  http://localhost:3082/admin/tenants/defaults-demo/groups/01a109bc-6614-7754-98ea-34b518dd251d/roles; echo
+  -d '{"role_ids": ["01a10bd5-e1d0-7b1d-be18-f1d71f3f175e"]}' \
+  http://localhost:3082/admin/tenants/defaults-demo/groups/01a10bd5-e200-7d85-9686-6a25421a8bbf/roles; echo
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -d '{"default_for_new_subjects": false}' \
-  http://localhost:3082/admin/tenants/defaults-demo/groups/01a109bc-662b-766f-8f14-e5b4a1a51a3f; echo
+  http://localhost:3082/admin/tenants/defaults-demo/groups/01a10bd5-e21f-7145-8078-e79e986ea65b; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3082/admin/tenants/defaults-demo/audit?resource_type=group&resource_id=01a109bc-662b-766f-8f14-e5b4a1a51a3f" \
+  "http://localhost:3082/admin/tenants/defaults-demo/audit?resource_type=group&resource_id=01a10bd5-e21f-7145-8078-e79e986ea65b" \
   | jq -c '.items[] | {action, outcome, detail}'
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3082/admin/tenants/defaults-demo/audit?resource_type=group&resource_id=01a109bc-6614-7754-98ea-34b518dd251d&action=group.roles_set" \
+  "http://localhost:3082/admin/tenants/defaults-demo/audit?resource_type=group&resource_id=01a10bd5-e200-7d85-9686-6a25421a8bbf&action=group.roles_set" \
   | jq -c '.items[] | {action, outcome, detail}'
 ```
 
@@ -6921,8 +6980,8 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 answered just before:
 
 ```
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"a group every new subject joins may reach no admin capability, and this one would reach: view-users","instance":"01a109bc-66ad-7234-9ce3-034e92b1af82"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"default_for_new_subjects: default_for_new_subjects changes who joins a group silently at signup; set it with PUT /admin/tenants/{tenant}/groups/{id}/default, not a general amendment","errors":[{"path":"default_for_new_subjects","message":"default_for_new_subjects changes who joins a group silently at signup; set it with PUT /admin/tenants/{tenant}/groups/{id}/default, not a general amendment"}],"instance":"01a109bc-66c8-7883-bb51-f2a9172721f3"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"a group every new subject joins may reach no admin capability, and this one would reach: view-users","instance":"01a10bd5-e2e8-73aa-b8ac-cdf90e56e3b0"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"default_for_new_subjects: default_for_new_subjects changes who joins a group silently at signup; set it with PUT /admin/tenants/{tenant}/groups/{id}/default, not a general amendment","errors":[{"path":"default_for_new_subjects","message":"default_for_new_subjects changes who joins a group silently at signup; set it with PUT /admin/tenants/{tenant}/groups/{id}/default, not a general amendment"}],"instance":"01a10bd5-e308-7ac6-bb78-c61ceede78c0"}
 {"action":"group.default_set","outcome":"allowed","detail":{"default_for_new_subjects":{"after":true,"before":false}}}
 {"action":"group.create","outcome":"allowed","detail":{}}
 {"action":"group.roles_set","outcome":"refused","detail":{"denied":["view-users"]}}
