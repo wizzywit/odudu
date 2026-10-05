@@ -19,6 +19,7 @@ import { ReplaceUnfinished } from '#/features/tenants/view/ReplaceUnfinished.tsx
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
+import { ChecklistField } from '#/shared/view/ChecklistField.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { TextField } from '#/shared/view/Field.tsx';
 import { PageHeader } from '#/shared/view/PageHeader.tsx';
@@ -133,8 +134,8 @@ function Administrator({ step }: { step: AdministratorStep }) {
           <dl className={styles.fixed}>
             <dt>Username</dt>
             <dd>
-              <code>{step.username}</code>, created. What is left is the tenant-admin role and the
-              one-time password.
+              <code>{step.username}</code>, created. What is left is what they hold and the one-time
+              password.
             </dd>
           </dl>
         ) : (
@@ -157,6 +158,16 @@ function Administrator({ step }: { step: AdministratorStep }) {
             />
           </>
         )}
+        {step.choosing ? (
+          <ChecklistField
+            label="What they hold"
+            description="Full is every capability. A part of it is any set of capabilities, each changeable later from the tenant's Administrators tab. You can give only what you hold."
+            options={step.holdingOptions}
+            value={step.holdings}
+            error={step.holdingsError}
+            onChange={step.chooseHoldings}
+          />
+        ) : null}
         {step.needs.map((capability) => (
           <CapabilityNote key={capability} capability={capability}>
             Creating the administrator
@@ -192,7 +203,10 @@ function Done({ step, onStartOver }: { step: DoneStep; onStartOver: () => void }
     return (
       <div className={styles.form}>
         <p className={styles.lead}>
-          <code>{step.username}</code> is a system administrator, holding tenant-admin in{' '}
+          <code>{step.username}</code>{' '}
+          {step.holds === 'tenant-admin'
+            ? 'is a system administrator, holding tenant-admin in'
+            : `holds ${step.holds} in`}{' '}
           <code>system</code>, and changes the one-time password at their first sign-in.
         </p>
         <div className={styles.actions}>
@@ -206,8 +220,8 @@ function Done({ step, onStartOver }: { step: DoneStep; onStartOver: () => void }
   return (
     <div className={styles.form}>
       <p className={styles.lead}>
-        <code>{step.tenant}</code> has an administrator, <code>{step.username}</code>, who holds
-        tenant-admin and changes the one-time password at their first sign-in.
+        <code>{step.tenant}</code> has an administrator, <code>{step.username}</code>, who holds{' '}
+        {step.holds} and changes the one-time password at their first sign-in.
       </p>
       <div className={styles.actions}>
         <ButtonLink href={step.recordHref} variant="primary">

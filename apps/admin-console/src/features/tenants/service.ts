@@ -86,8 +86,10 @@ export type Creation =
       email: string;
       subjectId: string | null;
       granted: boolean;
+      // What the grant gives: tenant-admin, or a set of capabilities.
+      holdings: readonly string[];
     }
-  | { step: 'done'; tenant: string; username: string };
+  | { step: 'done'; tenant: string; username: string; holdings?: readonly string[] | undefined };
 
 export const FRESH_CREATION: Creation = { step: 'tenant', name: '', displayName: '' };
 
@@ -103,6 +105,7 @@ export function administratorOf(
     email: '',
     subjectId: null,
     granted: false,
+    holdings: ['tenant-admin'],
   };
 }
 

@@ -30,17 +30,88 @@ function routes() {
 
 const AT = '/console/system/tenants/acme?tab=administrators';
 
-it('lists everybody holding tenant-admin, and says the last one cannot be removed', async () => {
-  const { sent } = renderConsoleAt(AT, routes());
-  expect(await screen.findByRole('grid', { name: 'Administrators of acme' })).toHaveTextContent(
-    'grace@acme.test',
+const HOLDINGS = [
+  'tenant-admin',
+  'view-users',
+  'manage-users',
+  'manage-clients',
+  'manage-tenant',
+  'manage-keys',
+  'manage-sessions',
+  'view-audit',
+];
+
+it('lists everybody holding any admin capability, and says the last one cannot be removed', async () => {
+  const { sent } = renderConsoleAt(AT, {
+    ...routes(),
+    [`GET ${ADMIN}/acme/subjects/${GRACE.id}/effective-roles`]: json({
+      items: [
+        {
+          id: 'r-full',
+          name: 'tenant-admin',
+          client_id: 'c-admin',
+          client_key: 'odudu-admin',
+          via: [{ kind: 'group', group_id: 'g', group_path: '/admins' }],
+        },
+      ],
+    }),
+  });
+  const list = await screen.findByRole('list', { name: 'Administrators of acme' });
+  expect(list).toHaveTextContent('grace');
+  expect(await within(list).findByRole('list', { name: 'What grace holds' })).toHaveTextContent(
+    'Full (tenant-admin) · through group /admins',
   );
   expect(await screen.findByText('1 administrator')).toBeVisible();
   expect(
     screen.getByText(/the last one cannot be disabled, deleted, or lose tenant-admin/u),
   ).toBeVisible();
-  const reads = sent.filter((s) => s.path.startsWith(`${ADMIN}/acme/subjects`));
-  expect(reads.map((s) => s.search.get('capability'))).toEqual(['tenant-admin', 'tenant-admin']);
+  const reads = sent.filter((s) => s.path === `${ADMIN}/acme/subjects`);
+  expect(reads.map((s) => s.search.get('capability')).sort()).toEqual([...HOLDINGS].sort());
+});
+
+it("changes a holder's capabilities in place", async () => {
+  const user = userEvent.setup();
+  const roles = `${ADMIN}/acme/subjects/${GRACE.id}/roles`;
+  const full = {
+    id: 'r-full',
+    name: 'tenant-admin',
+    client_id: 'c-admin',
+    client_key: 'odudu-admin',
+  };
+  const { sent } = renderConsoleAt(AT, {
+    ...routes(),
+    [`GET ${roles}`]: json({ items: [full] }, 200, { etag: '"r1"' }),
+    [`PUT ${roles}`]: json({ items: [] }, 200, { etag: '"r2"' }),
+    [`GET ${ADMIN}/acme/roles`]: json({
+      items: [
+        {
+          ...full,
+          description: null,
+          default_for_new_subjects: false,
+          created_at: GRACE.created_at,
+        },
+        {
+          ...full,
+          id: 'r-audit',
+          name: 'view-audit',
+          description: null,
+          default_for_new_subjects: false,
+          created_at: GRACE.created_at,
+        },
+      ],
+    }),
+  });
+  await user.click(await screen.findByRole('button', { name: 'Change grace’s capabilities' }));
+  const section = await screen.findByRole('region', { name: 'Admin capabilities' });
+  await user.click(await within(section).findByRole('checkbox', { name: 'Full (tenant-admin)' }));
+  await user.click(within(section).getByRole('checkbox', { name: 'view-audit' }));
+  await user.click(within(section).getByRole('button', { name: 'Save Admin capabilities' }));
+  await waitFor(() => {
+    expect(sent.find((s) => s.method === 'PUT')).toMatchObject({
+      ifMatch: '"r1"',
+      body: { role_ids: ['r-audit'] },
+    });
+  });
 });
 
 it('adds an administrator through the guided step, resumed for this tenant', async () => {
@@ -64,7 +135,7 @@ it('offers no add without the capabilities it needs, and says once on the page w
   expect(await screen.findByRole('note')).toHaveTextContent(
     'You can view tenants but not add their administrators (needs manage-users, manage-clients, manage-keys, manage-sessions and view-audit).',
   );
-  await screen.findByRole('grid', { name: 'Administrators of acme' });
+  await screen.findByRole('list', { name: 'Administrators of acme' });
   expect(screen.queryByRole('button', { name: 'Add an administrator' })).toBeNull();
   expect(screen.getAllByRole('note')).toHaveLength(1);
 });
@@ -77,7 +148,7 @@ it('names manage-tenants for system, which its last-administrator guard counts',
       [`GET ${ADMIN}/system/subjects/count`]: json({ count: 1, capped: false }),
     }),
   });
-  const lead = await screen.findByText(/holds manage-tenants in system/u);
+  const lead = await screen.findByText(/holds an admin capability in system/u);
   expect(lead).toHaveTextContent(
     'the last one cannot be disabled, deleted, or lose manage-tenants',
   );
@@ -88,9 +159,9 @@ it('names manage-tenants for system, which its last-administrator guard counts',
   await waitFor(() => {
     expect(
       sent
-        .filter((s) => s.path.startsWith(`${ADMIN}/system/subjects`))
+        .filter((s) => s.path === `${ADMIN}/system/subjects`)
         .map((s) => s.search.get('capability')),
-    ).toEqual(['manage-tenants', 'manage-tenants']);
+    ).toContain('manage-tenants');
   });
 });
 
@@ -154,7 +225,7 @@ it('passes axe in both themes', async () => {
   expect(
     await axeInBothThemes(
       () => consoleAt(AT, routes()).element,
-      () => screen.findByRole('grid', { name: 'Administrators of acme' }),
+      () => screen.findByRole('list', { name: 'Administrators of acme' }),
     ),
   ).toEqual({ light: [], dark: [] });
 });

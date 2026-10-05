@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
-import { inTurn, json, offline, problem } from '#/testing/fakeTransport.ts';
+import { inTurn, json, offline, problem, type Sent } from '#/testing/fakeTransport.ts';
 import { consoleAt, renderConsoleAt, resetConsole, whoami } from '#/testing/renderConsole.tsx';
 import { ADMIN, administratorRoutes, systemRoutes, tenant } from '#/testing/tenantsFixtures.ts';
 
@@ -505,6 +505,40 @@ it('adds an administrator to an existing tenant under its record, and offers ano
   expect(screen.queryByRole('button', { name: 'Create another tenant' })).toBeNull();
   await user.click(screen.getByRole('button', { name: 'Add another administrator' }));
   expect(await screen.findByRole('textbox', { name: 'Username' })).toHaveValue('');
+});
+
+it('adds an administrator holding chosen capabilities rather than Full', async () => {
+  const user = userEvent.setup();
+  const audit = {
+    id: 'r-audit',
+    name: 'view-audit',
+    description: null,
+    client_id: 'c-admin',
+    client_key: 'odudu-admin',
+    default_for_new_subjects: false,
+    created_at: '2026-09-28T08:41:53.858Z',
+  };
+  const { sent } = renderConsoleAt(
+    ACME_AT,
+    routes({
+      [`GET ${ADMIN}/acme/roles`]: (request: Sent) =>
+        json({ items: request.search.get('name') === 'view-audit' ? [audit] : [] })(request),
+    }),
+  );
+  const holds = await screen.findByRole('group', { name: 'What they hold' });
+  expect(within(holds).getByRole('checkbox', { name: 'Full (tenant-admin)' })).toBeChecked();
+  await user.click(within(holds).getByRole('checkbox', { name: 'Full (tenant-admin)' }));
+  await user.type(screen.getByRole('textbox', { name: 'Username' }), 'grace');
+  await user.click(screen.getByRole('button', { name: 'Create administrator' }));
+  expect(await screen.findByText('Choose Full, or at least one capability.')).toBeVisible();
+  expect(sent.some((s) => s.method === 'POST')).toBe(false);
+  await user.click(within(holds).getByRole('checkbox', { name: 'view-audit' }));
+  await user.click(screen.getByRole('button', { name: 'Create administrator' }));
+  await screen.findByRole('dialog', { name: "grace's one-time password" });
+  expect(sent.find((s) => s.method === 'PUT')).toMatchObject({
+    body: { role_ids: ['r-default', 'r-audit'] },
+  });
+  expect(sessionStorage.getItem(ACME_KEY)).toContain('"holdings":["view-audit"]');
 });
 
 it("resumes a tenant's administrator after a reload, and only that tenant's", async () => {

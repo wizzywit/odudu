@@ -6,7 +6,7 @@ import {
   useRefusal,
   useRereadAuthority,
 } from '#/features/session/index.ts';
-import { subjectHref } from '#/features/subjects/index.ts';
+import { subjectTabHref } from '#/features/subjects/index.ts';
 import { useAdministratorChange } from '#/features/system-admins/repository/useAdministratorChange.ts';
 import { usePickerHolders } from '#/features/system-admins/repository/usePickerHolders.ts';
 import { useSubjectPicker } from '#/features/system-admins/repository/useSubjectPicker.ts';
@@ -38,7 +38,7 @@ import type { ResourceListState } from '#/shared/service/resourceList.ts';
 export type RevokeProblem =
   | { kind: 'refused'; text: string }
   // Held only indirectly; the subject's own tabs are where it can be changed.
-  | { kind: 'not-direct'; name: string; subjectHref: string };
+  | { kind: 'not-direct'; name: string; groupsHref: string; rolesHref: string };
 
 export interface RevokeDialog {
   title: string;
@@ -53,6 +53,8 @@ export interface SystemAdministrators {
   onlyHolder: { id: string; reason: string } | null;
   createNeeds: readonly AdminCapability[];
   changeNeeds: readonly AdminCapability[];
+  // What changing one holder's capabilities needs that whoami says is missing.
+  capabilityNeeds: readonly AdminCapability[];
   // The changes whoami rules out, for the page's one line.
   blocked: Change | null;
   begin: BeginAdministrator;
@@ -137,6 +139,7 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
     onlyHolder: only === null ? null : { id: only.id, reason: onlyHolderReason(only) },
     createNeeds,
     changeNeeds,
+    capabilityNeeds: lacking(authority, ['manage-users']),
     blocked,
     begin: {
       ...begin,
@@ -206,7 +209,8 @@ export function useSystemAdministratorsPage(): SystemAdministrators {
             setProblem({
               kind: 'not-direct',
               name,
-              subjectHref: subjectHref(SYSTEM_TENANT, target.id),
+              groupsHref: subjectTabHref(SYSTEM_TENANT, target.id, 'groups'),
+              rolesHref: subjectTabHref(SYSTEM_TENANT, target.id, 'roles'),
             });
             return;
           }

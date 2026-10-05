@@ -6,7 +6,9 @@ import {
   type RevokeProblem,
   type SystemAdministrators,
 } from '#/features/system-admins/usecase/useSystemAdministratorsPage.ts';
+import { CapabilityHolders } from '#/features/subjects/index.ts';
 import { SystemGate } from '#/features/tenants/index.ts';
+import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 import { Button } from '#/shared/view/Button.tsx';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
 import type { Column } from '#/shared/view/DataTable.tsx';
@@ -119,12 +121,30 @@ function Grant({ page }: { page: SystemAdministrators }) {
   );
 }
 
+function Capabilities({ canChange }: { canChange: boolean }) {
+  const heading = useId();
+  return (
+    <section aria-labelledby={heading} className={styles.grant}>
+      <h2 id={heading} className={styles.heading}>
+        Every admin capability in system
+      </h2>
+      <p className={styles.lead}>
+        Everybody in <code>system</code> holding any admin capability, Full or a part of it, with
+        what each holds and how. A capability held only in <code>system</code> reaches no other
+        tenant unless it is manage-tenants.
+      </p>
+      <CapabilityHolders tenant={SYSTEM_TENANT} canChange={canChange} />
+    </section>
+  );
+}
+
 function Problem({ problem }: { problem: RevokeProblem }) {
   if (problem.kind === 'refused') return problem.text;
   return (
     <>
-      {`Nothing was changed: ${problem.name} holds manage-tenants only through a group or a role that nests it. Change that group or role from `}
-      <Link href={problem.subjectHref}>{`${problem.name}’s record`}</Link>.
+      {`Nothing was changed: ${problem.name} holds manage-tenants only through a group or a role that nests it. Change that group or role on ${problem.name}’s `}
+      <Link href={problem.groupsHref}>Groups</Link> or <Link href={problem.rolesHref}>Roles</Link>{' '}
+      tab.
     </>
   );
 }
@@ -194,6 +214,7 @@ function Administrators() {
           </p>
         )}
         {list.status === 'ready' && page.changeNeeds.length === 0 ? <Grant page={page} /> : null}
+        <Capabilities canChange={page.capabilityNeeds.length === 0} />
       </div>
       <ConfirmDialog
         isOpen={revoking !== null}

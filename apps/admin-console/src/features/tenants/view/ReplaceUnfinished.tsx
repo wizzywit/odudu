@@ -17,7 +17,7 @@ export function ReplaceUnfinished({
       consequence={
         unfinished === null
           ? ''
-          : `${unfinished.username} was created in ${unfinished.tenant}, but has not yet been given ${unfinished.granted ? 'a one-time password' : 'tenant-admin and a one-time password'}. Starting over leaves ${unfinished.username} as they are; keep it to finish them first.`
+          : `${unfinished.username} was created in ${unfinished.tenant}, but has not yet been given ${unfinished.granted ? 'a one-time password' : 'what they hold and a one-time password'}. Starting over leaves ${unfinished.username} as they are; keep it to finish them first.`
       }
       confirmLabel="Replace it"
       tone="danger"

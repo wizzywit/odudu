@@ -112,7 +112,10 @@ it('lists who holds manage-tenants in system, however they hold it', async () =>
   expect(await screen.findByText('2 system administrators')).toBeVisible();
   expect(screen.getByText(/directly, through a group or under another role/u)).toBeVisible();
   const reads = sent.filter((s) => s.path === `${S}/subjects`);
-  expect(reads[0]?.search.get('capability')).toBe('manage-tenants');
+  // The list's own read, apart from the holders of every capability below it.
+  expect(reads.find((s) => s.search.get('limit') === null)?.search.get('capability')).toBe(
+    'manage-tenants',
+  );
 });
 
 it("creates one through system's guided administrator step", async () => {
@@ -366,11 +369,15 @@ it('changes nothing for a holder who holds it only through a group or another ro
   await user.type(within(dialog).getByRole('textbox'), 'ada{Enter}');
   const alert = await within(dialog).findByRole('alert');
   expect(alert).toHaveTextContent(
-    'Nothing was changed: ada holds manage-tenants only through a group or a role that nests it. Change that group or role from ada’s record.',
+    'Nothing was changed: ada holds manage-tenants only through a group or a role that nests it. Change that group or role on ada’s Groups or Roles tab.',
   );
-  expect(within(alert).getByRole('link', { name: 'ada’s record' })).toHaveAttribute(
+  expect(within(alert).getByRole('link', { name: 'Groups' })).toHaveAttribute(
     'href',
-    '/console/system/subjects/s-ada',
+    '/console/system/subjects/s-ada?tab=groups',
+  );
+  expect(within(alert).getByRole('link', { name: 'Roles' })).toHaveAttribute(
+    'href',
+    '/console/system/subjects/s-ada?tab=roles',
   );
   expect(sent.some((s) => s.method === 'PUT')).toBe(false);
   // Pressing it again would change nothing again.
@@ -453,4 +460,19 @@ it('passes axe in both themes: the list, the only holder, and the revoke dialog'
       },
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('lists every holder of an admin capability in system, each open for change in place', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, routes());
+  const holders = await screen.findByRole('list', { name: 'Administrators of system' });
+  expect(
+    within(holders)
+      .getAllByRole('link')
+      .map((link) => link.textContent),
+  ).toEqual(['ada', 'root']);
+  await user.click(within(holders).getByRole('button', { name: 'Change ada’s capabilities' }));
+  expect(
+    await within(holders).findByRole('checkbox', { name: 'Full (tenant-admin)' }),
+  ).toBeVisible();
 });

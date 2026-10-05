@@ -24,6 +24,14 @@ import {
   ADMINISTRATOR_REQUEST_NEEDS,
   administratorNeeds,
 } from '#/shared/service/administrators.ts';
+import {
+  CAPABILITY_TEXT,
+  ceilingOf,
+  fullText,
+  holdingLabel,
+  holdingsIn,
+  includedBy,
+} from '#/shared/service/capabilities.ts';
 import { fieldErrorsOf } from '#/shared/service/fieldErrors.ts';
 import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
 import type { GatewayFailure } from '#/shared/transport/gateway.ts';
@@ -66,6 +74,13 @@ export interface AdministratorStep {
   busy: boolean;
   // What whoami says is missing for the steps' requests, named before any is sent.
   needs: readonly AdminCapability[];
+  // Offered while a further administrator is still to be granted: Full or a
+  // set of capabilities. A new tenant's first administrator is given Full.
+  choosing: boolean;
+  holdings: readonly string[];
+  holdingOptions: readonly HoldingOption[];
+  holdingsError: string | undefined;
+  chooseHoldings: (holdings: readonly string[]) => void;
   secret: string | null;
   editUsername: (username: string) => void;
   editEmail: (email: string) => void;
@@ -74,10 +89,20 @@ export interface AdministratorStep {
   closeSecret: () => void;
 }
 
+export interface HoldingOption {
+  id: string;
+  label: string;
+  description: string;
+  note: string | null;
+  unavailable: string | null;
+}
+
 export interface DoneStep {
   step: 'done';
   tenant: string;
   username: string;
+  // What they were given, as a sentence fragment: "tenant-admin".
+  holds: string;
   // Starting over from a tenant's own administrator adds another to it.
   again: 'tenant' | 'administrator';
   systemAdminsHref: string | null;
@@ -99,6 +124,12 @@ export interface NewTenant {
   replacing: Unfinished | null;
   replace: () => void;
   keep: () => void;
+}
+
+function holdsText(holdings: readonly string[]): string {
+  if (holdings.includes('tenant-admin') || holdings.length === 0) return 'tenant-admin';
+  if (holdings.length === 1) return String(holdings[0]);
+  return `${holdings.slice(0, -1).join(', ')} and ${String(holdings.at(-1))}`;
 }
 
 function systemAdminsOf(tenant: string): string | null {
@@ -264,6 +295,18 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
       authority === undefined
         ? []
         : administratorNeeds(step.tenant, step).filter((c) => !holds(authority, c));
+    const choosing = step.origin === 'existing' && !step.granted;
+    const holdingOptions = holdingsIn(step.tenant).map((holding) => {
+      const carrier = includedBy(holding, step.holdings);
+      return {
+        id: holding,
+        label: holdingLabel(holding),
+        description: holding === 'tenant-admin' ? fullText(step.tenant) : CAPABILITY_TEXT[holding],
+        note: carrier === null ? null : `Carried by ${holdingLabel(carrier)}.`,
+        unavailable:
+          authority === undefined ? null : ceilingOf(step.tenant, holding, authority.capabilities),
+      };
+    });
     const record = (done: { subjectId: string; granted: boolean }): void => {
       update({ ...step, ...done });
     };
@@ -284,6 +327,17 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
         unconfirmed,
         busy: administrator.busy || checking,
         needs,
+        choosing,
+        holdings: step.holdings,
+        holdingOptions,
+        holdingsError: errors.holdings,
+        chooseHoldings: (next) => {
+          if (!choosing) return;
+          setErrors((was) =>
+            Object.fromEntries(Object.entries(was).filter(([field]) => field !== 'holdings')),
+          );
+          update({ ...step, holdings: holdingsIn(step.tenant).filter((h) => next.includes(h)) });
+        },
         secret: administrator.secret,
         editUsername: (next) => {
           if (step.subjectId === null) update({ ...step, username: next.trim() });
@@ -295,6 +349,10 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
           if (needs.length > 0) return;
           if (step.username === '') {
             setErrors({ username: 'Enter a username for the administrator.' });
+            return;
+          }
+          if (step.holdings.length === 0) {
+            setErrors({ holdings: 'Choose Full, or at least one capability.' });
             return;
           }
           setErrors({});
@@ -351,7 +409,12 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
         },
         closeSecret: () => {
           administrator.close();
-          move({ step: 'done', tenant: step.tenant, username: step.username });
+          move({
+            step: 'done',
+            tenant: step.tenant,
+            username: step.username,
+            holdings: step.holdings,
+          });
         },
       },
     };
@@ -363,6 +426,7 @@ export function useNewTenant(flow: CreationFlow): NewTenant {
       step: 'done',
       tenant: creation.tenant,
       username: creation.username,
+      holds: holdsText(creation.holdings ?? ['tenant-admin']),
       again: flow === 'tenant' ? 'tenant' : 'administrator',
       systemAdminsHref: systemAdminsOf(creation.tenant),
       recordHref: tenantHref(creation.tenant),

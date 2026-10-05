@@ -14,7 +14,7 @@ import {
 import { createSubject, findSubject, issuePassword } from '#/shared/adapter/administrators.ts';
 import {
   defect,
-  grantTenantAdmin,
+  grantHoldings,
   refusedAt,
   type Refused,
 } from '#/shared/repository/administratorRoles.ts';
@@ -100,6 +100,7 @@ export interface AdministratorRun {
   email: string;
   subjectId: string | null;
   granted: boolean;
+  holdings: readonly string[];
   // Told as each call lands, so a reload between two resumes at the next.
   onProgress: (done: { subjectId: string; granted: boolean }) => void;
   // Told once of the call that failed, as it fails.
@@ -135,7 +136,7 @@ async function runCall(
     };
   }
   if (call === 'grant') {
-    const refused = await grantTenantAdmin(gateway, run.tenant, subjectId);
+    const refused = await grantHoldings(gateway, run.tenant, subjectId, run.holdings);
     return refused === null ? { ok: true } : { ok: false, refused };
   }
   const issued = await issuePassword(gateway, run.tenant, subjectId);
@@ -168,7 +169,7 @@ async function runAdministrator(
   return failure;
 }
 
-// The subject, its tenant-admin grant and its one-time password, each one
+// The subject, its grant and its one-time password, each one
 // call, the password handed to its dialog alone.
 export function useFirstAdministrator(): SecretOnce<AdministratorRun, null> {
   return useSecretOnce({

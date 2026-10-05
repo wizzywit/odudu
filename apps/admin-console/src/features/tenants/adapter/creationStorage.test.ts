@@ -11,6 +11,7 @@ const HALFWAY: Creation = {
   email: '',
   subjectId: 's1',
   granted: false,
+  holdings: ['tenant-admin'],
 };
 
 afterEach(() => {
@@ -39,6 +40,12 @@ it("keeps each flow apart, and each tenant's administrator apart, so none opens 
   expect(loadCreation('system/s0', 'administrator/globex')).toBeNull();
   storeCreation('system/s0', null, 'system-administrator');
   storeCreation('system/s0', null, 'administrator/acme');
+  expect(loadCreation('system/s0', 'tenant')).toEqual(HALFWAY);
+});
+
+it('reads one stored before a choice of capabilities was offered as Full', () => {
+  const older = Object.fromEntries(Object.entries(HALFWAY).filter(([key]) => key !== 'holdings'));
+  sessionStorage.setItem(KEY, JSON.stringify({ owner: 'system/s0', creation: older }));
   expect(loadCreation('system/s0', 'tenant')).toEqual(HALFWAY);
 });
 

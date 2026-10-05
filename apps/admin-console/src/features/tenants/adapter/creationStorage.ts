@@ -18,8 +18,14 @@ const creationSchema = z.discriminatedUnion('step', [
     email: z.string(),
     subjectId: z.string().nullable(),
     granted: z.boolean(),
+    holdings: z.array(z.string()).default(['tenant-admin']),
   }),
-  z.object({ step: z.literal('done'), tenant: z.string(), username: z.string() }),
+  z.object({
+    step: z.literal('done'),
+    tenant: z.string(),
+    username: z.string(),
+    holdings: z.array(z.string()).optional(),
+  }),
 ]);
 
 const storedSchema = z.object({ owner: z.string(), creation: creationSchema });

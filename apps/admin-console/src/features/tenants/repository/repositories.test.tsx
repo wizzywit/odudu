@@ -62,6 +62,7 @@ it('creates the administrator, grants tenant-admin on the built-in client, then 
       email: '',
       subjectId: null,
       granted: false,
+      holdings: ['tenant-admin'],
       onProgress: progress,
       onFailure: failed,
     });
@@ -99,6 +100,7 @@ it('resumes where a reload left it: a granted subject is only issued its passwor
       email: '',
       subjectId: SUBJECT_ID,
       granted: true,
+      holdings: ['tenant-admin'],
       onProgress: () => undefined,
       onFailure: () => undefined,
     });
@@ -125,6 +127,7 @@ it('stops at a refused call, reporting it, with what landed already told', async
       email: '',
       subjectId: null,
       granted: false,
+      holdings: ['tenant-admin'],
       onProgress: progress,
       onFailure: failed,
     });

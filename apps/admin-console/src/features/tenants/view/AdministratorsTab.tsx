@@ -1,47 +1,18 @@
-import type { Subject } from '@odudu/contracts/admin';
 import { Link } from 'react-aria-components';
+import { CapabilityHolders } from '#/features/subjects/index.ts';
 import { useTenantAdministrators } from '#/features/tenants/usecase/useTenantAdministrators.ts';
+import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 import { Button } from '#/shared/view/Button.tsx';
-import { Count } from '#/shared/view/Count.tsx';
-import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { Pager } from '#/shared/view/Pager.tsx';
-import { TableSkeleton } from '#/shared/view/Skeleton.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
 import styles from '#/features/tenants/view/AdministratorsTab.module.css';
-
-const COLUMNS: readonly Column<Subject>[] = [
-  { id: 'username', header: 'Username', isRowHeader: true, cell: (s) => s.username ?? '—' },
-  { id: 'email', header: 'Email', cell: (s) => s.email ?? '—' },
-  {
-    id: 'enabled',
-    header: 'Status',
-    cell: (s) =>
-      s.enabled ? (
-        <StatusTag tone="active">enabled</StatusTag>
-      ) : (
-        <StatusTag tone="danger">disabled</StatusTag>
-      ),
-  },
-  {
-    id: 'created_at',
-    header: 'Created',
-    secondary: true,
-    cell: (s) => <Timestamp value={s.created_at} />,
-  },
-];
 
 // `canAdd` is false once whoami says adding would be refused; the page says
 // what it needs, and no add is offered.
 export function AdministratorsTab({ tenant, canAdd }: { tenant: string; canAdd: boolean }) {
-  const { list, begin, counted, systemAdminsHref } = useTenantAdministrators(tenant);
-  const label = `Administrators of ${tenant}`;
+  const { begin, counted, systemAdminsHref, canChange } = useTenantAdministrators(tenant);
   return (
     <div className={styles.tab}>
       <p className={styles.lead}>
-        {`Everybody who holds ${counted} in ${tenant}, directly, through a group or under another role. A change that would leave ${tenant} with no enabled administrator is refused: the last one cannot be disabled, deleted, or lose ${counted}.`}
+        {`Everybody who holds an admin capability in ${tenant}, Full (tenant-admin) or a part of it, directly, through a group or under another role. A change that would leave ${tenant} with no enabled administrator is refused: the last one cannot be disabled, deleted, or lose ${counted}.`}
         {systemAdminsHref === null ? null : (
           <>
             {' '}
@@ -49,49 +20,12 @@ export function AdministratorsTab({ tenant, canAdd }: { tenant: string; canAdd: 
           </>
         )}
       </p>
-      <div className={styles.actions}>
-        {canAdd ? <Button onPress={begin.start}>Add an administrator</Button> : null}
-        {list.count === null ? null : (
-          <Count
-            count={list.count.count}
-            capped={list.count.capped}
-            noun={{ one: 'administrator', other: 'administrators' }}
-          />
-        )}
-      </div>
-      {list.status === 'loading' ? (
-        <TableSkeleton label="Loading administrators" columns={COLUMNS} rows={3} />
+      {canAdd ? (
+        <div className={styles.actions}>
+          <Button onPress={begin.start}>Add an administrator</Button>
+        </div>
       ) : null}
-      {list.status === 'refused' ? (
-        <CapabilityNote capability="view-users">{label}</CapabilityNote>
-      ) : null}
-      {list.status === 'failed' ? (
-        <EmptyState
-          variant="failed"
-          title="The administrators could not be loaded"
-          action={<Button onPress={list.retry}>Try again</Button>}
-        >
-          The gateway did not answer, or answered with an error.
-        </EmptyState>
-      ) : null}
-      {list.status === 'ready' && list.rows.length === 0 ? (
-        <EmptyState variant="nothing-yet" title="No administrators yet">
-          {`Nobody can sign in to ${tenant}'s console until one is added.`}
-        </EmptyState>
-      ) : null}
-      {list.status === 'ready' && list.rows.length > 0 ? (
-        <>
-          <DataTable label={label} columns={COLUMNS} rows={list.rows} rowKey={(s) => s.id} />
-          <Pager
-            label={label}
-            trail={list.trail}
-            next={list.next}
-            onTrailChange={list.setTrail}
-            onLoadMore={list.loadMore}
-            loadingMore={list.loadingMore}
-          />
-        </>
-      ) : null}
+      <CapabilityHolders tenant={tenant} authorityTenant={SYSTEM_TENANT} canChange={canChange} />
     </div>
   );
 }
