@@ -383,7 +383,7 @@ test('an administrator who deletes their own subject is signed out, not shown an
     .getByRole('textbox', { name: `Type ${departing.username} to confirm` })
     .fill(departing.username);
   await dialog.getByRole('button', { name: `Delete ${departing.username}` }).click();
-  await expect(page.getByLabel('Username')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /^Sign in/u })).toBeVisible();
   expect(new URL(page.url()).pathname).toMatch(/^\/tenants\/|^\/console\//u);
   expect(subjectId(departing.username)).toBe('');
   expect((await page.request.get('/console/api/session')).status()).toBe(401);
