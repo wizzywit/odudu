@@ -9,7 +9,9 @@ import { psql, seed } from './stack.ts';
 // Chromium holds the redirect a form submission follows to the page's
 // form-action, so this is the one place a refused redirect shows.
 
-const TENANT = `rp-${randomBytes(4).toString('hex')}`;
+// Named in beforeAll, so a run of it that Playwright repeats in the same
+// worker seeds a tenant of its own rather than meeting the last one's client.
+let TENANT = '';
 const VERIFIER = randomBytes(32).toString('base64url');
 const CHALLENGE = createHash('sha256').update(VERIFIER).digest('base64url');
 
@@ -79,6 +81,7 @@ test.beforeAll(async () => {
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   redirectUri = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/callback`;
+  TENANT = `rp-${randomBytes(4).toString('hex')}`;
   seed(['tenant', '--name', TENANT]);
   seed([
     'client',
