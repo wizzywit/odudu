@@ -502,12 +502,13 @@ apps/admin-console/src/
    ├─ usecase/ or usecase.ts
    ├─ repository/ or repository.ts
    ├─ adapter/ or adapter.ts
-   └─ service/ or service.ts
+   └─ service/   topic files and an index.ts that only re-exports (§6.3.1)
 ```
 
 **The layer is the first path segment under the feature**, a folder when the
 layer has several files and a single file named for the layer when it has
-one. A layer a feature does not need does not exist. Every file is therefore
+one; `service` is always a folder (§6.3.1). A layer a feature does not need
+does not exist. Every file is therefore
 classified by its path alone.
 
 Browser storage is an outside system like the gateway, so it belongs to an
@@ -561,7 +562,7 @@ A `#/` import of a file names its extension (`#/app/router.tsx`), because under
 (`"#/*": ["./src/*"]`), which does. `tests/lint/console-alias-agrees.test.ts`
 fails the build if the two disagree.
 
-#### 6.3.1 Component folders
+#### 6.3.1 Component and service folders
 
 A view component lives in a folder named after it: `X/X.tsx`,
 `X/X.module.css`, `X/X.test.tsx` and an `index.ts` that only re-exports. A
@@ -577,6 +578,19 @@ build on an import that names an `index.ts`, and on an import of a file inside
 another component's folder; a folder's own files reach one another by path,
 since relative imports are banned and its index cannot import itself, and a
 test may read a sibling's stylesheet source.
+
+A feature's service is a `service/` folder of topic files, named by what they
+hold (`subjects/service/credentials.ts`, `mail.ts`, `access.ts`), each with its
+test beside it, and an `index.ts` that only re-exports. Callers import the
+folder, `#/features/subjects/service`, never a file inside it or its `index.ts`;
+the folder's own files import their siblings by path. Every feature has this
+shape, the small ones included, and so does a `shared/service` file that
+outgrows one topic (`shared/service/capabilities/`). A service file stays
+under 300 lines, tests excepted; `tests/lint/console-service-length.test.ts`
+fails the build on one that does not, naming the file and its length, with no
+allowlist. The folder rule is the same lint as for components. Pinned data
+too long for a `.ts` file is a `.json` beside the `.ts` that types it
+(`shared/service/countryNames/`).
 
 Every property the console declares, in any interface or type, `.ts` and
 `.tsx` alike, is a plain property, not `readonly`. The guarantee is kept on
