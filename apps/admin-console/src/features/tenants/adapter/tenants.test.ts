@@ -82,6 +82,16 @@ it('reads a tenant with its ETag, and amends it under If-Match', async () => {
   expect(fake.sent[1]).toMatchObject({ ifMatch: '"e1"', body: { enabled: false } });
 });
 
+it('clears an emptied display name rather than sending an empty one', async () => {
+  const fake = fakeTransport({ 'PATCH /console/api/admin/tenants/acme': json(ACME) });
+  await amendTenant(fake.transport.gateway, 'acme', { display_name: '' }, '"e1"');
+  await amendTenant(fake.transport.gateway, 'acme', { display_name: 'Acme' }, '"e1"');
+  expect(fake.sent.map((sent) => sent.body)).toEqual([
+    { display_name: null },
+    { display_name: 'Acme' },
+  ]);
+});
+
 it('imports a document under a new name', async () => {
   const answer = { tenant: ACME, client_secrets: [{ client_id: 'web', secret: 's3cr3t' }] };
   const fake = fakeTransport({ 'POST /console/api/admin/tenant-imports': json(answer, 201) });

@@ -1,7 +1,7 @@
-import { usePrincipal } from '#/features/session';
+import { draftOwner, usePrincipal } from '#/features/session';
 import { beginAdministrator, storedCreation } from '#/features/tenants/repository/useCreation.ts';
 import { useGo } from '#/features/tenants/repository/useGo.ts';
-import { administratorStepHref } from '#/features/tenants/service.ts';
+import { administratorStepHref, resumesAdministrator } from '#/features/tenants/service.ts';
 
 export interface BeginAdministrator {
   start: () => void;
@@ -15,12 +15,12 @@ export function useBeginAdministrator(
   origin: 'imported' | 'existing',
 ): BeginAdministrator {
   const principal = usePrincipal();
-  const owner = `${principal.tenant}/${principal.subjectId}`;
+  const owner = draftOwner(principal);
   const go = useGo();
   return {
     start: () => {
       const stored = storedCreation(owner, tenant);
-      if (stored?.step !== 'administrator' || stored.subjectId === null) {
+      if (!resumesAdministrator(stored)) {
         beginAdministrator(owner, tenant, origin);
       }
       go(administratorStepHref(tenant));

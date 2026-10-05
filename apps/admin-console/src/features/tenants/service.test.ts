@@ -1,6 +1,8 @@
 import { TENANT_NAME_RULE } from '@odudu/contracts';
 import { TENANT_IMPORT_BODY_LIMIT } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
+import { tenantAdminCarries } from '#/shared/service/administrators.ts';
+import type { AdminCapability, Authority } from '#/shared/service/principal.ts';
 import {
   enterHref,
   IMPORT_TENANT_HREF,
@@ -10,6 +12,7 @@ import {
   tenantAdministratorTrail,
   tenantsTrail,
   administratorOf,
+  type Creation,
   administratorStepHref,
   administratorTitle,
   belongsTo,
@@ -17,6 +20,19 @@ import {
   FRESH_CREATION,
   freshCreation,
   administratorFailure,
+  disableFixed,
+  exportBlame,
+  exportedOf,
+  exportFailureText,
+  exportNeeds,
+  exportsSubjects,
+  resumesAdministrator,
+  savedText,
+  tenantChangeFailure,
+  tenantRecord,
+  tenantRecordAccess,
+  TENANT_TABS,
+  titleOrigin,
   administratorLookupText,
   administratorProblem,
   againOf,
@@ -572,5 +588,155 @@ describe('the heading of the creation page', () => {
         systemAdminsHref: null,
       }),
     ).toMatchObject({ at: 2, title: 'Add an administrator to acme' });
+  });
+});
+
+describe('the tenant record page', () => {
+  const caller = (...capabilities: AdminCapability[]): Authority => ({
+    capabilities,
+    crossTenant: true,
+  });
+
+  it('keeps its tabs and its record name in one place', () => {
+    expect(TENANT_TABS).toEqual(['general', 'administrators', 'export']);
+    expect(tenantRecord('acme')).toBe('tenants/acme');
+  });
+
+  it('asks nothing until whoami has answered', () => {
+    expect(tenantRecordAccess(undefined, 'acme')).toEqual({
+      readNeeds: [],
+      addNeeds: [],
+      blocked: null,
+    });
+  });
+
+  it('names what reading the record and adding an administrator need and the caller lacks', () => {
+    const access = tenantRecordAccess(caller('manage-tenants'), 'acme');
+    expect(access.readNeeds).toEqual(['manage-tenant']);
+    expect(access.addNeeds).toContain('manage-users');
+    expect(access.blocked?.change).toBe('add their administrators');
+    const full = tenantRecordAccess(caller(...tenantAdminCarries('acme')), 'acme');
+    expect(full).toEqual({ readNeeds: [], addNeeds: [], blocked: null });
+  });
+});
+
+describe('enabling and disabling a tenant', () => {
+  it('fixes system as enabled, and says why', () => {
+    expect(disableFixed('system')).toMatch(/^system cannot be disabled/);
+    expect(disableFixed('acme')).toBeNull();
+  });
+
+  it('words each way the change fails', () => {
+    const problem = (status: number, extra: object = {}) =>
+      ({
+        ok: false,
+        kind: 'problem',
+        problem: { type: 'about:blank', title: 'Title', status, ...extra },
+      }) as const;
+    expect(tenantChangeFailure('acme', { ok: false, kind: 'network' })).toBe(
+      'Could not confirm the change to acme. It has not been sent again; check its status before trying again.',
+    );
+    expect(tenantChangeFailure('acme', problem(412))).toBe(
+      'acme changed elsewhere since you opened it. It has been read again; look at it before trying again.',
+    );
+    expect(tenantChangeFailure('acme', problem(403))).toBe(
+      'This needs the manage-tenant capability.',
+    );
+    expect(tenantChangeFailure('acme', problem(409, { detail: 'detail' }))).toBe('detail');
+    expect(tenantChangeFailure('acme', problem(409))).toBe('Title');
+    for (const kind of ['schema', 'defect'] as const) {
+      expect(tenantChangeFailure('acme', { ok: false, kind })).toBe(
+        'The console could not make the change. This is a fault in the console, not something you did.',
+      );
+    }
+  });
+});
+
+describe('the export', () => {
+  const caller = (...capabilities: AdminCapability[]): Authority => ({
+    capabilities,
+    crossTenant: false,
+  });
+
+  it('keeps the file name, its size and what it omitted', () => {
+    expect(exportedOf('a.json', '{"omitted":["x"]}')).toEqual({
+      fileName: 'a.json',
+      bytes: 17,
+      omitted: ['x'],
+    });
+    expect(exportedOf('a.json', 'é').bytes).toBe(2);
+  });
+
+  it('names what is missing for the export, and for subjects, once whoami has answered', () => {
+    expect(exportNeeds(undefined)).toEqual({ needs: [], subjectsNeed: null });
+    expect(exportNeeds(caller('manage-tenant'))).toEqual({
+      needs: ['manage-clients'],
+      subjectsNeed: 'view-users',
+    });
+    expect(exportNeeds(caller('manage-tenant', 'manage-clients', 'view-users'))).toEqual({
+      needs: [],
+      subjectsNeed: null,
+    });
+  });
+
+  it('asks for subjects only when chosen and not ruled out, and blames the last capability asked', () => {
+    expect(exportsSubjects(true, null)).toBe(true);
+    expect(exportsSubjects(true, 'view-users')).toBe(false);
+    expect(exportsSubjects(false, null)).toBe(false);
+    expect(exportBlame(true)).toBe('view-users');
+    expect(exportBlame(false)).toBe('manage-clients');
+  });
+
+  it('words a refused, a rejected and an unreadable export', () => {
+    const rejected = {
+      ok: false,
+      kind: 'problem',
+      problem: { type: 'about:blank', title: 'Title', status: 500, detail: 'detail' },
+    } as const;
+    expect(exportFailureText(rejected, false, true)).toBe(
+      'The export needs manage-tenant and manage-clients.',
+    );
+    expect(exportFailureText(rejected, true, true)).toBe(
+      'The export needs manage-tenant and manage-clients, and view-users with subjects.',
+    );
+    expect(exportFailureText(rejected, false, false)).toBe('detail');
+    expect(
+      exportFailureText(
+        { ...rejected, problem: { ...rejected.problem, detail: undefined } },
+        false,
+        false,
+      ),
+    ).toBe('Title');
+    expect(exportFailureText({ ok: false, kind: 'schema' }, false, false)).toBe(
+      'The export could not be read. Nothing was saved; try again.',
+    );
+    expect(savedText('a.json')).toBe('Saved a.json.');
+  });
+});
+
+describe('the stored administrator step', () => {
+  const stored = (subjectId: string | null): Creation => ({
+    step: 'administrator',
+    tenant: 'acme',
+    origin: 'existing',
+    username: 'ada',
+    email: '',
+    subjectId,
+    granted: false,
+    holdings: ['tenant-admin'],
+  });
+
+  it('is resumed only once its subject was created', () => {
+    expect(resumesAdministrator(null)).toBe(false);
+    expect(resumesAdministrator(FRESH_CREATION)).toBe(false);
+    expect(resumesAdministrator(stored(null))).toBe(false);
+    expect(resumesAdministrator(stored('s1'))).toBe(true);
+  });
+
+  it('titles the page by where the tenant came from, an existing one when nothing is stored', () => {
+    expect(titleOrigin(null)).toBe('existing');
+    expect(titleOrigin(FRESH_CREATION)).toBe('existing');
+    expect(titleOrigin(administratorOf('acme', 'created'))).toBe('created');
+    expect(titleOrigin(administratorOf('acme', 'imported'))).toBe('imported');
   });
 });

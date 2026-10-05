@@ -1,8 +1,15 @@
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/features/session';
-import { holds } from '#/features/shell';
-import { useExport, type Exported } from '#/features/tenants/repository/useExport.ts';
-import { fileSize } from '#/features/tenants/service.ts';
+import { useExport } from '#/features/tenants/repository/useExport.ts';
+import {
+  exportBlame,
+  exportFailureText,
+  exportNeeds,
+  exportsSubjects,
+  fileSize,
+  savedText,
+  type Exported,
+} from '#/features/tenants/service.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import type { AdminCapability } from '#/shared/service/principal.ts';
 
@@ -18,8 +25,6 @@ export interface TenantExportState {
   start: () => void;
 }
 
-const EXPORT_NEEDS: readonly AdminCapability[] = ['manage-tenant', 'manage-clients'];
-
 // `authority` is the tenant whoami is asked about: the target's own for a
 // tenant administrator, `system` for a system administrator's tenant record.
 export function useTenantExport(target: string, authority: string): TenantExportState {
@@ -30,41 +35,30 @@ export function useTenantExport(target: string, authority: string): TenantExport
   const [includeSubjects, setIncludeSubjects] = useState(false);
   const [saved, setSaved] = useState<TenantExportState['saved']>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const needs = held === undefined ? [] : EXPORT_NEEDS.filter((c) => !holds(held, c));
-  const subjectsNeed = held !== undefined && !holds(held, 'view-users') ? 'view-users' : null;
+  const { needs, subjectsNeed } = exportNeeds(held);
+  const withSubjects = exportsSubjects(includeSubjects, subjectsNeed);
   const start = (): void => {
     setMessage(null);
-    const withSubjects = includeSubjects && subjectsNeed === null;
     exporter
       .start(withSubjects)
       .then((result) => {
         if (result.ok) {
-          const size = fileSize(result.data.bytes);
-          setSaved({ ...result.data, size });
-          push({ tone: 'success', message: `Saved ${result.data.fileName}.` });
+          setSaved({ ...result.data, size: fileSize(result.data.bytes) });
+          push({ tone: 'success', message: savedText(result.data.fileName) });
           return;
         }
         setSaved(null);
-        if (refusal.report(result, withSubjects ? 'view-users' : 'manage-clients')) {
-          setMessage(
-            `The export needs manage-tenant and manage-clients${withSubjects ? ', and view-users with subjects' : ''}.`,
-          );
-          return;
-        }
-        if (result.kind === 'problem') {
-          setMessage(result.problem.detail ?? result.problem.title);
-          return;
-        }
-        setMessage('The export could not be read. Nothing was saved; try again.');
+        const refused = refusal.report(result, exportBlame(withSubjects));
+        setMessage(exportFailureText(result, withSubjects, refused));
       })
       .catch(() => {
-        setMessage('The export could not be read. Nothing was saved; try again.');
+        setMessage(exportFailureText({ ok: false, kind: 'defect' }, withSubjects, false));
       });
   };
   return {
     needs,
     subjectsNeed,
-    includeSubjects: includeSubjects && subjectsNeed === null,
+    includeSubjects: withSubjects,
     setIncludeSubjects,
     busy: exporter.busy,
     saved,

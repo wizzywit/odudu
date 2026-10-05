@@ -1,15 +1,14 @@
 import { saveFile } from '#/features/tenants/adapter/files.ts';
 import { readExport } from '#/features/tenants/adapter/tenants.ts';
-import { EXPORT_MEDIA_TYPE, exportFileName, omittedOf } from '#/features/tenants/service.ts';
+import {
+  EXPORT_MEDIA_TYPE,
+  exportedOf,
+  exportFileName,
+  type Exported,
+} from '#/features/tenants/service.ts';
 import { useFreshRead } from '#/shared/repository/useFreshRead.ts';
 import type { GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
-
-export interface Exported {
-  fileName: string;
-  bytes: number;
-  omitted: readonly string[];
-}
 
 export interface TenantExport {
   busy: boolean;
@@ -29,10 +28,7 @@ export function useExport(tenant: string, now: () => Date = () => new Date()): T
     const { text, contentType } = result.data;
     const fileName = exportFileName(tenant, now());
     saveFile(fileName, text, contentType ?? EXPORT_MEDIA_TYPE);
-    return {
-      ...result,
-      data: { fileName, bytes: new TextEncoder().encode(text).length, omitted: omittedOf(text) },
-    };
+    return { ...result, data: exportedOf(fileName, text) };
   };
   return { busy: fresh.pending, start };
 }

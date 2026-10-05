@@ -1,16 +1,17 @@
 import type { Tenant } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session';
 import { useTenantRecord } from '#/features/tenants/repository/useTenantRecord.ts';
+import {
+  tenantRecord,
+  tenantRecordAccess,
+  TENANT_TABS,
+  type TenantRecordAccess,
+  type TenantTab,
+} from '#/features/tenants/service.ts';
 import { useDirtySections } from '#/shared/repository/useDirtySections.ts';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
-import { blockedChanges, lacking, type Change } from '#/shared/service/access.ts';
-import { administratorNeeds } from '#/shared/service/administrators.ts';
-import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
-import type { RecordView } from '#/shared/service/record.ts';
-import { tenantRecord } from '#/features/tenants/repository/useTenantRecord.ts';
-
-export const TENANT_TABS = ['general', 'administrators', 'export'] as const;
-export type TenantTab = (typeof TENANT_TABS)[number];
+import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
+import { tabNamed, type RecordView } from '#/shared/service/record.ts';
 
 export interface TenantRecordPage {
   record: RecordView;
@@ -19,15 +20,6 @@ export interface TenantRecordPage {
   tab: TenantTab;
   selectTab: (tab: string) => void;
   dirty: ReadonlySet<string>;
-}
-
-export interface TenantRecordAccess {
-  // What reading the record needs that whoami says is missing.
-  readNeeds: readonly AdminCapability[];
-  // What adding an administrator needs that whoami says is missing.
-  addNeeds: readonly AdminCapability[];
-  // The changes whoami rules out, for the page's one line.
-  blocked: Change | null;
 }
 
 export function useTenantRecordPage(name: string): TenantRecordPage {
@@ -40,23 +32,14 @@ export function useTenantRecordPage(name: string): TenantRecordPage {
     etag: record.etag,
     tab,
     selectTab: (next) => {
-      const chosen = TENANT_TABS.find((candidate) => candidate === next);
+      const chosen = tabNamed(TENANT_TABS, next);
       if (chosen !== undefined) selectTab(chosen);
     },
     dirty,
   };
 }
 
-// A tenant's record is read with manage-tenant, which the System area's own
-// manage-tenants does not carry; its address still opens, and says so. Asked
-// above the record's own reads, so a re-render of those never asks whoami.
+// Asked above the record's own reads, so a re-render of those never asks whoami.
 export function useTenantRecordAccess(name: string): TenantRecordAccess {
-  const authority = useAuthority(SYSTEM_TENANT);
-  const adding = administratorNeeds(name, { subjectId: null, granted: false });
-  const readNeeds = lacking(authority, ['manage-tenant']);
-  return {
-    readNeeds,
-    addNeeds: lacking(authority, adding),
-    blocked: blockedChanges(authority, [{ change: 'add their administrators', needs: adding }]),
-  };
+  return tenantRecordAccess(useAuthority(SYSTEM_TENANT), name);
 }

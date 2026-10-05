@@ -63,6 +63,7 @@ export function readTenant(gateway: Gateway, name: string): Promise<GatewayResul
   return gateway.request('GET', `admin/tenants/${tenantPath(name)}`, { schema: tenantSchema });
 }
 
+// An emptied display name is cleared, as the server keeps no empty one.
 export function amendTenant(
   gateway: Gateway,
   name: string,
@@ -70,7 +71,7 @@ export function amendTenant(
   ifMatch: string,
 ): Promise<GatewayResult<Tenant>> {
   return gateway.request('PATCH', `admin/tenants/${tenantPath(name)}`, {
-    body: changes,
+    body: changes.display_name === '' ? { ...changes, display_name: null } : changes,
     ifMatch,
     schema: tenantSchema,
   });

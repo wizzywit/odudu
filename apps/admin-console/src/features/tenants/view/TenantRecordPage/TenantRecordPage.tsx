@@ -1,8 +1,7 @@
-import { enterHref, tenantsTrail } from '#/features/tenants/service.ts';
+import { enterHref, tenantsTrail, type TenantRecordAccess } from '#/features/tenants/service.ts';
 import {
   useTenantRecordAccess,
   useTenantRecordPage,
-  type TenantRecordAccess,
 } from '#/features/tenants/usecase/useTenantRecordPage.ts';
 import { AdministratorsTab } from '#/features/tenants/view/AdministratorsTab';
 import { ExportPanel } from '#/features/tenants/view/ExportPanel';

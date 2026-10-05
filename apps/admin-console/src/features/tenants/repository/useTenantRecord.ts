@@ -1,6 +1,7 @@
 import type { Tenant } from '@odudu/contracts/admin';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { amendTenant, readTenant } from '#/features/tenants/adapter/tenants.ts';
+import { tenantRecord } from '#/features/tenants/service.ts';
 import {
   recordKey,
   useRecord,
@@ -8,13 +9,10 @@ import {
   type RecordState,
 } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
+import { isStale } from '#/shared/service/failure.ts';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
-
-export function tenantRecord(name: string): string {
-  return `tenants/${name}`;
-}
 
 export function useTenantRecord(name: string): RecordState<Tenant> {
   return useRecord({
@@ -28,15 +26,12 @@ export interface GeneralValues extends Readonly<Record<string, unknown>> {
   display_name: string;
 }
 
-// An emptied display name is cleared, as the server keeps no empty one.
 export function saveGeneral(name: string) {
   return (gateway: Gateway, { changes, ifMatch }: SaveInput<GeneralValues>) =>
     amendTenant(
       gateway,
       name,
-      changes.display_name === undefined
-        ? {}
-        : { display_name: changes.display_name === '' ? null : changes.display_name },
+      changes.display_name === undefined ? {} : { display_name: changes.display_name },
       ifMatch,
     );
 }
@@ -62,7 +57,7 @@ export function useTenantEnabled(name: string, etag: string | null): EnabledChan
     onSuccess: (result) => {
       if (result.ok) {
         client.setQueryData<RecordEntry<Tenant>>(key, { result, by: 'save' });
-      } else if (result.kind === 'problem' && result.problem.status === 412) {
+      } else if (isStale(result)) {
         client.invalidateQueries({ queryKey: key, exact: true }).catch(() => undefined);
       }
     },

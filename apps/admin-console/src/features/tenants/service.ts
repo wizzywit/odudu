@@ -1,14 +1,16 @@
 import { isTenantName, TENANT_NAME_RULE } from '@odudu/contracts';
 import { TENANT_IMPORT_BODY_LIMIT, type ImportError, type Tenant } from '@odudu/contracts/admin';
+import { blockedChanges, lacking, type Change } from '#/shared/service/access.ts';
 import {
   ADMINISTRATOR_REQUEST_NEEDS,
+  administratorNeeds,
   HOLDINGS_REQUIRED,
   type AdministratorCall,
   type AdministratorRequest,
 } from '#/shared/service/administrators.ts';
 import type { Crumb } from '#/shared/service/breadcrumb.ts';
 import { andList } from '#/shared/service/format.ts';
-import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
+import { SYSTEM_TENANT, type AdminCapability, type Authority } from '#/shared/service/principal.ts';
 import { fieldErrorsOf, requiredProblem } from '#/shared/service/fieldErrors.ts';
 import type { GatewayFailure, Problem } from '#/shared/service/result.ts';
 
@@ -517,4 +519,117 @@ export function creationHeading(
     title,
     breadcrumb: flow === 'tenant' ? tenantsTrail(title) : tenantAdministratorTrail(current.tenant),
   };
+}
+
+export const TENANT_TABS = ['general', 'administrators', 'export'] as const;
+export type TenantTab = (typeof TENANT_TABS)[number];
+
+// The record's name among the drafts and caches it keeps.
+export function tenantRecord(name: string): string {
+  return `tenants/${name}`;
+}
+
+export interface TenantRecordAccess {
+  // What reading the record needs that whoami says is missing.
+  readNeeds: readonly AdminCapability[];
+  // What adding an administrator needs that whoami says is missing.
+  addNeeds: readonly AdminCapability[];
+  // The changes whoami rules out, for the page's one line.
+  blocked: Change | null;
+}
+
+// A tenant's record is read with manage-tenant, which the System area's own
+// manage-tenants does not carry.
+export function tenantRecordAccess(
+  authority: Authority | undefined,
+  name: string,
+): TenantRecordAccess {
+  const adding = administratorNeeds(name, { subjectId: null, granted: false });
+  return {
+    readNeeds: lacking(authority, ['manage-tenant']),
+    addNeeds: lacking(authority, adding),
+    blocked: blockedChanges(authority, [{ change: 'add their administrators', needs: adding }]),
+  };
+}
+
+const SYSTEM_FIXED =
+  'system cannot be disabled: it is the tenant every cross-tenant administrator signs in to.';
+
+// Why a tenant cannot be enabled or disabled, shown as fixed text.
+export function disableFixed(name: string): string | null {
+  return name === SYSTEM_TENANT ? SYSTEM_FIXED : null;
+}
+
+export function tenantChangeFailure(name: string, failure: GatewayFailure): string {
+  switch (failure.kind) {
+    case 'network':
+      return `Could not confirm the change to ${name}. It has not been sent again; check its status before trying again.`;
+    case 'problem':
+      if (failure.problem.status === 412) {
+        return `${name} changed elsewhere since you opened it. It has been read again; look at it before trying again.`;
+      }
+      if (failure.problem.status === 403) return 'This needs the manage-tenant capability.';
+      return failure.problem.detail ?? failure.problem.title;
+    case 'schema':
+    case 'defect':
+      return 'The console could not make the change. This is a fault in the console, not something you did.';
+  }
+}
+
+export interface Exported {
+  fileName: string;
+  bytes: number;
+  omitted: readonly string[];
+}
+
+export function exportedOf(fileName: string, text: string): Exported {
+  return { fileName, bytes: new TextEncoder().encode(text).length, omitted: omittedOf(text) };
+}
+
+const EXPORT_NEEDS: readonly AdminCapability[] = ['manage-tenant', 'manage-clients'];
+
+export function exportNeeds(authority: Authority | undefined): {
+  needs: readonly AdminCapability[];
+  subjectsNeed: AdminCapability | null;
+} {
+  return {
+    needs: lacking(authority, EXPORT_NEEDS),
+    subjectsNeed: lacking(authority, ['view-users'])[0] ?? null,
+  };
+}
+
+// Subjects are asked for only while whoami does not rule them out.
+export function exportsSubjects(include: boolean, subjectsNeed: AdminCapability | null): boolean {
+  return include && subjectsNeed === null;
+}
+
+// The capability a refused export is blamed on: the last one it asked for.
+export function exportBlame(withSubjects: boolean): AdminCapability {
+  return withSubjects ? 'view-users' : 'manage-clients';
+}
+
+export function exportFailureText(
+  failure: GatewayFailure,
+  withSubjects: boolean,
+  refused: boolean,
+): string {
+  if (refused) {
+    return `The export needs manage-tenant and manage-clients${withSubjects ? ', and view-users with subjects' : ''}.`;
+  }
+  if (failure.kind === 'problem') return failure.problem.detail ?? failure.problem.title;
+  return 'The export could not be read. Nothing was saved; try again.';
+}
+
+export function savedText(fileName: string): string {
+  return `Saved ${fileName}.`;
+}
+
+// Resumed when the subject was already created, since a retry would find its
+// username taken and leave it without a role.
+export function resumesAdministrator(stored: Creation | null): boolean {
+  return stored?.step === 'administrator' && stored.subjectId !== null;
+}
+
+export function titleOrigin(stored: Creation | null): 'created' | 'imported' | 'existing' {
+  return stored?.step === 'administrator' ? stored.origin : 'existing';
 }
