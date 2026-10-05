@@ -5,15 +5,16 @@ import {
   adminReachOfRoles,
   subtreeAdminReach,
 } from '#/service/capability-ceiling';
+import { holdsDefaultGroup } from '#/usecase/default-reach';
 
 // The derived reach fields every role and group answer carries, read once
 // for a whole page; the ETag is taken over the stored fields alone, so a
 // change somewhere above or below a record never stales a write to it.
 
-export async function withRoleReach(
+export async function withRoleReach<T extends { id: string }>(
   tx: TenantScopedDatabase,
-  roles: readonly RoleFields[],
-): Promise<(RoleFields & { admin_reach: readonly string[] })[]> {
+  roles: readonly T[],
+): Promise<(T & { admin_reach: readonly string[] })[]> {
   const reach = await adminReachOfRoles(
     tx,
     roles.map((role) => role.id),
@@ -36,13 +37,18 @@ export async function groupRecordOf(
   tx: TenantScopedDatabase,
   group: GroupFields,
 ): Promise<
-  GroupFields & { admin_reach: readonly string[]; subtree_admin_reach: readonly string[] }
+  GroupFields & {
+    admin_reach: readonly string[];
+    subtree_admin_reach: readonly string[];
+    holds_default_group: boolean;
+  }
 > {
   const [reached] = await withGroupReach(tx, [group]);
   return {
     ...group,
     admin_reach: reached?.admin_reach ?? [],
     subtree_admin_reach: await subtreeAdminReach(tx, group.id),
+    holds_default_group: await holdsDefaultGroup(tx, group.id),
   };
 }
 

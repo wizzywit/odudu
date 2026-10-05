@@ -26,7 +26,13 @@ export type GroupFields = z.infer<typeof groupFieldsSchema>;
 export const groupSchema = groupFieldsSchema.extend({ admin_reach: adminReachSchema });
 export type Group = z.infer<typeof groupSchema>;
 
-export const groupRecordSchema = groupSchema.extend({ subtree_admin_reach: adminReachSchema });
+// `holds_default_group`: this group or one beneath it is a default for new
+// subjects, which is what bars moving it under a parent that hands out a
+// capability.
+export const groupRecordSchema = groupSchema.extend({
+  subtree_admin_reach: adminReachSchema,
+  holds_default_group: z.boolean(),
+});
 export type GroupRecord = z.infer<typeof groupRecordSchema>;
 
 // One level of the tree: the children of the group `parent` names, or the
@@ -72,8 +78,13 @@ export const setGroupRolesRequestSchema = z.object({
 });
 export type SetGroupRolesRequest = z.infer<typeof setGroupRolesRequestSchema>;
 
+// Each mapped role carries what it hands out, so the group's page judges a
+// change to the mapping without a read per role.
+export const groupRoleSchema = roleAssignmentSchema.extend({ admin_reach: adminReachSchema });
+export type GroupRole = z.infer<typeof groupRoleSchema>;
+
 export const setGroupRolesResponseSchema = z.object({
-  items: z.array(roleAssignmentSchema),
+  items: z.array(groupRoleSchema),
 });
 export type SetGroupRolesResponse = z.infer<typeof setGroupRolesResponseSchema>;
 

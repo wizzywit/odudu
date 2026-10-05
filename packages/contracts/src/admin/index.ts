@@ -255,6 +255,8 @@ export {
   type SetGroupDefaultRequest,
   setGroupRolesRequestSchema,
   type SetGroupRolesRequest,
+  groupRoleSchema,
+  type GroupRole,
   setGroupRolesResponseSchema,
   type SetGroupRolesResponse,
   setSubjectGroupsRequestSchema,

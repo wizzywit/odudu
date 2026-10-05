@@ -26,12 +26,13 @@ async function call(
   tail: string,
   payload?: unknown,
   capabilities: readonly string[] = ['tenant-admin'],
+  headers: Record<string, string> = {},
 ): Promise<LightMyRequestResponse> {
   const token = await fixture.adminToken(tenantName, [...capabilities]);
   return fixture.http.inject({
     method,
     url: `/admin/tenants/${tenantName}${tail}`,
-    headers: { authorization: `Bearer ${token}` },
+    headers: { authorization: `Bearer ${token}`, ...headers },
     ...(payload === undefined ? {} : { payload: payload as Record<string, unknown> }),
   });
 }
@@ -69,6 +70,10 @@ async function group(tenantName: string, name: string, parentId?: string): Promi
 
 async function mapRole(tenantId: string, groupId: string, roleId: string): Promise<void> {
   await withTenant(fixture.app.db, tenantId, (tx) => groupRepository(tx).mapRole(groupId, roleId));
+}
+
+interface Held {
+  holds_default_group: boolean;
 }
 
 interface Reached {
@@ -190,6 +195,60 @@ describe("a group's admin_reach and subtree_admin_reach", () => {
     const after = await call(t.name, 'GET', `/groups/${child}`);
     expect(after.json<Reached>().admin_reach).toEqual(['view-users']);
     expect(after.headers.etag).toBe(before.headers.etag);
+  });
+});
+
+describe("a group's holds_default_group", () => {
+  it('is true for a default group and for every group above it, and false elsewhere', async () => {
+    const t = await fixture.createTenant(`reach-${newId()}`);
+    const top = await group(t.name, 'top');
+    const mid = await group(t.name, 'mid', top);
+    const leaf = await group(t.name, 'leaf', mid);
+    const other = await group(t.name, 'other');
+    const before = await call(t.name, 'GET', `/groups/${top}`);
+    expect(before.json<Held>().holds_default_group).toBe(false);
+
+    const set = await call(t.name, 'PUT', `/groups/${leaf}/default`, { default: true }, undefined, {
+      'if-match': '*',
+    });
+    expect(set.statusCode, set.body).toBe(200);
+    for (const id of [top, mid, leaf]) {
+      const read = await call(t.name, 'GET', `/groups/${id}`);
+      expect(read.json<Held>().holds_default_group, id).toBe(true);
+    }
+    const unrelated = await call(t.name, 'GET', `/groups/${other}`);
+    expect(unrelated.json<Held>().holds_default_group).toBe(false);
+    const after = await call(t.name, 'GET', `/groups/${top}`);
+    expect(after.headers.etag).toBe(before.headers.etag);
+  });
+});
+
+describe('the roles mapped to a group', () => {
+  it('each carry their own admin_reach, on the read and on the replacement', async () => {
+    const t = await fixture.createTenant(`reach-${newId()}`);
+    const g = await group(t.name, 'team');
+    const bundle = await role(t.name, 'bundle');
+    await nest(t.id, bundle, await capabilityRoleId(t.id, 'view-audit'));
+    const plain = await role(t.name, 'plain');
+
+    const put = await call(
+      t.name,
+      'PUT',
+      `/groups/${g}/roles`,
+      { role_ids: [bundle, plain] },
+      undefined,
+      { 'if-match': '*' },
+    );
+    expect(put.statusCode, put.body).toBe(200);
+    const expected = expect.arrayContaining([
+      expect.objectContaining({ id: bundle, admin_reach: ['view-audit'] }),
+      expect.objectContaining({ id: plain, admin_reach: [] }),
+    ]);
+    expect(put.json<{ items: Reached[] }>().items).toEqual(expected);
+
+    const read = await call(t.name, 'GET', `/groups/${g}/roles`);
+    expect(read.json<{ items: Reached[] }>().items).toEqual(expected);
+    expect(read.headers.etag).toBe(put.headers.etag);
   });
 });
 

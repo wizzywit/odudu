@@ -4,14 +4,13 @@ import {
   listGroupsQuerySchema,
   setGroupDefaultRequestSchema,
   setGroupRolesRequestSchema,
-  type SetGroupRolesResponse,
 } from '@odudu/contracts/admin';
 import { isUniqueViolation, type Database } from '@odudu/db';
 import { OduduError } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
-import { groupRecordOf, withGroupReach } from '#/usecase/admin-reach';
+import { groupRecordOf, withGroupReach, withRoleReach } from '#/usecase/admin-reach';
 import {
   amendGroup,
   createGroup,
@@ -347,16 +346,16 @@ export function readGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler 
       throw new Error('protocol-admin: GET group roles route received no :id');
     }
 
-    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      readGroupRoles(tx, id),
-    );
+    const outcome = await adminTx(deps.database, request, targetTenantId, async (tx) => {
+      const read = await readGroupRoles(tx, id);
+      return read.kind === 'ok' ? { ...read, roles: await withRoleReach(tx, read.roles) } : read;
+    });
     if (outcome.kind === 'not_found') {
       return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
     }
 
     reply.header('etag', outcome.etag);
-    const wire: SetGroupRolesResponse = { items: [...outcome.roles] };
-    return reply.code(200).send(wire);
+    return reply.code(200).send({ items: outcome.roles });
   };
 }
 
@@ -372,8 +371,8 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
       principal.subjectId,
     );
 
-    const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      setGroupRoles(
+    const outcome = await adminTx(deps.database, request, targetTenantId, async (tx) => {
+      const set = await setGroupRoles(
         tx,
         { audit: deps.audit },
         {
@@ -385,8 +384,9 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
           actorTenantId: principal.issuerTenantId,
           actorClientId: principal.clientDbId,
         },
-      ),
-    );
+      );
+      return set.kind === 'ok' ? { ...set, roles: await withRoleReach(tx, set.roles) } : set;
+    });
 
     switch (outcome.kind) {
       case 'last_administrator':
@@ -412,8 +412,7 @@ export function setGroupRolesHandler(deps: GroupsRouteDeps): AdminRouteHandler {
         return sendProblem(reply, request, ifMatchStale());
       case 'ok': {
         reply.header('etag', outcome.etag);
-        const wire: SetGroupRolesResponse = { items: [...outcome.roles] };
-        return reply.code(200).send(wire);
+        return reply.code(200).send({ items: outcome.roles });
       }
     }
   };

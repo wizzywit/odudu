@@ -22,6 +22,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
     'admin_reach is derived from the roles this group and every group above it map; change those instead',
   subtree_admin_reach:
     'subtree_admin_reach is derived from the roles mapped in and above this group\u2019s subtree; change those instead',
+  holds_default_group:
+    'holds_default_group is derived from the default groups at and beneath this one; set it with PUT /admin/tenants/{tenant}/groups/{id}/default on that group',
 };
 
 export function refusalFor(field: string): string | null {

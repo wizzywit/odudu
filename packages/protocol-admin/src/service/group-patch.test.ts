@@ -12,9 +12,11 @@ describe('the group amendment allowlist', () => {
     }
   });
 
-  it('refuses the derived reach fields, which no write sets', () => {
-    expect(GROUP_FIELDS).toEqual(expect.arrayContaining(['admin_reach', 'subtree_admin_reach']));
-    for (const field of ['admin_reach', 'subtree_admin_reach']) {
+  it('refuses the derived fields, which no write sets', () => {
+    expect(GROUP_FIELDS).toEqual(
+      expect.arrayContaining(['admin_reach', 'subtree_admin_reach', 'holds_default_group']),
+    );
+    for (const field of ['admin_reach', 'subtree_admin_reach', 'holds_default_group']) {
       expect(refusalFor(field), field).toMatch(/derived/u);
     }
   });
