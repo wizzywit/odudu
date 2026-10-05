@@ -814,7 +814,7 @@ describe('the verification flags', () => {
     const fields = verificationFields({
       email_verified: true,
       phone_number_verified: false,
-    } as never);
+    });
     expect(fields.email_verified).toMatchObject({ value: true, label: 'Email verified' });
     expect(fields.phone_number_verified).toMatchObject({
       value: false,

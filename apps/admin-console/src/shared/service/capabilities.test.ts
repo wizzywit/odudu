@@ -285,7 +285,9 @@ describe('the built-in admin client in a role list', () => {
   it('is found through its own tenant-admin, not a tenant role of the same name', () => {
     expect(adminClientOfRoles(roles)).toBe('c-admin');
     expect(adminClientOfRoles(roles.slice(0, 1))).toBeNull();
-    expect(adminClientOfRoles([{ ...roles[1]!, client_id: null }])).toBeNull();
+    expect(
+      adminClientOfRoles([{ name: 'tenant-admin', client_id: null, client_key: ADMIN_CLIENT_KEY }]),
+    ).toBeNull();
   });
 
   it('names a role id for each capability it holds, and no other role', () => {

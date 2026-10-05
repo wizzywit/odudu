@@ -8,19 +8,14 @@ import {
   type RequiredAction,
   type Subject,
 } from '@odudu/contracts/admin';
-import { holds, notLacking } from '#/shared/service/access.ts';
-import {
-  administratorCapability,
-  MANAGE_TENANTS,
-  TENANT_ADMIN,
-} from '#/shared/service/administrators.ts';
+import { holds } from '#/shared/service/access.ts';
+import { MANAGE_TENANTS, TENANT_ADMIN } from '#/shared/service/administrators.ts';
 import type { Crumb } from '#/shared/service/breadcrumb.ts';
 import {
   beyondCaller,
   heldCapabilities,
   holdingLabel,
   holdingOptions,
-  holdingsIn,
   grantableIn,
   includedBy,
   isAdminRole,
@@ -706,7 +701,7 @@ export function credentialDialog(asking: Asking, name: string, self: boolean): C
 
 export function recoveryCodesText(name: string, count: number | null): string {
   if (count === null || count === 0) return `No recovery codes: ${name} holds no unspent one.`;
-  return `${counted(count, 'unspent recovery code', 'unspent recovery codes')}`;
+  return counted(count, 'unspent recovery code', 'unspent recovery codes');
 }
 
 const REQUIRED_ACTION_ORDER = REQUIRED_ACTIONS.map((each) => each.action);
