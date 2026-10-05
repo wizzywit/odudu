@@ -23,12 +23,12 @@ describe('console cookie names', () => {
 
 describe('the login cookie', () => {
   // A browser drops a __Host- cookie whose Path is anything but /.
-  it('lives ten minutes, Lax, at the root path', () => {
+  it('lives thirty minutes, Lax, at the root path', () => {
     expect(loginCookie('s.t', true)).toBe(
-      '__Host-odudu-console-login=s.t; HttpOnly; SameSite=Lax; Path=/; Max-Age=600; Secure',
+      '__Host-odudu-console-login=s.t; HttpOnly; SameSite=Lax; Path=/; Max-Age=1800; Secure',
     );
     expect(loginCookie('s.t', false)).toBe(
-      'odudu-console-login=s.t; HttpOnly; SameSite=Lax; Path=/; Max-Age=600',
+      'odudu-console-login=s.t; HttpOnly; SameSite=Lax; Path=/; Max-Age=1800',
     );
   });
 

@@ -124,6 +124,9 @@ One section comes from **a fifth run**, on a stack of its own, the project
 `odudu-signin` on `http://localhost:3082` at `0824c4e7`: the restarted
 callback. It says what it seeded in its first lines.
 
+One response comes from **a sixth run**, after the pending sign-in's window
+was raised: `GET /console/auth/login` says which.
+
 ## `GET /console/auth/login`
 
 The console's sign-in starts here. `return_to` is where the callback sends
@@ -148,7 +151,32 @@ Keep-Alive: timeout=72
 
 The login cookie's value is the `state` sent to the authorization endpoint:
 `<tenant id>.<secret>`. The pending sign-in is stored with the secret's
-hash, the PKCE verifier and the nonce, and lasts 600 seconds.
+hash, the PKCE verifier and the nonce. It lasted 600 seconds when this run
+was captured, as the cookie's `Max-Age` says, and every login cookie below
+says the same. It lasts 1800 seconds now — as long as the tenant's own
+sign-in lasts by default (`login_ttl_seconds`), since that is where the time
+goes. The same request on **a sixth run**, on a stack of its own, the
+project `odudu-t10` on `http://localhost:3082` at `511db0fd`, in a tenant
+`reach-demo` made there with `odudu seed tenant`, after the change:
+
+```bash
+curl -sS -D - -c jar -b jar \
+  'http://localhost:3082/console/auth/login?tenant=reach-demo&return_to=/console/x'
+```
+
+```
+HTTP/1.1 302 Found
+x-request-id: 01a10b70-ca94-750f-8ee9-f5fe252bfd43
+cache-control: no-store
+set-cookie: odudu-console-login=01a10b4d-ca70-77b4-b690-4c149c9775eb.4RfyPlgrm1a6I2t_qGwFXpyZbQIhhuZB7hlG0YiYvas; HttpOnly; SameSite=Lax; Path=/; Max-Age=1800
+location: http://localhost:3082/tenants/reach-demo/protocol/openid-connect/auth?response_type=code&client_id=odudu-admin&redirect_uri=http%3A%2F%2Flocalhost%3A3082%2Fconsole%2Fauth%2Fcallback&scope=openid&resource=urn%3Aodudu%3Aparams%3Aadmin-api&state=01a10b4d-ca70-77b4-b690-4c149c9775eb.4RfyPlgrm1a6I2t_qGwFXpyZbQIhhuZB7hlG0YiYvas&nonce=7XpTun4XRrP3iXuSYuc-0TQw1-NF8dFAs64w4am1HCM&code_challenge=u10his0Q0sYMd8ssYQj0QsRM4Owk0QhwsAGJHHuFUzk&code_challenge_method=S256
+content-length: 0
+Date: Mon, 05 Oct 2026 09:41:43 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+```
+
+The sections below go on from the first run's `location`, not this one's.
 
 ## The tenant's own sign-in
 
@@ -495,8 +523,9 @@ Connection: keep-alive
 Keep-Alive: timeout=72
 ```
 
-The pending sign-in lasts 600 seconds, in its row and in the login cookie's
-`Max-Age`. The row was expired with `psql` (header spaces trimmed, as above),
+The pending sign-in lasted 600 seconds when this run was captured, in its
+row and in the login cookie's `Max-Age`; it lasts 1800 now, as
+[`GET /console/auth/login`](#get-consoleauthlogin) shows. The row was expired with `psql` (header spaces trimmed, as above),
 and the jar's login cookie was removed, as a browser drops it at its
 `Max-Age`:
 

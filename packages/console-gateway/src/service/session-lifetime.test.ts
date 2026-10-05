@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { accessNeedsRefresh, sessionHasEnded, sessionNeedsTouch } from '#/service/session-lifetime';
+import {
+  accessNeedsRefresh,
+  CONSOLE_LOGIN_SECONDS,
+  sessionHasEnded,
+  sessionNeedsTouch,
+} from '#/service/session-lifetime';
 
 const SIGNED_IN = new Date('2026-06-01T12:00:00.000Z');
 const SECOND = 1000;
@@ -48,5 +53,13 @@ describe('accessNeedsRefresh', () => {
     expect(accessNeedsRefresh(expiry, at(5 * MINUTE - 30 * SECOND))).toBe(true);
     expect(accessNeedsRefresh(expiry, at(5 * MINUTE - 10 * SECOND))).toBe(true);
     expect(accessNeedsRefresh(expiry, at(6 * MINUTE))).toBe(true);
+  });
+});
+
+describe('CONSOLE_LOGIN_SECONDS', () => {
+  // The tenant's own sign-in (login_ttl_seconds, 1800 by default) is what a
+  // person spends this window on, so a shorter one expires under it.
+  it('gives a sign-in as long as the provider gives its own by default', () => {
+    expect(CONSOLE_LOGIN_SECONDS).toBe(30 * 60);
   });
 });

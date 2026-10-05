@@ -4,8 +4,11 @@ export const CONSOLE_SESSION_IDLE_SECONDS = 30 * 60;
 /** A console session ends this long after sign-in, however active. */
 export const CONSOLE_SESSION_ABSOLUTE_SECONDS = 12 * 60 * 60;
 
-/** A sign-in not completed within this long has to start again. */
-export const CONSOLE_LOGIN_SECONDS = 10 * 60;
+/**
+ * A sign-in not completed within this long has to start again: as long as
+ * the provider's own default login_ttl_seconds, which the person spends it on.
+ */
+export const CONSOLE_LOGIN_SECONDS = 30 * 60;
 
 /** `last_seen_at` is written at most this often, so a busy tab is not a write per call. */
 export const CONSOLE_SESSION_TOUCH_SECONDS = 60;
