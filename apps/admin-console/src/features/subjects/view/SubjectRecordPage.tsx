@@ -8,7 +8,14 @@ import {
   type SubjectTab,
 } from '#/features/subjects/service.ts';
 import { useSubjectRecordPage } from '#/features/subjects/usecase/useSubjectRecordPage.ts';
+import { ActivityPanel } from '#/features/subjects/view/ActivityPanel.tsx';
+import { ConsentsTab } from '#/features/subjects/view/ConsentsTab.tsx';
+import { GrantsTab } from '#/features/subjects/view/GrantsTab.tsx';
+import { SessionsTab } from '#/features/subjects/view/SessionsTab.tsx';
 import { CredentialsTab } from '#/features/subjects/view/CredentialsTab.tsx';
+import { GroupsTab } from '#/features/subjects/view/GroupsTab.tsx';
+import { RequiredActionsTab } from '#/features/subjects/view/RequiredActionsTab.tsx';
+import { RolesTab } from '#/features/subjects/view/RolesTab.tsx';
 import { ProfileTab } from '#/features/subjects/view/ProfileTab.tsx';
 import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
@@ -28,6 +35,17 @@ interface PanelProps {
 const PANELS: Readonly<Record<SubjectTab, (props: PanelProps) => ReactNode>> = {
   profile: (props) => <ProfileTab {...props} />,
   credentials: (props) => <CredentialsTab {...props} />,
+  groups: (props) => <GroupsTab tenant={props.tenant} subject={props.subject} />,
+  roles: (props) => <RolesTab tenant={props.tenant} subject={props.subject} />,
+  'required-actions': (props) => (
+    <RequiredActionsTab tenant={props.tenant} subject={props.subject} />
+  ),
+  sessions: (props) => (
+    <SessionsTab tenant={props.tenant} subject={props.subject} self={props.self} />
+  ),
+  consents: (props) => <ConsentsTab tenant={props.tenant} subject={props.subject} />,
+  grants: (props) => <GrantsTab tenant={props.tenant} subject={props.subject} />,
+  activity: (props) => <ActivityPanel tenant={props.tenant} id={props.subject.id} />,
 };
 
 function Record({ tenant, id }: { tenant: string; id: string }) {

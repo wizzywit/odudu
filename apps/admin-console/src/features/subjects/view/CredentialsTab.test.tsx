@@ -200,7 +200,9 @@ it('shows an operator who can only look every credential, and no action', async 
   expect(screen.getByRole('note')).toHaveTextContent(
     'You can view subjects but not change them (needs manage-users).',
   );
-  expect(screen.queryByRole('button', { name: /Issue|Remove|Revoke|Clear/u })).toBeNull();
+  expect(
+    screen.queryByRole('button', { name: /Issue|Remove|Revoke|Clear|Send|Email/u }),
+  ).toBeNull();
 });
 
 it('says a service subject has no credentials of this kind', async () => {
@@ -242,6 +244,136 @@ it('passes axe in both themes, with the password shown once', async () => {
         await user.click(await screen.findByRole('button', { name: 'Issue a one-time password' }));
         await user.click(await screen.findByRole('button', { name: 'Issue password' }));
         await screen.findByRole('dialog', { name: "ada's one-time password" });
+      },
+    ),
+  ).toEqual({ light: [], dark: [] });
+});
+
+const accepted = () => () => new Response(null, { status: 202 });
+
+it('offers the reset email first and the one-time password second, and sends the link', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, { [`POST ${C}/password-reset`]: accepted() }),
+  );
+  const password = await screen.findByRole('region', { name: 'Password' });
+  const buttons = within(password)
+    .getAllByRole('button')
+    .map((button) => button.textContent);
+  expect(buttons).toEqual(['Send a password reset email', 'Issue a one-time password']);
+  await user.click(within(password).getByRole('button', { name: 'Send a password reset email' }));
+  expect(
+    await within(password).findByText('A password reset link was sent to ada@example.test.'),
+  ).toBeVisible();
+  expect(sent.filter((s) => s.method === 'POST')).toHaveLength(1);
+});
+
+it('offers only the one-time password to a subject with no email, and says why', async () => {
+  renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`GET ${S}/${ADA_ID}`]: json(subject(ADA_ID, 'ada', { email: null }), 200, { etag: '"s1"' }),
+    }),
+  );
+  const password = await screen.findByRole('region', { name: 'Password' });
+  expect(within(password).getByText(/ada has no email address, so no reset link/u)).toBeVisible();
+  expect(within(password).queryByRole('button', { name: /reset email/u })).toBeNull();
+  const mail = screen.getByRole('region', { name: 'Email' });
+  expect(within(mail).queryByRole('button')).toBeNull();
+});
+
+it('explains in place a mail the tenant could not send, and where that is put right', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`POST ${C}/verification`]: problem(409, 'about:blank#no-mail-relay', 'Conflict'),
+      [`POST ${C}/password-reset`]: problem(409, 'about:blank#reset-password-off', 'Conflict'),
+    }),
+  );
+  const mail = await screen.findByRole('region', { name: 'Email' });
+  await user.click(within(mail).getByRole('button', { name: 'Send a verification email' }));
+  expect(await within(mail).findByText(/the mail would only be logged/u)).toBeVisible();
+  expect(within(mail).getByRole('link', { name: 'Email' })).toHaveAttribute(
+    'href',
+    '/console/acme/email',
+  );
+  const password = screen.getByRole('region', { name: 'Password' });
+  await user.click(within(password).getByRole('button', { name: 'Send a password reset email' }));
+  expect(await within(password).findByText(/Password reset is off/u)).toBeVisible();
+  expect(within(password).getByRole('link', { name: 'Settings' })).toHaveAttribute(
+    'href',
+    '/console/acme/settings',
+  );
+});
+
+it('emails a link through chosen required actions, with an optional way back', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`POST ${C}/actions-email`]: inTurn(
+        problem(400, 'about:blank', 'Bad Request', {
+          detail: 'redirect_uri: is not a redirect URI the named client registered',
+          errors: [
+            { path: 'redirect_uri', message: 'is not a redirect URI the named client registered' },
+          ],
+        }),
+        accepted(),
+      ),
+    }),
+  );
+  const mail = await screen.findByRole('region', { name: 'Email' });
+  const send = within(mail).getByRole('button', { name: 'Email required actions' });
+  await user.click(send);
+  expect(await within(mail).findByText('Choose at least one action.')).toBeVisible();
+  await user.click(within(mail).getByRole('checkbox', { name: 'Set up an authenticator app' }));
+  await user.type(within(mail).getByRole('textbox', { name: 'Return to client' }), 'billing');
+  await user.type(
+    within(mail).getByRole('textbox', { name: 'Return to address' }),
+    'https://evil.example/cb',
+  );
+  await user.click(send);
+  expect(
+    await within(mail).findByText('is not a redirect URI the named client registered'),
+  ).toBeVisible();
+  await user.clear(within(mail).getByRole('textbox', { name: 'Return to address' }));
+  await user.type(
+    within(mail).getByRole('textbox', { name: 'Return to address' }),
+    'https://billing.example/cb',
+  );
+  await user.click(send);
+  expect(await within(mail).findByText(/A link through 1 action was sent/u)).toBeVisible();
+  expect(sent.filter((s) => s.path === `${C}/actions-email`).map((s) => s.body)).toEqual([
+    {
+      actions: ['configure-totp'],
+      client_id: 'billing',
+      redirect_uri: 'https://evil.example/cb',
+    },
+    {
+      actions: ['configure-totp'],
+      client_id: 'billing',
+      redirect_uri: 'https://billing.example/cb',
+    },
+  ]);
+});
+
+it('passes axe in both themes, with a mail refused', async () => {
+  const user = userEvent.setup();
+  expect(
+    await axeInBothThemes(
+      () =>
+        consoleAt(
+          AT,
+          subjectRoutes(undefined, {
+            [`POST ${C}/verification`]: problem(409, 'about:blank#no-email', 'Conflict'),
+          }),
+        ).element,
+      async () => {
+        const mail = await screen.findByRole('region', { name: 'Email' });
+        await user.click(within(mail).getByRole('button', { name: 'Send a verification email' }));
+        await within(mail).findByText(/Add one under Profile first/u);
       },
     ),
   ).toEqual({ light: [], dark: [] });

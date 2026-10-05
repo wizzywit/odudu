@@ -1,7 +1,8 @@
 import { json, type Answer } from '#/testing/fakeTransport.ts';
 import { GRACE, whoami } from '#/testing/renderConsole.tsx';
 
-export const S = '/console/api/admin/tenants/acme/subjects';
+export const A = '/console/api/admin/tenants/acme';
+export const S = `${A}/subjects`;
 export const POLICY = '/console/api/admin/tenants/acme/subjects/username-policy';
 export const ADA_ID = '01a0e72d-7fc7-7950-a1e7-1d079588f8b4';
 export const ADA_AT = `/console/acme/subjects/${ADA_ID}`;
@@ -69,6 +70,41 @@ export const NOT_LOCKED = {
   last_failure_at: null,
 };
 
+export function group(id: string, path: string, description: string | null = null) {
+  const name = path.split('/').at(-1) ?? path;
+  return {
+    id,
+    name,
+    description,
+    parent_id: null,
+    default_for_new_subjects: false,
+    path,
+    created_at: '2026-09-28T08:41:53.858Z',
+  };
+}
+
+export function role(id: string, name: string, clientKey: string | null = null) {
+  return {
+    id,
+    name,
+    description: null,
+    client_id: clientKey === null ? null : `c-${clientKey}`,
+    client_key: clientKey,
+    default_for_new_subjects: false,
+    created_at: '2026-09-28T08:41:53.858Z',
+  };
+}
+
+// The built-in admin client's roles, as the role list answers them.
+export const ADMIN_ROLES = [
+  role('r-full', 'tenant-admin', 'odudu-admin'),
+  ...EVERY_TENANT_CAPABILITY.map((name) => role(`r-${name}`, name, 'odudu-admin')),
+];
+
+export function assigned(r: ReturnType<typeof role>) {
+  return { id: r.id, name: r.name, client_id: r.client_id, client_key: r.client_key };
+}
+
 // grace of acme, holding the capabilities given, looking at ada.
 export function subjectRoutes(
   capabilities: readonly string[] = EVERY_TENANT_CAPABILITY,
@@ -84,6 +120,24 @@ export function subjectRoutes(
     [`GET ${S}/${ADA_ID}/credentials`]: json({ items: [] }),
     [`GET ${S}/${ADA_ID}/lockout`]: json(NOT_LOCKED),
     [`GET ${POLICY}`]: json({ username_editable: false }),
+    [`GET ${S}/${ADA_ID}/groups`]: json({ items: [] }, 200, { etag: '"g0"' }),
+    [`GET ${S}/${ADA_ID}/roles`]: json({ items: [] }, 200, { etag: '"r0"' }),
+    [`GET ${S}/${ADA_ID}/effective-roles`]: json({ items: [] }),
+    [`GET ${S}/${ADA_ID}/required-actions`]: json({ actions: [] }, 200, { etag: '"a0"' }),
+    [`GET ${S}/${ADA_ID}/sessions`]: json({ items: [] }),
+    [`GET ${S}/${ADA_ID}/consents`]: json({ items: [] }),
+    [`GET ${S}/${ADA_ID}/grants`]: json({ items: [] }),
+    [`GET ${A}/audit`]: json({ items: [] }),
+    [`GET ${A}/groups`]: json({ items: [] }),
+    [`GET ${A}/roles`]: (request) =>
+      json({
+        items:
+          request.search.get('client') === 'c-odudu-admin'
+            ? ADMIN_ROLES
+            : request.search.get('name') === 'tenant-admin'
+              ? ADMIN_ROLES.slice(0, 1)
+              : [],
+      })(request),
     ...extra,
   };
 }

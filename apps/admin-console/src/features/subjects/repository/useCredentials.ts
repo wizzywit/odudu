@@ -3,7 +3,8 @@ import type {
   ListCredentialsResponse,
   Lockout,
 } from '@odudu/contracts/admin';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSubjectRead, type Read } from '#/features/subjects/repository/useSubjectRead.ts';
 import {
   clearLockout,
   deleteCredential,
@@ -16,26 +17,7 @@ import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnc
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
-export type Read<T> =
-  { status: 'loading' } | { status: 'ready'; data: T } | { status: 'failed'; retry: () => void };
-
-function useSubjectRead<T>(
-  key: readonly unknown[],
-  asked: boolean,
-  read: () => Promise<GatewayResult<T>>,
-): Read<T> {
-  const client = useQueryClient();
-  const query = useQuery({ queryKey: key, queryFn: read, enabled: asked });
-  const result = query.data;
-  if (result === undefined) return { status: 'loading' };
-  if (result.ok) return { status: 'ready', data: result.data };
-  return {
-    status: 'failed',
-    retry: () => {
-      client.invalidateQueries({ queryKey: key, exact: true }).catch(() => undefined);
-    },
-  };
-}
+export type { Read };
 
 function credentialsKey(tenant: string, id: string) {
   return ['credentials', tenant, id] as const;

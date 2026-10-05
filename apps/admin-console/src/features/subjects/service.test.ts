@@ -7,8 +7,18 @@ import {
   lockoutSummary,
   NAME_CLAIMS,
   newSubjectHref,
+  accessRefusal,
+  actionsRecord,
+  groupsRecord,
+  heldSummary,
+  mailRefusal,
   profileRecord,
+  REQUIRED_ACTIONS,
+  rolesRecord,
+  splitRoles,
+  SUBJECT_TAB_LABELS,
   SUBJECT_TABS,
+  subjectTabHref,
   subjectHref,
   subjectRecord,
   TAB_RECORDS,
@@ -179,5 +189,123 @@ describe('the record tabs', () => {
     expect(Object.keys(TAB_RECORDS).sort()).toEqual([...SUBJECT_TABS].sort());
     expect(TAB_RECORDS.profile('s1')).toEqual([subjectRecord('s1'), profileRecord('s1')]);
     expect(TAB_RECORDS.credentials('s1')).toEqual([]);
+    expect(TAB_RECORDS.groups('s1')).toEqual([groupsRecord('s1')]);
+    expect(TAB_RECORDS.roles('s1')).toEqual([rolesRecord('s1')]);
+    expect(TAB_RECORDS['required-actions']('s1')).toEqual([actionsRecord('s1')]);
+    expect(TAB_RECORDS.sessions('s1')).toEqual([]);
+  });
+
+  it('runs in the order the record page shows them', () => {
+    expect(SUBJECT_TABS.map((tab) => SUBJECT_TAB_LABELS[tab])).toEqual([
+      'Profile',
+      'Credentials',
+      'Groups',
+      'Roles',
+      'Required actions',
+      'Sessions',
+      'Consents',
+      'Grants',
+      'Activity',
+    ]);
+  });
+
+  it('addresses one tab of a record', () => {
+    expect(subjectTabHref('acme', 's 1', 'roles')).toBe('/console/acme/subjects/s%201?tab=roles');
+  });
+});
+
+describe('required actions', () => {
+  it('words each action the way the mailed link does', () => {
+    expect(REQUIRED_ACTIONS.map((action) => action.label)).toEqual([
+      'Choose a new password',
+      'Set up an authenticator app',
+      'Register a passkey',
+      'Generate recovery codes',
+    ]);
+  });
+});
+
+describe('roles', () => {
+  const assigned = (id: string, name: string, key: string | null) => ({
+    id,
+    name,
+    client_id: key === null ? null : `c-${key}`,
+    client_key: key,
+  });
+
+  it('tells the admin capabilities apart from every other role', () => {
+    expect(
+      splitRoles([
+        assigned('r1', 'billing', null),
+        assigned('r2', 'manage-users', 'odudu-admin'),
+        assigned('r3', 'tenant-admin', 'odudu-admin'),
+        assigned('r4', 'tenant-admin', null),
+      ]),
+    ).toEqual({
+      roleIds: ['r1', 'r4'],
+      adminIds: ['r2', 'r3'],
+      holdings: ['tenant-admin', 'manage-users'],
+    });
+  });
+});
+
+describe('a holder in a list of administrators', () => {
+  it('names what is held, and leaves out what another holding implies', () => {
+    const via = (parent: string) => ({
+      kind: 'composite' as const,
+      parent_role_id: 'p',
+      parent_name: parent,
+    });
+    const role = (name: string, paths: unknown[]) => ({
+      id: `r-${name}`,
+      name,
+      client_id: 'c',
+      client_key: 'odudu-admin',
+      via: paths as never,
+    });
+    expect(
+      heldSummary([
+        role('tenant-admin', [{ kind: 'direct' }]),
+        role('manage-users', [via('tenant-admin')]),
+        role('view-users', [via('manage-users'), via('tenant-admin')]),
+        role('view-audit', [
+          via('tenant-admin'),
+          { kind: 'group', group_id: 'g', group_path: '/ops' },
+        ]),
+      ]),
+    ).toEqual([
+      { holding: 'tenant-admin', label: 'Full (tenant-admin)', how: 'directly' },
+      { holding: 'view-audit', label: 'view-audit', how: 'through group /ops' },
+    ]);
+  });
+});
+
+describe('a mail the server would not send', () => {
+  it('explains each refusal in words, naming where it is fixed', () => {
+    expect(mailRefusal('about:blank#no-email', 'ada')).toEqual({
+      text: 'ada has no email address. Add one under Profile first.',
+      fix: 'profile',
+    });
+    expect(mailRefusal('about:blank#no-mail-relay', 'ada')?.fix).toBe('email');
+    expect(mailRefusal('about:blank#reset-password-off', 'ada')?.fix).toBe('settings');
+    expect(mailRefusal('about:blank', 'ada')).toBeNull();
+  });
+});
+
+describe('a change to what a subject holds, refused', () => {
+  const problem = (status: number, type = 'about:blank') => ({ type, title: 'x', status });
+
+  it('says the ceiling a 403 met, in the words of what was changed', () => {
+    expect(accessRefusal('ada', 'groups')(problem(403))).toMatch(
+      /a group's roles are granted with it/u,
+    );
+    expect(accessRefusal('ada', 'roles')(problem(403))).toMatch(/only what you hold yourself/u);
+  });
+
+  it('words the last-administrator guard in place', () => {
+    expect(accessRefusal('ada', 'roles')(problem(409, 'about:blank#last-administrator'))).toBe(
+      'ada is the last enabled administrator here, and this would take that from them, so nothing was changed. Make somebody else an administrator first.',
+    );
+    expect(accessRefusal('ada', 'roles')(problem(409))).toBeNull();
   });
 });

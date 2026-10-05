@@ -1,11 +1,20 @@
 import {
   USERNAME_RULE,
   type Credential,
+  type EffectiveRoleAssignment,
   type Lockout,
   type Profile,
+  type RequiredAction,
   type Subject,
 } from '@odudu/contracts/admin';
 import type { Crumb } from '#/shared/service/breadcrumb.ts';
+import {
+  holdingLabel,
+  isAdminRole,
+  isHolding,
+  provenanceText,
+  type Holding,
+} from '#/shared/service/capabilities.ts';
 import { formatAbsolute } from '#/shared/service/format.ts';
 
 export type { Credential, Lockout, Profile, Subject };
@@ -158,13 +167,34 @@ export function lockoutSummary(lockout: Lockout): LockoutSummary {
 }
 
 // A subject's record, a tab per concern, in the order the page shows them.
-export const SUBJECT_TABS = ['profile', 'credentials'] as const;
+export const SUBJECT_TABS = [
+  'profile',
+  'credentials',
+  'groups',
+  'roles',
+  'required-actions',
+  'sessions',
+  'consents',
+  'grants',
+  'activity',
+] as const;
 export type SubjectTab = (typeof SUBJECT_TABS)[number];
 
 export const SUBJECT_TAB_LABELS: Readonly<Record<SubjectTab, string>> = {
   profile: 'Profile',
   credentials: 'Credentials',
+  groups: 'Groups',
+  roles: 'Roles',
+  'required-actions': 'Required actions',
+  sessions: 'Sessions',
+  consents: 'Consents',
+  grants: 'Grants',
+  activity: 'Activity',
 };
+
+export function subjectTabHref(tenant: string, id: string, tab: SubjectTab): string {
+  return `${subjectHref(tenant, id)}?tab=${tab}`;
+}
 
 export function subjectRecord(id: string): string {
   return `subjects/${id}`;
@@ -174,14 +204,165 @@ export function profileRecord(id: string): string {
   return `subjects/${id}/profile`;
 }
 
+export function groupsRecord(id: string): string {
+  return `subjects/${id}/groups`;
+}
+
+export function rolesRecord(id: string): string {
+  return `subjects/${id}/roles`;
+}
+
+export function actionsRecord(id: string): string {
+  return `subjects/${id}/required-actions`;
+}
+
 // The records whose sections each tab edits, so its dot follows them.
 export const TAB_RECORDS: Readonly<Record<SubjectTab, (id: string) => readonly string[]>> = {
   profile: (id) => [subjectRecord(id), profileRecord(id)],
   credentials: () => [],
+  groups: (id) => [groupsRecord(id)],
+  roles: (id) => [rolesRecord(id)],
+  'required-actions': (id) => [actionsRecord(id)],
+  sessions: () => [],
+  consents: () => [],
+  grants: () => [],
+  activity: () => [],
 };
+
+// In the order the next sign-in asks for them.
+export const REQUIRED_ACTIONS: readonly {
+  action: RequiredAction;
+  label: string;
+  description: string;
+}[] = [
+  {
+    action: 'update-password',
+    label: 'Choose a new password',
+    description: 'The next sign-in asks for a new password before it lets them in.',
+  },
+  {
+    action: 'configure-totp',
+    label: 'Set up an authenticator app',
+    description: 'Enrols a TOTP authenticator, which then becomes a second factor.',
+  },
+  {
+    action: 'configure-passkey',
+    label: 'Register a passkey',
+    description: 'Registers a passkey on the device they sign in from.',
+  },
+  {
+    action: 'generate-recovery-codes',
+    label: 'Generate recovery codes',
+    description: 'Shows them a fresh set of recovery codes, once, replacing any they hold.',
+  },
+];
+
+interface Assigned {
+  id: string;
+  name: string;
+  client_key: string | null;
+}
+
+export interface SplitRoles {
+  roleIds: string[];
+  adminIds: string[];
+  // The admin capabilities assigned, Full first, in the order they are offered.
+  holdings: Holding[];
+}
+
+// One assignment list holds both: the admin capabilities are edited on their
+// own, and every save sends the other part back as it was.
+export function splitRoles(items: readonly Assigned[]): SplitRoles {
+  const admin = items.filter((role) => isAdminRole(role));
+  const holdings = admin.map((role) => role.name).filter((name) => isHolding(name));
+  return {
+    roleIds: items.filter((role) => !isAdminRole(role)).map((role) => role.id),
+    adminIds: admin.map((role) => role.id),
+    holdings: [
+      ...holdings.filter((name) => name === 'tenant-admin'),
+      ...holdings.filter((name) => name !== 'tenant-admin'),
+    ],
+  };
+}
+
+export interface HeldLine {
+  holding: Holding;
+  label: string;
+  how: string;
+}
+
+// What a holder holds, leaving out what another of its holdings already
+// carries: tenant-admin's nested capabilities are said by "Full".
+export function heldSummary(effective: readonly EffectiveRoleAssignment[]): HeldLine[] {
+  const admin = effective.filter((role) => isAdminRole(role));
+  const names = new Set(admin.map((role) => role.name));
+  return admin.flatMap((role) => {
+    if (!isHolding(role.name)) return [];
+    const own = role.via.filter((via) => via.kind !== 'composite' || !names.has(via.parent_name));
+    if (own.length === 0) return [];
+    return [
+      {
+        holding: role.name,
+        label: holdingLabel(role.name),
+        how: own.map(provenanceText).join(', '),
+      },
+    ];
+  });
+}
+
+export interface MailRefusal {
+  text: string;
+  // Where it is put right.
+  fix: 'profile' | 'email' | 'settings';
+}
+
+// The three conflicts a mail meets before it is sent, each one a fact about
+// the subject or the tenant rather than a guard.
+export function mailRefusal(type: string, name: string): MailRefusal | null {
+  switch (type) {
+    case 'about:blank#no-email':
+      return { text: `${name} has no email address. Add one under Profile first.`, fix: 'profile' };
+    case 'about:blank#no-mail-relay':
+      return {
+        text: 'The tenant has no mail relay and the deployment no sender, so the mail would only be logged. Set up a relay under Email.',
+        fix: 'email',
+      };
+    case 'about:blank#reset-password-off':
+      return {
+        text: 'Password reset is off for this tenant, so its reset page would refuse the link. Turn it on in Settings.',
+        fix: 'settings',
+      };
+    default:
+      return null;
+  }
+}
 
 // A service or agent subject has no `users` row: no username, email,
 // profile, password or lockout, since it signs in as itself.
 export function signsInAsItself(subject: Pick<Subject, 'type'>): boolean {
   return subject.type !== 'user';
+}
+
+// What a 403 or the last-administrator 409 means for a change to what a
+// subject holds: a caller gives only what it holds itself, and reaches no
+// subject holding more (ADR 0040).
+export function accessRefusal(
+  name: string,
+  what: 'groups' | 'roles' | 'actions',
+): (problem: { type: string; status: number }) => string | null {
+  return (problem) => {
+    if (problem.status === 409 && problem.type === 'about:blank#last-administrator') {
+      return `${name} is the last enabled administrator here, and this would take that from them, so nothing was changed. Make somebody else an administrator first.`;
+    }
+    if (problem.status !== 403) return null;
+    const ceiling = `nor can you change a subject who holds a capability you do not (ADR 0040). It also needs manage-users.`;
+    switch (what) {
+      case 'groups':
+        return `Refused: a group's roles are granted with it, and you can grant only capabilities you hold yourself; ${ceiling}`;
+      case 'roles':
+        return `Refused: you can give or take only what you hold yourself, nested in a role or not; ${ceiling}`;
+      case 'actions':
+        return `Refused: it needs manage-users, and ${name} may hold a capability you do not (ADR 0040).`;
+    }
+  };
 }
