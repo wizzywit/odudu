@@ -1,0 +1,13 @@
+# The workspace root holds the one pnpm-lock.yaml every package resolves
+# through, so an update made there changes the lockfile with the manifest.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
