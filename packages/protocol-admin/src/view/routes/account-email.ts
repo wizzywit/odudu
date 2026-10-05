@@ -5,7 +5,7 @@ import {
   type AccountEmailDeps,
   type AccountEmailPurpose,
 } from '#/usecase/account-email';
-import { fieldProblem, problem, sendProblem } from '#/view/problem';
+import { problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
 import { targetCeilingProblem } from '#/view/routes/subjects';

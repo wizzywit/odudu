@@ -4680,8 +4680,8 @@ Requires `manage-users`. The body names the required actions the link takes
 the subject through — `{"actions": […]}`, at least one of `update-password`,
 `configure-totp`, `configure-passkey` and `generate-recovery-codes`, the
 vocabulary `PUT /subjects/:id/required-actions` takes, anything else refused
-with `400` — and optionally a `redirect_uri` with the `client_id` that
-registered it. The link is minted and mailed to the subject's own address by
+with `400`, as is any other field, `client_id` and `redirect_uri` included.
+The link is minted and mailed to the subject's own address by
 `enqueueActionsLink` (`@odudu/account`), and the answer is `202` with no
 body. The two routes above are the same core with a fixed link: one
 `sendAccountEmail` (`packages/protocol-admin/src/usecase/account-email.ts`)
@@ -4700,20 +4700,12 @@ sign-in with the password and whatever factor the subject already holds. The
 link lives as long as a reset link (`reset_password_ttl_seconds`), since it
 signs its subject in by their mailbox the same way, and it is spent once.
 
-**A `redirect_uri` is only ever one the client registered.** It must equal,
-exactly, one of the `redirect_uris` of the client `client_id` names, or the
-request is refused with `400` naming `redirect_uri`; a `redirect_uri` without
-a `client_id`, or a `client_id` without a `redirect_uri`, is refused the same
-way, naming `client_id`. The link's last page no longer links to it: that
-callback carries no `code` or `state`, which a client reads as a failed or
-forged one, so the page says to sign in to the application instead. The pair
-is still validated, stored with the link and named in the audit row, and
-nothing reads it back. A client that does not exist and one that
-never registered the URI get the same answer, so a caller with
-`manage-users` alone learns nothing about another client's registration
-from it, and both are checked only after the subject is found and the
-target ceiling passes, so an unknown subject is still `404` and one above
-the caller `403`.
+**The link offers no way back to a client.** Its last page says to sign in
+to the application, because a registered callback reached without a `code`
+or `state` reads to a client as a failed or forged response. The body is
+strict, so `client_id` and `redirect_uri`, which an earlier version took and
+nothing read, are refused with `400` naming the field, as the other strict
+bodies refuse an unknown one.
 
 The `409`s are the reset's: `about:blank#no-email`, `about:blank#no-mail-relay`,
 and `about:blank#reset-password-off` when `update-password` is named while
@@ -4722,51 +4714,52 @@ the link, and an outstanding link stops working the moment the setting is
 turned off. It is held to the target ceiling and throttled per origin with
 the sign-in, registration and reset submissions, as the two routes above
 are. The link is never in the response, and the audit row,
-`subject.actions_email_send`, names the actions, the client and the
-redirect and nothing else.
+`subject.actions_email_send`, names the actions and nothing else.
 
 Against the `odudu-t8d2` stack named under the twelfth stack above, in a tenant `required-actions-demo` made for it,
 with a relay at the stack's own `postgres` container, port 25, where nothing
-listens, a public client `actions-app` registered
-`https://app.example/callback`, and `grace` made through `POST /subjects`
+listens, and `grace` made through `POST /subjects`
 with an address and no password; `P=http://localhost:3086/admin/tenants/required-actions-demo`.
-A link asking for a password while the tenant's reset is off, the setting
-turned on, a redirect the client never registered, an action the server
+These five commands were recaptured on a later stack, the compose project
+`odudu-8d3` on port 3086, built at the commit that dropped the redirect pair
+and torn down with `down -v` afterwards; `grace`'s id and the request ids are
+that run's own. The mail and link pages below are the earlier stack's, whose
+link has the same page. A link asking for a password while the tenant's reset
+is off, the setting turned on, the removed `client_id` and `redirect_uri`, an action the server
 does not take, then the send that is accepted, and its audit row:
 
 ```bash
-G=01a10bee-17d6-7f85-8cf7-950a77cbcfd4
+G=01a10c6a-8a75-7017-a32b-2c65e85ba94d
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"actions":["configure-totp","update-password"]}' "$P/subjects/$G/actions-email"; echo
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"reset_password_allowed":true}' "$P/settings" | grep -o '"reset_password_allowed":[a-z]*'
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"actions":["configure-totp","update-password"],"client_id":"actions-app","redirect_uri":"https://evil.example/cb"}' \
+  -d '{"actions":["configure-totp","update-password"],"client_id":"actions-app","redirect_uri":"https://app.example/callback"}' \
   "$P/subjects/$G/actions-email"; echo
 curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"actions":["verify-email"]}' "$P/subjects/$G/actions-email"; echo
 curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"actions":["configure-totp","update-password"],"client_id":"actions-app","redirect_uri":"https://app.example/callback"}' \
-  "$P/subjects/$G/actions-email"
+  -d '{"actions":["configure-totp","update-password"]}' "$P/subjects/$G/actions-email"
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
   "$P/audit?resource_type=subject&resource_id=$G&action=subject.actions_email_send" \
   | jq -c '.items[] | {action, outcome, detail}'
 ```
 
 ```
-{"type":"about:blank#reset-password-off","title":"Conflict","status":409,"detail":"reset_password_allowed is off, so the tenant would refuse the link; turn it on with PATCH /settings first","instance":"01a10bee-1806-788d-850c-64758ad7dade"}
+{"type":"about:blank#reset-password-off","title":"Conflict","status":409,"detail":"reset_password_allowed is off, so the tenant would refuse the link; turn it on with PATCH /settings first","instance":"01a10c6a-8a87-735b-bd5b-36e6e4d3e173"}
 "reset_password_allowed":true
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uri: is not a redirect URI the named client registered","errors":[{"path":"redirect_uri","message":"is not a redirect URI the named client registered"}],"instance":"01a10bee-184b-79c9-8231-1baac19343ff"}
-{"type":"about:blank","title":"Error","status":400,"detail":"body/actions/0 must be equal to one of the allowed values","errors":[{"path":"actions[0]","message":"must be equal to one of the allowed values"}],"instance":"01a10bee-1872-7f64-8c82-5de3d9144a0a"}
+{"type":"about:blank","title":"Error","status":400,"detail":"body must NOT have additional properties: client_id","errors":[{"path":"client_id","message":"must NOT have additional properties"}],"instance":"01a10c6a-8abe-7e09-b8ee-d5beec34e497"}
+{"type":"about:blank","title":"Error","status":400,"detail":"body/actions/0 must be equal to one of the allowed values","errors":[{"path":"actions[0]","message":"must be equal to one of the allowed values"}],"instance":"01a10c6a-8aca-7d23-a17b-ac4d9b0d97af"}
 HTTP/1.1 202 Accepted
-x-request-id: 01a10bee-187e-7435-95f7-3ebfbc9f3052
+x-request-id: 01a10c6a-8ad5-71bb-9990-bb6eaee31768
 cache-control: no-store
 content-length: 0
-Date: Mon, 05 Oct 2026 11:58:35 GMT
+Date: Mon, 05 Oct 2026 14:14:31 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"action":"subject.actions_email_send","outcome":"allowed","detail":{"actions":["update-password","configure-totp"],"client_id":"actions-app","redirect_uri":"https://app.example/callback"}}
+{"action":"subject.actions_email_send","outcome":"allowed","detail":{"actions":["update-password","configure-totp"]}}
 ```
 
 The one mail the tenant's outbox holds, read there, since the relay delivers nothing —
