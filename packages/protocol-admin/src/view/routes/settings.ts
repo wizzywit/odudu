@@ -109,7 +109,9 @@ export function amendSettingsHandler(deps: SettingsRouteDeps): AdminRouteHandler
           request,
           fieldProblem(
             outcome.problems.map(({ name, message }) => ({ path: name, message })),
-            `${String(outcome.problems.length)} tenant setting(s) outside the permitted range, listed under errors`,
+            `${String(outcome.problems.length)} tenant setting(s) ${
+              outcome.ranged ? 'outside the permitted range' : 'refused'
+            }, listed under errors`,
           ),
         );
       case 'system_tenant_guarded':

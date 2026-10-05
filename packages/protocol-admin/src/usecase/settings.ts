@@ -69,7 +69,12 @@ export type AmendSettingsOutcome =
       expected: 'boolean' | 'integer' | 'text' | 'list';
       values?: readonly string[];
     }
-  | { kind: 'out_of_range'; problems: readonly TenantSettingProblem[] }
+  | {
+      kind: 'out_of_range';
+      problems: readonly TenantSettingProblem[];
+      /** Whether any is a range; a list setting's problem is a refusal of its members. */
+      ranged: boolean;
+    }
   | { kind: 'system_tenant_guarded'; reason: string }
   | { kind: 'precondition_failed' };
 
@@ -180,7 +185,10 @@ export async function amendSettings(
     ...current.settings,
     ...Object.fromEntries(coerced.settings.map((setting) => [setting.name, setting.value])),
   });
-  if (problems.length > 0) return { kind: 'out_of_range', problems };
+  if (problems.length > 0) {
+    const ranged = problems.some(({ name }) => listSettingValues(name) === null);
+    return { kind: 'out_of_range', problems, ranged };
+  }
 
   const columns = Object.fromEntries(
     coerced.settings.map((setting) => [setting.column, setting.value]),

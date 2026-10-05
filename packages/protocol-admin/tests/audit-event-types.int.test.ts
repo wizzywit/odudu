@@ -98,6 +98,9 @@ describe('the audit_event_types setting', () => {
     const errors = res.json<{ errors: { path: string; message: string }[] }>().errors;
     expect(errors.map((error) => error.path)).toEqual(['audit_event_types']);
     expect(errors[0]?.message).toContain(missing);
+    expect(res.json<{ detail: string }>().detail).toBe(
+      '1 tenant setting(s) refused, listed under errors',
+    );
     expect(
       (await settings(t.name)).json<{ audit_event_types: string[] }>().audit_event_types,
     ).toEqual(EVERY_TYPE);
