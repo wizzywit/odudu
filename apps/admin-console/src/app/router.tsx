@@ -272,6 +272,49 @@ const groupPages = [
 ] as const;
 const groupRecord = groupPages[2];
 
+function rolesPage(name: 'RolesPage' | 'NewRolePage') {
+  return lazyFeatureRoute(
+    () => import('#/features/roles/index.ts').then((feature) => feature[name]),
+    'Loading roles',
+  );
+}
+
+const Roles = rolesPage('RolesPage');
+const NewRole = rolesPage('NewRolePage');
+const RoleRecord = lazyFeatureRoute(
+  () => import('#/features/roles/index.ts').then((feature) => feature.RoleRecordPage),
+  'Loading the role',
+);
+
+const rolePages = [
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'roles',
+    component: function RoleList() {
+      const { tenant: name } = tenant.useParams();
+      return <Roles key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'roles/new',
+    component: function RoleCreation() {
+      const { tenant: name } = tenant.useParams();
+      return <NewRole key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'roles/$id',
+    component: function RoleAtId() {
+      const { tenant: name } = tenant.useParams();
+      const { id } = roleRecord.useParams();
+      return <RoleRecord key={`${name}/${id}`} tenant={name} id={id} />;
+    },
+  }),
+] as const;
+const roleRecord = rolePages[2];
+
 // Every feature chunk the routes load, for a caller that wants them all in
 // hand before the first render.
 export function preloadFeatures(): Promise<void> {
@@ -290,11 +333,14 @@ export function preloadFeatures(): Promise<void> {
     Groups,
     NewGroup,
     GroupRecord,
+    Roles,
+    NewRole,
+    RoleRecord,
   ];
   return Promise.all(features.map((feature) => feature.preload())).then(() => undefined);
 }
 
-const TAKEN = new Set(['tenants', 'export', 'system-admins', 'subjects', 'groups']);
+const TAKEN = new Set(['tenants', 'export', 'system-admins', 'subjects', 'groups', 'roles']);
 
 const areas = EVERY_AREA.filter((area) => area !== OVERVIEW && !TAKEN.has(area.path)).map((area) =>
   createRoute({
@@ -316,6 +362,7 @@ const routeTree = root.addChildren([
     newSystemAdmin,
     ...subjectPages,
     ...groupPages,
+    ...rolePages,
     ...areas,
   ]),
 ]);
