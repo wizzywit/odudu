@@ -4,6 +4,9 @@ import {
   administratorCapability,
   administratorNeeds,
   builtinAdminClient,
+  GRANT_NEEDS,
+  HOLDINGS_REQUIRED,
+  holdingsProblem,
   tenantAdminCarries,
   tenantAdminRole,
   withRole,
@@ -81,5 +84,20 @@ describe('what adding an administrator needs', () => {
     expect([...chosen].sort()).toEqual(
       ['manage-clients', 'manage-users', 'view-audit', 'view-users'].sort(),
     );
+  });
+});
+
+describe('the holdings an administrator is given', () => {
+  it('must name Full or at least one capability', () => {
+    expect(holdingsProblem([])).toBe(HOLDINGS_REQUIRED);
+    expect(HOLDINGS_REQUIRED).toBe('Choose Full, or at least one capability.');
+    expect(holdingsProblem(['tenant-admin'])).toBeNull();
+    expect(holdingsProblem(['view-audit'])).toBeNull();
+  });
+});
+
+describe('what changing what an administrator holds needs', () => {
+  it('is each distinct capability the grant requests make', () => {
+    expect([...GRANT_NEEDS].sort()).toEqual(['manage-clients', 'manage-users', 'view-users']);
   });
 });

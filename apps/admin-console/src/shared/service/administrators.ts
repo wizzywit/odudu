@@ -95,6 +95,16 @@ export const GRANT_REQUESTS: readonly AdministratorRequest[] = [
   'set-roles',
 ];
 
+export const GRANT_NEEDS: readonly AdminCapability[] = [
+  ...new Set(GRANT_REQUESTS.map((request) => ADMINISTRATOR_REQUEST_NEEDS[request])),
+];
+
+export const HOLDINGS_REQUIRED = 'Choose Full, or at least one capability.';
+
+export function holdingsProblem(holdings: readonly string[]): string | null {
+  return holdings.length === 0 ? HOLDINGS_REQUIRED : null;
+}
+
 const CALL_REQUESTS: Readonly<Record<AdministratorCall, readonly AdministratorRequest[]>> = {
   create: ['create'],
   grant: GRANT_REQUESTS,

@@ -15,3 +15,4 @@ export {
   useRereadAuthority,
   useTenantMissing,
 } from '#/features/session/usecase/useAuthority.ts';
+export { draftOwner } from '#/features/session/service.ts';
