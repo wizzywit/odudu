@@ -118,7 +118,7 @@ describe('a comment block stays within the ceiling', { timeout: 60_000 }, () => 
 
   it('reaches every source tree, component files included', async () => {
     const files = await scannedFiles();
-    expect(files).toContain('apps/admin-console/src/app/App.tsx');
+    expect(files).toContain('apps/admin-console/src/app/App/App.tsx');
     expect(files).toContain('packages/kernel/src/config.ts');
   });
 });

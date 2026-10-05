@@ -1,6 +1,6 @@
 import { createMemoryHistory } from '@tanstack/react-router';
 import { render } from '@testing-library/react';
-import { App } from '#/app/App.tsx';
+import { App } from '#/app/App';
 import { beforeAll } from 'vitest';
 import { createConsoleRouter, preloadFeatures } from '#/app/router.tsx';
 import { createQueryClient } from '#/shared/repository/queryClient.ts';

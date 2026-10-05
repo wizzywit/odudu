@@ -108,7 +108,7 @@ describe('the any ban cannot be waived by an inline comment', { timeout: 60_000 
 
   it('reaches every source tree, component files included', async () => {
     const files = await scannedFiles();
-    expect(files).toContain('apps/admin-console/src/app/App.tsx');
+    expect(files).toContain('apps/admin-console/src/app/App/App.tsx');
     expect(files).toContain('packages/kernel/src/config.ts');
   });
 
@@ -117,6 +117,6 @@ describe('the any ban cannot be waived by an inline comment', { timeout: 60_000 
       '// eslint-' +
       'disable-next-line @typescript-eslint/no-explicit-any\n' +
       'export const App = (props: any) => <p>{props}</p>;\n';
-    expect(waivers('apps/admin-console/src/app/App.tsx', source)).toHaveLength(1);
+    expect(waivers('apps/admin-console/src/app/App/App.tsx', source)).toHaveLength(1);
   });
 });

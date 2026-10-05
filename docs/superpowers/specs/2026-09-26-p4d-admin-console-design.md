@@ -553,7 +553,7 @@ with `.test`; a CSS module sits in its component's folder (§6.3.1). A lint test
 `tests/lint/` fails the build on a `use*` file exporting no hook, on a hook
 exported from a file not named `use*`, and on a component file not in
 PascalCase. `eslint-plugin-react-hooks` holds hooks to their rules.
-A `#/` import of a file names its extension (`#/app/App.tsx`), because under
+A `#/` import of a file names its extension (`#/app/router.tsx`), because under
 `moduleResolution: bundler` TypeScript does not probe extensions for a
 `package.json` `imports` target, and one `"#/*": "./src/*"` must reach both
 `.ts` and `.tsx`. The same holds for a folder: `imports` never reaches its
@@ -564,10 +564,14 @@ fails the build if the two disagree.
 #### 6.3.1 Component folders
 
 A view component lives in a folder named after it: `X/X.tsx`,
-`X/X.module.css`, `X/X.test.tsx` and an `index.ts` that only re-exports.
+`X/X.module.css`, `X/X.test.tsx` and an `index.ts` that only re-exports. A
+module in `app/` with companions follows the same rule (`app/ToastLayer/`),
+and a whole-app test sits in the folder of the component it renders
+(`app/App/draftRestore.test.tsx`); `Providers.tsx` and `router.tsx` have none
+and stay files.
 Components that share one stylesheet share its folder (`Field/` holds the
 field components drawn from `Field.module.css`). An import names the folder,
-as in `#/shared/view/Button`, and a feature the same way
+as in `#/shared/view/Button` or `#/app/ToastLayer`, and a feature the same way
 (`#/features/session`). `tests/lint/console-folder-imports.test.ts` fails the
 build on an import that names an `index.ts`, and on an import of a file inside
 another component's folder; a folder's own files reach one another by path,

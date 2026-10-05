@@ -3,7 +3,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import axe from 'axe-core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { App } from '#/app/App.tsx';
+import { App } from '#/app/App/App.tsx';
 import { createConsoleRouter } from '#/app/router.tsx';
 import { createQueryClient } from '#/shared/repository/queryClient.ts';
 import { useDialogHost } from '#/shared/repository/useDialogHost.ts';

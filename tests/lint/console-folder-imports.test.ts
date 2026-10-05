@@ -4,7 +4,8 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-// A view component is a folder, imported as the folder: `#/shared/view/Button`.
+// A view component, or a module in app/ with companions, is a folder, imported
+// as the folder: `#/shared/view/Button`, `#/app/ToastLayer`.
 // An import names neither an index.ts nor a file inside another component's
 // folder, so what a folder keeps private stays private. A folder's own files
 // reach each other by path, since relative imports are banned and its index
@@ -14,7 +15,8 @@ import { describe, expect, it } from 'vitest';
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const CONSOLE_SOURCES = 'apps/admin-console/src/**/*.{ts,tsx}';
 const FIXTURES = 'tests/lint/fixtures/console-folder-imports';
-const COMPONENT_FOLDER = /^#\/((?:shared|features\/[^/]+)\/view\/[A-Z][A-Za-z0-9]*)\/./u;
+const COMPONENT_FOLDER =
+  /^#\/((?:shared|features\/[^/]+)\/view\/[A-Z][A-Za-z0-9]*|app\/[A-Za-z][A-Za-z0-9]*)\/./u;
 
 const MOCKS = new Set(['mock', 'doMock', 'importActual', 'importMock']);
 
@@ -95,7 +97,7 @@ describe("the console's folder imports", { timeout: 60_000 }, () => {
 
   it('fail every non-conforming fixture', async () => {
     const files = await read(`${FIXTURES}/fail/src/**/*.{ts,tsx}`, /^.*\/fail\/src\//u);
-    expect(files.size).toBe(6);
+    expect(files.size).toBe(7);
     for (const [file, source] of files) expect(violations(file, source), file).not.toEqual([]);
   });
 });

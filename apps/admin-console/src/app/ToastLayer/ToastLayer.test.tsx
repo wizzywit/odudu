@@ -1,6 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { ToastLayer } from '#/app/ToastLayer.tsx';
+import { ToastLayer } from '#/app/ToastLayer/ToastLayer.tsx';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 

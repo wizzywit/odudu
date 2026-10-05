@@ -28,7 +28,7 @@ function misnamed(folders: string[]): string[] {
 
 describe("the console's feature folders", () => {
   it('are named in lowercase letters and hyphens', async () => {
-    expect(existsSync(path.join(REPO_ROOT, CONSOLE_SRC, 'app/App.tsx'))).toBe(true);
+    expect(existsSync(path.join(REPO_ROOT, CONSOLE_SRC, 'app/App/App.tsx'))).toBe(true);
     expect(misnamed(await featureFolders(CONSOLE_SRC))).toEqual([]);
   });
 

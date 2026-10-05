@@ -9,8 +9,8 @@ import {
   type RouterHistory,
 } from '@tanstack/react-router';
 import { RouterProvider as AriaRouterProvider } from 'react-aria-components';
-import { lazyFeatureRoute } from '#/app/lazyFeatureRoute.tsx';
-import { NavigationGuard } from '#/app/NavigationGuard.tsx';
+import { lazyFeatureRoute } from '#/app/lazyFeatureRoute';
+import { NavigationGuard } from '#/app/NavigationGuard';
 import { ConsoleHome, SessionGate } from '#/features/session';
 import {
   AreaPage,

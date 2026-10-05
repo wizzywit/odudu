@@ -87,7 +87,7 @@ function offenders(files: Map<string, string>): string[] {
 describe('browser storage in the console', { timeout: 60_000 }, () => {
   it('is reached only from an adapter', async () => {
     const files = await read(CONSOLE_SRC);
-    expect([...files.keys()]).toContain('app/App.tsx');
+    expect([...files.keys()]).toContain('app/App/App.tsx');
     expect(offenders(files)).toEqual([]);
   });
 

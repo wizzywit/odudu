@@ -3,7 +3,7 @@ import '#/shared/view/fonts.css';
 import '#/shared/view/tokens.css';
 import '#/shared/view/global.css';
 import { createRoot } from 'react-dom/client';
-import { App } from '#/app/App.tsx';
+import { App } from '#/app/App';
 import { createConsoleRouter } from '#/app/router.tsx';
 import { applyRememberedTheme } from '#/shared/repository/themeChoice.ts';
 

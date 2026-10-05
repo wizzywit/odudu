@@ -166,7 +166,7 @@ const FAILING: Record<string, Violation[]> = {
 describe("the console's file names", { timeout: 60_000 }, () => {
   it('hold in every console source file', async () => {
     const files = await read(CONSOLE_SOURCES);
-    expect([...files.keys()]).toContain('apps/admin-console/src/app/App.tsx');
+    expect([...files.keys()]).toContain('apps/admin-console/src/app/App/App.tsx');
     const offenders = [...files]
       .filter(([file]) => !EXEMPT.test(path.posix.basename(file)))
       .flatMap(([file, source]) =>

@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Providers } from '#/app/Providers.tsx';
-import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer.tsx';
+import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer/UnsavedGuardLayer.tsx';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 

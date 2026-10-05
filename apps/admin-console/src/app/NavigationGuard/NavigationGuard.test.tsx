@@ -11,9 +11,9 @@ import {
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
-import { NavigationGuard } from '#/app/NavigationGuard.tsx';
+import { NavigationGuard } from '#/app/NavigationGuard/NavigationGuard.tsx';
 import { Providers } from '#/app/Providers.tsx';
-import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer.tsx';
+import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer';
 import { useDirtySection } from '#/shared/repository/useDirtySection.ts';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
