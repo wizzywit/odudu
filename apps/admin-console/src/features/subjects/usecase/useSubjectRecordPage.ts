@@ -27,6 +27,9 @@ export interface SubjectRecordPage {
   // Admin capabilities the subject holds and the caller does not: every
   // write on its record is then refused (ADR 0040's target ceiling).
   beyond: readonly AdminCapability[];
+  // Whether what the subject holds has been read: until it has, no write is
+  // offered, since the ceiling cannot be judged.
+  reach: 'checking' | 'ready' | { failed: true; retry: () => void };
 }
 
 export function useSubjectRecordPage(tenant: string, id: string): SubjectRecordPage {
@@ -57,9 +60,15 @@ export function useSubjectRecordPage(tenant: string, id: string): SubjectRecordP
       if (chosen !== undefined) selectTab(chosen);
     },
     dirty,
-    canManage: changeNeeds.length === 0 && beyond.length === 0,
+    canManage: changeNeeds.length === 0 && effective.status === 'ready' && beyond.length === 0,
     changeNeeds,
     beyond,
+    reach:
+      effective.status === 'ready'
+        ? 'ready'
+        : effective.status === 'loading'
+          ? 'checking'
+          : { failed: true, retry: effective.retry },
     self: principal.tenant === tenant && principal.subjectId === id,
   };
 }

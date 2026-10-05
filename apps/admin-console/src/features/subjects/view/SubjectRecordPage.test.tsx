@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
-import { json, problem } from '#/testing/fakeTransport.ts';
+import { inTurn, json, pending, problem } from '#/testing/fakeTransport.ts';
 import { consoleAt, renderConsoleAt, resetConsole, whoami } from '#/testing/renderConsole.tsx';
 import {
   ADA_AT,
@@ -186,4 +186,37 @@ it('passes axe in both themes, beyond reach', async () => {
       () => screen.findByText(/which you do not/u),
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+it('names both reasons when the caller lacks manage-users and the subject holds more', async () => {
+  renderConsoleAt(ADA_AT, subjectRoutes(['view-users', 'manage-sessions'], FULL_HOLDER));
+  expect(
+    await screen.findByText('You can view subjects but not change them (needs', { exact: false }),
+  ).toBeVisible();
+  expect(await screen.findByText(/ada holds .* which you do not/u)).toBeVisible();
+});
+
+it('offers no write until what the subject holds is read', async () => {
+  renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, { [`GET ${S}/${ADA_ID}/effective-roles`]: pending() }),
+  );
+  await screen.findByRole('heading', { level: 1, name: 'ada' });
+  await screen.findByRole('region', { name: 'Account' });
+  expect(screen.queryByRole('button', { name: /Disable|Delete/u })).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Full name' })).toBeNull();
+});
+
+it('holds every write when what the subject holds could not be read, and reads it again', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, {
+      [`GET ${S}/${ADA_ID}/effective-roles`]: inTurn(problem(500), json({ items: [] })),
+    }),
+  );
+  const note = await screen.findByText(/could not be read, so nothing here can be changed/u);
+  expect(screen.queryByRole('button', { name: /Disable|Delete/u })).toBeNull();
+  await user.click(within(note).getByRole('button', { name: 'Read it again' }));
+  expect(await screen.findByRole('button', { name: 'Disable ada' })).toBeVisible();
 });

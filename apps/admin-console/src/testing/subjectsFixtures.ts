@@ -123,6 +123,8 @@ export function subjectRoutes(
     [`GET ${S}/${ADA_ID}/groups`]: json({ items: [] }, 200, { etag: '"g0"' }),
     [`GET ${S}/${ADA_ID}/roles`]: json({ items: [] }, 200, { etag: '"r0"' }),
     [`GET ${S}/${ADA_ID}/effective-roles`]: json({ items: [] }),
+    // grace herself, for a test of her own record.
+    [`GET ${S}/s1/effective-roles`]: json({ items: [] }),
     [`GET ${S}/${ADA_ID}/required-actions`]: json({ actions: [] }, 200, { etag: '"a0"' }),
     [`GET ${S}/${ADA_ID}/sessions`]: json({ items: [] }),
     [`GET ${S}/${ADA_ID}/consents`]: json({ items: [] }),

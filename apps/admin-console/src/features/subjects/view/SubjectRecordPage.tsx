@@ -21,7 +21,7 @@ import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
 import { RecordPage } from '#/shared/view/RecordPage.tsx';
 import { StatusTag } from '#/shared/view/StatusTag.tsx';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
-import { BeyondNote } from '#/features/subjects/view/BeyondNote.tsx';
+import { BeyondNote, ReachFailed } from '#/features/subjects/view/BeyondNote.tsx';
 
 interface PanelProps {
   tenant: string;
@@ -93,7 +93,7 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
           etag,
           gone: page.record.gone,
           canManage: page.canManage,
-          withinReach: page.beyond.length === 0,
+          withinReach: page.reach === 'ready' && page.beyond.length === 0,
           self: page.self,
         };
   return (
@@ -112,11 +112,22 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
             description: subject.email ?? (subject.type === 'user' ? 'No email' : subject.type),
           })}
       noun="subject"
-      {...(page.changeNeeds.length > 0
-        ? { viewOnly: <ViewOnlyNote noun="subjects" needs={page.changeNeeds} /> }
-        : page.beyond.length > 0
-          ? { viewOnly: <BeyondNote name={name} beyond={page.beyond} /> }
-          : {})}
+      {...(page.changeNeeds.length > 0 || page.beyond.length > 0 || typeof page.reach === 'object'
+        ? {
+            viewOnly: (
+              <>
+                {page.changeNeeds.length > 0 ? (
+                  <ViewOnlyNote noun="subjects" needs={page.changeNeeds} />
+                ) : null}
+                {page.beyond.length > 0 ? <BeyondNote name={name} beyond={page.beyond} /> : null}
+                {typeof page.reach === 'object' ? (
+                  <ReachFailed name={name} retry={page.reach.retry} />
+                ) : null}
+              </>
+            ),
+          }
+        : {})}
+      readOnly={!page.canManage}
       label="Subject sections"
       tab={page.tab}
       onTabChange={page.selectTab}
