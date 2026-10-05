@@ -77,7 +77,8 @@ test('a group is made under another, given a role, moved and made a default', as
   ).toBeVisible();
   await expectAccessible(page);
 
-  await tree.getByRole('link', { name: 'Create a group under /eng', exact: true }).click();
+  await tree.getByRole('link', { name: 'eng', exact: true }).click();
+  await page.getByRole('link', { name: 'Create a group under /eng', exact: true }).click();
   await expect(page.getByText('It will sit under /eng.')).toBeVisible();
   await page.getByRole('textbox', { name: 'Name' }).fill('qa');
   await page.getByRole('textbox', { name: 'Description' }).fill('Tests it');
@@ -159,24 +160,43 @@ test('a description changed behind an open page is shown beside yours, and nothi
   await expect.poll(() => groupField('/raced', 'description')).toBe('Theirs');
 });
 
-test('a move under a parent handing out what the caller lacks is refused, and said why', async ({
+test('a parent handing out what the caller lacks is never offered, and says why', async ({
   page,
-  problems,
 }) => {
   await signIn(page, limited);
   await openGroup(page, '/movable');
   const place = page.getByRole('region', { name: 'Place in the tree' });
+  const admins = place
+    .getByRole('listbox', { name: 'Parent' })
+    .getByRole('option', { name: 'admins', exact: true });
+  await expect(admins).toContainText('its members receive view-users, which you do not hold');
+  // Heard but not chosen: an option that cannot be chosen is never enabled.
+  await expect(admins).toHaveAttribute('aria-disabled', 'true');
+  await expect(place.getByRole('button', { name: 'Save Place in the tree' })).toHaveCount(0);
+  await expectAccessible(page);
+  await expect.poll(() => groupField('/movable', 'parent_id')).toBe('<null>');
+});
+
+test('a move onto a name the new parent already holds is refused, and said why', async ({
+  page,
+  problems,
+}) => {
+  await signIn(page, admin);
+  await openGroup(page, '/dup');
+  const place = page.getByRole('region', { name: 'Place in the tree' });
   await place
     .getByRole('listbox', { name: 'Parent' })
-    .getByRole('option', { name: 'admins', exact: true })
+    .getByRole('option', { name: 'finance', exact: true })
     .click();
   await place.getByRole('button', { name: 'Save Place in the tree' }).click();
   await expect(
-    place.getByText('Refused: it would hand out view-users, which you do not hold yourself.'),
+    place.getByText(
+      'Refused: the parent chosen already holds a group named "dup", and two groups beside each other cannot share a name. Nothing was changed.',
+    ),
   ).toBeVisible();
   await expectAccessible(page);
-  forgive(problems, `/groups/${groupId('/movable')}`);
-  await expect.poll(() => groupField('/movable', 'parent_id')).toBe('<null>');
+  forgive(problems, `/groups/${groupId('/dup')}`);
+  await expect.poll(() => groupField('/dup', 'parent_id')).toBe('<null>');
 });
 
 test('a limited operator is offered only what it could do, each refusal said once', async ({
@@ -236,7 +256,7 @@ test('a role is made, given and relieved of a composite, and copied under a new 
       .getByRole('listbox', { name: 'Role to nest in billing' })
       .getByRole('option', { name: 'auditor, a tenant role' })
       .click();
-    await add.getByRole('button', { name: 'Save Add a composite' }).click();
+    await add.getByRole('button', { name: 'Nest it in billing' }).click();
     await expect(page.getByRole('list', { name: 'Nested in billing' })).toContainText('auditor');
   };
   await nest();
@@ -257,10 +277,7 @@ test('a role is made, given and relieved of a composite, and copied under a new 
   await expect.poll(() => nested('billing-copy')).toBe('auditor');
 });
 
-test('a default is refused for a role reaching a capability, with the reason', async ({
-  page,
-  problems,
-}) => {
+test('a default is refused for a role reaching a capability, with the reason', async ({ page }) => {
   await signIn(page, admin);
   await openRole(page, roleId('helper'), 'helper');
   const helper = page.getByRole('region', { name: 'New subjects' });
@@ -270,21 +287,13 @@ test('a default is refused for a role reaching a capability, with the reason', a
   await expect(helper.getByRole('switch')).toHaveCount(0);
   await expectAccessible(page);
 
-  // Its capability is nested two deep, past what the console reads, so the
-  // server is the one to say no.
-  const deep = roleId('deep');
-  await openRole(page, deep, 'deep');
-  const section = page.getByRole('region', { name: 'New subjects' });
-  await section.getByText('Given to every new subject', { exact: true }).click();
-  await section.getByRole('button', { name: 'Save New subjects' }).click();
+  // Its capability is nested two deep, and the server's reach says so.
+  await openRole(page, roleId('deep'), 'deep');
+  const deep = page.getByRole('region', { name: 'New subjects' });
   await expect(
-    section.getByText(
-      'Refused: a role handed to every new subject may reach no admin capability, and this one would reach: view-users.',
-    ),
+    deep.getByText(/It reaches view-users, and a role every new subject/u),
   ).toBeVisible();
-  await expectAccessible(page);
-  forgive(problems, `/roles/${deep}/default`);
-  expect(psql(`select default_for_new_subjects from roles where id = '${deep}'`)).toBe('f');
+  await expect(deep.getByRole('switch')).toHaveCount(0);
 
   await openRole(page, roleId('manage-users', true), 'manage-users');
   await expect(

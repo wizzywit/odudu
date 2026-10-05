@@ -46,6 +46,8 @@ function seedGroupsRoles(tenant: string): void {
     ['child', '/doomed'],
     ['raced'],
     ['keyed'],
+    ['dup'],
+    ['dup', '/finance'],
   ];
   for (const [name, parent] of groups) {
     seed([
