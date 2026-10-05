@@ -1,10 +1,12 @@
 import { signingKeys } from '@odudu/crypto';
 import { withTenant } from '@odudu/db';
+import { groupRepository } from '@odudu/domain-authz';
 import { authenticationExecutions } from '@odudu/authn-flows';
 import { newId } from '@odudu/kernel';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import { amendGroup } from '#/usecase/groups';
 import { replaceFlow } from '#/usecase/flow';
 import { retireKey } from '#/usecase/keys';
 import { putSmtp } from '#/usecase/smtp';
@@ -227,5 +229,80 @@ describe('two concurrent first SMTP writes under the empty configuration\u2019s 
 
     expect((await first).kind).toBe('ok');
     expect((await second).kind).toBe('precondition_failed');
+  });
+});
+
+describe('a group reparented while a sibling takes its name under the new parent', () => {
+  // The name check before the write sees no sibling; a trigger holds the
+  // update on an advisory lock until the sibling has committed, so the
+  // unique index, not the check, is what refuses the rewrite.
+  it('answers name_taken, writes no audit row and keeps the description', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const { moving, finance } = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const repo = groupRepository(tx);
+      const eng = await repo.create({ tenantId: t.id, name: 'eng', parentId: null });
+      const ops = await repo.create({
+        tenantId: t.id,
+        name: 'ops',
+        parentId: eng.id,
+        description: 'before',
+      });
+      const fin = await repo.create({ tenantId: t.id, name: 'finance', parentId: null });
+      return { moving: ops.id, finance: fin.id };
+    });
+    const lockKey = 7_731_001;
+    const fn = `hold_${moving.replaceAll('-', '')}`;
+    await fixture.owner.db.execute(
+      sql.raw(`create function ${fn}() returns trigger language plpgsql as $$
+        begin perform pg_advisory_xact_lock(${lockKey}); return new; end $$`),
+    );
+    await fixture.owner.db.execute(
+      sql.raw(`create trigger ${fn} before update on groups for each row
+        when (old.id = '${moving}') execute function ${fn}()`),
+    );
+
+    try {
+      const held = gate();
+      const sibling = withTenant(fixture.app.db, t.id, async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(${lockKey})`);
+        held.arrive();
+        await held.open;
+        await groupRepository(tx).create({ tenantId: t.id, name: 'ops', parentId: finance });
+      });
+      await held.reached;
+
+      let audited = 0;
+      const amend = withTenant(fixture.app.db, t.id, (tx) =>
+        amendGroup(
+          tx,
+          {
+            audit: () => {
+              audited += 1;
+              return Promise.resolve();
+            },
+          },
+          {
+            groupId: moving,
+            values: { parent_id: finance, description: 'after' },
+            ifMatch: '*',
+            callerCapabilities: new Set(['tenant-admin']),
+            ...ACTOR,
+          },
+        ),
+      );
+      await awaitBlockedTransaction();
+      held.release();
+      await sibling;
+
+      expect(await amend).toEqual({ kind: 'name_taken', name: 'ops' });
+      expect(audited).toBe(0);
+      const after = await withTenant(fixture.app.db, t.id, (tx) =>
+        groupRepository(tx).byId(moving),
+      );
+      expect(after).toMatchObject({ path: '/eng/ops', description: 'before' });
+    } finally {
+      await fixture.owner.db.execute(sql.raw(`drop trigger ${fn} on groups`));
+      await fixture.owner.db.execute(sql.raw(`drop function ${fn}()`));
+    }
   });
 });

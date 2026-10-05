@@ -1,5 +1,5 @@
 import { type GroupFields, type ListGroupsQuery } from '@odudu/contracts/admin';
-import { type TenantScopedDatabase } from '@odudu/db';
+import { isUniqueViolation, withSavepoint, type TenantScopedDatabase } from '@odudu/db';
 import { descendantsOf, groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
 import { isUuid, OduduError } from '@odudu/kernel';
@@ -404,18 +404,26 @@ async function amendGroupUnguarded(
     }
   }
 
-  if (description !== undefined) {
-    await groupRepository(tx).setDescription(input.groupId, description.value);
-  }
-  if (parentId !== undefined) {
-    try {
-      await groupRepository(tx).reparent(input.groupId, parentId);
-    } catch (error) {
-      if (error instanceof OduduError && error.code === 'group_reparent_cycle') {
-        return { kind: 'cycle' };
+  // A savepoint, so a sibling committed since the name check above, which
+  // `groups_path_unique` refuses at the rewrite, leaves the transaction usable
+  // and takes the description change back with it.
+  try {
+    await withSavepoint(tx, async (inner) => {
+      if (description !== undefined) {
+        await groupRepository(inner).setDescription(input.groupId, description.value);
       }
-      throw error;
+      if (parentId !== undefined) {
+        await groupRepository(inner).reparent(input.groupId, parentId);
+      }
+    });
+  } catch (error) {
+    if (error instanceof OduduError && error.code === 'group_reparent_cycle') {
+      return { kind: 'cycle' };
     }
+    if (isUniqueViolation(error) && parentId !== undefined) {
+      return { kind: 'name_taken', name: locked.name };
+    }
+    throw error;
   }
 
   await deps.audit(tx, {
