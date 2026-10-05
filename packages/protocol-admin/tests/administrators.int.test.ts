@@ -7,7 +7,8 @@ import { newId } from '@odudu/kernel';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { hasEnabledHolder } from '#/service/capability-ceiling';
+import { adminCapabilitiesOf, hasEnabledHolder } from '#/service/capability-ceiling';
+import { listSubjects } from '#/usecase/subjects';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
 
 let fixtureHandle: AdminFixture | undefined;
@@ -325,6 +326,125 @@ describe('GET /admin/tenants/{t}/subjects?capability=', () => {
     const res = await t.api.call('GET', '/subjects?capability=owner');
     expect(res.statusCode).toBe(400);
     expect(res.json<{ errors: { path: string }[] }>().errors[0]?.path).toBe('capability');
+  });
+});
+
+describe('GET /admin/tenants/{t}/subjects?capability=any', () => {
+  interface Held {
+    name: string;
+    direct: boolean;
+  }
+  interface Item {
+    id: string;
+    admin_capabilities?: Held[];
+  }
+
+  it('lists every holder of any admin capability, each with what it holds and whether directly', async () => {
+    const t = await tenant();
+    const [full, grouped, nested, none] = [
+      await t.subject(),
+      await t.subject(),
+      await t.subject(),
+      await t.subject(),
+    ];
+    await t.grant(full, [t.tenantAdmin]);
+    const roles = (await t.api.call('GET', '/roles?limit=200')).json<{
+      items: { id: string; name: string }[];
+    }>().items;
+    const roleIdOf = (name: string) => roles.find((r) => r.name === name)?.id ?? '';
+    const group = await t.api.id('POST', '/groups', { name: `g-${newId()}` });
+    const tail = `/groups/${group}/roles`;
+    await t.api.call('PUT', tail, { role_ids: [roleIdOf('view-audit')] }, await t.api.etag(tail));
+    await t.join(grouped, [group]);
+    const nesting = await t.api.id('POST', '/roles', { name: `n-${newId()}` });
+    await t.api.call('POST', `/roles/${nesting}/composites`, {
+      child_role_id: roleIdOf('manage-users'),
+    });
+    await t.grant(nested, [nesting, roleIdOf('view-users')]);
+
+    const res = await t.api.call('GET', '/subjects?capability=any&limit=200');
+    expect(res.statusCode, res.body).toBe(200);
+    const items = res.json<{ items: Item[] }>().items;
+    expect(items.map((item) => item.id).sort()).toEqual([full, grouped, nested].sort());
+    expect(items.map((item) => item.id)).not.toContain(none);
+    const of = (id: string) =>
+      [...(items.find((item) => item.id === id)?.admin_capabilities ?? [])].sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
+    expect(of(full)).toContainEqual({ name: 'tenant-admin', direct: true });
+    expect(of(full)).toContainEqual({ name: 'manage-keys', direct: false });
+    expect(of(grouped)).toEqual([{ name: 'view-audit', direct: false }]);
+    expect(of(nested)).toEqual([
+      { name: 'manage-users', direct: false },
+      { name: 'view-users', direct: true },
+    ]);
+
+    const counted = await t.api.call('GET', '/subjects/count?capability=any');
+    expect(counted.json()).toEqual({ count: 3, capped: false });
+  });
+
+  it('carries what is held under every capability filter, and under none of the others', async () => {
+    const t = await tenant();
+    const x = await t.subject();
+    await t.grant(x, [t.tenantAdmin]);
+    const filtered = (await t.api.call('GET', '/subjects?capability=manage-keys')).json<{
+      items: Item[];
+    }>().items;
+    expect(filtered[0]?.admin_capabilities).toContainEqual({ name: 'tenant-admin', direct: true });
+    const plain = (await t.api.call('GET', '/subjects')).json<{ items: Item[] }>().items;
+    expect(plain.find((item) => item.id === x)).not.toHaveProperty('admin_capabilities');
+  });
+});
+
+describe('the any-capability listing, probed with a foreign tenant_id', () => {
+  it('finds no holder, and names nothing held, in another tenant', async () => {
+    const page = (tenantId: string) => ({
+      limit: 50,
+      cursor: undefined,
+      cursorKey: Buffer.alloc(32, 7),
+      tenantId,
+      filters: { capability: 'any' as const },
+      now: fixture.clock.now(),
+    });
+    await expectCrossTenantMethodProbe(fixture.app.db, {
+      seed: async (tx, tenantId) => {
+        await tx.insert(tenants).values({ id: tenantId, name: `probe-${newId()}` });
+        const client = await clientRepository(tx).create({
+          tenantId,
+          clientId: ADMIN_CLIENT_ID,
+          name: 'admin',
+          type: 'public',
+          secretHash: null,
+        });
+        const role = await roleRepository(tx).create({
+          tenantId,
+          name: 'view-audit',
+          clientId: client.id,
+        });
+        const subject = await subjectRepository(tx).create({ tenantId, type: 'user' });
+        await roleRepository(tx).assignToSubject(subject.id, role.id);
+        return { tenantId, subject: subject.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const outcome = await listSubjects(tx, page(seeded.tenantId));
+        expect(outcome.kind === 'ok' ? outcome.items.map((item) => item.id) : []).toEqual([
+          seeded.subject,
+        ]);
+        expect(await adminCapabilitiesOf(tx, [seeded.subject])).toEqual(
+          new Map([[seeded.subject, [{ name: 'view-audit', direct: true }]]]),
+        );
+      },
+      attempt: async (tx, seeded) => ({
+        listed: await listSubjects(tx, page(newId())),
+        held: await adminCapabilitiesOf(tx, [seeded.subject]),
+      }),
+      expectBlocked: (result) => {
+        expect(result).toEqual({
+          listed: { kind: 'ok', items: [], next: null },
+          held: new Map(),
+        });
+      },
+    });
   });
 });
 

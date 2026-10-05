@@ -1,11 +1,13 @@
 import { requiredActionRepository, type RequiredAction } from '@odudu/authn-flows';
 import {
+  heldAdminCapabilitySchema,
   SUBJECT_SEARCH_FIELDS,
   usernameSchema,
   type Credential,
   type Group,
   type ListSubjectsQuery,
-  type Subject,
+  type HeldAdminCapability,
+  type ListedSubject,
 } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
@@ -50,6 +52,9 @@ import {
   capabilitiesOfGroupsAndAncestors,
   capabilitiesReachableFrom,
   holdersOf,
+  holdersOfAny,
+  adminCapabilitiesOf,
+  type HeldCapability,
   overreach,
   targetOverreach,
 } from '#/service/capability-ceiling';
@@ -88,6 +93,8 @@ export interface SubjectView {
   readonly email: string | null;
   readonly enabled: boolean;
   readonly createdAt: Date;
+  /** Set by a listing filtered by capability, for the whole page at once. */
+  readonly adminCapabilities?: readonly HeldCapability[];
 }
 
 function subjectsJoinedWithUsers(tx: TenantScopedDatabase) {
@@ -273,7 +280,9 @@ function exactFilterConditions(
       .where(eq(subjectGroups.groupId, filters.group));
     conditions.push(inArray(subjects.id, members));
   }
-  if (filters.capability !== undefined) {
+  if (filters.capability === 'any') {
+    conditions.push(sql`${subjects.id} IN ${holdersOfAny()}`);
+  } else if (filters.capability !== undefined) {
     conditions.push(sql`${subjects.id} IN ${holdersOf(filters.capability)}`);
   }
   return conditions;
@@ -364,7 +373,17 @@ export async function listSubjects(
         })
       : null;
 
-  return { kind: 'ok', items: page.map(narrowRow), next };
+  const items = page.map(narrowRow);
+  if (input.filters.capability === undefined) return { kind: 'ok', items, next };
+  const held = await adminCapabilitiesOf(
+    tx,
+    items.map((item) => item.id),
+  );
+  return {
+    kind: 'ok',
+    items: items.map((item) => ({ ...item, adminCapabilities: held.get(item.id) ?? [] })),
+    next,
+  };
 }
 
 export type ReadSubjectOutcome = { kind: 'not_found' } | { kind: 'ok'; subject: SubjectView };
@@ -458,7 +477,7 @@ export async function createSubject(
 // The wire shape a caller reads back — the same mapping on a list, a `GET`
 // and a `POST`'s response, so a subject read one way is never shaped
 // differently from the same subject read another.
-export function subjectWireShape(view: SubjectView): Subject {
+export function subjectWireShape(view: SubjectView): ListedSubject {
   return {
     id: view.id,
     type: view.type,
@@ -466,7 +485,23 @@ export function subjectWireShape(view: SubjectView): Subject {
     email: view.email,
     enabled: view.enabled,
     created_at: view.createdAt.toISOString(),
+    ...(view.adminCapabilities === undefined
+      ? {}
+      : {
+          admin_capabilities: view.adminCapabilities.map((held) => ({
+            name: heldName(held.name),
+            direct: held.direct,
+          })),
+        }),
   };
+}
+
+const HELD_NAMES = heldAdminCapabilitySchema.shape.name.options;
+
+function heldName(name: string): HeldAdminCapability['name'] {
+  const found = HELD_NAMES.find((candidate) => candidate === name);
+  if (found === undefined) throw new Error(`protocol-admin: ${name} is no admin capability`);
+  return found;
 }
 
 export interface AmendSubjectInput {

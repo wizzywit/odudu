@@ -6,7 +6,12 @@ import {
   groupRoles,
   rolesReachableFrom,
 } from '@odudu/domain-authz';
-import { ADMIN_CLIENT_ID, MANAGE_TENANTS, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
+import {
+  ADMIN_CLIENT_ID,
+  MANAGE_TENANTS,
+  TENANT_ADMIN,
+  TENANT_CAPABILITIES,
+} from '@odudu/domain-tenant';
 import { inArray, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -161,6 +166,57 @@ export function subjectsBeyond(held: ReadonlySet<string>): SQL | null {
   const missing = [...CAPABILITY_NAMES].filter((name) => !held.has(name));
   if (missing.length === 0) return null;
   return sql`(${sql.join(missing.map(holdersOf), sql` UNION `)})`;
+}
+
+/** Every holder of any admin capability: the target ceiling's set with nothing held. */
+export function holdersOfAny(): SQL {
+  return sql`(${sql.join([...CAPABILITY_NAMES].map(holdersOf), sql` UNION `)})`;
+}
+
+const HOLDINGS: readonly string[] = [TENANT_ADMIN, ...CAPABILITY_NAMES];
+
+const heldRowsSchema = z.array(
+  z.object({ subject_id: z.string(), name: z.string(), direct: z.boolean() }),
+);
+
+export interface HeldCapability {
+  readonly name: string;
+  /** Assigned to the subject itself, rather than only through a group or a composite. */
+  readonly direct: boolean;
+}
+
+/**
+ * What each of `subjectIds` holds of the admin vocabulary, effectively, and
+ * whether by a direct assignment: one query for a whole page, so a listing
+ * never asks per row. Which group or composite carries it is
+ * `GET …/effective-roles`' answer, read for one subject at a time.
+ */
+export async function adminCapabilitiesOf(
+  tx: TenantScopedDatabase,
+  subjectIds: readonly string[],
+): Promise<ReadonlyMap<string, readonly HeldCapability[]>> {
+  const held = new Map<string, HeldCapability[]>();
+  if (subjectIds.length === 0) return held;
+  const ids = sql.join(
+    subjectIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+  const each = HOLDINGS.map(
+    (name) => sql`
+      SELECT h.subject_id::text AS subject_id, ${name}::text AS name, EXISTS (
+        SELECT 1 FROM subject_roles sr
+        JOIN roles r ON r.id = sr.role_id JOIN clients c ON c.id = r.client_id
+        WHERE c.client_id = ${ADMIN_CLIENT_ID} AND r.name = ${name} AND sr.subject_id = h.subject_id
+      ) AS direct
+      FROM ${holdersOf(name)} AS h(subject_id) WHERE h.subject_id IN (${ids})`,
+  );
+  const rows = heldRowsSchema.parse(await tx.execute(sql.join(each, sql` UNION ALL `)));
+  for (const name of HOLDINGS) {
+    for (const row of rows.filter((candidate) => candidate.name === name)) {
+      held.set(row.subject_id, [...(held.get(row.subject_id) ?? []), { name, direct: row.direct }]);
+    }
+  }
+  return held;
 }
 
 const existsRowsSchema = z.array(z.object({ held: z.boolean() }));

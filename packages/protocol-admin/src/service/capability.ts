@@ -208,6 +208,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'view-users',
     responseSchema: listSubjectsResponseSchema,
     querystringSchema: listSubjectsQuerySchema,
+    description:
+      'The subjects of a tenant, paged. `capability` narrows to the holders of one admin ' +
+      'capability, of `tenant-admin`, or of `any`, held effectively; with it, each item carries ' +
+      '`admin_capabilities`, every name it holds and whether one is assigned to it directly.',
   },
   {
     method: 'GET',

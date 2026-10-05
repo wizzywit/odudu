@@ -3173,6 +3173,58 @@ Holding through a group or a composite is what
 `packages/protocol-admin/tests/administrators.int.test.ts` shows; it was
 not captured.
 
+### Holders of any capability, and what each holds
+
+`capability=any` lists every subject holding at least one admin capability,
+however it holds it, and `/subjects/count?capability=any` counts them. Under
+any `capability` filter each item also carries `admin_capabilities`: every
+name it holds effectively, `tenant-admin` among them, each with `direct` —
+whether it is assigned to the subject itself rather than only through a group
+or a role that nests it. It is read for the whole page in one query
+(`adminCapabilitiesOf`, `packages/protocol-admin/src/service/capability-ceiling.ts`),
+so a list of holders never asks per row; which group or role carries a
+holding is `GET /subjects/:id/effective-roles`' answer. A listing with no
+`capability` filter carries no such field.
+
+Against a stack of its own: compose project `odudu-t9` on port 3082, from an
+empty volume, torn down with `down -v`, as `ada-t9`, a system administrator
+seeded with `seed user` and `seed grant-role --role odudu-admin:tenant-admin`.
+In a tenant `holders-demo`, all through `seed`: `grace` assigned
+`tenant-admin`; `linus` a member of `/auditors`, which is mapped to
+`view-audit`; `mei` assigned `view-users` and `manage-sessions`; and `bob`,
+who holds nothing. The listing, its count, a page of two with its `link`, and
+`bob` found by name, carrying no `admin_capabilities` since that listing is
+not filtered by capability:
+
+```bash
+P=http://localhost:3082/admin/tenants/holders-demo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?capability=any"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/count?capability=any"; echo
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?capability=any&limit=2"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?username=bob"; echo
+```
+
+```
+{"items":[{"id":"01a10a7d-5942-7332-a5b6-2397a9e53571","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-10-05T05:15:49.436Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false}]},{"id":"01a10a7d-5af3-7c7b-9a9d-a9563044e85d","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-10-05T05:15:49.870Z","admin_capabilities":[{"name":"view-audit","direct":false}]},{"id":"01a10a7d-5cfe-7324-b44c-9877c28a2d78","type":"user","username":"mei","email":null,"enabled":true,"created_at":"2026-10-05T05:15:50.394Z","admin_capabilities":[{"name":"view-users","direct":true},{"name":"manage-sessions","direct":true}]}]}
+{"count":3,"capped":false}
+HTTP/1.1 200 OK
+x-request-id: 01a10a7d-8300-7580-ba1b-eda334c45132
+cache-control: no-store
+link: </admin/tenants/holders-demo/subjects?limit=2&capability=any&cursor=eyJhZnRlciI6IjAxYTEwYTdkLTVhZjMtN2M3Yi05YTlkLWE5NTYzMDQ0ZTg1ZCIsImNvbGxlY3Rpb24iOiJzdWJqZWN0cyIsInRlbmFudElkIjoiMDFhMTBhN2QtMzg4Ni03NTVhLWExZGEtOGFkMGFhMmQ1YWQ2IiwiZmlsdGVycyI6InJXRnNaN2Y3d3JBRDFrck0wQXJORFY1dEgwXzJNZEdSQW5kV2NmUTBBelUifQ.whYgO_QpD-V6fE1qy0WiRaYQLulYCMcMjrMM-oyB2D4>; rel="next"
+content-type: application/json; charset=utf-8
+content-length: 992
+Date: Mon, 05 Oct 2026 05:16:00 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"items":[{"id":"01a10a7d-5942-7332-a5b6-2397a9e53571","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-10-05T05:15:49.436Z","admin_capabilities":[{"name":"tenant-admin","direct":true},{"name":"view-users","direct":false},{"name":"manage-users","direct":false},{"name":"manage-clients","direct":false},{"name":"manage-tenant","direct":false},{"name":"manage-keys","direct":false},{"name":"manage-sessions","direct":false},{"name":"view-audit","direct":false}]},{"id":"01a10a7d-5af3-7c7b-9a9d-a9563044e85d","type":"user","username":"linus","email":null,"enabled":true,"created_at":"2026-10-05T05:15:49.870Z","admin_capabilities":[{"name":"view-audit","direct":false}]}],"next":"eyJhZnRlciI6IjAxYTEwYTdkLTVhZjMtN2M3Yi05YTlkLWE5NTYzMDQ0ZTg1ZCIsImNvbGxlY3Rpb24iOiJzdWJqZWN0cyIsInRlbmFudElkIjoiMDFhMTBhN2QtMzg4Ni03NTVhLWExZGEtOGFkMGFhMmQ1YWQ2IiwiZmlsdGVycyI6InJXRnNaN2Y3d3JBRDFrck0wQXJORFY1dEgwXzJNZEdSQW5kV2NmUTBBelUifQ.whYgO_QpD-V6fE1qy0WiRaYQLulYCMcMjrMM-oyB2D4"}
+{"items":[{"id":"01a10a7d-5ebc-7d00-9f74-e53b9038a916","type":"user","username":"bob","email":null,"enabled":true,"created_at":"2026-10-05T05:15:50.840Z"}]}
+```
+
+`grace`'s capabilities other than `tenant-admin` are held within it, so none
+is direct; `linus` holds `view-audit` only through `/auditors`; `bob` is in
+neither list nor count.
+
 ### Filtering by type, lockout and name
 
 Against the tenth stack, after `grace`'s profile was given `name`,

@@ -10,7 +10,8 @@ import { ADMIN_CAPABILITIES } from '#/admin/whoami';
 
 // A capability, or `tenant-admin`, which nests every one: held effectively —
 // directly, through a group or its ancestors, or nested under another role.
-export const SUBJECT_CAPABILITY_FILTER = [...ADMIN_CAPABILITIES, 'tenant-admin'] as const;
+// `any` is a holder of at least one.
+export const SUBJECT_CAPABILITY_FILTER = [...ADMIN_CAPABILITIES, 'tenant-admin', 'any'] as const;
 
 export const subjectTypeSchema = z.enum(['user', 'service', 'agent_instance']);
 
@@ -83,8 +84,22 @@ export const subjectSchema = z.object({
 });
 export type Subject = z.infer<typeof subjectSchema>;
 
+// What a listed subject holds of the admin vocabulary, carried only by a
+// listing filtered by `capability`: each name held effectively, and whether
+// it is assigned directly rather than only through a group or a composite.
+export const heldAdminCapabilitySchema = z.object({
+  name: z.enum([...ADMIN_CAPABILITIES, 'tenant-admin']),
+  direct: z.boolean(),
+});
+export type HeldAdminCapability = z.infer<typeof heldAdminCapabilitySchema>;
+
+export const listedSubjectSchema = subjectSchema.extend({
+  admin_capabilities: z.array(heldAdminCapabilitySchema).optional(),
+});
+export type ListedSubject = z.infer<typeof listedSubjectSchema>;
+
 export const listSubjectsResponseSchema = z.object({
-  items: z.array(subjectSchema),
+  items: z.array(listedSubjectSchema),
   next: z.string().optional(),
 });
 export type ListSubjectsResponse = z.infer<typeof listSubjectsResponseSchema>;
