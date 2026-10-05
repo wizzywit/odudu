@@ -8,7 +8,6 @@ import { ActivityTab } from '#/shared/view/ActivityTab';
 import { ChecklistField } from '#/shared/view/ChecklistField';
 import { AuditActor } from '#/shared/view/AuditActor';
 import { AppShell } from '#/shared/view/AppShell';
-import { BirthdateField } from '#/shared/view/Field';
 import { Breadcrumb } from '#/shared/view/Breadcrumb';
 import { Button } from '#/shared/view/Button';
 import { KeyHint, PlatformContext } from '#/shared/view/KeyHint';
@@ -16,8 +15,6 @@ import { ButtonLink } from '#/shared/view/ButtonLink';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { Note, NoteCode } from '#/shared/view/Note';
 import { ChunkFailed } from '#/shared/view/ChunkBoundary';
-import { CountryField, GenderField, LocaleField, TimeZoneField } from '#/shared/view/Field';
-import { ComboBoxField } from '#/shared/view/Field';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { ConflictPanel } from '#/shared/view/ConflictPanel';
 import { ContextBar } from '#/shared/view/ContextBar';
@@ -27,19 +24,27 @@ import { DataTable, type Column } from '#/shared/view/DataTable';
 import { Duration } from '#/shared/view/Duration';
 import { EmptyState } from '#/shared/view/EmptyState';
 import {
+  BirthdateField,
+  ComboBoxField,
+  CountryField,
+  GenderField,
   KeyValueField,
+  LocaleField,
   NumberWithUnitField,
+  PhoneField,
+  PictureField,
   ReadOnlyFields,
   SelectField,
   TextField,
+  TimeZoneField,
   ToggleField,
+  UrlField,
   UrlListField,
 } from '#/shared/view/Field';
 import { FieldGrid, GridCell } from '#/shared/view/FieldGrid';
 import { FilterBar } from '#/shared/view/FilterBar';
 import { GroupPicker } from '#/shared/view/GroupPicker';
 import { PageHeader } from '#/shared/view/PageHeader';
-import { PhoneField } from '#/shared/view/Field';
 import { Pager } from '#/shared/view/Pager';
 import { Rail } from '#/shared/view/Rail';
 import { RecordPage } from '#/shared/view/RecordPage';
@@ -63,7 +68,6 @@ import { Tabs } from '#/shared/view/Tabs';
 import { Timestamp } from '#/shared/view/Timestamp';
 import { Toasts } from '#/shared/view/Toasts';
 import { UnsavedChangesDialog } from '#/shared/view/UnsavedChangesDialog';
-import { PictureField, UrlField } from '#/shared/view/Field';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
 import styles from '#/gallery/Gallery.module.css';
 import {

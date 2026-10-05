@@ -63,6 +63,8 @@ export interface CreateSpec {
   // Where a 409 lands, and what it says when the server says nothing.
   taken?: { field: string; fallback: string };
   capability: string;
+  // Said when the answer arrived but could not be read, if not as a lost one.
+  schema?: string;
   refused?: (problem: Problem) => string | null;
 }
 
@@ -83,7 +85,10 @@ export function createFailure(failure: GatewayFailure, spec: CreateSpec): Create
       return {
         ...none,
         unconfirmed: true,
-        message: `Could not confirm whether ${spec.name} was created. It has not been sent again; look for it before trying again.`,
+        message:
+          failure.kind === 'schema' && spec.schema !== undefined
+            ? spec.schema
+            : `Could not confirm whether ${spec.name} was created. It has not been sent again; look for it before trying again.`,
       };
     case 'defect':
       return {

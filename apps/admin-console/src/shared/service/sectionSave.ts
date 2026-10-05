@@ -37,22 +37,22 @@ export interface SectionState<T extends Values> {
   message: string | null;
 }
 
-export interface SectionFieldShape<V> {
+export interface SectionField<V> {
   value: V;
   label: string;
   kind: 'plain' | 'secret';
   describe?: ((value: unknown) => string) | undefined;
 }
 
-export type SectionFieldsShape<T extends Values> = {
-  readonly [K in keyof T]: SectionFieldShape<T[K]>;
+export type SectionFields<T extends Values> = {
+  readonly [K in keyof T]: SectionField<T[K]>;
 };
 
 function keysOf<T extends Values>(values: T): (keyof T & string)[] {
   return Object.keys(values);
 }
 
-export function fieldValues<T extends Values>(fields: SectionFieldsShape<T>): T {
+export function fieldValues<T extends Values>(fields: SectionFields<T>): T {
   const names = Object.keys(fields) as (keyof T & string)[];
   return Object.fromEntries(names.map((name) => [name, fields[name].value])) as T;
 }
@@ -178,7 +178,7 @@ export function sectionBlocked(
 
 export function conflictsOf<T extends Values>(
   state: SectionState<T>,
-  fields: SectionFieldsShape<T>,
+  fields: SectionFields<T>,
 ): Conflict[] {
   return state.conflicts.map((name) => ({
     field: name,

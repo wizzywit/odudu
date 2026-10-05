@@ -6,7 +6,7 @@ import gallerySource from '#/gallery/Gallery.tsx?raw';
 
 // Drawn by other components rather than used on their own: every dialog,
 // every picker, and the text only a screen reader gets.
-const PARTS = new Set(['DialogFrame', 'Picker', 'VisuallyHidden']);
+const PARTS = new Set(['DialogFrame', 'Picker', 'VisuallyHidden', 'DataTable/DataTableShape']);
 
 const modules = import.meta.glob<Record<string, unknown>>(
   ['../shared/view/*/*.tsx', '!../shared/view/*/*.test.tsx'],
@@ -16,9 +16,13 @@ const modules = import.meta.glob<Record<string, unknown>>(
 const components = Object.entries(modules)
   .map(([file, exports]) => ({
     file: file.replace('../shared/view/', ''),
-    names: Object.keys(exports).filter((name) => /^[A-Z]/u.test(name)),
+    names: Object.entries(exports)
+      .filter(([name, value]) => /^[A-Z]/u.test(name) && typeof value === 'function')
+      .map(([name]) => name),
   }))
-  .filter(({ file }) => !PARTS.has(file.split('/')[0] ?? ''));
+  .filter(
+    ({ file }) => !PARTS.has(file.split('/')[0] ?? '') && !PARTS.has(file.replace('.tsx', '')),
+  );
 
 // Every file's components, and a folder imported as one: some files hold
 // several, and a file is shown when any one of its components is.
@@ -27,7 +31,10 @@ it('shows every component of the design system', () => {
   const missing = components.flatMap(({ file, names }) => {
     const folder = file.split('/')[0] ?? '';
     const imported = gallerySource.includes(`from '#/shared/view/${folder}'`);
-    const used = names.some((name) => new RegExp(`\\b${name}\\b`, 'u').test(gallerySource));
+    const shown = (name: string): boolean => new RegExp(`\\b${name}\\b`, 'u').test(gallerySource);
+    // The field components share a folder, so each of theirs is asked for by name.
+    const family = folder === 'Field' && file !== 'Field/Field.tsx';
+    const used = family ? names.every(shown) : names.some(shown);
     return imported && used ? [] : [file];
   });
   expect(missing).toEqual([]);

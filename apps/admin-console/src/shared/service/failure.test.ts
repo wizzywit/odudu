@@ -110,6 +110,15 @@ describe('createFailure', () => {
     expect(createFailure(SCHEMA, spec).unconfirmed).toBe(true);
   });
 
+  it('keeps a page own wording for an answer that arrived unreadable', () => {
+    const worded: CreateSpec = { ...spec, schema: 'ops may have been created. Look for it.' };
+    expect(createFailure(SCHEMA, worded)).toMatchObject({
+      unconfirmed: true,
+      message: 'ops may have been created. Look for it.',
+    });
+    expect(createFailure(NETWORK, worded).message).toMatch(/^Could not confirm whether ops/u);
+  });
+
   it('calls a defect a fault in the console, with nothing to look for', () => {
     expect(createFailure(DEFECT, spec)).toEqual({
       unconfirmed: false,

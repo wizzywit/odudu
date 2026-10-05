@@ -24,21 +24,15 @@ import {
   type ConflictSource,
   type SaveOutcome,
   type SaveStatus,
+  type SectionField,
+  type SectionFields,
   type SectionState,
 } from '#/shared/service/sectionSave.ts';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
 import type { Problem } from '#/shared/transport/problem.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
-export interface SectionField<V> {
-  value: V;
-  label: string;
-  kind: 'plain' | 'secret';
-  // How a conflict shows the value, where plain text would not do.
-  describe?: (value: unknown) => string;
-}
-
-export type SectionFields<T extends Values> = { readonly [K in keyof T]: SectionField<T[K]> };
+export type { SectionField, SectionFields };
 
 export interface SaveInput<T extends Values> {
   changes: Partial<T>;

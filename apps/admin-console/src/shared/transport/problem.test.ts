@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import type { z } from 'zod';
+import type { Problem } from '#/shared/service/result.ts';
+import type { problemSchema } from '#/shared/transport/problem.ts';
 import { readProblem } from '#/shared/transport/problem.ts';
 
 const PROBLEM_JSON = 'application/problem+json; charset=utf-8';
@@ -63,4 +66,10 @@ describe('readProblem', () => {
 
     expect(readProblem(403, PROBLEM_JSON, body).status).toBe(403);
   });
+});
+
+it('keeps the service type and the schema that parses it assignable to each other', () => {
+  type Parsed = z.infer<typeof problemSchema>;
+  expectTypeOf<Parsed>().toExtend<Problem>();
+  expectTypeOf<Problem>().toExtend<Parsed>();
 });
