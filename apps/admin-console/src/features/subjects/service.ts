@@ -8,7 +8,7 @@ import {
   type RequiredAction,
   type Subject,
 } from '@odudu/contracts/admin';
-import { holds } from '#/shared/service/access.ts';
+import { holds, lacking } from '#/shared/service/access.ts';
 import { MANAGE_TENANTS, TENANT_ADMIN } from '#/shared/service/administrators.ts';
 import type { Crumb } from '#/shared/service/breadcrumb.ts';
 import {
@@ -16,6 +16,7 @@ import {
   heldCapabilities,
   holdingLabel,
   holdingOptions,
+  TENANT_ROLE_TEXT,
   grantableIn,
   includedBy,
   isAdminRole,
@@ -493,6 +494,11 @@ export function newSubjectSpec(name: string): CreateSpec {
 }
 
 // Offered only while whoami says nothing rules creating out.
+// What creating needs that whoami says is missing; none before it answers.
+export function manageUsersRefusal(authority: Authority | undefined): 'manage-users' | null {
+  return lacking(authority, ['manage-users']).length === 0 ? null : 'manage-users';
+}
+
 export function createSubjectHref(
   tenant: string,
   lacking: readonly AdminCapability[],
@@ -699,6 +705,14 @@ export function credentialDialog(asking: Asking, name: string, self: boolean): C
   }
 }
 
+export function credentialDialogOf(
+  asking: Asking | null,
+  name: string,
+  self: boolean,
+): CredentialDialog | null {
+  return asking === null ? null : credentialDialog(asking, name, self);
+}
+
 export function recoveryCodesText(name: string, count: number | null): string {
   if (count === null || count === 0) return `No recovery codes: ${name} holds no unspent one.`;
   return counted(count, 'unspent recovery code', 'unspent recovery codes');
@@ -796,7 +810,7 @@ export function roleUnavailableHere(role: {
 }
 
 export function roleOwnerOf(client: string | null): string {
-  return client === null ? 'tenant role' : `client ${client}`;
+  return client === null ? TENANT_ROLE_TEXT : `client ${client}`;
 }
 
 export const PROFILE_SECTIONS = [
@@ -909,6 +923,21 @@ export function mailFieldErrors(kind: MailKind, failure: GatewayFailure): FieldE
     return null;
   }
   return fieldErrorsOf(failure.problem, ['actions']);
+}
+
+// A 400 the field errors fully explain shows no outcome beside them.
+export function mailFailure(
+  kind: MailKind,
+  failure: GatewayFailure,
+  name: string,
+  hrefs: Readonly<Record<MailRefusal['fix'], string>>,
+): { errors: FieldErrors['fields'] | null; outcome: MailOutcome | null } {
+  const placed = mailFieldErrors(kind, failure);
+  if (placed !== null && placed.other.length === 0) return { errors: placed.fields, outcome: null };
+  return {
+    errors: placed === null ? null : placed.fields,
+    outcome: mailOutcome(failure, name, hrefs),
+  };
 }
 
 export function mailSentText(kind: MailKind, email: string | null, count = 0): string {

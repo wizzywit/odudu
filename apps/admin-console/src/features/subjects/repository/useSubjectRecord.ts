@@ -73,16 +73,14 @@ export interface SubjectChange<A> {
 export function useSubjectEnabled(
   tenant: string,
   id: string,
-  etag: string | null,
+  etag: string,
 ): SubjectChange<boolean> {
   const { gateway } = useTransport();
   const client = useQueryClient();
   const key = recordKey(tenant, subjectRecord(id));
   const mutation = useMutation({
     mutationFn: (enabled: boolean): Promise<GatewayResult<Subject>> =>
-      etag === null
-        ? Promise.resolve({ ok: false, kind: 'defect' })
-        : amendSubject(gateway, tenant, id, { enabled }, etag),
+      amendSubject(gateway, tenant, id, { enabled }, etag),
     onSuccess: (result) => {
       if (result.ok) {
         client.setQueryData<RecordEntry<Subject>>(key, { result, by: 'save' });

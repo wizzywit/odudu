@@ -3,6 +3,7 @@ import { useAuthority, useRefusal } from '#/features/session';
 import { useCreateSubject } from '#/features/subjects/repository/useCreateSubject.ts';
 import { useGo } from '#/features/subjects/repository/useGo.ts';
 import {
+  manageUsersRefusal,
   newSubjectSpec,
   subjectCreatedText,
   subjectHref,
@@ -11,7 +12,6 @@ import {
   usernameProblem,
 } from '#/features/subjects/service.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import { notLacking } from '#/shared/service/access.ts';
 import { createFailure, lookupText } from '#/shared/service/failure.ts';
 import { withoutField } from '#/shared/service/fieldErrors.ts';
 import type { GatewayFailure } from '#/shared/transport/gateway.ts';
@@ -68,7 +68,7 @@ export function useNewSubject(tenant: string): NewSubject {
   const looked = lookupText('subject', username);
 
   return {
-    refused: notLacking(authority, ['manage-users']) ? null : 'manage-users',
+    refused: manageUsersRefusal(authority),
     rule: USERNAME_RULE_TEXT,
     listHref: subjectsHref(tenant),
     username,

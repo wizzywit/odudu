@@ -11,6 +11,10 @@ import {
   capabilityOptions,
   changeFailureText,
   claimFields,
+  mailFailure,
+  credentialDialogOf,
+  manageUsersRefusal,
+  heldOf,
   verificationFields,
   credentialChangeOf,
   credentialDialog,
@@ -822,6 +826,75 @@ describe('the verification flags', () => {
     });
     expect(fields.email_verified.describe?.(true)).toBe('verified');
     expect(fields.phone_number_verified.describe?.(false)).toBe('not verified');
+  });
+});
+
+describe('what a failed mail send shows', () => {
+  const hrefs = { profile: '/p', email: '/e', settings: '/s' };
+  const rejected = (errors: { path: string; message: string }[]) => refusal(400, { errors });
+
+  it('shows the outcome alone when it is not a rejected actions mail', () => {
+    const out = mailFailure(
+      'reset',
+      rejected([{ path: 'actions', message: 'none' }]),
+      'ada',
+      hrefs,
+    );
+    expect(out.errors).toBeNull();
+    expect(out.outcome?.text).toMatch(/^Not sent: /u);
+  });
+
+  it('shows the field error alone when it explains the whole refusal', () => {
+    expect(
+      mailFailure('actions', rejected([{ path: 'actions', message: 'none' }]), 'ada', hrefs),
+    ).toEqual({ errors: { actions: 'none' }, outcome: null });
+  });
+
+  it('shows both when part of the refusal names no field', () => {
+    const out = mailFailure(
+      'actions',
+      rejected([
+        { path: 'actions', message: 'none' },
+        { path: 'elsewhere', message: 'odd' },
+      ]),
+      'ada',
+      hrefs,
+    );
+    expect(out.errors).toEqual({ actions: 'none' });
+    expect(out.outcome).not.toBeNull();
+  });
+});
+
+describe('small model reads', () => {
+  it('asks no confirmation when nothing is being asked', () => {
+    expect(credentialDialogOf(null, 'ada', false)).toBeNull();
+    expect(credentialDialogOf({ kind: 'lockout' }, 'ada', false)?.confirmLabel).toBe(
+      'Clear lockout',
+    );
+  });
+
+  it('names manage-users as what refuses creating, once whoami has ruled it out', () => {
+    expect(manageUsersRefusal(undefined)).toBeNull();
+    expect(manageUsersRefusal({ capabilities: ['manage-users'] } as never)).toBeNull();
+    expect(manageUsersRefusal({ capabilities: [] } as never)).toBe('manage-users');
+  });
+
+  it('holds what the roles give once read, and nothing before', () => {
+    const items = [
+      {
+        id: 'r',
+        name: 'view-audit',
+        client_id: 'c',
+        client_key: 'odudu-admin',
+        via: [{ kind: 'direct' }],
+      },
+    ];
+    const retry = () => undefined;
+    expect([
+      ...heldOf({ status: 'ready', data: { items } as never, retry } as never).keys(),
+    ]).toEqual(['view-audit']);
+    expect(heldOf({ status: 'loading' }).size).toBe(0);
+    expect(heldOf({ status: 'failed', retry }).size).toBe(0);
   });
 });
 

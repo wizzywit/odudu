@@ -5,7 +5,7 @@ import { areaAt, areaHref } from '#/features/shell';
 import { useMailSend, type MailRequest } from '#/features/subjects/repository/useMail.ts';
 import {
   actionsMailProblem,
-  mailFieldErrors,
+  mailFailure,
   mailOutcome,
   mailSentText,
   requiredActionsInOrder,
@@ -66,12 +66,12 @@ export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
           return;
         }
         refusal.report(result, 'manage-users');
-        const placed = mailFieldErrors(kind, result);
-        if (placed !== null) {
-          setErrors(placed.fields);
-          if (placed.other.length === 0) return;
+        const failed = mailFailure(kind, result, name, fixHrefs);
+        if (failed.errors !== null) setErrors(failed.errors);
+        if (failed.outcome !== null) {
+          const { outcome } = failed;
+          setOutcomes((was) => ({ ...was, [kind]: outcome }));
         }
-        setOutcomes((was) => ({ ...was, [kind]: mailOutcome(result, name, fixHrefs) }));
       })
       .catch(() => {
         setOutcomes((was) => ({

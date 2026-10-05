@@ -10,7 +10,7 @@ import {
 } from '#/features/subjects/repository/useCredentials.ts';
 import {
   credentialChangeOf,
-  credentialDialog,
+  credentialDialogOf,
   credentialDoneText,
   credentialFailureText,
   signsInAsItself,
@@ -73,7 +73,7 @@ export function useSubjectCredentials(
     credentials,
     lockout,
     asking,
-    dialog: asking === null ? null : credentialDialog(asking, name, self),
+    dialog: credentialDialogOf(asking, name, self),
     busy: changes.busy || issue.busy,
     problem,
     ask: (next) => {

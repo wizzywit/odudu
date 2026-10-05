@@ -144,13 +144,15 @@ export function includedBy(holding: Holding, chosen: readonly string[]): Holding
   return parent !== undefined && chosen.includes(parent) ? parent : null;
 }
 
+export const TENANT_ROLE_TEXT = 'tenant role';
+
 // Whose a role is, in words: a client's role reaches a token under its
 // client's name, and the built-in admin client's roles are the capabilities.
 export function roleOwnerText(role: {
   client_id: string | null;
   client_key: string | null;
 }): string {
-  if (role.client_id === null) return 'tenant role';
+  if (role.client_id === null) return TENANT_ROLE_TEXT;
   return role.client_key === ADMIN_CLIENT_KEY
     ? 'admin capability'
     : `role of client ${role.client_key ?? role.client_id}`;
