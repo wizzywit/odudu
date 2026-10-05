@@ -178,7 +178,7 @@ test('a display name saves on its ETag and focus lands on the section, and a dis
   await page.getByRole('button', { name: 'Save General' }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'General' })).toBeFocused();
   await expect(page.getByRole('button', { name: 'Save General' })).toBeHidden();
-  expect(tenantColumn(name, 'display_name')).toBe('General Tenant');
+  await expect.poll(() => tenantColumn(name, 'display_name')).toBe('General Tenant');
 
   // By keyboard alone, from the heading focus was left on.
   const disable = page.getByRole('button', { name: `Disable ${name}` });

@@ -283,7 +283,7 @@ test('a full birthdate is entered by keyboard alone', async ({ page }) => {
     await page.keyboard.press('Tab');
   }
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('button', { name: 'Save Details' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Discard changes to Details' })).toHaveCount(0);
   expect(userColumn(username, 'birthdate')).toBe('1815-12-10');
 });
 

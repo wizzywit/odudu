@@ -84,7 +84,7 @@ test("a subject's groups and roles change, and what it holds follows", async ({ 
   await roles.getByRole('button', { name: 'Save Roles' }).click();
   await expect(roles.getByRole('button', { name: 'Save Roles' })).toBeHidden();
   await expect(held.getByRole('row', { name: /auditor/u })).toContainText('directly');
-  expect(heldRoles(subjects.member)).toBe('auditor');
+  await expect.poll(() => heldRoles(subjects.member)).toBe('auditor');
   await expectAccessible(page);
 });
 
