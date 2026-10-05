@@ -395,6 +395,16 @@ Permitted imports:
 Features expose one `index.ts`. No feature reaches into another's
 internals.
 
+**"No business logic" in a usecase or repository means none, however small
+it looks.** A usecase wires hooks, state and calls together; a repository
+holds queries, mutations and cache keys. Neither decides anything, and
+neither phrases or formats anything. A rule, a message, a failure-to-copy
+mapping and a formatter are each a pure `service` function, and one shared
+by two features lives once in `shared/service`. ADR 0010's amendment has
+the reasoning, and `tests/lint/console-usecase-integration-only.test.ts`
+fails the build on the constructs it can see. A construct it cannot see is
+still a breach.
+
 Domain packages never import protocol packages. Protocol packages never
 import each other.
 
