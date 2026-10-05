@@ -5,6 +5,8 @@ import type { ListSearch, ResourceListState } from '#/shared/service/resourceLis
 import { current, dirtyFields, discard, edit, startDraft } from '#/shared/service/dirty.ts';
 import type { Toast } from '#/shared/service/toast.ts';
 import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
+import { ChecklistField } from '#/shared/view/ChecklistField.tsx';
+import { AuditActor } from '#/shared/view/AuditActor.tsx';
 import { AppShell } from '#/shared/view/AppShell.tsx';
 import { BirthdateField } from '#/shared/view/BirthdateField.tsx';
 import { Breadcrumb } from '#/shared/view/Breadcrumb.tsx';
@@ -815,6 +817,13 @@ export function Gallery({
           <Specimen label="CapabilityNote">
             <CapabilityNote capability="manage-clients">Rotating a secret</CapabilityNote>
           </Specimen>
+          <Specimen label="AuditActor: named, unnamed, and a caller from elsewhere">
+            <div className={styles.stack}>
+              {EVENTS.map((event) => (
+                <AuditActor key={event.id} event={event} />
+              ))}
+            </div>
+          </Specimen>
         </Group>
 
         <Group id="editing" title="Editing">
@@ -886,6 +895,31 @@ export function Gallery({
           </Specimen>
           <Specimen label="RolePicker and GroupPicker: searched, paged, each role's owner named">
             <Pickers />
+          </Specimen>
+          <Specimen label="ChecklistField: a set from a short list, each held back with its reason">
+            <ChecklistField
+              label="Admin capabilities"
+              options={[
+                {
+                  id: 'tenant-admin',
+                  label: 'Full (tenant-admin)',
+                  description: 'Every capability.',
+                },
+                {
+                  id: 'view-users',
+                  label: 'view-users',
+                  description: 'Read subjects.',
+                  note: 'Also held through group /support.',
+                },
+                {
+                  id: 'manage-keys',
+                  label: 'manage-keys',
+                  unavailable: 'You do not hold manage-keys, so you cannot give or take it.',
+                },
+              ]}
+              value={['view-users']}
+              onChange={() => undefined}
+            />
           </Specimen>
           <Specimen label="SaveBar on its own">
             <SaveBar section="Tokens" saving={false} onDiscard={() => undefined} />

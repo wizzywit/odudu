@@ -147,8 +147,14 @@ const EVENT: AuditEvent = {
 };
 
 export const EVENTS: readonly AuditEvent[] = [
-  EVENT,
-  { ...EVENT, id: 'a2', occurred_at: '2026-09-28T12:02:40Z', outcome: 'refused' },
+  { ...EVENT, actor_name: 'grace' },
+  {
+    ...EVENT,
+    id: 'a2',
+    occurred_at: '2026-09-28T12:02:40Z',
+    outcome: 'refused',
+    actor_origin: 'system',
+  },
   {
     ...EVENT,
     id: 'a3',

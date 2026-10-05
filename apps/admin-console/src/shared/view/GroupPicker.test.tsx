@@ -54,6 +54,15 @@ it('shows each group where it sits in the tree', async () => {
   expect(onChange).toHaveBeenCalledWith(['g2']);
 });
 
+it("shows a group's description beside its place in the tree", () => {
+  const described = { ...GROUPS[0], description: 'Everybody who ships code' } as Group;
+  render(
+    <GroupPicker label="Groups" picker={picker([described])} selected={[]} onChange={vi.fn()} />,
+  );
+  const option = within(screen.getByRole('listbox', { name: 'Groups' })).getByRole('option');
+  expect(option).toHaveTextContent('engineering/engineering · Everybody who ships code');
+});
+
 it('passes axe in both themes', async () => {
   expect(
     await axeInBothThemes(() => (

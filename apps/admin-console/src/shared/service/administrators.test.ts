@@ -102,6 +102,17 @@ describe('what adding an administrator needs', () => {
     expect(resumed[0]).toBe('manage-users');
     expect([...resumed].sort()).toEqual([...tenantAdminCarries('acme')].sort());
   });
+
+  it('asks only the capabilities chosen, beside what the calls need, when Full is not', () => {
+    const chosen = administratorNeeds('acme', {
+      subjectId: null,
+      granted: false,
+      holdings: ['view-audit'],
+    });
+    expect([...chosen].sort()).toEqual(
+      ['manage-clients', 'manage-users', 'view-audit', 'view-users'].sort(),
+    );
+  });
 });
 
 describe('what giving or taking tenant-admin needs', () => {

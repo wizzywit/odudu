@@ -47,10 +47,16 @@ interface ClientRole {
   client_id: string | null;
 }
 
+export function clientRole(
+  roles: readonly ClientRole[],
+  adminClient: string,
+  name: string,
+): string | null {
+  return roles.find((role) => role.name === name && role.client_id === adminClient)?.id ?? null;
+}
+
 export function tenantAdminRole(roles: readonly ClientRole[], adminClient: string): string | null {
-  return (
-    roles.find((role) => role.name === TENANT_ADMIN && role.client_id === adminClient)?.id ?? null
-  );
+  return clientRole(roles, adminClient, TENANT_ADMIN);
 }
 
 export function administratorRoleNames(tenant: string): readonly string[] {
@@ -136,18 +142,19 @@ export function roleChangeNeeds(tenant: string): readonly AdminCapability[] {
 }
 
 // What the calls still to make need, so a resumed step asks for no more.
-// The grant and the password each need all that tenant-admin carries: one
-// hands the role out, the other writes to a subject who holds it (ADR 0040).
+// The grant and the password each need all that is being given: one hands
+// it out, the other writes to a subject who holds it (ADR 0040).
 export function administratorNeeds(
   tenant: string,
-  done: { subjectId: string | null; granted: boolean },
+  done: { subjectId: string | null; granted: boolean; holdings?: readonly string[] },
 ): readonly AdminCapability[] {
   const calls = administratorCalls(done);
   const requests = calls.flatMap((call) => CALL_REQUESTS[call]);
+  const holdings = done.holdings ?? [TENANT_ADMIN];
+  const given = holdings.includes(TENANT_ADMIN)
+    ? tenantAdminCarries(tenant)
+    : tenantAdminCarries(tenant).filter((capability) => holdings.includes(capability));
   return [
-    ...new Set([
-      ...requests.map((request) => ADMINISTRATOR_REQUEST_NEEDS[request]),
-      ...tenantAdminCarries(tenant),
-    ]),
+    ...new Set([...requests.map((request) => ADMINISTRATOR_REQUEST_NEEDS[request]), ...given]),
   ];
 }

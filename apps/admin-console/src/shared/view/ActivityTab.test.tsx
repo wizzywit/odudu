@@ -70,6 +70,22 @@ it("lists the record's audit rows, newest first as the API sends them", () => {
   expect(rows[1]).toHaveTextContent('none sent');
 });
 
+it("names each row's actor, and marks a caller from elsewhere", () => {
+  const rows = [
+    { ...EVENT, actor_name: 'grace' },
+    { ...EVENT, id: 'a3', actor_origin: 'system' as const },
+  ];
+  render(<ActivityTab list={state({ rows })} noun="client" now={NOW} />);
+  const table = screen.getByRole('grid', { name: 'Activity on this client' });
+  const [named, system] = within(table).getAllByRole('row').slice(1);
+  expect(within(named ?? table).getByText('grace')).toHaveAttribute(
+    'title',
+    EVENT.actor_subject_id,
+  );
+  expect(system).toHaveTextContent('a system administrator');
+  expect(system).toHaveTextContent('from elsewhere');
+});
+
 it('labels the request id a correlation, not evidence', () => {
   render(<ActivityTab list={state()} noun="client" now={NOW} />);
   expect(screen.getByRole('columnheader', { name: 'Correlation id' })).toBeVisible();

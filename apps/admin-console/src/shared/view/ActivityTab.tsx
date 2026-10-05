@@ -1,5 +1,6 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
+import { AuditActor } from '#/shared/view/AuditActor.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
 import { CopyValue } from '#/shared/view/CopyValue.tsx';
@@ -36,12 +37,7 @@ function columns(now: Date | undefined): readonly Column<AuditEvent>[] {
     {
       id: 'actor',
       header: 'Actor',
-      cell: (event) =>
-        event.actor_subject_id === null ? (
-          <span className={styles.none}>no subject</span>
-        ) : (
-          <CopyValue label="actor subject id" value={event.actor_subject_id} short />
-        ),
+      cell: (event) => <AuditActor event={event} />,
     },
     {
       id: 'correlation',

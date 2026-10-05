@@ -1,5 +1,9 @@
 import { expect, it } from 'vitest';
-import { grantTenantAdmin, revokeAdministrator } from '#/shared/repository/administratorRoles.ts';
+import {
+  grantHoldings,
+  grantTenantAdmin,
+  revokeAdministrator,
+} from '#/shared/repository/administratorRoles.ts';
 import { fakeTransport, json, problem, type Answer } from '#/testing/fakeTransport.ts';
 import { administratorRoutes } from '#/testing/tenantsFixtures.ts';
 
@@ -66,6 +70,17 @@ it('grants tenant-admin on the built-in client beside what the subject holds', a
     method: 'PUT',
     ifMatch: '"roles-1"',
     body: { role_ids: ['r-default', 'r-admin'] },
+  });
+});
+
+it('grants a chosen set of capabilities, each found by its own name', async () => {
+  const fake = fakeTransport(systemRoles(['reader']));
+  expect(
+    await grantHoldings(fake.transport.gateway, 'system', ID, ['manage-users', 'manage-tenants']),
+  ).toBeNull();
+  expect(fake.sent.find((s) => s.method === 'PUT')).toMatchObject({
+    ifMatch: '"roles-1"',
+    body: { role_ids: ['reader', 'r-users', 'r-tenants'] },
   });
 });
 

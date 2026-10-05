@@ -14,6 +14,7 @@ import {
 import { edit as editDraft, rebase, sameValue, type Values } from '#/shared/service/dirty.ts';
 import { fieldErrorsOf } from '#/shared/service/fieldErrors.ts';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
+import type { Problem } from '#/shared/transport/problem.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
 export interface SectionField<V> {
@@ -125,6 +126,7 @@ export function useSectionSave<T extends Values, R>({
   capability,
   gone = false,
   onRefused,
+  explain,
   fields,
   save,
 }: {
@@ -140,6 +142,8 @@ export function useSectionSave<T extends Values, R>({
   gone?: boolean;
   // Told of a 403, so the caller can re-read whoami (`useRefusal.report`).
   onRefused?: (failure: GatewayFailure) => void;
+  // Says what a 403 or 409 means for this section, in place of the default.
+  explain?: (problem: Problem) => string | null;
   fields: SectionFields<T>;
   save: (gateway: Gateway, input: SaveInput<T>) => Promise<GatewayResult<R>>;
 }): SectionSave<T> {
@@ -246,14 +250,16 @@ export function useSectionSave<T extends Values, R>({
       return;
     }
     if (result.kind === 'problem' && result.problem.status === 409) {
-      const message = result.problem.detail ?? result.problem.title;
+      const message = explain?.(result.problem) ?? result.problem.detail ?? result.problem.title;
       update(() => ({ phase: 'refused', message }));
       return;
     }
     if (result.kind === 'problem' && result.problem.status === 403) {
       update(() => ({
         phase: 'refused',
-        message: `${label} was not saved: it needs the ${capability} capability.`,
+        message:
+          explain?.(result.problem) ??
+          `${label} was not saved: it needs the ${capability} capability.`,
       }));
       onRefused?.(result);
       return;

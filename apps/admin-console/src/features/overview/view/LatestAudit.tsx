@@ -3,9 +3,9 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-aria-components';
 import type { Gated } from '#/features/overview/service.ts';
 import { Panel } from '#/features/overview/view/Panel.tsx';
+import { AuditActor } from '#/shared/view/AuditActor.tsx';
 import { Button } from '#/shared/view/Button.tsx';
 import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { CopyValue } from '#/shared/view/CopyValue.tsx';
 import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
 import { EmptyState } from '#/shared/view/EmptyState.tsx';
 import { TableSkeleton } from '#/shared/view/Skeleton.tsx';
@@ -39,12 +39,7 @@ function columns(now: Date | undefined): readonly Column<AuditEvent>[] {
       id: 'actor',
       header: 'Actor',
       secondary: true,
-      cell: (event) =>
-        event.actor_subject_id === null ? (
-          <span className={styles.none}>no subject</span>
-        ) : (
-          <CopyValue label="actor subject id" value={event.actor_subject_id} short />
-        ),
+      cell: (event) => <AuditActor event={event} />,
     },
   ];
 }

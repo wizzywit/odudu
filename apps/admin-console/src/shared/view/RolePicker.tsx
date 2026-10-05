@@ -9,18 +9,25 @@ function owner(role: Role): string | null {
   return role.client_key ?? role.client_id;
 }
 
+function described(detail: string, description: string | null): string {
+  return description === null || description === '' ? detail : `${detail} · ${description}`;
+}
+
 export function RolePicker({
   label,
   picker,
   selected,
   onChange,
   selectionMode = 'multiple',
+  unavailableOf,
 }: {
   label: string;
   picker: PickerState<Role>;
   selected: readonly string[];
   onChange: (ids: string[]) => void;
   selectionMode?: 'single' | 'multiple';
+  // Why a role cannot be chosen here, or null when it can.
+  unavailableOf?: (role: Role) => string | null;
 }) {
   return (
     <Picker
@@ -31,7 +38,7 @@ export function RolePicker({
       nameOf={(role) => role.name}
       detailOf={(role) => {
         const client = owner(role);
-        return client === null ? 'tenant role' : `client ${client}`;
+        return described(client === null ? 'tenant role' : `client ${client}`, role.description);
       }}
       accessibleNameOf={(role) => {
         const client = owner(role);
@@ -43,6 +50,7 @@ export function RolePicker({
       selected={selected}
       onChange={onChange}
       selectionMode={selectionMode}
+      {...(unavailableOf === undefined ? {} : { unavailableOf })}
     />
   );
 }

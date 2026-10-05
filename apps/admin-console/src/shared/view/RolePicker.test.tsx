@@ -19,6 +19,7 @@ function role(id: string, name: string, clientKey: string | null = null): Role {
 }
 
 const ROLES = [role('r1', 'auditor'), role('r2', 'admin', 'billing-portal')];
+const DESCRIBED = { ...role('r3', 'reviewer'), description: 'Reads every invoice' };
 
 function picker<T>(options: readonly T[], overrides: Partial<PickerState<T>> = {}): PickerState<T> {
   return {
@@ -43,6 +44,14 @@ it("names each role's owner: the tenant, or the client it belongs to", () => {
     'adminclient billing-portal',
   ]);
   expect(options[1]).toHaveAccessibleName('admin, a role of client billing-portal');
+});
+
+it("shows a role's description beside its owner", () => {
+  render(
+    <RolePicker label="Roles" picker={picker([DESCRIBED])} selected={[]} onChange={vi.fn()} />,
+  );
+  const option = within(screen.getByRole('listbox', { name: 'Roles' })).getByRole('option');
+  expect(option).toHaveTextContent('reviewertenant role · Reads every invoice');
 });
 
 it('adds to the selection and keeps what is selected but not on this page', async () => {

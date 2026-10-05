@@ -12,7 +12,7 @@ import {
   builtinAdminClient,
   holdsDirectly,
   TENANT_ADMIN,
-  tenantAdminRole,
+  clientRole,
   withoutRoles,
   withRole,
   type AdministratorRequest,
@@ -69,21 +69,25 @@ function isRefused(value: object): value is Refused {
   return 'failure' in value;
 }
 
-export async function grantTenantAdmin(
+// Each holding is looked for by its own name, since a client's roles can run
+// past one page; what the subject already holds is kept.
+export async function grantHoldings(
   gateway: Gateway,
   tenant: string,
   subjectId: string,
+  holdings: readonly string[],
 ): Promise<Refused | null> {
   const client = await adminClientOf(gateway, tenant);
   if (isRefused(client)) return client;
-  const roles = await readClientRoles(gateway, tenant, client.client, TENANT_ADMIN);
-  if (!roles.ok) return refusedAt(roles, 'roles');
-  const role = tenantAdminRole(roles.data.items, client.client);
-  if (role === null) {
-    return refusedAt(
-      defect(`console defect: ${tenant}'s odudu-admin has no ${TENANT_ADMIN}`),
-      'roles',
-    );
+  const ids: string[] = [];
+  for (const name of holdings) {
+    const roles = await readClientRoles(gateway, tenant, client.client, name);
+    if (!roles.ok) return refusedAt(roles, 'roles');
+    const role = clientRole(roles.data.items, client.client, name);
+    if (role === null) {
+      return refusedAt(defect(`console defect: ${tenant}'s odudu-admin has no ${name}`), 'roles');
+    }
+    ids.push(role);
   }
   const held = await heldRoles(gateway, tenant, subjectId);
   if (isRefused(held)) return held;
@@ -91,10 +95,18 @@ export async function grantTenantAdmin(
     gateway,
     tenant,
     subjectId,
-    withRole(held.ids, role),
+    ids.reduce<readonly string[]>((all, id) => withRole(all, id), held.ids),
     held.etag,
   );
   return set.ok ? null : refusedAt(set, 'set-roles');
+}
+
+export function grantTenantAdmin(
+  gateway: Gateway,
+  tenant: string,
+  subjectId: string,
+): Promise<Refused | null> {
+  return grantHoldings(gateway, tenant, subjectId, [TENANT_ADMIN]);
 }
 
 export type Revoked =

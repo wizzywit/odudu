@@ -11,6 +11,7 @@ import { useSectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 import type { Gateway, GatewayFailure } from '#/shared/transport/gateway.ts';
+import type { Problem } from '#/shared/transport/problem.ts';
 import { TransportContext } from '#/shared/transport/useTransport.ts';
 import { NumberWithUnitField, TextField } from '#/shared/view/Field.tsx';
 import { Section } from '#/shared/view/Section.tsx';
@@ -53,11 +54,13 @@ function General({
   etag,
   gone = false,
   onRefused,
+  explain,
 }: {
   data: Client;
   etag: string;
   gone?: boolean;
   onRefused?: (failure: GatewayFailure) => void;
+  explain?: (problem: Problem) => string | null;
 }) {
   const save = useSectionSave({
     tenant: 'acme',
@@ -68,6 +71,7 @@ function General({
     capability: 'manage-clients',
     gone,
     ...(onRefused === undefined ? {} : { onRefused }),
+    ...(explain === undefined ? {} : { explain }),
     fields: { name: { value: data.name, label: 'Name', kind: 'plain' } },
     save: (gateway, { changes, ifMatch }) => amend(gateway, changes, ifMatch),
   });
@@ -152,7 +156,13 @@ function Tokens({ data, etag }: { data: Client; etag: string }) {
   );
 }
 
-function ClientRecord({ onRefused }: { onRefused?: (failure: GatewayFailure) => void }) {
+function ClientRecord({
+  onRefused,
+  explain,
+}: {
+  onRefused?: (failure: GatewayFailure) => void;
+  explain?: (problem: Problem) => string | null;
+}) {
   const record = useRecord({ tenant: 'acme', record: 'clients/c1', read });
   if (record.data === undefined || record.etag === null) return <p>Loading</p>;
   return (
@@ -162,19 +172,27 @@ function ClientRecord({ onRefused }: { onRefused?: (failure: GatewayFailure) => 
         etag={record.etag}
         gone={record.gone}
         {...(onRefused === undefined ? {} : { onRefused })}
+        {...(explain === undefined ? {} : { explain })}
       />
       <Tokens data={record.data} etag={record.etag} />
     </>
   );
 }
 
-function mount(routes: Record<string, Answer>, onRefused?: (failure: GatewayFailure) => void) {
+function mount(
+  routes: Record<string, Answer>,
+  onRefused?: (failure: GatewayFailure) => void,
+  explain?: (problem: Problem) => string | null,
+) {
   const fake = fakeTransport(routes);
   const queryClient = createQueryClient();
   render(
     <TransportContext value={fake.transport}>
       <QueryClientProvider client={queryClient}>
-        <ClientRecord {...(onRefused === undefined ? {} : { onRefused })} />
+        <ClientRecord
+          {...(onRefused === undefined ? {} : { onRefused })}
+          {...(explain === undefined ? {} : { explain })}
+        />
       </QueryClientProvider>
     </TransportContext>,
   );
@@ -393,6 +411,23 @@ it('says a guard refusal beside the action, not in a toast', async () => {
   ).toBeVisible();
   expect(within(general()).getByText('status refused')).toBeVisible();
   expect(useToasts.getState().toasts).toEqual([]);
+});
+
+it('words a refusal in place when the section says what it means', async () => {
+  const user = userEvent.setup();
+  mount(
+    {
+      [GET]: client(LOADED, '"e1"'),
+      [PATCH]: problem(409, 'about:blank#last-administrator', 'Conflict', { detail: 'raw' }),
+    },
+    undefined,
+    (refusal) =>
+      refusal.type === 'about:blank#last-administrator' ? 'grace is the last one.' : null,
+  );
+  await rename(user, 'Billing');
+  await user.click(within(general()).getByRole('button', { name: 'Save General' }));
+  expect(await within(general()).findByText('grace is the last one.')).toBeVisible();
+  expect(within(general()).queryByText('raw')).toBeNull();
 });
 
 it('says a save whose answer never came could not be confirmed, and keeps the edits', async () => {

@@ -22,7 +22,11 @@ export function GroupPicker({
       picker={picker}
       idOf={(group) => group.id}
       nameOf={(group) => group.name}
-      detailOf={(group) => group.path}
+      detailOf={(group) =>
+        group.description === null || group.description === ''
+          ? group.path
+          : `${group.path} · ${group.description}`
+      }
       capability="view-users"
       selected={selected}
       onChange={onChange}
