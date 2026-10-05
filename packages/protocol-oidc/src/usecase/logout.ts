@@ -78,6 +78,10 @@ export type LogoutOutcome =
       csrf: string | null;
       clientId: string | null;
       postLogoutRedirectUri: string | null;
+      // The same URI, only when it matches the client's registered list:
+      // where the confirmation POST may redirect, and so what the page's
+      // form-action has to license.
+      registeredRedirect: string | null;
       state: string | null;
     }
   // A session was ended, or there was none to end and the redirect alone
@@ -279,6 +283,7 @@ export async function handleLogoutRequest(
       csrf: selected?.entry.proof(LOGOUT_CONFIRMATION) ?? null,
       clientId: params.clientId,
       postLogoutRedirectUri: requested,
+      registeredRedirect: requested !== null && registered.includes(requested) ? requested : null,
       state: params.state,
     };
   }

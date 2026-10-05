@@ -543,6 +543,30 @@ describe('[OIDC-RPINITIATED-2-01] the confirmation page is asked for on both tri
     expect(row?.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
   });
 
+  // The confirmation POST answers 302 to the client's registered
+  // post_logout_redirect_uri, and Chromium holds that redirect to the
+  // page's form-action, so the policy names that origin and no other.
+  it('licenses the form to end at a registered redirect, and at nothing unregistered', async () => {
+    const tenantName = `logout-form-action-${newId()}`;
+    await setupTenant(tenantName);
+    const cookie = await signIn(tenantName);
+    const formAction = async (redirect: string) => {
+      const res = await http.inject({
+        url: logoutUrl(tenantName, { client_id: CLIENT_ID, post_logout_redirect_uri: redirect }),
+        headers: { cookie },
+      });
+      expect(res.body).toContain('<title>Sign out?</title>');
+      return String(res.headers['content-security-policy'])
+        .split('; ')
+        .find((directive) => directive.startsWith('form-action'));
+    };
+
+    expect(await formAction(POST_LOGOUT_REDIRECT_URI)).toBe(
+      "form-action 'self' https://app.example",
+    );
+    expect(await formAction('https://elsewhere.example/after-logout')).toBe("form-action 'self'");
+  });
+
   it('when the hint names somebody other than the current session', async () => {
     const tenantName = `logout-mismatch-${newId()}`;
     const { tenantId } = await setupTenant(tenantName);

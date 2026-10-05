@@ -61,14 +61,17 @@ async function respondToOutcome(
     if (outcome.sessionId === null || outcome.csrf === null) {
       return sendLogoutHtml(reply, 200, renderNoActiveSessionPage());
     }
+    const page = renderLogoutConfirmationPage(tenant, outcome.sessionId, outcome.csrf, {
+      clientId: outcome.clientId,
+      postLogoutRedirectUri: outcome.postLogoutRedirectUri,
+      state: outcome.state,
+    });
     return sendLogoutHtml(
       reply,
       200,
-      renderLogoutConfirmationPage(tenant, outcome.sessionId, outcome.csrf, {
-        clientId: outcome.clientId,
-        postLogoutRedirectUri: outcome.postLogoutRedirectUri,
-        state: outcome.state,
-      }),
+      outcome.registeredRedirect === null
+        ? page
+        : { ...page, redirectsTo: outcome.registeredRedirect },
     );
   }
 

@@ -81,3 +81,43 @@ describe('the headers every rendered page carries', () => {
     expect(csp?.match(/rp\.example/gu)).toHaveLength(1);
   });
 });
+
+// Chromium applies form-action to every redirect a form submission follows,
+// so a login form whose POST answers 302 to a relying party on another
+// origin is refused there unless the policy names that origin.
+describe('form-action on a page whose form may redirect to a client', () => {
+  const formAction = (redirectsTo: string | undefined): string | undefined =>
+    headerMap({ ...MARKUP_ONLY_PAGE, ...(redirectsTo === undefined ? {} : { redirectsTo }) })
+      ['content-security-policy']?.split('; ')
+      .find((directive) => directive.startsWith('form-action'));
+
+  it("keeps 'self' alone for a page that names no client redirect", () => {
+    expect(formAction(undefined)).toBe("form-action 'self'");
+  });
+
+  it('adds the origin of the redirect URI, never its path or query', () => {
+    expect(formAction('https://rp.example:8443/callback?x=1')).toBe(
+      "form-action 'self' https://rp.example:8443",
+    );
+    expect(formAction('http://localhost:8080/cb')).toBe("form-action 'self' http://localhost:8080");
+  });
+
+  it('names the scheme alone for a private-use URI scheme', () => {
+    expect(formAction('com.example.app:/oauth2redirect')).toBe(
+      "form-action 'self' com.example.app:",
+    );
+  });
+
+  it('adds nothing for a value it cannot express as a source', () => {
+    for (const value of [
+      '',
+      'not a uri',
+      'https://a;b.example/',
+      'javascript:alert(1)',
+      'data:,x',
+    ]) {
+      expect(formAction(value)).toBe("form-action 'self'");
+    }
+    expect(formAction("https://rp.example/'none'")).toBe("form-action 'self' https://rp.example");
+  });
+});

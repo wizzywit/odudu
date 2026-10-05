@@ -1,6 +1,6 @@
 # 0018 — Framing defence on the pages Odudu renders
 
-**Status:** Accepted · 2026-09-13
+**Status:** Accepted · 2026-09-13 · amended 2026-09-16, 2026-10-05
 
 ## Context
 
@@ -123,6 +123,56 @@ the header is the nonce on the element, for **every** page that carries a
 script — the login form and the enrolment page — and that a page with no
 script is sent no `script-src`. That is checkable without a browser; "the
 script actually ran" is not, and remains the gap this amendment names.
+
+## Amendment: `form-action` and the redirect a form follows
+
+**2026-10-05.** `form-action 'self'` was written as if it governed only
+where a form posts. Chromium also applies it to every redirect that
+submission follows, so the login form's POST, which answers `302` to the
+client's `redirect_uri`, was refused at the redirect whenever the client
+lived on another origin. That is the normal case for a relying party. The
+code was issued, the authentication session consumed, and the browser stayed
+on the sign-in page with the violation in its console.
+
+verified: a Playwright run in Chromium against a client whose
+`redirect_uri` was `http://127.0.0.1:<port>/callback`, with the server on
+`http://localhost:3086`. `apps/admin-console/e2e/relying-party.spec.ts` now
+pins the fixed behaviour. That other engines do the same is an assumption;
+the fix does not depend on it either way.
+
+Nothing caught it, for the reason the previous amendment gives: a CSP
+refusal is invisible in a response. The console and its e2e harness share
+the server's origin, curl applies no policy, and no OIDF browser-driven plan
+completed a login under this policy (see `docs/phases/p4d.md`).
+
+The policy now:
+
+- A page whose form continues a parked authorization request — the login
+  form in every variant, the account chooser, consent, and every
+  required-action page — sends `form-action 'self' <origin>`, where
+  `<origin>` is the origin of that request's `redirect_uri`. A private-use
+  scheme (RFC 8252 §7.1) has no origin, so its scheme is named instead.
+- The logout confirmation page names the origin of `post_logout_redirect_uri`
+  only when that URI matches the client's registered list.
+- Every other page keeps `form-action 'self'` alone.
+
+**The page decides, not the caller**, as for the nonce. The value is the
+`redirect_uri` that `/authorize` validated and parked, carried on the
+`RenderedPage` as `redirectsTo`, and `pageHeaders` derives the source
+expression from it. Nothing the browser submits reaches it. A value that
+cannot be written exactly as one source expression adds nothing, and so do
+`javascript:`, `data:` and similar schemes.
+
+Rejected along the way:
+
+- **Dropping `form-action`.** It is the directive that stops injected markup
+  re-targeting the credential form, which is the reason it was chosen.
+- **Every registered redirect of the client.** That is wider than the one
+  request the page continues, and needs a client lookup the parked request
+  already makes unnecessary.
+- **A 200 page that navigates onward instead of a 302.** It changes the
+  authorization response every client sees, and the onward step needs a
+  script or `<meta refresh>`, which this policy exists to keep out.
 
 ## Alternatives rejected
 

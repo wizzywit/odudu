@@ -10,8 +10,10 @@ import {
   type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
 import { requestContextFrom, type RequestContext } from '@odudu/domain-audit';
+import { type RenderedPage } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
 import { sendHtml } from '#/view/html-response';
+import { continuing, type ContinuationDeps } from '#/view/routes/continuation';
 
 // What every route that can produce a 'required_action' outcome needs to
 // render the page for it — login.ts's own form submission and
@@ -19,8 +21,7 @@ import { sendHtml } from '#/view/html-response';
 // which page a given action shows. `findTenant`'s own shape, not the
 // repository's `TenantLookup` — the view layer never imports repository
 // (CLAUDE.md's layering table), and only `id` is read here.
-export interface RequiredActionResponseDeps {
-  findTenant(name: string): Promise<{ id: string } | null>;
+export interface RequiredActionResponseDeps extends ContinuationDeps {
   beginTotpEnrolment(
     tenantName: string,
     tenantId: string,
@@ -50,12 +51,14 @@ export async function sendRequiredActionPage(
   subjectId: string,
   action: RequiredAction,
 ): Promise<FastifyReply> {
+  const send = async (page: RenderedPage) =>
+    sendHtml(reply, 200, await continuing(deps, tenantName, authSessionId, page));
   const beginPasskey = deps.beginPasskeyEnrolment?.bind(deps);
   if (action === 'configure-passkey' && beginPasskey !== undefined) {
     const tenant = await deps.findTenant(tenantName);
     if (tenant !== null) {
       const offer = await beginPasskey(tenantName, tenant.id, subjectId, authSessionId);
-      return sendHtml(reply, 200, renderPasskeyEnrolmentPage(tenantName, authSessionId, offer));
+      return send(renderPasskeyEnrolmentPage(tenantName, authSessionId, offer));
     }
   }
   if (action === 'generate-recovery-codes') {
@@ -66,11 +69,11 @@ export async function sendRequiredActionPage(
         subjectId,
         requestContextFrom(reply.request),
       );
-      return sendHtml(reply, 200, renderRecoveryCodesPage(tenantName, authSessionId, offer));
+      return send(renderRecoveryCodesPage(tenantName, authSessionId, offer));
     }
   }
   if (action === 'update-password') {
-    return sendHtml(reply, 200, renderUpdatePasswordPage(tenantName, authSessionId));
+    return send(renderUpdatePasswordPage(tenantName, authSessionId));
   }
   if (action !== 'configure-totp') {
     return sendHtml(reply, 200, renderRequiredActionPage(action));
@@ -80,5 +83,5 @@ export async function sendRequiredActionPage(
     return sendHtml(reply, 200, renderRequiredActionPage(action));
   }
   const offer = await deps.beginTotpEnrolment(tenantName, tenant.id, subjectId);
-  return sendHtml(reply, 200, renderTotpEnrolmentPage(tenantName, authSessionId, offer));
+  return send(renderTotpEnrolmentPage(tenantName, authSessionId, offer));
 }

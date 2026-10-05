@@ -11,6 +11,7 @@ import { renderConsentPage } from '#/view/consent-html';
 import { sendHtml } from '#/view/html-response';
 import { tenantIssuerFor } from '#/view/issuer';
 import { namesUnsupportedRepresentation } from '#/view/media-type';
+import { continuing } from '#/view/routes/continuation';
 import {
   sendRequiredActionPage,
   type RequiredActionResponseDeps,
@@ -87,50 +88,41 @@ async function renderAuthorizationOutcome(
   // asked with prompt=select_account. The chooser's own POST resumes the
   // authentication session parked here.
   if (outcome.kind === 'select') {
-    return sendHtml(
-      reply,
-      200,
-      renderSelectAccountPage({
-        tenant,
-        authSessionId: outcome.authSessionId,
-        accounts: outcome.accounts,
-      }),
-    );
+    const page = renderSelectAccountPage({
+      tenant,
+      authSessionId: outcome.authSessionId,
+      accounts: outcome.accounts,
+    });
+    return sendHtml(reply, 200, await continuing(deps, tenant, outcome.authSessionId, page));
   }
 
   // A reused session that still needs consent: the same page the form path
   // renders once its own gate asks, on a freshly started authentication
   // session the reuse path bound and authenticated for the reused subject.
   if (outcome.kind === 'consent') {
-    return sendHtml(
-      reply,
-      200,
-      renderConsentPage({
-        tenant,
-        authSessionId: outcome.authSessionId,
-        clientName: outcome.clientName,
-        clientPages: outcome.clientPages,
-        scopeLabels: outcome.scopeLabels,
-        defaultScopes: outcome.defaultScopes,
-        optionalScopes: outcome.optionalScopes,
-        alreadyGranted: outcome.alreadyGranted,
-      }),
-    );
+    const page = renderConsentPage({
+      tenant,
+      authSessionId: outcome.authSessionId,
+      clientName: outcome.clientName,
+      clientPages: outcome.clientPages,
+      scopeLabels: outcome.scopeLabels,
+      defaultScopes: outcome.defaultScopes,
+      optionalScopes: outcome.optionalScopes,
+      alreadyGranted: outcome.alreadyGranted,
+    });
+    return sendHtml(reply, 200, await continuing(deps, tenant, outcome.authSessionId, page));
   }
 
-  return sendHtml(
-    reply,
-    200,
-    renderLoginForm(
-      tenant,
-      outcome.authSessionId,
-      outcome.form,
-      deps.passkeyLogin ?? false,
-      outcome.rememberMeAllowed,
-      undefined,
-      outcome.loginWithEmail,
-    ),
+  const page = renderLoginForm(
+    tenant,
+    outcome.authSessionId,
+    outcome.form,
+    deps.passkeyLogin ?? false,
+    outcome.rememberMeAllowed,
+    undefined,
+    outcome.loginWithEmail,
   );
+  return sendHtml(reply, 200, await continuing(deps, tenant, outcome.authSessionId, page));
 }
 
 // OIDC Core §3.1.2 requires both methods; they differ only in where the
