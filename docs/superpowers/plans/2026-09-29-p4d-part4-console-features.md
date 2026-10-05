@@ -421,6 +421,35 @@ drives, with tests at the protocol layer.
   for new subjects" toggle (refused for admin reach, with the reason), and
   Activity.
 
+### Task 10b: Logic out of usecases and repositories (the user found it)
+
+ADR 0010's 2026-10-05 amendment and CLAUDE.md "Layering" state the rule. The
+audit is in the SDD workspace (`layering-audit.md`). It found 226 logic items
+in 62 of 113 usecase and repository files, plus 11 items in one adapter and
+eight views. 28 shared service functions cover the duplicates.
+
+- Shared helpers come first, in `shared/service`:
+  - `writeFailureText`, `createFailure`, `lookupText`;
+  - `andList`, `holdingOptions`;
+  - `isRefused`, `isStale`, `isMissing`;
+  - the `useSectionSave` state machine as pure transitions.
+- Then each feature in turn: groups, roles, subjects, tenants with
+  system-admins, then session, shell and overview. Every rule, message and
+  formatter moves to that feature's `service.ts`, each with a unit test.
+- The guard is `tests/lint/console-usecase-integration-only.test.ts`. In usecase
+  and repository files it fails on:
+  - `switch`;
+  - `Intl.*`;
+  - prose string literals of three or more words;
+  - numeric HTTP-status comparisons;
+  - top-level non-hook helpers, in usecase files only.
+
+  It lands rule by rule. Its scope widens to each feature as that feature is
+  cleaned, so no allowlist is ever needed.
+
+- Behaviour must not change. The existing view tests and the full e2e run stay
+  green at every increment.
+
 ### Task 11: Clients — list, create and General / Redirects & origins (facts B-2 Clients; D.2 client table)
 
 - Create: confidential or public. A confidential client's secret is shown once.
