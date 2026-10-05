@@ -14,14 +14,16 @@ import {
 } from '#/usecase/execute-actions';
 import { completeEmailVerification } from '#/usecase/verify-email';
 import {
-  renderRequiredActionsForm,
-  renderRequiredActionsSucceededPage,
   renderResetLinkFailedPage,
   renderResetPasswordForm,
   renderResetPasswordRequiredPage,
   renderResetPasswordSucceededPage,
   renderResetPasswordWeakPage,
 } from '#/view/reset-html';
+import {
+  renderRequiredActionsForm,
+  renderRequiredActionsSucceededPage,
+} from '#/view/required-actions-html';
 import {
   renderVerificationFailedPage,
   renderVerificationSucceededPage,

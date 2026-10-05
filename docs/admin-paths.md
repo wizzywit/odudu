@@ -170,7 +170,7 @@ with `docker compose down -v` when the capture finished.
 
 **The eighth stack.** `GET /subjects/username-policy`, the refusal of a
 disabled subject's token under "The shape of it", and `GET /admin/openapi.json`
-(recaptured since against the tenth stack, below) were captured against one more stack of their own: compose project
+(recaptured since against the twelfth stack, below) were captured against one more stack of their own: compose project
 `odudu-t8b` on port 3080, built from this branch and brought up from an
 empty volume, with `seed admin --username ada-t8b` run against it, then a
 tenant `policy-demo` made with `odudu seed tenant` and a subject `vera`
@@ -204,13 +204,36 @@ every delivery fails, and `ODUDU_THROTTLE_LIMIT=1000`. Against it: `seed admin
 `offline_access` — and `linus` once. `$ADMIN_TOKEN` is `ada-t8b2`'s token, got
 fresh for each section the way "Getting the token" shows, and
 `P=http://localhost:3082/admin/tenants/ops-demo` throughout. Each section says
-what else it seeded. The two rename refusals, `GET /admin/openapi.json`, `ivy`'s
+what else it seeded. The two rename refusals, `GET /admin/openapi.json` (since
+recaptured against the twelfth stack), `ivy`'s
 read under `GET /audit` and the back-channel logout queue ran last, on the image
 rebuilt at `1507a6c3`, whose only change is the wording of the
 `about:blank#logout-deliveries-pending` detail. The stack was torn down with
 `docker compose down -v` when the capture finished. `DELETE
 /admin/tenants/{tenant}` was captured again on an eleventh stack, as its section
 says.
+
+**The twelfth stack.** Every transcript whose output changed once groups and
+roles carried a `description`, groups `default_for_new_subjects`, scopes
+their client default and consent fields, a tenant `audit_event_types`, a
+client the fields `0084` to `0086` added and `odudu reap` its `cleared`
+report, and the sections on the routes and settings those changes added,
+ran against one more stack: compose project `odudu-t8c2` on port 3082, its
+Postgres on 5464, built from this branch at `15cdb46a` and brought up from
+an empty volume with `ODUDU_OUTBOX_ENABLED=false`, `ODUDU_REAP_ENABLED=false`
+and `ODUDU_LOGOUT_SENDER_ENABLED=false`, so that mail leaves and `reap` runs
+only when run by hand, `ODUDU_ALLOW_PRIVATE_SMTP_HOSTS=true`,
+`ODUDU_ALLOW_PRIVATE_CLIENT_URLS=true` and `ODUDU_THROTTLE_LIMIT=1000`, with
+`seed admin --username ada-t8c2` run against it. `$ADMIN_TOKEN` is
+`ada-t8c2`'s, got fresh for each section the way "Getting the token" shows.
+Every tenant, client, role, group, scope and subject a section names was
+created there for it through the endpoints below, each section says which,
+so its ids refer to nothing on the stacks above. Its `odudu` service was
+rebuilt at `6a212077`, whose only change lets a mailed link give a subject
+with no password its first, before the required-actions transcripts under
+`POST /subjects/:id/actions-email` and the audit types under `GET /audit`
+were captured. It was torn down with `docker compose down -v` when the
+capture finished.
 
 ## The shape of it
 
@@ -420,27 +443,6 @@ not re-run — each says so, and why, where it appears.
 | `GET`    | `/admin/tenants/{tenant}/audit/count`                            | Count audit events                         |
 | `GET`    | `/admin/tenants/{tenant}/audit/export`                           | Export audit events as NDJSON              |
 | `GET`    | `/admin/openapi.json`                                            | The OpenAPI reference                      |
-
-### Transcripts that predate a field
-
-Migrations `0082` to `0086` added fields every client and every tenant
-document now carries, and a handful of transcripts below were captured
-before them. Each says so where it is shown, and each is recaptured after
-the group, role and scope configuration work that changes the same
-sections, before P4d's close pass. What such a transcript lacks:
-a client read now also carries `description`, `id_token_ttl_seconds`,
-`client_uri`, `policy_uri`, `tos_uri`, `id_token_signed_response_alg`,
-`default_max_age`, `require_auth_time` and `previous_secret_expires_at`, and
-a client that never chose its own lifetimes reads `null` where those
-transcripts show `300` and `1209600` (it takes the tenant's, [Lifetimes, and
-signing in with an email address](#lifetimes-and-signing-in-with-an-email-address));
-a tenant document's `settings` also carry the eight settings that
-subsection names, and its clients the fields above; and an audit row's
-diff of a client carries the new fields beside the old. Nothing else in
-those transcripts changed. The sections that show these fields at all —
-the settings, [A client's pages and its ID token settings](#a-clients-pages-and-its-id-token-settings)
-and the rotation under [`POST /clients/{id}/secret`](#post-clientsidsecret)
-— were captured after.
 
 ### A refusal names its field
 
@@ -1376,22 +1378,22 @@ The export, without subjects:
 RUN_START=$(date -u +%FT%T.000Z)
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/export-demo/export
+  http://localhost:3082/admin/tenants/export-demo/export
 ```
 
-Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
+Recaptured against the twelfth stack (the note at the top of this document), in a tenant also named `export-demo` set up there the same way through the endpoints below — the confidential client `billing-app`, the role `billing-reader`, the group `finance` mapping it with `grace` in it, and the same SMTP relay — so its ids and timestamps are that run's, not those of the blocks around it:
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0e5d9-8b57-7c1d-bb96-b5e32edb81b1
+x-request-id: 01a109b5-23bc-7377-9e8f-45413735b988
 cache-control: no-store
 content-type: application/vnd.odudu.tenant+json; charset=utf-8
-content-length: 5408
-Date: Mon, 28 Sep 2026 02:30:34 GMT
+content-length: 6598
+Date: Mon, 05 Oct 2026 01:37:08 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"version":1,"settings":{"display_name":null,"enabled":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":8,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false},"flow":[{"authenticator":"passkey","requirement":"alternative"},{"authenticator":"password","requirement":"alternative"},{"authenticator":"otp","requirement":"conditional"},{"authenticator":"recovery-code","requirement":"conditional"}],"clients":[{"client_id":"billing-app","name":"Billing","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","redirect_uris":["https://billing.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"service_account_roles":[]}],"roles":[{"name":"billing-reader","client":null,"description":null,"default_for_new_subjects":false,"builtin":false,"composites":[]},{"name":"manage-clients","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-keys","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-sessions","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-tenant","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-users","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[{"name":"view-users","client":"odudu-admin"}]},{"name":"tenant-admin","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[{"name":"manage-clients","client":"odudu-admin"},{"name":"manage-keys","client":"odudu-admin"},{"name":"manage-sessions","client":"odudu-admin"},{"name":"manage-tenant","client":"odudu-admin"},{"name":"manage-users","client":"odudu-admin"},{"name":"view-audit","client":"odudu-admin"},{"name":"view-users","client":"odudu-admin"}]},{"name":"view-audit","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"view-users","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]}],"groups":[{"path":"/finance","roles":[{"name":"billing-reader","client":null}]}],"scopes":[{"name":"address","description":null,"include_in_id_token":true,"include_in_access_token":false,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"email","description":null,"include_in_id_token":true,"include_in_access_token":false,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"groups","description":null,"include_in_id_token":false,"include_in_access_token":true,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"offline_access","description":null,"include_in_id_token":false,"include_in_access_token":false,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"optional"}]},{"name":"openid","description":null,"include_in_id_token":true,"include_in_access_token":false,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"phone","description":null,"include_in_id_token":true,"include_in_access_token":false,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"profile","description":null,"include_in_id_token":true,"include_in_access_token":false,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"roles","description":null,"include_in_id_token":false,"include_in_access_token":true,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]}],"registration_policy":{"registration_allowed":false,"verify_email":false,"client_registration_policy":"disabled"},"smtp":{"host":"smtp.gmail.com","port":587,"from_address":"noreply@example.com","username":"mailer","starttls":true},"omitted":["clients[0].secret","smtp.password"]}
+{"version":1,"settings":{"display_name":null,"enabled":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":8,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"login_with_email":false,"audit_event_types":["admin_mutation","admin_access","authentication","session","token","credential"]},"flow":[{"authenticator":"passkey","requirement":"alternative"},{"authenticator":"password","requirement":"alternative"},{"authenticator":"otp","requirement":"conditional"},{"authenticator":"recovery-code","requirement":"conditional"}],"clients":[{"client_id":"billing-app","name":"Billing","description":null,"type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","redirect_uris":["https://billing.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"service_account_roles":[]}],"roles":[{"name":"billing-reader","client":null,"description":null,"default_for_new_subjects":false,"builtin":false,"composites":[]},{"name":"manage-clients","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-keys","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-sessions","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-tenant","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"manage-users","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[{"name":"view-users","client":"odudu-admin"}]},{"name":"tenant-admin","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[{"name":"manage-clients","client":"odudu-admin"},{"name":"manage-keys","client":"odudu-admin"},{"name":"manage-sessions","client":"odudu-admin"},{"name":"manage-tenant","client":"odudu-admin"},{"name":"manage-users","client":"odudu-admin"},{"name":"view-audit","client":"odudu-admin"},{"name":"view-users","client":"odudu-admin"}]},{"name":"view-audit","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]},{"name":"view-users","client":"odudu-admin","description":null,"default_for_new_subjects":false,"builtin":true,"composites":[]}],"groups":[{"path":"/finance","description":null,"default_for_new_subjects":false,"roles":[{"name":"billing-reader","client":null}]}],"scopes":[{"name":"address","description":null,"include_in_id_token":true,"include_in_access_token":false,"default_client_assignment":"default","consent_text":null,"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"email","description":null,"include_in_id_token":true,"include_in_access_token":false,"default_client_assignment":"default","consent_text":null,"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"groups","description":null,"include_in_id_token":false,"include_in_access_token":true,"default_client_assignment":"default","consent_text":null,"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"offline_access","description":null,"include_in_id_token":false,"include_in_access_token":false,"default_client_assignment":"optional","consent_text":null,"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"optional"}]},{"name":"openid","description":null,"include_in_id_token":true,"include_in_access_token":false,"default_client_assignment":"default","consent_text":null,"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"phone","description":null,"include_in_id_token":true,"include_in_access_token":false,"default_client_assignment":"default","consent_text":null,"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"profile","description":null,"include_in_id_token":true,"include_in_access_token":false,"default_client_assignment":"default","consent_text":null,"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]},{"name":"roles","description":null,"include_in_id_token":false,"include_in_access_token":true,"default_client_assignment":"default","consent_text":null,"display_order":0,"builtin":true,"roles":[],"mappers":[],"clients":[{"client_id":"billing-app","assignment":"default"}]}],"registration_policy":{"registration_allowed":false,"verify_email":false,"client_registration_policy":"disabled"},"smtp":{"host":"smtp.gmail.com","port":587,"from_address":"noreply@example.com","username":"mailer","starttls":true},"omitted":["clients[0].secret","smtp.password"]}
 ```
 
 The SMTP password appears nowhere in it, nor in the export with subjects:
@@ -1836,23 +1838,21 @@ curl -sS -D - \
 ```
 
 Captured against `settings-demo`, a tenant created for this section through
-`POST /admin/tenants` with `display_name` "Settings Demo", as the system
-admin `ada` [Getting the token](#getting-the-token) seeds, on a stack built
-from the commit that made the lifetimes settings, so every value but
-`display_name` is the migrations' own default:
+`POST /admin/tenants` with `display_name` "Settings Demo", on the twelfth
+stack, so every value but `display_name` is the migrations' own default:
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a10930-ad08-77ea-aca7-348e7f252101
+x-request-id: 01a109b9-267d-7851-ba04-b8640c51baee
 cache-control: no-store
-etag: "0f6a12f82bad66b8c2a3c0941c6d1e6578a6d7eecf395cba4e6b9332abee794a"
+etag: "4b3262c7d6324da17d231325ee0847e71ff7b4615485ffb2a29c35124f335b14"
 content-type: application/json; charset=utf-8
-content-length: 1103
-Date: Sun, 04 Oct 2026 23:12:27 GMT
+content-length: 1205
+Date: Mon, 05 Oct 2026 01:41:31 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":false,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":8,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"login_with_email":false}
+{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":false,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":8,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"login_with_email":false,"audit_event_types":["admin_mutation","admin_access","authentication","session","token","credential"]}
 ```
 
 Amending sends only the settings that change, and the response is the whole
@@ -1868,16 +1868,16 @@ curl -sS -D - -X PATCH \
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a10930-cf9c-74f3-8b06-b0761c8108d4
+x-request-id: 01a109b9-268f-7826-9bea-9f78b47886a1
 cache-control: no-store
-etag: "e366534015037a326650ce09da0841b20fe5a51b7c47d3a37aced5f926eaa7fe"
+etag: "3e3df2b9af1db77a14c2f4b445b6c4077aa90bf1ed899f5b92cf7e8c68caf21b"
 content-type: application/json; charset=utf-8
-content-length: 1103
-Date: Sun, 04 Oct 2026 23:12:36 GMT
+content-length: 1205
+Date: Mon, 05 Oct 2026 01:41:31 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":14,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"login_with_email":false}
+{"display_name":"Settings Demo","enabled":true,"registration_allowed":false,"verify_email":true,"reset_password_allowed":false,"sso_session_idle_seconds":1800,"sso_session_max_seconds":36000,"password_min_length":14,"password_require_digit":false,"password_require_uppercase":false,"password_require_lowercase":false,"password_require_special":false,"password_not_username":true,"password_not_email":true,"password_history_depth":0,"password_max_age_days":0,"otp_required":false,"brute_force_max_failures":5,"brute_force_lockout_seconds":60,"brute_force_max_lockout_seconds":900,"brute_force_failure_reset_seconds":43200,"client_registration_policy":"disabled","max_clients":200,"max_sessions_per_browser":25,"remember_me_allowed":false,"remember_me_idle_seconds":604800,"remember_me_max_seconds":2592000,"audit_retention_days":90,"username_editable":false,"access_token_ttl_seconds":300,"id_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"authorization_code_ttl_seconds":60,"login_ttl_seconds":1800,"verify_email_ttl_seconds":43200,"reset_password_ttl_seconds":300,"login_with_email":false,"audit_event_types":["admin_mutation","admin_access","authentication","session","token","credential"]}
 ```
 
 A name this map does not know is refused with `400`, naming the settings it
@@ -1891,7 +1891,7 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown tenant setting \"nonesuch\"; expected one of display_name, enabled, registration_allowed, verify_email, reset_password_allowed, sso_session_idle_seconds, sso_session_max_seconds, password_min_length, password_require_digit, password_require_uppercase, password_require_lowercase, password_require_special, password_not_username, password_not_email, password_history_depth, password_max_age_days, otp_required, brute_force_max_failures, brute_force_lockout_seconds, brute_force_max_lockout_seconds, brute_force_failure_reset_seconds, client_registration_policy, max_clients, max_sessions_per_browser, remember_me_allowed, remember_me_idle_seconds, remember_me_max_seconds, audit_retention_days, username_editable, access_token_ttl_seconds, id_token_ttl_seconds, refresh_token_ttl_seconds, authorization_code_ttl_seconds, login_ttl_seconds, verify_email_ttl_seconds, reset_password_ttl_seconds, login_with_email","errors":[{"path":"nonesuch","message":"is not a tenant setting"}],"instance":"01a10930-cfcf-7564-bf21-7e2cac3611c8"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"unknown tenant setting \"nonesuch\"; expected one of display_name, enabled, registration_allowed, verify_email, reset_password_allowed, sso_session_idle_seconds, sso_session_max_seconds, password_min_length, password_require_digit, password_require_uppercase, password_require_lowercase, password_require_special, password_not_username, password_not_email, password_history_depth, password_max_age_days, otp_required, brute_force_max_failures, brute_force_lockout_seconds, brute_force_max_lockout_seconds, brute_force_failure_reset_seconds, client_registration_policy, max_clients, max_sessions_per_browser, remember_me_allowed, remember_me_idle_seconds, remember_me_max_seconds, audit_retention_days, username_editable, access_token_ttl_seconds, id_token_ttl_seconds, refresh_token_ttl_seconds, authorization_code_ttl_seconds, login_ttl_seconds, verify_email_ttl_seconds, reset_password_ttl_seconds, login_with_email, audit_event_types","errors":[{"path":"nonesuch","message":"is not a tenant setting"}],"instance":"01a109b9-26a8-7436-8e4c-ae8456134de0"}
 ```
 
 A value the map coerces but outside its range — `password_min_length`
@@ -2049,32 +2049,30 @@ shows it, since no stack this document was captured on holds such a row;
 `packages/protocol-admin/tests/clients.int.test.ts` writes one directly.
 
 Creating a client that names both, against `demo`, then reading it back.
-Captured against the sixth stack, in its `demo`, which by then held the
-four clients the search below names; the `etag` the create answers is the
-one the read does:
+Recaptured against the twelfth stack, in a `demo` created there, which by
+then held the four clients the search below names; the `etag` the create
+answers is the one the read does:
 
 ```bash
 curl -sS -D - -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"client_id": "demo-fields-check", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_basic", "audiences": ["https://api.demo.example"], "web_origins": ["https://app.demo.example"]}' \
-  http://localhost:3080/admin/tenants/demo/clients
+  http://localhost:3082/admin/tenants/demo/clients
 ```
-
-Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 HTTP/1.1 201 Created
-x-request-id: 01a0ea52-00a1-7434-8baa-1afd205ea58c
+x-request-id: 01a109b6-1ef6-7a6d-9ff9-def5b5fc82e3
 cache-control: no-store
-etag: "cc88753ba805281b271b51e44146032b62eb6e98a434168554274be0024f725e"
+etag: "6dc2242735aedc4c4bf99f04c2a1daf815a9cfa968efd12044dd8728c3dd1851"
 content-type: application/json; charset=utf-8
-content-length: 1800
-Date: Mon, 28 Sep 2026 23:20:37 GMT
+content-length: 2015
+Date: Mon, 05 Oct 2026 01:38:12 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a0ea52-00e5-7d46-9b04-4047f5547b03","client_id":"demo-fields-check","name":"demo-fields-check","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-28T23:20:37.812Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0ea52-00b8-72b6-b284-3a311d663e69","scopes":[{"id":"01a0ea4c-0885-763c-9830-30ed9ea79e54","name":"openid","assignment":"default"},{"id":"01a0ea4c-0886-75aa-9d64-7836b0636564","name":"profile","assignment":"default"},{"id":"01a0ea4c-0887-7ec4-9b35-3677a1172272","name":"email","assignment":"default"},{"id":"01a0ea4c-0888-7750-82b1-d6b9010c4948","name":"address","assignment":"default"},{"id":"01a0ea4c-0888-7750-82b1-d6ba5df2366d","name":"phone","assignment":"default"},{"id":"01a0ea4c-0889-7253-a984-41fe559fbc25","name":"roles","assignment":"default"},{"id":"01a0ea4c-0889-7253-a984-41ff490f3e34","name":"groups","assignment":"default"},{"id":"01a0ea4c-088a-75ff-b4d7-0f61b595662c","name":"offline_access","assignment":"optional"}],"client_secret":"ASTinXGjb7UYZhnmMCRt97NGQUxG_msaYF_T7spkZQY"}
+{"id":"01a109b6-1f4b-791e-8e05-536475239e30","client_id":"demo-fields-check","name":"demo-fields-check","description":null,"type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-10-05T01:38:12.868Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a109b6-1f0b-7a0b-89d2-3a6006154ef9","scopes":[{"id":"01a109b6-1d8f-7df7-a3ef-36164961fbbc","name":"openid","assignment":"default"},{"id":"01a109b6-1d90-79dd-bd97-5ff11a7bdada","name":"profile","assignment":"default"},{"id":"01a109b6-1d91-74f8-b577-6243ce77a609","name":"email","assignment":"default"},{"id":"01a109b6-1d91-74f8-b577-6244f8af75ca","name":"address","assignment":"default"},{"id":"01a109b6-1d92-7ef2-9bb8-58e124a6313a","name":"phone","assignment":"default"},{"id":"01a109b6-1d92-7ef2-9bb8-58e210286ad3","name":"roles","assignment":"default"},{"id":"01a109b6-1d93-7e58-971c-61e1c1e76586","name":"groups","assignment":"default"},{"id":"01a109b6-1d94-7b22-b794-705545e99aeb","name":"offline_access","assignment":"optional"}],"client_secret":"dxCFsBxC72NKaBpbgeg4esoXJVPiAmnxX4VTgQwzJuk"}
 ```
 
 `GET`ting it back shows both fields still set, from the row rather than the
@@ -2084,23 +2082,21 @@ create response — and now also carries `builtin_admin` and
 ```bash
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/demo/clients/01a0ea52-00e5-7d46-9b04-4047f5547b03
+  http://localhost:3082/admin/tenants/demo/clients/01a109b6-1f4b-791e-8e05-536475239e30
 ```
-
-Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0ea52-0108-729c-801b-2a16157b5dfb
+x-request-id: 01a109b6-1f70-75e5-be6f-a96d7f3859f7
 cache-control: no-store
-etag: "cc88753ba805281b271b51e44146032b62eb6e98a434168554274be0024f725e"
+etag: "6dc2242735aedc4c4bf99f04c2a1daf815a9cfa968efd12044dd8728c3dd1851"
 content-type: application/json; charset=utf-8
-content-length: 1738
-Date: Mon, 28 Sep 2026 23:20:37 GMT
+content-length: 1953
+Date: Mon, 05 Oct 2026 01:38:12 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a0ea52-00e5-7d46-9b04-4047f5547b03","client_id":"demo-fields-check","name":"demo-fields-check","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-28T23:20:37.812Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0ea52-00b8-72b6-b284-3a311d663e69","scopes":[{"id":"01a0ea4c-0885-763c-9830-30ed9ea79e54","name":"openid","assignment":"default"},{"id":"01a0ea4c-0886-75aa-9d64-7836b0636564","name":"profile","assignment":"default"},{"id":"01a0ea4c-0887-7ec4-9b35-3677a1172272","name":"email","assignment":"default"},{"id":"01a0ea4c-0888-7750-82b1-d6b9010c4948","name":"address","assignment":"default"},{"id":"01a0ea4c-0888-7750-82b1-d6ba5df2366d","name":"phone","assignment":"default"},{"id":"01a0ea4c-0889-7253-a984-41fe559fbc25","name":"roles","assignment":"default"},{"id":"01a0ea4c-0889-7253-a984-41ff490f3e34","name":"groups","assignment":"default"},{"id":"01a0ea4c-088a-75ff-b4d7-0f61b595662c","name":"offline_access","assignment":"optional"}]}
+{"id":"01a109b6-1f4b-791e-8e05-536475239e30","client_id":"demo-fields-check","name":"demo-fields-check","description":null,"type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-10-05T01:38:12.868Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":["https://api.demo.example"],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":["https://app.demo.example"],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a109b6-1f0b-7a0b-89d2-3a6006154ef9","scopes":[{"id":"01a109b6-1d8f-7df7-a3ef-36164961fbbc","name":"openid","assignment":"default"},{"id":"01a109b6-1d90-79dd-bd97-5ff11a7bdada","name":"profile","assignment":"default"},{"id":"01a109b6-1d91-74f8-b577-6243ce77a609","name":"email","assignment":"default"},{"id":"01a109b6-1d91-74f8-b577-6244f8af75ca","name":"address","assignment":"default"},{"id":"01a109b6-1d92-7ef2-9bb8-58e124a6313a","name":"phone","assignment":"default"},{"id":"01a109b6-1d92-7ef2-9bb8-58e210286ad3","name":"roles","assignment":"default"},{"id":"01a109b6-1d93-7e58-971c-61e1c1e76586","name":"groups","assignment":"default"},{"id":"01a109b6-1d94-7b22-b794-705545e99aeb","name":"offline_access","assignment":"optional"}]}
 ```
 
 An unknown field, on the same tenant:
@@ -2150,36 +2146,36 @@ create, the psql listing and the disable/delete/rotate blocks under
 `PATCH /clients/{id}`, `DELETE /clients/{id}` and `POST /clients/{id}/secret`
 below were captured together against the sixth stack, in a tenant of their
 own, `client-facts-demo`, created for them the same way `GET /admin/tenants`
-above shows, as `ada`; the `demo`-tenant blocks between them (the
-amendment and `If-Match` narrative) come from an earlier,
-already-torn-down stack, and say so where they appear:
+above shows, as `ada`, and recaptured together, in the same order, against
+the twelfth stack in a `client-facts-demo` of its own there, so the ids in
+them are that run's; the `demo`-tenant blocks between them (the amendment
+and `If-Match` narrative) come from an earlier, already-torn-down stack,
+and say so where they appear:
 
 ```bash
 curl -sS -D - -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"client_id": "demo-backend", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_basic"}' \
-  http://localhost:3080/admin/tenants/client-facts-demo/clients
+  http://localhost:3082/admin/tenants/client-facts-demo/clients
 ```
 
 `201`, the whole client, the tenant's default scope assignments, and the
 one-time secret. The `scopes` ids are `client-facts-demo`'s own, created
 with the tenant above:
 
-Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
-
 ```
 HTTP/1.1 201 Created
-x-request-id: 01a0ea52-530f-7094-9050-2e52a880acb2
+x-request-id: 01a109b6-1f86-7bb5-9871-718e564d3bca
 cache-control: no-store
-etag: "f6eb4b8821953de64a28b6ab790b667a9d418e012564bfcc070a89e5a5f92e33"
+etag: "608cbb937c55671ada467480ebde194cc7ddf52ec4d186428f7382010cc44f55"
 content-type: application/json; charset=utf-8
-content-length: 1738
-Date: Mon, 28 Sep 2026 23:20:58 GMT
+content-length: 1953
+Date: Mon, 05 Oct 2026 01:38:13 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a0ea52-5338-79b6-856d-2be5d449e11e","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-28T23:20:58.904Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0ea52-531a-7799-aab8-fe7dfcf769a6","scopes":[{"id":"01a0ea52-52d9-715b-ac9f-3f2ff5e8cbe5","name":"openid","assignment":"default"},{"id":"01a0ea52-52da-76aa-a90a-0bb41b35e3c9","name":"profile","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-3543425d2470","name":"email","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-35440d053d73","name":"address","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bcb2323b2d5","name":"phone","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bccdc833770","name":"roles","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1a4b075bcc","name":"groups","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1b19fc898d","name":"offline_access","assignment":"optional"}],"client_secret":"BTy9poYokfjnZZPZgOObBaMsdxmwDooGM1HZDohqb-o"}
+{"id":"01a109b6-1fa9-7304-8ae5-f714f746785e","client_id":"demo-backend","name":"demo-backend","description":null,"type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-10-05T01:38:13.006Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a109b6-1f8f-725e-9c2c-53656397b36c","scopes":[{"id":"01a109b6-1dd0-7600-9e14-7816d44df6e6","name":"openid","assignment":"default"},{"id":"01a109b6-1dd0-7600-9e14-7817de7c7d68","name":"profile","assignment":"default"},{"id":"01a109b6-1dd1-715a-b073-4693dd489102","name":"email","assignment":"default"},{"id":"01a109b6-1dd1-715a-b073-4694a189e4be","name":"address","assignment":"default"},{"id":"01a109b6-1dd2-747c-97bd-c431358429af","name":"phone","assignment":"default"},{"id":"01a109b6-1dd2-747c-97bd-c432be4c4a58","name":"roles","assignment":"default"},{"id":"01a109b6-1dd3-7b41-8bf3-e8da34d0a2c0","name":"groups","assignment":"default"},{"id":"01a109b6-1dd3-7b41-8bf3-e8db9126a263","name":"offline_access","assignment":"optional"}],"client_secret":"aqM0FSRyVaFFeminGXB-p7vS9OJvc2NbTiP50ZA1iyk"}
 ```
 
 `client_secret` is the only member of that object nothing reads back.
@@ -2214,30 +2210,28 @@ and `name_search` columns (`0074_list_indexes_tenants_clients.sql`),
 ordered by that folded column then by `id`; exact filters
 `?type=public|confidential` and `?enabled=true|false`, `AND`ed with it and
 with each other; a cursor bound to every filter; any other parameter
-refused with `400` naming it. Captured against the sixth stack, whose
+refused with `400` naming it. Recaptured against the twelfth stack, whose
 `demo` held `demo-backend`, `demo-exchanger`, `demo-fields-check` and
 `demo-operator` (confidential) and `demo-spa` (public):
 
 ```bash
 curl -sS -D - \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/clients?client_id=DEMO&type=confidential&limit=1"
+  "http://localhost:3082/admin/tenants/demo/clients?client_id=DEMO&type=confidential&limit=1"
 ```
-
-Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0ea52-0138-75f3-b784-5a6ba7a5d53c
+x-request-id: 01a109b6-1fbb-7ab9-a8ca-373352d5080c
 cache-control: no-store
-link: </admin/tenants/demo/clients?limit=1&client_id=DEMO&type=confidential&cursor=eyJhZnRlciI6IjAxYTBlYTUxLWExNDctNzIzYy1hMjc0LWE2OGJhNjNjZjQ4ZCIsInNvcnQiOiJkZW1vLWJhY2tlbmQiLCJjb2xsZWN0aW9uIjoiY2xpZW50cyIsInRlbmFudElkIjoiMDFhMGVhNGMtMDg4NC03NGZhLTgyNWMtMDVmNmVmNTY4ZGQwIiwiZmlsdGVycyI6Ik9BZENoUUxJNEt5UGtUMUhLc05ESld5WDM4NS1YaWFsQktSbkNXOUNPZHMifQ.3AIRAK215NlQTBi6xOi3aP-xhVL0vsYTc9_jNRYk3tM>; rel="next"
+link: </admin/tenants/demo/clients?limit=1&client_id=DEMO&type=confidential&cursor=eyJhZnRlciI6IjAxYTEwOWI2LTFlMjUtNzE1NC05YTNjLTY4NmQwZTRkOTZkOCIsInNvcnQiOiJkZW1vLWJhY2tlbmQiLCJjb2xsZWN0aW9uIjoiY2xpZW50cyIsInRlbmFudElkIjoiMDFhMTA5YjYtMWQ4ZC03OGRhLTlkZjAtMGQyOGI3MmNlMmU4IiwiZmlsdGVycyI6Ik9BZENoUUxJNEt5UGtUMUhLc05ESld5WDM4NS1YaWFsQktSbkNXOUNPZHMifQ.CQafQT0JjW7vgY0nkERqkXNzPNAFpBYEIfvi3W82pZc>; rel="next"
 content-type: application/json; charset=utf-8
-content-length: 2077
-Date: Mon, 28 Sep 2026 23:20:37 GMT
+content-length: 2223
+Date: Mon, 05 Oct 2026 01:38:13 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a0ea51-a147-723c-a274-a68ba63cf48d","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-28T23:20:13.342Z","redirect_uris":["http://localhost:8080/callback"],"grant_types":["authorization_code","refresh_token","client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0ea51-a121-7320-b4a3-97630e9b4d8b","scopes":[{"id":"01a0ea4c-0885-763c-9830-30ed9ea79e54","name":"openid","assignment":"default"},{"id":"01a0ea4c-0886-75aa-9d64-7836b0636564","name":"profile","assignment":"default"},{"id":"01a0ea4c-0887-7ec4-9b35-3677a1172272","name":"email","assignment":"default"},{"id":"01a0ea4c-0888-7750-82b1-d6b9010c4948","name":"address","assignment":"default"},{"id":"01a0ea4c-0888-7750-82b1-d6ba5df2366d","name":"phone","assignment":"default"},{"id":"01a0ea4c-0889-7253-a984-41fe559fbc25","name":"roles","assignment":"default"},{"id":"01a0ea4c-0889-7253-a984-41ff490f3e34","name":"groups","assignment":"default"},{"id":"01a0ea4c-088a-75ff-b4d7-0f61b595662c","name":"offline_access","assignment":"optional"}]}],"next":"eyJhZnRlciI6IjAxYTBlYTUxLWExNDctNzIzYy1hMjc0LWE2OGJhNjNjZjQ4ZCIsInNvcnQiOiJkZW1vLWJhY2tlbmQiLCJjb2xsZWN0aW9uIjoiY2xpZW50cyIsInRlbmFudElkIjoiMDFhMGVhNGMtMDg4NC03NGZhLTgyNWMtMDVmNmVmNTY4ZGQwIiwiZmlsdGVycyI6Ik9BZENoUUxJNEt5UGtUMUhLc05ESld5WDM4NS1YaWFsQktSbkNXOUNPZHMifQ.3AIRAK215NlQTBi6xOi3aP-xhVL0vsYTc9_jNRYk3tM"}
+{"items":[{"id":"01a109b6-1e25-7154-9a3c-686d0e4d96d8","client_id":"demo-backend","name":"demo-backend","description":null,"type":"confidential","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-10-05T01:38:12.614Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a109b6-1e08-73b5-b63f-7e89c1af0ad1","scopes":[{"id":"01a109b6-1d8f-7df7-a3ef-36164961fbbc","name":"openid","assignment":"default"},{"id":"01a109b6-1d90-79dd-bd97-5ff11a7bdada","name":"profile","assignment":"default"},{"id":"01a109b6-1d91-74f8-b577-6243ce77a609","name":"email","assignment":"default"},{"id":"01a109b6-1d91-74f8-b577-6244f8af75ca","name":"address","assignment":"default"},{"id":"01a109b6-1d92-7ef2-9bb8-58e124a6313a","name":"phone","assignment":"default"},{"id":"01a109b6-1d92-7ef2-9bb8-58e210286ad3","name":"roles","assignment":"default"},{"id":"01a109b6-1d93-7e58-971c-61e1c1e76586","name":"groups","assignment":"default"},{"id":"01a109b6-1d94-7b22-b794-705545e99aeb","name":"offline_access","assignment":"optional"}]}],"next":"eyJhZnRlciI6IjAxYTEwOWI2LTFlMjUtNzE1NC05YTNjLTY4NmQwZTRkOTZkOCIsInNvcnQiOiJkZW1vLWJhY2tlbmQiLCJjb2xsZWN0aW9uIjoiY2xpZW50cyIsInRlbmFudElkIjoiMDFhMTA5YjYtMWQ4ZC03OGRhLTlkZjAtMGQyOGI3MmNlMmU4IiwiZmlsdGVycyI6Ik9BZENoUUxJNEt5UGtUMUhLc05ESld5WDM4NS1YaWFsQktSbkNXOUNPZHMifQ.CQafQT0JjW7vgY0nkERqkXNzPNAFpBYEIfvi3W82pZc"}
 ```
 
 Following that link, then `?name=Demo-S`, each cut down with `jq` to the
@@ -2245,24 +2239,24 @@ fields that show the point; then the same cursor replayed with `?type=`
 dropped:
 
 ```bash
-CURSOR='eyJhZnRlciI6IjAxYTBlYTUxLWExNDctNzIzYy1hMjc0LWE2OGJhNjNjZjQ4ZCIsInNvcnQiOiJkZW1vLWJhY2tlbmQiLCJjb2xsZWN0aW9uIjoiY2xpZW50cyIsInRlbmFudElkIjoiMDFhMGVhNGMtMDg4NC03NGZhLTgyNWMtMDVmNmVmNTY4ZGQwIiwiZmlsdGVycyI6Ik9BZENoUUxJNEt5UGtUMUhLc05ESld5WDM4NS1YaWFsQktSbkNXOUNPZHMifQ.3AIRAK215NlQTBi6xOi3aP-xhVL0vsYTc9_jNRYk3tM'
+CURSOR='eyJhZnRlciI6IjAxYTEwOWI2LTFlMjUtNzE1NC05YTNjLTY4NmQwZTRkOTZkOCIsInNvcnQiOiJkZW1vLWJhY2tlbmQiLCJjb2xsZWN0aW9uIjoiY2xpZW50cyIsInRlbmFudElkIjoiMDFhMTA5YjYtMWQ4ZC03OGRhLTlkZjAtMGQyOGI3MmNlMmU4IiwiZmlsdGVycyI6Ik9BZENoUUxJNEt5UGtUMUhLc05ESld5WDM4NS1YaWFsQktSbkNXOUNPZHMifQ.CQafQT0JjW7vgY0nkERqkXNzPNAFpBYEIfvi3W82pZc'
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/clients?limit=1&client_id=DEMO&type=confidential&cursor=$CURSOR" \
+  "http://localhost:3082/admin/tenants/demo/clients?limit=1&client_id=DEMO&type=confidential&cursor=$CURSOR" \
   | jq -c '{items: [.items[] | {client_id, name, type}], next}'
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/clients?name=Demo-S" \
+  "http://localhost:3082/admin/tenants/demo/clients?name=Demo-S" \
   | jq -c '{items: [.items[] | {client_id, name, type}], next}'
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/clients?limit=1&client_id=DEMO&cursor=$CURSOR"
+  "http://localhost:3082/admin/tenants/demo/clients?limit=1&client_id=DEMO&cursor=$CURSOR"
 ```
 
 ```
-{"items":[{"client_id":"demo-exchanger","name":"demo-exchanger","type":"confidential"}],"next":"eyJhZnRlciI6IjAxYTBlYTUxLWExODMtNzM2ZS04MzdjLTQyNDM3OWUzN2FhMyIsInNvcnQiOiJkZW1vLWV4Y2hhbmdlciIsImNvbGxlY3Rpb24iOiJjbGllbnRzIiwidGVuYW50SWQiOiIwMWEwZWE0Yy0wODg0LTc0ZmEtODI1Yy0wNWY2ZWY1NjhkZDAiLCJmaWx0ZXJzIjoiT0FkQ2hRTEk0S3lQa1QxSEtzTkRKV3lYMzg1LVhpYWxCS1JuQ1c5Q09kcyJ9.6P97-8qHQ3XuJsAqP_s_vPPXRfNbLPEj97B1lt395z4"}
+{"items":[{"client_id":"demo-exchanger","name":"demo-exchanger","type":"confidential"}],"next":"eyJhZnRlciI6IjAxYTEwOWI2LTFlNjQtNzQzMi1iMmRjLTI5OTQ0NmE1Y2Y1NyIsInNvcnQiOiJkZW1vLWV4Y2hhbmdlciIsImNvbGxlY3Rpb24iOiJjbGllbnRzIiwidGVuYW50SWQiOiIwMWExMDliNi0xZDhkLTc4ZGEtOWRmMC0wZDI4YjcyY2UyZTgiLCJmaWx0ZXJzIjoiT0FkQ2hRTEk0S3lQa1QxSEtzTkRKV3lYMzg1LVhpYWxCS1JuQ1c5Q09kcyJ9.tLAAVx24BFwarLA4v_iYEmP65xZGHu03aBgjzX7-tZw"}
 {"items":[{"client_id":"demo-spa","name":"demo-spa","type":"public"}],"next":null}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a0ea52-0195-7cc3-93cc-a3bcc6b36585"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a109b6-b459-7bbd-8cb7-d533f4439711"}
 ```
 
 A `type` outside the enum, then two search fields at once:
@@ -2270,15 +2264,15 @@ A `type` outside the enum, then two search fields at once:
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/clients?type=service"
+  "http://localhost:3082/admin/tenants/demo/clients?type=service"
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/clients?client_id=a&name=b"
+  "http://localhost:3082/admin/tenants/demo/clients?client_id=a&name=b"
 ```
 
 ```
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring/type must be equal to one of the allowed values","errors":[{"path":"type","message":"must be equal to one of the allowed values"}],"instance":"01a0ea52-01ab-7150-9ebb-e685457ed74d"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id or name, not both","errors":[{"path":"name","message":"search one field at a time: client_id or name, not both"}],"instance":"01a0ea52-01b7-7d0c-8fa2-7172b1ca3bb5"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/type must be equal to one of the allowed values","errors":[{"path":"type","message":"must be equal to one of the allowed values"}],"instance":"01a109b6-b46c-7c9b-a932-b20917d2eb43"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id or name, not both","errors":[{"path":"name","message":"search one field at a time: client_id or name, not both"}],"instance":"01a109b6-b477-786a-aebe-4178c81aa673"}
 ```
 
 Reading one client by its internal id carries an `ETag` and never the
@@ -2439,7 +2433,7 @@ guard needs: its own built-in one, and `demo-backend` above:
 ```bash
 docker compose exec -T postgres psql -U odudu -d odudu -c \
   "select client_id, builtin_admin, enabled from clients
-     where tenant_id = '01a0ea52-52d8-7f6e-b86f-ca30389bae87' order by client_id;"
+     where tenant_id = '01a109b6-1dce-7bad-9a5c-7e40b43faa4c' order by client_id;"
 ```
 
 ```
@@ -2457,13 +2451,11 @@ whole client, so `enabled` can be read back from it, alongside
 ```bash
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -d '{"enabled": false}' \
-  http://localhost:3080/admin/tenants/client-facts-demo/clients/01a0ea52-5338-79b6-856d-2be5d449e11e
+  http://localhost:3082/admin/tenants/client-facts-demo/clients/01a109b6-1fa9-7304-8ae5-f714f746785e
 ```
 
-Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
-
 ```
-{"id":"01a0ea52-5338-79b6-856d-2be5d449e11e","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-28T23:20:58.904Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0ea52-531a-7799-aab8-fe7dfcf769a6","scopes":[{"id":"01a0ea52-52d9-715b-ac9f-3f2ff5e8cbe5","name":"openid","assignment":"default"},{"id":"01a0ea52-52da-76aa-a90a-0bb41b35e3c9","name":"profile","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-3543425d2470","name":"email","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-35440d053d73","name":"address","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bcb2323b2d5","name":"phone","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bccdc833770","name":"roles","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1a4b075bcc","name":"groups","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1b19fc898d","name":"offline_access","assignment":"optional"}]}
+{"id":"01a109b6-1fa9-7304-8ae5-f714f746785e","client_id":"demo-backend","name":"demo-backend","description":null,"type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-10-05T01:38:13.006Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a109b6-1f8f-725e-9c2c-53656397b36c","scopes":[{"id":"01a109b6-1dd0-7600-9e14-7816d44df6e6","name":"openid","assignment":"default"},{"id":"01a109b6-1dd0-7600-9e14-7817de7c7d68","name":"profile","assignment":"default"},{"id":"01a109b6-1dd1-715a-b073-4693dd489102","name":"email","assignment":"default"},{"id":"01a109b6-1dd1-715a-b073-4694a189e4be","name":"address","assignment":"default"},{"id":"01a109b6-1dd2-747c-97bd-c431358429af","name":"phone","assignment":"default"},{"id":"01a109b6-1dd2-747c-97bd-c432be4c4a58","name":"roles","assignment":"default"},{"id":"01a109b6-1dd3-7b41-8bf3-e8da34d0a2c0","name":"groups","assignment":"default"},{"id":"01a109b6-1dd3-7b41-8bf3-e8db9126a263","name":"offline_access","assignment":"optional"}]}
 ```
 
 `odudu-admin`, `builtin_admin` true, the same request against the other id
@@ -2472,11 +2464,11 @@ in that listing, does not:
 ```bash
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -d '{"enabled": false}' \
-  http://localhost:3080/admin/tenants/client-facts-demo/clients/01a0ea52-52e0-7548-94ec-63811430cddf
+  http://localhost:3082/admin/tenants/client-facts-demo/clients/01a109b6-1dd6-7fb7-834f-b09b02db9a21
 ```
 
 ```
-{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be disabled","instance":"01a0ea52-546c-774b-bd3a-f1af15367421"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be disabled","instance":"01a109b7-36b0-7956-84af-4f859db85838"}
 ```
 
 ### A client's pages and its ID token settings
@@ -2548,17 +2540,17 @@ and the request id:
 ```bash
 curl -sS -D - -X DELETE \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/client-facts-demo/clients/01a0ea52-52e0-7548-94ec-63811430cddf
+  http://localhost:3082/admin/tenants/client-facts-demo/clients/01a109b6-1dd6-7fb7-834f-b09b02db9a21
 ```
 
 ```
-{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be deleted","instance":"01a0ea52-54c2-7191-b216-68dacce17133"}
-{"type":"about:blank","title":"Not Found","status":404,"instance":"01a0ea52-54da-776e-b92e-02ee0c8cb151"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"odudu-admin is this tenant's built-in admin client and cannot be deleted","instance":"01a109b7-36fa-7857-a04f-02e4678ff189"}
+{"type":"about:blank","title":"Not Found","status":404,"instance":"01a109b7-3711-79b9-86b4-2e4d9f437d1c"}
 
 HTTP/1.1 204 No Content
-x-request-id: 01a0ea52-54f0-7a2a-a8d5-0c65e78a5ee8
+x-request-id: 01a109b7-3725-751a-8d44-c50879a92140
 cache-control: no-store
-Date: Mon, 28 Sep 2026 23:20:59 GMT
+Date: Mon, 05 Oct 2026 01:39:24 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -2615,14 +2607,12 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"action":"client.rotate_secret","outcome":"allowed","detail":{"secret_hash":{"changed":true},"grace_seconds":3600,"previous_secret_expires_at":"2026-10-05T00:13:29.089Z"}}
 ```
 
-The transcript below it predates `grace_seconds` and the client fields added
-since it was captured, so its body lacks them, until it is recaptured before
-P4d closes; what it shows of a rotation without grace is otherwise unchanged.
+A rotation without grace, on `client-facts-demo`'s `demo-backend`:
 
 ```bash
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/client-facts-demo/clients/01a0ea52-5338-79b6-856d-2be5d449e11e/secret
+  http://localhost:3082/admin/tenants/client-facts-demo/clients/01a109b6-1fa9-7304-8ae5-f714f746785e/secret
 ```
 
 Captured immediately after the disable above, which is why `enabled` reads
@@ -2630,10 +2620,8 @@ Captured immediately after the disable above, which is why `enabled` reads
 being on the built-in client rather than on a disabled one. `demo-backend`
 was deleted afterward, in the `DELETE` section above.
 
-Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
-
 ```
-{"id":"01a0ea52-5338-79b6-856d-2be5d449e11e","client_id":"demo-backend","name":"demo-backend","type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-28T23:20:58.904Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":"01a0ea52-531a-7799-aab8-fe7dfcf769a6","scopes":[{"id":"01a0ea52-52d9-715b-ac9f-3f2ff5e8cbe5","name":"openid","assignment":"default"},{"id":"01a0ea52-52da-76aa-a90a-0bb41b35e3c9","name":"profile","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-3543425d2470","name":"email","assignment":"default"},{"id":"01a0ea52-52db-73da-a4f8-35440d053d73","name":"address","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bcb2323b2d5","name":"phone","assignment":"default"},{"id":"01a0ea52-52dc-7706-ae4a-9bccdc833770","name":"roles","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1a4b075bcc","name":"groups","assignment":"default"},{"id":"01a0ea52-52dd-7d9a-81b3-2a1b19fc898d","name":"offline_access","assignment":"optional"}],"client_secret":"LP5wAXCjiJZrtCtUazC4IZBTWQyMjI0cnpHDmgaKShs"}
+{"id":"01a109b6-1fa9-7304-8ae5-f714f746785e","client_id":"demo-backend","name":"demo-backend","description":null,"type":"confidential","enabled":false,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-10-05T01:38:13.006Z","redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"client_secret_basic","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":"01a109b6-1f8f-725e-9c2c-53656397b36c","scopes":[{"id":"01a109b6-1dd0-7600-9e14-7816d44df6e6","name":"openid","assignment":"default"},{"id":"01a109b6-1dd0-7600-9e14-7817de7c7d68","name":"profile","assignment":"default"},{"id":"01a109b6-1dd1-715a-b073-4693dd489102","name":"email","assignment":"default"},{"id":"01a109b6-1dd1-715a-b073-4694a189e4be","name":"address","assignment":"default"},{"id":"01a109b6-1dd2-747c-97bd-c431358429af","name":"phone","assignment":"default"},{"id":"01a109b6-1dd2-747c-97bd-c432be4c4a58","name":"roles","assignment":"default"},{"id":"01a109b6-1dd3-7b41-8bf3-e8da34d0a2c0","name":"groups","assignment":"default"},{"id":"01a109b6-1dd3-7b41-8bf3-e8db9126a263","name":"offline_access","assignment":"optional"}],"client_secret":"IcaN1Ciqg5Lvi62CjT1hwWAKWl1MDWWUYavbJo97oi8"}
 ```
 
 ### The service account's ceiling
@@ -4644,6 +4632,74 @@ are. The link is never in the response, and the audit row,
 `subject.actions_email_send`, names the actions, the client and the
 redirect and nothing else.
 
+Against the twelfth stack, in a tenant `required-actions-demo` made for it,
+with a relay at the stack's own `postgres` container, port 25, where nothing
+listens, a public client `actions-app` registered
+`https://app.example/callback`, and `grace` made through `POST /subjects`
+with an address and no password; `P=http://localhost:3082/admin/tenants/required-actions-demo`.
+A link asking for a password while the tenant's reset is off, the setting
+turned on, a redirect the client never registered, an action the server
+does not take, then the send that is accepted, and its audit row:
+
+```bash
+G=01a109bf-b119-7510-a588-18f191c6bef5
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"actions":["configure-totp","update-password"]}' "$P/subjects/$G/actions-email"; echo
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"reset_password_allowed":true}' "$P/settings" | grep -o '"reset_password_allowed":[a-z]*'
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"actions":["configure-totp","update-password"],"client_id":"actions-app","redirect_uri":"https://evil.example/cb"}' \
+  "$P/subjects/$G/actions-email"; echo
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"actions":["verify-email"]}' "$P/subjects/$G/actions-email"; echo
+curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"actions":["configure-totp","update-password"],"client_id":"actions-app","redirect_uri":"https://app.example/callback"}' \
+  "$P/subjects/$G/actions-email"
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/audit?resource_type=subject&resource_id=$G&action=subject.actions_email_send" \
+  | jq -c '.items[] | {action, outcome, detail}'
+```
+
+```
+{"type":"about:blank#reset-password-off","title":"Conflict","status":409,"detail":"reset_password_allowed is off, so the tenant would refuse the link; turn it on with PATCH /settings first","instance":"01a109bf-b12a-7908-bdf5-badc3b34a200"}
+"reset_password_allowed":true
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uri: is not one of actions-app's registered redirect URIs","errors":[{"path":"redirect_uri","message":"is not one of actions-app's registered redirect URIs"}],"instance":"01a109bf-b168-7b17-96a5-bdf7f124150c"}
+{"type":"about:blank","title":"Error","status":400,"detail":"body/actions/0 must be equal to one of the allowed values","errors":[{"path":"actions[0]","message":"must be equal to one of the allowed values"}],"instance":"01a109bf-b17f-7921-908a-2b52a175a4a4"}
+HTTP/1.1 202 Accepted
+x-request-id: 01a109bf-b189-768c-b5c1-9b6f91462cab
+cache-control: no-store
+content-length: 0
+Date: Mon, 05 Oct 2026 01:48:40 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"action":"subject.actions_email_send","outcome":"allowed","detail":{"actions":["update-password","configure-totp"],"client_id":"actions-app","redirect_uri":"https://app.example/callback"}}
+```
+
+The one mail the tenant's outbox holds, read there, since the relay delivers nothing —
+the actions in the order the link will ask for them, which is the one the
+audit row lists too:
+
+```bash
+docker compose exec -T postgres psql -U odudu -d odudu -At -c \
+  "select subject, body_text from email_outbox where tenant_id = (select id from tenants where name = 'required-actions-demo');"
+```
+
+```
+Update your required-actions-demo account|Your administrator asks you to update your required-actions-demo account:
+
+- Choose a new password
+- Set up an authenticator app
+
+Do so by visiting this link:
+
+http://localhost:3082/tenants/required-actions-demo/login-actions/action-token?key=RK2yZYeq330vzTfYQQbYoNAmekDPir3Vsvm0A_AdfCA
+
+If you were not expecting this, you can ignore this message.
+```
+
+What following it does is under [Following a required-actions link](request-paths.md#following-a-required-actions-link).
+
 ## `POST /subjects/:id/password`
 
 Requires `manage-users`, and takes no body. An administrator restoring a
@@ -5154,7 +5210,7 @@ which rewrites its `path`, changes the tag even though the membership did
 not; an empty membership answers the same `"eef46741…"` every empty list
 here does.
 
-Captured against the sixth stack, in a tenant `groups-demo` created
+Captured against the twelfth stack, in a tenant `groups-demo` created
 through `POST /admin/tenants` for it. There, `platform-admins` is mapped to
 `tenant-admin` through `PUT /groups/:id/roles`, `oncall` is its child with
 no role of its own, `support` has none either, and `mei2` is a subject
@@ -5168,19 +5224,19 @@ below turns on two facts, shown first — what `helpdesk` holds, and that
 
 ```bash
 curl -sS -H "Authorization: Bearer $HELPDESK_TOKEN" \
-  http://localhost:3080/admin/tenants/groups-demo/whoami
+  http://localhost:3082/admin/tenants/groups-demo/whoami
 
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/groups-demo/groups/01a0ea57-1cfe-76e0-9f5d-26e6e4fb8bde/roles
+  http://localhost:3082/admin/tenants/groups-demo/groups/01a109b9-c2d9-7265-9cfe-1cc931aa4a87/roles
 
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/groups-demo/groups/01a0ea57-1ce6-7aed-bc77-3e56961b064d/roles
+  http://localhost:3082/admin/tenants/groups-demo/groups/01a109b9-c2c0-7af8-baf6-399f4128272f/roles
 ```
 
 ```
-{"subjectId":"01a0ea57-1d65-7217-a5b9-ff54d0d3a52c","issuerTenantId":"01a0ea57-1c82-78e1-9073-05566ded41d5","capabilities":["manage-users","view-users"],"crossTenant":false}
+{"subjectId":"01a109b9-c365-7216-9064-207c3931f9e0","issuerTenantId":"01a109b9-c288-7ef5-a623-21ab2f266513","capabilities":["manage-users","view-users"],"crossTenant":false}
 {"items":[]}
-{"items":[{"id":"01a0ea57-1c91-7f1c-88a8-0ffd235e2bc8","name":"tenant-admin","client_id":"01a0ea57-1c8a-73dd-9bde-65e9bbdb4ce5","client_key":"odudu-admin"}]}
+{"items":[{"id":"01a109b9-c296-7612-84cf-fd8e6a727672","name":"tenant-admin","client_id":"01a109b9-c28f-78c9-bac7-b8be0801cfd6","client_key":"odudu-admin"}]}
 ```
 
 The read, then a write with no `If-Match`, then `helpdesk` putting `mei2`
@@ -5188,56 +5244,56 @@ in `oncall`:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $HELPDESK_TOKEN" \
-  http://localhost:3080/admin/tenants/groups-demo/subjects/01a0ea57-1d43-77ec-b206-42dda565fb15/groups
+  http://localhost:3082/admin/tenants/groups-demo/subjects/01a109b9-c34e-7692-b5a4-67af33cf85e0/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"group_ids": ["01a0ea57-1d14-7cc6-a92a-5410441bee70"]}' \
-  http://localhost:3080/admin/tenants/groups-demo/subjects/01a0ea57-1d43-77ec-b206-42dda565fb15/groups
+  -d '{"group_ids": ["01a109b9-c2f2-795b-9df3-36c34e89980e"]}' \
+  http://localhost:3082/admin/tenants/groups-demo/subjects/01a109b9-c34e-7692-b5a4-67af33cf85e0/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
-  -d '{"group_ids": ["01a0ea57-1cfe-76e0-9f5d-26e6e4fb8bde"]}' \
-  http://localhost:3080/admin/tenants/groups-demo/subjects/01a0ea57-1d43-77ec-b206-42dda565fb15/groups
+  -d '{"group_ids": ["01a109b9-c2d9-7265-9cfe-1cc931aa4a87"]}' \
+  http://localhost:3082/admin/tenants/groups-demo/subjects/01a109b9-c34e-7692-b5a4-67af33cf85e0/groups
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0ea57-5e1c-7e31-b1d2-31f760ac15ee
+x-request-id: 01a109b9-f21c-7f4a-b3f7-d25034ae0c60
 cache-control: no-store
 etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
 content-type: application/json; charset=utf-8
 content-length: 12
-Date: Mon, 28 Sep 2026 23:26:29 GMT
+Date: Mon, 05 Oct 2026 01:42:23 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"items":[]}
 
 HTTP/1.1 428 Precondition Required
-x-request-id: 01a0ea57-5e30-7f87-84af-ab5a1b9c6302
+x-request-id: 01a109b9-f22d-71b1-b8e2-f82b7f95e7e8
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 181
-Date: Mon, 28 Sep 2026 23:26:29 GMT
+Date: Mon, 05 Oct 2026 01:42:23 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a subject’s groups","instance":"01a0ea57-5e30-7f87-84af-ab5a1b9c6302"}
+{"type":"about:blank","title":"Precondition Required","status":428,"detail":"If-Match is required to replace a subject’s groups","instance":"01a109b9-f22d-71b1-b8e2-f82b7f95e7e8"}
 
 HTTP/1.1 403 Forbidden
-x-request-id: 01a0ea57-5e47-7dc8-bf97-d79ee7cb9723
+x-request-id: 01a109b9-f243-73fa-8f46-668be780b58a
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 228
-Date: Mon, 28 Sep 2026 23:26:29 GMT
+Date: Mon, 05 Oct 2026 01:42:23 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a0ea57-5e47-7dc8-bf97-d79ee7cb9723"}
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"the caller does not hold: tenant-admin, manage-clients, manage-tenant, manage-keys, manage-sessions, view-audit","instance":"01a109b9-f243-73fa-8f46-668be780b58a"}
 ```
 
 `oncall` names no role, and is refused for everything `tenant-admin`
@@ -5248,76 +5304,73 @@ stale:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $HELPDESK_TOKEN" \
-  http://localhost:3080/admin/tenants/groups-demo/subjects/01a0ea57-1d43-77ec-b206-42dda565fb15/groups
+  http://localhost:3082/admin/tenants/groups-demo/subjects/01a109b9-c34e-7692-b5a4-67af33cf85e0/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
-  -d '{"group_ids": ["01a0ea57-1d14-7cc6-a92a-5410441bee70"]}' \
-  http://localhost:3080/admin/tenants/groups-demo/subjects/01a0ea57-1d43-77ec-b206-42dda565fb15/groups
+  -d '{"group_ids": ["01a109b9-c2f2-795b-9df3-36c34e89980e"]}' \
+  http://localhost:3082/admin/tenants/groups-demo/subjects/01a109b9-c34e-7692-b5a4-67af33cf85e0/groups
 
 curl -sS -D - -X PUT \
   -H "Authorization: Bearer $HELPDESK_TOKEN" \
   -H "Content-Type: application/json" \
   -H 'If-Match: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"' \
   -d '{"group_ids": []}' \
-  http://localhost:3080/admin/tenants/groups-demo/subjects/01a0ea57-1d43-77ec-b206-42dda565fb15/groups
+  http://localhost:3082/admin/tenants/groups-demo/subjects/01a109b9-c34e-7692-b5a4-67af33cf85e0/groups
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0ea57-5e61-70cb-b958-44f3924a175d
+x-request-id: 01a109b9-f25d-7357-a2c8-4c86697f32da
 cache-control: no-store
 etag: "eef46741adfc3a9f76294d3b78f37a45f113092ac9d44ee77c7a038a88ff09a1"
 content-type: application/json; charset=utf-8
 content-length: 12
-Date: Mon, 28 Sep 2026 23:26:29 GMT
+Date: Mon, 05 Oct 2026 01:42:23 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"items":[]}
 
 HTTP/1.1 200 OK
-x-request-id: 01a0ea57-5e74-7dd5-ab1d-bbbab618f8c5
+x-request-id: 01a109b9-f26f-7e40-9063-700663679c1b
 cache-control: no-store
-etag: "348129913c55f7b2f682c7ca26cadb834392b9023e299aaefe6852f117094447"
+etag: "66a62a8dcf68d9df0b7e058b8cd86c42a83d9452d2fabf3f17091b29552fecf4"
 content-type: application/json; charset=utf-8
-content-length: 149
-Date: Mon, 28 Sep 2026 23:26:29 GMT
+content-length: 201
+Date: Mon, 05 Oct 2026 01:42:23 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"id":"01a0ea57-1d14-7cc6-a92a-5410441bee70","name":"support","parent_id":null,"path":"/support","created_at":"2026-09-28T23:26:12.755Z"}]}
+{"items":[{"id":"01a109b9-c2f2-795b-9df3-36c34e89980e","name":"support","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/support","created_at":"2026-10-05T01:42:11.441Z"}]}
 
 HTTP/1.1 412 Precondition Failed
-x-request-id: 01a0ea57-5e8e-73b9-a9a1-3f3ae69e4b6e
+x-request-id: 01a109b9-f288-78e9-ade7-7dfb8ef68ccd
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 153
-Date: Mon, 28 Sep 2026 23:26:29 GMT
+Date: Mon, 05 Oct 2026 01:42:23 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a0ea57-5e8e-73b9-a9a1-3f3ae69e4b6e"}
+{"type":"about:blank","title":"Precondition Failed","status":412,"detail":"If-Match no longer matches","instance":"01a109b9-f288-78e9-ade7-7dfb8ef68ccd"}
 ```
 
 Both writes that reached the ceiling are in the trail, scoped here to
 `mei2` — the refusal naming what was denied, the replacement the ids
 before and after:
 
-Recaptured against the tenth stack, once each row answered `actor_name` and
-`actor_origin`, after the same groups, `helpdesk` caller and `mei2` were
-set up in a tenant of the same name and the same two writes made, so the ids
-are that run's, not those above:
+On the same stack and tenant:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  'http://localhost:3082/admin/tenants/groups-demo/audit?action=subject.groups_set&resource_type=subject&resource_id=01a0ee91-f9ee-7a8d-95e6-172e2046fd89'; echo
+  'http://localhost:3082/admin/tenants/groups-demo/audit?action=subject.groups_set&resource_type=subject&resource_id=01a109b9-c34e-7692-b5a4-67af33cf85e0'; echo
 ```
 
 ```
-{"items":[{"id":"01a0ee92-0b20-786b-96a8-0c524c57eaf0","occurred_at":"2026-09-29T19:09:03.642Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"allowed","actor_tenant_id":"01a0ee91-efe3-731c-b7a3-c6fd335482fe","actor_subject_id":"01a0ee92-03da-787f-b2a3-7f41dab5a8ca","actor_client_id":"01a0ee91-f035-7000-a6c8-4c4741aa542a","actor_name":"helpdesk","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee91-f9ee-7a8d-95e6-172e2046fd89","request_id":"01a0ee92-0abf-79d4-b987-4fdfb7cc8fb5","ip":"172.22.0.1","detail":{"group_ids":{"after":["01a0ee91-f31c-7288-b4ba-1444fb09422e"],"before":[]}}},{"id":"01a0ee92-0a8e-7f9c-8c56-6d33fdba3c4f","occurred_at":"2026-09-29T19:09:03.485Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"refused","actor_tenant_id":"01a0ee91-efe3-731c-b7a3-c6fd335482fe","actor_subject_id":"01a0ee92-03da-787f-b2a3-7f41dab5a8ca","actor_client_id":"01a0ee91-f035-7000-a6c8-4c4741aa542a","actor_name":"helpdesk","actor_origin":"tenant","resource_type":"subject","resource_id":"01a0ee91-f9ee-7a8d-95e6-172e2046fd89","request_id":"01a0ee92-0a44-713d-b143-f1a0929f3e54","ip":"172.22.0.1","detail":{"denied":["tenant-admin","manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}]}
+{"items":[{"id":"01a109b9-f27e-7d11-a166-1263b8d4466f","occurred_at":"2026-10-05T01:42:23.608Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"allowed","actor_tenant_id":"01a109b9-c288-7ef5-a623-21ab2f266513","actor_subject_id":"01a109b9-c365-7216-9064-207c3931f9e0","actor_client_id":"01a109b9-c28f-78c9-bac7-b8be0801cfd6","actor_name":"helpdesk","actor_origin":"tenant","resource_type":"subject","resource_id":"01a109b9-c34e-7692-b5a4-67af33cf85e0","request_id":"01a109b9-f26f-7e40-9063-700663679c1b","ip":"172.22.0.1","detail":{"group_ids":{"after":["01a109b9-c2f2-795b-9df3-36c34e89980e"],"before":[]}}},{"id":"01a109b9-f252-7573-967d-079323ae2a71","occurred_at":"2026-10-05T01:42:23.565Z","event_type":"admin_mutation","action":"subject.groups_set","outcome":"refused","actor_tenant_id":"01a109b9-c288-7ef5-a623-21ab2f266513","actor_subject_id":"01a109b9-c365-7216-9064-207c3931f9e0","actor_client_id":"01a109b9-c28f-78c9-bac7-b8be0801cfd6","actor_name":"helpdesk","actor_origin":"tenant","resource_type":"subject","resource_id":"01a109b9-c34e-7692-b5a4-67af33cf85e0","request_id":"01a109b9-f243-73fa-8f46-668be780b58a","ip":"172.22.0.1","detail":{"denied":["tenant-admin","manage-clients","manage-tenant","manage-keys","manage-sessions","view-audit"]}}]}
 ```
 
 ## `GET /subjects/:id/sessions` and `DELETE /subjects/:id/sessions/:sid`
@@ -6347,24 +6400,25 @@ they take away ([a removal is judged by what it removes](#a-removal-is-judged-by
 curl -sS -X PATCH \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"parent_id": "01a0d708-2e61-7569-8143-4d8ac66c4b6c"}' \
-  http://localhost:3000/admin/tenants/demo/groups/01a0d708-2e77-75f4-8458-1a6b6dedc8d7
+  -d '{"parent_id": "01a109ba-89ef-7d81-8daf-7759f4b5bf57"}' \
+  http://localhost:3082/admin/tenants/reparent-demo/groups/01a109ba-8a04-7ec4-bcc0-0b50ecc0b1be
 ```
 
-Two roots, `engineering` and `platform`, then `platform` reparented under
-`engineering` — `path` is recomputed by the write, never sent — then the
-reverse, refused:
+Against the twelfth stack, in a tenant `reparent-demo` made for it: two
+roots, `engineering`, created with a `description`, and `platform`, then
+`platform` reparented under `engineering` — `path` is recomputed by the
+write, never sent — then the reverse, refused:
 
 ```
-{"id":"01a0d708-2e61-7569-8143-4d8ac66c4b6c","name":"engineering","parent_id":null,"path":"/engineering","created_at":"2026-09-25T05:27:12.736Z"}
-{"id":"01a0d708-2e77-75f4-8458-1a6b6dedc8d7","name":"platform","parent_id":null,"path":"/platform","created_at":"2026-09-25T05:27:12.759Z"}
-{"id":"01a0d708-2e77-75f4-8458-1a6b6dedc8d7","name":"platform","parent_id":"01a0d708-2e61-7569-8143-4d8ac66c4b6c","path":"/engineering/platform","created_at":"2026-09-25T05:27:12.759Z"}
-{"type":"about:blank","title":"Conflict","status":409,"detail":"would create a group reparent cycle","instance":"01a0d708-2ed8-73c7-905f-bb2adf113b10"}
+{"id":"01a109ba-89ef-7d81-8daf-7759f4b5bf57","name":"engineering","description":"Everyone who builds the product","parent_id":null,"default_for_new_subjects":false,"path":"/engineering","created_at":"2026-10-05T01:43:02.382Z"}
+{"id":"01a109ba-8a04-7ec4-bcc0-0b50ecc0b1be","name":"platform","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/platform","created_at":"2026-10-05T01:43:02.404Z"}
+{"id":"01a109ba-8a04-7ec4-bcc0-0b50ecc0b1be","name":"platform","description":null,"parent_id":"01a109ba-89ef-7d81-8daf-7759f4b5bf57","default_for_new_subjects":false,"path":"/engineering/platform","created_at":"2026-10-05T01:43:02.404Z"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"would create a group reparent cycle","instance":"01a109ba-8a44-7d24-82fd-f8c1c9d049e7"}
 ```
 
 **Search** is `?name=`, the same prefix match `GET /roles` above describes,
 over `groups.name_search`; it matches a group's own name, not its `path`.
-Captured against the sixth stack, whose `demo` held no groups until
+Captured against the twelfth stack, whose `demo` held no groups until
 `engineering`, `Engineering-Ops` and `finance` were created there as roots:
 
 ```bash
@@ -6372,54 +6426,54 @@ curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "engineering"}' \
-  http://localhost:3080/admin/tenants/demo/groups
+  http://localhost:3082/admin/tenants/demo/groups
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "Engineering-Ops"}' \
-  http://localhost:3080/admin/tenants/demo/groups
+  http://localhost:3082/admin/tenants/demo/groups
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "finance"}' \
-  http://localhost:3080/admin/tenants/demo/groups
+  http://localhost:3082/admin/tenants/demo/groups
 ```
 
 ```
-{"id":"01a0ea5c-86b5-7ca9-858a-559fbdf1f804","name":"engineering","parent_id":null,"path":"/engineering","created_at":"2026-09-28T23:32:07.477Z"}
-{"id":"01a0ea5c-86cd-7f1e-9c86-69657cfa02c4","name":"Engineering-Ops","parent_id":null,"path":"/Engineering-Ops","created_at":"2026-09-28T23:32:07.500Z"}
-{"id":"01a0ea5c-86ea-76a5-a2b1-c7e2434032e9","name":"finance","parent_id":null,"path":"/finance","created_at":"2026-09-28T23:32:07.529Z"}
+{"id":"01a109ba-8a68-719f-810b-8ff86cf1e25e","name":"engineering","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/engineering","created_at":"2026-10-05T01:43:02.503Z"}
+{"id":"01a109ba-8a7d-77c6-8977-e69091826379","name":"Engineering-Ops","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/Engineering-Ops","created_at":"2026-10-05T01:43:02.524Z"}
+{"id":"01a109ba-8a90-7ece-9415-2dff8a669cf6","name":"finance","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/finance","created_at":"2026-10-05T01:43:02.544Z"}
 ```
 
 ```bash
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/groups?name=ENG"
+  "http://localhost:3082/admin/tenants/demo/groups?name=ENG"
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/groups?name=eng&limit=1"
+  "http://localhost:3082/admin/tenants/demo/groups?name=eng&limit=1"
 ```
 
 ```
-{"items":[{"id":"01a0ea5c-86b5-7ca9-858a-559fbdf1f804","name":"engineering","parent_id":null,"path":"/engineering","created_at":"2026-09-28T23:32:07.477Z"},{"id":"01a0ea5c-86cd-7f1e-9c86-69657cfa02c4","name":"Engineering-Ops","parent_id":null,"path":"/Engineering-Ops","created_at":"2026-09-28T23:32:07.500Z"}]}
-{"items":[{"id":"01a0ea5c-86b5-7ca9-858a-559fbdf1f804","name":"engineering","parent_id":null,"path":"/engineering","created_at":"2026-09-28T23:32:07.477Z"}],"next":"eyJhZnRlciI6IjAxYTBlYTVjLTg2YjUtN2NhOS04NThhLTU1OWZiZGYxZjgwNCIsInNvcnQiOiJlbmdpbmVlcmluZyIsImNvbGxlY3Rpb24iOiJncm91cHMiLCJ0ZW5hbnRJZCI6IjAxYTBlYTRjLTA4ODQtNzRmYS04MjVjLTA1ZjZlZjU2OGRkMCIsImZpbHRlcnMiOiJzTVFsYy1tTnM3SUxXZHhsYk9YOUJKRlA0dzlSb05MMXlpSVJ0bmxrQnZNIn0.VRPFxdwjQ0G9mRbT4iN-VbHaZ55RxUtHgaQ6-B6xLy0"}
+{"items":[{"id":"01a109ba-8a68-719f-810b-8ff86cf1e25e","name":"engineering","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/engineering","created_at":"2026-10-05T01:43:02.503Z"},{"id":"01a109ba-8a7d-77c6-8977-e69091826379","name":"Engineering-Ops","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/Engineering-Ops","created_at":"2026-10-05T01:43:02.524Z"}]}
+{"items":[{"id":"01a109ba-8a68-719f-810b-8ff86cf1e25e","name":"engineering","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/engineering","created_at":"2026-10-05T01:43:02.503Z"}],"next":"eyJhZnRlciI6IjAxYTEwOWJhLThhNjgtNzE5Zi04MTBiLThmZjg2Y2YxZTI1ZSIsInNvcnQiOiJlbmdpbmVlcmluZyIsImNvbGxlY3Rpb24iOiJncm91cHMiLCJ0ZW5hbnRJZCI6IjAxYTEwOWI2LTFkOGQtNzhkYS05ZGYwLTBkMjhiNzJjZTJlOCIsImZpbHRlcnMiOiJzTVFsYy1tTnM3SUxXZHhsYk9YOUJKRlA0dzlSb05MMXlpSVJ0bmxrQnZNIn0.yP0xF9owpV-QdZI27JYEb_EH6gI-3WAqfQTmdDMOjZs"}
 ```
 
 Following that cursor, then replaying it with `?name=` dropped:
 
 ```bash
-CURSOR='eyJhZnRlciI6IjAxYTBlYTVjLTg2YjUtN2NhOS04NThhLTU1OWZiZGYxZjgwNCIsInNvcnQiOiJlbmdpbmVlcmluZyIsImNvbGxlY3Rpb24iOiJncm91cHMiLCJ0ZW5hbnRJZCI6IjAxYTBlYTRjLTA4ODQtNzRmYS04MjVjLTA1ZjZlZjU2OGRkMCIsImZpbHRlcnMiOiJzTVFsYy1tTnM3SUxXZHhsYk9YOUJKRlA0dzlSb05MMXlpSVJ0bmxrQnZNIn0.VRPFxdwjQ0G9mRbT4iN-VbHaZ55RxUtHgaQ6-B6xLy0'
+CURSOR='eyJhZnRlciI6IjAxYTEwOWJhLThhNjgtNzE5Zi04MTBiLThmZjg2Y2YxZTI1ZSIsInNvcnQiOiJlbmdpbmVlcmluZyIsImNvbGxlY3Rpb24iOiJncm91cHMiLCJ0ZW5hbnRJZCI6IjAxYTEwOWI2LTFkOGQtNzhkYS05ZGYwLTBkMjhiNzJjZTJlOCIsImZpbHRlcnMiOiJzTVFsYy1tTnM3SUxXZHhsYk9YOUJKRlA0dzlSb05MMXlpSVJ0bmxrQnZNIn0.yP0xF9owpV-QdZI27JYEb_EH6gI-3WAqfQTmdDMOjZs'
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/groups?limit=1&name=eng&cursor=$CURSOR"
+  "http://localhost:3082/admin/tenants/demo/groups?limit=1&name=eng&cursor=$CURSOR"
 curl -sS \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "http://localhost:3080/admin/tenants/demo/groups?limit=1&cursor=$CURSOR"
+  "http://localhost:3082/admin/tenants/demo/groups?limit=1&cursor=$CURSOR"
 ```
 
 ```
-{"items":[{"id":"01a0ea5c-86cd-7f1e-9c86-69657cfa02c4","name":"Engineering-Ops","parent_id":null,"path":"/Engineering-Ops","created_at":"2026-09-28T23:32:07.500Z"}]}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a0ea5c-874e-726e-b867-0fce0886a55d"}
+{"items":[{"id":"01a109ba-8a7d-77c6-8977-e69091826379","name":"Engineering-Ops","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/Engineering-Ops","created_at":"2026-10-05T01:43:02.524Z"}]}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a109ba-8af2-7925-8ed3-9e1269aedc70"}
 ```
 
 ### The list a user manager picks from
@@ -6434,21 +6488,21 @@ under `GET /roles` gives, where it was captured.
 no parent, so a tree is drawn a level at a time rather than from every page
 of groups; `GET /groups/count` takes it too, and it `AND`s with `?name=`. A
 value that is neither a UUID nor `root` is refused with `400`. Against the
-tenth stack, with `/finance` and `/finance/payables` made for
-`GET /subjects/:id/effective-roles` above:
+twelfth stack, in an `ops-demo` of its own holding `/finance` and
+`/finance/payables` alone, `$P` its `http://localhost:3082/admin/tenants/ops-demo`:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=root"; echo
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=01a0ee8b-2f54-7a5a-9da6-7ba6baacbe13"; echo
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups/count?parent=01a0ee8b-2f54-7a5a-9da6-7ba6baacbe13"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=01a109ba-8b46-73aa-98e5-54a2d4abddc6"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups/count?parent=01a109ba-8b46-73aa-98e5-54a2d4abddc6"; echo
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/groups?parent=top"; echo
 ```
 
 ```
-{"items":[{"id":"01a0ee8b-2f54-7a5a-9da6-7ba6baacbe13","name":"finance","parent_id":null,"path":"/finance","created_at":"2026-09-29T19:01:34.163Z"}]}
-{"items":[{"id":"01a0ee8b-303e-7b1b-bf73-31200beeba2a","name":"payables","parent_id":"01a0ee8b-2f54-7a5a-9da6-7ba6baacbe13","path":"/finance/payables","created_at":"2026-09-29T19:01:34.395Z"}]}
+{"items":[{"id":"01a109ba-8b46-73aa-98e5-54a2d4abddc6","name":"finance","description":null,"parent_id":null,"default_for_new_subjects":false,"path":"/finance","created_at":"2026-10-05T01:43:02.726Z"}]}
+{"items":[{"id":"01a109ba-8b5c-7d8c-9337-c6abb3a36eee","name":"payables","description":null,"parent_id":"01a109ba-8b46-73aa-98e5-54a2d4abddc6","default_for_new_subjects":false,"path":"/finance/payables","created_at":"2026-10-05T01:43:02.746Z"}]}
 {"count":1,"capped":false}
-{"type":"about:blank","title":"Error","status":400,"detail":"querystring/parent must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\", querystring/parent must be equal to constant, querystring/parent must match a schema in anyOf","errors":[{"path":"parent","message":"must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\""},{"path":"parent","message":"must be equal to constant"},{"path":"parent","message":"must match a schema in anyOf"}],"instance":"01a0ee8b-3334-7d7f-894d-3bc213174a7f"}
+{"type":"about:blank","title":"Error","status":400,"detail":"querystring/parent must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\", querystring/parent must be equal to constant, querystring/parent must match a schema in anyOf","errors":[{"path":"parent","message":"must match pattern \"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$\""},{"path":"parent","message":"must be equal to constant"},{"path":"parent","message":"must match a schema in anyOf"}],"instance":"01a109ba-8bab-7f79-8a9c-ececd8c32911"}
 ```
 
 ## `GET /groups/:id/roles` and `PUT /groups/:id/roles`
@@ -6639,6 +6693,68 @@ lock, so two writers cannot each pass the check alone. An import is held to
 the same rule: a document marking a group default whose chain reaches a
 capability is refused at that group's `default_for_new_subjects`.
 
+Against the twelfth stack, in a tenant `defaults-demo` made for it: a root
+group `staff`, made with a `description`, and its child `everyone`, neither
+mapping a role. `everyone` made a default, then a subject created
+afterwards, its memberships narrowed with `jq`:
+
+```bash
+curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"default": true}' \
+  http://localhost:3082/admin/tenants/defaults-demo/groups/01a109bc-662b-766f-8f14-e5b4a1a51a3f/default
+NEW=$(curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"username":"newcomer"}' \
+  http://localhost:3082/admin/tenants/defaults-demo/subjects | jq -r .id)
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3082/admin/tenants/defaults-demo/subjects/$NEW/groups" | jq -c '[.items[].path]'
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a109bc-664b-744f-8927-24e62e623096
+cache-control: no-store
+etag: "792933a119637c51969100574f6271796b49a02533c7762d1d2419b1e9d6887a"
+content-type: application/json; charset=utf-8
+content-length: 230
+Date: Mon, 05 Oct 2026 01:45:04 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a109bc-662b-766f-8f14-e5b4a1a51a3f","name":"everyone","description":null,"parent_id":"01a109bc-6614-7754-98ea-34b518dd251d","default_for_new_subjects":true,"path":"/staff/everyone","created_at":"2026-10-05T01:45:04.298Z"}
+["/staff/everyone"]
+```
+
+Then the guard, from the other side: mapping `odudu-admin:view-users` to
+`staff`, the default's parent — refused even for `ada-t8c2`, who holds every
+capability — then `PATCH` naming the flag, then the trail of each group:
+
+```bash
+curl -sS -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -H "If-Match: $STAFF_ROLES_ETAG" \
+  -d '{"role_ids": ["01a109bc-65ea-7553-a99e-0ca5a23eec96"]}' \
+  http://localhost:3082/admin/tenants/defaults-demo/groups/01a109bc-6614-7754-98ea-34b518dd251d/roles; echo
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d '{"default_for_new_subjects": false}' \
+  http://localhost:3082/admin/tenants/defaults-demo/groups/01a109bc-662b-766f-8f14-e5b4a1a51a3f; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3082/admin/tenants/defaults-demo/audit?resource_type=group&resource_id=01a109bc-662b-766f-8f14-e5b4a1a51a3f" \
+  | jq -c '.items[] | {action, outcome, detail}'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3082/admin/tenants/defaults-demo/audit?resource_type=group&resource_id=01a109bc-6614-7754-98ea-34b518dd251d&action=group.roles_set" \
+  | jq -c '.items[] | {action, outcome, detail}'
+```
+
+`$STAFF_ROLES_ETAG` is the `ETag` `GET …/groups/01a109bc-6614-7754-98ea-34b518dd251d/roles`
+answered just before:
+
+```
+{"type":"about:blank","title":"Forbidden","status":403,"detail":"a group every new subject joins may reach no admin capability, and this one would reach: view-users","instance":"01a109bc-66ad-7234-9ce3-034e92b1af82"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"default_for_new_subjects: default_for_new_subjects changes who joins a group silently at signup; set it with PUT /admin/tenants/{tenant}/groups/{id}/default, not a general amendment","errors":[{"path":"default_for_new_subjects","message":"default_for_new_subjects changes who joins a group silently at signup; set it with PUT /admin/tenants/{tenant}/groups/{id}/default, not a general amendment"}],"instance":"01a109bc-66c8-7883-bb51-f2a9172721f3"}
+{"action":"group.default_set","outcome":"allowed","detail":{"default_for_new_subjects":{"after":true,"before":false}}}
+{"action":"group.create","outcome":"allowed","detail":{}}
+{"action":"group.roles_set","outcome":"refused","detail":{"denied":["view-users"]}}
+```
+
 ## `GET /scopes`, `POST /scopes`, `GET /scopes/:id`, `PATCH /scopes/:id` and `DELETE /scopes/:id`
 
 All five require `manage-tenant`. `include_in_id_token` and
@@ -6670,7 +6786,68 @@ has one — at most 500 characters, or `null` for the bare scope name — every
 value through the page's own `escapeHtml`, with the page's policy unchanged:
 it still carries no script. The text is one string for now; a text per
 locale is P4b's, with the rest of the translated pages. Both travel in the
-tenant document and are amended by `PATCH`. `DELETE` cascades:
+tenant document and are amended by `PATCH`.
+
+On the twelfth stack's `demo`, with `billing` marked as above: a public
+client `consent-portal`, named `Consent <Portal>`, made with
+`consent_required` and given the vocabulary — `billing` among it — by
+`POST /clients`; `profile` given a text and an order; `grace` seeded with
+`odudu seed user`; then a sign-in asking for the four scopes in another
+order. The pre-approved pair is listed `openid` then `profile`, by their
+`display_order` of `0` and `5`, the optional pair `offline_access` then
+`billing`, by `0` and `10`, each with its text where it has one, escaped:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"client_id":"consent-portal","name":"Consent <Portal>","redirect_uris":["https://portal.demo.example/callback"],"token_endpoint_auth_method":"none","consent_required":true}' \
+  http://localhost:3082/admin/tenants/demo/clients > /dev/null
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"consent_text":"Your name & <picture>","display_order":5}' \
+  http://localhost:3082/admin/tenants/demo/scopes/01a109b6-1d90-79dd-bd97-5ff11a7bdada > /dev/null
+docker compose exec -T odudu node dist/main.js seed user --tenant demo \
+  --username grace --password 'correct-horse-battery-8c2' > /dev/null
+curl -sS -c jar -b jar -o /dev/null \
+  'http://localhost:3082/tenants/demo/protocol/openid-connect/auth?response_type=code&client_id=consent-portal&redirect_uri=https%3A%2F%2Fportal.demo.example%2Fcallback&scope=openid%20billing%20profile%20offline_access&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+curl -sS -D - -c jar -b jar \
+  --data-urlencode "auth_session_id=01a109bb-ebe1-7939-9b64-c49b58303c2d" \
+  --data-urlencode 'username=grace' --data-urlencode 'password=correct-horse-battery-8c2' \
+  http://localhost:3082/tenants/demo/login-actions/authenticate
+```
+
+The `auth_session_id` is the one the login form that request rendered
+carried; the page's policy is the one every page without a script carries:
+
+````
+HTTP/1.1 200 OK
+x-request-id: 01a109bb-ebef-720a-b749-5783b7fe7027
+content-type: text/html
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'
+x-frame-options: DENY
+referrer-policy: no-referrer
+content-length: 796
+Date: Mon, 05 Oct 2026 01:44:33 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Allow access?</title></head>
+<body>
+<h1>Consent &lt;Portal&gt; is asking for access</h1>
+<form method="post" action="/tenants/demo/login-actions/consent">
+  <input type="hidden" name="auth_session_id" value="01a109bb-ebe1-7939-9b64-c49b58303c2d">
+  <ul>
+  <li>openid</li>
+  <li>Your name &amp; &lt;picture&gt;</li>
+  </ul>
+  <label><input type="checkbox" name="scope" value="offline_access"> offline_access — grants ongoing access, even while you are not present</label>
+  <label><input type="checkbox" name="scope" value="billing"> See and pay your invoices</label>
+  <button type="submit" name="decision" value="allow">Allow</button>
+  <button type="submit" name="decision" value="deny">Deny</button>
+</form>
+</body>
+</html>
+``` `DELETE` cascades:
 `client_scope_assignments_scope_fk` and `client_scope_roles_scope_fk`
 (`packages/db/drizzle/0016_client_scopes.sql`, `0017_roles.sql`) both name
 `ON DELETE CASCADE`, not `RESTRICT`, so deleting an assigned, role-mapped
@@ -6689,11 +6866,35 @@ curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "billing", "include_in_id_token": false}' \
-  http://localhost:3000/admin/tenants/demo/scopes
+  http://localhost:3082/admin/tenants/demo/scopes
+````
+
+Captured against the twelfth stack's `demo`, as are the three requests after
+it: `billing` given a consent text, a place on the consent screen and a
+client default, then a default that is none of the three values refused by
+name, then a client created afterwards — its `scopes`, narrowed with `jq`,
+carry `billing` as `optional` beside the vocabulary a new tenant marks:
+
+```
+{"id":"01a109bb-41fa-7343-8d50-a86f9070aefc","name":"billing","description":null,"include_in_id_token":false,"include_in_access_token":true,"default_client_assignment":null,"consent_text":null,"display_order":0,"created_at":"2026-10-05T01:43:49.498Z"}
+```
+
+```bash
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"consent_text": "See and pay your invoices", "display_order": 10, "default_client_assignment": "optional"}' \
+  http://localhost:3082/admin/tenants/demo/scopes/01a109bb-41fa-7343-8d50-a86f9070aefc; echo
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"default_client_assignment": "always"}' \
+  http://localhost:3082/admin/tenants/demo/scopes/01a109bb-41fa-7343-8d50-a86f9070aefc; echo
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"client_id": "billing-portal", "redirect_uris": ["https://billing.demo.example/callback"]}' \
+  http://localhost:3082/admin/tenants/demo/clients | jq -c '[.scopes[] | {name, assignment}]'
 ```
 
 ```
-{"id":"01a0d708-2ef8-7963-8d7a-3df5dff7cdf6","name":"billing","description":null,"include_in_id_token":false,"include_in_access_token":true,"created_at":"2026-09-25T05:27:12.887Z"}
+{"id":"01a109bb-41fa-7343-8d50-a86f9070aefc","name":"billing","description":null,"include_in_id_token":false,"include_in_access_token":true,"default_client_assignment":"optional","consent_text":"See and pay your invoices","display_order":10,"created_at":"2026-10-05T01:43:49.498Z"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"default_client_assignment: default_client_assignment must be default, optional or null","errors":[{"path":"default_client_assignment","message":"default_client_assignment must be default, optional or null"}],"instance":"01a109bb-4228-7553-8179-293e52c0675f"}
+[{"name":"openid","assignment":"default"},{"name":"profile","assignment":"default"},{"name":"email","assignment":"default"},{"name":"address","assignment":"default"},{"name":"phone","assignment":"default"},{"name":"roles","assignment":"default"},{"name":"groups","assignment":"default"},{"name":"offline_access","assignment":"optional"},{"name":"billing","assignment":"optional"}]
 ```
 
 The `openid` guard, against `scope-guard-demo` made for it, on the same
@@ -6977,7 +7178,7 @@ Keep-Alive: timeout=72
 {"type":"about:blank","title":"Conflict","status":409,"detail":"the scope openid on odudu-admin, this tenant’s built-in admin client, cannot be unassigned: it could leave every administrator of this tenant locked out of /authorize","instance":"01a0e54e-328a-7b7e-b4c1-59ffbdc17acf"}
 ```
 
-Captured against the sixth stack, in a tenant `scope-unassign-demo` made
+Recaptured against the twelfth stack, in a tenant `scope-unassign-demo` made
 for this section, on a public client `scope-unassign-app` registered for
 `authorization_code`.
 `POST /clients` assigned it the tenant's default vocabulary, `openid`
@@ -6985,7 +7186,7 @@ included, so `/authorize` first renders the login form:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
-  'http://localhost:3080/tenants/scope-unassign-demo/protocol/openid-connect/auth?response_type=code&client_id=scope-unassign-app&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+  'http://localhost:3082/tenants/scope-unassign-demo/protocol/openid-connect/auth?response_type=code&client_id=scope-unassign-app&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 ```
 
 ```
@@ -6999,37 +7200,36 @@ carries the client's new `ETag`, the one that read answers;
 
 ```bash
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/scope-unassign-demo/scopes/01a0ea62-eab5-7272-9ed9-b0306b9f211a/clients/01a0ea62-eaef-7228-a188-247cd02f071f
+  http://localhost:3082/admin/tenants/scope-unassign-demo/scopes/01a109b7-d4cb-7d70-8819-84944ef99955/clients/01a109b7-d4ff-72db-90a3-044efab12332
 
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/scope-unassign-demo/clients/01a0ea62-eaef-7228-a188-247cd02f071f
+  http://localhost:3082/admin/tenants/scope-unassign-demo/clients/01a109b7-d4ff-72db-90a3-044efab12332
 
 curl -sS -D - -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3080/admin/tenants/scope-unassign-demo/scopes/01a0ea62-eab5-7272-9ed9-b0306b9f211a/clients/01a0ea62-eaef-7228-a188-247cd02f071f
+  http://localhost:3082/admin/tenants/scope-unassign-demo/scopes/01a109b7-d4cb-7d70-8819-84944ef99955/clients/01a109b7-d4ff-72db-90a3-044efab12332
 ```
-
-Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
 
 ```
 HTTP/1.1 204 No Content
-x-request-id: 01a0ea62-eb2b-7cb1-9acb-921afd92292c
+x-request-id: 01a109b7-d53a-7f8b-b6c6-8d2bc91ea83e
 cache-control: no-store
-etag: "eb2cab753a6593554d8e3b17a29b26d8e3f468f7b0685b6c42b04bfcb3dd0f29"
-Date: Mon, 28 Sep 2026 23:39:06 GMT
+etag: "d577711acc23b187327a97d02ab5f7abee1ff3a14aac707bd4d8a96d73b7766c"
+Date: Mon, 05 Oct 2026 01:40:05 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"id":"01a0ea62-eaef-7228-a188-247cd02f071f","client_id":"scope-unassign-app","name":"scope-unassign-app","type":"public","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-09-28T23:39:06.348Z","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","audiences":[],"access_token_ttl_seconds":300,"refresh_token_ttl_seconds":1209600,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"builtin_admin":false,"service_subject_id":null,"scopes":[{"id":"01a0ea62-eab6-75a9-b801-aea50587a185","name":"profile","assignment":"default"},{"id":"01a0ea62-eab6-75a9-b801-aea68426880b","name":"email","assignment":"default"},{"id":"01a0ea62-eab7-7fb0-9ca7-0dcb19305cf3","name":"address","assignment":"default"},{"id":"01a0ea62-eab7-7fb0-9ca7-0dcc5e59c345","name":"phone","assignment":"default"},{"id":"01a0ea62-eab7-7fb0-9ca7-0dcd008b9d81","name":"roles","assignment":"default"},{"id":"01a0ea62-eab8-7176-a828-4876726b2ee1","name":"groups","assignment":"default"},{"id":"01a0ea62-eab8-7176-a828-4877cb31c90f","name":"offline_access","assignment":"optional"}]}
+{"id":"01a109b7-d4ff-72db-90a3-044efab12332","client_id":"scope-unassign-app","name":"scope-unassign-app","description":null,"type":"public","enabled":true,"full_scope_allowed":false,"registration_origin":"operator","created_at":"2026-10-05T01:40:04.990Z","redirect_uris":["https://app.example/callback"],"grant_types":["authorization_code"],"token_endpoint_auth_method":"none","audiences":[],"access_token_ttl_seconds":null,"id_token_ttl_seconds":null,"refresh_token_ttl_seconds":null,"client_credentials_scopes":[],"web_origins":[],"post_logout_redirect_uris":[],"jwks":null,"jwks_uri":null,"frontchannel_logout_uri":null,"backchannel_logout_uri":null,"frontchannel_logout_session_required":false,"backchannel_logout_session_required":false,"consent_required":false,"token_exchange_impersonation_allowed":false,"userinfo_signed_response_alg":null,"userinfo_encrypted_response_alg":null,"userinfo_encrypted_response_enc":null,"tls_client_auth_subject_dn":null,"client_uri":null,"policy_uri":null,"tos_uri":null,"id_token_signed_response_alg":null,"default_max_age":null,"require_auth_time":false,"previous_secret_expires_at":null,"builtin_admin":false,"service_subject_id":null,"scopes":[{"id":"01a109b7-d4cc-7147-b8f0-70228a1a5a5c","name":"profile","assignment":"default"},{"id":"01a109b7-d4cd-7809-8aee-499efe11e1e1","name":"email","assignment":"default"},{"id":"01a109b7-d4cd-7809-8aee-499f5483c7bd","name":"address","assignment":"default"},{"id":"01a109b7-d4ce-7558-9abe-03d84d660f1a","name":"phone","assignment":"default"},{"id":"01a109b7-d4ce-7558-9abe-03d94c59122b","name":"roles","assignment":"default"},{"id":"01a109b7-d4cf-7cbe-ae62-cc913545931b","name":"groups","assignment":"default"},{"id":"01a109b7-d4cf-7cbe-ae62-cc92fb5695ab","name":"offline_access","assignment":"optional"}]}
+
 HTTP/1.1 404 Not Found
-x-request-id: 01a0ea62-eb5a-7153-9137-4f7c1ebd9410
+x-request-id: 01a109b7-d565-7932-821a-445eb045285c
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 222
-Date: Mon, 28 Sep 2026 23:39:06 GMT
+Date: Mon, 05 Oct 2026 01:40:05 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Not Found","status":404,"detail":"scope 01a0ea62-eab5-7272-9ed9-b0306b9f211a is not assigned to client 01a0ea62-eaef-7228-a188-247cd02f071f","instance":"01a0ea62-eb5a-7153-9137-4f7c1ebd9410"}
+{"type":"about:blank","title":"Not Found","status":404,"detail":"scope 01a109b7-d4cb-7d70-8819-84944ef99955 is not assigned to client 01a109b7-d4ff-72db-90a3-044efab12332","instance":"01a109b7-d565-7932-821a-445eb045285c"}
 ```
 
 `/authorize`, asked for `openid` again, now refuses it the same way an
@@ -7038,15 +7238,15 @@ as any other redirect-side refusal:
 
 ```bash
 curl -sS -D - -o /dev/null \
-  'http://localhost:3080/tenants/scope-unassign-demo/protocol/openid-connect/auth?response_type=code&client_id=scope-unassign-app&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
+  'http://localhost:3082/tenants/scope-unassign-demo/protocol/openid-connect/auth?response_type=code&client_id=scope-unassign-app&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&scope=openid&state=xyz&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256'
 ```
 
 ```
 HTTP/1.1 302 Found
-x-request-id: 01a0ea62-eb6e-7392-8bbd-5c60918941d3
-location: https://app.example/callback?error=invalid_scope&state=xyz&iss=http%3A%2F%2Flocalhost%3A3080%2Ftenants%2Fscope-unassign-demo
+x-request-id: 01a109b7-d579-793d-91fe-ea746b588ac8
+location: https://app.example/callback?error=invalid_scope&state=xyz&iss=http%3A%2F%2Flocalhost%3A3082%2Ftenants%2Fscope-unassign-demo
 content-length: 0
-Date: Mon, 28 Sep 2026 23:39:06 GMT
+Date: Mon, 05 Oct 2026 01:40:05 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 ```
@@ -7710,6 +7910,42 @@ either out is refused with `400`, the error naming `audit_event_types`, and
 a CHECK on the column refuses it again underneath. A security trail an
 attacker holding an administrator's token could switch off is no trail.
 
+Against the twelfth stack, in a tenant `audit-types-demo` made for it with
+`ivy` seeded there by `odudu seed user`, so its trail holds nothing else:
+`ivy` signs in once through the tenant's `odudu-admin` client (the
+sign-in "Getting the token" shows), the counts of three types are read,
+`authentication` and `session` are left out — named in another order, and
+answered in the listed one — a value leaving out `admin_mutation` is
+refused, `ivy` signs in again, and the counts are read again. The new
+sign-in wrote its `token` row and nothing of the two types left out, and
+the rows already stored are still there:
+
+```bash
+for t in authentication session token; do
+  echo "$t $(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/audit/count?event_type=$t")"
+done
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"audit_event_types":["token","admin_access","admin_mutation","credential"]}' \
+  "$P/settings" | jq -c '{audit_event_types}'
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"audit_event_types":["admin_access","token"]}' "$P/settings"; echo
+```
+
+`$P` is `http://localhost:3082/admin/tenants/audit-types-demo`, and the
+`for` loop ran once before the two `PATCH`es and once after the second
+sign-in:
+
+```
+authentication {"count":1,"capped":false}
+session {"count":1,"capped":false}
+token {"count":1,"capped":false}
+{"audit_event_types":["admin_mutation","admin_access","token","credential"]}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"1 tenant setting(s) outside the permitted range, listed under errors","errors":[{"path":"audit_event_types","message":"must include admin_mutation and admin_access, which can never be turned off; admin_mutation is missing"}],"instance":"01a109c0-9b94-7272-b44f-a67c82329648"}
+authentication {"count":1,"capped":false}
+session {"count":1,"capped":false}
+token {"count":2,"capped":false}
+```
+
 **Each row names its actor when it is read**, beside the ids it stores:
 `actor_name` is a user's username, or the `client_id` whose service account
 the actor is, resolved within the row's own tenant at read time and never
@@ -7824,11 +8060,12 @@ she authenticated as is `01a0daee-7bb4-7abb-99dd-12bbd701c5d4`. Requests
 below went from the host into the container over the compose network, so
 `ip` is that network's own gateway address rather than `127.0.0.1`.
 
-Recaptured against the tenth stack, once each row answered `actor_name` and
-`actor_origin`, after the same writes were made in its own `demo` — `demo-app`,
-`demo-backend` with a `jwks`, the reserved `client_id` refused, then a key
-staged, promoted and the old one retired — so the ids below are that run's,
-not the third stack's, and the actor is `ada-t8b2`. `actor_origin` is
+Recaptured against the twelfth stack, once a client's diff carried the
+fields `0084` to `0086` added, after the same writes were made in a tenant
+`audit-demo` created there for them — `demo-backend` with a `jwks`,
+`demo-app`, the reserved `client_id` refused, then a key staged, promoted
+and the old one retired — so the ids below are that run's, not the third
+stack's, and the actor is `ada-t8c2`. `actor_origin` is
 `system` on every row, and `actor_name` `null`, a system administrator
 being named only in `system`'s own trail:
 
@@ -7838,7 +8075,7 @@ curl -sS -G \
   --data-urlencode "resource_type=client" \
   --data-urlencode "action=client.create" \
   --data-urlencode "limit=20" \
-  http://localhost:3082/admin/tenants/demo/audit; echo
+  http://localhost:3082/admin/tenants/audit-demo/audit; echo
 ```
 
 All three `client.create` rows on this stack, newest first: the
@@ -7846,10 +8083,8 @@ reserved-`client_id` refusal, attempted last, then `demo-app` and
 `demo-backend` below it — both created directly through `POST /clients`,
 oldest last:
 
-Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
-
 ```
-{"items":[{"id":"01a0ee95-ae60-72e3-8a5d-c5f9b1c33908","occurred_at":"2026-09-29T19:13:02.047Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0ee95-ae38-7a0f-a18d-797dbc8a2d06","ip":"172.22.0.1","detail":{}},{"id":"01a0ee95-ae2b-761b-9477-55bd94e8374a","occurred_at":"2026-09-29T19:13:01.912Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ae07-7eaf-83d7-bbb02a7840c4","request_id":"01a0ee95-adbb-7232-b2b2-9841c6fe75df","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"private_key_jwt"}}},{"id":"01a0ee95-adb1-78e5-a8f7-8b6c6e6526a6","occurred_at":"2026-09-29T19:13:01.658Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ad80-7776-8fec-a430c88e186b","request_id":"01a0ee95-acb2-79b9-b44d-5c3ba2e2026d","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/callback"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
+{"items":[{"id":"01a109b8-77c8-7c97-8aa7-deac1a7668cf","occurred_at":"2026-10-05T01:40:46.664Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a109b8-77be-7a55-a1e9-0d79829206cc","ip":"172.22.0.1","detail":{}},{"id":"01a109b8-77af-76a9-af36-20575e2d2b9c","occurred_at":"2026-10-05T01:40:46.628Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a109b8-77a5-71da-a011-fbe99903f2b4","request_id":"01a109b8-7799-7eb6-920d-379e0a60f39b","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/callback"]},"default_max_age":{"after":null},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"none"},"id_token_signed_response_alg":{"after":null}}},{"id":"01a109b8-7782-77bc-9ca1-9d946717fefc","occurred_at":"2026-10-05T01:40:46.472Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a109b8-7778-7d05-a7d7-4bc8c614b862","request_id":"01a109b8-76fd-7d6d-a3a0-2473f5d37820","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"default_max_age":{"after":null},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"private_key_jwt"},"id_token_signed_response_alg":{"after":null}}}]}
 ```
 
 `actor_tenant_id` is `system` on all three, and `tenant_id` is absent from
@@ -7868,11 +8103,11 @@ having no allowlisted field to diff:
 ```bash
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "resource_type=signing_key" \
-  http://localhost:3082/admin/tenants/demo/audit; echo
+  http://localhost:3082/admin/tenants/audit-demo/audit; echo
 ```
 
 ```
-{"items":[{"id":"01a0ee95-cfe1-7153-acc8-171c106ae32a","occurred_at":"2026-09-29T19:13:10.611Z","event_type":"admin_mutation","action":"key.retire","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a0ee8f-0351-70d4-b27e-603117608afa","request_id":"01a0ee95-cfb8-7c03-b413-90980541875c","ip":"172.22.0.1","detail":{}},{"id":"01a0ee95-cfb2-7812-8c50-6c32a6c48cdf","occurred_at":"2026-09-29T19:13:10.573Z","event_type":"admin_mutation","action":"key.promote","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a0ee95-cf89-7295-80f6-3c8d6130aee4","request_id":"01a0ee95-cf9a-781f-bfa8-eacac5902eed","ip":"172.22.0.1","detail":{}},{"id":"01a0ee95-cf8b-73da-b942-b67b1913e78c","occurred_at":"2026-09-29T19:13:10.529Z","event_type":"admin_mutation","action":"key.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a0ee95-cf89-7295-80f6-3c8d6130aee4","request_id":"01a0ee95-cf73-7d9f-9017-ea6b33905fc4","ip":"172.22.0.1","detail":{}}]}
+{"items":[{"id":"01a109b8-785d-7bf7-bcdf-19fb0836e064","occurred_at":"2026-10-05T01:40:46.807Z","event_type":"admin_mutation","action":"key.retire","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a109b8-76ec-74e6-a029-ecff623b8d80","request_id":"01a109b8-784f-7cab-88a6-10b1d5eb21c1","ip":"172.22.0.1","detail":{}},{"id":"01a109b8-7845-7d5b-bf6f-c7d2895629e6","occurred_at":"2026-10-05T01:40:46.786Z","event_type":"admin_mutation","action":"key.promote","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a109b8-7825-7a6a-a1c9-43a7595d4817","request_id":"01a109b8-7839-7840-bd5d-b935524f7cea","ip":"172.22.0.1","detail":{}},{"id":"01a109b8-7827-7d57-9cfe-16ca0fb3b8c7","occurred_at":"2026-10-05T01:40:46.710Z","event_type":"admin_mutation","action":"key.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"signing_key","resource_id":"01a109b8-7825-7a6a-a1c9-43a7595d4817","request_id":"01a109b8-77eb-7a5d-86bd-2648f8c75b2a","ip":"172.22.0.1","detail":{}}]}
 ```
 
 And `?outcome=refused`, non-empty for `POST /clients`: the same
@@ -7883,11 +8118,11 @@ reserved-`client_id` row shown above, on its own —
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "resource_type=client" \
   --data-urlencode "outcome=refused" \
-  http://localhost:3082/admin/tenants/demo/audit; echo
+  http://localhost:3082/admin/tenants/audit-demo/audit; echo
 ```
 
 ```
-{"items":[{"id":"01a0ee95-ae60-72e3-8a5d-c5f9b1c33908","occurred_at":"2026-09-29T19:13:02.047Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0ee95-ae38-7a0f-a18d-797dbc8a2d06","ip":"172.22.0.1","detail":{}}]}
+{"items":[{"id":"01a109b8-77c8-7c97-8aa7-deac1a7668cf","occurred_at":"2026-10-05T01:40:46.664Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a109b8-77be-7a55-a1e9-0d79829206cc","ip":"172.22.0.1","detail":{}}]}
 ```
 
 Adding `event_type=admin_mutation` to the first query on this stack —
@@ -7901,13 +8136,11 @@ curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "event_type=admin_mutation" \
   --data-urlencode "resource_type=client" \
   --data-urlencode "action=client.create" \
-  http://localhost:3082/admin/tenants/demo/audit; echo
+  http://localhost:3082/admin/tenants/audit-demo/audit; echo
 ```
 
-Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
-
 ```
-{"items":[{"id":"01a0ee95-ae60-72e3-8a5d-c5f9b1c33908","occurred_at":"2026-09-29T19:13:02.047Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a0ee95-ae38-7a0f-a18d-797dbc8a2d06","ip":"172.22.0.1","detail":{}},{"id":"01a0ee95-ae2b-761b-9477-55bd94e8374a","occurred_at":"2026-09-29T19:13:01.912Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ae07-7eaf-83d7-bbb02a7840c4","request_id":"01a0ee95-adbb-7232-b2b2-9841c6fe75df","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"private_key_jwt"}}},{"id":"01a0ee95-adb1-78e5-a8f7-8b6c6e6526a6","occurred_at":"2026-09-29T19:13:01.658Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-ad80-7776-8fec-a430c88e186b","request_id":"01a0ee95-acb2-79b9-b44d-5c3ba2e2026d","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/callback"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
+{"items":[{"id":"01a109b8-77c8-7c97-8aa7-deac1a7668cf","occurred_at":"2026-10-05T01:40:46.664Z","event_type":"admin_mutation","action":"client.create","outcome":"refused","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"odudu-admin","request_id":"01a109b8-77be-7a55-a1e9-0d79829206cc","ip":"172.22.0.1","detail":{}},{"id":"01a109b8-77af-76a9-af36-20575e2d2b9c","occurred_at":"2026-10-05T01:40:46.628Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a109b8-77a5-71da-a011-fbe99903f2b4","request_id":"01a109b8-7799-7eb6-920d-379e0a60f39b","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-app"},"type":{"after":"public"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://app.example/callback"]},"default_max_age":{"after":null},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"none"},"id_token_signed_response_alg":{"after":null}}},{"id":"01a109b8-7782-77bc-9ca1-9d946717fefc","occurred_at":"2026-10-05T01:40:46.472Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a109b8-7778-7d05-a7d7-4bc8c614b862","request_id":"01a109b8-76fd-7d6d-a3a0-2473f5d37820","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"demo-backend"},"type":{"after":"confidential"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"default_max_age":{"after":null},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"private_key_jwt"},"id_token_signed_response_alg":{"after":null}}}]}
 ```
 
 `?event_type=token`, a vocabulary event type no admin route writes,
@@ -7944,22 +8177,20 @@ system-tenant admin (`resource-doc`) and a tenant created only for this
 subsection, `resource-audit-1790486559`, so its trail holds nothing but
 what it did: two clients, `resource-doc-a` and `resource-doc-b`.
 
-Recaptured against the tenth stack in a tenant `resource-audit`, created
-there with the same two clients by `ada-t8b2`, so the id is that run's:
+Recaptured against the twelfth stack in a tenant `resource-audit`, created
+there with the same two clients by `ada-t8c2`, so the id is that run's:
 
 ```bash
 curl -sS -G -H "Authorization: Bearer $ADMIN_TOKEN" \
   --data-urlencode "resource_type=client" \
-  --data-urlencode "resource_id=01a0ee95-daa4-70e7-b131-bb8e9e998f7d" \
+  --data-urlencode "resource_id=01a109b8-7923-7e91-a66b-30136311418b" \
   http://localhost:3082/admin/tenants/resource-audit/audit; echo
 ```
 
 Only `resource-doc-a`'s own row, not `resource-doc-b`'s:
 
-Captured before migrations `0082` to `0086`, and recaptured before P4d closes ([what that leaves out](#transcripts-that-predate-a-field)).
-
 ```
-{"items":[{"id":"01a0ee95-dab9-7f0d-ad4e-79e72240e973","occurred_at":"2026-09-29T19:13:13.327Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a0ee8a-bfb8-763c-ac22-0c8d97b0fada","actor_client_id":"01a0ee8a-bf72-77c9-a423-f61084924d9f","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a0ee95-daa4-70e7-b131-bb8e9e998f7d","request_id":"01a0ee95-da55-71b4-85f3-daf418c61c2c","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"resource-doc-a"},"type":{"after":"confidential"},"enabled":{"after":true},"jwks_uri":{"after":null},"audiences":{"after":[]},"grant_types":{"after":["authorization_code"]},"web_origins":{"after":[]},"redirect_uris":{"after":["https://a.example/cb"]},"full_scope_allowed":{"after":false},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":300},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":1209600},"token_endpoint_auth_method":{"after":"client_secret_basic"}}}]}
+{"items":[{"id":"01a109b8-792c-70bc-a0df-1cb04897ed0a","occurred_at":"2026-10-05T01:40:46.984Z","event_type":"admin_mutation","action":"client.create","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a109b4-0995-7d14-bb7f-6176df2e4d18","actor_client_id":"01a109b4-095b-7501-8dea-df1b55815aaf","actor_name":null,"actor_origin":"system","resource_type":"client","resource_id":"01a109b8-7923-7e91-a66b-30136311418b","request_id":"01a109b8-78ff-7c5c-89ef-851e27a0902e","ip":"172.22.0.1","detail":{"jwks":{"changed":true},"name":{"after":"resource-doc-a"},"type":{"after":"confidential"},"enabled":{"after":true},"tos_uri":{"after":null},"jwks_uri":{"after":null},"audiences":{"after":[]},"client_uri":{"after":null},"policy_uri":{"after":null},"description":{"after":null},"grant_types":{"after":["client_credentials"]},"web_origins":{"after":[]},"redirect_uris":{"after":[]},"default_max_age":{"after":null},"require_auth_time":{"after":false},"full_scope_allowed":{"after":false},"id_token_ttl_seconds":{"after":null},"backchannel_logout_uri":{"after":null},"frontchannel_logout_uri":{"after":null},"access_token_ttl_seconds":{"after":null},"client_credentials_scopes":{"after":[]},"post_logout_redirect_uris":{"after":[]},"refresh_token_ttl_seconds":{"after":null},"token_endpoint_auth_method":{"after":"client_secret_basic"},"id_token_signed_response_alg":{"after":null}}}]}
 ```
 
 `resource_id` alone, with no `resource_type`, is refused — a client, a
@@ -8320,7 +8551,7 @@ route above, generated from the same route table the router registers from,
 so the two cannot drift. It takes no `{tenant}` — it describes the API
 rather than reaching into one — and is served without authentication, since
 a client that cannot read it cannot generate against it. Captured against the
-tenth stack:
+twelfth stack:
 
 ```bash
 curl -sS -D - -o openapi.json http://localhost:3082/admin/openapi.json
@@ -8329,18 +8560,18 @@ jq '.paths | length' openapi.json
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a0ee9e-a5c8-76ba-a7a0-7749208ccb69
+x-request-id: 01a109c0-e764-785f-b5bd-6cbedd84c522
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 296230
-Date: Tue, 29 Sep 2026 19:22:49 GMT
+content-length: 311878
+Date: Mon, 05 Oct 2026 01:49:59 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-72
+74
 ```
 
-288 KB and 72 paths, which is the whole route table. It is the one admin
+305 KB and 74 paths, which is the whole route table. It is the one admin
 response readable from any origin, so a viewer served from another port can
 load it — the local stack's optional Swagger UI does exactly that (see
 `README.md`, "Browsing the admin API"). No admin route carries that header,
@@ -8358,7 +8589,7 @@ substring at `securitySchemes`:
 ```
 
 `security` is declared once at the top level, so every path inherits it
-rather than repeating it. `/admin/openapi.json` is not among those 72
+rather than repeating it. `/admin/openapi.json` is not among those 74
 paths: the document does not describe itself, which is why serving it
 unauthenticated does not contradict the blanket `security` above.
 
