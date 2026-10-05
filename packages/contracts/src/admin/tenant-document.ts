@@ -145,6 +145,7 @@ export type ExportedRole = z.infer<typeof exportedRoleSchema>;
 
 export const exportedGroupSchema = z.strictObject({
   path: z.string(),
+  description: z.string().nullable(),
   roles: z.array(roleReferenceSchema),
 });
 export type ExportedGroup = z.infer<typeof exportedGroupSchema>;

@@ -720,6 +720,7 @@ async function makeGroup(
       {
         tenantId,
         name,
+        description: null,
         parentId: null,
         callerCapabilities: new Set(),
         actorSubjectId: 'test',

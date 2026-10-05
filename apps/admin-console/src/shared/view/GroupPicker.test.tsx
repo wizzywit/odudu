@@ -24,6 +24,7 @@ const GROUPS: readonly Group[] = [
   {
     id: 'g1',
     name: 'engineering',
+    description: null,
     parent_id: null,
     path: '/engineering',
     created_at: '2026-09-28T13:41:05Z',
@@ -31,6 +32,7 @@ const GROUPS: readonly Group[] = [
   {
     id: 'g2',
     name: 'platform',
+    description: null,
     parent_id: 'g1',
     path: '/engineering/platform',
     created_at: '2026-09-28T13:41:05Z',

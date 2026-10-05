@@ -11,6 +11,7 @@ import {
   replacementOverreach,
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
+import { checkDescription } from '#/service/description';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { groupWireShape } from '#/service/group-wire';
 import { AMENDABLE_GROUP_FIELDS, refusalFor } from '#/service/group-patch';
@@ -140,6 +141,7 @@ export async function readGroup(
 export interface CreateGroupInput {
   readonly tenantId: string;
   readonly name: string;
+  readonly description: string | null;
   readonly parentId: string | null;
   /** The caller's own admin-client capability names — see `AmendGroupInput`'s for the same ceiling. */
   readonly callerCapabilities: ReadonlySet<string>;
@@ -200,6 +202,7 @@ export async function createGroup(
     tenantId: input.tenantId,
     name: input.name,
     parentId: input.parentId,
+    description: input.description,
   });
 
   await deps.audit(tx, {
@@ -255,7 +258,7 @@ async function lockGroupForAmend(
   return rows[0] ?? null;
 }
 
-/** `parent_id` is the only amendable field: reparenting, via `groupRepository.reparent`. */
+/** `description`, and `parent_id`: reparenting, via `groupRepository.reparent`. */
 export async function amendGroup(
   tx: TenantScopedDatabase,
   deps: AmendGroupDeps,
@@ -295,6 +298,15 @@ async function amendGroupUnguarded(
   const currentEtag = etagOf(groupWireShape(locked));
   if (matches(input.ifMatch, currentEtag) === 'mismatch') {
     return { kind: 'precondition_failed' };
+  }
+
+  let description: { value: string | null } | undefined;
+  if ('description' in input.values) {
+    const checked = checkDescription(input.values.description);
+    if (checked.kind === 'invalid') {
+      return { kind: 'invalid_value', field: 'description', description: checked.message };
+    }
+    description = { value: checked.value };
   }
 
   let parentId: string | null | undefined;
@@ -344,6 +356,9 @@ async function amendGroupUnguarded(
     }
   }
 
+  if (description !== undefined) {
+    await groupRepository(tx).setDescription(input.groupId, description.value);
+  }
   if (parentId !== undefined) {
     try {
       await groupRepository(tx).reparent(input.groupId, parentId);

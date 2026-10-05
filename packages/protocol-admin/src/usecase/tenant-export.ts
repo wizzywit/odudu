@@ -312,7 +312,7 @@ async function exportGroups(
   roleById: ReadonlyMap<string, RoleRow>,
 ): Promise<{ groups: ExportedGroup[]; pathById: Map<string, string> }> {
   const rows = await tx
-    .select({ id: groups.id, path: groups.path })
+    .select({ id: groups.id, path: groups.path, description: groups.description })
     .from(groups)
     .where(eq(groups.tenantId, tenantId));
   const mapped = await tx
@@ -321,9 +321,11 @@ async function exportGroups(
     .where(eq(groupRoles.tenantId, tenantId));
   const rolesByGroup = referencesByOwner(mapped, roleById);
   return {
-    groups: [...rows]
-      .sort(byKey((row) => row.path))
-      .map((row) => ({ path: row.path, roles: rolesByGroup.get(row.id) ?? [] })),
+    groups: [...rows].sort(byKey((row) => row.path)).map((row) => ({
+      path: row.path,
+      description: row.description,
+      roles: rolesByGroup.get(row.id) ?? [],
+    })),
     pathById: new Map(rows.map((row) => [row.id, row.path])),
   };
 }

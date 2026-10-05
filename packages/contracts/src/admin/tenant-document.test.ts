@@ -95,7 +95,9 @@ const DOCUMENT: TenantDocument = {
       composites: [{ name: 'view-users', client: 'odudu-admin' }],
     },
   ],
-  groups: [{ path: '/finance', roles: [{ name: 'billing-reader', client: null }] }],
+  groups: [
+    { path: '/finance', description: null, roles: [{ name: 'billing-reader', client: null }] },
+  ],
   scopes: [
     {
       name: 'openid',

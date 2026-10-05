@@ -170,7 +170,8 @@ no `max_age` of its own once the session is older, and `require_auth_time`
 puts `auth_time` in every ID token. `POST /admin/tenants/{tenant}/clients/{id}/secret?grace_seconds=N`
 keeps a rotated-out secret authenticating for up to a week beside the new
 one (none by default), and `odudu reap` clears it, audited, once that window
-ends. Outgoing mail goes through
+ends. Groups and roles carry a `description` bounded at `1000` too, returned
+in their list items and carried by the tenant document. Outgoing mail goes through
 `ODUDU_SMTP_HOST`, `ODUDU_SMTP_PORT` (default `587`), `ODUDU_SMTP_FROM`,
 `ODUDU_SMTP_USERNAME`, `ODUDU_SMTP_PASSWORD` and `ODUDU_SMTP_STARTTLS`;
 leave `ODUDU_SMTP_HOST` unset and the server logs every message instead of

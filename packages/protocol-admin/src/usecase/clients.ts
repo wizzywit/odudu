@@ -25,6 +25,7 @@ import { and, asc, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { redactedDiff } from '#/service/audit-detail';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
+import { checkDescription } from '#/service/description';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import {
   AMENDABLE_CLIENT_FIELDS,
@@ -822,20 +823,11 @@ function checkedStringArray(field: string, value: unknown): string[] | FieldErro
     : { field, description: `${field} must be an array of strings` };
 }
 
-// clients_description_length (0084_client_display_metadata.sql).
-const DESCRIPTION_MAX = 1000;
-
 function checkedDescription(value: unknown): string | null | FieldError {
-  if (value === null) return null;
-  if (typeof value !== 'string') {
-    return { field: 'description', description: 'description must be a string or null' };
-  }
-  return value.length > DESCRIPTION_MAX
-    ? {
-        field: 'description',
-        description: `description must be at most ${String(DESCRIPTION_MAX)} characters`,
-      }
-    : value;
+  const checked = checkDescription(value);
+  return checked.kind === 'ok'
+    ? checked.value
+    : { field: 'description', description: checked.message };
 }
 
 function checkedWebOrigins(origins: readonly string[]): string[] | FieldError {

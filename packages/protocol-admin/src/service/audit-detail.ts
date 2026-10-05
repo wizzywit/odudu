@@ -50,10 +50,12 @@ const ALLOWLISTS: Record<string, ResourceAllowlist> = {
   },
   group: {
     name: 'value',
+    description: 'value',
     parent_id: 'value',
   },
   role: {
     name: 'value',
+    description: 'value',
     default_for_new_subjects: 'value',
   },
   scope: {

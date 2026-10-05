@@ -143,6 +143,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
   'tenants.tenants_verify_email_ttl_range':
     'CHECK (((verify_email_ttl_seconds >= 60) AND (verify_email_ttl_seconds <= 604800)))',
   'clients.clients_description_length': 'CHECK ((char_length(description) <= 1000))',
+  'groups.groups_description_length': 'CHECK ((char_length(description) <= 1000))',
+  'roles.roles_description_length': 'CHECK ((char_length(description) <= 1000))',
   'client_oidc_config.client_oidc_config_id_token_alg_check':
     "CHECK ((id_token_signed_response_alg = ANY (ARRAY['RS256'::text, 'ES256'::text])))",
   'client_oidc_config.client_oidc_config_default_max_age_range': 'CHECK ((default_max_age >= 0))',

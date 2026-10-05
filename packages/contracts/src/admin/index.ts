@@ -10,6 +10,7 @@ export {
   idSchema,
   createdAtSchema,
   etagSchema,
+  DESCRIPTION_MAX,
 } from '#/admin/shared';
 export {
   listAuditQuerySchema,

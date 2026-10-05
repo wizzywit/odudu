@@ -12,6 +12,7 @@ function toRecord(row: typeof groups.$inferSelect): GroupRecord {
     tenantId: row.tenantId,
     parentId: row.parentId,
     name: row.name,
+    description: row.description,
     path: row.path,
     createdAt: row.createdAt,
   };
@@ -21,6 +22,7 @@ export interface NewGroup {
   tenantId: string;
   name: string;
   parentId: string | null;
+  description?: string | null;
 }
 
 async function findById(tx: TenantScopedDatabase, groupId: string): Promise<GroupRecord | null> {
@@ -147,6 +149,7 @@ export function groupRepository(tx: TenantScopedDatabase) {
           tenantId: input.tenantId,
           parentId: input.parentId,
           name: input.name,
+          description: input.description ?? null,
           path,
         })
         .returning();
@@ -155,6 +158,17 @@ export function groupRepository(tx: TenantScopedDatabase) {
         throw new OduduError('insert_returned_no_row', 'insert into groups returned no row');
       }
       return toRecord(row);
+    },
+
+    async setDescription(groupId: string, description: string | null): Promise<void> {
+      const rows = await tx
+        .update(groups)
+        .set({ description })
+        .where(eq(groups.id, groupId))
+        .returning({ id: groups.id });
+      if (rows.length === 0) {
+        throw new OduduError('group_not_found', `no group with id ${groupId}`);
+      }
     },
 
     async byPath(path: string): Promise<GroupRecord | null> {

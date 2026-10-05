@@ -941,7 +941,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: groupSchema,
     bodySchema: amendGroupRequestSchema,
     description:
-      'Reparents the group. Refused with `403` when the new parent\u2019s chain, or the old ' +
+      'Amends `description` (at most 1000 characters, `null` to clear) and reparents the group. ' +
+      'A reparent is refused with `403` when the new parent\u2019s chain, or the old ' +
       'one it leaves, reaches an admin capability the caller does not hold.' +
       LAST_ADMINISTRATOR,
   },

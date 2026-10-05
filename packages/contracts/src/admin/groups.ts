@@ -1,10 +1,17 @@
 import { z } from 'zod';
 import { roleAssignmentSchema } from '#/admin/subjects';
-import { createdAtSchema, cursorQuerySchema, idSchema, searchPrefixSchema } from '#/admin/shared';
+import {
+  createdAtSchema,
+  cursorQuerySchema,
+  descriptionSchema,
+  idSchema,
+  searchPrefixSchema,
+} from '#/admin/shared';
 
 export const groupSchema = z.object({
   id: idSchema,
   name: z.string(),
+  description: z.string().nullable(),
   parent_id: idSchema.nullable(),
   path: z.string(),
   created_at: createdAtSchema,
@@ -32,14 +39,15 @@ export type ListGroupsResponse = z.infer<typeof listGroupsResponseSchema>;
 
 export const createGroupRequestSchema = z.object({
   name: z.string().min(1),
+  description: descriptionSchema.nullable().optional(),
   parent_id: idSchema.nullable().optional(),
 });
 export type CreateGroupRequest = z.infer<typeof createGroupRequestSchema>;
 
-// `parent_id` is the only field a general amendment reaches: reparenting,
-// through groupRepository.reparent, which is what recomputes `path` for
-// the group and every descendant and refuses a cycle. `name` is never
-// amended, by ADR 0039, and `path` follows from it and the parent.
+// A general amendment reaches `description`, and `parent_id` through
+// groupRepository.reparent, which is what recomputes `path` for the group
+// and every descendant and refuses a cycle. `name` is never amended, by
+// ADR 0039, and `path` follows from it and the parent.
 export const amendGroupRequestSchema = z.record(z.string(), z.unknown());
 export type AmendGroupRequest = z.infer<typeof amendGroupRequestSchema>;
 

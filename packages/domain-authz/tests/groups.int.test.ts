@@ -661,3 +661,40 @@ describe('setSubjectGroups', () => {
     });
   });
 });
+
+describe('setDescription', () => {
+  it('writes and clears a group’s description', async () => {
+    const tenant = await tenantFixture();
+    const group = await tenant.createGroup('engineering', null);
+    const read = async () =>
+      withTenant(app.db, tenant.tenantId, async (tx) => {
+        await groupRepository(tx).setDescription(group.id, 'Builds things');
+        const set = (await groupRepository(tx).byId(group.id))?.description;
+        await groupRepository(tx).setDescription(group.id, null);
+        return [set, (await groupRepository(tx).byId(group.id))?.description];
+      });
+    expect(await read()).toEqual(['Builds things', null]);
+  });
+
+  it('does not reach another tenant’s group', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return groupRepository(tx).create({ tenantId, name: 'engineering', parentId: null });
+      },
+      verifySeeded: async (tx, group) => {
+        expect(await groupRepository(tx).byId(group.id)).not.toBeNull();
+      },
+      attempt: async (tx, group) =>
+        groupRepository(tx)
+          .setDescription(group.id, 'foreign')
+          .then(
+            () => 'written',
+            (error: unknown) => (error instanceof Error ? error.message : 'unknown'),
+          ),
+      expectBlocked: (result) => {
+        expect(result).toMatch(/no group with id/);
+      },
+    });
+  });
+});

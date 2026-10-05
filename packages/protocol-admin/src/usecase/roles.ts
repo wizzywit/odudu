@@ -6,6 +6,7 @@ import { isUuid, OduduError } from '@odudu/kernel';
 import { and, asc, eq, gt, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { redactedDiff } from '#/service/audit-detail';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
+import { checkDescription } from '#/service/description';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { etagOf, matches } from '#/service/etag';
 import { AMENDABLE_ROLE_FIELDS, refusalFor } from '#/service/role-patch';
@@ -332,15 +333,11 @@ export async function amendRole(
   // `patch`, never `input.values` again.
   const patch: RolePatchInput = {};
   if ('description' in input.values) {
-    const value = input.values.description;
-    if (value !== null && typeof value !== 'string') {
-      return {
-        kind: 'invalid_value',
-        field: 'description',
-        description: 'description must be a string or null',
-      };
+    const checked = checkDescription(input.values.description);
+    if (checked.kind === 'invalid') {
+      return { kind: 'invalid_value', field: 'description', description: checked.message };
     }
-    patch.description = { value };
+    patch.description = { value: checked.value };
   }
 
   if (patch.description !== undefined) {

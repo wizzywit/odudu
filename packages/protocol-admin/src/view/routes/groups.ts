@@ -131,6 +131,7 @@ export function createGroupHandler(deps: GroupsRouteDeps): AdminRouteHandler {
           {
             tenantId: targetTenantId,
             name: body.name,
+            description: body.description ?? null,
             parentId: body.parent_id ?? null,
             callerCapabilities,
             actorSubjectId: principal.subjectId,

@@ -737,12 +737,16 @@ describe('POST /admin/tenant-imports', () => {
     const source = await seededSource();
     const token = await operatorToken();
     const document = await exportOf(token, source.name);
-    const padded = {
-      ...document,
-      roles: document.roles.map((role) =>
-        role.name === 'billing-reader' ? { ...role, description: 'x'.repeat(1_100_000) } : role,
-      ),
-    };
+    // A description is bounded, so the bulk is many roles, each at the bound.
+    const padding = Array.from({ length: 1_100 }, (_, index) => ({
+      name: `padding-${String(index)}`,
+      client: null,
+      description: 'x'.repeat(1_000),
+      default_for_new_subjects: false,
+      builtin: false,
+      composites: [],
+    }));
+    const padded = { ...document, roles: [...document.roles, ...padding] };
 
     const res = await postImport(token, { name: `import-${newId()}`, document: padded });
 

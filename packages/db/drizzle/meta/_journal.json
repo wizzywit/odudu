@@ -610,6 +610,13 @@
       "when": 1789049381729,
       "tag": "0086_client_previous_secret",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1789049381730,
+      "tag": "0087_group_role_descriptions",
+      "breakpoints": true
     }
   ]
 }

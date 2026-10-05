@@ -24,6 +24,7 @@ import {
   parseClientMetadata,
   type ClientMetadata,
 } from '@odudu/protocol-oidc';
+import { checkDescription } from '#/service/description';
 import { fieldPath } from '#/service/field-path';
 import { validateFlowSteps } from '#/service/flow-validation';
 import { CLAIM_KEY, PHONE_E164_MESSAGE, shapeInvalidityFor } from '#/usecase/profile';
@@ -211,6 +212,7 @@ function roleProblems(document: TenantDocument, graph: RoleGraph, problems: Prob
     if (!role.builtin && (role.name === '' || role.name.includes(':'))) {
       problems.add(`${path}.name`, 'a role name is not empty and holds no colon');
     }
+    descriptionProblem(role.description, `${path}.description`, problems);
     role.composites.forEach((child, childIndex) => {
       if (!graph.has(child)) {
         problems.add(
@@ -280,8 +282,14 @@ function groupProblems(document: TenantDocument, graph: RoleGraph, problems: Pro
         problems.add(`${path}.path`, `its parent ${parent} is not in the document`);
       }
     }
+    descriptionProblem(group.description, `${path}.description`, problems);
     referenceProblems(group.roles, `${path}.roles`, graph, problems);
   });
+}
+
+function descriptionProblem(value: string | null, path: string, problems: Problems): void {
+  const checked = checkDescription(value);
+  if (checked.kind === 'invalid') problems.add(path, checked.message);
 }
 
 function scopeProblems(

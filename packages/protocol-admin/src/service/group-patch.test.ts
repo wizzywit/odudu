@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { AMENDABLE_GROUP_FIELDS, GROUP_FIELDS, refusalFor } from '#/service/group-patch';
 
 describe('the group amendment allowlist', () => {
-  it('admits only parent_id', () => {
-    expect(AMENDABLE_GROUP_FIELDS).toEqual(['parent_id']);
+  it('admits only description and parent_id', () => {
+    expect(AMENDABLE_GROUP_FIELDS).toEqual(['description', 'parent_id']);
   });
 
   it('refuses identity, structure and history, each with a reason', () => {

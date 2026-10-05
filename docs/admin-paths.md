@@ -5576,7 +5576,8 @@ readable with `view-users` (below). A role is either a tenant role
 (`client_id` is `null`) or scoped to one client, in which case a token's
 `roles` claim carries it qualified by that client's own name rather than
 plain — `packages/domain-authz/src/service/role-name.ts` has the format.
-`PATCH` amends only `description`; every other field, `name`,
+`PATCH` amends only `description` — at most 1000 characters, a CHECK
+holds it there, and `null` clears it; every other field, `name`,
 `client_id` and `default_for_new_subjects` included, is refused with a
 reason — the last naming `PUT /roles/:id/default`, which is where it is
 set — the same shape `PATCH /subjects/:id` refuses `id`, `type` and
@@ -6275,9 +6276,11 @@ All five require `manage-tenant`; the list, `GET /groups`, is also
 readable with `view-users` (below). `path` is derived, never accepted: a root
 group's is `/name`, a child's is its parent's with `/name` appended, and
 `groupRepository` (`packages/domain-authz/src/repository/groups.ts`) is the
-only writer of it. `PATCH` amends only `parent_id` — reparenting, which
-recomputes `path` for the group and every descendant — every other field
-is refused with a reason. A `parent_id` naming no group answers `400`, the
+only writer of it. A group carries a `description`, as a role does: at
+most 1000 characters on `POST` and `PATCH`, `null` to clear, exported and
+imported with the group. `PATCH` amends `description` and `parent_id` —
+reparenting, which recomputes `path` for the group and every descendant —
+and every other field is refused with a reason. A `parent_id` naming no group answers `400`, the
 same refusal `POST /groups` gives for the same input. Reparenting into the
 group's own subtree answers `409` (`group_reparent_cycle`), the same way a
 role composite's cycle does.

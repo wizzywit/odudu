@@ -255,6 +255,7 @@ async function writeGroups(
       tenantId,
       name: group.path.slice(cut + 1),
       parentId: parentPath === '' ? null : required(groupIds, parentPath, 'group'),
+      description: group.description,
     });
     groupIds.set(group.path, created.id);
     await groups.setRoles(created.id, roleIdsOf(roleIds, group.roles));

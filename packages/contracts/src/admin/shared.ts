@@ -52,3 +52,8 @@ export const idSchema = z.string();
 export const dateTimeSchema = z.string();
 export const createdAtSchema = dateTimeSchema;
 export const etagSchema = z.string();
+
+/** The longest description a group, role or client holds, by its CHECK. */
+export const DESCRIPTION_MAX = 1000;
+
+export const descriptionSchema = z.string().min(1).max(DESCRIPTION_MAX);

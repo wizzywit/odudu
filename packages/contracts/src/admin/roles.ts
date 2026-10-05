@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { createdAtSchema, cursorQuerySchema, idSchema, searchPrefixSchema } from '#/admin/shared';
+import {
+  createdAtSchema,
+  cursorQuerySchema,
+  descriptionSchema,
+  idSchema,
+  searchPrefixSchema,
+} from '#/admin/shared';
 
 // `client_id` null means a tenant role; non-null means one scoped to that
 // client, whose qualified name (packages/domain-authz's qualifiedRoleName)
@@ -37,7 +43,7 @@ export type ListRolesResponse = z.infer<typeof listRolesResponseSchema>;
 
 export const createRoleRequestSchema = z.object({
   name: z.string().min(1),
-  description: z.string().min(1).nullable().optional(),
+  description: descriptionSchema.nullable().optional(),
   client_id: idSchema.optional(),
   default_for_new_subjects: z.boolean().optional(),
 });

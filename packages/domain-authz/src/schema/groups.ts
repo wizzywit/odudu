@@ -12,6 +12,7 @@ export const groups = pgTable('groups', {
     .references(() => tenants.id, { onDelete: 'cascade' }),
   parentId: uuid('parent_id'),
   name: text('name').notNull(),
+  description: text('description'),
   // Denormalized and maintained only by groupRepository: `/engineering` for
   // a root group, `/engineering/platform` for its child. Read, never
   // derived, so a group's ancestry is one column away rather than a
@@ -28,6 +29,7 @@ export interface GroupRecord {
   tenantId: string;
   parentId: string | null;
   name: string;
+  description: string | null;
   path: string;
   createdAt: Date;
 }
