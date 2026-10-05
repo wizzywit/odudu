@@ -101,7 +101,7 @@ describe("the console's view tests", { timeout: 60_000 }, () => {
 
   it('exist beside every view', async () => {
     const views = await read(CONSOLE_SRC, VIEWS);
-    expect([...views.keys()]).toContain('features/session/view/SignIn.tsx');
+    expect([...views.keys()]).toContain('features/session/view/SignIn/SignIn.tsx');
     expect(await untested(CONSOLE_SRC)).toEqual([]);
   });
 
