@@ -12,6 +12,7 @@ import {
 import { requestContextFrom, type RequestContext } from '@odudu/domain-audit';
 import { type RenderedPage } from '@odudu/kernel';
 import { type FastifyReply } from 'fastify';
+import { renderAuthorizeErrorPage } from '#/view/authorize-html';
 import { sendHtml } from '#/view/html-response';
 import { continuing, type ContinuationDeps } from '#/view/routes/continuation';
 
@@ -22,6 +23,7 @@ import { continuing, type ContinuationDeps } from '#/view/routes/continuation';
 // repository's `TenantLookup` — the view layer never imports repository
 // (CLAUDE.md's layering table), and only `id` is read here.
 export interface RequiredActionResponseDeps extends ContinuationDeps {
+  authenticatedSubject(tenantId: string, authSessionId: string): Promise<string | null>;
   beginTotpEnrolment(
     tenantName: string,
     tenantId: string,
@@ -64,6 +66,18 @@ export async function sendRequiredActionPage(
   if (action === 'generate-recovery-codes') {
     const tenant = await deps.findTenant(tenantName);
     if (tenant !== null) {
+      // The page replaces the subject's codes as it renders, so a session
+      // the flow does not yet count as finished must not reach it.
+      if ((await deps.authenticatedSubject(tenant.id, authSessionId)) !== subjectId) {
+        return sendHtml(
+          reply,
+          400,
+          renderAuthorizeErrorPage(
+            'invalid_request',
+            'This sign-in attempt is no longer valid. Go back and start again.',
+          ),
+        );
+      }
       const offer = await deps.beginRecoveryCodes(
         tenant.id,
         subjectId,

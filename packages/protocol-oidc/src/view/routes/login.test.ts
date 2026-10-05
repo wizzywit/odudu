@@ -42,6 +42,7 @@ function deps(): LoginRouteDeps {
     advance: vi
       .fn()
       .mockResolvedValue({ kind: 'success', subjectId: 'subject-1', authenticators: ['password'] }),
+    authenticatedSubject: vi.fn().mockResolvedValue('subject-1'),
     loadPendingRequest: vi.fn().mockResolvedValue(PENDING),
     resolveClientId: vi.fn().mockResolvedValue('client-uuid-1'),
     checkEmailVerification: vi.fn().mockResolvedValue({ verified: true, hasEmail: true }),

@@ -204,6 +204,9 @@ export type CompleteLoginOutcome =
   // request, or by one that raced this one to the same UPDATE — so nothing
   // was established or issued.
   | { kind: 'already_consumed' }
+  // The subject was disabled after the factors that identified them ran,
+  // so a login parked behind a consent or a required action must not finish.
+  | { kind: 'subject_disabled' }
   // `entry` is the freshly established session's, carrying the only copy of
   // its secret; null when a reused session was touched instead.
   | { kind: 'issued'; sessionId: string; code: string; entry: SessionEntry | null };
@@ -478,7 +481,7 @@ export async function completeAuthorizedLogin(
   // a retried POST — reaches here after everything upstream succeeds again;
   // completeLogin's atomic consume is what stops it from minting a second
   // SSO session and a second code for the same parked request.
-  if (completed.kind === 'already_consumed') {
+  if (completed.kind === 'already_consumed' || completed.kind === 'subject_disabled') {
     return { kind: 'unauthenticated' };
   }
   const { sessionId, code, entry: issued } = completed;

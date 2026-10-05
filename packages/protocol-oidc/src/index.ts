@@ -15,6 +15,7 @@ import {
   initialChallenge,
   loadPendingRequest,
   markSessionAuthenticated,
+  authenticatorsSatisfyFlow,
   pendingChallenge,
   pendingSession,
   readSessionEntries,
@@ -271,6 +272,11 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // read by /authorize's reuse check, by login and consent to grow the
     // set with a fresh login, and by logout's membership check — never
     // trusted for anything but that lookup.
+    const authenticatedSubjectOf = (tenantId: string, authSessionId: string) =>
+      withTenant(deps.database.db, tenantId, (tx) =>
+        authenticatedSubject(tx, authSessionId, clock),
+      );
+
     const resolveSessions = (
       tenant: {
         id: string;
@@ -369,6 +375,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         input.tenantId,
         async (tx) => {
           const now = clock.now();
+          if (!subjectIsEnabled(await subjectRepository(tx).byId(input.subjectId))) {
+            return { kind: 'subject_disabled' };
+          }
           const consumed = await consumeAuthenticationSession(tx, input.authSessionId, clock);
           if (!consumed) return { kind: 'already_consumed' };
 
@@ -624,6 +633,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         withTenant(deps.database.db, tenantId, (tx) => initialChallenge(tx, tenantId)),
       now: () => clock.now(),
       resolveSessions,
+      authenticatedSubject: authenticatedSubjectOf,
       checkEmailVerification,
       pendingActions,
       beginTotpEnrolment: startTotpEnrolment,
@@ -657,6 +667,10 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       // gate and decideConsentGate's 'ask' branch both need to park the
       // request on and render a page against, with no factor actually
       // running.
+      sessionMeetsFlow: (tenantId, subjectId, authenticators) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
+          authenticatorsSatisfyFlow(tx, tenantId, subjectId, authenticators),
+        ),
       markAuthenticated: (tenantId, authSessionId, subjectId, authenticators) =>
         withTenant(deps.database.db, tenantId, (tx) =>
           markSessionAuthenticated(tx, authSessionId, subjectId, authenticators, clock),
@@ -692,6 +706,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     // which resumes the same parked login through the same gates.
     const loginSubmission = {
       findTenant,
+      authenticatedSubject: authenticatedSubjectOf,
       tls,
       ...passkeyLogin,
       beginTotpEnrolment: startTotpEnrolment,
@@ -736,10 +751,6 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     registerRequiredActionRoute(app, {
       ...loginSubmission,
       ...passkeySubmission,
-      authenticatedSubject: (tenantId, authSessionId) =>
-        withTenant(deps.database.db, tenantId, (tx) =>
-          authenticatedSubject(tx, authSessionId, clock),
-        ),
       completeTotpEnrolment: (input, request) =>
         withTenant(
           deps.database.db,
@@ -761,6 +772,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     registerConsentRoute(app, {
       findTenant,
       tls,
+      authenticatedSubject: authenticatedSubjectOf,
       authenticatedSession: (tenantId, authSessionId) =>
         withTenant(deps.database.db, tenantId, (tx) =>
           authenticatedSession(tx, authSessionId, clock),

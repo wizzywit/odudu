@@ -979,15 +979,30 @@ export async function authenticatedSession(
   if (record === null || !sessionIsLive(record, clock.now())) return null;
   if (record.authenticatedAt === null) return null;
   if (record.subjectId === null) return null;
-  const satisfied = new Set(record.satisfied);
-  const { steps } = await loadSteps(tx, record.tenantId, {
-    subjectId: record.subjectId,
+  if (!(await authenticatorsSatisfyFlow(tx, record.tenantId, record.subjectId, record.satisfied))) {
+    return null;
+  }
+  return { subjectId: record.subjectId, authenticators: record.satisfied };
+}
+
+// Whether `authenticators` leave the subject nothing to pass under the flow
+// as it stands now. The reuse path asks it of a reused SSO session's `amr`
+// before promoting that session, for the reason authenticatedSession asks it
+// of a parked one.
+export async function authenticatorsSatisfyFlow(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  subjectId: string,
+  authenticators: readonly string[],
+): Promise<boolean> {
+  const satisfied = new Set(authenticators);
+  const { steps } = await loadSteps(tx, tenantId, {
+    subjectId,
     satisfied,
     assertionOffered: false,
     recoveryCodeOffered: false,
   });
-  if (nextStep(steps, { satisfied }).kind !== 'complete') return null;
-  return { subjectId: record.subjectId, authenticators: record.satisfied };
+  return nextStep(steps, { satisfied }).kind === 'complete';
 }
 
 export async function authenticatedSubject(

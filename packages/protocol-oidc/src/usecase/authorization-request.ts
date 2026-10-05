@@ -183,6 +183,14 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // issueAuthorizationCode the form path uses, wrapped with the touch in
   // one transaction the way completeLogin wraps its own two writes.
   completeReuse(input: CompleteReuseInput): Promise<{ code: string }>;
+  // Whether `authenticators` leave `subjectId` nothing to pass under the
+  // flow as it stands now. A reused session that does not is not reused:
+  // the login form asks for what it lacks, as `prompt=login` does.
+  sessionMeetsFlow(
+    tenantId: string,
+    subjectId: string,
+    authenticators: readonly string[],
+  ): Promise<boolean>;
   // Starts a fresh authentication session already bound and authenticated
   // for `subjectId`, with `authenticators` as its satisfied set — the
   // reuse path's way of giving a consent decision something to park the
@@ -411,11 +419,21 @@ export async function handleAuthorizationRequest(
 
   if (decision.kind === 'refuse') return reject(decision.error);
 
-  if (decision.kind === 'reuse') {
-    const resolvedSession = resolvedSessions.find((s) => s.id === decision.sessionId);
-    if (resolvedSession === undefined) {
-      throw new Error('unreachable: decideReuse reused a session outside the resolved set');
-    }
+  const reusedSession =
+    decision.kind === 'reuse'
+      ? resolvedSessions.find((s) => s.id === decision.sessionId)
+      : undefined;
+  if (decision.kind === 'reuse' && reusedSession === undefined) {
+    throw new Error('unreachable: decideReuse reused a session outside the resolved set');
+  }
+  const reuseIsStale =
+    decision.kind === 'reuse' &&
+    reusedSession !== undefined &&
+    !(await deps.sessionMeetsFlow(tenant.id, decision.subjectId, reusedSession.authenticators));
+  if (reuseIsStale && outcome.prompts.has('none')) return reject('login_required');
+
+  if (decision.kind === 'reuse' && reusedSession !== undefined && !reuseIsStale) {
+    const resolvedSession = reusedSession;
     if (resolved.client === null) {
       throw new Error('unreachable: validateAuthorizationRequest succeeded with a null client');
     }
@@ -641,7 +659,10 @@ export async function handleSelectAccountSubmission(
     return { kind: 'unauthenticated' };
   }
 
-  if (answer.useOther) {
+  // The same parked authentication session, not a fresh one: nobody was
+  // ever bound to it, so the ordinary login form resumes it exactly as if
+  // it had rendered that form to begin with.
+  const startedLogin = async (): Promise<SelectAccountOutcome> => {
     const initial = await deps.initialChallenge(tenant.id);
     if (initial.kind !== 'challenge') {
       if (initial.kind === 'success') {
@@ -654,9 +675,6 @@ export async function handleSelectAccountSubmission(
         state: pending.state,
       };
     }
-    // The same parked authentication session, not a fresh one: nobody was
-    // ever bound to it, so the ordinary login form resumes it exactly as if
-    // it had rendered that form to begin with.
     return {
       kind: 'started',
       authSessionId,
@@ -664,7 +682,9 @@ export async function handleSelectAccountSubmission(
       rememberMeAllowed: tenant.rememberMeAllowed,
       loginWithEmail: tenant.loginWithEmail,
     };
-  }
+  };
+
+  if (answer.useOther) return startedLogin();
 
   const tenantShape = {
     id: tenant.id,
@@ -715,6 +735,10 @@ export async function handleSelectAccountSubmission(
     chosen.subjectId,
   );
   if (refusal !== null) return reject('login_required');
+
+  if (!(await deps.sessionMeetsFlow(tenant.id, chosen.subjectId, chosen.authenticators))) {
+    return startedLogin();
+  }
 
   const action = nextRequiredAction(await deps.pendingActions(tenant.id, chosen.subjectId));
   if (action !== null) {

@@ -15,6 +15,7 @@ export {
   pendingSession,
   advance,
   authenticatedSession,
+  authenticatorsSatisfyFlow,
   authenticatedSubject,
   markSessionAuthenticated,
   initialChallenge,
