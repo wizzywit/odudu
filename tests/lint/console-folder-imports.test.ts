@@ -8,24 +8,42 @@ import { describe, expect, it } from 'vitest';
 // An import names neither an index.ts nor a file inside another component's
 // folder, so what a folder keeps private stays private. A folder's own files
 // reach each other by path, since relative imports are banned and its index
-// cannot import itself. A test may read a sibling's stylesheet source.
+// cannot import itself. A test may read a sibling's stylesheet source, as
+// `.module.css?raw`. Dynamic import() and vi.mock are held to the same rules.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const CONSOLE_SOURCES = 'apps/admin-console/src/**/*.{ts,tsx}';
 const FIXTURES = 'tests/lint/fixtures/console-folder-imports';
 const COMPONENT_FOLDER = /^#\/((?:shared|features\/[^/]+)\/view\/[A-Z][A-Za-z0-9]*)\/./u;
 
+const MOCKS = new Set(['mock', 'doMock', 'importActual', 'importMock']);
+
+// Static imports and exports, a dynamic import(), and vi.mock and its kin.
 function specifiers(file: ts.SourceFile): { text: string; node: ts.Node }[] {
   const found: { text: string; node: ts.Node }[] = [];
-  for (const statement of file.statements) {
+  const visit = (node: ts.Node): void => {
     if (
-      (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
-      statement.moduleSpecifier !== undefined &&
-      ts.isStringLiteral(statement.moduleSpecifier)
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier !== undefined &&
+      ts.isStringLiteral(node.moduleSpecifier)
     ) {
-      found.push({ text: statement.moduleSpecifier.text, node: statement });
+      found.push({ text: node.moduleSpecifier.text, node });
     }
-  }
+    if (ts.isCallExpression(node)) {
+      const [first] = node.arguments;
+      const callee = node.expression;
+      const loads =
+        callee.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isPropertyAccessExpression(callee) &&
+          callee.expression.getText() === 'vi' &&
+          MOCKS.has(callee.name.text));
+      if (loads && first !== undefined && ts.isStringLiteral(first)) {
+        found.push({ text: first.text, node });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
   return found;
 }
 
@@ -33,14 +51,17 @@ function specifiers(file: ts.SourceFile): { text: string; node: ts.Node }[] {
 export function violations(inside: string, source: string): string[] {
   const kind = inside.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const file = ts.createSourceFile(inside, source, ts.ScriptTarget.Latest, true, kind);
-  const isTest = /\.test\.tsx?$/u.test(inside);
   const found: string[] = [];
   for (const { text, node } of specifiers(file)) {
     const { line } = file.getLineAndCharacterOfPosition(node.getStart());
     const at = String(line + 1);
     if (/\/index(?:\.ts)?$/u.test(text)) found.push(`${at}: ${text} names an index.ts`);
     const folder = COMPONENT_FOLDER.exec(text)?.[1];
-    if (folder !== undefined && !isTest && !inside.startsWith(`${folder}/`)) {
+    if (
+      folder !== undefined &&
+      !text.endsWith('.module.css?raw') &&
+      !inside.startsWith(`${folder}/`)
+    ) {
       found.push(`${at}: ${text} is inside another component's folder`);
     }
   }
@@ -74,7 +95,7 @@ describe("the console's folder imports", { timeout: 60_000 }, () => {
 
   it('fail every non-conforming fixture', async () => {
     const files = await read(`${FIXTURES}/fail/src/**/*.{ts,tsx}`, /^.*\/fail\/src\//u);
-    expect(files.size).toBe(3);
+    expect(files.size).toBe(6);
     for (const [file, source] of files) expect(violations(file, source), file).not.toEqual([]);
   });
 });

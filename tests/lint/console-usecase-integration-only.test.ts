@@ -53,8 +53,39 @@ function isDeveloperText(node: ts.Node): boolean {
   return false;
 }
 
+// `x.status`, or a `status` taken out of the result.
 function isStatus(node: ts.Expression): boolean {
-  return ts.isPropertyAccessExpression(node) && node.name.text === 'status';
+  return (
+    (ts.isPropertyAccessExpression(node) && node.name.text === 'status') ||
+    (ts.isIdentifier(node) && node.text === 'status')
+  );
+}
+
+function numbers(node: ts.Expression): boolean {
+  return (
+    ts.isArrayLiteralExpression(node) &&
+    node.elements.length > 0 &&
+    node.elements.every(
+      (element) =>
+        ts.isNumericLiteral(element) && Number(element.text) >= 100 && Number(element.text) <= 599,
+    )
+  );
+}
+
+// HTTP-status arrays: `[403, 412].includes(x)` and `new Set([403, 412]).has(x)`.
+function isNumberMembership(node: ts.CallExpression): boolean {
+  const callee = node.expression;
+  if (!ts.isPropertyAccessExpression(callee)) return false;
+  const receiver = callee.expression;
+  if (callee.name.text === 'includes') return numbers(receiver);
+  const [members] = ts.isNewExpression(receiver) ? (receiver.arguments ?? []) : [];
+  return (
+    callee.name.text === 'has' &&
+    ts.isNewExpression(receiver) &&
+    receiver.expression.getText() === 'Set' &&
+    members !== undefined &&
+    numbers(members)
+  );
 }
 
 function isNumber(node: ts.Expression): boolean {
@@ -104,6 +135,7 @@ export function violations(fileName: string, source: string, layer: Layer): stri
         report(node, 'status');
       }
     }
+    if (ts.isCallExpression(node) && isNumberMembership(node)) report(node, 'status');
     ts.forEachChild(node, visit);
   };
   visit(file);
@@ -181,6 +213,21 @@ describe('the console usecases and repositories that are clean', { timeout: 60_0
       expect(layer, file).not.toBeNull();
       expect(violations(file, source, layer ?? 'usecase'), file).toEqual([]);
     }
+  });
+
+  it('sees a status however it is spelled', () => {
+    const forms = [
+      'const refused = (r: { status: number }) => r.status === 403;',
+      'export function useA(status: number) { return status !== 412; }',
+      'export function useB(status: number) { return [403, 412].includes(status); }',
+      'export function useC(status: number) { return new Set([403, 412]).has(status); }',
+    ];
+    for (const form of forms) {
+      expect(violations('a/repository/x.ts', form, 'repository'), form).toEqual(['1: status']);
+    }
+    expect(
+      violations('a/repository/x.ts', 'export const a = [1, 2].includes(3);', 'repository'),
+    ).toEqual([]);
   });
 
   it('fail every non-conforming fixture, for the rule it is named after', async () => {
