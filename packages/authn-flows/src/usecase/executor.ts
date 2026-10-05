@@ -779,6 +779,16 @@ async function recordSettled(
 // `AuthenticatorResult`, this names every authenticator the login actually
 // used, in the order it ran, because that is the record `establishSession`
 // needs to carry forward onto the session (see its own doc comment).
+function carriesCredential(input: AdvanceInput): boolean {
+  return (
+    input.username !== undefined ||
+    input.password !== undefined ||
+    input.code !== undefined ||
+    input.recoveryCode !== undefined ||
+    input.assertion !== undefined
+  );
+}
+
 export type AdvanceOutcome =
   | { kind: 'success'; subjectId: string; authenticators: string[] }
   | { kind: 'challenge'; form: string }
@@ -803,13 +813,29 @@ export async function advance(
     options.logger,
   );
 
-  const dispatched = await dispatchNext(registry, steps, satisfied, input);
+  let dispatched = await dispatchNext(registry, steps, satisfied, input);
+  // Every step the flow requires of the bound subject, as it stands now, is
+  // satisfied in this attempt. With nothing submitted that is a finished
+  // required action resuming the login. A submission still runs from the
+  // first step, so whoever answers it passes the subject guard below.
+  if (dispatched.kind === 'complete' && record.subjectId !== null) {
+    if (!carriesCredential(input)) {
+      await authenticationSessionRepository(tx).recordAuthenticated(authSessionId, clock.now());
+      return { kind: 'success', subjectId: record.subjectId, authenticators: record.satisfied };
+    }
+    dispatched = await dispatchNext(registry, steps, new Set(), input);
+  }
   if (dispatched.kind !== 'ran') {
     return { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
   }
 
   const { authenticator, result } = dispatched;
-  if (result.kind === 'challenge') return result;
+  if (result.kind === 'challenge') {
+    // A step this attempt has not satisfied applies to its subject, so the
+    // attempt is not finished, whatever an earlier one recorded.
+    await authenticationSessionRepository(tx).recordAuthenticated(authSessionId, null);
+    return result;
+  }
   if (result.kind === 'failure') {
     const refused = result.audit ?? { reason: 'bad_credential', subjectId: record.subjectId };
     await audit.refused(authenticator, refused.subjectId, refused.reason, refused.lockoutTripped);
@@ -860,14 +886,7 @@ export async function advance(
   // its completion waits for the change.
   await recordPasswordExpiryIfOwed(tx, record.tenantId, subjectId, facts.passwordMaxAgeDays, clock);
 
-  // Whether this login is done, or a further factor remains, decided
-  // before `satisfied` is written: two outcomes downstream of this function
-  // (an id_token_hint naming a different subject, an unverified email)
-  // leave the session unconsumed on purpose so the same session can retry
-  // — and a retry has to re-run this authenticator exactly as the first
-  // attempt did, not find it already satisfied. Persisting is therefore
-  // only for a factor that has more work left after it, never for the one
-  // that finishes the login.
+  await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
   const forSubject = bindRegistry(tx, {
     tenantId: record.tenantId,
     subjectId,
@@ -881,14 +900,14 @@ export async function advance(
 
   let outcome: AdvanceOutcome;
   if (after.kind === 'ran') {
-    await authenticationSessionRepository(tx).recordSatisfied(authSessionId, authenticator);
     const settled = await settle(after.result, subjectId);
     await recordSettled(audit, after.authenticator, settled, subjectId);
     if (settled.kind === 'success') {
+      await authenticationSessionRepository(tx).recordSatisfied(authSessionId, after.authenticator);
       outcome = {
         kind: 'success',
         subjectId: settled.subjectId,
-        authenticators: [...record.satisfied, authenticator, after.authenticator],
+        authenticators: [...new Set([...record.satisfied, authenticator, after.authenticator])],
       };
     } else if (settled.kind === 'failure') {
       outcome = { kind: 'failure', reason: settled.reason };
@@ -898,7 +917,11 @@ export async function advance(
   } else if (after.kind === 'fail') {
     outcome = { kind: 'failure', reason: NO_APPLICABLE_EXECUTION };
   } else {
-    outcome = { kind: 'success', subjectId, authenticators: [...record.satisfied, authenticator] };
+    outcome = {
+      kind: 'success',
+      subjectId,
+      authenticators: [...new Set([...record.satisfied, authenticator])],
+    };
   }
 
   // What a required-action submission is judged against, since it carries no
@@ -943,10 +966,10 @@ export async function pendingSession(
 // Whom a required-action submission may act for: the subject a *finished*
 // authentication bound to this session, plus the authenticators it
 // finished with — carried forward into a later consent decision
-// (protocol-oidc's completeAuthorizedLogin). Liveness alone is not enough
-// here the way it is for pendingSession: the first factor binds the
-// subject while later ones are still outstanding, and a session already
-// consumed into an authorization code is a form the browser still had open.
+// (protocol-oidc's completeAuthorizedLogin). Finished means every step the
+// flow requires of that subject *now* is satisfied in this session, so an
+// authenticator enrolled elsewhere since unfinishes it; `authenticatedAt`
+// alone was written by the last attempt and cannot know that.
 export async function authenticatedSession(
   tx: TenantScopedDatabase,
   authSessionId: string,
@@ -956,6 +979,14 @@ export async function authenticatedSession(
   if (record === null || !sessionIsLive(record, clock.now())) return null;
   if (record.authenticatedAt === null) return null;
   if (record.subjectId === null) return null;
+  const satisfied = new Set(record.satisfied);
+  const { steps } = await loadSteps(tx, record.tenantId, {
+    subjectId: record.subjectId,
+    satisfied,
+    assertionOffered: false,
+    recoveryCodeOffered: false,
+  });
+  if (nextStep(steps, { satisfied }).kind !== 'complete') return null;
   return { subjectId: record.subjectId, authenticators: record.satisfied };
 }
 
@@ -1002,10 +1033,10 @@ export async function resetAuthenticationProgress(
   await authenticationSessionRepository(tx).resetProgress(authSessionId);
 }
 
-// Parks a gated `remember_me` decision on the parked request, for the one
-// caller (handleLoginSubmission's 'consent' branch) that hands a login off
-// to a door — the consent POST — which completes it without asking the
-// field itself. See PendingRequest.rememberMe for the read side.
+// Parks a gated `remember_me` decision on the parked request, for a login
+// handed off to a door that completes it without asking the field itself:
+// the consent POST, or a finished required action. See
+// PendingRequest.rememberMe for the read side.
 export async function recordRememberMe(
   tx: TenantScopedDatabase,
   authSessionId: string,

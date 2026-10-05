@@ -518,23 +518,9 @@ async function completeThroughRequiredAction(
     payload: actionForm.toString(),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
-  expect(changed.statusCode).toBe(200);
-  const resumedSessionId = /name="auth_session_id" value="([^"]*)"/.exec(changed.body)?.[1];
-  if (resumedSessionId === undefined) throw new Error('no auth_session_id on the resumed form');
-
-  const secondLogin = new URLSearchParams({
-    auth_session_id: resumedSessionId,
-    username,
-    password: newPassword,
-  });
-  const finished = await http.inject({
-    method: 'POST',
-    url: `/tenants/${TENANT}/login-actions/authenticate`,
-    payload: secondLogin.toString(),
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-  });
-  expect(finished.statusCode).toBe(302);
-  const code = new URL(locationHeader(finished)).searchParams.get('code');
+  // The finished action resumes the parked login, which owes nothing more.
+  expect(changed.statusCode).toBe(302);
+  const code = new URL(locationHeader(changed)).searchParams.get('code');
   if (code === null) throw new Error('expected a code on the resumed login redirect');
   return code;
 }

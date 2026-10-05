@@ -3,8 +3,10 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import { credentialRepository, userRepository } from '@odudu/domain-identity';
 import { systemClock, type Clock } from '@odudu/kernel';
+import { authenticationSessionRepository } from '#/repository/authentication-sessions';
 import { requiredActionRepository } from '#/repository/required-actions';
 import { oweRecoveryCodesIfNoneUnspent } from '#/usecase/recovery-codes';
+import { OTP } from '#/service/authenticators/names';
 import { isTotpSecretShape, totpEnrolmentUri } from '#/service/authenticators/totp';
 import { type TotpEnrolmentOffer } from '#/view/totp-enrolment-html';
 
@@ -33,7 +35,15 @@ export type TotpEnrolmentOutcome =
 
 export async function completeTotpEnrolment(
   tx: TenantScopedDatabase,
-  input: { tenantId: string; subjectId: string; secret: string; code: string },
+  // `authSessionId` names the login the code was typed into, which the
+  // code then counts towards as its otp factor (NIST SP 800-63B §4.1.2.2).
+  input: {
+    tenantId: string;
+    subjectId: string;
+    secret: string;
+    code: string;
+    authSessionId?: string;
+  },
   clock: Clock = systemClock,
 ): Promise<TotpEnrolmentOutcome> {
   const existing = await credentialRepository(tx).listFor(input.subjectId, 'totp');
@@ -59,6 +69,9 @@ export async function completeTotpEnrolment(
     type: 'totp',
     secret: { kind: 'totp', secret: input.secret, digits: 6, lastStep: verified.step },
   });
+  if (input.authSessionId !== undefined) {
+    await authenticationSessionRepository(tx).recordSatisfied(input.authSessionId, OTP);
+  }
   await requiredActionRepository(tx).complete(input.subjectId, 'configure-totp');
   await auditRepository(tx).record({
     eventType: 'credential',

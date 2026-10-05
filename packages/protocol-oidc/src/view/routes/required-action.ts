@@ -4,55 +4,29 @@ import {
   renderRequiredActionPage,
   renderTotpEnrolmentPage,
   renderUpdatePasswordPage,
-  type AuthenticatorResult,
-  type PasskeyEnrolmentOffer,
-  type RecoveryCodesOffer,
-  type TotpEnrolmentOffer,
 } from '@odudu/authn-flows';
-import { requestContextFrom, type RequestContext } from '@odudu/domain-audit';
-import { PASSWORD_TOO_LONG, readPasswordField } from '@odudu/kernel';
+import { requestContextFrom } from '@odudu/domain-audit';
+import { PASSWORD_TOO_LONG, readPasswordField, type RenderedPage } from '@odudu/kernel';
 import { type FastifyInstance } from 'fastify';
+import { handleLoginSubmission, type LoginSubmissionDeps } from '#/usecase/login-submission';
 import {
   handleRequiredActionSubmission,
   type RequiredActionSubmissionDeps,
 } from '#/usecase/required-action-submission';
-import { renderAuthorizeErrorPage, renderLoginForm } from '#/view/authorize-html';
+import { renderAuthorizeErrorPage } from '#/view/authorize-html';
 import { sendHtml } from '#/view/html-response';
+import { issuerBaseFor } from '#/view/issuer';
+import { continuing } from '#/view/routes/continuation';
+import { sendLoginOutcome, type LoginResponseDeps } from '#/view/routes/login-response';
 
-export interface RequiredActionRouteDeps extends RequiredActionSubmissionDeps {
-  // Whether this deployment can offer a passkey login at all — see
-  // renderLoginForm in #/view/authorize-html.
-  passkeyLogin?: boolean;
-  // A fresh secret and the otpauth:// URI for it, for the subject the
-  // authentication session is bound to.
-  beginTotpEnrolment(
-    tenantName: string,
-    tenantId: string,
-    subjectId: string,
-  ): Promise<TotpEnrolmentOffer>;
-  // Fresh creation options, and a fresh challenge parked on the attempt, for
-  // a retry after a refused ceremony. Absent on a deployment with no
-  // relying party to name.
-  beginPasskeyEnrolment?(
-    tenantName: string,
-    tenantId: string,
-    subjectId: string,
-    authSessionId: string,
-  ): Promise<PasskeyEnrolmentOffer>;
-  // Ten fresh codes, written as hashes and returned in plaintext for the
-  // one render of them there will be. Called again on a re-render, which
-  // is why the page it feeds says the codes on it replace any earlier set.
-  beginRecoveryCodes(
-    tenantId: string,
-    subjectId: string,
-    request: RequestContext,
-  ): Promise<RecoveryCodesOffer>;
-  // What the parked login is waiting for now that the action is done —
-  // the same call the login route makes to re-render after a rejection.
-  pendingChallenge(tenantId: string, authSessionId: string): Promise<AuthenticatorResult>;
-}
-
-const FALLBACK_FORM = 'password';
+// A finished action resumes the login it was parked on through the same
+// gates the login form's POST runs, so this route carries both halves.
+// The omitted members are declared, compatibly, by the submission deps.
+export interface RequiredActionRouteDeps
+  extends
+    RequiredActionSubmissionDeps,
+    Omit<LoginSubmissionDeps, 'findTenant' | 'pendingActions'>,
+    Omit<LoginResponseDeps, 'findTenant' | 'loadPendingRequest'> {}
 
 function firstString(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
@@ -87,7 +61,12 @@ export function registerRequiredActionRoute(
       return sendHtml(
         reply,
         400,
-        renderUpdatePasswordPage(tenantName, authSessionId, [PASSWORD_TOO_LONG.message]),
+        await continuing(
+          deps,
+          tenantName,
+          authSessionId,
+          renderUpdatePasswordPage(tenantName, authSessionId, [PASSWORD_TOO_LONG.message]),
+        ),
       );
     }
 
@@ -144,7 +123,12 @@ export function registerRequiredActionRoute(
       return sendHtml(
         reply,
         400,
-        renderUpdatePasswordPage(tenantName, outcome.authSessionId, outcome.violations),
+        await continuing(
+          deps,
+          tenantName,
+          outcome.authSessionId,
+          renderUpdatePasswordPage(tenantName, outcome.authSessionId, outcome.violations),
+        ),
       );
     }
 
@@ -152,27 +136,26 @@ export function registerRequiredActionRoute(
     if (tenant === null) {
       return sendHtml(reply, 400, renderAuthorizeErrorPage('invalid_request', 'Unknown tenant.'));
     }
+    const resumable = (page: RenderedPage) =>
+      continuing(deps, tenantName, outcome.authSessionId, page);
 
-    // Back to the login form, not straight to a code: nothing was persisted
-    // for the factor that authenticated this attempt, precisely so it runs
-    // again (see advance() in @odudu/authn-flows), and this time the second
-    // factor the enrolment just created runs after it.
+    // The action is done, so the parked login resumes where it stopped:
+    // nothing it already proved is asked for again, and whatever it still
+    // owes — another action, a factor the action made apply, consent — is
+    // what comes next. remember_me was parked when the detour began.
     if (outcome.kind === 'completed') {
-      const pending = await deps.pendingChallenge(tenant.id, outcome.authSessionId);
-      const form = pending.kind === 'challenge' ? pending.form : FALLBACK_FORM;
-      return sendHtml(
-        reply,
-        200,
-        renderLoginForm(
-          tenantName,
-          outcome.authSessionId,
-          form,
-          deps.passkeyLogin ?? false,
-          tenant.rememberMeAllowed,
-          undefined,
-          tenant.loginWithEmail,
-        ),
+      const pending = await deps.loadPendingRequest(tenant.id, outcome.authSessionId);
+      const resumed = await handleLoginSubmission(
+        deps,
+        tenantName,
+        issuerBaseFor(request),
+        outcome.authSessionId,
+        {},
+        context,
+        request.headers.cookie,
+        pending?.rememberMe ?? false,
       );
+      return sendLoginOutcome(reply, deps, tenantName, resumed);
     }
 
     if (outcome.action === 'generate-recovery-codes') {
@@ -180,7 +163,9 @@ export function registerRequiredActionRoute(
       return sendHtml(
         reply,
         200,
-        renderRecoveryCodesPage(tenantName, outcome.authSessionId, offer, outcome.reason),
+        await resumable(
+          renderRecoveryCodesPage(tenantName, outcome.authSessionId, offer, outcome.reason),
+        ),
       );
     }
 
@@ -194,7 +179,9 @@ export function registerRequiredActionRoute(
       return sendHtml(
         reply,
         200,
-        renderPasskeyEnrolmentPage(tenantName, outcome.authSessionId, passkey, outcome.reason),
+        await resumable(
+          renderPasskeyEnrolmentPage(tenantName, outcome.authSessionId, passkey, outcome.reason),
+        ),
       );
     }
 
@@ -202,7 +189,9 @@ export function registerRequiredActionRoute(
     return sendHtml(
       reply,
       200,
-      renderTotpEnrolmentPage(tenantName, outcome.authSessionId, offer, outcome.reason),
+      await resumable(
+        renderTotpEnrolmentPage(tenantName, outcome.authSessionId, offer, outcome.reason),
+      ),
     );
   });
 }

@@ -103,9 +103,8 @@ export type LoginSubmissionOutcome =
   // Authentication succeeded, but a required action is still owed. Nothing
   // is established and no code is issued, for the same reason as
   // 'unverified' above; the authentication session is left unconsumed so
-  // the same session resumes once the action is complete. See
-  // #/usecase/executor.ts's comment above recordSatisfied for why this has
-  // to be decided before completeLogin, never after.
+  // the required-action route resumes the same session once the action is
+  // complete.
   | {
       kind: 'required_action';
       authSessionId: string;
@@ -339,10 +338,9 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
     tenantId: string,
     subjectId: string,
   ): Promise<{ verified: boolean; hasEmail: boolean }>;
-  // Every action this subject still owes, read fresh on every submission —
-  // an action completed by a separate request to
-  // login-actions/required-action has to be seen the next time this same
-  // auth_session_id is resubmitted, not cached from an earlier attempt.
+  // Every action this subject still owes, read fresh on every submission:
+  // login-actions/required-action resumes this same auth_session_id once an
+  // action is done, and has to find the next one owed, not a cached set.
   // That route reads the same set, and refuses to act on an action it does
   // not find there.
   pendingActions(tenantId: string, subjectId: string): Promise<readonly RequiredAction[]>;
@@ -351,9 +349,10 @@ export interface LoginSubmissionDeps extends ConsentGateDeps {
   // id_token_hint branch below, its only caller.
   resetAuthenticationProgress(tenantId: string, authSessionId: string): Promise<void>;
   // Parks the already-gated `remembered` decision on the authentication
-  // session, read back by consent-submission.ts's own PendingRequest —
-  // the only door that completes a login without asking `remember_me`
-  // itself. See handleLoginSubmission's 'consent' branch, its only caller.
+  // session, read back by the two doors that complete a login without
+  // asking `remember_me` themselves: the consent POST and a finished
+  // required action. See handleLoginSubmission's 'consent' and
+  // 'required_action' branches.
   recordRememberMe(tenantId: string, authSessionId: string, remembered: boolean): Promise<void>;
   // Consumes the authentication session and, only if that succeeds,
   // establishes the SSO session and issues the authorization code — all in
@@ -643,6 +642,9 @@ export async function handleLoginSubmission(
   // so the same parked request survives the detour.
   const action = nextRequiredAction(await deps.pendingActions(tenant.id, result.subjectId));
   if (action !== null) {
+    // Parked for the same reason the consent branch parks it: the login
+    // resumes from the required-action route, whose form has no such field.
+    await deps.recordRememberMe(tenant.id, authSessionId, remembered);
     return { kind: 'required_action', authSessionId, subjectId: result.subjectId, action };
   }
 

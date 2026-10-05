@@ -37,11 +37,9 @@ test('a tenant administrator signs in from the console and changes a forced pass
 
   await signInAtTenant(page, forced);
   await expect(page.getByRole('heading', { level: 1, name: 'Change your password' })).toBeVisible();
-  const changed = { ...forced, password: randomBytes(18).toString('base64url') };
-  await page.getByLabel('New password').fill(changed.password);
+  await page.getByLabel('New password').fill(randomBytes(18).toString('base64url'));
   await page.getByRole('button', { name: 'Update password' }).click();
-  // The factor that authenticated runs again, now against the new password.
-  await signInAtTenant(page, changed);
+  // The login resumes where the action parked it: no second sign-in.
 
   await expect(page).toHaveURL(`/console/${forced.tenant}`);
   await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();

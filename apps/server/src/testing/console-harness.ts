@@ -212,13 +212,8 @@ export async function signInAtOp(
     username,
     password,
   });
-  const changed = await post(stack, jar, `${actions}/required-action?action=update-password`, {
+  const signedIn = await post(stack, jar, `${actions}/required-action?action=update-password`, {
     auth_session_id: field(first.body, 'auth_session_id'),
-    password: NEW_PASSWORD,
-  });
-  const signedIn = await post(stack, jar, `${actions}/authenticate`, {
-    auth_session_id: field(changed.body, 'auth_session_id'),
-    username,
     password: NEW_PASSWORD,
   });
   expect(signedIn.statusCode).toBe(302);

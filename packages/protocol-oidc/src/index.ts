@@ -23,6 +23,7 @@ import {
   resetAuthenticationProgress,
   sessionRepository,
   startAuthentication,
+  type AdvanceInput,
   type SessionEntry,
   type SessionLifespans,
 } from '@odudu/authn-flows';
@@ -687,14 +688,54 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         }),
     });
 
-    registerRequiredActionRoute(app, {
+    // Shared by the login form's POST and by a finished required action,
+    // which resumes the same parked login through the same gates.
+    const loginSubmission = {
       findTenant,
+      tls,
       ...passkeyLogin,
       beginTotpEnrolment: startTotpEnrolment,
+      beginRecoveryCodes: startRecoveryCodes,
       ...passkeyEnrolment,
-      ...passkeySubmission,
+      resetAuthenticationProgress: (tenantId: string, authSessionId: string) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
+          resetAuthenticationProgress(tx, authSessionId),
+        ),
+      recordRememberMe: (tenantId: string, authSessionId: string, remembered: boolean) =>
+        withTenant(deps.database.db, tenantId, (tx) =>
+          recordRememberMe(tx, authSessionId, remembered),
+        ),
+      advance: (
+        tenantId: string,
+        authSessionId: string,
+        input: AdvanceInput,
+        request: RequestContext,
+      ) =>
+        withTenant(
+          deps.database.db,
+          tenantId,
+          (tx) =>
+            advance(tx, authSessionId, input, clock, {
+              ...(publicBaseUrl === undefined ? {} : { publicBaseUrl }),
+              logger: app.log.child({ reqId: request.requestId }),
+            }),
+          request,
+        ),
+      loadPendingRequest: (tenantId: string, authSessionId: string) =>
+        withTenant(deps.database.db, tenantId, (tx) => loadPendingRequest(tx, authSessionId)),
       pendingChallenge: pendingChallengeFor,
+      checkEmailVerification,
       pendingActions,
+      resolveClientId,
+      consentContext,
+      grantedScopeIds,
+      completeLogin,
+      resolveSessions,
+    };
+
+    registerRequiredActionRoute(app, {
+      ...loginSubmission,
+      ...passkeySubmission,
       authenticatedSubject: (tenantId, authSessionId) =>
         withTenant(deps.database.db, tenantId, (tx) =>
           authenticatedSubject(tx, authSessionId, clock),
@@ -706,7 +747,6 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           (tx) => completeTotpEnrolment(tx, input, clock),
           request,
         ),
-      beginRecoveryCodes: startRecoveryCodes,
       completeRecoveryCodes: (input) =>
         withTenant(deps.database.db, input.tenantId, (tx) => completeRecoveryCodes(tx, input)),
       completeUpdatePassword: (input, request) =>
@@ -717,44 +757,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
           request,
         ),
     });
-    registerLoginRoute(app, {
-      findTenant,
-      tls,
-      ...passkeyLogin,
-      ...passkeyAssertion,
-      beginTotpEnrolment: startTotpEnrolment,
-      beginRecoveryCodes: startRecoveryCodes,
-      ...passkeyEnrolment,
-      resetAuthenticationProgress: (tenantId, authSessionId) =>
-        withTenant(deps.database.db, tenantId, (tx) =>
-          resetAuthenticationProgress(tx, authSessionId),
-        ),
-      recordRememberMe: (tenantId, authSessionId, remembered) =>
-        withTenant(deps.database.db, tenantId, (tx) =>
-          recordRememberMe(tx, authSessionId, remembered),
-        ),
-      advance: (tenantId, authSessionId, input, request) =>
-        withTenant(
-          deps.database.db,
-          tenantId,
-          (tx) =>
-            advance(tx, authSessionId, input, clock, {
-              ...(publicBaseUrl === undefined ? {} : { publicBaseUrl }),
-              logger: app.log.child({ reqId: request.requestId }),
-            }),
-          request,
-        ),
-      loadPendingRequest: (tenantId, authSessionId) =>
-        withTenant(deps.database.db, tenantId, (tx) => loadPendingRequest(tx, authSessionId)),
-      pendingChallenge: pendingChallengeFor,
-      checkEmailVerification,
-      pendingActions,
-      resolveClientId,
-      consentContext,
-      grantedScopeIds,
-      completeLogin,
-      resolveSessions,
-    });
+    registerLoginRoute(app, { ...loginSubmission, ...passkeyAssertion });
     registerConsentRoute(app, {
       findTenant,
       tls,

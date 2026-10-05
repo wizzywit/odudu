@@ -225,24 +225,22 @@ afterAll(async () => {
   await containerHandle?.stop();
 });
 
-// Enrols the second factor and stops there — which is one closed tab, not
-// an unusual sequence. Completing configure-totp asks for recovery codes,
-// and the page that writes them sits behind the second factor, so the
-// account is left owing the action and holding no codes at all.
-async function abandonAfterTotpEnrolment(tenantName: string): Promise<string> {
-  const authSessionId = await startAuthSession(tenantName);
-  const owed = await login(tenantName, {
-    auth_session_id: authSessionId,
-    username: USERNAME,
-    password: PASSWORD,
+// The state a closed tab leaves when the enrolment was finished somewhere
+// the recovery codes never followed: a TOTP credential, no codes, and
+// generate-recovery-codes owed. Written directly, because an enrolment
+// finished through the login now carries straight on to the codes page.
+async function holdTotpOwingCodes(tenantId: string, subjectId: string): Promise<string> {
+  const secret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+  await withTenant(app.db, tenantId, async (tx) => {
+    await credentialRepository(tx).insert({
+      tenantId,
+      subjectId,
+      type: 'totp',
+      secret: { kind: 'totp', secret, digits: 6, lastStep: totpCounter(clock.now()) },
+    });
+    await requiredActionRepository(tx).complete(subjectId, 'configure-totp');
+    await requiredActionRepository(tx).add(tenantId, subjectId, 'generate-recovery-codes');
   });
-  const secret = offeredSecret(owed.body);
-  const enrolled = await actionPost(tenantName, 'configure-totp', {
-    auth_session_id: authSessionId,
-    secret,
-    code: totpCode(secret, totpCounter(clock.now())),
-  });
-  expect(enrolled.statusCode).toBe(200);
   return secret;
 }
 
@@ -261,19 +259,9 @@ async function abandonRecoveryCodePage(
     password: PASSWORD,
   });
   const secret = offeredSecret(owed.body);
-  await actionPost(tenantName, 'configure-totp', {
+  const shown = await actionPost(tenantName, 'configure-totp', {
     auth_session_id: authSessionId,
     secret,
-    code: totpCode(secret, totpCounter(clock.now())),
-  });
-  clock.advance(31_000);
-  await login(tenantName, {
-    auth_session_id: authSessionId,
-    username: USERNAME,
-    password: PASSWORD,
-  });
-  const shown = await login(tenantName, {
-    auth_session_id: authSessionId,
     code: totpCode(secret, totpCounter(clock.now())),
   });
   const codes = codesOn(shown.body);
@@ -300,7 +288,7 @@ async function settleOwedRecoveryCodes(tenantName: string, secret: string): Prom
   const acknowledged = await actionPost(tenantName, 'generate-recovery-codes', {
     auth_session_id: authSessionId,
   });
-  expect(acknowledged.statusCode).toBe(200);
+  expect(acknowledged.statusCode).toBe(302);
 }
 
 describe('a required action is not satisfiable before the login that owes it is complete', () => {
@@ -314,7 +302,7 @@ describe('a required action is not satisfiable before the login that owes it is 
     const tenantName = `gate-bypass-${newId()}`;
     const tenantId = await setupTenant(tenantName, true);
     const subjectId = await subjectIdOf(tenantId);
-    const secret = await abandonAfterTotpEnrolment(tenantName);
+    const secret = await holdTotpOwingCodes(tenantId, subjectId);
     expect(await pendingFor(tenantId, subjectId)).toEqual(['generate-recovery-codes']);
     expect(await storedCodeIds(tenantId, subjectId)).toEqual([]);
 
@@ -502,13 +490,12 @@ describe('a required action is not satisfiable before the login that owes it is 
     expect(await storedCodeIds(tenantId, subjectId)).toEqual([]);
   });
 
-  // The gate rests on a record of completion, and that record has to move
-  // back. Enrolling the factor a tenant asked for makes the OTP step apply to
-  // a session that had nothing left to pass, so re-running the login parks
-  // it on a challenge again — and the action owed after the enrolment must
-  // wait for that challenge. A record that only ever moved forwards would
-  // still call this attempt finished, for as long as the session lives.
-  it('stops treating a session as finished once an enrolment makes a factor apply', async () => {
+  // The gate rests on whether the flow, as it stands for the subject now, is
+  // satisfied in this session. An authenticator enrolled from another
+  // attempt makes the OTP step apply to a session that had nothing left to
+  // pass, and nothing in that session proved a code — so the action the
+  // enrolment owes must wait for one, however finished the session looked.
+  it('stops treating a session as finished once an enrolment elsewhere makes a factor apply', async () => {
     const tenantName = `gate-reapplies-${newId()}`;
     const tenantId = await setupTenant(tenantName, true);
     const subjectId = await subjectIdOf(tenantId);
@@ -521,23 +508,28 @@ describe('a required action is not satisfiable before the login that owes it is 
       username: USERNAME,
       password: PASSWORD,
     });
-    const secret = offeredSecret(owed.body);
-    const enrolled = await actionPost(tenantName, 'configure-totp', {
-      auth_session_id: authSessionId,
-      secret,
-      code: totpCode(secret, totpCounter(clock.now())),
-    });
-    expect(enrolled.statusCode).toBe(200);
-    expect(await pendingFor(tenantId, subjectId)).toEqual(['generate-recovery-codes']);
+    expect(owed.body).toContain('otpauth://totp/');
 
-    // Same session, login re-run: now there is a code to ask for.
-    clock.advance(31_000);
-    const challenged = await login(tenantName, {
-      auth_session_id: authSessionId,
+    // A second attempt, in another tab, enrols the authenticator.
+    const elsewhere = await startAuthSession(tenantName);
+    const offered = await login(tenantName, {
+      auth_session_id: elsewhere,
       username: USERNAME,
       password: PASSWORD,
     });
-    expect(challenged.body).toContain('name="code"');
+    const secret = offeredSecret(offered.body);
+    await withTenant(app.db, tenantId, (tx) =>
+      credentialRepository(tx).insert({
+        tenantId,
+        subjectId,
+        type: 'totp',
+        secret: { kind: 'totp', secret, digits: 6, lastStep: totpCounter(clock.now()) },
+      }),
+    );
+    await withTenant(app.db, tenantId, async (tx) => {
+      await requiredActionRepository(tx).complete(subjectId, 'configure-totp');
+      await requiredActionRepository(tx).add(tenantId, subjectId, 'generate-recovery-codes');
+    });
 
     const refused = await actionPost(tenantName, 'generate-recovery-codes', {
       auth_session_id: authSessionId,
@@ -548,7 +540,10 @@ describe('a required action is not satisfiable before the login that owes it is 
     expect(refused.statusCode).toBe(400);
     expect(refused.body).toContain('no longer valid');
 
-    // Passing the code is what makes the action reachable, and then it is.
+    // The first attempt resumed asks for the code, and passing it is what
+    // makes the action reachable.
+    const challenged = await login(tenantName, { auth_session_id: authSessionId });
+    expect(challenged.body).toContain('name="code"');
     clock.advance(31_000);
     const reached = await login(tenantName, {
       auth_session_id: authSessionId,
@@ -654,7 +649,7 @@ describe('a required action is not satisfiable before the login that owes it is 
       password: 'a considerably better passphrase than the old one',
     });
 
-    expect(changed.statusCode).toBe(200);
+    expect(changed.statusCode).toBe(302);
     expect(await pendingFor(tenantId, subjectId)).toEqual([]);
     expect(await storedPassword(tenantId, subjectId)).not.toBe(before);
   });

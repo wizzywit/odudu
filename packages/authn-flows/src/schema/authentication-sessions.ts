@@ -81,7 +81,7 @@ export interface PendingRequest {
   reuseSessionId?: string;
   reuseAuthTime?: string;
   // The already tenant-gated `remember_me` decision, parked here only when
-  // a detour — today, consent — completes the login from a door that
+  // a detour — consent, or a required action — completes the login from a door that
   // never asks the field itself (login-submission.ts's `recordRememberMe`,
   // its only writer). Absent, the same as `false`, on every session this
   // was never written against.

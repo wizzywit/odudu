@@ -146,18 +146,14 @@ function enrolmentPost(tenantName: string, fields: Record<string, string>) {
   );
 }
 
-// Enrolling a passkey owes a recovery path for it, so a login that has to
-// get past the enrolment has to get past this too: the page is shown once
-// on the next login, and the acknowledgement clears the action.
+// Enrolling a passkey owes a recovery path for it, and the login carries
+// straight on to it: the enrolment's own response is the codes page, and
+// acknowledging it finishes the login.
 async function acknowledgeRecoveryCodes(
   tenantName: string,
   authSessionId: string,
-): Promise<string[]> {
-  const shown = await login(tenantName, {
-    auth_session_id: authSessionId,
-    username: USERNAME,
-    password: PASSWORD,
-  });
+  shown: LightMyRequestResponse,
+): Promise<{ codes: string[]; acknowledged: LightMyRequestResponse }> {
   expect(shown.statusCode).toBe(200);
   expect(shown.body).toContain('Save your recovery codes');
   const codes = [
@@ -167,8 +163,8 @@ async function acknowledgeRecoveryCodes(
     `/tenants/${tenantName}/login-actions/required-action?action=generate-recovery-codes`,
     { auth_session_id: authSessionId },
   );
-  expect(acknowledged.statusCode).toBe(200);
-  return codes;
+  expect(acknowledged.statusCode).toBe(302);
+  return { codes, acknowledged };
 }
 
 // The challenge is never in the form; what the page carries is the creation
@@ -300,7 +296,7 @@ describe('enrolling a passkey over HTTP', () => {
       label: 'Work laptop',
     });
     expect(enrolled.statusCode).toBe(200);
-    expect(enrolled.body).toContain('name="password"');
+    expect(enrolled.body).not.toContain('name="password"');
 
     const stored = await storedPasskeys(tenantId, subjectId);
     expect(stored).toHaveLength(1);
@@ -314,7 +310,11 @@ describe('enrolling a passkey over HTTP', () => {
       ),
     ).toEqual(['generate-recovery-codes']);
 
-    const codes = await acknowledgeRecoveryCodes(tenantName, authSessionId);
+    const { codes, acknowledged } = await acknowledgeRecoveryCodes(
+      tenantName,
+      authSessionId,
+      enrolled,
+    );
     expect(codes).toHaveLength(10);
     expect(
       await withTenant(app.db, tenantId, (tx) =>
@@ -322,14 +322,9 @@ describe('enrolling a passkey over HTTP', () => {
       ),
     ).toEqual([]);
 
-    // Nothing is owed now, so the same password finishes the login.
-    const completed = await login(tenantName, {
-      auth_session_id: authSessionId,
-      username: USERNAME,
-      password: PASSWORD,
-    });
-    expect(completed.statusCode).toBe(302);
-    const location = completed.headers.location;
+    // Nothing is owed now, so the login finishes without asking for the
+    // password a second time.
+    const location = acknowledged.headers.location;
     if (typeof location !== 'string') throw new Error('expected a location header');
     expect(new URL(location).searchParams.get('code')).toBeTruthy();
   });
@@ -442,7 +437,7 @@ describe('enrolling a passkey over HTTP', () => {
       auth_session_id: authSessionId,
       credential,
     });
-    expect(first.body).toContain('name="password"');
+    expect(first.body).toContain('Save your recovery codes');
 
     // The action is done, so this submission is refused by the gate before
     // the challenge is even consulted — and the credential count proves
@@ -483,9 +478,8 @@ async function enrolAPasskey(
       }),
     ),
   });
-  expect(enrolled.statusCode).toBe(200);
   expect(await storedPasskeys(tenantId, subjectId)).toHaveLength(1);
-  await acknowledgeRecoveryCodes(tenantName, authSessionId);
+  await acknowledgeRecoveryCodes(tenantName, authSessionId, enrolled);
   return authenticator;
 }
 

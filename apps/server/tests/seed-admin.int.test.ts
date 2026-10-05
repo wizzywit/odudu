@@ -125,23 +125,11 @@ async function bootstrapAdminToken(
   expect(login.body).toContain('Change your password');
   const changeSessionId = readField(login.body, 'auth_session_id');
 
-  // A completed action hands the parked login back to its first factor,
-  // so the new password is what actually signs in.
-  const changed = await formPost(
+  // A completed action resumes the parked login, which owes nothing more.
+  const signedIn = await formPost(
     instance,
     `/tenants/${SYSTEM_TENANT_NAME}/login-actions/required-action?action=update-password`,
     { auth_session_id: changeSessionId, password: NEW_PASSWORD },
-  );
-  expect(changed.statusCode).toBe(200);
-
-  const signedIn = await formPost(
-    instance,
-    `/tenants/${SYSTEM_TENANT_NAME}/login-actions/authenticate`,
-    {
-      auth_session_id: readField(changed.body, 'auth_session_id'),
-      username,
-      password: NEW_PASSWORD,
-    },
   );
   expect(signedIn.statusCode).toBe(302);
   const location = signedIn.headers.location;
