@@ -43,6 +43,17 @@ describe('renderLoginForm', () => {
     expect(page.html).toContain(page.body);
   });
 
+  it('titles the second-factor form for what it asks, not as a second sign-in', () => {
+    const otp = renderLoginForm('acme', 'session-id', 'otp');
+    expect(otp.title).toBe('Enter your authentication code');
+    expect(otp.body).toContain('name="code"');
+    expect(otp.body).toContain('<button type="submit">Verify</button>');
+    expect(otp.body).not.toContain('Sign in');
+    const recovery = renderLoginForm('acme', 'session-id', 'recovery-code');
+    expect(recovery.title).toBe('Enter a recovery code');
+    expect(recovery.body).toContain('<button type="submit">Verify</button>');
+  });
+
   it('offers remember me when the tenant allows it', () => {
     const page = renderLoginForm('acme', 'session-id', 'password', false, true);
     expect(page.body).toContain(

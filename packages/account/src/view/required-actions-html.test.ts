@@ -16,13 +16,17 @@ describe('renderRequiredActionsForm', () => {
 });
 
 describe('renderRequiredActionsSucceededPage', () => {
-  it('lists what remains and links back, escaped, only when there is somewhere to go', () => {
-    const page = renderRequiredActionsSucceededPage(
-      ['Register a passkey'],
-      'https://a.example/?x="1"',
-    );
-    expect(page.body).toContain('<li>Register a passkey</li>');
-    expect(page.body).toContain('href="https://a.example/?x=&quot;1&quot;"');
-    expect(renderRequiredActionsSucceededPage([], null).body).not.toContain('<a ');
+  it('lists what remains, escaped, and sends the user to sign in rather than to a callback', () => {
+    const page = renderRequiredActionsSucceededPage(['Register <a> passkey']);
+    expect(page.body).toContain('<li>Register &lt;a&gt; passkey</li>');
+    expect(page.body).toContain('Sign in to the application to finish:');
+    expect(page.body).not.toContain('<a ');
+    expect(page.body).not.toContain('href');
+  });
+
+  it('says it can be closed once nothing remains', () => {
+    const page = renderRequiredActionsSucceededPage([]);
+    expect(page.body).toContain('close this page and sign in to the application');
+    expect(page.body).not.toContain('<ul>');
   });
 });

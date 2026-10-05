@@ -29,24 +29,17 @@ ${items}
   );
 }
 
-export function renderRequiredActionsSucceededPage(
-  remaining: readonly string[],
-  redirectUri: string | null,
-): RenderedPage {
+export function renderRequiredActionsSucceededPage(remaining: readonly string[]): RenderedPage {
   const rest =
     remaining.length === 0
-      ? '<p>You can close this page and sign in.</p>'
-      : `<p>Sign in to finish:</p>
+      ? '<p>You can close this page and sign in to the application.</p>'
+      : `<p>Sign in to the application to finish:</p>
 <ul>
 ${remaining.map((label) => `<li>${escapeHtml(label)}</li>`).join('\n')}
 </ul>`;
-  const back =
-    redirectUri === null
-      ? ''
-      : `\n<p><a href="${escapeHtml(redirectUri)}">Back to the application</a></p>`;
   return page(
     'Account updated',
     `<h1>Your account is updated</h1>
-${rest}${back}`,
+${rest}`,
   );
 }

@@ -125,6 +125,7 @@ async function enrol(
         subjectId,
         secret: offer.secret,
         code: totpCode(offer.secret, totpCounter(clock.now())),
+        authSessionId: newId(),
       },
       clock,
     ),
@@ -348,7 +349,7 @@ describe('a tenant that requires a second factor collects it as a required actio
     const outcome = await withTenant(app.db, tenantId, (tx) =>
       completeTotpEnrolment(
         tx,
-        { tenantId, subjectId, secret: offer.secret, code: '000000' },
+        { tenantId, subjectId, secret: offer.secret, code: '000000', authSessionId: newId() },
         clock,
       ),
     );

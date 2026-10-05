@@ -108,6 +108,7 @@ async function enrolTotp(
       subjectId,
       secret: TOTP_SECRET,
       code: totpCode(TOTP_SECRET, totpCounter(clock.now())),
+      authSessionId: newId(),
     },
     clock,
   );

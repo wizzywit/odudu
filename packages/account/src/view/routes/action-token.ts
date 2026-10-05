@@ -145,11 +145,7 @@ async function completeActionsLink(
         renderResetPasswordWeakPage(result.violations.map((violation) => violation.message)),
       );
     case 'done':
-      return sendVerificationHtml(
-        reply,
-        200,
-        renderRequiredActionsSucceededPage(result.remaining, result.redirectUri),
-      );
+      return sendVerificationHtml(reply, 200, renderRequiredActionsSucceededPage(result.remaining));
   }
 }
 
