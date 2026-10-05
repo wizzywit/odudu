@@ -10,16 +10,21 @@ import {
 import {
   accessRefusal,
   groupsRecord,
+  groupsRemoveTenants,
+  leaveConfirmation,
+  leftGroups,
+  membershipsOf,
   removalConfirmation,
   subjectName,
-  takesTenants,
   type Confirmation,
+  type Membership,
 } from '#/features/subjects/service.ts';
 import { useGroupPicker } from '#/shared/repository/useGroupPicker.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
+import { describeIds } from '#/shared/service/format.ts';
+import { sortedIds } from '#/shared/service/ids.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
-import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 
 export function useSubjectGroupsRead(
   tenant: string,
@@ -28,12 +33,7 @@ export function useSubjectGroupsRead(
   return useGroupsRecord(tenant, id);
 }
 
-export interface Membership {
-  id: string;
-  // The path, or the id where the group is known by nothing else yet.
-  path: string;
-  description: string | null;
-}
+export type { Membership };
 
 export interface SubjectGroups {
   name: string;
@@ -47,10 +47,6 @@ export interface SubjectGroups {
   picker: PickerState<Group>;
   // What the section holds now, named from whatever has been read of each.
   members: readonly Membership[];
-}
-
-function sorted(ids: readonly string[]): string[] {
-  return [...ids].sort();
 }
 
 export function useSubjectGroups(
@@ -72,10 +68,7 @@ export function useSubjectGroups(
   const known = new Map<string, GroupFields>(
     [...data.items, ...picker.options].map((group) => [group.id, group]),
   );
-  const describe = (value: unknown): string =>
-    Array.isArray(value)
-      ? value.map((id: unknown) => known.get(String(id))?.path ?? String(id)).join(', ') || 'none'
-      : String(value);
+  const nameOf = (id: string): string => known.get(id)?.path ?? id;
   const save = useSectionSave({
     tenant,
     record: groupsRecord(subject.id),
@@ -90,10 +83,10 @@ export function useSubjectGroups(
     explain: accessRefusal(name, 'groups', self),
     fields: {
       group_ids: {
-        value: sorted(data.items.map((group) => group.id)),
+        value: sortedIds(data.items.map((group) => group.id)),
         label: 'Groups',
         kind: 'plain',
-        describe,
+        describe: (value) => describeIds(value, nameOf),
       },
     },
     save: async (gateway, input) => {
@@ -102,16 +95,14 @@ export function useSubjectGroups(
       return result;
     },
   });
-  const left = data.items.filter((group) => !save.values.group_ids.includes(group.id));
-  const kept = save.values.group_ids.map((id) => known.get(id)?.path ?? id);
-  const removesTenants =
-    tenant === SYSTEM_TENANT &&
-    effective.status === 'ready' &&
-    takesTenants(
-      effective.data.items,
-      data.items.map((group) => group.path),
-      kept,
-    );
+  const members = membershipsOf(save.values.group_ids, known);
+  const left = leftGroups(data.items, save.values.group_ids);
+  const removesTenants = groupsRemoveTenants(
+    tenant,
+    effective,
+    data.items.map((group) => group.path),
+    members.map((member) => member.path),
+  );
   return {
     name,
     canManage,
@@ -130,12 +121,9 @@ export function useSubjectGroups(
             return true;
           }
         }
-        if (!self || left.length === 0) return save.submit();
-        setConfirming({
-          title: 'Leave groups of your own?',
-          consequence: `You are leaving ${left.map((group) => group.path).join(', ')}. Every role a group carries goes with it, admin capabilities among them, so this console may stop offering some of what it offers you now, and you may not be able to join again yourself.`,
-          typed: null,
-        });
+        const leaving = leaveConfirmation(self, left);
+        if (leaving === null) return save.submit();
+        setConfirming(leaving);
         return true;
       },
     },
@@ -148,12 +136,9 @@ export function useSubjectGroups(
       setConfirming(null);
     },
     choose: (value) => {
-      save.edit('group_ids', sorted(value));
+      save.edit('group_ids', sortedIds(value));
     },
     picker,
-    members: save.values.group_ids.map((id) => {
-      const group = known.get(id);
-      return { id, path: group?.path ?? id, description: group?.description ?? null };
-    }),
+    members,
   };
 }

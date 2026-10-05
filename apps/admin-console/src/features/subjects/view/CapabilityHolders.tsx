@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-aria-components';
+import { holderFilterOptions } from '#/features/subjects/service.ts';
 import {
   useCapabilityHolders,
   type Holder,
 } from '#/features/subjects/usecase/useCapabilityHolders.ts';
 import { SubjectCapabilities } from '#/features/subjects/view/CapabilityEditor.tsx';
-import { grantableIn } from '#/shared/service/capabilities.ts';
 import { Button } from '#/shared/view/Button';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { Count } from '#/shared/view/Count';
@@ -25,14 +25,6 @@ const STATUS = [
   { id: 'true', label: 'Enabled' },
   { id: 'false', label: 'Disabled' },
 ];
-
-function holdsOptions(tenant: string) {
-  return [
-    { id: 'any', label: 'Any capability' },
-    { id: 'tenant-admin', label: 'Full (tenant-admin)' },
-    ...grantableIn(tenant).map((capability) => ({ id: capability, label: capability })),
-  ];
-}
 
 function Row({
   tenant,
@@ -192,7 +184,7 @@ export function CapabilityHolders({
         />
         <SelectField
           label="Holds"
-          options={holdsOptions(tenant)}
+          options={holderFilterOptions(tenant)}
           value={list.filters.capability ?? 'any'}
           onChange={(value) => {
             list.setFilter('capability', value === 'any' ? null : value);

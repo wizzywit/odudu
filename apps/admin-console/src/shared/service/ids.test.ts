@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inOrderOf, removedFrom, sortedIds } from '#/shared/service/ids.ts';
+import { inOrderOf, removedFrom, sortedIds, uniqueIds } from '#/shared/service/ids.ts';
 
 describe('sortedIds', () => {
   it('sorts a copy and leaves the input alone', () => {
@@ -20,5 +20,11 @@ describe('removedFrom', () => {
   it('lists what was there before and is not there after', () => {
     expect(removedFrom(['a', 'b', 'c'], ['b', 'd'])).toEqual(['a', 'c']);
     expect(removedFrom([], ['a'])).toEqual([]);
+  });
+});
+
+describe('uniqueIds', () => {
+  it('keeps the first of each, in order', () => {
+    expect(uniqueIds(['b', 'a', 'b', 'c', 'a'])).toEqual(['b', 'a', 'c']);
   });
 });

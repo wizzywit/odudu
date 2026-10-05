@@ -18,7 +18,15 @@ import {
   useSessionList,
 } from '#/features/subjects/repository/useSessions.ts';
 import type { Read } from '#/features/subjects/repository/useSubjectRead.ts';
-import { subjectName } from '#/features/subjects/service.ts';
+import {
+  consentRevokedText,
+  grantClients,
+  grantsRevokedText,
+  sessionEndedText,
+  sessionsEndedText,
+  subjectName,
+  type GrantClient,
+} from '#/features/subjects/service.ts';
 import {
   useConfirmedChange,
   type Confirming,
@@ -39,10 +47,6 @@ export interface SubjectSessions {
   endAll: Confirming<'all'>;
 }
 
-function plural(count: number, one: string, other: string): string {
-  return `${String(count)} ${count === 1 ? one : other}`;
-}
-
 export function useSubjectSessions(tenant: string, subject: Subject): SubjectSessions {
   const name = subjectName(subject);
   return {
@@ -52,14 +56,13 @@ export function useSubjectSessions(tenant: string, subject: Subject): SubjectSes
       tenant,
       capability: 'manage-sessions',
       change: useEndSession(tenant, subject.id),
-      done: () => `The session of ${name} ended.`,
+      done: () => sessionEndedText(name),
     }),
     endAll: useConfirmedChange({
       tenant,
       capability: 'manage-sessions',
       change: useEndAllSessions(tenant, subject.id),
-      done: (_all, data: EndSessionsResponse) =>
-        `${plural(data.ended, 'session', 'sessions')} of ${name} ended.`,
+      done: (_all, data: EndSessionsResponse) => sessionsEndedText(name, data.ended),
     }),
   };
 }
@@ -85,15 +88,12 @@ export function useSubjectConsents(
       tenant,
       capability: 'manage-users',
       change: useRevokeConsent(tenant, subject.id),
-      done: (consent) => `${name}'s consent to ${consent.client_key} revoked.`,
+      done: (consent) => consentRevokedText(name, consent.client_key),
     }),
   };
 }
 
-export interface GrantClient {
-  id: string;
-  key: string;
-}
+export type { GrantClient };
 
 export interface SubjectGrants {
   name: string;
@@ -106,17 +106,16 @@ export interface SubjectGrants {
 export function useSubjectGrants(tenant: string, subject: Subject): SubjectGrants {
   const name = subjectName(subject);
   const list = useGrantList(tenant, subject.id);
-  const clients = new Map(list.rows.map((grant) => [grant.client_id, grant.client_key]));
   return {
     name,
     list,
-    clients: [...clients].map(([id, key]) => ({ id, key })),
+    clients: grantClients(list.rows),
     revoke: useConfirmedChange({
       tenant,
       capability: 'manage-sessions',
       change: useRevokeGrants(tenant, subject.id),
       done: (client, data: RevokeGrantsResponse) =>
-        `${plural(data.revoked, 'grant', 'grants')} of ${name} through ${client.key} revoked.`,
+        grantsRevokedText(name, data.revoked, client.key),
     }),
   };
 }

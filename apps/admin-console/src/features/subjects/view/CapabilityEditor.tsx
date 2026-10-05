@@ -15,12 +15,6 @@ import { Section } from '#/shared/view/Section';
 import { FormSkeleton } from '#/shared/view/Skeleton';
 import styles from '#/features/subjects/view/Tab.module.css';
 
-const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
-
-function beyondText(name: string, beyond: readonly string[]): string {
-  return `${name} holds ${AND.format(beyond)}, which you do not, so you cannot change what ${name} holds.`;
-}
-
 export function CapabilitySection({ editing }: { editing: CapabilityEditing }) {
   const s = editing.save;
   const locked = editing.canManage && editing.beyond.length > 0;
@@ -36,7 +30,7 @@ export function CapabilitySection({ editing }: { editing: CapabilityEditing }) {
       blocked={s.blocked}
       notice={<SectionNoticeOf title="Admin capabilities" save={s} />}
     >
-      {locked ? <p className={styles.rule}>{beyondText(editing.name, editing.beyond)}</p> : null}
+      {locked ? <p className={styles.rule}>{editing.beyondText}</p> : null}
       {editing.rolesFailed === null ? null : (
         <p role="alert" className={styles.rule}>
           The admin roles could not be read, so nothing can be saved.{' '}
@@ -57,7 +51,7 @@ export function CapabilitySection({ editing }: { editing: CapabilityEditing }) {
       </ReadOnlyFields>
       {editing.elsewhere.length === 0 ? null : (
         <p className={styles.rule}>
-          {`${AND.format(editing.elsewhere.map((held) => `${held.label} ${held.through}`))}: only that group or role takes it away, on ${editing.name}’s `}
+          {editing.elsewhereText}
           <Link href={editing.groupsHref}>Groups</Link> or{' '}
           <Link href={editing.rolesHref}>Roles</Link> tab.
         </p>

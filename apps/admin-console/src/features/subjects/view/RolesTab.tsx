@@ -1,5 +1,6 @@
 import type { EffectiveRoleAssignment, Subject } from '@odudu/contracts/admin';
 import { useId } from 'react';
+import { roleOwnerOf } from '#/features/subjects/service.ts';
 import {
   useCapabilityEditor,
   useSubjectRolesRead,
@@ -16,13 +17,9 @@ import { Section } from '#/shared/view/Section';
 import { FormSkeleton, TableSkeleton } from '#/shared/view/Skeleton';
 import styles from '#/features/subjects/view/Tab.module.css';
 
-function ownerOf(client: string | null): string {
-  return client === null ? 'tenant role' : `client ${client}`;
-}
-
 const EFFECTIVE: readonly Column<EffectiveRoleAssignment>[] = [
   { id: 'name', header: 'Role', isRowHeader: true, cell: (role) => <code>{role.name}</code> },
-  { id: 'owner', header: 'Belongs to', cell: (role) => ownerOf(role.client_key) },
+  { id: 'owner', header: 'Belongs to', cell: (role) => roleOwnerOf(role.client_key) },
   { id: 'how', header: 'Held', cell: (role) => role.via.map(provenanceText).join(', ') },
 ];
 
@@ -88,7 +85,7 @@ function Roles({ roles }: { roles: SubjectRoles }) {
           {roles.assigned.map((role) => (
             <li key={role.id}>
               <code>{role.name}</code>
-              <span className={styles.rule}>{` · ${ownerOf(role.client)}`}</span>
+              <span className={styles.rule}>{` · ${roleOwnerOf(role.client)}`}</span>
             </li>
           ))}
         </ul>

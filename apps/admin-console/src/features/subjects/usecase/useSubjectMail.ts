@@ -4,20 +4,18 @@ import { useRefusal } from '#/features/session';
 import { areaAt, areaHref } from '#/features/shell';
 import { useMailSend, type MailRequest } from '#/features/subjects/repository/useMail.ts';
 import {
-  mailRefusal,
-  REQUIRED_ACTIONS,
+  actionsMailProblem,
+  mailFieldErrors,
+  mailOutcome,
+  mailSentText,
+  requiredActionsInOrder,
   subjectName,
   subjectTabHref,
+  type MailOutcome,
 } from '#/features/subjects/service.ts';
-import { fieldErrorsOf } from '#/shared/service/fieldErrors.ts';
-import type { GatewayFailure } from '#/shared/transport/gateway.ts';
+import { withoutField } from '#/shared/service/fieldErrors.ts';
 
-export interface MailOutcome {
-  sent: boolean;
-  text: string;
-  // Where the refusal is put right, when it is a fact about the tenant or subject.
-  fix: { label: string; href: string } | null;
-}
+export type { MailOutcome };
 
 export interface Mail {
   busy: boolean;
@@ -41,10 +39,6 @@ export interface SubjectMail {
 
 type Kind = MailRequest['kind'];
 
-function inOrder(actions: readonly string[]): RequiredAction[] {
-  return REQUIRED_ACTIONS.map((each) => each.action).filter((action) => actions.includes(action));
-}
-
 export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
   const name = subjectName(subject);
   const refusal = useRefusal(tenant);
@@ -53,64 +47,17 @@ export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
   const [outcomes, setOutcomes] = useState<Partial<Record<Kind, MailOutcome>>>({});
   const [actions, setActions] = useState<readonly RequiredAction[]>([]);
   const [errors, setErrors] = useState<ActionsMail['errors']>({});
-  const clear = (field: keyof ActionsMail['errors']): void => {
-    setErrors((was) => Object.fromEntries(Object.entries(was).filter(([key]) => key !== field)));
-  };
 
-  const fixOf = (fix: 'profile' | 'email' | 'settings'): MailOutcome['fix'] => {
-    switch (fix) {
-      case 'profile':
-        return { label: 'Profile', href: subjectTabHref(tenant, subject.id, 'profile') };
-      case 'email':
-        return { label: 'Email', href: areaHref(tenant, areaAt('email')) };
-      case 'settings':
-        return { label: 'Settings', href: areaHref(tenant, areaAt('settings')) };
-    }
-  };
-
-  const refused = (failure: GatewayFailure): MailOutcome => {
-    switch (failure.kind) {
-      case 'network':
-        return {
-          sent: false,
-          text: 'Could not confirm the mail was sent. It has not been asked for again; nothing shows whether it went, so ask again only if it is still owed.',
-          fix: null,
-        };
-      case 'schema':
-        return {
-          sent: true,
-          text: 'The mail was asked for, but the answer could not be read.',
-          fix: null,
-        };
-      case 'defect':
-        return {
-          sent: false,
-          text: 'The console could not finish. This is a fault in the console, not something you did.',
-          fix: null,
-        };
-      case 'problem': {
-        const said = mailRefusal(failure.problem.type, name);
-        if (said !== null) return { sent: false, text: said.text, fix: fixOf(said.fix) };
-        if (failure.problem.status === 403) {
-          return {
-            sent: false,
-            text: `Refused: it needs the manage-users capability, or ${name} holds an admin capability you do not.`,
-            fix: null,
-          };
-        }
-        return {
-          sent: false,
-          text: `Not sent: ${failure.problem.detail ?? failure.problem.title}`,
-          fix: null,
-        };
-      }
-    }
+  const fixHrefs = {
+    profile: subjectTabHref(tenant, subject.id, 'profile'),
+    email: areaHref(tenant, areaAt('email')),
+    settings: areaHref(tenant, areaAt('settings')),
   };
 
   const run = (kind: Kind, request: MailRequest, sentText: string): void => {
     if (running !== null) return;
     setRunning(kind);
-    setOutcomes((was) => Object.fromEntries(Object.entries(was).filter(([key]) => key !== kind)));
+    setOutcomes((was) => withoutField(was, kind));
     mail
       .send(request)
       .then((result) => {
@@ -119,40 +66,38 @@ export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
           return;
         }
         refusal.report(result, 'manage-users');
-        if (kind === 'actions' && result.kind === 'problem' && result.problem.status === 400) {
-          const placed = fieldErrorsOf(result.problem, ['actions']);
+        const placed = mailFieldErrors(kind, result);
+        if (placed !== null) {
           setErrors(placed.fields);
           if (placed.other.length === 0) return;
         }
-        setOutcomes((was) => ({ ...was, [kind]: refused(result) }));
+        setOutcomes((was) => ({ ...was, [kind]: mailOutcome(result, name, fixHrefs) }));
       })
       .catch(() => {
-        setOutcomes((was) => ({ ...was, [kind]: refused({ ok: false, kind: 'defect' }) }));
+        setOutcomes((was) => ({
+          ...was,
+          [kind]: mailOutcome({ ok: false, kind: 'defect' }, name, fixHrefs),
+        }));
       })
       .finally(() => {
         setRunning(null);
       });
   };
 
-  const address = subject.email ?? 'their address';
   return {
     email: subject.email,
     reset: {
       busy: running === 'reset',
       outcome: outcomes.reset ?? null,
       send: () => {
-        run('reset', { kind: 'reset' }, `A password reset link was sent to ${address}.`);
+        run('reset', { kind: 'reset' }, mailSentText('reset', subject.email));
       },
     },
     verification: {
       busy: running === 'verification',
       outcome: outcomes.verification ?? null,
       send: () => {
-        run(
-          'verification',
-          { kind: 'verification' },
-          `A verification link was sent to ${address}.`,
-        );
+        run('verification', { kind: 'verification' }, mailSentText('verification', subject.email));
       },
     },
     actions: {
@@ -161,20 +106,20 @@ export function useSubjectMail(tenant: string, subject: Subject): SubjectMail {
       actions,
       errors,
       choose: (next) => {
-        clear('actions');
-        setActions(inOrder(next));
+        setErrors((was) => withoutField(was, 'actions'));
+        setActions(requiredActionsInOrder(next));
       },
       send: () => {
-        if (actions.length === 0) {
-          setErrors({ actions: 'Choose at least one action.' });
+        const problem = actionsMailProblem(actions);
+        if (problem !== null) {
+          setErrors(problem);
           return;
         }
         setErrors({});
-        const count = actions.length === 1 ? '1 action' : `${String(actions.length)} actions`;
         run(
           'actions',
           { kind: 'actions', body: { actions: [...actions] } },
-          `A link through ${count} was sent to ${address}. Following it asks for each, in order.`,
+          mailSentText('actions', subject.email, actions.length),
         );
       },
     },

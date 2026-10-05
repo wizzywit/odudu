@@ -2,7 +2,7 @@ import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session';
 import { useGo } from '#/features/subjects/repository/useGo.ts';
 import { useMemberList } from '#/features/subjects/repository/useMemberList.ts';
-import { subjectHref, subjectsHref } from '#/features/subjects/service.ts';
+import { membersListHref, subjectHref } from '#/features/subjects/service.ts';
 import { notLacking } from '#/shared/service/access.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
@@ -24,7 +24,7 @@ export function useMembers(tenant: string, by: 'group' | 'role', id: string): Me
   const go = useGo();
   return {
     list,
-    listHref: `${subjectsHref(tenant)}?${new URLSearchParams({ [by]: id }).toString()}`,
+    listHref: membersListHref(tenant, by, id),
     open: (subject) => {
       go(subjectHref(tenant, subject));
     },

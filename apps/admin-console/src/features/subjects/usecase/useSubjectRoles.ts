@@ -9,25 +9,25 @@ import { useEffectiveRoles, useSaveRoles } from '#/features/subjects/repository/
 import type { Read } from '#/features/subjects/repository/useSubjectRead.ts';
 import {
   accessRefusal,
+  assignmentsOf,
+  knownAssignments,
+  roleUnavailableHere,
   rolesRecord,
   splitRoles,
   subjectName,
+  type Assignment,
 } from '#/features/subjects/service.ts';
 import { useRolePicker } from '#/shared/repository/useRolePicker.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
-import { isAdminRole } from '#/shared/service/capabilities.ts';
+import { describeIds } from '#/shared/service/format.ts';
+import { sortedIds } from '#/shared/service/ids.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
 
 export interface RoleValues extends Readonly<Record<string, unknown>> {
   role_ids: readonly string[];
 }
 
-export interface Assignment {
-  id: string;
-  name: string;
-  // The client it belongs to, by its client_id, or null for a tenant role.
-  client: string | null;
-}
+export type { Assignment };
 
 export interface SubjectRoles {
   name: string;
@@ -39,10 +39,6 @@ export interface SubjectRoles {
   unavailableOf: (role: Role) => string | null;
   assigned: readonly Assignment[];
   effective: Read<{ items: EffectiveRoleAssignment[] }>;
-}
-
-function sorted(ids: readonly string[]): string[] {
-  return [...ids].sort();
 }
 
 export function useSubjectRoles(
@@ -59,16 +55,7 @@ export function useSubjectRoles(
   const effective = useEffectiveRoles(tenant, subject.id);
   const saveRoles = useSaveRoles(tenant, subject.id);
   const split = splitRoles(data.items);
-  const known = new Map<string, Assignment>(
-    [...data.items, ...picker.options].map((role) => [
-      role.id,
-      { id: role.id, name: role.name, client: role.client_key },
-    ]),
-  );
-  const describe = (value: unknown): string => {
-    const ids = Array.isArray(value) ? value.map(String) : [];
-    return ids.length === 0 ? 'none' : ids.map((id) => known.get(id)?.name ?? id).join(', ');
-  };
+  const known = knownAssignments(data.items, picker.options);
   const save = useSectionSave({
     tenant,
     record: rolesRecord(subject.id),
@@ -82,7 +69,12 @@ export function useSubjectRoles(
     },
     explain: accessRefusal(name, 'roles'),
     fields: {
-      role_ids: { value: sorted(split.roleIds), label: 'Roles', kind: 'plain', describe },
+      role_ids: {
+        value: sortedIds(split.roleIds),
+        label: 'Roles',
+        kind: 'plain',
+        describe: (value) => describeIds(value, (id) => known.get(id)?.name ?? id),
+      },
     },
     save: (gateway, { values, ifMatch }) =>
       saveRoles(gateway, [...values.role_ids, ...split.adminIds], ifMatch),
@@ -92,12 +84,11 @@ export function useSubjectRoles(
     canManage,
     save,
     choose: (value) => {
-      save.edit('role_ids', sorted(value));
+      save.edit('role_ids', sortedIds(value));
     },
     picker,
-    unavailableOf: (role) =>
-      isAdminRole(role) ? 'an admin capability: set it under Admin capabilities' : null,
-    assigned: save.values.role_ids.map((id) => known.get(id) ?? { id, name: id, client: null }),
+    unavailableOf: roleUnavailableHere,
+    assigned: assignmentsOf(save.values.role_ids, known),
     effective,
   };
 }

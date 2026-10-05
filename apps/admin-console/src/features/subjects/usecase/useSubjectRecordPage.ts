@@ -3,12 +3,18 @@ import { useAuthority, usePrincipal } from '#/features/session';
 import { useEffectiveRoles } from '#/features/subjects/repository/useAccess.ts';
 import { useDirtyRecords } from '#/shared/repository/useDirtyRecords.ts';
 import { useSubjectRecord } from '#/features/subjects/repository/useSubjectRecord.ts';
-import { SUBJECT_TABS, TAB_RECORDS, type SubjectTab } from '#/features/subjects/service.ts';
+import {
+  canManageSubject,
+  reachOf,
+  SUBJECT_TABS,
+  subjectBeyond,
+  TAB_RECORDS,
+  type SubjectTab,
+} from '#/features/subjects/service.ts';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
 import { lacking } from '#/shared/service/access.ts';
-import { beyondCaller, heldCapabilities } from '#/shared/service/capabilities.ts';
-import type { AdminCapability } from '#/shared/service/principal.ts';
-import type { RecordView } from '#/shared/service/record.ts';
+import { isSelf, type AdminCapability } from '#/shared/service/principal.ts';
+import { dirtyTabs, tabNamed, type RecordView } from '#/shared/service/record.ts';
 
 export interface SubjectRecordPage {
   record: RecordView;
@@ -39,36 +45,23 @@ export function useSubjectRecordPage(tenant: string, id: string): SubjectRecordP
   const { tab, selectTab } = useRecordTab(SUBJECT_TABS);
   const changeNeeds = lacking(authority, ['manage-users']);
   const effective = useEffectiveRoles(tenant, id);
-  const beyond =
-    authority === undefined || effective.status !== 'ready'
-      ? []
-      : beyondCaller([...heldCapabilities(effective.data.items).keys()], authority.capabilities);
-  const edited = useDirtyRecords(
-    tenant,
-    SUBJECT_TABS.flatMap((each) => TAB_RECORDS[each](id)),
-  );
-  const dirty = new Set<SubjectTab>(
-    SUBJECT_TABS.filter((each) => TAB_RECORDS[each](id).some((record) => edited.has(record))),
-  );
+  const beyond = subjectBeyond(effective, authority?.capabilities);
+  const recordsOf = (each: SubjectTab): readonly string[] => TAB_RECORDS[each](id);
+  const edited = useDirtyRecords(tenant, SUBJECT_TABS.flatMap(recordsOf));
   return {
     record,
     subject: record.data,
     etag: record.etag,
     tab,
     selectTab: (next) => {
-      const chosen = SUBJECT_TABS.find((candidate) => candidate === next);
+      const chosen = tabNamed(SUBJECT_TABS, next);
       if (chosen !== undefined) selectTab(chosen);
     },
-    dirty,
-    canManage: changeNeeds.length === 0 && effective.status === 'ready' && beyond.length === 0,
+    dirty: dirtyTabs(SUBJECT_TABS, recordsOf, edited),
+    canManage: canManageSubject(changeNeeds, effective.status, beyond),
     changeNeeds,
     beyond,
-    reach:
-      effective.status === 'ready'
-        ? 'ready'
-        : effective.status === 'loading'
-          ? 'checking'
-          : { failed: true, retry: effective.retry },
-    self: principal.tenant === tenant && principal.subjectId === id,
+    reach: reachOf(effective),
+    self: isSelf(principal, tenant, id),
   };
 }

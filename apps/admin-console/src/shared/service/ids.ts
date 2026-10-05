@@ -11,3 +11,7 @@ export function inOrderOf<T extends string>(order: readonly T[], chosen: Iterabl
 export function removedFrom<T extends string>(before: readonly T[], after: readonly string[]): T[] {
   return before.filter((id) => !after.includes(id));
 }
+
+export function uniqueIds(ids: readonly string[]): string[] {
+  return [...new Set(ids)];
+}

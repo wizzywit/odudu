@@ -2,10 +2,15 @@ import type { ListedSubject } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { usePrincipal } from '#/features/session';
 import { useHolderList } from '#/features/subjects/repository/useHolders.ts';
-import { heldLines, subjectHref, subjectName, type HeldLine } from '#/features/subjects/service.ts';
+import {
+  heldLines,
+  reachesEveryTenant,
+  subjectHref,
+  subjectName,
+  type HeldLine,
+} from '#/features/subjects/service.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
-import { MANAGE_TENANTS, TENANT_ADMIN } from '#/shared/service/administrators.ts';
-import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
+import { isSelf } from '#/shared/service/principal.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
 export interface Holder {
@@ -40,10 +45,8 @@ export function useCapabilityHolders(tenant: string): CapabilityHolders {
         name: subjectName(subject),
         href: subjectHref(tenant, subject.id),
         lines: heldLines(held),
-        reachesEveryTenant:
-          tenant === SYSTEM_TENANT &&
-          held.some((each) => each.name === MANAGE_TENANTS || each.name === TENANT_ADMIN),
-        self: principal.tenant === tenant && principal.subjectId === subject.id,
+        reachesEveryTenant: reachesEveryTenant(tenant, held),
+        self: isSelf(principal, tenant, subject.id),
       };
     }),
     open,

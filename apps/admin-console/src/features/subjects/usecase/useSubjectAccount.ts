@@ -11,22 +11,19 @@ import {
   type AccountValues,
 } from '#/features/subjects/repository/useSubjectRecord.ts';
 import {
+  enabledVerb,
   subjectName,
   subjectRecord,
   subjectsHref,
-  USERNAME_RULE_TEXT,
+  subjectWriteFailure,
+  usernameMode,
+  type UsernameMode,
 } from '#/features/subjects/service.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import type { GatewayResult } from '#/shared/transport/gateway.ts';
+import { deletedText, enabledText } from '#/shared/service/failure.ts';
 
-export type UsernameMode =
-  // Offered: the tenant's policy accepts a rename.
-  | { kind: 'editable'; description: string }
-  // Not offered: the policy is off, and this is why.
-  | { kind: 'fixed'; reason: string; settingsHref: string }
-  | { kind: 'failed'; retry: () => void }
-  | { kind: 'checking' };
+export type { UsernameMode };
 
 export interface Confirmable {
   confirming: boolean;
@@ -49,48 +46,6 @@ export interface SubjectAccount {
   // Why the last enable did not happen, said beside the button.
   enabledMessage: string | null;
   remove: Confirmable;
-}
-
-function refusalText(
-  name: string,
-  verb: string,
-  result: Exclude<GatewayResult<unknown>, { ok: true }>,
-): string {
-  switch (result.kind) {
-    case 'network':
-      return `Could not confirm whether ${name} was ${verb}. It has not been sent again; look at the subject before trying again.`;
-    case 'schema':
-      return `${name} may have been ${verb}, but the answer could not be read. Reload to check.`;
-    case 'defect':
-      return `The console could not finish, so ${name} was not ${verb}. This is a fault in the console, not something you did.`;
-    case 'problem':
-      if (result.problem.status === 403) {
-        return `${name} was not ${verb}: it needs the manage-users capability, or ${name} holds an admin capability you do not.`;
-      }
-      if (result.problem.status === 412) {
-        return `${name} changed elsewhere since you opened it, so it was not ${verb}. It has been read again; look at it before trying again.`;
-      }
-      return `${name} was not ${verb}: ${result.problem.detail ?? result.problem.title}`;
-  }
-}
-
-function useUsernameMode(tenant: string): UsernameMode {
-  const policy = useUsernamePolicy(tenant);
-  switch (policy.status) {
-    case 'loading':
-      return { kind: 'checking' };
-    case 'failed':
-      return { kind: 'failed', retry: policy.retry };
-    case 'ready':
-      return policy.editable
-        ? { kind: 'editable', description: USERNAME_RULE_TEXT }
-        : {
-            kind: 'fixed',
-            reason:
-              "Usernames in this tenant are fixed: its username_editable setting is off, so a rename would be refused. Turn it on under the tenant's",
-            settingsHref: areaHref(tenant, areaAt('settings')),
-          };
-  }
 }
 
 export function useSubjectAccount(
@@ -122,7 +77,7 @@ export function useSubjectAccount(
     },
     save: saveAccount(tenant, subject.id),
   });
-  const username = useUsernameMode(tenant);
+  const username = usernameMode(useUsernamePolicy(tenant), areaHref(tenant, areaAt('settings')));
   const enabledChange = useSubjectEnabled(tenant, subject.id, etag);
   const deletion = useSubjectDeletion(tenant, subject.id);
   const endOwnSession = useEndOwnSession();
@@ -134,21 +89,21 @@ export function useSubjectAccount(
     if (enabledChange.busy) return;
     setProblem(null);
     setEnabledMessage(null);
-    const verb = next ? 'enabled' : 'disabled';
+    const verb = enabledVerb(next);
     enabledChange
       .run(next)
       .then((result) => {
         if (result.ok) {
           setConfirming(null);
-          push({ tone: 'success', message: `${name} is ${verb}.` });
+          push({ tone: 'success', message: enabledText(name, next) });
           return;
         }
         refusal.report(result, 'manage-users');
-        if (next) setEnabledMessage(refusalText(name, verb, result));
-        else setProblem(refusalText(name, verb, result));
+        if (next) setEnabledMessage(subjectWriteFailure(result, name, verb));
+        else setProblem(subjectWriteFailure(result, name, verb));
       })
       .catch(() => {
-        setProblem(refusalText(name, verb, { ok: false, kind: 'defect' }));
+        setProblem(subjectWriteFailure({ ok: false, kind: 'defect' }, name, verb));
       });
   };
 
@@ -197,15 +152,15 @@ export function useSubjectAccount(
             }
             if (result.ok) {
               setConfirming(null);
-              push({ tone: 'success', message: `${name} was deleted.` });
+              push({ tone: 'success', message: deletedText(name) });
               go(subjectsHref(tenant), { replace: true });
               return;
             }
             refusal.report(result, 'manage-users');
-            setProblem(refusalText(name, 'deleted', result));
+            setProblem(subjectWriteFailure(result, name, 'deleted'));
           })
           .catch(() => {
-            setProblem(refusalText(name, 'deleted', { ok: false, kind: 'defect' }));
+            setProblem(subjectWriteFailure({ ok: false, kind: 'defect' }, name, 'deleted'));
           });
       },
       deletion.busy,

@@ -22,6 +22,7 @@ import { readSubjectRoles, setSubjectRoles } from '#/shared/adapter/administrato
 import { useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
 import type { Holding } from '#/shared/service/capabilities.ts';
+import { uniqueIds } from '#/shared/service/ids.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
@@ -131,7 +132,7 @@ export function useSaveGroups(tenant: string, id: string) {
 export function useSaveRoles(tenant: string, id: string) {
   const after = useAfterAccessChange(tenant, id);
   return async (gateway: Gateway, roleIds: readonly string[], ifMatch: string) =>
-    after(await setSubjectRoles(gateway, tenant, id, [...new Set(roleIds)], ifMatch));
+    after(await setSubjectRoles(gateway, tenant, id, uniqueIds(roleIds), ifMatch));
 }
 
 export interface ActionValues extends Readonly<Record<string, unknown>> {

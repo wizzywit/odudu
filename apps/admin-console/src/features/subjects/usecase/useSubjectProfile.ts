@@ -8,11 +8,12 @@ import {
   type VerificationValues,
 } from '#/features/subjects/repository/useSubjectRecord.ts';
 import {
-  ADDRESS_CLAIMS,
-  DETAIL_CLAIMS,
-  NAME_CLAIMS,
+  claimFields,
+  PROFILE_SECTIONS,
   profileRecord,
   type ClaimField,
+  verificationFields,
+  type ProfileSection,
 } from '#/features/subjects/service.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
@@ -36,19 +37,13 @@ export interface SubjectClaims {
   updatedAt: string | null;
 }
 
-const SECTIONS = [
-  { id: 'name', title: 'Name', claims: NAME_CLAIMS },
-  { id: 'details', title: 'Details', claims: DETAIL_CLAIMS },
-  { id: 'address', title: 'Address', claims: ADDRESS_CLAIMS },
-] as const;
-
 function useClaimSection(
   tenant: string,
   id: string,
   profile: Profile,
   etag: string,
   gone: boolean,
-  section: (typeof SECTIONS)[number],
+  section: ProfileSection,
 ): ClaimSection {
   const refusal = useRefusal(tenant);
   const save = useSectionSave({
@@ -62,12 +57,7 @@ function useClaimSection(
     onRefused: (failure) => {
       refusal.report(failure, 'manage-users');
     },
-    fields: Object.fromEntries(
-      section.claims.map((claim) => [
-        claim.id,
-        { value: profile[claim.id] ?? '', label: claim.label, kind: 'plain' as const },
-      ]),
-    ),
+    fields: claimFields(profile, section.claims),
     save: saveClaims(tenant, id),
   });
   return { ...section, save };
@@ -83,7 +73,7 @@ export function useSubjectClaims(
   gone: boolean,
 ): SubjectClaims {
   const refusal = useRefusal(tenant);
-  const [name, details, address] = SECTIONS;
+  const [name, details, address] = PROFILE_SECTIONS;
   const sections = [
     useClaimSection(tenant, id, profile, etag, gone, name),
     useClaimSection(tenant, id, profile, etag, gone, details),
@@ -100,20 +90,7 @@ export function useSubjectClaims(
     onRefused: (failure) => {
       refusal.report(failure, 'manage-users');
     },
-    fields: {
-      email_verified: {
-        value: profile.email_verified,
-        label: 'Email verified',
-        kind: 'plain',
-        describe: (value) => (value === true ? 'verified' : 'not verified'),
-      },
-      phone_number_verified: {
-        value: profile.phone_number_verified,
-        label: 'Phone number verified',
-        kind: 'plain',
-        describe: (value) => (value === true ? 'verified' : 'not verified'),
-      },
-    },
+    fields: verificationFields(profile),
     save: saveVerification(tenant, id),
   });
   return { sections, verification, updatedAt: profile.profile_updated_at };

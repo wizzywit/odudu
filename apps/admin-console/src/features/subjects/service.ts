@@ -824,6 +824,26 @@ export function claimFields(
   );
 }
 
+export function verificationFields(
+  profile: Pick<Profile, 'email_verified' | 'phone_number_verified'>,
+): SectionFields<{ email_verified: boolean; phone_number_verified: boolean }> {
+  const describe = (value: unknown): string => flagText(value, 'verified', 'not verified');
+  return {
+    email_verified: {
+      value: profile.email_verified,
+      label: 'Email verified',
+      kind: 'plain',
+      describe,
+    },
+    phone_number_verified: {
+      value: profile.phone_number_verified,
+      label: 'Phone number verified',
+      kind: 'plain',
+      describe,
+    },
+  };
+}
+
 export type MailKind = 'reset' | 'verification' | 'actions';
 
 export interface MailOutcome {

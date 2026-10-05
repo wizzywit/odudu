@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useRefusal } from '#/features/session';
+import { changeFailureText } from '#/features/subjects/service.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import type { AdminCapability } from '#/shared/service/principal.ts';
-import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
+import type { GatewayResult } from '#/shared/transport/gateway.ts';
 
 export interface Confirming<A> {
   asking: A | null;
@@ -12,23 +13,6 @@ export interface Confirming<A> {
   ask: (arg: A) => void;
   cancel: () => void;
   confirm: () => void;
-}
-
-function refusalText(failure: GatewayFailure, capability: AdminCapability): string {
-  switch (failure.kind) {
-    case 'network':
-      return 'Could not confirm the result. Nothing was sent again; the tab shows what the server holds now.';
-    case 'schema':
-      return 'It may have happened, but the answer could not be read. The tab shows what the server holds now.';
-    case 'defect':
-      return 'The console could not finish. This is a fault in the console, not something you did.';
-    case 'problem':
-      if (failure.problem.status === 403) {
-        return `Refused: it needs the ${capability} capability, or the subject holds an admin capability you do not.`;
-      }
-      if (failure.problem.status === 404) return 'It is already gone.';
-      return `Refused: ${failure.problem.detail ?? failure.problem.title}`;
-  }
 }
 
 // One change behind a plain confirmation: asked, then sent once, its
@@ -73,10 +57,10 @@ export function useConfirmedChange<A, R>({
             return;
           }
           refusal.report(result, capability);
-          setProblem(refusalText(result, capability));
+          setProblem(changeFailureText(result, capability));
         })
         .catch(() => {
-          setProblem(refusalText({ ok: false, kind: 'defect' }, capability));
+          setProblem(changeFailureText({ ok: false, kind: 'defect' }, capability));
         });
     },
   };

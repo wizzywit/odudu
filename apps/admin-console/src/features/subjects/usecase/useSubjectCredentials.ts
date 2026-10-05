@@ -1,4 +1,4 @@
-import type { Credential, ListCredentialsResponse, Lockout, Subject } from '@odudu/contracts/admin';
+import type { ListCredentialsResponse, Lockout, Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal } from '#/features/session';
 import {
@@ -6,18 +6,21 @@ import {
   useCredentials,
   useIssuePassword,
   useLockout,
-  type CredentialChange,
   type Read,
 } from '#/features/subjects/repository/useCredentials.ts';
-import { factorLabel, signsInAsItself, subjectName } from '#/features/subjects/service.ts';
+import {
+  credentialChangeOf,
+  credentialDialog,
+  credentialDoneText,
+  credentialFailureText,
+  signsInAsItself,
+  subjectName,
+  type Asking,
+  type CredentialDialog,
+} from '#/features/subjects/service.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import type { GatewayResult } from '#/shared/transport/gateway.ts';
 
-export type Asking =
-  | { kind: 'password' }
-  | { kind: 'factor'; credential: Credential }
-  | { kind: 'recovery-codes' }
-  | { kind: 'lockout' };
+export type { Asking };
 
 export interface SubjectCredentials {
   name: string;
@@ -26,6 +29,8 @@ export interface SubjectCredentials {
   credentials: Read<ListCredentialsResponse>;
   lockout: Read<Lockout>;
   asking: Asking | null;
+  // What the confirmation says for the change being asked.
+  dialog: CredentialDialog | null;
   busy: boolean;
   problem: string | null;
   ask: (asking: Asking) => void;
@@ -36,47 +41,11 @@ export interface SubjectCredentials {
   closeSecret: () => void;
 }
 
-function refusalText(what: string, result: Exclude<GatewayResult<unknown>, { ok: true }>): string {
-  switch (result.kind) {
-    case 'network':
-      return `Could not confirm the result. ${what} has not been sent again; the tab shows what the server holds now.`;
-    case 'schema':
-      return `${what} may have happened, but the answer could not be read. The tab shows what the server holds now.`;
-    case 'defect':
-      return `The console could not finish. This is a fault in the console, not something you did.`;
-    case 'problem':
-      if (result.problem.status === 403) {
-        return 'Refused: it needs the manage-users capability, or the subject holds an admin capability you do not.';
-      }
-      return `Refused: ${result.problem.detail ?? result.problem.title}`;
-  }
-}
-
-function changeOf(asking: Exclude<Asking, { kind: 'password' }>): CredentialChange | null {
-  switch (asking.kind) {
-    case 'factor':
-      return asking.credential.id === undefined
-        ? null
-        : { kind: 'factor', credentialId: asking.credential.id };
-    case 'recovery-codes':
-      return { kind: 'recovery-codes' };
-    case 'lockout':
-      return { kind: 'lockout' };
-  }
-}
-
-function doneText(name: string, asking: Exclude<Asking, { kind: 'password' }>): string {
-  switch (asking.kind) {
-    case 'factor':
-      return `${factorLabel(asking.credential.type)} removed from ${name}.`;
-    case 'recovery-codes':
-      return `${name}'s recovery codes are revoked.`;
-    case 'lockout':
-      return `${name}'s lockout is cleared.`;
-  }
-}
-
-export function useSubjectCredentials(tenant: string, subject: Subject): SubjectCredentials {
+export function useSubjectCredentials(
+  tenant: string,
+  subject: Subject,
+  self: boolean,
+): SubjectCredentials {
   const itself = signsInAsItself(subject);
   const name = subjectName(subject);
   const refusal = useRefusal(tenant);
@@ -94,7 +63,7 @@ export function useSubjectCredentials(tenant: string, subject: Subject): Subject
     },
     refused: (failure) => {
       refusal.report(failure, 'manage-users');
-      setProblem(refusalText('The password', failure));
+      setProblem(credentialFailureText('The password', failure));
     },
   });
 
@@ -104,6 +73,7 @@ export function useSubjectCredentials(tenant: string, subject: Subject): Subject
     credentials,
     lockout,
     asking,
+    dialog: asking === null ? null : credentialDialog(asking, name, self),
     busy: changes.busy || issue.busy,
     problem,
     ask: (next) => {
@@ -121,21 +91,21 @@ export function useSubjectCredentials(tenant: string, subject: Subject): Subject
         issue.start();
         return;
       }
-      const change = changeOf(asking);
+      const change = credentialChangeOf(asking);
       if (change === null) return;
       changes
         .run(change)
         .then((result) => {
           if (result.ok) {
             setAsking(null);
-            push({ tone: 'success', message: doneText(name, asking) });
+            push({ tone: 'success', message: credentialDoneText(name, asking) });
             return;
           }
           refusal.report(result, 'manage-users');
-          setProblem(refusalText('The change', result));
+          setProblem(credentialFailureText('The change', result));
         })
         .catch(() => {
-          setProblem(refusalText('The change', { ok: false, kind: 'defect' }));
+          setProblem(credentialFailureText('The change', { ok: false, kind: 'defect' }));
         });
     },
     secret: issue.secret,

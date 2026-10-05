@@ -10,36 +10,33 @@ import {
 } from '#/features/subjects/repository/useAccess.ts';
 import {
   accessRefusal,
-  onlyHolderText,
+  adminRolesBlocked,
+  beyondText,
+  capabilitiesRemoveTenants,
+  capabilityOptions,
+  describeHoldings,
+  elsewhereText,
+  heldElsewhere,
+  heldOf,
+  keptOtherwise,
+  onlyHolder,
   removalConfirmation,
+  roleIdsOf,
   rolesRecord,
   splitRoles,
+  subjectBeyond,
   subjectName,
   subjectTabHref,
   type Confirmation,
+  type HeldElsewhere,
 } from '#/features/subjects/service.ts';
-import {
-  administratorCapability,
-  MANAGE_TENANTS,
-  TENANT_ADMIN,
-} from '#/shared/service/administrators.ts';
+import { administratorCapability } from '#/shared/service/administrators.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useSectionSave, type SectionSave } from '#/shared/repository/useSectionSave.ts';
 import { notLacking } from '#/shared/service/access.ts';
-import {
-  beyondCaller,
-  CAPABILITY_TEXT,
-  ceilingOf,
-  fullText,
-  heldCapabilities,
-  holdingLabel,
-  holdingsIn,
-  includedBy,
-  isHolding,
-  type Held,
-  type Holding,
-} from '#/shared/service/capabilities.ts';
-import { SYSTEM_TENANT, type AdminCapability } from '#/shared/service/principal.ts';
+import { holdingsIn, type Holding, type HoldingOption } from '#/shared/service/capabilities.ts';
+import { inOrderOf, removedFrom } from '#/shared/service/ids.ts';
+import type { AdminCapability } from '#/shared/service/principal.ts';
 
 export function useSubjectRolesRead(tenant: string, id: string): RecordState<SetRolesResponse> {
   return useRolesRecord(tenant, id);
@@ -49,20 +46,9 @@ export interface CapabilityValues extends Readonly<Record<string, unknown>> {
   capabilities: readonly Holding[];
 }
 
-export interface CapabilityChoice {
-  id: Holding;
-  label: string;
-  description: string;
-  note: string | null;
-  unavailable: string | null;
-}
+export type CapabilityChoice = HoldingOption;
 
-// A holding the subject has only through a group or a role that nests it,
-// which only that group or role can take away.
-export interface HeldElsewhere {
-  label: string;
-  through: string;
-}
+export type { HeldElsewhere };
 
 export interface CapabilityEditing {
   name: string;
@@ -73,6 +59,10 @@ export interface CapabilityEditing {
   beyond: readonly AdminCapability[];
   options: readonly CapabilityChoice[];
   elsewhere: readonly HeldElsewhere[];
+  // What is held only through a group or role, said as the start of the sentence naming where to change it.
+  elsewhereText: string;
+  // Why a subject beyond the caller cannot be changed here.
+  beyondText: string;
   groupsHref: string;
   rolesHref: string;
   // The admin roles could not be read, so nothing can be saved.
@@ -83,17 +73,6 @@ export interface CapabilityEditing {
   confirming: Confirmation | null;
   confirm: () => void;
   cancel: () => void;
-}
-
-function inOrder(tenant: string, chosen: Iterable<string>): Holding[] {
-  const set = new Set(chosen);
-  return holdingsIn(tenant).filter((holding) => set.has(holding));
-}
-
-function noteOf(carrier: Holding | null, held: Held | undefined): string | null {
-  if (carrier !== null) return `Carried by ${holdingLabel(carrier)}.`;
-  if (held === undefined || held.through.length === 0) return null;
-  return `${held.direct ? 'Also held' : 'Held'} ${held.through.join(', ')}.`;
 }
 
 // The admin capabilities a subject is assigned, edited as one set beside
@@ -133,9 +112,8 @@ export function useCapabilityEditor({
   const [confirming, setConfirming] = useState<Confirmation | null>(null);
   const split = splitRoles(data.items);
   const caller = authority?.capabilities;
-  const held: ReadonlyMap<Holding, Held> =
-    effective.status === 'ready' ? heldCapabilities(effective.data.items) : new Map();
-  const beyond = caller === undefined ? [] : beyondCaller([...held.keys()], caller);
+  const held = heldOf(effective);
+  const beyond = subjectBeyond(effective, caller);
   const canManage = allowed && notLacking(authority, ['manage-users']);
 
   const save = useSectionSave({
@@ -152,88 +130,51 @@ export function useCapabilityEditor({
     explain: accessRefusal(name, 'roles', self),
     fields: {
       capabilities: {
-        value: inOrder(tenant, split.holdings),
+        value: inOrderOf(holdingsIn(tenant), split.holdings),
         label: 'Admin capabilities',
         kind: 'plain',
-        describe: (value) => {
-          const named = Array.isArray(value) ? value.map(String).filter(isHolding) : [];
-          return named.length === 0 ? 'none' : named.map(holdingLabel).join(', ');
-        },
+        describe: describeHoldings,
       },
     },
     save: async (gateway, { values, ifMatch }) => {
-      const missing = values.capabilities.filter(
-        (holding) => adminRoles.status !== 'ready' || !adminRoles.data.has(holding),
+      const roles = roleIdsOf(
+        values.capabilities,
+        adminRoles.status === 'ready' ? adminRoles.data : null,
       );
-      if (adminRoles.status !== 'ready' || missing.length > 0) {
-        console.error(`console defect: no role id for ${missing.join(', ')} in ${tenant}`);
+      if ('missing' in roles) {
+        console.error(`console defect: no role id for ${roles.missing.join(', ')} in ${tenant}`);
         return { ok: false, kind: 'defect' };
       }
-      const ids = values.capabilities.flatMap((holding) => adminRoles.data.get(holding) ?? []);
-      const result = await saveRoles(gateway, [...split.roleIds, ...ids], ifMatch);
+      const result = await saveRoles(gateway, [...split.roleIds, ...roles.ids], ifMatch);
       if (result.ok && self) reread();
       return result;
     },
   });
 
   const chosen = save.values.capabilities;
-  const base = inOrder(tenant, split.holdings);
-  const removed = base.filter((holding) => !chosen.includes(holding));
-  // What else, beyond the boxes, keeps the counted capability with them.
-  // Full counts too when a group or another role carries it, since the box
-  // only takes away what is assigned here.
-  const keptOtherwise =
-    (held.get(counted)?.through ?? []).some((path) => path !== `within ${TENANT_ADMIN}`) ||
-    (counted !== TENANT_ADMIN && (held.get('tenant-admin')?.through.length ?? 0) > 0);
-  const carriers = [...new Set<Holding>(['tenant-admin', counted])].filter((holding) =>
-    chosen.includes(holding),
-  );
-  const removesTenants =
-    tenant === SYSTEM_TENANT &&
-    base.some((holding) => holding === TENANT_ADMIN || holding === MANAGE_TENANTS) &&
-    !chosen.some((holding) => holding === TENANT_ADMIN || holding === MANAGE_TENANTS) &&
-    !keptOtherwise;
-  const onlyHolder =
-    subject.enabled &&
-    held.has(counted) &&
-    enabledHolders.status === 'ready' &&
-    !enabledHolders.data.capped &&
-    enabledHolders.data.count === 1 &&
-    !keptOtherwise &&
-    carriers.length === 1;
-
-  const options = holdingsIn(tenant).map((holding): CapabilityChoice => {
-    const ceiling = caller === undefined ? null : ceilingOf(tenant, holding, caller);
-    const guarded =
-      onlyHolder && carriers[0] === holding ? onlyHolderText(name, tenant, counted) : null;
-    return {
-      id: holding,
-      label: holdingLabel(holding),
-      description: holding === TENANT_ADMIN ? fullText(tenant) : CAPABILITY_TEXT[holding],
-      note: noteOf(includedBy(holding, chosen), held.get(holding)),
-      unavailable: ceiling ?? guarded,
-    };
+  const base = inOrderOf(holdingsIn(tenant), split.holdings);
+  const removed = removedFrom(base, chosen);
+  const kept = keptOtherwise(held, counted);
+  const removesTenants = capabilitiesRemoveTenants(tenant, base, chosen, kept);
+  const guarded = onlyHolder({
+    enabled: subject.enabled,
+    held,
+    counted,
+    holders: enabledHolders,
+    keptOtherwise: kept,
+    chosen,
   });
-  const elsewhere = [...held]
-    .filter(([holding, how]) => {
-      if (how.direct || includedBy(holding, chosen) !== null) return false;
-      return how.through.some((path) => !path.startsWith('within '));
-    })
-    .map(([holding, how]) => ({ label: holdingLabel(holding), through: how.through.join(', ') }));
-
-  const blocked =
-    adminRoles.status === 'loading'
-      ? 'The admin roles are still being read.'
-      : adminRoles.status === 'failed'
-        ? 'The admin roles could not be read, so nothing can be saved.'
-        : save.blocked;
+  const blocked = adminRolesBlocked(adminRoles.status, save.blocked);
+  const elsewhere = heldElsewhere(held, chosen);
 
   return {
     name,
     canManage,
     beyond,
-    options,
+    options: capabilityOptions({ tenant, name, chosen, caller, held, guarded, counted }),
     elsewhere,
+    elsewhereText: elsewhereText(name, elsewhere),
+    beyondText: beyondText(name, beyond, 'change'),
     groupsHref: subjectTabHref(tenant, subject.id, 'groups'),
     rolesHref: subjectTabHref(tenant, subject.id, 'roles'),
     rolesFailed: adminRoles.status === 'failed' ? { retry: adminRoles.retry } : null,
@@ -249,7 +190,7 @@ export function useCapabilityEditor({
       },
     },
     choose: (value) => {
-      save.edit('capabilities', inOrder(tenant, value));
+      save.edit('capabilities', inOrderOf(holdingsIn(tenant), value));
     },
     confirming,
     confirm: () => {

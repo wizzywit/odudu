@@ -1,4 +1,4 @@
-import type { RequiredAction, SetRequiredActionsResponse, Subject } from '@odudu/contracts/admin';
+import type { SetRequiredActionsResponse, Subject } from '@odudu/contracts/admin';
 import { useRefusal } from '#/features/session';
 import {
   saveActions,
@@ -8,7 +8,8 @@ import {
 import {
   accessRefusal,
   actionsRecord,
-  REQUIRED_ACTIONS,
+  describeActions,
+  requiredActionsInOrder,
   subjectName,
 } from '#/features/subjects/service.ts';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
@@ -26,18 +27,6 @@ export interface SubjectActions {
   canManage: boolean;
   save: SectionSave<ActionValues>;
   choose: (actions: readonly string[]) => void;
-}
-
-function inOrder(actions: readonly string[]): RequiredAction[] {
-  return REQUIRED_ACTIONS.map((each) => each.action).filter((action) => actions.includes(action));
-}
-
-function describe(value: unknown): string {
-  const actions = Array.isArray(value) ? value.map(String) : [];
-  const labels = REQUIRED_ACTIONS.filter((each) => actions.includes(each.action)).map(
-    (each) => each.label,
-  );
-  return labels.length === 0 ? 'none' : labels.join(', ');
 }
 
 export function useRequiredActions(
@@ -63,7 +52,12 @@ export function useRequiredActions(
     },
     explain: accessRefusal(name, 'actions'),
     fields: {
-      actions: { value: inOrder(data.actions), label: 'Required actions', kind: 'plain', describe },
+      actions: {
+        value: requiredActionsInOrder(data.actions),
+        label: 'Required actions',
+        kind: 'plain',
+        describe: describeActions,
+      },
     },
     save: saveActions(tenant, subject.id),
   });
@@ -72,7 +66,7 @@ export function useRequiredActions(
     canManage,
     save,
     choose: (value) => {
-      save.edit('actions', inOrder(value));
+      save.edit('actions', requiredActionsInOrder(value));
     },
   };
 }

@@ -1,16 +1,11 @@
+import { beyondText } from '#/features/subjects/service.ts';
 import { Button } from '#/shared/view/Button';
 import { Note } from '#/shared/view/Note';
-
-const LIST = new Intl.ListFormat('en-GB', { type: 'conjunction' });
 
 // The one line a record carries when its subject holds more than the caller,
 // in place of every write the server would refuse.
 export function BeyondNote({ name, beyond }: { name: string; beyond: readonly string[] }) {
-  return (
-    <Note>
-      {`${name} holds ${LIST.format(beyond)}, which you do not, so you can view ${name} but change nothing here.`}
-    </Note>
-  );
+  return <Note>{beyondText(name, beyond, 'view')}</Note>;
 }
 
 export function ReachFailed({ name, retry }: { name: string; retry: () => void }) {

@@ -11,6 +11,7 @@ import {
   capabilityOptions,
   changeFailureText,
   claimFields,
+  verificationFields,
   credentialChangeOf,
   credentialDialog,
   credentialDoneText,
@@ -805,6 +806,22 @@ describe('profile sections', () => {
       name: { value: 'Ada', label: 'Full name', kind: 'plain' },
       given_name: { value: '', label: 'Given name', kind: 'plain' },
     });
+  });
+});
+
+describe('the verification flags', () => {
+  it('holds both, labelled, and says verified or not verified for each', () => {
+    const fields = verificationFields({
+      email_verified: true,
+      phone_number_verified: false,
+    } as never);
+    expect(fields.email_verified).toMatchObject({ value: true, label: 'Email verified' });
+    expect(fields.phone_number_verified).toMatchObject({
+      value: false,
+      label: 'Phone number verified',
+    });
+    expect(fields.email_verified.describe?.(true)).toBe('verified');
+    expect(fields.phone_number_verified.describe?.(false)).toBe('not verified');
   });
 });
 

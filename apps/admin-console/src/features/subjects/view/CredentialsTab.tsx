@@ -4,6 +4,7 @@ import {
   credentialsOf,
   factorLabel,
   lockoutSummary,
+  recoveryCodesText,
   removeFactorLabel,
   REQUIRED_ACTIONS,
   type Credential,
@@ -12,7 +13,6 @@ import {
 } from '#/features/subjects/service.ts';
 import {
   useSubjectCredentials,
-  type Asking,
   type SubjectCredentials,
 } from '#/features/subjects/usecase/useSubjectCredentials.ts';
 import {
@@ -211,13 +211,7 @@ function RecoveryCodes({
 }) {
   return (
     <Panel title="Recovery codes">
-      <p className={styles.text}>
-        {count === null || count === 0
-          ? `No recovery codes: ${page.name} holds no unspent one.`
-          : count === 1
-            ? '1 unspent recovery code'
-            : `${String(count)} unspent recovery codes`}
-      </p>
+      <p className={styles.text}>{recoveryCodesText(page.name, count)}</p>
       <p className={styles.rule}>
         Codes are shown only to the subject, once, and carry no id of their own, so the set is
         revoked whole or not at all.
@@ -343,51 +337,6 @@ function Email({ name, mail }: { name: string; mail: SubjectMail }) {
   );
 }
 
-interface Dialog {
-  title: string;
-  consequence: string;
-  confirmLabel: string;
-  tone: 'primary' | 'danger';
-}
-
-function dialogOf(asking: Asking, name: string, self: boolean): Dialog {
-  switch (asking.kind) {
-    case 'password':
-      return {
-        title: `Issue ${name} a one-time password?`,
-        consequence: self
-          ? 'This replaces your own password, and you must change it at your next sign-in. Any lockout is cleared. No session ends, this one included.'
-          : `This replaces the password ${name} has, and they must change it at their next sign-in. Any lockout is cleared. No session ends and no grant is revoked.`,
-        confirmLabel: 'Issue password',
-        tone: 'primary',
-      };
-    case 'factor': {
-      const label = factorLabel(asking.credential.type);
-      const lowered = `${label.charAt(0).toLowerCase()}${label.slice(1)}`;
-      return {
-        title: `Remove ${name}’s ${lowered}?`,
-        consequence: `${name}'s next sign-in no longer offers or asks for this ${lowered}. Signing in with it again needs a new enrolment.`,
-        confirmLabel: 'Remove',
-        tone: 'danger',
-      };
-    }
-    case 'recovery-codes':
-      return {
-        title: `Revoke ${name}’s recovery codes?`,
-        consequence: `Every recovery code ${name} holds stops working, unspent ones too. They get a fresh set only when one is asked of them, as the generate-recovery-codes required action.`,
-        confirmLabel: 'Revoke recovery codes',
-        tone: 'danger',
-      };
-    case 'lockout':
-      return {
-        title: `Clear ${name}’s lockout?`,
-        consequence: `The run of failed sign-ins is forgotten, so ${name}'s next right password signs in at once, and the next wrong one counts from one.`,
-        confirmLabel: 'Clear lockout',
-        tone: 'primary',
-      };
-  }
-}
-
 function Held({
   page,
   mail,
@@ -429,9 +378,9 @@ function Held({
 }
 
 export function CredentialsTab({ tenant, subject, canManage, self }: TabProps) {
-  const page = useSubjectCredentials(tenant, subject);
+  const page = useSubjectCredentials(tenant, subject, self);
   const mail = useSubjectMail(tenant, subject);
-  const dialog = page.asking === null ? null : dialogOf(page.asking, page.name, self);
+  const { dialog } = page;
   return (
     <div className={styles.tab}>
       {page.itself ? (
