@@ -1535,3 +1535,21 @@ Two defects turned up only while capturing transcripts:
 - **Record writes.** Every write on a record is held to the ceiling, not just the capability editor's. A record that is read-only says each reason it is, and judges nothing until effective roles have loaded.
 - **Self-loss.** Removing your own capabilities, directly or by leaving a group, asks first.
 - **Full administrators.** A new tenant's first administrator stays Full. Without one, nobody in the tenant could grant every capability, and the last-administrator guard would protect nothing.
+
+## Part 4 — sign-in through required actions, and a relying party on another origin
+
+**A finished required action resumed nothing.** Every action — the password change, TOTP, a passkey, recovery codes, and the emailed link's leftovers — answered its own completion with the login form again. Each action cost one more entry of whatever factor finished authentication, and enrolling TOTP added a code prompt per action after it, each waiting for a fresh 30-second step. Two causes:
+
+- `advance` never wrote down the factor that finished a login, so the attempt could only be continued by running that factor again.
+- The code that confirms a new authenticator was spent on the credential and credited to nothing, so the next pass asked for another one.
+
+Now every factor that succeeds is written down, an empty submission against a session the flow considers complete resumes it, and the enrolment code is the session's `otp` factor. The required-action route resumes through `handleLoginSubmission` and answers through the same sender as the login form (`view/routes/login-response.ts`), so the next action, consent and the code follow in order, and `remember_me` is parked across the detour. "Complete" is computed from the flow as it stands for the subject, not read off `authenticated_at`: an authenticator enrolled in another tab un-finishes a password-only session, which is what keeps recovery codes from a session that never proved a code. The consent door's ID tokens had carried no `amr` or `acr`, for the same first cause.
+
+**`form-action 'self'` refused the redirect to the client.** Chromium applies the directive to the redirect a form submission follows, so a client on another origin got its code issued and never received it. A page continuing an authorization request now names that request's `redirect_uri` origin, through `RenderedPage.redirectsTo` and `pageHeaders` (ADR 0018's second amendment). `apps/admin-console/e2e/relying-party.spec.ts` is the first browser test against a client that is not same-origin.
+
+Why the conformance runs never showed it: CI runs Config OP, which drives no browser. The only Basic OP run (`results/basic-op-2026-09-12-…`, 02:31Z) predates the policy, which landed at 19:25Z that day in `a0507a2f`. The Dynamic OP run on 2026-09-19 completed no authorization request: every module failed earlier, on PKCE or `private_key_jwt`. The proxy does not hide it, because `https://proxy` and the suite's callback on `localhost.emobix.co.uk:8443` are different origins. assumption: the suite's HtmlUnit browser may not enforce `form-action` at all, so a passing Basic OP run would not have proved the opposite either.
+
+Owed by this phase and not done here, both found by the investigation:
+
+- The emailed actions link's "Back to the application" is the bare `redirect_uri`, so the client gets a callback with no `code` and no `state` (`packages/account/src/view/`).
+- The OTP form is titled "Sign in" with a "Sign in" button, so a code prompt reads as another sign-in (`packages/protocol-oidc/src/view/authorize-html.ts`).

@@ -217,6 +217,20 @@ Keep-Alive: timeout=72
 </form>
 ```
 
+Since 2026-10-05 the policy on this page also names the origin of the
+console's own `redirect_uri` in `form-action`, as every page that continues
+an authorization request does
+([ADR 0018](adr/0018-framing-defence-on-rendered-pages.md)'s second
+amendment). For the console that is the server's own origin, so nothing it
+can reach changes. The same request, re-run on a stack of its own — the
+project `odudu-t8d` on `http://localhost:3086` at commit `511db0fd`, with
+`console-paths` seeded on it — answers with this policy, the rest of the
+response as above:
+
+```
+content-security-policy: default-src 'none'; frame-ancestors 'none'; form-action 'self' http://localhost:3086; base-uri 'none'; script-src 'nonce-tGaiwaKzNEDPCRk05fGcWA=='; connect-src 'self'
+```
+
 ```bash
 curl -sS -D - -c jar -b jar -X POST \
   --data-urlencode auth_session_id=01a0e72e-0a14-7505-a470-fd32e77345dc \

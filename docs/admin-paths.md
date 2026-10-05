@@ -51,17 +51,19 @@ stack brought up the same way from an empty volume with only
 `seed admin --username ada` run against it. Its password, ids, code and
 cookie are that run's own: its `ada` is
 `01a0de12-c116-70ee-9cc1-984429980dcc`, not the subject the sections after
-it name.
+it name. "Getting the token" has since been captured once more, on a stack of
+its own, and says so.
 
 **The fourth stack.** "Getting the token"'s final probe and `GET /whoami`
-were recaptured together, after `whoami` started answering `capabilities`
+were recaptured together (the first has since been captured again with the
+rest of that section), after `whoami` started answering `capabilities`
 and `crossTenant`, against this branch's own already-running development
 stack rather than a fresh one — it was not brought up for this capture and
 was not torn down afterward. It carries a tenant also named `demo`, under
 its own id, `01a0db22-1c32-7d17-b351-697d7911033c` — a different tenant
 from the one the sections above and below this note refer to by that same
 name. `seed admin --username ada-whoami` run against it created the
-subject behind both probes, `01a0e0a7-0ead-703a-ab34-22bcf5167d46`, rather
+subject behind the `GET /whoami` probe, `01a0e0a7-0ead-703a-ab34-22bcf5167d46`, rather
 than reusing the existing `ada` whose password from this stack's own
 history is not known here; its capabilities come from holding
 `tenant-admin`, which composites every capability plus `manage-tenants`
@@ -552,14 +554,20 @@ and its signing key, and a subject holding `tenant-admin` there — which
 composites every capability plus `manage-tenants`, so this one subject
 reaches every route in the table above, in every tenant.
 
+Captured again on 2026-10-05, after a finished required action began
+resuming the login it was parked on, on a stack of its own — the project
+`odudu-t8d` on `http://localhost:3086`, built from commit `511db0fd`,
+started on an empty volume — so its `ada`, password, code and cookie are
+that run's own and name nothing in the sections after it:
+
 ```bash
-docker compose exec -T odudu node dist/main.js seed admin --username ada
+docker compose -p odudu-t8d exec -T odudu node dist/main.js seed admin --username ada
 ```
 
 ```
-27Kfg-JXR64ZjLc9FkJ_0kIERHv-EeuF
+-zaR1eGp-_tTgGeQfo4p7dU2WvkdQoIy
 This password is shown once and cannot be retrieved again.
-{"command":"admin","tenantId":"0199aa00-0000-7000-8000-000000000001","username":"ada","subjectId":"01a0de12-c116-70ee-9cc1-984429980dcc"}
+{"command":"admin","tenantId":"0199aa00-0000-7000-8000-000000000001","username":"ada","subjectId":"01a10b6c-8656-7dd1-92fe-73e65bb14724"}
 ```
 
 The subject is created with an `update-password` required action, so the
@@ -575,7 +583,7 @@ the login form did:
 <h1>Change your password</h1>
 <p>This account needs a new password before you can continue.</p>
 <form method="post" action="/tenants/system/login-actions/required-action?action=update-password">
-  <input type="hidden" name="auth_session_id" value="01a0de13-03cf-7df3-bd31-e5086f0926c1">
+  <input type="hidden" name="auth_session_id" value="01a10b6c-86cb-7b2e-a0f0-d1b29da15474">
   <label>New password <input type="password" name="password" autocomplete="new-password"></label>
   <button type="submit">Update password</button>
 </form>
@@ -583,28 +591,27 @@ the login form did:
 </html>
 ```
 
-Submitting it **returns the sign-in page, not the redirect** — clearing the
-action leaves the authentication session to be completed from the start,
-with the new password:
+Submitting it **ends in the redirect**: the password the login form already
+accepted is not asked for again, and with nothing else owed the parked
+login completes:
 
 ```bash
-curl -sS -c jar -b jar \
-  --data-urlencode "auth_session_id=01a0de13-03cf-7df3-bd31-e5086f0926c1" \
-  --data-urlencode 'password=correct-horse-battery-staple-9' \
-  'http://localhost:3000/tenants/system/login-actions/required-action?action=update-password'
-
 curl -sS -D - -c jar -b jar \
-  --data-urlencode "auth_session_id=01a0de13-03cf-7df3-bd31-e5086f0926c1" \
-  --data-urlencode 'username=ada' \
+  --data-urlencode "auth_session_id=01a10b6c-86cb-7b2e-a0f0-d1b29da15474" \
   --data-urlencode 'password=correct-horse-battery-staple-9' \
-  'http://localhost:3000/tenants/system/login-actions/authenticate'
+  'http://localhost:3086/tenants/system/login-actions/required-action?action=update-password'
 ```
 
 ```
 HTTP/1.1 302 Found
-set-cookie: system-session=01a0de13-04cb-70b0-8def-e2775efe7bd8:uCLBEyReeXErUxqMZDN-CsA_U44NWLcWDo2fylzaSOo; HttpOnly; SameSite=Lax; Path=/
+x-request-id: 01a10b6c-871b-7d75-9f95-23c77ad0bf35
+set-cookie: system-session=01a10b6c-875a-7c9d-8ef6-b4c635243f4d:UUKHOeht3SO9TSeKXiMdenw3Ft7C1LDXi3l9J647tzQ; HttpOnly; SameSite=Lax; Path=/
 set-cookie: system-session-persistent=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
-location: http://127.0.0.1:8080/callback?code=4uFhKJ34riRIjYzfr-EfMI8filnxus4w7pQe6H1wc6M&state=s&iss=http%3A%2F%2Flocalhost%3A3000%2Ftenants%2Fsystem
+location: http://127.0.0.1:8080/callback?code=p1bUiCPWNTAONbjnluqy_eLNTHnjME_PpRlQJQr1goA&state=s&iss=http%3A%2F%2Flocalhost%3A3086%2Ftenants%2Fsystem
+content-length: 0
+Date: Mon, 05 Oct 2026 09:37:04 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
 ```
 
 The cookie's value is `<session id>:<secret>`. The id half is the `sid`
@@ -621,32 +628,30 @@ the wire, because the bytes on the wire are a signed JWT:
 
 ```
 {
-  "iss": "http://localhost:3000/tenants/system",
-  "sub": "01a0de12-c116-70ee-9cc1-984429980dcc",
-  "aud": ["urn:odudu:params:admin-api", "http://localhost:3000/tenants/system"],
+  "iss": "http://localhost:3086/tenants/system",
+  "sub": "01a10b6c-8656-7dd1-92fe-73e65bb14724",
+  "aud": ["urn:odudu:params:admin-api", "http://localhost:3086/tenants/system"],
   "client_id": "odudu-admin",
   "scope": "openid",
-  "iat": 1790432192,
-  "exp": 1790432492,
-  "jti": "01a0de13-27db-7965-99e5-40acd8f67252",
-  "sid": "01a0de13-04cb-70b0-8def-e2775efe7bd8",
-  "grant_id": "01a0de13-27db-7965-99e5-40ab0704242c"
+  "iat": 1791193024,
+  "exp": 1791193324,
+  "jti": "01a10b6c-877f-76ac-8579-98d10333cb38",
+  "sid": "01a10b6c-875a-7c9d-8ef6-b4c635243f4d",
+  "grant_id": "01a10b6c-877f-76ac-8579-98d05bf77768"
 }
 ```
 
 `expires_in` is 300 seconds, so a capture session longer than five minutes
 refreshes with the `refresh_token` the same response carried. The probe
-that says the token works at all — captured against the fourth stack, so
-the subject is `ada-whoami` rather than the `ada` the token payload above
-belongs to:
+that says the token works at all, on the same stack:
 
 ```bash
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3000/admin/tenants/system/whoami
+  http://localhost:3086/admin/tenants/system/whoami
 ```
 
 ```
-{"subjectId":"01a0e0a7-0ead-703a-ab34-22bcf5167d46","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-users"],"crossTenant":false}
+{"subjectId":"01a10b6c-8656-7dd1-92fe-73e65bb14724","issuerTenantId":"0199aa00-0000-7000-8000-000000000001","capabilities":["manage-clients","manage-keys","manage-sessions","manage-tenant","manage-tenants","manage-users","view-audit","view-users"],"crossTenant":false}
 ```
 
 ### The admin client's registered URIs
@@ -6983,7 +6988,12 @@ curl -sS -D - -c jar -b jar \
 ```
 
 The `auth_session_id` is the one the login form that request rendered
-carried; the page's policy is the one every page without a script carries:
+carried. _(Not re-run since 2026-10-05, when a page continuing an
+authorization request began naming its client's origin in `form-action`:
+this one now sends `form-action 'self' https://portal.demo.example`, as the
+re-run [consent screen](request-paths.md#the-consent-screen) shows for its
+own client. The twelfth stack's `billing` scope and grants are not
+reproducible on a fresh one. Every other line is as shown.)_
 
 ````
 HTTP/1.1 200 OK
