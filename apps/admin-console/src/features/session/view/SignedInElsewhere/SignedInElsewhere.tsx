@@ -1,5 +1,5 @@
 import { Link } from 'react-aria-components';
-import type { Principal } from '#/features/session/service.ts';
+import { tenantPage, type Principal } from '#/features/session/service.ts';
 import { SessionStatus } from '#/features/session/view/SessionStatus';
 import { Button } from '#/shared/view/Button';
 import styles from '#/features/session/view/SignedInElsewhere/SignedInElsewhere.module.css';
@@ -22,10 +22,7 @@ export function SignedInElsewhere({
         <strong>{principal.username}</strong>.
       </p>
       <div className={styles.actions}>
-        <Link
-          href={`/console/${encodeURIComponent(principal.tenant)}`}
-          className={styles.back ?? ''}
-        >
+        <Link href={tenantPage(principal.tenant)} className={styles.back ?? ''}>
           {`Back to ${principal.tenant}`}
         </Link>
         <Button variant="primary" onPress={onSignIn}>

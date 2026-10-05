@@ -1,14 +1,9 @@
 import { useState, type SubmitEvent } from 'react';
-import type { Principal } from '#/features/session/service.ts';
+import { signInLabel, type Principal } from '#/features/session/service.ts';
 import { SessionStatus } from '#/features/session/view/SessionStatus';
 import { Button } from '#/shared/view/Button';
 import { TextField } from '#/shared/view/Field';
 import styles from '#/features/session/view/SignIn/SignIn.module.css';
-
-function submitLabel(enters: boolean, tenant: string): string {
-  if (!enters) return 'Continue to sign-in';
-  return tenant === '' ? 'Enter tenant' : `Enter ${tenant}`;
-}
 
 // There is no username-first sign-in: usernames are unique per tenant, and
 // asking across tenants would say which tenants a name belongs to.
@@ -88,7 +83,7 @@ export function SignIn({
           />
           <div className={styles.actions}>
             <Button type="submit" variant="primary">
-              {submitLabel(enters, tenant.trim())}
+              {signInLabel(enters, tenant.trim())}
             </Button>
           </div>
         </form>

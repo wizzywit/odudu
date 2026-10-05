@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useAuthorityQuery } from '#/features/session/repository/useAuthorityQuery.ts';
-import { SYSTEM_TENANT, type AdminCapability, type Authority } from '#/features/session/service.ts';
+import { tenantMissing, type AdminCapability, type Authority } from '#/features/session/service.ts';
 import { useSignedIn } from '#/features/session/usecase/useSignedIn.ts';
+import { isRefused } from '#/shared/service/failure.ts';
 import type { GatewayResult } from '#/shared/transport/gateway.ts';
 
 function useWhoami(tenant: string) {
@@ -24,16 +25,11 @@ export function useRereadAuthority(tenant: string): () => void {
   return useWhoami(tenant).reread;
 }
 
-// Whether the tenant in the address exists, as far as whoami can say:
-// undefined until it answers. Only a system administrator reaches a tenant
-// other than their own, so only their 401 can mean that none has the name.
+// Whether the tenant in the address exists, as far as whoami can say.
 export function useTenantMissing(tenant: string): boolean | undefined {
   const { principal } = useSignedIn();
   const { refusedUnknown } = useWhoami(tenant);
-  if (principal?.tenant !== SYSTEM_TENANT || tenant === SYSTEM_TENANT) {
-    return refusedUnknown === undefined ? undefined : false;
-  }
-  return refusedUnknown;
+  return tenantMissing(principal, tenant, refusedUnknown);
 }
 
 // A 403 names the capability the refused action needed and re-reads whoami,
@@ -47,7 +43,7 @@ export function useRefusal(tenant: string): {
   return {
     refused,
     report: (result, needed) => {
-      if (result.ok || result.kind !== 'problem' || result.problem.status !== 403) return false;
+      if (!isRefused(result)) return false;
       setRefused(needed);
       reread();
       return true;

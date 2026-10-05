@@ -2,21 +2,23 @@ import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { rememberedTenant } from '#/features/session/repository/useSessionQuery.ts';
 import {
-  isTenantName,
+  CHOOSE_TENANT,
+  entersDirectly,
+  homeTarget,
+  isSystemPrincipal,
   LOGIN_ERROR,
-  loginErrorMessage,
-  signedInElsewhere,
-  SYSTEM_TENANT,
+  loginNotice,
+  namedTenant,
+  replacedSession,
+  switchFailedText,
   tenantPage,
-  TENANT_NAME_PROBLEM,
+  tenantProblem,
   type Principal,
 } from '#/features/session/service.ts';
 import { useSignedIn } from '#/features/session/usecase/useSignedIn.ts';
 import { useSignIn } from '#/features/session/usecase/useSignIn.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { useUrlSearch } from '#/shared/repository/useUrlSearch.ts';
-
-export const CHOOSE_TENANT = 'choose';
 
 export type Home =
   | { kind: 'leaving'; tenant: string | null }
@@ -49,19 +51,14 @@ export type Home =
 export function useConsoleHome(): Home {
   const { principal } = useSignedIn();
   const { params, drop } = useUrlSearch();
-  const [failed] = useState(() => {
-    const code = params.get(LOGIN_ERROR);
-    return code === null ? null : loginErrorMessage(code);
-  });
+  const [failed] = useState(() => loginNotice(params.get(LOGIN_ERROR)));
   const navigate = useNavigate();
   const signIn = useSignIn();
-  const asked = params.get('tenant');
-  const named = asked !== null && isTenantName(asked) ? asked : null;
-  const choosing = params.has(CHOOSE_TENANT);
-  const system = principal?.tenant === SYSTEM_TENANT;
+  const named = namedTenant(params.get('tenant'));
+  const target = homeTarget({ principal, named, choosing: params.has(CHOOSE_TENANT) });
 
   const enter = (tenant: string): void => {
-    if (principal !== null && (system || principal.tenant === tenant)) {
+    if (entersDirectly(principal, tenant)) {
       navigate({ href: tenantPage(tenant) }).catch(() => undefined);
     } else {
       signIn(tenant, tenantPage(tenant));
@@ -76,38 +73,35 @@ export function useConsoleHome(): Home {
     if (failed !== null && principal !== null) {
       useToasts.getState().push({
         tone: 'error',
-        message: `The switch to another tenant did not complete: ${failed} You're still signed in to ${principal.tenant}.`,
+        message: switchFailedText(failed, principal.tenant),
       });
     }
     enter(tenant);
   };
-  const elsewhere = named !== null && signedInElsewhere(principal, named);
-  const target = elsewhere
-    ? null
-    : (named ?? (principal !== null && !choosing ? principal.tenant : null));
   useEffect(() => {
-    if (target !== null && !left.current) leave(target);
-    else if (target === null) drop(LOGIN_ERROR);
+    if (target.kind === 'leaving' && !left.current) leave(target.tenant);
+    else if (target.kind !== 'leaving') drop(LOGIN_ERROR);
   });
 
-  if (elsewhere && principal !== null) {
+  if (target.kind === 'elsewhere') {
+    const { tenant } = target;
     return {
       kind: 'elsewhere',
-      principal,
-      tenant: named,
+      principal: target.principal,
+      tenant,
       signIn: () => {
-        signIn(named, tenantPage(named));
+        signIn(tenant, tenantPage(tenant));
       },
     };
   }
-  if (target !== null) return { kind: 'leaving', tenant: target };
+  if (target.kind === 'leaving') return { kind: 'leaving', tenant: target.tenant };
   return {
     kind: 'choose',
     remembered: rememberedTenant({ named, signedIn: principal !== null }),
     notice: failed,
-    enters: system,
-    replacing: principal !== null && !system ? principal : null,
+    enters: isSystemPrincipal(principal),
+    replacing: replacedSession(principal),
     choose: leave,
-    check: (tenant) => (isTenantName(tenant) ? undefined : TENANT_NAME_PROBLEM),
+    check: tenantProblem,
   };
 }

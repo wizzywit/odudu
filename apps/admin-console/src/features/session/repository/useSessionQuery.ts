@@ -2,7 +2,14 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { useEffect, useRef } from 'react';
 import { readSession } from '#/features/session/adapter/session.ts';
 import { loadLastTenant, storeLastTenant } from '#/features/session/adapter/lastTenant.ts';
-import { draftOwner, type Principal } from '#/features/session/service.ts';
+import {
+  draftOwner,
+  isReplacement,
+  remembers,
+  shownPrincipal,
+  type Principal,
+  type SessionRead,
+} from '#/features/session/service.ts';
 import { useDrafts } from '#/shared/repository/useDrafts.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
@@ -12,25 +19,11 @@ import { useTransport } from '#/shared/transport/useTransport.ts';
 
 const KEY = ['session'] as const;
 
-export interface SessionRead {
-  result: GatewayResult<Principal>;
-  // Who this tab was showing when its session ended, or when a sign-in in
-  // another tab replaced it with the principal `result` names.
-  was: Principal | null;
-}
-
 const ENDED: GatewayResult<Principal> = {
   ok: false,
   kind: 'problem',
   problem: { type: SESSION_ENDED_TYPE, title: 'Unauthorized', status: 401 },
 };
-
-// The principal the tab is showing: the one it read, or while it asks
-// about a replacement, the one it read before that.
-function shown(read: SessionRead | undefined): Principal | null {
-  if (read?.result.ok !== true) return null;
-  return read.was ?? read.result.data;
-}
 
 // An ended or replaced session's server data belongs to nobody now, so none
 // of it stays in the cache for whoever is signed in next.
@@ -50,22 +43,20 @@ function adopt(gateway: Gateway, principal: Principal): void {
 // are kept for the principal they were made as, while its sections are
 // still mounted, and nothing is adopted until the administrator says so.
 async function signedIn(gateway: Gateway, client: QueryClient): Promise<SessionRead> {
-  const before = shown(client.getQueryData<SessionRead>(KEY));
+  const before = shownPrincipal(client.getQueryData<SessionRead>(KEY));
   const result = await readSession(gateway);
   if (!result.ok) return { result, was: null };
   if (before === null) {
     adopt(gateway, result.data);
     return { result, was: null };
   }
-  if (draftOwner(before) === draftOwner(result.data)) return { result, was: null };
+  if (!isReplacement(before, result.data)) return { result, was: null };
   useDrafts.getState().keepDirty(draftOwner(before));
   useUnsavedGuard.getState().reset();
   purge(client);
   return { result, was: before };
 }
 
-// The tenant this browser last signed in to is only a fallback: a tenant
-// the URL names, or a live session, always comes first.
 export function rememberedTenant({
   named,
   signedIn,
@@ -73,7 +64,7 @@ export function rememberedTenant({
   named: string | null;
   signedIn: boolean;
 }): string | null {
-  return named === null && !signedIn ? loadLastTenant() : null;
+  return remembers(named, signedIn) ? loadLastTenant() : null;
 }
 
 export function useSessionQuery(): {

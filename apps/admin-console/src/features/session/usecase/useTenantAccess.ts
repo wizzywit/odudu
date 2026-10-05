@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { signedInElsewhere, type Principal } from '#/features/session/service.ts';
+import { signInHome, tenantEntry, type Principal } from '#/features/session/service.ts';
 import { useSignedIn } from '#/features/session/usecase/useSignedIn.ts';
 import { useSignIn } from '#/features/session/usecase/useSignIn.ts';
 
@@ -20,22 +20,21 @@ export type TenantAccess =
 export function useTenantAccess(tenant: string): TenantAccess {
   const { principal, ended } = useSignedIn();
   const signIn = useSignIn();
-  const home = ended?.tenant ?? tenant;
+  const home = signInHome(ended, tenant);
   const left = useRef(false);
   useEffect(() => {
     if (principal !== null || left.current) return;
     left.current = true;
     signIn(home);
   });
-  if (principal === null) return { kind: 'signing-in', tenant: home, ended: ended !== null };
-  if (signedInElsewhere(principal, tenant)) {
+  const entry = tenantEntry(principal, ended, tenant);
+  if (entry.kind === 'elsewhere') {
     return {
-      kind: 'elsewhere',
-      principal,
+      ...entry,
       signIn: () => {
         signIn(tenant);
       },
     };
   }
-  return { kind: 'allowed', principal };
+  return entry;
 }
