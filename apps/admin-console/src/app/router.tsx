@@ -229,6 +229,49 @@ const subjectPages = [
 ] as const;
 const subjectRecord = subjectPages[2];
 
+function groupsPage(name: 'GroupsPage' | 'NewGroupPage') {
+  return lazyFeatureRoute(
+    () => import('#/features/groups/index.ts').then((feature) => feature[name]),
+    'Loading groups',
+  );
+}
+
+const Groups = groupsPage('GroupsPage');
+const NewGroup = groupsPage('NewGroupPage');
+const GroupRecord = lazyFeatureRoute(
+  () => import('#/features/groups/index.ts').then((feature) => feature.GroupRecordPage),
+  'Loading the group',
+);
+
+const groupPages = [
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'groups',
+    component: function GroupList() {
+      const { tenant: name } = tenant.useParams();
+      return <Groups key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'groups/new',
+    component: function GroupCreation() {
+      const { tenant: name } = tenant.useParams();
+      return <NewGroup key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'groups/$id',
+    component: function GroupAtId() {
+      const { tenant: name } = tenant.useParams();
+      const { id } = groupRecord.useParams();
+      return <GroupRecord key={`${name}/${id}`} tenant={name} id={id} />;
+    },
+  }),
+] as const;
+const groupRecord = groupPages[2];
+
 // Every feature chunk the routes load, for a caller that wants them all in
 // hand before the first render.
 export function preloadFeatures(): Promise<void> {
@@ -244,11 +287,14 @@ export function preloadFeatures(): Promise<void> {
     Subjects,
     NewSubject,
     SubjectRecord,
+    Groups,
+    NewGroup,
+    GroupRecord,
   ];
   return Promise.all(features.map((feature) => feature.preload())).then(() => undefined);
 }
 
-const TAKEN = new Set(['tenants', 'export', 'system-admins', 'subjects']);
+const TAKEN = new Set(['tenants', 'export', 'system-admins', 'subjects', 'groups']);
 
 const areas = EVERY_AREA.filter((area) => area !== OVERVIEW && !TAKEN.has(area.path)).map((area) =>
   createRoute({
@@ -269,6 +315,7 @@ const routeTree = root.addChildren([
     systemAdmins,
     newSystemAdmin,
     ...subjectPages,
+    ...groupPages,
     ...areas,
   ]),
 ]);

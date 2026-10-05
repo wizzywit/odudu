@@ -4,3 +4,5 @@ export { NewSubjectPage } from '#/features/subjects/view/NewSubjectPage.tsx';
 export { SubjectRecordPage } from '#/features/subjects/view/SubjectRecordPage.tsx';
 export { CapabilityHolders } from '#/features/subjects/view/CapabilityHolders.tsx';
 export { subjectTabHref } from '#/features/subjects/service.ts';
+export { SubjectMembers } from '#/features/subjects/view/SubjectMembers.tsx';
+export { useOwnRoles, type OwnRoles } from '#/features/subjects/usecase/useOwnRoles.ts';

@@ -101,7 +101,12 @@ export const ADMIN_ROLES = [
   ...EVERY_TENANT_CAPABILITY.map((name) => role(`r-${name}`, name, 'odudu-admin')),
 ];
 
-export function assigned(r: ReturnType<typeof role>) {
+export function assigned(r: {
+  id: string;
+  name: string;
+  client_id: string | null;
+  client_key: string | null;
+}) {
   return { id: r.id, name: r.name, client_id: r.client_id, client_key: r.client_key };
 }
 
