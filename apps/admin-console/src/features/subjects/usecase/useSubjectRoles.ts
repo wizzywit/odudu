@@ -4,7 +4,7 @@ import type {
   SetRolesResponse,
   Subject,
 } from '@odudu/contracts/admin';
-import { useRefusal } from '#/features/session/index.ts';
+import { useRefusal } from '#/features/session';
 import { useEffectiveRoles, useSaveRoles } from '#/features/subjects/repository/useAccess.ts';
 import type { Read } from '#/features/subjects/repository/useSubjectRead.ts';
 import {

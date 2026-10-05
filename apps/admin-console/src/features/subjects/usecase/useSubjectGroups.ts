@@ -1,6 +1,6 @@
 import type { Group, GroupFields, SetSubjectGroupsResponse, Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal, useRereadAuthority } from '#/features/session/index.ts';
+import { useRefusal, useRereadAuthority } from '#/features/session';
 import {
   useEffectiveRoles,
   useGroupsRecord,

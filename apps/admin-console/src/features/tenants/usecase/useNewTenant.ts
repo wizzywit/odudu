@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useAuthority, usePrincipal, useRefusal } from '#/features/session/index.ts';
-import { holds } from '#/features/shell/index.ts';
+import { useAuthority, usePrincipal, useRefusal } from '#/features/session';
+import { holds } from '#/features/shell';
 import {
   useCreationProgress,
   useFindSubject,

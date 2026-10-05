@@ -18,9 +18,9 @@ import { RequiredActionsTab } from '#/features/subjects/view/RequiredActionsTab.
 import { RolesTab } from '#/features/subjects/view/RolesTab.tsx';
 import { ProfileTab } from '#/features/subjects/view/ProfileTab.tsx';
 import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
-import { RecordPage } from '#/shared/view/RecordPage.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
-import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
+import { RecordPage } from '#/shared/view/RecordPage';
+import { StatusTag } from '#/shared/view/StatusTag';
+import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
 import { BeyondNote, ReachFailed } from '#/features/subjects/view/BeyondNote.tsx';
 
 interface PanelProps {

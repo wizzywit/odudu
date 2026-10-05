@@ -1,7 +1,7 @@
 import type { Role } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal, useRereadAuthority } from '#/features/session/index.ts';
-import { useOwnRoles } from '#/features/subjects/index.ts';
+import { useRefusal, useRereadAuthority } from '#/features/session';
+import { useOwnRoles } from '#/features/subjects';
 import { useGo } from '#/features/roles/repository/useGo.ts';
 import {
   useRoleDeletion,

@@ -6,14 +6,14 @@ import {
   type RoleComposites,
 } from '#/features/roles/usecase/useRoleComposites.ts';
 import type { Ceiling } from '#/features/roles/usecase/useRoleRecordPage.ts';
-import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
+import { RoleOwner } from '#/shared/view/RoleOwner';
 import { SectionNoticeOf } from '#/features/roles/view/SectionNoticeOf.tsx';
 import { Button } from '#/shared/view/Button';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { RolePicker } from '#/shared/view/RolePicker.tsx';
-import { Section } from '#/shared/view/Section.tsx';
-import { FormSkeleton } from '#/shared/view/Skeleton.tsx';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { RolePicker } from '#/shared/view/RolePicker';
+import { Section } from '#/shared/view/Section';
+import { FormSkeleton } from '#/shared/view/Skeleton';
 import styles from '#/features/roles/view/Tab.module.css';
 
 function Nested({ role, composites }: { role: Role; composites: RoleComposites }) {

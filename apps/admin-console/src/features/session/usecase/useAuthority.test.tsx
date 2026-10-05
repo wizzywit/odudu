@@ -7,7 +7,7 @@ import { useRefusal } from '#/features/session/usecase/useAuthority.ts';
 import { SignedInContext } from '#/features/session/usecase/useSignedIn.ts';
 import { createQueryClient } from '#/shared/repository/queryClient.ts';
 import { useTransport, TransportContext } from '#/shared/transport/useTransport.ts';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { fakeTransport, json, problem } from '#/testing/fakeTransport.ts';
 
 const WHOAMI = 'GET /console/api/admin/tenants/acme/whoami';

@@ -1,10 +1,5 @@
 import { useLocation } from '@tanstack/react-router';
-import {
-  CHOOSE_TENANT,
-  useAuthority,
-  useAuthorityAnswered,
-  useSignOut,
-} from '#/features/session/index.ts';
+import { CHOOSE_TENANT, useAuthority, useAuthorityAnswered, useSignOut } from '#/features/session';
 import {
   actsWithSystemAuthority,
   currentHref,

@@ -3,7 +3,7 @@ import { AttentionPanel } from '#/features/overview/view/AttentionPanel.tsx';
 import { CountsPanel } from '#/features/overview/view/CountsPanel.tsx';
 import { DiscoveryPanel } from '#/features/overview/view/DiscoveryPanel.tsx';
 import { LatestAudit } from '#/features/overview/view/LatestAudit.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
+import { PageHeader } from '#/shared/view/PageHeader';
 import styles from '#/features/overview/view/OverviewPage.module.css';
 
 export function OverviewPage({ tenant }: { tenant: string }) {

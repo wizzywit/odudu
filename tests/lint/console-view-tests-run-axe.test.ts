@@ -95,7 +95,7 @@ async function untested(root: string): Promise<string[]> {
 describe("the console's view tests", { timeout: 60_000 }, () => {
   it('all run axe in both themes', async () => {
     const tests = await read(CONSOLE_SRC, VIEW_TESTS);
-    expect([...tests.keys()]).toContain('shared/view/DialogFrame.test.tsx');
+    expect([...tests.keys()]).toContain('shared/view/DialogFrame/DialogFrame.test.tsx');
     expect(await withoutAxe(CONSOLE_SRC)).toEqual([]);
   });
 

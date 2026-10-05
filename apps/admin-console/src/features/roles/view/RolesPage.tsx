@@ -1,14 +1,14 @@
 import type { Role } from '@odudu/contracts/admin';
-import { AreaGate, areaAt } from '#/features/shell/index.ts';
+import { AreaGate, areaAt } from '#/features/shell';
 import { useRolesList } from '#/features/roles/usecase/useRolesList.ts';
-import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
+import { RoleOwner } from '#/shared/view/RoleOwner';
 import { Button } from '#/shared/view/Button';
-import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
-import type { Column } from '#/shared/view/DataTable.tsx';
-import { SelectField } from '#/shared/view/Field.tsx';
-import { ResourceListPage } from '#/shared/view/ResourceListPage.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { ButtonLink } from '#/shared/view/ButtonLink';
+import type { Column } from '#/shared/view/DataTable';
+import { SelectField } from '#/shared/view/Field';
+import { ResourceListPage } from '#/shared/view/ResourceListPage';
+import { StatusTag } from '#/shared/view/StatusTag';
+import { Timestamp } from '#/shared/view/Timestamp';
 import styles from '#/features/roles/view/Tab.module.css';
 
 const COLUMNS: readonly Column<Role>[] = [

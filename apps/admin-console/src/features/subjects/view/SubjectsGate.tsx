@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { PageNotFound } from '#/features/shell/index.ts';
+import { PageNotFound } from '#/features/shell';
 import { useSubjectsArea } from '#/features/subjects/usecase/useSubjectsArea.ts';
-import type { Crumb } from '#/shared/view/Breadcrumb.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
+import type { Crumb } from '#/shared/view/Breadcrumb';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { PageHeader } from '#/shared/view/PageHeader';
 
 // whoami is advice: a principal it says cannot read subjects is told what
 // that needs, rather than offered reads the server would refuse.

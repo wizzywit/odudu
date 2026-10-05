@@ -8,12 +8,12 @@ import { AdministratorsTab } from '#/features/tenants/view/AdministratorsTab.tsx
 import { ExportPanel } from '#/features/tenants/view/ExportPanel.tsx';
 import { GeneralTab } from '#/features/tenants/view/GeneralTab.tsx';
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
-import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
-import { RecordPage } from '#/shared/view/RecordPage.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
-import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
+import { ButtonLink } from '#/shared/view/ButtonLink';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { PageHeader } from '#/shared/view/PageHeader';
+import { RecordPage } from '#/shared/view/RecordPage';
+import { StatusTag } from '#/shared/view/StatusTag';
+import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
 
 function Record({ name, access }: { name: string; access: TenantRecordAccess }) {
   const page = useTenantRecordPage(name);

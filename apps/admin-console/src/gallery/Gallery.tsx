@@ -4,32 +4,28 @@ import type { PickerState } from '#/shared/service/picker.ts';
 import type { ListSearch, ResourceListState } from '#/shared/service/resourceList.ts';
 import { current, dirtyFields, discard, edit, startDraft } from '#/shared/service/dirty.ts';
 import type { Toast } from '#/shared/service/toast.ts';
-import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
-import { ChecklistField } from '#/shared/view/ChecklistField.tsx';
-import { AuditActor } from '#/shared/view/AuditActor.tsx';
-import { AppShell } from '#/shared/view/AppShell.tsx';
-import { BirthdateField } from '#/shared/view/BirthdateField.tsx';
-import { Breadcrumb } from '#/shared/view/Breadcrumb.tsx';
+import { ActivityTab } from '#/shared/view/ActivityTab';
+import { ChecklistField } from '#/shared/view/ChecklistField';
+import { AuditActor } from '#/shared/view/AuditActor';
+import { AppShell } from '#/shared/view/AppShell';
+import { BirthdateField } from '#/shared/view/Field';
+import { Breadcrumb } from '#/shared/view/Breadcrumb';
 import { Button } from '#/shared/view/Button';
-import { KeyHint, PlatformContext } from '#/shared/view/KeyHint.tsx';
-import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { ChunkFailed } from '#/shared/view/ChunkBoundary.tsx';
-import {
-  CountryField,
-  GenderField,
-  LocaleField,
-  TimeZoneField,
-} from '#/shared/view/ClaimFields.tsx';
-import { ComboBoxField } from '#/shared/view/ComboBoxField.tsx';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { ConflictPanel } from '#/shared/view/ConflictPanel.tsx';
-import { ContextBar } from '#/shared/view/ContextBar.tsx';
-import { CopyValue } from '#/shared/view/CopyValue.tsx';
-import { Count } from '#/shared/view/Count.tsx';
-import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
-import { Duration } from '#/shared/view/Duration.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
+import { KeyHint, PlatformContext } from '#/shared/view/KeyHint';
+import { ButtonLink } from '#/shared/view/ButtonLink';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { Note, NoteCode } from '#/shared/view/Note';
+import { ChunkFailed } from '#/shared/view/ChunkBoundary';
+import { CountryField, GenderField, LocaleField, TimeZoneField } from '#/shared/view/Field';
+import { ComboBoxField } from '#/shared/view/Field';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { ConflictPanel } from '#/shared/view/ConflictPanel';
+import { ContextBar } from '#/shared/view/ContextBar';
+import { CopyValue } from '#/shared/view/CopyValue';
+import { Count } from '#/shared/view/Count';
+import { DataTable, type Column } from '#/shared/view/DataTable';
+import { Duration } from '#/shared/view/Duration';
+import { EmptyState } from '#/shared/view/EmptyState';
 import {
   KeyValueField,
   NumberWithUnitField,
@@ -38,22 +34,22 @@ import {
   TextField,
   ToggleField,
   UrlListField,
-} from '#/shared/view/Field.tsx';
-import { FieldGrid, GridCell } from '#/shared/view/FieldGrid.tsx';
-import { FilterBar } from '#/shared/view/FilterBar.tsx';
-import { GroupPicker } from '#/shared/view/GroupPicker.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
-import { PhoneField } from '#/shared/view/PhoneField.tsx';
-import { Pager } from '#/shared/view/Pager.tsx';
-import { Rail } from '#/shared/view/Rail.tsx';
-import { RecordPage } from '#/shared/view/RecordPage.tsx';
-import { ResourceListPage } from '#/shared/view/ResourceListPage.tsx';
-import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
-import { RolePicker } from '#/shared/view/RolePicker.tsx';
-import { SaveBar } from '#/shared/view/SaveBar.tsx';
-import { SecretDialog } from '#/shared/view/SecretDialog.tsx';
-import { Section } from '#/shared/view/Section.tsx';
-import { SectionNotice } from '#/shared/view/SectionNotice.tsx';
+} from '#/shared/view/Field';
+import { FieldGrid, GridCell } from '#/shared/view/FieldGrid';
+import { FilterBar } from '#/shared/view/FilterBar';
+import { GroupPicker } from '#/shared/view/GroupPicker';
+import { PageHeader } from '#/shared/view/PageHeader';
+import { PhoneField } from '#/shared/view/Field';
+import { Pager } from '#/shared/view/Pager';
+import { Rail } from '#/shared/view/Rail';
+import { RecordPage } from '#/shared/view/RecordPage';
+import { ResourceListPage } from '#/shared/view/ResourceListPage';
+import { RoleOwner } from '#/shared/view/RoleOwner';
+import { RolePicker } from '#/shared/view/RolePicker';
+import { SaveBar } from '#/shared/view/SaveBar';
+import { SecretDialog } from '#/shared/view/SecretDialog';
+import { Section } from '#/shared/view/Section';
+import { SectionNotice } from '#/shared/view/SectionNotice';
 import {
   FormSkeleton,
   ListSkeleton,
@@ -61,14 +57,14 @@ import {
   Skeleton,
   TableSkeleton,
   TermsSkeleton,
-} from '#/shared/view/Skeleton.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
-import { Tabs } from '#/shared/view/Tabs.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
-import { Toasts } from '#/shared/view/Toasts.tsx';
-import { UnsavedChangesDialog } from '#/shared/view/UnsavedChangesDialog.tsx';
-import { PictureField, UrlField } from '#/shared/view/UrlField.tsx';
-import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
+} from '#/shared/view/Skeleton';
+import { StatusTag } from '#/shared/view/StatusTag';
+import { Tabs } from '#/shared/view/Tabs';
+import { Timestamp } from '#/shared/view/Timestamp';
+import { Toasts } from '#/shared/view/Toasts';
+import { UnsavedChangesDialog } from '#/shared/view/UnsavedChangesDialog';
+import { PictureField, UrlField } from '#/shared/view/Field';
+import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
 import styles from '#/gallery/Gallery.module.css';
 import {
   CLAIM_VALUES,
@@ -821,6 +817,11 @@ export function Gallery({
               <Duration seconds={1209600} />
               <Count count={10000} capped noun={{ one: 'subject', other: 'subjects' }} />
             </div>
+          </Specimen>
+          <Specimen label="Note">
+            <Note>
+              Nothing here can be changed until <NoteCode>manage-tenant</NoteCode> is read.
+            </Note>
           </Specimen>
           <Specimen label="CapabilityNote">
             <CapabilityNote capability="manage-clients">Rotating a secret</CapabilityNote>

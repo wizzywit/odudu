@@ -5,8 +5,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useDrafts, type DraftFields } from '#/shared/repository/useDrafts.ts';
 import { useSectionDraft } from '#/shared/repository/useSectionDraft.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
-import { TextField } from '#/shared/view/Field.tsx';
-import { Section } from '#/shared/view/Section.tsx';
+import { TextField } from '#/shared/view/Field';
+import { Section } from '#/shared/view/Section';
 
 const BASE = { name: 'Billing portal', secret: '' };
 const OWNER = 'system/s0';

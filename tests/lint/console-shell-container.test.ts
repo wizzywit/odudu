@@ -8,7 +8,11 @@ import { beforeAll, expect, it } from 'vitest';
 // one container, `shell`. CSS Modules may scope that name, which would
 // silently break every query; this runs the real transform to catch it.
 const APP = path.resolve(import.meta.dirname, '../../apps/admin-console');
-const SHELL_QUERIES = ['AppShell.module.css', 'DataTable.module.css', 'Section.module.css'];
+const SHELL_QUERIES = [
+  'AppShell/AppShell.module.css',
+  'DataTable/DataTable.module.css',
+  'Section/Section.module.css',
+];
 
 // The slice of Vite's API this uses; the repo checks do not depend on Vite.
 interface ViteApi {
@@ -56,8 +60,8 @@ it('keeps every query on the name shell once the modules are built', async () =>
 });
 
 it('stacks tables and pins save bars under 640, and drops columns under 1024', async () => {
-  const table = await built('DataTable.module.css');
+  const table = await built('DataTable/DataTable.module.css');
   expect(table).toMatch(/@container shell \(width < 640px\)/u);
   expect(table).toMatch(/@container shell \(width < 1024px\)/u);
-  expect(await built('Section.module.css')).toMatch(/@container shell \(width < 640px\)/u);
+  expect(await built('Section/Section.module.css')).toMatch(/@container shell \(width < 640px\)/u);
 });

@@ -21,14 +21,14 @@ import {
   type SubjectMail,
 } from '#/features/subjects/usecase/useSubjectMail.ts';
 import { Button } from '#/shared/view/Button';
-import { ChecklistField } from '#/shared/view/ChecklistField.tsx';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { SecretDialog } from '#/shared/view/SecretDialog.tsx';
-import { FormSkeleton } from '#/shared/view/Skeleton.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { ChecklistField } from '#/shared/view/ChecklistField';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { DataTable, type Column } from '#/shared/view/DataTable';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { SecretDialog } from '#/shared/view/SecretDialog';
+import { FormSkeleton } from '#/shared/view/Skeleton';
+import { StatusTag } from '#/shared/view/StatusTag';
+import { Timestamp } from '#/shared/view/Timestamp';
 import styles from '#/features/subjects/view/Tab.module.css';
 
 interface TabProps {

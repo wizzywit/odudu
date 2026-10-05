@@ -5,11 +5,11 @@ import {
 } from '#/features/subjects/usecase/useSubjectSessions.ts';
 import { Panel } from '#/features/subjects/view/SessionsTab.tsx';
 import { Button } from '#/shared/view/Button';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { TableSkeleton } from '#/shared/view/Skeleton.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { DataTable, type Column } from '#/shared/view/DataTable';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { TableSkeleton } from '#/shared/view/Skeleton';
+import { Timestamp } from '#/shared/view/Timestamp';
 import styles from '#/features/subjects/view/Tab.module.css';
 
 function columns(page: SubjectConsents): readonly Column<Consent>[] {

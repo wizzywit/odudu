@@ -1,5 +1,5 @@
 import type { EffectiveRoleAssignment } from '@odudu/contracts/admin';
-import { useAuthority, usePrincipal } from '#/features/session/index.ts';
+import { useAuthority, usePrincipal } from '#/features/session';
 import { useEffectiveRoles, useMemberships } from '#/features/subjects/repository/useAccess.ts';
 import { holds } from '#/shared/service/access.ts';
 

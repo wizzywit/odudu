@@ -8,12 +8,12 @@ import {
 import type { Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
 import { SectionNoticeOf } from '#/features/groups/view/SectionNoticeOf.tsx';
 import { Button } from '#/shared/view/Button';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { RolePicker } from '#/shared/view/RolePicker.tsx';
-import { Section } from '#/shared/view/Section.tsx';
-import { FormSkeleton } from '#/shared/view/Skeleton.tsx';
-import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { RolePicker } from '#/shared/view/RolePicker';
+import { Section } from '#/shared/view/Section';
+import { FormSkeleton } from '#/shared/view/Skeleton';
+import { RoleOwner } from '#/shared/view/RoleOwner';
 import styles from '#/features/groups/view/Tab.module.css';
 
 function Listed({ path, mapped }: { path: string; mapped: readonly Mapped[] }) {

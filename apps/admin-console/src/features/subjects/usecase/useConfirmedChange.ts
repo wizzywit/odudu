@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useRefusal } from '#/features/session/index.ts';
+import { useRefusal } from '#/features/session';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import type { AdminCapability } from '#/shared/service/principal.ts';
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';

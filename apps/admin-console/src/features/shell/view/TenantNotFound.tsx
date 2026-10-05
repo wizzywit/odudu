@@ -1,6 +1,6 @@
 import { Link } from 'react-aria-components';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { PageHeader } from '#/shared/view/PageHeader';
 import styles from '#/features/shell/view/TenantNotFound.module.css';
 
 export function TenantNotFound({ tenant, chooseHref }: { tenant: string; chooseHref: string }) {

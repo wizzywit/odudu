@@ -1,5 +1,5 @@
 import type { Profile } from '@odudu/contracts/admin';
-import { useRefusal } from '#/features/session/index.ts';
+import { useRefusal } from '#/features/session';
 import {
   saveClaims,
   saveVerification,

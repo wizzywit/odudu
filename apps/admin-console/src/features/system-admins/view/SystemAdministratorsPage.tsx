@@ -1,17 +1,17 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useId } from 'react';
-import { CapabilityHolders } from '#/features/subjects/index.ts';
+import { CapabilityHolders } from '#/features/subjects';
 import {
   useSystemAdministratorsPage,
   type SystemAdministrators,
 } from '#/features/system-admins/usecase/useSystemAdministratorsPage.ts';
-import { SystemGate } from '#/features/tenants/index.ts';
+import { SystemGate } from '#/features/tenants';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 import { Button } from '#/shared/view/Button';
-import { ChecklistField } from '#/shared/view/ChecklistField.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
-import { Picker } from '#/shared/view/Picker.tsx';
-import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
+import { ChecklistField } from '#/shared/view/ChecklistField';
+import { PageHeader } from '#/shared/view/PageHeader';
+import { Picker } from '#/shared/view/Picker';
+import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
 import styles from '#/features/system-admins/view/SystemAdministratorsPage.module.css';
 
 const TITLE = 'System administrators';

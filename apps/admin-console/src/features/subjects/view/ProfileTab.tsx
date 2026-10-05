@@ -13,24 +13,19 @@ import {
   type SectionSave,
 } from '#/features/subjects/usecase/useSubjectProfile.ts';
 import { Button } from '#/shared/view/Button';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { BirthdateField } from '#/shared/view/BirthdateField.tsx';
-import {
-  CountryField,
-  GenderField,
-  LocaleField,
-  TimeZoneField,
-} from '#/shared/view/ClaimFields.tsx';
-import { OwnDataFields, TextField, ToggleField, type Chrome } from '#/shared/view/Field.tsx';
-import { FieldGrid, GridCell } from '#/shared/view/FieldGrid.tsx';
-import { PhoneField } from '#/shared/view/PhoneField.tsx';
-import { PictureField, UrlField } from '#/shared/view/UrlField.tsx';
-import { Section } from '#/shared/view/Section.tsx';
-import { SectionNotice } from '#/shared/view/SectionNotice.tsx';
-import { FormSkeleton } from '#/shared/view/Skeleton.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { BirthdateField } from '#/shared/view/Field';
+import { CountryField, GenderField, LocaleField, TimeZoneField } from '#/shared/view/Field';
+import { OwnDataFields, TextField, ToggleField, type Chrome } from '#/shared/view/Field';
+import { FieldGrid, GridCell } from '#/shared/view/FieldGrid';
+import { PhoneField } from '#/shared/view/Field';
+import { PictureField, UrlField } from '#/shared/view/Field';
+import { Section } from '#/shared/view/Section';
+import { SectionNotice } from '#/shared/view/SectionNotice';
+import { FormSkeleton } from '#/shared/view/Skeleton';
+import { StatusTag } from '#/shared/view/StatusTag';
+import { Timestamp } from '#/shared/view/Timestamp';
 import styles from '#/features/subjects/view/Tab.module.css';
 
 interface TabProps {

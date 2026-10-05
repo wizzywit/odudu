@@ -4,15 +4,13 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-// A usecase integrates and a repository holds state (ADR 0010's amendment,
-// CLAUDE.md "Layering"): every rule, message, failure-to-copy mapping and
-// formatter is a pure service function. These are the shapes logic takes in
-// a hook, each checkable without judgement. The rules are not a count of
-// branches, since guards and `result.ok` choices are orchestration.
+// A usecase integrates and a repository holds state (ADR 0010's amendment):
+// every rule, message, failure-to-copy mapping and formatter is a pure
+// service function. These are the shapes logic takes in a hook that can be
+// found without judgement; guards and `result.ok` choices are orchestration.
 //
-// The scope is the features and layers already cleaned. It widens as each
-// one is, and there is no allowlist of exceptions: a file outside CLEAN is
-// unfinished, never waived.
+// CLEAN names what is already clean and widens as each feature is. There is
+// no allowlist of exceptions: a file outside CLEAN is unfinished, not waived.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const SRC = 'apps/admin-console/src';

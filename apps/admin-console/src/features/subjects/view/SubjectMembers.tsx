@@ -2,14 +2,14 @@ import type { Subject } from '@odudu/contracts/admin';
 import { subjectName } from '#/features/subjects/service.ts';
 import { useMembers, useMembersReadable } from '#/features/subjects/usecase/useMembers.ts';
 import { Button } from '#/shared/view/Button';
-import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { Count } from '#/shared/view/Count.tsx';
-import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { Pager } from '#/shared/view/Pager.tsx';
-import { TableSkeleton } from '#/shared/view/Skeleton.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
+import { ButtonLink } from '#/shared/view/ButtonLink';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { Count } from '#/shared/view/Count';
+import { DataTable, type Column } from '#/shared/view/DataTable';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { Pager } from '#/shared/view/Pager';
+import { TableSkeleton } from '#/shared/view/Skeleton';
+import { StatusTag } from '#/shared/view/StatusTag';
 import styles from '#/features/subjects/view/Tab.module.css';
 
 const COLUMNS: readonly Column<Subject>[] = [

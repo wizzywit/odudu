@@ -8,13 +8,13 @@ import {
 import { formatAbsolute } from '#/shared/service/format.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 import { Button } from '#/shared/view/Button';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { Pager } from '#/shared/view/Pager.tsx';
-import { TableSkeleton } from '#/shared/view/Skeleton.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { DataTable, type Column } from '#/shared/view/DataTable';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { Pager } from '#/shared/view/Pager';
+import { TableSkeleton } from '#/shared/view/Skeleton';
+import { Timestamp } from '#/shared/view/Timestamp';
 import styles from '#/features/subjects/view/Tab.module.css';
 
 // A list a tab pages through: its loading, failure and emptiness said the

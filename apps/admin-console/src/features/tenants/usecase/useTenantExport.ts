@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useAuthority, useRefusal } from '#/features/session/index.ts';
-import { holds } from '#/features/shell/index.ts';
+import { useAuthority, useRefusal } from '#/features/session';
+import { holds } from '#/features/shell';
 import { useExport, type Exported } from '#/features/tenants/repository/useExport.ts';
 import { fileSize } from '#/features/tenants/service.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';

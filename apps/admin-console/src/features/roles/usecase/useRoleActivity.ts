@@ -1,5 +1,5 @@
 import type { AuditEvent } from '@odudu/contracts/admin';
-import { useAuthority } from '#/features/session/index.ts';
+import { useAuthority } from '#/features/session';
 import { useActivity } from '#/shared/repository/useActivity.ts';
 import { lacking } from '#/shared/service/access.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';

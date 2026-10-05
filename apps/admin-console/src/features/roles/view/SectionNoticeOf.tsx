@@ -1,5 +1,5 @@
 import type { SectionSave } from '#/features/roles/usecase/useRoleGeneral.ts';
-import { SectionNotice } from '#/shared/view/SectionNotice.tsx';
+import { SectionNotice } from '#/shared/view/SectionNotice';
 
 export function SectionNoticeOf<T extends Readonly<Record<string, unknown>>>({
   title,

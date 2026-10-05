@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 
-const modules = import.meta.glob<string>('./*.module.css', {
+const modules = import.meta.glob<string>('./*/*.module.css', {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -9,7 +9,7 @@ const modules = import.meta.glob<string>('./*.module.css', {
 it('casts shadows only from the toast and dialog layers', () => {
   const casting = Object.entries(modules).flatMap(([file, css]) =>
     [...css.matchAll(/([^{}]+)\{[^}]*box-shadow:/gu)].map(
-      ([, selector = '']) => `${file.replace('./', '')} ${selector.trim()}`,
+      ([, selector = '']) => `${file.split('/').pop() ?? file} ${selector.trim()}`,
     ),
   );
   expect(Object.keys(modules).length).toBeGreaterThan(10);

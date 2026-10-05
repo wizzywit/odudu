@@ -7,12 +7,12 @@ import {
 import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
 import { Link } from 'react-aria-components';
 import { Button } from '#/shared/view/Button';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { ChecklistField } from '#/shared/view/ChecklistField.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { ReadOnlyFields } from '#/shared/view/Field.tsx';
-import { Section } from '#/shared/view/Section.tsx';
-import { FormSkeleton } from '#/shared/view/Skeleton.tsx';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { ChecklistField } from '#/shared/view/ChecklistField';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { ReadOnlyFields } from '#/shared/view/Field';
+import { Section } from '#/shared/view/Section';
+import { FormSkeleton } from '#/shared/view/Skeleton';
 import styles from '#/features/subjects/view/Tab.module.css';
 
 const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });

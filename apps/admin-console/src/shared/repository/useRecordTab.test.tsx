@@ -10,7 +10,7 @@ import userEvent from '@testing-library/user-event';
 import { expect, it } from 'vitest';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
 import { parseSearch, stringifySearch } from '#/shared/service/search.ts';
-import { Tabs } from '#/shared/view/Tabs.tsx';
+import { Tabs } from '#/shared/view/Tabs';
 
 function Client() {
   const { tab, selectTab } = useRecordTab(['general', 'tokens'] as const);

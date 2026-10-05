@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import { PageNotFound } from '#/features/shell/index.ts';
+import { PageNotFound } from '#/features/shell';
 import { useTenantsArea } from '#/features/tenants/usecase/useTenantsArea.ts';
-import type { Crumb } from '#/shared/view/Breadcrumb.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import type { Crumb } from '#/shared/view/Breadcrumb';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { PageHeader } from '#/shared/view/PageHeader';
+import { Skeleton } from '#/shared/view/Skeleton';
 
 // The page is drawn, and its reads made, only once whoami says the System
 // area is this principal's; anywhere else its address is simply not a page.

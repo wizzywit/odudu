@@ -17,7 +17,7 @@ import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer.tsx';
 import { useDirtySection } from '#/shared/repository/useDirtySection.ts';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
-import { Tabs } from '#/shared/view/Tabs.tsx';
+import { Tabs } from '#/shared/view/Tabs';
 
 afterEach(() => {
   useUnsavedGuard.getState().reset();

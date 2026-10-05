@@ -1,5 +1,5 @@
 import type { Role } from '@odudu/contracts/admin';
-import { useAuthority } from '#/features/session/index.ts';
+import { useAuthority } from '#/features/session';
 import { useRoleRecord } from '#/features/roles/repository/useRoleRecord.ts';
 import {
   compositesRecord,

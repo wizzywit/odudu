@@ -2,8 +2,8 @@ import { Link, VisuallyHidden } from 'react-aria-components';
 import type { CountTile } from '#/features/overview/service.ts';
 import { Panel } from '#/features/overview/view/Panel.tsx';
 import { Button } from '#/shared/view/Button';
-import { Count } from '#/shared/view/Count.tsx';
-import { SkeletonBar } from '#/shared/view/Skeleton.tsx';
+import { Count } from '#/shared/view/Count';
+import { SkeletonBar } from '#/shared/view/Skeleton';
 import styles from '#/features/overview/view/CountsPanel.module.css';
 
 const NUMBER = new Intl.NumberFormat('en');

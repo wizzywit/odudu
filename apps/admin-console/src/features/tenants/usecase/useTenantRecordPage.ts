@@ -1,5 +1,5 @@
 import type { Tenant } from '@odudu/contracts/admin';
-import { useAuthority } from '#/features/session/index.ts';
+import { useAuthority } from '#/features/session';
 import { useTenantRecord } from '#/features/tenants/repository/useTenantRecord.ts';
 import { useDirtySections } from '#/shared/repository/useDirtySections.ts';
 import { useRecordTab } from '#/shared/repository/useRecordTab.ts';

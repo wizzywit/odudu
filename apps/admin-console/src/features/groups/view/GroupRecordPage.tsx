@@ -1,7 +1,7 @@
 import type { GroupRecord } from '@odudu/contracts/admin';
 import type { ReactNode } from 'react';
-import { AreaGate, areaAt } from '#/features/shell/index.ts';
-import { SubjectMembers } from '#/features/subjects/index.ts';
+import { AreaGate, areaAt } from '#/features/shell';
+import { SubjectMembers } from '#/features/subjects';
 import {
   GROUP_TAB_LABELS,
   GROUP_TABS,
@@ -12,13 +12,13 @@ import { useAuditReadable, useGroupActivity } from '#/features/groups/usecase/us
 import { useGroupRecordPage, type Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
 import { GeneralTab } from '#/features/groups/view/GeneralTab.tsx';
 import { RolesTab } from '#/features/groups/view/RolesTab.tsx';
-import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
+import { ActivityTab } from '#/shared/view/ActivityTab';
 import { Button } from '#/shared/view/Button';
-import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { RecordPage } from '#/shared/view/RecordPage.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
-import noteStyles from '#/shared/view/CapabilityNote.module.css';
+import { ButtonLink } from '#/shared/view/ButtonLink';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { RecordPage } from '#/shared/view/RecordPage';
+import { StatusTag } from '#/shared/view/StatusTag';
+import { Note } from '#/shared/view/Note';
 import styles from '#/features/groups/view/Tab.module.css';
 
 interface PanelProps {
@@ -66,23 +66,19 @@ const PANELS: Readonly<Record<GroupTab, (props: PanelProps) => ReactNode>> = {
 function Lines({ ceiling }: { ceiling: Ceiling }) {
   if (ceiling.status === 'failed') {
     return (
-      <p role="note" className={noteStyles.note}>
+      <Note>
         What this group hands out could not be read, so no move, delete or role change is offered
         until it is.{' '}
         <Button size="small" variant="quiet" onPress={ceiling.retry}>
           Read it again
         </Button>
-      </p>
+      </Note>
     );
   }
   if (ceiling.status !== 'ready') return null;
   const lines = [ceiling.lines.move, ceiling.lines.remove].filter((line) => line !== null);
   if (lines.length === 0) return null;
-  return (
-    <p role="note" className={noteStyles.note}>
-      {lines.join(' ')}
-    </p>
-  );
+  return <Note>{lines.join(' ')}</Note>;
 }
 
 function Record({ tenant, id }: { tenant: string; id: string }) {

@@ -1,5 +1,5 @@
 import type { RequiredAction, SetRequiredActionsResponse, Subject } from '@odudu/contracts/admin';
-import { useRefusal } from '#/features/session/index.ts';
+import { useRefusal } from '#/features/session';
 import {
   saveActions,
   useActionsRecord,

@@ -1,5 +1,5 @@
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { PageHeader } from '#/shared/view/PageHeader';
 
 export function PageNotFound() {
   return (

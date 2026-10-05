@@ -2,11 +2,11 @@ import type { Grant, Subject } from '@odudu/contracts/admin';
 import { useHolds, useSubjectGrants } from '#/features/subjects/usecase/useSubjectSessions.ts';
 import { PagedList, Panel } from '#/features/subjects/view/SessionsTab.tsx';
 import { Button } from '#/shared/view/Button';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import type { Column } from '#/shared/view/DataTable.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import type { Column } from '#/shared/view/DataTable';
+import { StatusTag } from '#/shared/view/StatusTag';
+import { Timestamp } from '#/shared/view/Timestamp';
 import styles from '#/features/subjects/view/Tab.module.css';
 
 const COLUMNS: readonly Column<Grant>[] = [

@@ -1,11 +1,11 @@
 import type { SubmitEvent } from 'react';
-import { AreaGate, areaAt } from '#/features/shell/index.ts';
+import { AreaGate, areaAt } from '#/features/shell';
 import { rolesTrail } from '#/features/roles/service.ts';
 import { useNewRole, type Copying } from '#/features/roles/usecase/useNewRole.ts';
 import { Button } from '#/shared/view/Button';
-import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
-import { TextAreaField, TextField } from '#/shared/view/Field.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
+import { ButtonLink } from '#/shared/view/ButtonLink';
+import { TextAreaField, TextField } from '#/shared/view/Field';
+import { PageHeader } from '#/shared/view/PageHeader';
 import styles from '#/features/roles/view/Form.module.css';
 
 const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });

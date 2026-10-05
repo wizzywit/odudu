@@ -1,6 +1,6 @@
 import type { SetRolesResponse, Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useAuthority, useRefusal, useRereadAuthority } from '#/features/session/index.ts';
+import { useAuthority, useRefusal, useRereadAuthority } from '#/features/session';
 import {
   useAdminRoleIds,
   useEffectiveRoles,

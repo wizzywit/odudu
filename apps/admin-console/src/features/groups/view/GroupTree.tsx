@@ -3,8 +3,8 @@ import { useId } from 'react';
 import { Link } from 'react-aria-components';
 import { useGroupNode, type GroupNode } from '#/features/groups/usecase/useGroupsList.ts';
 import { Button } from '#/shared/view/Button';
-import { ListSkeleton } from '#/shared/view/Skeleton.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
+import { ListSkeleton } from '#/shared/view/Skeleton';
+import { StatusTag } from '#/shared/view/StatusTag';
 import styles from '#/features/groups/view/GroupTree.module.css';
 
 function Children({

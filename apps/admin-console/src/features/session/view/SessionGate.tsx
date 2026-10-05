@@ -5,9 +5,8 @@ import { SignedInContext } from '#/features/session/usecase/useSignedIn.ts';
 import { PrincipalChanged } from '#/features/session/view/PrincipalChanged.tsx';
 import { SessionStatus } from '#/features/session/view/SessionStatus.tsx';
 import { Button } from '#/shared/view/Button';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import styles from '#/features/session/view/SignIn.module.css';
-import { QuietSkeletons, Skeleton } from '#/shared/view/Skeleton.tsx';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { QuietSkeletons, Skeleton } from '#/shared/view/Skeleton';
 import { VisuallyHidden } from '#/shared/view/VisuallyHidden';
 
 // Nothing is drawn for a fast read. The status line is one element from the

@@ -7,10 +7,10 @@ import {
 } from '#/features/tenants/usecase/useImportTenantPage.ts';
 import { SystemGate } from '#/features/tenants/view/SystemGate.tsx';
 import { Button } from '#/shared/view/Button';
-import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
-import { TextField } from '#/shared/view/Field.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
-import { SecretDialog } from '#/shared/view/SecretDialog.tsx';
+import { ButtonLink } from '#/shared/view/ButtonLink';
+import { TextField } from '#/shared/view/Field';
+import { PageHeader } from '#/shared/view/PageHeader';
+import { SecretDialog } from '#/shared/view/SecretDialog';
 import styles from '#/features/tenants/view/ImportTenantPage.module.css';
 
 const ACCEPTED = ['application/json', 'application/vnd.odudu.tenant+json', '.json'];

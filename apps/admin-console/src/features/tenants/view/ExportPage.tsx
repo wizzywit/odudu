@@ -1,8 +1,8 @@
-import { areaAt, PageNotFound, useArea } from '#/features/shell/index.ts';
+import { areaAt, PageNotFound, useArea } from '#/features/shell';
 import { ExportPanel } from '#/features/tenants/view/ExportPanel.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { PageHeader } from '#/shared/view/PageHeader';
+import { Skeleton } from '#/shared/view/Skeleton';
 
 // A tenant's own export. Importing makes a new tenant, which is a system
 // administrator's to do, under System › Tenants.

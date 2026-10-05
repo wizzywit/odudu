@@ -7,7 +7,7 @@ import type {
   Session,
   Subject,
 } from '@odudu/contracts/admin';
-import { useAuthority } from '#/features/session/index.ts';
+import { useAuthority } from '#/features/session';
 import {
   useConsents,
   useEndAllSessions,

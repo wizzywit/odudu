@@ -7,15 +7,15 @@ import {
 import { SubjectCapabilities } from '#/features/subjects/view/CapabilityEditor.tsx';
 import { grantableIn } from '#/shared/service/capabilities.ts';
 import { Button } from '#/shared/view/Button';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { Count } from '#/shared/view/Count.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { SelectField } from '#/shared/view/Field.tsx';
-import { FilterBar } from '#/shared/view/FilterBar.tsx';
-import { Pager } from '#/shared/view/Pager.tsx';
-import { ListSkeleton } from '#/shared/view/Skeleton.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { Count } from '#/shared/view/Count';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { SelectField } from '#/shared/view/Field';
+import { FilterBar } from '#/shared/view/FilterBar';
+import { Pager } from '#/shared/view/Pager';
+import { ListSkeleton } from '#/shared/view/Skeleton';
+import { StatusTag } from '#/shared/view/StatusTag';
+import { Timestamp } from '#/shared/view/Timestamp';
 import styles from '#/features/subjects/view/CapabilityHolders.module.css';
 
 const NOUN = { one: 'administrator', other: 'administrators' };

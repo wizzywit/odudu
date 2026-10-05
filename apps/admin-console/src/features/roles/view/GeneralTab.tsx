@@ -8,13 +8,13 @@ import {
   type RoleGeneral,
 } from '#/features/roles/usecase/useRoleGeneral.ts';
 import type { Ceiling } from '#/features/roles/usecase/useRoleRecordPage.ts';
-import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
+import { RoleOwner } from '#/shared/view/RoleOwner';
 import { SectionNoticeOf } from '#/features/roles/view/SectionNoticeOf.tsx';
 import { Button } from '#/shared/view/Button';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { TextAreaField, ToggleField } from '#/shared/view/Field.tsx';
-import { Section } from '#/shared/view/Section.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { TextAreaField, ToggleField } from '#/shared/view/Field';
+import { Section } from '#/shared/view/Section';
+import { Timestamp } from '#/shared/view/Timestamp';
 import styles from '#/features/roles/view/Tab.module.css';
 
 function Fixed({ role }: { role: Role }) {

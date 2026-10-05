@@ -1,4 +1,4 @@
-import { useAuthority } from '#/features/session/index.ts';
+import { useAuthority } from '#/features/session';
 import { SYSTEM_ADMINS_HREF } from '#/features/tenants/service.ts';
 import { administratorCapability, administratorNeeds } from '#/shared/service/administrators.ts';
 import { lacking } from '#/shared/service/access.ts';

@@ -4,15 +4,15 @@ import {
   SigningIn,
   useTenantAccess,
   useTenantMissing,
-} from '#/features/session/index.ts';
+} from '#/features/session';
 import { useShell } from '#/features/shell/usecase/useShell.ts';
 import { PageNotFound } from '#/features/shell/view/PageNotFound.tsx';
 import { RailFooter } from '#/features/shell/view/RailFooter.tsx';
 import { TenantNotFound } from '#/features/shell/view/TenantNotFound.tsx';
 import { isTenantName, type Principal } from '#/shared/service/principal.ts';
-import { AppShell } from '#/shared/view/AppShell.tsx';
-import { ContextBar } from '#/shared/view/ContextBar.tsx';
-import { Rail } from '#/shared/view/Rail.tsx';
+import { AppShell } from '#/shared/view/AppShell';
+import { ContextBar } from '#/shared/view/ContextBar';
+import { Rail } from '#/shared/view/Rail';
 import styles from '#/features/shell/view/TenantShell.module.css';
 
 function SignedInShell({

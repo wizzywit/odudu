@@ -2,7 +2,7 @@ import { Link } from 'react-aria-components';
 import type { AttentionState } from '#/features/overview/service.ts';
 import { Panel } from '#/features/overview/view/Panel.tsx';
 import { Button } from '#/shared/view/Button';
-import { ListSkeleton } from '#/shared/view/Skeleton.tsx';
+import { ListSkeleton } from '#/shared/view/Skeleton';
 import styles from '#/features/overview/view/AttentionPanel.module.css';
 
 export function AttentionPanel({ attention }: { attention: AttentionState }) {

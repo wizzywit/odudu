@@ -1,6 +1,6 @@
 import type { AuditEvent, SigningKey } from '@odudu/contracts/admin';
-import { useAuthority, useRefusal, useTenantMissing } from '#/features/session/index.ts';
-import { areaAt, areaHref, holds, useArea } from '#/features/shell/index.ts';
+import { useAuthority, useRefusal, useTenantMissing } from '#/features/session';
+import { areaAt, areaHref, holds, useArea } from '#/features/shell';
 import {
   useOverviewReads,
   type OverviewReads,

@@ -1,4 +1,4 @@
-import { usePrincipal } from '#/features/session/index.ts';
+import { usePrincipal } from '#/features/session';
 import { beginAdministrator, storedCreation } from '#/features/tenants/repository/useCreation.ts';
 import { useGo } from '#/features/tenants/repository/useGo.ts';
 import { administratorStepHref } from '#/features/tenants/service.ts';

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { AreaGate, areaAt } from '#/features/shell/index.ts';
-import { SubjectMembers } from '#/features/subjects/index.ts';
+import { AreaGate, areaAt } from '#/features/shell';
+import { SubjectMembers } from '#/features/subjects';
 import {
   ROLE_TAB_LABELS,
   ROLE_TABS,
@@ -12,13 +12,13 @@ import { useAuditReadable, useRoleActivity } from '#/features/roles/usecase/useR
 import { useRoleRecordPage, type Ceiling } from '#/features/roles/usecase/useRoleRecordPage.ts';
 import { CompositesTab } from '#/features/roles/view/CompositesTab.tsx';
 import { GeneralTab } from '#/features/roles/view/GeneralTab.tsx';
-import { RoleOwner } from '#/shared/view/RoleOwner.tsx';
-import { ActivityTab } from '#/shared/view/ActivityTab.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
-import { RecordPage } from '#/shared/view/RecordPage.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
-import noteStyles from '#/shared/view/CapabilityNote.module.css';
+import { RoleOwner } from '#/shared/view/RoleOwner';
+import { ActivityTab } from '#/shared/view/ActivityTab';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { ButtonLink } from '#/shared/view/ButtonLink';
+import { RecordPage } from '#/shared/view/RecordPage';
+import { StatusTag } from '#/shared/view/StatusTag';
+import { Note } from '#/shared/view/Note';
 import styles from '#/features/roles/view/Tab.module.css';
 
 interface PanelProps {
@@ -65,11 +65,7 @@ const PANELS: Readonly<Record<RoleTab, (props: PanelProps) => ReactNode>> = {
 
 function Lines({ ceiling }: { ceiling: Ceiling }) {
   if (ceiling.status !== 'ready' || ceiling.deleteHeld === null) return null;
-  return (
-    <p role="note" className={noteStyles.note}>
-      {ceiling.deleteHeld}
-    </p>
-  );
+  return <Note>{ceiling.deleteHeld}</Note>;
 }
 
 function Record({ tenant, id }: { tenant: string; id: string }) {

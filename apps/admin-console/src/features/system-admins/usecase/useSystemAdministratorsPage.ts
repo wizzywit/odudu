@@ -1,11 +1,11 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useAuthority, useRefusal } from '#/features/session/index.ts';
+import { useAuthority, useRefusal } from '#/features/session';
 import { useAdministratorGrant } from '#/features/system-admins/repository/useAdministratorChange.ts';
 import { usePickerHolders } from '#/features/system-admins/repository/usePickerHolders.ts';
 import { useSubjectPicker } from '#/features/system-admins/repository/useSubjectPicker.ts';
 import { subjectName } from '#/features/system-admins/service.ts';
-import { useBeginAdministrator, type BeginAdministrator } from '#/features/tenants/index.ts';
+import { useBeginAdministrator, type BeginAdministrator } from '#/features/tenants';
 import type { Refused } from '#/shared/repository/administratorRoles.ts';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import {

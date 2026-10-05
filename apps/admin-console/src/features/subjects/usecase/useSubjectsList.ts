@@ -1,5 +1,5 @@
 import type { Subject } from '@odudu/contracts/admin';
-import { useAuthority } from '#/features/session/index.ts';
+import { useAuthority } from '#/features/session';
 import { useGo } from '#/features/subjects/repository/useGo.ts';
 import { useSubjectList } from '#/features/subjects/repository/useSubjectList.ts';
 import { newSubjectHref, subjectHref } from '#/features/subjects/service.ts';

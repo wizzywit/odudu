@@ -10,7 +10,7 @@ import userEvent from '@testing-library/user-event';
 import { expect, it } from 'vitest';
 import { useCursorTrail } from '#/shared/repository/useCursorTrail.ts';
 import { parseSearch, stringifySearch } from '#/shared/service/search.ts';
-import { Pager } from '#/shared/view/Pager.tsx';
+import { Pager } from '#/shared/view/Pager';
 
 const PAGES = ['', 'b2Zmc2V0LTE.dGFnMQ', 'b2Zmc2V0LTI.dGFnMg'];
 

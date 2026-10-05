@@ -2,6 +2,10 @@
   "name": "@odudu/admin-console",
   "version": "0.0.0",
   "private": true,
+  "sideEffects": [
+    "**/*.css",
+    "src/zodConfig.ts"
+  ],
   "type": "module",
   "imports": {
     "#/*": "./src/*"

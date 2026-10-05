@@ -11,11 +11,11 @@ import {
 import type { Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
 import { SectionNoticeOf } from '#/features/groups/view/SectionNoticeOf.tsx';
 import { Button } from '#/shared/view/Button';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { TextAreaField, ToggleField } from '#/shared/view/Field.tsx';
-import { GroupPicker } from '#/shared/view/GroupPicker.tsx';
-import { Section } from '#/shared/view/Section.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { TextAreaField, ToggleField } from '#/shared/view/Field';
+import { GroupPicker } from '#/shared/view/GroupPicker';
+import { Section } from '#/shared/view/Section';
+import { Timestamp } from '#/shared/view/Timestamp';
 import styles from '#/features/groups/view/Tab.module.css';
 
 function Fixed({ group }: { group: GroupRecord }) {

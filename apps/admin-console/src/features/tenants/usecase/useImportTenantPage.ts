@@ -1,6 +1,6 @@
 import type { ImportError } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session/index.ts';
+import { useRefusal } from '#/features/session';
 import { useImport, type ImportedSecret } from '#/features/tenants/repository/useImport.ts';
 import {
   fileSize,

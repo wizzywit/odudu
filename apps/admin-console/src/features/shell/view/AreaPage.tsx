@@ -1,9 +1,9 @@
 import type { Area } from '#/features/shell/service.ts';
 import { useArea } from '#/features/shell/usecase/useArea.ts';
 import { PageNotFound } from '#/features/shell/view/PageNotFound.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
-import { Skeleton } from '#/shared/view/Skeleton.tsx';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { PageHeader } from '#/shared/view/PageHeader';
+import { Skeleton } from '#/shared/view/Skeleton';
 
 // Each area's page until its own feature takes the route.
 export function AreaPage({ tenant, area }: { tenant: string; area: Area }) {

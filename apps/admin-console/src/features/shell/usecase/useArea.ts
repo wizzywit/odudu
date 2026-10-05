@@ -1,4 +1,4 @@
-import { useAuthority, usePrincipal } from '#/features/session/index.ts';
+import { useAuthority, usePrincipal } from '#/features/session';
 import { holds, showsSystemArea, SYSTEM_AREAS, type Area } from '#/features/shell/service.ts';
 import { SYSTEM_TENANT } from '#/shared/service/principal.ts';
 

@@ -9,7 +9,7 @@ import { useSecretOnce } from '#/shared/repository/useSecretOnce.ts';
 import type { Gateway } from '#/shared/transport/gateway.ts';
 import { TransportContext } from '#/shared/transport/useTransport.ts';
 import { Button } from '#/shared/view/Button';
-import { SecretDialog } from '#/shared/view/SecretDialog.tsx';
+import { SecretDialog } from '#/shared/view/SecretDialog';
 import { fakeTransport, json, pending, problem, type Answer } from '#/testing/fakeTransport.ts';
 
 const SECRET = 's3cr3t-shown-once-Qm9vYmFy';

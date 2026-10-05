@@ -1,5 +1,5 @@
 import { useToasts } from '#/shared/repository/useToasts.ts';
-import { Toasts } from '#/shared/view/Toasts.tsx';
+import { Toasts } from '#/shared/view/Toasts';
 
 // The one reader of the toast queue: the view renders what it is given, so it
 // stays clear of the store (a view never imports shared/repository).

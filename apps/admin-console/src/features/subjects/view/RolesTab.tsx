@@ -9,11 +9,11 @@ import { CapabilitySection } from '#/features/subjects/view/CapabilityEditor.tsx
 import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
 import { provenanceText } from '#/shared/service/capabilities.ts';
 import { Button } from '#/shared/view/Button';
-import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { RolePicker } from '#/shared/view/RolePicker.tsx';
-import { Section } from '#/shared/view/Section.tsx';
-import { FormSkeleton, TableSkeleton } from '#/shared/view/Skeleton.tsx';
+import { DataTable, type Column } from '#/shared/view/DataTable';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { RolePicker } from '#/shared/view/RolePicker';
+import { Section } from '#/shared/view/Section';
+import { FormSkeleton, TableSkeleton } from '#/shared/view/Skeleton';
 import styles from '#/features/subjects/view/Tab.module.css';
 
 function ownerOf(client: string | null): string {

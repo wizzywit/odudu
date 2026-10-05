@@ -11,7 +11,7 @@ import {
 import { RouterProvider as AriaRouterProvider } from 'react-aria-components';
 import { lazyFeatureRoute } from '#/app/lazyFeatureRoute.tsx';
 import { NavigationGuard } from '#/app/NavigationGuard.tsx';
-import { ConsoleHome, SessionGate } from '#/features/session/index.ts';
+import { ConsoleHome, SessionGate } from '#/features/session';
 import {
   AreaPage,
   EVERY_AREA,
@@ -20,7 +20,7 @@ import {
   pendingPage,
   PendingFrame,
   TenantShell,
-} from '#/features/shell/index.ts';
+} from '#/features/shell';
 import { parseSearch, stringifySearch } from '#/shared/service/search.ts';
 
 // React Aria's links navigate through the router, so a rail link is still a
@@ -69,7 +69,7 @@ const tenant = createRoute({
 });
 
 const Overview = lazyFeatureRoute(
-  () => import('#/features/overview/index.ts').then((feature) => feature.OverviewPage),
+  () => import('#/features/overview').then((feature) => feature.OverviewPage),
   'Loading the overview',
 );
 
@@ -91,7 +91,7 @@ function tenantsPage(
     | 'ExportPage',
 ) {
   return lazyFeatureRoute(
-    () => import('#/features/tenants/index.ts').then((feature) => feature[name]),
+    () => import('#/features/tenants').then((feature) => feature[name]),
     'Loading tenants',
   );
 }
@@ -100,13 +100,13 @@ const Tenants = tenantsPage('TenantsPage');
 const NewTenant = tenantsPage('NewTenantPage');
 const NewSystemAdministrator = tenantsPage('NewSystemAdministratorPage');
 const NewAdministrator = lazyFeatureRoute(
-  () => import('#/features/tenants/index.ts').then((feature) => feature.NewAdministratorPage),
+  () => import('#/features/tenants').then((feature) => feature.NewAdministratorPage),
   'Loading tenants',
 );
 const ImportTenant = tenantsPage('ImportTenantPage');
 const Export = tenantsPage('ExportPage');
 const TenantRecord = lazyFeatureRoute(
-  () => import('#/features/tenants/index.ts').then((feature) => feature.TenantRecordPage),
+  () => import('#/features/tenants').then((feature) => feature.TenantRecordPage),
   'Loading the tenant',
 );
 
@@ -167,8 +167,7 @@ const tenantRecord = tenantPages[1];
 const tenantAdministrator = tenantPages[2];
 
 const SystemAdministrators = lazyFeatureRoute(
-  () =>
-    import('#/features/system-admins/index.ts').then((feature) => feature.SystemAdministratorsPage),
+  () => import('#/features/system-admins').then((feature) => feature.SystemAdministratorsPage),
   'Loading system administrators',
 );
 
@@ -192,7 +191,7 @@ const newSystemAdmin = createRoute({
 
 function subjectsPage(name: 'SubjectsPage' | 'NewSubjectPage') {
   return lazyFeatureRoute(
-    () => import('#/features/subjects/index.ts').then((feature) => feature[name]),
+    () => import('#/features/subjects').then((feature) => feature[name]),
     'Loading subjects',
   );
 }
@@ -200,7 +199,7 @@ function subjectsPage(name: 'SubjectsPage' | 'NewSubjectPage') {
 const Subjects = subjectsPage('SubjectsPage');
 const NewSubject = subjectsPage('NewSubjectPage');
 const SubjectRecord = lazyFeatureRoute(
-  () => import('#/features/subjects/index.ts').then((feature) => feature.SubjectRecordPage),
+  () => import('#/features/subjects').then((feature) => feature.SubjectRecordPage),
   'Loading the subject',
 );
 
@@ -235,7 +234,7 @@ const subjectRecord = subjectPages[2];
 
 function groupsPage(name: 'GroupsPage' | 'NewGroupPage') {
   return lazyFeatureRoute(
-    () => import('#/features/groups/index.ts').then((feature) => feature[name]),
+    () => import('#/features/groups').then((feature) => feature[name]),
     'Loading groups',
   );
 }
@@ -243,7 +242,7 @@ function groupsPage(name: 'GroupsPage' | 'NewGroupPage') {
 const Groups = groupsPage('GroupsPage');
 const NewGroup = groupsPage('NewGroupPage');
 const GroupRecord = lazyFeatureRoute(
-  () => import('#/features/groups/index.ts').then((feature) => feature.GroupRecordPage),
+  () => import('#/features/groups').then((feature) => feature.GroupRecordPage),
   'Loading the group',
 );
 
@@ -278,7 +277,7 @@ const groupRecord = groupPages[2];
 
 function rolesPage(name: 'RolesPage' | 'NewRolePage') {
   return lazyFeatureRoute(
-    () => import('#/features/roles/index.ts').then((feature) => feature[name]),
+    () => import('#/features/roles').then((feature) => feature[name]),
     'Loading roles',
   );
 }
@@ -286,7 +285,7 @@ function rolesPage(name: 'RolesPage' | 'NewRolePage') {
 const Roles = rolesPage('RolesPage');
 const NewRole = rolesPage('NewRolePage');
 const RoleRecord = lazyFeatureRoute(
-  () => import('#/features/roles/index.ts').then((feature) => feature.RoleRecordPage),
+  () => import('#/features/roles').then((feature) => feature.RoleRecordPage),
   'Loading the role',
 );
 

@@ -1,10 +1,10 @@
 import type { PendingPage } from '#/features/shell/service.ts';
 import { usePendingFrame } from '#/features/shell/usecase/usePendingFrame.ts';
 import styles from '#/features/shell/view/TenantShell.module.css';
-import { AppShell } from '#/shared/view/AppShell.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
-import { RailSkeleton } from '#/shared/view/Rail.tsx';
-import { PageSkeleton } from '#/shared/view/Skeleton.tsx';
+import { AppShell } from '#/shared/view/AppShell';
+import { PageHeader } from '#/shared/view/PageHeader';
+import { RailSkeleton } from '#/shared/view/Rail';
+import { PageSkeleton } from '#/shared/view/Skeleton';
 
 // The tenant's frame, with the rail and the page drawn as placeholders, for
 // as long as the session is being read.

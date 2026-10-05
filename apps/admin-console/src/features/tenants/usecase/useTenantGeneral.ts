@@ -1,6 +1,6 @@
 import type { Tenant } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useRefusal } from '#/features/session/index.ts';
+import { useRefusal } from '#/features/session';
 import {
   saveGeneral,
   tenantRecord,

@@ -2,9 +2,9 @@ import type { ReactNode } from 'react';
 import type { Area } from '#/features/shell/service.ts';
 import { useArea } from '#/features/shell/usecase/useArea.ts';
 import { PageNotFound } from '#/features/shell/view/PageNotFound.tsx';
-import type { Crumb } from '#/shared/view/Breadcrumb.tsx';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { PageHeader } from '#/shared/view/PageHeader.tsx';
+import type { Crumb } from '#/shared/view/Breadcrumb';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { PageHeader } from '#/shared/view/PageHeader';
 
 // whoami is advice: a principal it says cannot read the area is told what
 // that needs, rather than offered reads the server would refuse.

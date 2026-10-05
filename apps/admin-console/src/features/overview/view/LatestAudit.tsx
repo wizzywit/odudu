@@ -3,14 +3,14 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-aria-components';
 import type { Gated } from '#/features/overview/service.ts';
 import { Panel } from '#/features/overview/view/Panel.tsx';
-import { AuditActor } from '#/shared/view/AuditActor.tsx';
+import { AuditActor } from '#/shared/view/AuditActor';
 import { Button } from '#/shared/view/Button';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { TableSkeleton } from '#/shared/view/Skeleton.tsx';
-import { StatusTag, type StatusTone } from '#/shared/view/StatusTag.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { DataTable, type Column } from '#/shared/view/DataTable';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { TableSkeleton } from '#/shared/view/Skeleton';
+import { StatusTag, type StatusTone } from '#/shared/view/StatusTag';
+import { Timestamp } from '#/shared/view/Timestamp';
 import styles from '#/features/overview/view/LatestAudit.module.css';
 
 const TONES: Record<AuditEvent['outcome'], StatusTone> = {

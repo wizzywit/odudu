@@ -3,13 +3,13 @@ import { subjectName } from '#/features/subjects/service.ts';
 import { useSubjectsList } from '#/features/subjects/usecase/useSubjectsList.ts';
 import { SubjectsGate } from '#/features/subjects/view/SubjectsGate.tsx';
 import { Button } from '#/shared/view/Button';
-import { ButtonLink } from '#/shared/view/ButtonLink.tsx';
-import type { Column } from '#/shared/view/DataTable.tsx';
-import { SelectField } from '#/shared/view/Field.tsx';
-import { ResourceListPage } from '#/shared/view/ResourceListPage.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
-import { Timestamp } from '#/shared/view/Timestamp.tsx';
-import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote.tsx';
+import { ButtonLink } from '#/shared/view/ButtonLink';
+import type { Column } from '#/shared/view/DataTable';
+import { SelectField } from '#/shared/view/Field';
+import { ResourceListPage } from '#/shared/view/ResourceListPage';
+import { StatusTag } from '#/shared/view/StatusTag';
+import { Timestamp } from '#/shared/view/Timestamp';
+import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
 import styles from '#/features/subjects/view/SubjectsPage.module.css';
 
 const COLUMNS: readonly Column<Subject>[] = [

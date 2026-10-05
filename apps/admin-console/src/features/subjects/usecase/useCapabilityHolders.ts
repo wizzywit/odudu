@@ -1,6 +1,6 @@
 import type { ListedSubject } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { usePrincipal } from '#/features/session/index.ts';
+import { usePrincipal } from '#/features/session';
 import { useHolderList } from '#/features/subjects/repository/useHolders.ts';
 import { heldLines, subjectHref, subjectName, type HeldLine } from '#/features/subjects/service.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';

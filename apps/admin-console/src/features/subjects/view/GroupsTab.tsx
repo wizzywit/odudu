@@ -7,11 +7,11 @@ import {
 } from '#/features/subjects/usecase/useSubjectGroups.ts';
 import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf.tsx';
 import { Button } from '#/shared/view/Button';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { GroupPicker } from '#/shared/view/GroupPicker.tsx';
-import { Section } from '#/shared/view/Section.tsx';
-import { FormSkeleton } from '#/shared/view/Skeleton.tsx';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { GroupPicker } from '#/shared/view/GroupPicker';
+import { Section } from '#/shared/view/Section';
+import { FormSkeleton } from '#/shared/view/Skeleton';
 import styles from '#/features/subjects/view/Tab.module.css';
 
 export function Memberships({ name, members }: { name: string; members: readonly Membership[] }) {

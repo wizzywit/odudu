@@ -1,7 +1,7 @@
 import { useState, type SubmitEvent } from 'react';
 import type { Principal } from '#/features/session/service.ts';
 import { Button } from '#/shared/view/Button';
-import { TextField } from '#/shared/view/Field.tsx';
+import { TextField } from '#/shared/view/Field';
 import styles from '#/features/session/view/SignIn.module.css';
 
 function submitLabel(enters: boolean, tenant: string): string {

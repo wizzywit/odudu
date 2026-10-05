@@ -8,12 +8,12 @@ import type {
 } from '#/features/overview/service.ts';
 import { Panel } from '#/features/overview/view/Panel.tsx';
 import { Button } from '#/shared/view/Button';
-import { CapabilityNote } from '#/shared/view/CapabilityNote.tsx';
-import { CopyValue } from '#/shared/view/CopyValue.tsx';
-import { DataTable, type Column } from '#/shared/view/DataTable.tsx';
-import { EmptyState } from '#/shared/view/EmptyState.tsx';
-import { TableSkeleton, TermsSkeleton } from '#/shared/view/Skeleton.tsx';
-import { StatusTag, type StatusTone } from '#/shared/view/StatusTag.tsx';
+import { CapabilityNote } from '#/shared/view/CapabilityNote';
+import { CopyValue } from '#/shared/view/CopyValue';
+import { DataTable, type Column } from '#/shared/view/DataTable';
+import { EmptyState } from '#/shared/view/EmptyState';
+import { TableSkeleton, TermsSkeleton } from '#/shared/view/Skeleton';
+import { StatusTag, type StatusTone } from '#/shared/view/StatusTag';
 import styles from '#/features/overview/view/DiscoveryPanel.module.css';
 
 const TONES: Record<KeyLane, StatusTone> = {

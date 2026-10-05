@@ -2,11 +2,11 @@ import { useId } from 'react';
 import type { Tenant } from '#/features/tenants/service.ts';
 import { useTenantGeneral } from '#/features/tenants/usecase/useTenantGeneral.ts';
 import { Button } from '#/shared/view/Button';
-import { ConfirmDialog } from '#/shared/view/ConfirmDialog.tsx';
-import { TextField } from '#/shared/view/Field.tsx';
-import { Section } from '#/shared/view/Section.tsx';
-import { SectionNotice } from '#/shared/view/SectionNotice.tsx';
-import { StatusTag } from '#/shared/view/StatusTag.tsx';
+import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
+import { TextField } from '#/shared/view/Field';
+import { Section } from '#/shared/view/Section';
+import { SectionNotice } from '#/shared/view/SectionNotice';
+import { StatusTag } from '#/shared/view/StatusTag';
 import styles from '#/features/tenants/view/GeneralTab.module.css';
 
 export function GeneralTab({
