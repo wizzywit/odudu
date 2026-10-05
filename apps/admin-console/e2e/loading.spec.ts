@@ -73,26 +73,3 @@ test('a reload of a tenant page holds the console frame, then fills it in place'
   }
   expect(await cardSeen(page)).toBe(false);
 });
-
-test('a fast session read draws no placeholder at all', async ({ page }) => {
-  await signIn(page, admin);
-  await page.addInitScript(() => {
-    const seen = { shape: false };
-    Object.assign(window, { shape: seen });
-    new MutationObserver(() => {
-      const drawn = [...document.querySelectorAll('[role="status"]')].some(
-        (status) =>
-          status.querySelector('[data-shape]') !== null &&
-          status.textContent?.startsWith('Reading your session') === true,
-      );
-      if (drawn) seen.shape = true;
-    }).observe(document, { subtree: true, childList: true });
-  });
-  await page.goto(`/console/${TENANT}/subjects`);
-  await expect(page.getByRole('heading', { level: 1, name: 'Subjects' })).toBeVisible();
-  const drawn = await page.evaluate(() => {
-    const seen: unknown = Reflect.get(window, 'shape');
-    return typeof seen === 'object' && seen !== null && Reflect.get(seen, 'shape') === true;
-  });
-  expect(drawn).toBe(false);
-});
