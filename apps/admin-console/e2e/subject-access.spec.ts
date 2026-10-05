@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import {
   expect,
   expectAccessible,
+  expectFitsViewport,
   forgive,
   signIn,
   signInAtTenant,
@@ -256,10 +257,7 @@ test("a subject's tabs fit a phone", async ({ page }) => {
   for (const tab of ['groups', 'roles', 'required-actions', 'sessions'] as const) {
     await openSubject(page, subjects.member, tab);
     await expect(page.getByRole('progressbar')).toHaveCount(0);
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(overflow, tab).toBeLessThanOrEqual(0);
+    await expectFitsViewport(page, tab);
     await expectAccessible(page);
   }
 });

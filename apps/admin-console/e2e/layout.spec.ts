@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, expectAccessible, signIn, test } from './fixtures.ts';
+import { expect, expectAccessible, expectFitsViewport, signIn, test } from './fixtures.ts';
 import { psql, seeded } from './stack.ts';
 
 const { admin, subjects, system, tenants } = seeded();
@@ -24,10 +24,7 @@ async function box(locator: Locator): Promise<{ x: number; y: number; w: number;
 }
 
 async function noSidewaysScroll(page: Page): Promise<void> {
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-  );
-  expect(overflow).toBeLessThanOrEqual(0);
+  await expectFitsViewport(page);
 }
 
 function breadcrumb(page: Page): Locator {

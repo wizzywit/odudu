@@ -1,5 +1,13 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, expectAccessible, forgive, signIn, signInAtTenant, test } from './fixtures.ts';
+import {
+  expect,
+  expectAccessible,
+  expectFitsViewport,
+  forgive,
+  signIn,
+  signInAtTenant,
+  test,
+} from './fixtures.ts';
 import { psql, seeded } from './stack.ts';
 
 const { system, systemAdmins } = seeded();
@@ -284,10 +292,7 @@ test('the System administrators page fits a phone', async ({ page }) => {
     page.getByRole('heading', { level: 1, name: 'System administrators' }),
   ).toBeVisible();
   await expect(page.getByRole('progressbar')).toHaveCount(0);
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-  );
-  expect(overflow).toBeLessThanOrEqual(0);
+  await expectFitsViewport(page);
   // Empty, yet in the accessibility tree, so what fills it is announced.
   await expect(page.getByRole('status', { name: 'Last grant' })).toBeAttached();
   await expectAccessible(page);

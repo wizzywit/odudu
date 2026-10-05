@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, expectAccessible, forgive, signIn, test } from './fixtures.ts';
+import { expect, expectAccessible, expectFitsViewport, forgive, signIn, test } from './fixtures.ts';
 import { psql, seeded } from './stack.ts';
 
 const { groupsRoles } = seeded();
@@ -346,10 +346,7 @@ test('the groups and roles pages fit a phone', async ({ page }) => {
     await expect(page.getByRole('progressbar')).toHaveCount(0);
     await expect(page.locator('[role="status"]', { hasText: /^Loading/u })).toHaveCount(0);
     await expect(page.getByText(/^Checking /u)).toHaveCount(0);
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(overflow, address).toBeLessThanOrEqual(0);
+    await expectFitsViewport(page, address);
     await expectAccessible(page);
   }
 });

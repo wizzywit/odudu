@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { z } from 'zod';
-import { expect, expectAccessible, forgive, signIn, test } from './fixtures.ts';
+import { expect, expectAccessible, expectFitsViewport, forgive, signIn, test } from './fixtures.ts';
 import { psql, seeded } from './stack.ts';
 
 const { admin, limited, overview, system } = seeded();
@@ -166,10 +166,7 @@ test.describe('on a phone', () => {
   }) => {
     await signIn(page, admin);
     await expect(page.getByRole('button', { name: 'Copy issuer' })).toBeVisible();
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
+    await expectFitsViewport(page);
     await page.getByText('Raw discovery document').click();
     await expectAccessible(page);
   });

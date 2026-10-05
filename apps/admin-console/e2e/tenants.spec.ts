@@ -1,7 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import type { Locator, Page } from '@playwright/test';
 import { z } from 'zod';
-import { expect, expectAccessible, forgive, signIn, signInAtTenant, test } from './fixtures.ts';
+import {
+  expect,
+  expectAccessible,
+  expectFitsViewport,
+  forgive,
+  signIn,
+  signInAtTenant,
+  test,
+} from './fixtures.ts';
 import { psql, seeded, type Account } from './stack.ts';
 
 const { admin, limited, resumer, system, systemAdmins, tenants } = seeded();
@@ -359,10 +367,7 @@ test('the tenant pages fit a phone', async ({ page }) => {
     await page.goto(path);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.getByRole('progressbar')).toHaveCount(0);
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(overflow, path).toBeLessThanOrEqual(0);
+    await expectFitsViewport(page, path);
     await expectAccessible(page);
   }
 });

@@ -57,6 +57,34 @@ export function forgive(problems: Problem[], path: string): void {
 
 export { expect };
 
+// Fails with the widest elements past the viewport's right edge, so a layout
+// bug names its element rather than only its width.
+export async function expectFitsViewport(page: Page, where = page.url()): Promise<void> {
+  const report = await page.evaluate(() => {
+    const view = document.documentElement.clientWidth;
+    // An element's own box can sit inside the viewport while its text runs
+    // out of it, so an overflowing content box counts too.
+    const reach = (node: Element): number => {
+      const box = node.getBoundingClientRect();
+      const inner =
+        getComputedStyle(node).overflowX === 'visible' ? node.scrollWidth - node.clientWidth : 0;
+      return Math.max(box.right, inner > 1 ? box.left + node.scrollWidth : 0);
+    };
+    const past = [...document.body.querySelectorAll('*')]
+      .map((node) => ({ node, right: reach(node) }))
+      .filter(({ right }) => right > view + 0.5)
+      .sort((a, b) => b.right - a.right)
+      .slice(0, 8)
+      .map(
+        ({ node, right }) =>
+          `<${node.tagName.toLowerCase()} class="${node.getAttribute('class') ?? ''}"> ` +
+          `${String(Math.round(right - view))}px beyond: ${(node.textContent ?? '').trim().slice(0, 60)}`,
+      );
+    return { by: document.documentElement.scrollWidth - view, past };
+  });
+  expect(report.by, `${where}\n${report.past.join('\n')}`).toBeLessThanOrEqual(0);
+}
+
 const WCAG_22_AA = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 // The browser's scheme, and <html data-theme> overriding it either way.
