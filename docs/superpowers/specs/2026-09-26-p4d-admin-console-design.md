@@ -970,7 +970,7 @@ a pushed commit and the review it attracted answered.
    dirty section registers, both in `apps/admin-console/e2e/tenants.spec.ts`
    ("a session that ends mid-edit…"). Route-level code splitting is done
    too: each feature is loaded through its `index.ts` by
-   `lazyFeatureRoute` (`apps/admin-console/src/app/lazyFeatureRoute.tsx`)
+   `lazyFeatureRoute` (`apps/admin-console/src/app/lazyFeatureRoute/lazyFeatureRoute.tsx`)
    and builds as a chunk of its own. Still owed are §9's accessibility
    duties for every feature, ending in the VoiceOver pass. The tenant shell also renders `whoami`'s
    answer for a tenant that does not exist as a not-found page, since a
