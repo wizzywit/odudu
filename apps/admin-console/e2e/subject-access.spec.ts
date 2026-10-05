@@ -210,6 +210,11 @@ test('a limited operator sees what a subject holds, and can change none of it', 
 }) => {
   await signIn(page, viewer);
   await openSubject(page, subjects.listed, 'roles');
+  // Both reasons this record cannot be changed are said, each once.
+  await expect(
+    page.getByText('You can view subjects but not change them', { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByText(`${subjects.listed} holds`, { exact: false }).first()).toBeVisible();
   const capabilities = page.getByRole('region', { name: 'Admin capabilities' });
   await expect(capabilities).toContainText('view-audit');
   await expect(page.getByRole('checkbox')).toHaveCount(0);
@@ -219,7 +224,7 @@ test('a limited operator sees what a subject holds, and can change none of it', 
   await expect(page.getByText(`${subjects.listed} belongs to no group.`)).toBeVisible();
   await expect(page.getByRole('listbox')).toHaveCount(0);
   await page.getByRole('tab', { name: 'Sessions' }).click();
-  await expect(page.getByRole('note').filter({ hasText: 'manage-sessions' })).toHaveText(
+  await expect(page.getByRole('note').filter({ hasText: 'Sessions needs the' })).toHaveText(
     'Sessions needs the manage-sessions capability.',
   );
   await expectAccessible(page);
