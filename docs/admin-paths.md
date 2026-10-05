@@ -4753,7 +4753,8 @@ subject or one in another tenant.
 every admin capability that subject holds.** That is every non-`GET` route
 under `/admin/tenants/{tenant}/subjects/{id}`: `PATCH` and `DELETE` on the
 subject itself, `PATCH …/profile`, `DELETE …/credentials/{credentialId}`,
-`DELETE …/consents/{clientId}`, `POST …/password`, `DELETE …/lockout`,
+`DELETE …/consents/{clientId}`, `POST …/password`, `POST …/password-reset`,
+`POST …/verification`, `POST …/actions-email`, `DELETE …/lockout`,
 `PUT …/required-actions`, `PUT …/roles`, `PUT …/groups`, `DELETE …/sessions`
 and `DELETE …/sessions/{sid}`. It is the reverse of the ceiling
 `PUT /subjects/:id/roles` enforces on what a caller grants, and it applies
