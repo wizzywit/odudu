@@ -43,7 +43,13 @@ export default defineConfig({
         test: {
           name: 'unit',
           include: unit,
-          exclude: ['**/node_modules/**', '**/dist/**', '**/*.int.test.ts', `${CONSOLE}/**`],
+          exclude: [
+            '**/node_modules/**',
+            '**/dist/**',
+            '**/fixtures/**',
+            '**/*.int.test.ts',
+            `${CONSOLE}/**`,
+          ],
           environment: 'node',
           setupFiles: SETUP,
         },
