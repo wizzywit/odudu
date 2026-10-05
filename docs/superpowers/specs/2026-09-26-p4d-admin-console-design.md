@@ -655,8 +655,8 @@ Record pages and their tabs:
 | Area    | Tabs                                                                                                |
 | ------- | --------------------------------------------------------------------------------------------------- |
 | Subject | Profile · Credentials · Groups · Roles · Required actions · Sessions · Consents · Grants · Activity |
-| Group   | General · Roles · Activity                                                                          |
-| Role    | General · Composites · Activity                                                                     |
+| Group   | General · Roles · Members · Activity                                                                |
+| Role    | General · Composites · Members · Activity                                                           |
 | Client  | General · Redirects & origins · Tokens · Scopes · Logout · Advanced · Activity                      |
 | Scope   | General · Roles · Claim mappers · Clients · Activity                                                |
 

@@ -121,6 +121,15 @@ const seededSchema = z.object({
     resumer: account,
     drafted: z.string(),
   }),
+  // A tenant of its own for the Groups and Roles tests.
+  groupsRoles: z.object({
+    // Holds tenant-admin there.
+    admin: account,
+    // Holds manage-tenant alone.
+    limited: account,
+    // A member of /eng.
+    member: z.string(),
+  }),
 });
 
 export type Account = z.infer<typeof account>;

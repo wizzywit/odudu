@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { publish, seed, type Account } from './stack.ts';
+import { psql, publish, seed, type Account } from './stack.ts';
 
 const TENANT_ADMIN = 'odudu-admin:tenant-admin';
 
@@ -28,6 +28,78 @@ function grant(account: Account, role: string): void {
 function administrator(account: Account, ...extra: string[]): void {
   subject(account, ...extra);
   grant(account, TENANT_ADMIN);
+}
+
+// The groups and roles the Groups and Roles tests change, each changed by one
+// test alone. `deep` nests `middle`, which nests view-users, so its reach is
+// deeper than the console reads.
+function seedGroupsRoles(tenant: string): void {
+  seed(['tenant', '--name', tenant]);
+  const groups = [
+    ['eng'],
+    ['platform', '/eng'],
+    ['finance'],
+    ['admins'],
+    ['oncall', '/admins'],
+    ['movable'],
+    ['doomed'],
+    ['child', '/doomed'],
+    ['raced'],
+    ['keyed'],
+  ];
+  for (const [name, parent] of groups) {
+    seed([
+      'group',
+      '--tenant',
+      tenant,
+      '--name',
+      name ?? '',
+      ...(parent === undefined ? [] : ['--parent', parent]),
+    ]);
+  }
+  seed([
+    'map-group-role',
+    '--tenant',
+    tenant,
+    '--group',
+    '/admins',
+    '--role',
+    'odudu-admin:view-users',
+  ]);
+  seed([
+    'client',
+    '--tenant',
+    tenant,
+    '--client-id',
+    'portal',
+    '--public',
+    '--redirect-uri',
+    'https://portal.example/callback',
+  ]);
+  for (const name of ['auditor', 'reader', 'helper', 'middle', 'deep']) {
+    seed(['role', '--tenant', tenant, '--name', name]);
+  }
+  seed(['role', '--tenant', tenant, '--name', 'reader', '--client-id', 'portal']);
+  nest(tenant, 'helper', 'odudu-admin:view-users');
+  nest(tenant, 'middle', 'odudu-admin:view-users');
+  nest(tenant, 'deep', 'middle');
+}
+
+// No seed command nests a role, so the edge goes in as the database owner.
+// A child named `client:role` is that client's role; any other a tenant role.
+function nest(tenant: string, parent: string, child: string): void {
+  const role = (name: string): string => {
+    const split = name.indexOf(':');
+    const own = name.slice(split + 1);
+    const owner =
+      split === -1
+        ? 'r.client_id is null'
+        : `r.client_id = (select c.id from clients c where c.tenant_id = t.id and c.client_id = '${name.slice(0, split)}')`;
+    return `(select r.id from roles r where r.tenant_id = t.id and r.name = '${own}' and ${owner})`;
+  };
+  psql(
+    `insert into role_composites (tenant_id, parent_role_id, child_role_id) select t.id, ${role(parent)}, ${role(child)} from tenants t where t.name = '${tenant}'`,
+  );
 }
 
 // Names are fresh each run, so a stack kept up between runs seeds again.
@@ -71,6 +143,11 @@ export default function globalSetup(): void {
     raced: 'hodgkin',
     resumer: { tenant: `${run}-s`, username: 'kovalevskaya', password: password() },
     drafted: 'germain',
+  };
+  const groupsRoles = {
+    admin: { tenant: `${run}-r`, username: 'ines', password: password() },
+    limited: { tenant: `${run}-r`, username: 'kepler', password: password() },
+    member: 'curie',
   };
   const tenants = {
     general: `${run}-d`,
@@ -146,6 +223,20 @@ export default function globalSetup(): void {
     '--role',
     'billing-reader',
   ]);
+  seedGroupsRoles(groupsRoles.admin.tenant);
+  administrator(groupsRoles.admin);
+  subject(groupsRoles.limited);
+  grant(groupsRoles.limited, 'odudu-admin:manage-tenant');
+  subject({ tenant: groupsRoles.admin.tenant, username: groupsRoles.member, password: password() });
+  seed([
+    'join-group',
+    '--tenant',
+    groupsRoles.admin.tenant,
+    '--username',
+    groupsRoles.member,
+    '--group',
+    '/eng',
+  ]);
   seed(['tenant', '--name', subjects.renamer.tenant]);
   administrator(subjects.renamer);
   subject({ tenant: subjects.renamer.tenant, username: subjects.renamed, password: password() });
@@ -172,5 +263,6 @@ export default function globalSetup(): void {
     tenants,
     systemAdmins,
     subjects,
+    groupsRoles,
   });
 }
