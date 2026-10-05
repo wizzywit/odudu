@@ -29,6 +29,21 @@ it('forgets the section when it goes', () => {
   expect(unsaved()).toEqual([]);
 });
 
+it('going does not let a departure held for its edits through', () => {
+  const { unmount } = renderHook(() => {
+    useDirtySection('client/general', 'General', true);
+  });
+  let left = false;
+  act(() => {
+    useUnsavedGuard.getState().request(() => {
+      left = true;
+    });
+  });
+  unmount();
+  expect(left).toBe(false);
+  expect(useUnsavedGuard.getState().pending).not.toBeNull();
+});
+
 it('says so again after a leave that did not take it off the screen', () => {
   renderHook(() => {
     useDirtySection('client/general', 'General', true);

@@ -55,6 +55,39 @@ it('says in place why a membership reaching past the caller was refused', async 
   expect(await within(section).findByText(/a group's roles are granted with it/u)).toBeVisible();
 });
 
+it('keeps a departure asked about during a save held when that save is refused', async () => {
+  const user = userEvent.setup();
+  let answer: (response: Response) => void = () => undefined;
+  renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`GET ${A}/groups`]: json({ items: [OPS] }),
+      [`PUT ${G}`]: () =>
+        new Promise<Response>((resolve) => {
+          answer = resolve;
+        }),
+    }),
+  );
+  const section = await screen.findByRole('region', { name: 'Groups' });
+  await user.click(await within(section).findByRole('option', { name: /ops/u }));
+  await user.click(within(section).getByRole('button', { name: 'Save Groups' }));
+  await user.click(screen.getByRole('tab', { name: 'Roles' }));
+  const dialog = await screen.findByRole('alertdialog', { name: 'Leave without saving?' });
+  answer(
+    new Response(
+      JSON.stringify({ type: 'about:blank', title: 'Conflict', status: 409, detail: 'no' }),
+      { status: 409, headers: { 'content-type': 'application/problem+json' } },
+    ),
+  );
+  expect(await within(section).findByText('no')).toBeVisible();
+  expect(dialog).toBeVisible();
+  expect(dialog).toHaveTextContent('Groups');
+  expect(screen.getByRole('tab', { name: /Groups/u, hidden: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+});
+
 it('shows a limited operator the memberships and no way to change them', async () => {
   renderConsoleAt(
     AT,

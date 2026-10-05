@@ -6,13 +6,14 @@ import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';
 export function useDirtySection(section: string, label: string, dirty: boolean): void {
   const generation = useUnsavedGuard((guard) => guard.generation);
   const setDirty = useUnsavedGuard((guard) => guard.setDirty);
+  const forget = useUnsavedGuard((guard) => guard.forget);
   useEffect(() => {
     setDirty(section, dirty ? label : null);
   }, [section, label, dirty, generation, setDirty]);
   useEffect(
     () => () => {
-      setDirty(section, null);
+      forget(section);
     },
-    [section, setDirty],
+    [section, forget],
   );
 }

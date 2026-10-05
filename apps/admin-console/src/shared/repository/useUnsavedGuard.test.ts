@@ -31,13 +31,23 @@ it('releases the block once the section is clean again', () => {
   expect(leave).toHaveBeenCalledOnce();
 });
 
-it('lets a held departure through once the last dirty section is saved under it', () => {
+it('lets a held departure through once nothing is left unsaved under it', () => {
   guard().setDirty('client/general', 'General');
   const leave = vi.fn();
   guard().request(leave);
   guard().setDirty('client/general', null);
   expect(leave).toHaveBeenCalledOnce();
   expect(guard().pending).toBeNull();
+});
+
+it('holds a departure still when the dirty section goes because it was unmounted, not saved', () => {
+  guard().setDirty('client/general', 'General');
+  const leave = vi.fn();
+  guard().request(leave);
+  guard().forget('client/general');
+  expect(leave).not.toHaveBeenCalled();
+  expect(guard().pending).not.toBeNull();
+  expect(guard().unsaved()).toEqual([]);
 });
 
 it('stays when told to, dropping the held departure', () => {

@@ -15,6 +15,8 @@ interface UnsavedGuard {
   // Set once the page itself is being left, so the unload prompt stays quiet.
   released: boolean;
   setDirty: (section: string, label: string | null) => void;
+  // A section gone from the screen, which saved nothing: a held departure stays held.
+  forget: (section: string) => void;
   unsaved: () => string[];
   // True when the departure went ahead; false when it is held for an answer.
   request: (proceed: () => void, refuse?: () => void) => boolean;
@@ -39,12 +41,20 @@ export const useUnsavedGuard = create<UnsavedGuard>()((set, get) => ({
       else next.set(section, label);
       return { dirty: next };
     });
-    // A save that lands after the question was asked leaves nothing to lose.
+    // Once nothing is left unsaved, the question asked has nothing to protect.
     const { pending, dirty } = get();
     if (pending !== null && dirty.size === 0) {
       set({ pending: null });
       pending.proceed();
     }
+  },
+  forget: (section) => {
+    set(({ dirty }) => {
+      if (!dirty.has(section)) return {};
+      const next = new Map(dirty);
+      next.delete(section);
+      return { dirty: next };
+    });
   },
   unsaved: () => [...get().dirty.values()],
   request: (proceed, refuse = NOTHING) => {
