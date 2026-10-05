@@ -6,6 +6,7 @@ import {
   type Authority,
   type Principal,
 } from '#/shared/service/principal.ts';
+import type { ThemeChoice } from '#/shared/service/theme.ts';
 
 export interface Area {
   path: string;
@@ -219,4 +220,75 @@ export function pendingPage(pathname: string): PendingPage | null {
   if (owner?.list !== true) return { tenant, shape: 'page', title: null };
   const creating = second === 'new' || third === 'new-administrator';
   return { tenant, shape: creating ? 'form' : 'record', title: null };
+}
+
+export type AreaAccess =
+  | { kind: 'hidden' }
+  | { kind: 'checking' }
+  | { kind: 'refused'; capability: NonNullable<Area['capability']> }
+  | { kind: 'open' };
+
+// whoami is advice: an area whose capability it says is missing explains
+// what it needs instead of offering reads the server would refuse.
+export function areaAccess(
+  principal: Principal,
+  tenant: string,
+  authority: Authority | undefined,
+  area: Area,
+): AreaAccess {
+  const system = SYSTEM_AREAS.areas.includes(area);
+  if (system && (principal.tenant !== SYSTEM_TENANT || tenant !== SYSTEM_TENANT)) {
+    return { kind: 'hidden' };
+  }
+  if (area.capability === null) return { kind: 'open' };
+  if (authority === undefined) return system ? { kind: 'checking' } : { kind: 'open' };
+  if (system && !showsSystemArea(principal, tenant, authority)) return { kind: 'hidden' };
+  return holds(authority, area.capability)
+    ? { kind: 'open' }
+    : { kind: 'refused', capability: area.capability };
+}
+
+export function brandText(tenant: string): string {
+  return `odudu · ${tenant}`;
+}
+
+export function areasLabel(tenant: string): string {
+  return `Areas of ${tenant}`;
+}
+
+// Whose session it is, when it was issued by another tenant.
+export function signedInFrom(signedInTo: string, tenant: string): string | null {
+  return signedInTo === tenant ? null : signedInTo;
+}
+
+export function checkingText(area: Area): string {
+  return `Checking access to ${area.label}`;
+}
+
+export function notBuiltText(area: Area): string {
+  return `${area.label} is not in this build of the console yet.`;
+}
+
+export function tenantNotFoundText(tenant: string): string {
+  return `No tenant is named ${tenant}.`;
+}
+
+// A shortcut is paused while a dialog is open, the unsaved-changes guard's
+// own included.
+export function dialogOpen(openDialogs: number, guardAsking: boolean): boolean {
+  return openDialogs > 0 || guardAsking;
+}
+
+export function pathnameOf(href: string, base: string): string {
+  return new URL(href, base).pathname;
+}
+
+export const THEME_CHOICES: readonly { id: ThemeChoice; label: string }[] = [
+  { id: 'system', label: 'System' },
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
+];
+
+export function themeChoice(value: string): ThemeChoice | undefined {
+  return THEME_CHOICES.find((c) => c.id === value)?.id;
 }

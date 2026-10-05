@@ -1,14 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
   actsWithSystemAuthority,
+  areaAccess,
   areaAt,
   areaHref,
+  areasLabel,
+  brandText,
+  checkingText,
   currentHref,
+  dialogOpen,
+  notBuiltText,
   OVERVIEW,
+  pathnameOf,
   pendingPage,
   railGroups,
   showsSystemArea,
+  signedInFrom,
   systemRecordHref,
+  tenantNotFoundText,
+  themeChoice,
+  THEME_CHOICES,
 } from '#/features/shell/service.ts';
 
 const SYSTEM_ADMIN = { tenant: 'system', subjectId: 's0', username: 'root' };
@@ -202,5 +213,94 @@ describe('the page a tenant address stands for while the session is read', () =>
     expect(pendingPage('/console/')).toBeNull();
     expect(pendingPage('/')).toBeNull();
     expect(pendingPage('/console/Not_A_Tenant/subjects')).toBeNull();
+  });
+});
+
+describe('what an area shows its caller', () => {
+  const nothing = { capabilities: [] as const, crossTenant: false };
+  const viewer = { capabilities: ['view-users'] as const, crossTenant: false };
+
+  it('is open for an area that needs no capability', () => {
+    expect(areaAccess(ACME_ADMIN, 'acme', undefined, OVERVIEW)).toEqual({ kind: 'open' });
+    expect(areaAccess(ACME_ADMIN, 'acme', nothing, OVERVIEW)).toEqual({ kind: 'open' });
+  });
+
+  it('is open while whoami is unanswered, so no area shows a refusal before it is told', () => {
+    expect(areaAccess(ACME_ADMIN, 'acme', undefined, areaAt('subjects'))).toEqual({
+      kind: 'open',
+    });
+  });
+
+  it('is refused, naming the capability, when whoami says it is not held', () => {
+    expect(areaAccess(ACME_ADMIN, 'acme', nothing, areaAt('subjects'))).toEqual({
+      kind: 'refused',
+      capability: 'view-users',
+    });
+    expect(areaAccess(ACME_ADMIN, 'acme', viewer, areaAt('subjects'))).toEqual({ kind: 'open' });
+  });
+
+  it('is hidden for a System area anywhere but the system tenant, to a system administrator', () => {
+    const tenants = areaAt('tenants');
+    expect(areaAccess(SYSTEM_ADMIN, 'acme', everything, tenants)).toEqual({ kind: 'hidden' });
+    expect(areaAccess(ACME_ADMIN, 'system', everything, tenants)).toEqual({ kind: 'hidden' });
+    expect(areaAccess(ACME_ADMIN, 'acme', everything, tenants)).toEqual({ kind: 'hidden' });
+  });
+
+  it('is checking for a System area until whoami answers', () => {
+    expect(areaAccess(SYSTEM_ADMIN, 'system', undefined, areaAt('tenants'))).toEqual({
+      kind: 'checking',
+    });
+  });
+
+  it('is open for a System area when manage-tenants is held, and hidden when whoami says not', () => {
+    expect(areaAccess(SYSTEM_ADMIN, 'system', everything, areaAt('tenants'))).toEqual({
+      kind: 'open',
+    });
+    expect(areaAccess(SYSTEM_ADMIN, 'system', viewer, areaAt('tenants'))).toEqual({
+      kind: 'hidden',
+    });
+  });
+});
+
+describe('the frame text', () => {
+  it('names the tenant in the brand and the rail', () => {
+    expect(brandText('acme')).toBe('odudu · acme');
+    expect(areasLabel('acme')).toBe('Areas of acme');
+  });
+
+  it('says whose session it is only when it came from another tenant', () => {
+    expect(signedInFrom('acme', 'acme')).toBeNull();
+    expect(signedInFrom('system', 'acme')).toBe('system');
+  });
+
+  it('says what an area is doing before it opens', () => {
+    expect(checkingText(areaAt('subjects'))).toBe('Checking access to Subjects');
+    expect(notBuiltText(areaAt('flow'))).toBe(
+      'Sign-in flow is not in this build of the console yet.',
+    );
+    expect(tenantNotFoundText('ghost')).toBe('No tenant is named ghost.');
+  });
+
+  it('keeps a dialog from the shortcuts whether the host or the guard asks', () => {
+    expect(dialogOpen(0, false)).toBe(false);
+    expect(dialogOpen(1, false)).toBe(true);
+    expect(dialogOpen(0, true)).toBe(true);
+  });
+
+  it('reads the path of the address the router reports', () => {
+    expect(pathnameOf('/console/acme/roles?x=1#a', 'https://console.example')).toBe(
+      '/console/acme/roles',
+    );
+  });
+});
+
+describe('the theme choices', () => {
+  it('are system, light and dark, in that order', () => {
+    expect(THEME_CHOICES.map((c) => c.id)).toEqual(['system', 'light', 'dark']);
+  });
+
+  it('accepts a known choice and nothing else', () => {
+    expect(themeChoice('dark')).toBe('dark');
+    expect(themeChoice('sepia')).toBeUndefined();
   });
 });

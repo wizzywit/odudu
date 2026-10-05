@@ -1,4 +1,4 @@
-import type { Area } from '#/features/shell/service.ts';
+import { checkingText, notBuiltText, type Area } from '#/features/shell/service.ts';
 import { useArea } from '#/features/shell/usecase/useArea.ts';
 import { PageNotFound } from '#/features/shell/view/PageNotFound';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';
@@ -12,13 +12,11 @@ export function AreaPage({ tenant, area }: { tenant: string; area: Area }) {
   return (
     <>
       <PageHeader kicker={tenant} title={area.label} />
-      {access.kind === 'checking' ? <Skeleton label={`Checking access to ${area.label}`} /> : null}
+      {access.kind === 'checking' ? <Skeleton label={checkingText(area)} /> : null}
       {access.kind === 'refused' ? (
         <CapabilityNote capability={access.capability}>{area.label}</CapabilityNote>
       ) : null}
-      {access.kind === 'open' ? (
-        <p>{`${area.label} is not in this build of the console yet.`}</p>
-      ) : null}
+      {access.kind === 'open' ? <p>{notBuiltText(area)}</p> : null}
     </>
   );
 }

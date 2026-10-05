@@ -1,4 +1,4 @@
-import type { PendingPage } from '#/features/shell/service.ts';
+import { brandText, type PendingPage } from '#/features/shell/service.ts';
 import { usePendingFrame } from '#/features/shell/usecase/usePendingFrame.ts';
 import styles from '#/features/shell/view/PendingFrame/PendingFrame.module.css';
 import { AppShell } from '#/shared/view/AppShell';
@@ -12,9 +12,9 @@ export function PendingFrame({ tenant, shape, title }: PendingPage) {
   const collapsed = usePendingFrame();
   return (
     <AppShell
-      brand={`odudu · ${tenant}`}
+      brand={brandText(tenant)}
       collapsed={collapsed}
-      rail={<RailSkeleton header={<strong className={styles.brand}>odudu · {tenant}</strong>} />}
+      rail={<RailSkeleton header={<strong className={styles.brand}>{brandText(tenant)}</strong>} />}
     >
       {title === null ? null : <PageHeader kicker={tenant} title={title} />}
       <PageSkeleton label="Reading your session" shape={shape} />

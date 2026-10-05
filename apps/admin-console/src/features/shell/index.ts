@@ -3,7 +3,7 @@ export { PendingFrame } from '#/features/shell/view/PendingFrame';
 export { AreaPage } from '#/features/shell/view/AreaPage';
 export { AreaGate } from '#/features/shell/view/AreaGate';
 export { PageNotFound } from '#/features/shell/view/PageNotFound';
-export { useArea, type AreaAccess } from '#/features/shell/usecase/useArea.ts';
+export { useArea } from '#/features/shell/usecase/useArea.ts';
 export {
   areaAt,
   areaHref,
@@ -12,4 +12,5 @@ export {
   OVERVIEW,
   pendingPage,
   type Area,
+  type AreaAccess,
 } from '#/features/shell/service.ts';

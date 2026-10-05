@@ -1,4 +1,5 @@
 import { Link } from 'react-aria-components';
+import { tenantNotFoundText } from '#/features/shell/service.ts';
 import { EmptyState } from '#/shared/view/EmptyState';
 import { PageHeader } from '#/shared/view/PageHeader';
 import styles from '#/features/shell/view/TenantNotFound/TenantNotFound.module.css';
@@ -16,7 +17,7 @@ export function TenantNotFound({ tenant, chooseHref }: { tenant: string; chooseH
           </Link>
         }
       >
-        {`No tenant is named ${tenant}.`}
+        {tenantNotFoundText(tenant)}
       </EmptyState>
     </>
   );

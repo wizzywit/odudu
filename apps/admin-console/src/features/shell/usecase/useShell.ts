@@ -1,8 +1,10 @@
 import { useLocation } from '@tanstack/react-router';
-import { CHOOSE_TENANT, useAuthority, useAuthorityAnswered, useSignOut } from '#/features/session';
+import { SWITCH_HREF, useAuthority, useAuthorityAnswered, useSignOut } from '#/features/session';
 import {
   actsWithSystemAuthority,
   currentHref,
+  dialogOpen,
+  pathnameOf,
   railGroups,
   showsSystemArea,
   systemRecordHref,
@@ -49,7 +51,7 @@ export function useShell(tenant: string, principal: Principal): Shell {
     authority,
     checking,
   );
-  const pathname = new URL(publicHref, globalThis.location.origin).pathname;
+  const pathname = pathnameOf(publicHref, globalThis.location.origin);
 
   return {
     groups,
@@ -59,9 +61,9 @@ export function useShell(tenant: string, principal: Principal): Shell {
     systemRecordHref: systemRecordHref(tenant),
     username: principal.username,
     signedInTo: principal.tenant,
-    switchHref: `/console/?${CHOOSE_TENANT}`,
+    switchHref: SWITCH_HREF,
     collapsed,
-    dialogOpen: openDialogs > 0 || asking,
+    dialogOpen: dialogOpen(openDialogs, asking),
     setCollapsed,
     theme: theme.choice,
     chooseTheme: theme.choose,

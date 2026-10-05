@@ -5,6 +5,7 @@ import {
   useTenantAccess,
   useTenantMissing,
 } from '#/features/session';
+import { areasLabel, brandText } from '#/features/shell/service.ts';
 import { useShell } from '#/features/shell/usecase/useShell.ts';
 import { PageNotFound } from '#/features/shell/view/PageNotFound';
 import { RailFooter } from '#/features/shell/view/RailFooter';
@@ -35,7 +36,7 @@ function SignedInShell({
   }
   return (
     <AppShell
-      brand={`odudu · ${tenant}`}
+      brand={brandText(tenant)}
       collapsed={shell.collapsed}
       onCollapsedChange={shell.setCollapsed}
       shortcutsPaused={shell.dialogOpen}
@@ -46,11 +47,11 @@ function SignedInShell({
       }
       rail={
         <Rail
-          label={`Areas of ${tenant}`}
+          label={areasLabel(tenant)}
           groups={shell.groups}
           checking={shell.checking}
           {...(shell.currentHref === undefined ? {} : { currentHref: shell.currentHref })}
-          header={<strong className={styles.brand}>odudu · {tenant}</strong>}
+          header={<strong className={styles.brand}>{brandText(tenant)}</strong>}
           footer={
             <RailFooter
               username={shell.username}
