@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Area } from '#/features/shell/service.ts';
+import type { Area } from '#/features/shell/service';
 import { useArea } from '#/features/shell/usecase/useArea.ts';
 import { PageNotFound } from '#/features/shell/view/PageNotFound';
 import type { Crumb } from '#/shared/view/Breadcrumb';

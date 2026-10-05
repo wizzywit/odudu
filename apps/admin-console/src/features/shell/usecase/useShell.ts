@@ -9,7 +9,7 @@ import {
   showsSystemArea,
   systemRecordHref,
   type RailSection,
-} from '#/features/shell/service.ts';
+} from '#/features/shell/service';
 import { useDialogHost } from '#/shared/repository/useDialogHost.ts';
 import { useRailCollapsed } from '#/shared/repository/useRailCollapsed.ts';
 import { useUnsavedGuard } from '#/shared/repository/useUnsavedGuard.ts';

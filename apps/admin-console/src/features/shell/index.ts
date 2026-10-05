@@ -13,4 +13,4 @@ export {
   pendingPage,
   type Area,
   type AreaAccess,
-} from '#/features/shell/service.ts';
+} from '#/features/shell/service';

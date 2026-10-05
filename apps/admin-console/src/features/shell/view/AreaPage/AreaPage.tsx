@@ -1,4 +1,4 @@
-import { checkingText, notBuiltText, type Area } from '#/features/shell/service.ts';
+import { checkingText, notBuiltText, type Area } from '#/features/shell/service';
 import { useArea } from '#/features/shell/usecase/useArea.ts';
 import { PageNotFound } from '#/features/shell/view/PageNotFound';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';

@@ -1,4 +1,4 @@
-import { brandText, type PendingPage } from '#/features/shell/service.ts';
+import { brandText, type PendingPage } from '#/features/shell/service';
 import { usePendingFrame } from '#/features/shell/usecase/usePendingFrame.ts';
 import styles from '#/features/shell/view/PendingFrame/PendingFrame.module.css';
 import { AppShell } from '#/shared/view/AppShell';

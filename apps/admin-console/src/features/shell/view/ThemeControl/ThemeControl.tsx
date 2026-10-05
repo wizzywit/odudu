@@ -1,5 +1,5 @@
 import { Label, RadioButton, RadioField, RadioGroup } from 'react-aria-components';
-import { THEME_CHOICES, themeChoice } from '#/features/shell/service.ts';
+import { THEME_CHOICES, themeChoice } from '#/features/shell/service';
 import type { ThemeChoice } from '#/shared/service/theme.ts';
 import styles from '#/features/shell/view/ThemeControl/ThemeControl.module.css';
 
