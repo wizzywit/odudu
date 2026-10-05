@@ -3,7 +3,8 @@ import { isPrincipalChanged, isSessionEnded } from '#/shared/service/sessionEnde
 import { sessionEvents, type SessionEvents } from '#/shared/service/sessionEvents.ts';
 import { nextCursor } from '#/shared/transport/cursor.ts';
 import { readEtag } from '#/shared/transport/etag.ts';
-import { readProblem, type Problem } from '#/shared/transport/problem.ts';
+import { readProblem } from '#/shared/transport/problem.ts';
+import type { GatewayFailure, GatewayResult, GatewaySuccess } from '#/shared/service/result.ts';
 
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type Fetch = (url: string, init: RequestInit) => Promise<Response>;
@@ -14,23 +15,7 @@ export interface RequestOptions<T> {
   schema: ZodType<T>;
 }
 
-export interface GatewaySuccess<T> {
-  ok: true;
-  status: number;
-  data: T;
-  etag: string | null;
-  next: string | null;
-}
-
-// `defect` and `schema` are the console's own mistakes, already logged: a
-// view reports them as a generic failure, never as something the user did.
-export type GatewayFailure =
-  | { ok: false; kind: 'problem'; problem: Problem }
-  | { ok: false; kind: 'network' }
-  | { ok: false; kind: 'schema' }
-  | { ok: false; kind: 'defect' };
-
-export type GatewayResult<T> = GatewaySuccess<T> | GatewayFailure;
+export type { GatewayFailure, GatewayResult, GatewaySuccess };
 
 // A body answered as the server sent it, for a file the console saves
 // rather than a document it reads: a schema would drop what it does not know.

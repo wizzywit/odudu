@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { fieldErrorsOf } from '#/shared/service/fieldErrors.ts';
+import { fieldErrorsOf, requiredProblem, withoutField } from '#/shared/service/fieldErrors.ts';
 
 const FIELDS = ['name', 'redirect_uris', 'access_token_ttl'] as const;
 
@@ -83,4 +83,17 @@ it('falls back to the detail, then the title, when nothing names a field', () =>
     other: ['Bad Request'],
   });
   expect(fieldErrorsOf({}, FIELDS)).toEqual({ fields: {}, other: [] });
+});
+
+it('drops one field from the errors and leaves the rest', () => {
+  const errors = { name: 'a', description: 'b' };
+  expect(withoutField(errors, 'name')).toEqual({ description: 'b' });
+  expect(withoutField({}, 'name')).toEqual({});
+  expect(errors).toEqual({ name: 'a', description: 'b' });
+});
+
+it('asks for a value only when it is blank', () => {
+  expect(requiredProblem('', 'Enter a name.')).toBe('Enter a name.');
+  expect(requiredProblem('  ', 'Enter a name.')).toBe('Enter a name.');
+  expect(requiredProblem('x', 'Enter a name.')).toBeNull();
 });

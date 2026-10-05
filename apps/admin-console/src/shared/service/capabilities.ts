@@ -3,6 +3,7 @@ import {
   type EffectiveRoleAssignment,
   type RoleProvenance,
 } from '@odudu/contracts/admin';
+import { andList } from '#/shared/service/format.ts';
 import { tenantAdminCarries, TENANT_ADMIN } from '#/shared/service/administrators.ts';
 import type { AdminCapability } from '#/shared/service/principal.ts';
 
@@ -136,8 +137,6 @@ export function roleOwnerText(role: {
     : `role of client ${role.client_key ?? role.client_id}`;
 }
 
-const AND_ALL = new Intl.ListFormat('en-GB', { type: 'conjunction' });
-
 // The capabilities one part of a ceiling refusal's detail names after `lead`.
 function namedAfter(parts: readonly string[], lead: string): string[] {
   const part = parts.find((each) => each.startsWith(lead));
@@ -165,10 +164,10 @@ export function writeRefusal(
   const removed = namedAfter(parts, 'this removes capabilities the caller does not hold: ');
   if (granted.length + removed.length === 0) return `Refused: ${detail}.`;
   const would = [
-    ...(granted.length === 0 ? [] : [`hand out ${AND_ALL.format(granted)}`]),
+    ...(granted.length === 0 ? [] : [`hand out ${andList(granted)}`]),
     ...(removed.length === 0
       ? []
-      : [`take ${AND_ALL.format(removed)} from whoever holds it through here`]),
+      : [`take ${andList(removed)} from whoever holds it through here`]),
   ];
   const tail =
     granted.length + removed.length > 1
@@ -247,8 +246,54 @@ export function judgedLoss(
 
 export function lossText(loss: Loss, through: string): string {
   if (loss.kind === 'checking' || loss.kind === 'none') return '';
-  const held = AND_ALL.format(loss.lost);
+  const held = andList(loss.lost);
   return loss.kind === 'certain'
     ? ` You hold ${held} through ${through}, so this takes it from you, and this console with it.`
     : ` If you hold ${held} through ${through}, this takes it from you, and this console with it.`;
+}
+
+// Whether a write has to be confirmed first: it takes something from the caller.
+export function asksFirst(loss: Loss): boolean {
+  return loss.kind === 'certain' || loss.kind === 'possible';
+}
+
+export function lossBlocked(loss: Loss): string | undefined {
+  return loss.kind === 'checking' ? 'Checking what this takes from you first.' : undefined;
+}
+
+export function holdingNote(carrier: Holding | null, held?: Held): string | null {
+  if (carrier !== null) return `Carried by ${holdingLabel(carrier)}.`;
+  if (held === undefined || held.through.length === 0) return null;
+  return `${held.direct ? 'Also held' : 'Held'} ${held.through.join(', ')}.`;
+}
+
+export interface HoldingOption {
+  id: Holding;
+  label: string;
+  description: string;
+  note: string | null;
+  unavailable: string | null;
+}
+
+// Every holding a tenant offers, each with what carries it already and why
+// it cannot be given or taken: the caller's ceiling first, then `guard`.
+export function holdingOptions(
+  tenant: string,
+  chosen: readonly string[],
+  caller: readonly AdminCapability[] | undefined,
+  extra: {
+    held?: ReadonlyMap<Holding, Held>;
+    guard?: (holding: Holding) => string | null;
+  } = {},
+): HoldingOption[] {
+  return holdingsIn(tenant).map((holding) => ({
+    id: holding,
+    label: holdingLabel(holding),
+    description: holding === TENANT_ADMIN ? fullText(tenant) : CAPABILITY_TEXT[holding],
+    note: holdingNote(includedBy(holding, chosen), extra.held?.get(holding)),
+    unavailable:
+      (caller === undefined ? null : ceilingOf(tenant, holding, caller)) ??
+      extra.guard?.(holding) ??
+      null,
+  }));
 }

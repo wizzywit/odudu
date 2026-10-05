@@ -1,4 +1,5 @@
 import { useUrlSearch } from '#/shared/repository/useUrlSearch.ts';
+import { tabNamed } from '#/shared/service/record.ts';
 
 const PARAM = 'tab';
 
@@ -10,7 +11,7 @@ export function useRecordTab<T extends string>(
 ): { tab: T; selectTab: (tab: T) => void } {
   const { params, go } = useUrlSearch();
   const asked = params.get(PARAM);
-  const tab = tabs.find((candidate) => candidate === asked) ?? tabs[0];
+  const tab = tabNamed(tabs, asked) ?? tabs[0];
   return {
     tab,
     selectTab: (next) => {

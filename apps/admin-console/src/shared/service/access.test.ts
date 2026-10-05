@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockedChanges, holds, lacking, readable } from '#/shared/service/access.ts';
+import { admitted, blockedChanges, holds, lacking, readable } from '#/shared/service/access.ts';
 
 const VIEWER = { capabilities: ['view-users'] as const, crossTenant: false };
 
@@ -56,5 +56,14 @@ describe('blockedChanges', () => {
     expect(
       blockedChanges(undefined, [{ change: 'change them', needs: ['manage-users'] }]),
     ).toBeNull();
+  });
+});
+
+describe('admitted', () => {
+  it('is true when nothing is lacking, and false before whoami has answered', () => {
+    expect(admitted(VIEWER, ['view-users'])).toBe(true);
+    expect(admitted(VIEWER, ['view-users', 'manage-users'])).toBe(false);
+    expect(admitted(VIEWER, [])).toBe(true);
+    expect(admitted(undefined, ['view-users'])).toBe(false);
   });
 });

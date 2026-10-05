@@ -21,3 +21,7 @@ export interface Authority {
 export const SYSTEM_TENANT = 'system';
 
 export { isTenantName } from '@odudu/contracts';
+
+export function isSelf(principal: Principal, tenant: string, subjectId: string): boolean {
+  return principal.tenant === tenant && principal.subjectId === subjectId;
+}

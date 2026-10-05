@@ -1,5 +1,7 @@
 import type { CountResponse } from '@odudu/contracts/admin';
 import type { CursorTrail } from '#/shared/service/cursorTrail.ts';
+import { isRefused } from '#/shared/service/failure.ts';
+import type { GatewayFailure } from '#/shared/service/result.ts';
 
 // A prefix of one named field, as the admin API searches.
 export interface ListSearch {
@@ -94,4 +96,25 @@ export function apiQuery(
     params.set(name, value);
   }
   return params;
+}
+
+export function listStatusOf(failure: GatewayFailure | null): ListStatus {
+  if (failure === null) return 'ready';
+  return isRefused(failure) ? 'refused' : 'failed';
+}
+
+export function isNarrowed(narrowing: ListNarrowing): boolean {
+  return narrowing.search !== null || Object.keys(narrowing.filters).length > 0;
+}
+
+export function withFilter(
+  narrowing: ListNarrowing,
+  name: string,
+  value: string | null,
+): ListNarrowing {
+  const others = Object.entries(narrowing.filters).filter(([filter]) => filter !== name);
+  return {
+    search: narrowing.search,
+    filters: Object.fromEntries(value === null ? others : [...others, [name, value]]),
+  };
 }

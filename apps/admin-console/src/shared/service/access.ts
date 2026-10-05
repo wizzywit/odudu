@@ -46,3 +46,11 @@ export function blockedChanges(
   const last = phrases.pop() ?? '';
   return { change: phrases.length === 0 ? last : `${phrases.join(', ')} or ${last}`, needs };
 }
+
+// Whether whoami has answered and rules none of `needs` out.
+export function admitted(
+  authority: Authority | undefined,
+  needs: readonly AdminCapability[],
+): boolean {
+  return authority !== undefined && lacking(authority, needs).length === 0;
+}

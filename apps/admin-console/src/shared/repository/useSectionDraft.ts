@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDirtySection } from '#/shared/repository/useDirtySection.ts';
+import { sectionKey } from '#/shared/service/record.ts';
 import { useDrafts, type DraftFields, type KeptDraft } from '#/shared/repository/useDrafts.ts';
 
 export interface SectionDraft {
@@ -33,7 +34,7 @@ export function useSectionDraft({
   etag: string | null;
 }): SectionDraft {
   const record = `${tenant}/${path}`;
-  useDirtySection(`${record}#${section}`, label, dirty);
+  useDirtySection(sectionKey(tenant, path, section), label, dirty);
   const latest = useRef({ dirty, fields, etag });
   useEffect(() => {
     latest.current = { dirty, fields, etag };

@@ -2,6 +2,10 @@ import type { EffectiveRoleAssignment } from '@odudu/contracts/admin';
 import { describe, expect, it } from 'vitest';
 import {
   ADMIN_CLIENT_KEY,
+  asksFirst,
+  holdingNote,
+  holdingOptions,
+  lossBlocked,
   beyondCaller,
   ceilingOf,
   grantableIn,
@@ -198,5 +202,70 @@ describe('adminLoss', () => {
     expect(adminLoss(own, (via) => via.kind === 'group' && via.group_path === '/admins')).toEqual(
       [],
     );
+  });
+});
+
+describe('asksFirst and lossBlocked', () => {
+  it('asks before a loss that is certain or possible, and waits while it is checked', () => {
+    expect(asksFirst({ kind: 'certain', lost: ['a'] })).toBe(true);
+    expect(asksFirst({ kind: 'possible', lost: ['a'] })).toBe(true);
+    expect(asksFirst({ kind: 'none' })).toBe(false);
+    expect(asksFirst({ kind: 'checking' })).toBe(false);
+    expect(lossBlocked({ kind: 'checking' })).toBe('Checking what this takes from you first.');
+    expect(lossBlocked({ kind: 'none' })).toBeUndefined();
+    expect(lossBlocked({ kind: 'certain', lost: ['a'] })).toBeUndefined();
+  });
+});
+
+describe('holdingNote', () => {
+  it('names a carrier first, else how it is held elsewhere, else nothing', () => {
+    expect(holdingNote('tenant-admin', undefined)).toBe('Carried by Full (tenant-admin).');
+    expect(holdingNote(null, { direct: false, through: ['through group eng', 'within X'] })).toBe(
+      'Held through group eng, within X.',
+    );
+    expect(holdingNote(null, { direct: true, through: ['within X'] })).toBe('Also held within X.');
+    expect(holdingNote(null, { direct: true, through: [] })).toBeNull();
+    expect(holdingNote(null, undefined)).toBeNull();
+  });
+});
+
+describe('holdingOptions', () => {
+  it('lists Full then each capability the tenant offers, with its text', () => {
+    const options = holdingOptions('acme', [], undefined);
+    expect(options[0]).toMatchObject({
+      id: 'tenant-admin',
+      label: 'Full (tenant-admin)',
+      description: 'Every capability this tenant offers.',
+      note: null,
+      unavailable: null,
+    });
+    expect(options.map((option) => option.id)).toEqual(['tenant-admin', ...grantableIn('acme')]);
+    expect(holdingOptions('system', [], undefined)[0]?.description).toMatch(/manage-tenants/u);
+  });
+
+  it('notes what already carries one, and rules out what the caller could not give', () => {
+    const options = holdingOptions('acme', ['tenant-admin'], ['view-users']);
+    const viewUsers = options.find((option) => option.id === 'view-users');
+    expect(viewUsers?.note).toBe('Carried by Full (tenant-admin).');
+    expect(viewUsers?.unavailable).toBeNull();
+    expect(options[0]?.unavailable).toMatch(/^Full carries capabilities you do not hold/u);
+    expect(options.find((option) => option.id === 'manage-keys')?.unavailable).toMatch(
+      /do not hold manage-keys/u,
+    );
+  });
+
+  it('shows how a holding is held, and lets a guard rule it out when the ceiling does not', () => {
+    const held = new Map([
+      ['view-audit' as const, { direct: false, through: ['through group g'] }],
+    ]);
+    const options = holdingOptions('acme', [], ['view-audit'], {
+      held,
+      guard: (holding) => (holding === 'view-audit' ? 'The last one.' : null),
+    });
+    const audit = options.find((option) => option.id === 'view-audit');
+    expect(audit?.note).toBe('Held through group g.');
+    expect(audit?.unavailable).toBe('The last one.');
+    const beforeWhoami = holdingOptions('acme', [], undefined, { guard: () => 'Guarded.' });
+    expect(beforeWhoami[0]?.unavailable).toBe('Guarded.');
   });
 });

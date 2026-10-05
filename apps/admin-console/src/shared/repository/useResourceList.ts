@@ -4,12 +4,14 @@ import { useUrlSearch } from '#/shared/repository/useUrlSearch.ts';
 import { currentCursor, trailFromSearch, trailToSearch } from '#/shared/service/cursorTrail.ts';
 import {
   apiQuery,
+  isNarrowed,
   listFromSearch,
+  listStatusOf,
   listToSearch,
   type ListNarrowing,
   type ListPage,
-  type ListStatus,
   type ResourceListState,
+  withFilter,
 } from '#/shared/service/resourceList.ts';
 import type { Gateway, GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
@@ -30,11 +32,6 @@ class PageFailure extends Error {
     super('a list page could not be read');
     this.failure = failure;
   }
-}
-
-function statusOf(failure: GatewayFailure | null): ListStatus {
-  if (failure === null) return 'ready';
-  return failure.kind === 'problem' && failure.problem.status === 403 ? 'refused' : 'failed';
 }
 
 // Reads one page of a list at a time, from `cursor` onwards, and keeps the
@@ -70,7 +67,8 @@ export function useListPages<T>({
   const failure =
     pages.data === undefined && pages.error instanceof PageFailure ? pages.error.failure : null;
   return {
-    status: pages.data === undefined && failure === null ? ('loading' as const) : statusOf(failure),
+    status:
+      pages.data === undefined && failure === null ? ('loading' as const) : listStatusOf(failure),
     rows: loaded.flatMap((page) => page.items),
     next: loaded.at(-1)?.next ?? null,
     loadingMore: pages.isFetchingNextPage,
@@ -133,7 +131,7 @@ export function useResourceList<T>({
     status: pages.status,
     rows: pages.rows,
     count: counted.data?.ok === true ? counted.data.data : null,
-    narrowed: narrowing.search !== null || Object.keys(narrowing.filters).length > 0,
+    narrowed: isNarrowed(narrowing),
     trail,
     next: pages.next,
     loadingMore: pages.loadingMore,
@@ -142,11 +140,7 @@ export function useResourceList<T>({
       narrow({ search: next, filters: narrowing.filters });
     },
     setFilter: (name, value) => {
-      const others = Object.entries(narrowing.filters).filter(([filter]) => filter !== name);
-      narrow({
-        search: narrowing.search,
-        filters: Object.fromEntries(value === null ? others : [...others, [name, value]]),
-      });
+      narrow(withFilter(narrowing, name, value));
     },
     clear: () => {
       narrow({ search: null, filters: {} });

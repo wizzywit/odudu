@@ -44,3 +44,28 @@ export function formatRelative(instant: Date, now: Date): string {
   }
   return RELATIVE.format(0, 'second');
 }
+
+const AND = new Intl.ListFormat('en-GB', { type: 'conjunction' });
+
+export function andList(items: readonly string[]): string {
+  return AND.format(items);
+}
+
+export function sentence(text: string): string {
+  const said = text.charAt(0).toUpperCase() + text.slice(1);
+  return said.endsWith('.') ? said : `${said}.`;
+}
+
+export function counted(count: number, one: string, other: string): string {
+  return `${String(count)} ${count === 1 ? one : other}`;
+}
+
+export function flagText(value: unknown, on: string, off: string): string {
+  return value === true ? on : off;
+}
+
+// A conflict's way of showing a list of ids: by name where one is known.
+export function describeIds(value: unknown, nameOf: (id: string) => string): string {
+  const ids = Array.isArray(value) ? value.map(String) : [];
+  return ids.length === 0 ? 'none' : ids.map(nameOf).join(', ');
+}

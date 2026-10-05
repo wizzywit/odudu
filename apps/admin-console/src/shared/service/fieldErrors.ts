@@ -58,3 +58,16 @@ export function fieldErrorsOf(
   }
   return { fields, other };
 }
+
+export function withoutField<F extends string>(
+  errors: Partial<Record<F, string>>,
+  field: F,
+): Partial<Record<F, string>> {
+  return Object.fromEntries(Object.entries(errors).filter(([name]) => name !== field)) as Partial<
+    Record<F, string>
+  >;
+}
+
+export function requiredProblem(value: string, text: string): string | null {
+  return value.trim() === '' ? text : null;
+}

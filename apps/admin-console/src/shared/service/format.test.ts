@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { formatAbsolute, formatDuration, formatRelative } from '#/shared/service/format.ts';
+import {
+  andList,
+  counted,
+  describeIds,
+  flagText,
+  formatAbsolute,
+  formatDuration,
+  formatRelative,
+  sentence,
+} from '#/shared/service/format.ts';
 
 describe('formatDuration', () => {
   it.each([
@@ -47,5 +56,48 @@ describe('formatRelative', () => {
     ['2026-09-28T12:05:00Z', 'in 5 minutes'],
   ])('reads %s as "%s"', (iso, expected) => {
     expect(formatRelative(new Date(iso), now)).toBe(expected);
+  });
+});
+
+describe('andList', () => {
+  it('joins with "and", and an Oxford comma never', () => {
+    expect(andList([])).toBe('');
+    expect(andList(['a'])).toBe('a');
+    expect(andList(['a', 'b'])).toBe('a and b');
+    expect(andList(['a', 'b', 'c'])).toBe('a, b and c');
+  });
+});
+
+describe('sentence', () => {
+  it('capitalises and ends with one full stop', () => {
+    expect(sentence('that name is taken')).toBe('That name is taken.');
+    expect(sentence('Already there.')).toBe('Already there.');
+    expect(sentence('')).toBe('.');
+  });
+});
+
+describe('counted', () => {
+  it('says one in the singular and every other count in the plural', () => {
+    expect(counted(1, 'session', 'sessions')).toBe('1 session');
+    expect(counted(0, 'session', 'sessions')).toBe('0 sessions');
+    expect(counted(3, 'grant', 'grants')).toBe('3 grants');
+  });
+});
+
+describe('flagText', () => {
+  it('says on only for true, off for anything else', () => {
+    expect(flagText(true, 'on', 'off')).toBe('on');
+    expect(flagText(false, 'on', 'off')).toBe('off');
+    expect(flagText(undefined, 'verified', 'not verified')).toBe('not verified');
+  });
+});
+
+describe('describeIds', () => {
+  const names = new Map([['a', 'Alpha']]);
+  const nameOf = (id: string): string => names.get(id) ?? id;
+  it('names each id, falling back to the id itself, and says none for an empty or foreign value', () => {
+    expect(describeIds(['a', 'b'], nameOf)).toBe('Alpha, b');
+    expect(describeIds([], nameOf)).toBe('none');
+    expect(describeIds('nope', nameOf)).toBe('none');
   });
 });

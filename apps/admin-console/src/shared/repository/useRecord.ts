@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import type { RecordView } from '#/shared/service/record.ts';
+import { recordView, seenAfter, type RecordView } from '#/shared/service/record.ts';
 import type {
   Gateway,
   GatewayFailure,
@@ -36,10 +36,6 @@ class RecordReadFailure extends Error {
   }
 }
 
-function isMissing(failure: GatewayFailure | null): boolean {
-  return failure?.kind === 'problem' && failure.problem.status === 404;
-}
-
 // One ETag-bearing resource, read once for every section that edits it: a
 // section's save writes its answer here, so the others rebase on it.
 export function useRecord<R>({
@@ -66,20 +62,14 @@ export function useRecord<R>({
   const entry = query.data;
   const etag = entry?.result.etag ?? null;
   const [seen, setSeen] = useState<string | null>(null);
-  if (etag !== null && etag !== seen && (seen === null || entry?.by === 'save')) setSeen(etag);
+  const next = seenAfter(seen, etag, entry?.by);
+  if (next !== seen) setSeen(next);
   const failure = query.error instanceof RecordReadFailure ? query.error.failure : null;
-  const failed = query.isError && failure !== null;
-  let status: RecordView['status'] = 'loading';
-  if (entry !== undefined) status = 'ready';
-  else if (failed) status = isMissing(failure) ? 'missing' : 'failed';
   return {
-    status,
+    ...recordView(entry, query.isError ? failure : null, seen),
     data: entry?.result.data,
     etag,
     failure,
-    updated: etag !== null && seen !== null && etag !== seen,
-    refreshFailed: entry !== undefined && failed,
-    gone: entry !== undefined && failed && isMissing(failure),
     acknowledge: () => {
       setSeen(etag);
     },

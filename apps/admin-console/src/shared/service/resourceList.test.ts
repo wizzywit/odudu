@@ -1,5 +1,12 @@
-import { expect, it } from 'vitest';
-import { apiQuery, listFromSearch, listToSearch } from '#/shared/service/resourceList.ts';
+import { describe, expect, it } from 'vitest';
+import {
+  apiQuery,
+  isNarrowed,
+  listFromSearch,
+  listStatusOf,
+  listToSearch,
+  withFilter,
+} from '#/shared/service/resourceList.ts';
 
 const SPEC = { fields: ['username', 'email'], filters: ['enabled', 'role'] } as const;
 
@@ -48,4 +55,39 @@ it('asks the API for the search as a prefix of its field, with the filters and f
       { resource_type: 'client' },
     ).toString(),
   ).toBe('email=gr&enabled=true&resource_type=client');
+});
+
+describe('listStatusOf', () => {
+  it('is ready without a failure, refused for a 403 and failed for anything else', () => {
+    expect(listStatusOf(null)).toBe('ready');
+    expect(
+      listStatusOf({
+        ok: false,
+        kind: 'problem',
+        problem: { type: 'about:blank', title: 'Forbidden', status: 403 },
+      }),
+    ).toBe('refused');
+    expect(
+      listStatusOf({
+        ok: false,
+        kind: 'problem',
+        problem: { type: 'about:blank', title: 'Boom', status: 500 },
+      }),
+    ).toBe('failed');
+    expect(listStatusOf({ ok: false, kind: 'network' })).toBe('failed');
+  });
+});
+
+describe('isNarrowed and withFilter', () => {
+  it('is narrowed by a search or any filter', () => {
+    expect(isNarrowed({ search: null, filters: {} })).toBe(false);
+    expect(isNarrowed({ search: { field: 'name', query: 'a' }, filters: {} })).toBe(true);
+    expect(isNarrowed({ search: null, filters: { enabled: 'true' } })).toBe(true);
+  });
+  it('sets one filter, replaces it, and drops it for null', () => {
+    const was = { search: null, filters: { enabled: 'true', kind: 'x' } };
+    expect(withFilter(was, 'enabled', 'false').filters).toEqual({ kind: 'x', enabled: 'false' });
+    expect(withFilter(was, 'enabled', null).filters).toEqual({ kind: 'x' });
+    expect(withFilter(was, 'other', 'v').search).toBeNull();
+  });
 });

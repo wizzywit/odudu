@@ -1,14 +1,13 @@
 import { importErrorSchema, problemDetailsSchema } from '@odudu/contracts/admin';
 import { z } from 'zod';
+import type { Problem } from '#/shared/service/result.ts';
 
-// The gateway's own refusals and the admin API's forwarded ones share this
-// shape; `detail` is absent from some (the gateway's 502 has none).
 const problemSchema = problemDetailsSchema.extend({
   instance: z.string().optional(),
   detail: z.string().optional(),
   errors: z.array(importErrorSchema).optional(),
 });
-export type Problem = z.infer<typeof problemSchema>;
+export type { Problem };
 
 const TITLES: Readonly<Record<number, string>> = {
   400: 'Bad Request',
