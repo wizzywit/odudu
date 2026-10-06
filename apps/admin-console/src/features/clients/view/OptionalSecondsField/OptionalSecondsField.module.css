@@ -1,0 +1,11 @@
+.text,
+.message,
+.rule {
+  margin: 0;
+  overflow-wrap: anywhere;
+  max-inline-size: 72ch;
+}
+
+.rule {
+  color: var(--ink-muted);
+}

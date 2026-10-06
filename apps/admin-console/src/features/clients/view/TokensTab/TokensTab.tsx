@@ -20,11 +20,11 @@ import {
   tenantLifetimeLabel,
 } from '#/features/clients/service';
 import { useClientTokens } from '#/features/clients/usecase/useClientTokens.ts';
-import { OptionalSecondsField } from '#/features/clients/view/ClientRecordPage/OptionalSecondsField.tsx';
-import { SaveSection } from '#/features/clients/view/ClientRecordPage/SaveSection.tsx';
+import { OptionalSecondsField } from '#/features/clients/view/OptionalSecondsField';
+import { SaveSection } from '#/features/clients/view/SaveSection';
 import { ChecklistField } from '#/shared/view/ChecklistField';
 import { ReadOnlyFields, SelectField, TextListField, ToggleField } from '#/shared/view/Field';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/TokensTab/TokensTab.module.css';
 
 export function TokensTab({
   tenant,

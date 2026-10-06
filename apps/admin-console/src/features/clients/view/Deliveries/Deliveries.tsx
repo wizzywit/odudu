@@ -19,7 +19,7 @@ import { SelectField } from '#/shared/view/Field';
 import { TableSkeleton } from '#/shared/view/Skeleton';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Timestamp } from '#/shared/view/Timestamp';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/Deliveries/Deliveries.module.css';
 
 const COLUMNS: readonly Column<LogoutDelivery>[] = [
   {

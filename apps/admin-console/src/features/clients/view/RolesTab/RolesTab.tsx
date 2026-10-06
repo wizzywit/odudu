@@ -25,7 +25,7 @@ import { Pager } from '#/shared/view/Pager';
 import { TableSkeleton } from '#/shared/view/Skeleton';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/RolesTab/RolesTab.module.css';
 
 const COLUMNS: readonly Column<Role>[] = [
   { id: 'name', header: 'Role', isRowHeader: true, cell: (role) => <code>{role.name}</code> },

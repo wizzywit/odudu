@@ -10,10 +10,10 @@ import {
   SECTIONS_LOGOUT,
 } from '#/features/clients/service';
 import { useClientLogout } from '#/features/clients/usecase/useClientLogout.ts';
-import { Deliveries } from '#/features/clients/view/ClientRecordPage/Deliveries.tsx';
-import { SaveSection } from '#/features/clients/view/ClientRecordPage/SaveSection.tsx';
+import { Deliveries } from '#/features/clients/view/Deliveries';
+import { SaveSection } from '#/features/clients/view/SaveSection';
 import { ReadOnlyFields, ToggleField, UrlField, UrlListField } from '#/shared/view/Field';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/LogoutTab/LogoutTab.module.css';
 
 export function LogoutTab({
   tenant,

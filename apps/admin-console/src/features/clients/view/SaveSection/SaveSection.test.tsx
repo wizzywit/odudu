@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
-import { SaveSection } from '#/features/clients/view/ClientRecordPage/SaveSection.tsx';
+import { SaveSection } from '#/features/clients/view/SaveSection';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 
 function save(overrides: Partial<Parameters<typeof SaveSection>[0]['save']> = {}) {

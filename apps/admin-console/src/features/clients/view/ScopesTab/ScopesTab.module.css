@@ -4,24 +4,6 @@
   gap: var(--space-6);
 }
 
-.fixed {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-1);
-  margin: 0;
-}
-
-.fixed dt {
-  font-family: var(--font-mono);
-  font-size: var(--type-12);
-  color: var(--ink-muted);
-}
-
-.fixed dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
 .panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -60,31 +42,6 @@
   gap: var(--space-2);
 }
 
-.list {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
-  padding-inline-start: var(--space-6);
-}
-
-.form {
-  display: grid;
-  gap: var(--space-4);
-  max-inline-size: 640px;
-}
-
-.fixed div {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.roles {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding-inline-start: var(--space-6);
-}
-
 .scopes {
   display: grid;
   gap: var(--space-2);
@@ -114,22 +71,4 @@
   .scope code {
     grid-column: 1 / -1;
   }
-}
-
-.values {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.values code {
-  overflow-wrap: anywhere;
-}
-
-.claims {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-3);
 }

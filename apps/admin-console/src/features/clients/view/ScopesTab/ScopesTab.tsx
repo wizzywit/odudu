@@ -14,12 +14,12 @@ import {
   useClientScopeAssignment,
   type ClientScopes,
 } from '#/features/clients/usecase/useClientScopeAssignment.ts';
-import { Evaluate } from '#/features/clients/view/ClientRecordPage/Evaluate.tsx';
+import { Evaluate } from '#/features/clients/view/Evaluate';
 import { Button } from '#/shared/view/Button';
 import { InlineFields, SelectField } from '#/shared/view/Field';
 import { Picker } from '#/shared/view/Picker';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/ScopesTab/ScopesTab.module.css';
 
 function Assigned({ client, page }: { client: Client; page: ClientScopes }) {
   const heading = useId();

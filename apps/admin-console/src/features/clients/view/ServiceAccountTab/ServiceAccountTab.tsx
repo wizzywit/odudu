@@ -14,7 +14,7 @@ import {
   useServiceRolesRead,
   type ServiceRoles,
 } from '#/features/clients/usecase/useServiceAccount.ts';
-import { SaveSection } from '#/features/clients/view/ClientRecordPage/SaveSection.tsx';
+import { SaveSection } from '#/features/clients/view/SaveSection';
 import { Button } from '#/shared/view/Button';
 import { ButtonLink } from '#/shared/view/ButtonLink';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';
@@ -22,7 +22,7 @@ import { EmptyState } from '#/shared/view/EmptyState';
 import { ReadOnlyFields } from '#/shared/view/Field';
 import { RolePicker } from '#/shared/view/RolePicker';
 import { FormSkeleton } from '#/shared/view/Skeleton';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/ServiceAccountTab/ServiceAccountTab.module.css';
 
 function Editor({
   tenant,

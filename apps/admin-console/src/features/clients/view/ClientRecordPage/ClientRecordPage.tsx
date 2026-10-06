@@ -12,22 +12,22 @@ import {
 } from '#/features/clients/service';
 import { useClientActivity } from '#/features/clients/usecase/useClientActivity.ts';
 import { useClientRecordPage } from '#/features/clients/usecase/useClientRecordPage.ts';
-import { AdvancedTab } from '#/features/clients/view/ClientRecordPage/AdvancedTab.tsx';
-import { GeneralTab } from '#/features/clients/view/ClientRecordPage/GeneralTab.tsx';
-import { LogoutTab } from '#/features/clients/view/ClientRecordPage/LogoutTab.tsx';
-import { RedirectsTab } from '#/features/clients/view/ClientRecordPage/RedirectsTab.tsx';
-import { RolesTab } from '#/features/clients/view/ClientRecordPage/RolesTab.tsx';
-import { ScopesTab } from '#/features/clients/view/ClientRecordPage/ScopesTab.tsx';
-import { SessionsTab } from '#/features/clients/view/ClientRecordPage/SessionsTab.tsx';
-import { ServiceAccountTab } from '#/features/clients/view/ClientRecordPage/ServiceAccountTab.tsx';
-import { TokensTab } from '#/features/clients/view/ClientRecordPage/TokensTab.tsx';
+import { AdvancedTab } from '#/features/clients/view/AdvancedTab';
+import { GeneralTab } from '#/features/clients/view/GeneralTab';
+import { LogoutTab } from '#/features/clients/view/LogoutTab';
+import { RedirectsTab } from '#/features/clients/view/RedirectsTab';
+import { RolesTab } from '#/features/clients/view/RolesTab';
+import { ScopesTab } from '#/features/clients/view/ScopesTab';
+import { SessionsTab } from '#/features/clients/view/SessionsTab';
+import { ServiceAccountTab } from '#/features/clients/view/ServiceAccountTab';
+import { TokensTab } from '#/features/clients/view/TokensTab';
 import { ActivityTab } from '#/shared/view/ActivityTab';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { Note } from '#/shared/view/Note';
 import { RecordPage } from '#/shared/view/RecordPage';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { ViewOnlyNote } from '#/shared/view/ViewOnlyNote';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/ClientRecordPage/ClientRecordPage.module.css';
 
 interface PanelProps {
   tenant: string;

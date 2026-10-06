@@ -9,7 +9,7 @@ import { useInstallationPanel } from '#/features/clients/usecase/useClientInstal
 import { Button } from '#/shared/view/Button';
 import { CopyValue } from '#/shared/view/CopyValue';
 import { FormSkeleton } from '#/shared/view/Skeleton';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/Installation/Installation.module.css';
 
 function Value({ row }: { row: InstallationRow }) {
   if (row.values.length === 0) return <span className={styles.rule}>{NONE}</span>;

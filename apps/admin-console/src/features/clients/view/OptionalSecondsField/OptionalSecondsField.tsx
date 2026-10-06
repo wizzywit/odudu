@@ -8,7 +8,7 @@ import {
 } from '#/shared/view/Field';
 import { formatDuration } from '#/shared/service/format.ts';
 import { numberKept } from '#/features/clients/service';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/OptionalSecondsField/OptionalSecondsField.module.css';
 
 // A duration a client may leave to a default: off, it takes the default and
 // says where from; on, it is a number of seconds with its reading.

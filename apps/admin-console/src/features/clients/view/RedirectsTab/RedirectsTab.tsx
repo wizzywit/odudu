@@ -5,7 +5,7 @@ import { useClientRedirects } from '#/features/clients/usecase/useClientRedirect
 import { SectionNoticeOf } from '#/shared/view/SectionNoticeOf';
 import { ReadOnlyFields, UrlListField } from '#/shared/view/Field';
 import { Section } from '#/shared/view/Section';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/RedirectsTab/RedirectsTab.module.css';
 
 export function RedirectsTab({
   tenant,

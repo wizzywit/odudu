@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { expect, it, vi } from 'vitest';
-import { OptionalSecondsField } from '#/features/clients/view/ClientRecordPage/OptionalSecondsField.tsx';
+import { OptionalSecondsField } from '#/features/clients/view/OptionalSecondsField';
 import { ReadOnlyFields } from '#/shared/view/Field';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
 

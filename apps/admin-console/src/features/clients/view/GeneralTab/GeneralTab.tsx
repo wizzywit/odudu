@@ -20,7 +20,7 @@ import { TextAreaField, TextField, ToggleField, UrlField } from '#/shared/view/F
 import { FieldGrid, GridCell } from '#/shared/view/FieldGrid';
 import { Section } from '#/shared/view/Section';
 import { Timestamp } from '#/shared/view/Timestamp';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/GeneralTab/GeneralTab.module.css';
 
 function Fixed({ client }: { client: Client }) {
   const heading = useId();

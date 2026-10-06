@@ -24,7 +24,7 @@ import { Pager } from '#/shared/view/Pager';
 import { TableSkeleton } from '#/shared/view/Skeleton';
 import { StatusTag } from '#/shared/view/StatusTag';
 import { Timestamp } from '#/shared/view/Timestamp';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/SessionsTab/SessionsTab.module.css';
 
 const COLUMNS: readonly Column<TenantSession>[] = [
   {

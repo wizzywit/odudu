@@ -20,7 +20,7 @@ import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { CopyValue } from '#/shared/view/CopyValue';
 import { TextField } from '#/shared/view/Field';
 import { Picker } from '#/shared/view/Picker';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/Evaluate/Evaluate.module.css';
 
 function Form({ page }: { page: ClientEvaluate }) {
   return (

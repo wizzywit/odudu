@@ -22,8 +22,8 @@ import {
 } from '#/features/clients/service';
 import { useClientAdvanced } from '#/features/clients/usecase/useClientAdvanced.ts';
 import { useClientSecret, type ClientSecret } from '#/features/clients/usecase/useClientSecret.ts';
-import { Installation } from '#/features/clients/view/ClientRecordPage/Installation.tsx';
-import { SaveSection } from '#/features/clients/view/ClientRecordPage/SaveSection.tsx';
+import { Installation } from '#/features/clients/view/Installation';
+import { SaveSection } from '#/features/clients/view/SaveSection';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import {
@@ -38,7 +38,7 @@ import {
 } from '#/shared/view/Field';
 import { SecretDialog } from '#/shared/view/SecretDialog';
 import { Timestamp } from '#/shared/view/Timestamp';
-import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
+import styles from '#/features/clients/view/AdvancedTab/AdvancedTab.module.css';
 
 function Rotation({ client, secret }: { client: Client; secret: ClientSecret }) {
   const heading = useId();
