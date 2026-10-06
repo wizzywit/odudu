@@ -56,8 +56,8 @@ export async function effectiveGroupPaths(
 ): Promise<readonly string[]> {
   const result = await tx.execute(sql`
     SELECT g.path AS path
-    FROM groups g
-    JOIN subject_groups sg ON sg.group_id = g.id
+    FROM subject_groups sg
+    CROSS JOIN LATERAL (SELECT path FROM groups WHERE id = sg.group_id OFFSET 0) g
     WHERE sg.subject_id = ${subjectId}
   `);
   return pathRowsSchema.parse(result).map((row) => row.path);
@@ -76,7 +76,9 @@ export async function descendantsOf(
     WITH RECURSIVE descendants(id) AS (
       SELECT id FROM groups WHERE parent_id = ${startId}
       UNION
-      SELECT g.id FROM groups g JOIN descendants d ON g.parent_id = d.id
+      SELECT g.id
+      FROM descendants d
+      CROSS JOIN LATERAL (SELECT id FROM groups WHERE parent_id = d.id OFFSET 0) g
     )
     SELECT id FROM descendants
   `);
@@ -91,12 +93,28 @@ export async function descendantsOf(
 // own capability ceiling needs: a group moved under `startId` inherits
 // every role mapped to `startId` or any of its ancestors, via that same
 // closure, so the ceiling has to reach as far as this does.
-export async function ancestorsOf(tx: TenantScopedDatabase, startId: string): Promise<Set<string>> {
+//
+// Given several groups it answers the union of their chains, in the one
+// query: a caller with a set of groups never asks per group.
+export async function ancestorsOf(
+  tx: TenantScopedDatabase,
+  start: string | readonly string[],
+): Promise<Set<string>> {
+  const startIds = typeof start === 'string' ? [start] : start;
+  if (startIds.length === 0) return new Set();
+  const seeds = sql.join(
+    startIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
   const result = await tx.execute(sql`
     WITH RECURSIVE ancestors(id, parent_id) AS (
-      SELECT id, parent_id FROM groups WHERE id = ${startId}
+      SELECT id, parent_id FROM groups WHERE id IN (${seeds})
       UNION
-      SELECT g.id, g.parent_id FROM groups g JOIN ancestors a ON g.id = a.parent_id
+      SELECT p.id, p.parent_id
+      FROM ancestors a
+      CROSS JOIN LATERAL (
+        SELECT id, parent_id FROM groups WHERE id = a.parent_id OFFSET 0
+      ) p
     )
     SELECT id FROM ancestors
   `);
@@ -246,12 +264,13 @@ export function groupRepository(tx: TenantScopedDatabase) {
     // hash over the list is the same on every read of an unchanged set.
     async groupsOfSubject(subjectId: string): Promise<GroupRecord[]> {
       const rows = await tx
-        .select({ group: groups })
-        .from(subjectGroups)
-        .innerJoin(groups, eq(subjectGroups.groupId, groups.id))
-        .where(eq(subjectGroups.subjectId, subjectId))
+        .select()
+        .from(groups)
+        .where(
+          sql`${groups.id} = ANY(ARRAY(SELECT ${subjectGroups.groupId} FROM ${subjectGroups} WHERE ${subjectGroups.subjectId} = ${subjectId}))`,
+        )
         .orderBy(asc(groups.id));
-      return rows.map((row) => toRecord(row.group));
+      return rows.map(toRecord);
     },
 
     // Delete-then-insert under the caller's own row lock, never a diff —

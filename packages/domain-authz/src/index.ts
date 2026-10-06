@@ -8,7 +8,9 @@ export {
 } from '#/schema/roles';
 export { roleRepository, type NewRole, type RolePatch } from '#/repository/roles';
 export {
+  effectiveRolePage,
   effectiveRoles,
+  heldAmong,
   rolesReachableFrom,
   type EffectiveRole,
 } from '#/repository/effective-roles';

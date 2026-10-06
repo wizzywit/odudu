@@ -504,6 +504,21 @@ describe('ancestorsOf', () => {
     expect(ancestors.has(sibling.id)).toBe(false);
   });
 
+  it('answers the union of the chains of several groups, in one read', async () => {
+    const tenant = await tenantFixture();
+    const root = await tenant.createGroup('root', null);
+    const left = await tenant.createGroup('left', root.id);
+    const right = await tenant.createGroup('right', root.id);
+    const other = await tenant.createGroup('other', null);
+
+    const ancestors = await withTenant(app.db, tenant.tenantId, (tx) =>
+      ancestorsOf(tx, [left.id, right.id]),
+    );
+
+    expect(ancestors).toEqual(new Set([left.id, right.id, root.id]));
+    expect(ancestors.has(other.id)).toBe(false);
+  });
+
   it('does not see another tenant’s ancestor chain', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {

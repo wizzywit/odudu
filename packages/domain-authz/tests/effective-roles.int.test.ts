@@ -12,7 +12,12 @@ import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { effectiveRoles, rolesReachableFrom } from '#/repository/effective-roles';
+import {
+  effectiveRolePage,
+  effectiveRoles,
+  heldAmong,
+  rolesReachableFrom,
+} from '#/repository/effective-roles';
 import { roleRepository, type RoleRecord } from '#/repository/roles';
 
 let containerHandle: TestDatabase | undefined;
@@ -221,6 +226,88 @@ describe('rolesReachableFrom', () => {
         expect(found.map((role) => role.name)).toContain('admin');
       },
       attempt: async (tx, seeded) => rolesReachableFrom(tx, [seeded.roleId]),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('effectiveRolePage', () => {
+  it('gives the closure in role id order, a page at a time, after the id it is given', async () => {
+    const subject = await testSubject();
+    const top = await subject.createRole('top');
+    await subject.assignToSubject(top.id);
+    for (const name of ['a', 'b', 'c', 'd']) {
+      await subject.addComposite(top.id, (await subject.createRole(name)).id);
+    }
+    const whole = await withTenant(app.db, subject.tenantId, (tx) =>
+      effectiveRoles(tx, subject.subjectId),
+    );
+    const ids = whole.map((role) => role.roleId).sort();
+
+    const first = await withTenant(app.db, subject.tenantId, (tx) =>
+      effectiveRolePage(tx, subject.subjectId, { after: undefined, limit: 2 }),
+    );
+    const second = await withTenant(app.db, subject.tenantId, (tx) =>
+      effectiveRolePage(tx, subject.subjectId, { after: ids[1], limit: 2 }),
+    );
+
+    expect(first.map((role) => role.roleId)).toEqual(ids.slice(0, 2));
+    expect(second.map((role) => role.roleId)).toEqual(ids.slice(2, 4));
+  });
+
+  it('gives nothing for a subject in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await insertSubject(tx, tenantId);
+        const admin = await roleRepository(tx).create({ tenantId, name: 'admin' });
+        await roleRepository(tx).assignToSubject(subjectId, admin.id);
+        return { subjectId, roleId: admin.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        const found = await effectiveRolePage(tx, seeded.subjectId, { after: undefined, limit: 5 });
+        expect(found.map((role) => role.name)).toEqual(['admin']);
+      },
+      attempt: async (tx, seeded) =>
+        effectiveRolePage(tx, seeded.subjectId, { after: undefined, limit: 5 }),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('heldAmong', () => {
+  it('names which of the given roles the subject holds, and no other', async () => {
+    const subject = await testSubject();
+    const held = await subject.createRole('held');
+    const other = await subject.createRole('other');
+    await subject.assignToSubject(held.id);
+
+    const found = await withTenant(app.db, subject.tenantId, (tx) =>
+      heldAmong(tx, subject.subjectId, [held.id, other.id]),
+    );
+
+    expect([...found]).toEqual([held.id]);
+  });
+
+  it('holds nothing for a subject in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await insertSubject(tx, tenantId);
+        const admin = await roleRepository(tx).create({ tenantId, name: 'admin' });
+        await roleRepository(tx).assignToSubject(subjectId, admin.id);
+        return { subjectId, roleId: admin.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect([...(await heldAmong(tx, seeded.subjectId, [seeded.roleId]))]).toEqual([
+          seeded.roleId,
+        ]);
+      },
+      attempt: async (tx, seeded) => [...(await heldAmong(tx, seeded.subjectId, [seeded.roleId]))],
       expectBlocked: (result) => {
         expect(result).toEqual([]);
       },

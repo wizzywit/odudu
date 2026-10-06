@@ -63,8 +63,10 @@ async function closureFrom(tx: TenantScopedDatabase, startId: string): Promise<S
       SELECT child_role_id AS role_id FROM role_composites WHERE parent_role_id = ${startId}
       UNION
       SELECT rc.child_role_id AS role_id
-        FROM role_composites rc
-        JOIN closure c ON rc.parent_role_id = c.role_id
+        FROM closure c
+        CROSS JOIN LATERAL (
+          SELECT child_role_id FROM role_composites WHERE parent_role_id = c.role_id OFFSET 0
+        ) rc
     )
     SELECT role_id FROM closure
   `);
