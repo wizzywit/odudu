@@ -60,6 +60,20 @@ export {
   type AmendProfileRequest,
 } from '#/admin/profile';
 export {
+  CLIENT_AUTH_METHODS,
+  CLIENT_GRANT_TYPES,
+  CLIENT_TOKEN_TTL_RANGES,
+  DEFAULT_MAX_AGE_MAX,
+  ID_TOKEN_SIGNING_ALGS,
+  INTEGER_CEILING,
+  USERINFO_ENCRYPTION_ALGS,
+  USERINFO_ENCRYPTION_ENCS,
+  USERINFO_ENCRYPTION_ENC_DEFAULT,
+  USERINFO_SIGNING_ALGS,
+  type ClientTokenTtlField,
+  type ClientTokenTtlRange,
+} from '#/admin/client-rules';
+export {
   clientTypeSchema,
   registrationOriginSchema,
   clientSchema,

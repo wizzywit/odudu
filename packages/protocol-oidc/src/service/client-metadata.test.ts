@@ -1,5 +1,5 @@
-import { CLIENT_LIST_LIMIT } from '@odudu/contracts/admin';
-import { PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
+import { CLIENT_LIST_LIMIT, USERINFO_ENCRYPTION_ALGS } from '@odudu/contracts/admin';
+import { JWE_ALGS_PERMITTED, PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { describe, expect, it } from 'vitest';
 import { parseClientMetadata } from '#/service/client-metadata';
 
@@ -537,5 +537,11 @@ describe('the redirect_uris a client may hold', () => {
       description: `redirect_uris holds ${String(CLIENT_LIST_LIMIT + 1)} entries, at most ${String(CLIENT_LIST_LIMIT)}`,
       field: 'redirect_uris',
     });
+  });
+});
+
+describe('the algorithms the contracts offer a console', () => {
+  it('are the ones the crypto package can encrypt with', () => {
+    expect([...USERINFO_ENCRYPTION_ALGS]).toEqual([...JWE_ALGS_PERMITTED]);
   });
 });

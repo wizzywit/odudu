@@ -1,4 +1,14 @@
-import { CLIENT_LIST_LIMIT, listLimitProblem } from '@odudu/contracts/admin';
+import {
+  CLIENT_AUTH_METHODS,
+  CLIENT_GRANT_TYPES,
+  CLIENT_LIST_LIMIT,
+  DEFAULT_MAX_AGE_MAX,
+  ID_TOKEN_SIGNING_ALGS,
+  listLimitProblem,
+  USERINFO_ENCRYPTION_ENC_DEFAULT,
+  USERINFO_ENCRYPTION_ENCS,
+  USERINFO_SIGNING_ALGS,
+} from '@odudu/contracts/admin';
 import { z } from 'zod';
 import { JWE_ALGS_PERMITTED, PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { assertFetchableUrl, RemoteAddressRefused } from '#/service/remote-address';
@@ -49,21 +59,10 @@ function invalid(
 // Exported so `seed client --grant-type` (apps/server/src/cli/seed.ts)
 // validates against this, the CHECK constraint's mirror, rather than
 // keeping a second list free to disagree with it.
-export const GRANT_TYPES_PERMITTED = new Set([
-  'authorization_code',
-  'refresh_token',
-  'client_credentials',
-  'urn:ietf:params:oauth:grant-type:token-exchange',
-]);
+export const GRANT_TYPES_PERMITTED = new Set<string>(CLIENT_GRANT_TYPES);
 
 // client_oidc_config_auth_method_check (migration 0045_client_registration_metadata.sql).
-const AUTH_METHODS_PERMITTED = new Set([
-  'client_secret_basic',
-  'client_secret_post',
-  'none',
-  'private_key_jwt',
-  'tls_client_auth',
-]);
+const AUTH_METHODS_PERMITTED = new Set<string>(CLIENT_AUTH_METHODS);
 
 // signing_keys_alg_check (packages/db/drizzle/0003_signing_keys.sql):
 // `RS256` and `ES256` are the only algorithms this server ever generates a
@@ -72,8 +71,8 @@ const AUTH_METHODS_PERMITTED = new Set([
 // (`docs/protocols/oidc-core.md`'s reading note has the exact clauses). A
 // value outside this set used to be accepted and silently answered with
 // whichever algorithm the tenant's active key happened to carry.
-export const USERINFO_SIGNING_ALGS_PERMITTED = ['RS256', 'ES256', 'none'] as const;
-const USERINFO_SIGNING_ALGS = new Set<string>(USERINFO_SIGNING_ALGS_PERMITTED);
+export const USERINFO_SIGNING_ALGS_PERMITTED = USERINFO_SIGNING_ALGS;
+const USERINFO_SIGNING_ALG_SET = new Set<string>(USERINFO_SIGNING_ALGS);
 
 // docs/superpowers/p3b-spike-jwe.md: what the installed jose can produce
 // against a client-published asymmetric key. @odudu/crypto's
@@ -84,27 +83,20 @@ const USERINFO_ENCRYPTION_ALGS = new Set<string>(JWE_ALGS_PERMITTED);
 // The spike found no `enc` value the installed jose fails to produce
 // against any permitted `alg` — this is the full JWA registry, not a
 // narrowing.
-export const USERINFO_ENCRYPTION_ENCS_PERMITTED = [
-  'A128CBC-HS256',
-  'A192CBC-HS384',
-  'A256CBC-HS512',
-  'A128GCM',
-  'A192GCM',
-  'A256GCM',
-] as const;
-const USERINFO_ENCRYPTION_ENCS = new Set<string>(USERINFO_ENCRYPTION_ENCS_PERMITTED);
+export const USERINFO_ENCRYPTION_ENCS_PERMITTED = USERINFO_ENCRYPTION_ENCS;
+const USERINFO_ENCRYPTION_ENC_SET = new Set<string>(USERINFO_ENCRYPTION_ENCS);
 
-// OIDC Dynamic Client Registration §2: this is the default `enc` when
-// `_alg` is registered with no `_enc`.
+// OIDC Dynamic Client Registration §2: the default `enc` when `_alg` is
+// registered with no `_enc`.
 // verified: curl -s https://openid.net/specs/openid-connect-registration-1_0.html
-export const USERINFO_ENCRYPTION_ENC_DEFAULT = 'A128CBC-HS256';
+export { USERINFO_ENCRYPTION_ENC_DEFAULT };
 
 // signing_keys_alg_check: the algorithms this server can hold a signing key
 // for. Unlike `userinfo_signed_response_alg`, `none` is refused: an ID token
 // is the client's proof of who authenticated, never an unsigned claim. Which
 // of the two the tenant holds a key for is the caller's to check, against
 // its own keys (`idTokenAlgUnavailable`, #/usecase/id-token-alg.ts).
-export const ID_TOKEN_SIGNING_ALGS_PERMITTED = ['RS256', 'ES256'] as const;
+export const ID_TOKEN_SIGNING_ALGS_PERMITTED = ID_TOKEN_SIGNING_ALGS;
 
 function isIdTokenSigningAlg(value: string): value is 'RS256' | 'ES256' {
   return (ID_TOKEN_SIGNING_ALGS_PERMITTED as readonly string[]).includes(value);
@@ -243,7 +235,7 @@ const metadataShape = z.object({
   policy_uri: z.string().optional(),
   tos_uri: z.string().optional(),
   id_token_signed_response_alg: z.string().optional(),
-  default_max_age: z.number().int().nonnegative().max(2_147_483_647).optional(),
+  default_max_age: z.number().int().nonnegative().max(DEFAULT_MAX_AGE_MAX).optional(),
   require_auth_time: z.boolean().optional(),
 });
 
@@ -326,7 +318,10 @@ export function parseClientMetadata(
     tokenEndpointAuthMethod === 'tls_client_auth' ? providedSubjectDn : '';
 
   const userinfoSignedResponseAlg = metadata.userinfo_signed_response_alg ?? null;
-  if (userinfoSignedResponseAlg !== null && !USERINFO_SIGNING_ALGS.has(userinfoSignedResponseAlg)) {
+  if (
+    userinfoSignedResponseAlg !== null &&
+    !USERINFO_SIGNING_ALG_SET.has(userinfoSignedResponseAlg)
+  ) {
     return invalid(
       'invalid_client_metadata',
       `userinfo_signed_response_alg must not be ${userinfoSignedResponseAlg}`,
@@ -356,7 +351,7 @@ export function parseClientMetadata(
   }
 
   const providedEnc = metadata.userinfo_encrypted_response_enc ?? null;
-  if (providedEnc !== null && !USERINFO_ENCRYPTION_ENCS.has(providedEnc)) {
+  if (providedEnc !== null && !USERINFO_ENCRYPTION_ENC_SET.has(providedEnc)) {
     return invalid(
       'invalid_client_metadata',
       `userinfo_encrypted_response_enc must not be ${providedEnc}`,
