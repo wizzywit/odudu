@@ -235,20 +235,27 @@ function routePattern(pattern: string): RegExp {
 }
 
 describe('every admin route', () => {
-  it('is driven by the check, or named as not driven with a reason', () => {
-    const driven = log.runs
-      .filter((run) => run.area === 'admin')
+  it('is driven by the check to a 2xx, or named as not driven with a reason', () => {
+    const answered = log.runs
+      .filter((run) => run.area === 'admin' && run.status !== undefined)
       .map((run) => {
         const [method = '', rest = ''] = run.path.split(' ', 2);
         const url = (run.path.slice(method.length + 1).split(' (')[0] ?? rest).split('?')[0] ?? '';
-        return { method, url };
+        return { method, url, status: run.status ?? 0 };
       });
+    const driven = answered.filter((run) => run.status < 300);
     const missing = ADMIN_ROUTES.filter((route) => {
       const key = `${route.method} ${route.pattern}`;
       if (NOT_DRIVEN[key] !== undefined) return false;
       const re = routePattern(route.pattern);
       return !driven.some((run) => run.method === route.method && re.test(run.url));
-    }).map((route) => `${route.method} ${route.pattern}`);
+    }).map((route) => {
+      const re = routePattern(route.pattern);
+      const seen = answered
+        .filter((run) => run.method === route.method && re.test(run.url))
+        .map((run) => String(run.status));
+      return `${route.method} ${route.pattern} answered ${seen.join(', ') || 'nothing'}`;
+    });
     expect(missing).toEqual([]);
     expect(
       Object.keys(NOT_DRIVEN).filter(

@@ -7,6 +7,8 @@ export interface PathRun {
   readonly path: string;
   readonly area: Area;
   readonly statements: readonly Statement[];
+  // What an HTTP path answered, where it was one.
+  readonly status?: number;
   // Set where a statement's work is the rows it deletes: the expired rows a
   // retention rule reaches are the rows it removes, so how many it reads is
   // not a bound it can hold; that it reaches them by an index still is.
@@ -24,7 +26,11 @@ export function pathLog(recorder: StatementRecorder): {
   const runs: PathRun[] = [];
   const capture: Capture = async (path, area, run) => {
     const { result, statements } = await recorder.record(run);
-    runs.push({ path, area, statements });
+    const status =
+      typeof result === 'object' && result !== null && 'statusCode' in result
+        ? Number(result.statusCode)
+        : undefined;
+    runs.push({ path, area, statements, ...(status === undefined ? {} : { status }) });
     return result;
   };
   return { runs, capture };

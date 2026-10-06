@@ -76,7 +76,7 @@ export async function driveAdminWrites(
   const one = pick;
   const probe = ids.subject;
   const credential = await one(
-    sql`select id from user_credentials where tenant_id = ${t} and subject_id = ${probe} limit 1`,
+    sql`select id from user_credentials where tenant_id = ${t} and subject_id = ${probe} and type = 'webauthn' limit 1`,
     'credential',
   );
   const consentClient = await one(
@@ -97,7 +97,10 @@ export async function driveAdminWrites(
     one(sql`select id from groups where tenant_id = ${t} and name = ${name}`, name);
   const nestedParent = await roleNamed('role-3001');
   const nestedChild = await roleNamed('role-3002');
-  const edgeChild = await roleNamed('role-2');
+  const edgeChild = await one(
+    sql`select child_role_id as id from role_composites where tenant_id = ${t} and parent_role_id = ${ids.role} limit 1`,
+    'composite',
+  );
   const defaultRole = await roleNamed('role-3003');
   const defaultGroup = await groupNamed('group-3003');
   const patchedRole = await roleNamed('role-3004');
@@ -116,10 +119,12 @@ export async function driveAdminWrites(
         union all select id from clients where tenant_id = ${t} and client_id = 'plans-app' limit 1`,
     'confidential client',
   );
-  const [exportable] = await sql<{ name: string }[]>`
-    select name from tenants where name ~ '^tn11[0-9]*$' order by name limit 1`;
-  if (exportable === undefined) throw new Error('no small tenant to export');
+  // Made first and exported, since a tenant the volume seeds has no flow or scopes to import.
+  const exportable = { name: `made-${newId().slice(-8)}` };
 
+  await sql`
+    update users set email = ${`mailed-${newId().slice(-8)}@example.test`}, email_verified = false
+     where subject_id = ${editedSubject}`;
   const calls: [string, Call][] = [
     [
       'create a subject',
@@ -150,10 +155,6 @@ export async function driveAdminWrites(
     [
       'end all of a subject’s sessions',
       { method: 'DELETE', url: `${T}/subjects/${editedSubject}/sessions` },
-    ],
-    [
-      'revoke all of a subject’s grants',
-      { method: 'DELETE', url: `${T}/subjects/${editedSubject}/grants` },
     ],
     ['clear every lockout of the tenant', { method: 'DELETE', url: `${T}/lockouts` }],
     [
@@ -233,8 +234,17 @@ export async function driveAdminWrites(
       {
         method: 'POST',
         url: '/admin/tenants',
-        body: { name: `made-${newId().slice(-8)}` },
+        body: { name: exportable.name },
         system: true,
+      },
+    ],
+    [
+      'disable a tenant',
+      {
+        method: 'PATCH',
+        url: `/admin/tenants/${small.name}`,
+        system: true,
+        body: { enabled: false },
       },
     ],
     [
@@ -259,6 +269,14 @@ export async function driveAdminWrites(
     ],
     ['set a password', { method: 'POST', url: `${T}/subjects/${editedSubject}/password` }],
     [
+      'set the tenant’s SMTP',
+      {
+        method: 'PUT',
+        url: `${T}/smtp`,
+        body: { host: 'smtp.example.test', port: 587, from_address: 'plans@example.test' },
+      },
+    ],
+    [
       'mail a password reset',
       { method: 'POST', url: `${T}/subjects/${editedSubject}/password-reset` },
     ],
@@ -282,6 +300,7 @@ export async function driveAdminWrites(
         method: 'PUT',
         url: `${T}/subjects/${editedSubject}/required-actions`,
         body: { actions: ['update-password'] },
+        etagFrom: `${T}/subjects/${editedSubject}/required-actions`,
       },
     ],
     [
@@ -383,7 +402,12 @@ export async function driveAdminWrites(
     ],
     [
       'set a scope’s mappers',
-      { method: 'PUT', url: `${T}/scopes/${patchedScope}/mappers`, body: { mapper_names: [] } },
+      {
+        method: 'PUT',
+        url: `${T}/scopes/${patchedScope}/mappers`,
+        body: { mapper_names: [] },
+        etagFrom: `${T}/scopes/${patchedScope}/mappers`,
+      },
     ],
     [
       'assign a scope to a client',
@@ -401,23 +425,20 @@ export async function driveAdminWrites(
       'create a signing key',
       { method: 'POST', url: `${T}/keys`, body: { alg: 'ES256' }, saveAs: 'newKey' },
     ],
-    ['promote a signing key', { method: 'POST', url: `${T}/keys/{newKey}/promote` }],
-    ['retire a signing key', { method: 'POST', url: `${T}/keys/{newKey}/retire` }],
-    ['delete a signing key', { method: 'DELETE', url: `${T}/keys/{newKey}` }],
     [
-      'set the tenant’s SMTP',
-      {
-        method: 'PUT',
-        url: `${T}/smtp`,
-        body: { host: 'smtp.example.test', port: 587, from_address: 'plans@example.test' },
-      },
+      'create a second signing key',
+      { method: 'POST', url: `${T}/keys`, body: { alg: 'ES256' }, saveAs: 'nextKey' },
     ],
+    ['promote a signing key', { method: 'POST', url: `${T}/keys/{nextKey}/promote` }],
+    ['retire the key it replaced', { method: 'POST', url: `${T}/keys/{newKey}/retire` }],
+    ['delete the retired key', { method: 'DELETE', url: `${T}/keys/{newKey}` }],
     ['delete the tenant’s SMTP', { method: 'DELETE', url: `${T}/smtp` }],
     [
       'replace the sign-in flow',
       {
         method: 'PUT',
         url: `${T}/flow/executions`,
+        etagFrom: `${T}/flow/executions`,
         body: [],
         bodyFrom: {
           url: `${T}/flow/executions`,
@@ -465,6 +486,8 @@ export async function driveAdminWrites(
     if (call.saveAs !== undefined) {
       saved.set(call.saveAs, res.json<{ id: string }>().id);
     }
+    if (res.statusCode >= 300)
+      console.warn(`${call.method} ${url}: ${String(res.statusCode)} ${res.body.slice(0, 300)}`);
     if (res.statusCode >= 500 || res.statusCode === 401 || res.statusCode === 403) {
       throw new Error(
         `${call.method} ${url} (${label}): ${String(res.statusCode)} ${res.body.slice(0, 300)}`,
