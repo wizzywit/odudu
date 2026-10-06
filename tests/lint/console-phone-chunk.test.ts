@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 // Modules only some pages need must arrive with those pages' chunks, never
 // with the entry every page loads first: libphonenumber-js's metadata (some
-// 80 kB), and react-aria's Table, ComboBox and DateInput. A marker is a
+// 80 kB), and react-aria's Table, ComboBox, DateInput and NumberField. A marker is a
 // string the module's own code carries and no other code in the console has.
 
 const ASSETS = path.resolve(import.meta.dirname, '../../apps/admin-console/dist/assets');
@@ -14,6 +14,7 @@ const FEATURE_ONLY = [
   { what: "react-aria's Table", marker: 'react-aria-Table' },
   { what: "react-aria's ComboBox", marker: 'react-aria-ComboBox' },
   { what: "react-aria's DateInput", marker: 'react-aria-DateInput' },
+  { what: "react-aria's NumberField", marker: 'react-aria-NumberField' },
 ] as const;
 
 // The entry chunk's gzip size, in bytes (ADR 0041). Set at 145,018 B, the

@@ -11,12 +11,10 @@ import {
 import {
   Button as AriaButton,
   FieldError,
-  Group,
   Input,
   Label,
   ListBox,
   ListBoxItem,
-  NumberField as AriaNumberField,
   Popover,
   Select,
   SelectValue,
@@ -28,7 +26,6 @@ import {
   VisuallyHidden,
   type Key,
 } from 'react-aria-components';
-import { formatDuration } from '#/shared/service/format.ts';
 import { Button } from '#/shared/view/Button';
 import styles from '#/shared/view/Field/Field.module.css';
 
@@ -322,59 +319,6 @@ export function TextAreaField({
       </Description>
       <Message error={error} />
     </AriaTextField>
-  );
-}
-
-const UNIT_SYMBOL: Readonly<Record<string, string>> = { seconds: 's' };
-
-export function NumberWithUnitField({
-  label,
-  description,
-  error,
-  changed,
-  isDisabled,
-  value,
-  onChange,
-  unit,
-  minValue,
-  maxValue,
-}: Chrome & {
-  value: number;
-  onChange: (value: number) => void;
-  unit: string;
-  minValue?: number;
-  maxValue?: number;
-}) {
-  const reading = unit === 'seconds' ? formatDuration(value) : `${String(value)} ${unit}`;
-  if (use(FieldsReadOnly)) {
-    return <ReadOnlyValue label={label} value={reading} mono changed={changed} />;
-  }
-  return (
-    <AriaNumberField
-      {...VALIDATION}
-      {...invalid(error)}
-      isDisabled={isDisabled ?? false}
-      value={value}
-      onChange={onChange}
-      formatOptions={{ useGrouping: false, maximumFractionDigits: 0 }}
-      {...(minValue === undefined ? {} : { minValue })}
-      {...(maxValue === undefined ? {} : { maxValue })}
-      className={styles.field ?? ''}
-      data-changed={changed === true || undefined}
-    >
-      <Header label={label} {...(changed === undefined ? {} : { changed })} />
-      <Group className={styles.unitGroup ?? ''} data-control>
-        <Input className={styles.input ?? ''} data-mono />
-        <span className={styles.unit} data-unit aria-hidden="true">
-          {UNIT_SYMBOL[unit] ?? unit}
-        </span>
-      </Group>
-      <Text slot="description" className={styles.description ?? ''}>
-        <span className={styles.reading}>{reading}</span>
-        {description === undefined ? null : <span>{description}</span>}
-      </Text>
-      <Message error={error} />
-    </AriaNumberField>
   );
 }
 
