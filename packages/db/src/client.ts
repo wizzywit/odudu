@@ -14,8 +14,16 @@ export interface DatabaseOptions {
   max?: number;
   // Tests only (tests/lint/query-hook-tests-only.test.ts): sees every
   // statement sent with its parameters, which carry password hashes, secret
-  // hashes, emails and TOTP seeds. Never log what it is handed.
-  onQueryForTests?: (query: string, parameters: readonly unknown[]) => void;
+  // hashes, emails and TOTP seeds. Never log what it is handed. `connection`
+  // numbers the pooled connection that sent the statement, so a caller can
+  // follow one transaction's tenant binding; `types` are the parameter type
+  // OIDs the driver declared, 0 where it left the server to infer one.
+  onQueryForTests?: (
+    query: string,
+    parameters: readonly unknown[],
+    connection: number,
+    types: readonly number[],
+  ) => void;
 }
 
 export function createDatabase(url: string, options: DatabaseOptions = {}): DatabaseHandle {
@@ -26,8 +34,13 @@ export function createDatabase(url: string, options: DatabaseOptions = {}): Data
     ...(onQuery === undefined
       ? {}
       : {
-          debug: (_connection: number, query: string, parameters: readonly unknown[]) => {
-            onQuery(query, parameters);
+          debug: (
+            connection: number,
+            query: string,
+            parameters: readonly unknown[],
+            types: readonly number[],
+          ) => {
+            onQuery(query, parameters, connection, types);
           },
         }),
   });
