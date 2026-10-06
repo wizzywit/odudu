@@ -666,6 +666,20 @@
       "when": 1789135781736,
       "tag": "0094_drop_action_token_redirect",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1789222181736,
+      "tag": "0095_lookup_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1789308581736,
+      "tag": "0096_client_origins",
+      "breakpoints": true
     }
   ]
 }
