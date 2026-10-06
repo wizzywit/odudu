@@ -320,6 +320,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'view-users',
     responseSchema: listConsentsResponseSchema,
     querystringSchema: listConsentsQuerySchema,
+    description:
+      'The subject\u2019s consents, paged by keyset on the client\u2019s own `client_id`: `limit` up to 200, and `next` (also the `link` header) names the following page; a response with no `next` is the last.',
   },
   {
     method: 'DELETE',
@@ -461,6 +463,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: setRolesResponseSchema,
     bodySchema: setRolesRequestSchema,
     description:
+      'More than 200 entries is refused with `400`. ' +
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
       TARGET_CEILING +
       LAST_ADMINISTRATOR,
@@ -472,6 +475,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: listEffectiveRolesResponseSchema,
     querystringSchema: listEffectiveRolesQuerySchema,
     description:
+      'A page holds at most `limit` roles (up to 200); follow `next` (or the `link` header) until it is absent for the whole set. ' +
       'The roles the subject holds, the set token issuance and authorization read, in id ' +
       'order, each with every path it is held by: assigned directly, mapped to a group the ' +
       'subject belongs to or to one of its ancestors, or nested under another role it holds. ' +
@@ -494,6 +498,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: setSubjectGroupsResponseSchema,
     bodySchema: setSubjectGroupsRequestSchema,
     description:
+      'More than 200 entries is refused with `400`. ' +
       'Replaces the subject\u2019s direct memberships. `If-Match` is mandatory (`428` absent, `412` stale). Refused with `403` when the groups, their ancestors or the composites their roles nest reach an admin capability the caller does not hold.' +
       TARGET_CEILING +
       LAST_ADMINISTRATOR,
@@ -617,6 +622,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: importTenantRequestSchema,
     bodyLimit: TENANT_IMPORT_BODY_LIMIT,
     description:
+      'A set over 200 entries, more than 1,000 scopes or more than 200 default roles or groups is refused in the same `400`, naming the limit and the count. ' +
       'Creates a new tenant from a document `GET /admin/tenants/{tenant}/export` answered, with ' +
       'its own signing key and a fresh secret for each confidential client, answered once here. ' +
       'Every problem with the request is refused together in one `400` whose `errors` lists each ' +
@@ -670,6 +676,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     successMediaType: TENANT_DOCUMENT_MEDIA_TYPE,
     querystringSchema: exportTenantQuerySchema,
     description:
+      'A tenant too large for one document is refused with `413`: more than 20,000 clients, roles or groups, 200,000 rows of a link table, or one role, group, scope or subject holding more than 200 of a set, which an import would refuse. ' +
       'The tenant\u2019s configuration, every reference by name, with no secret in it: each ' +
       'secret a reader would expect is named under `omitted` by its JSON path. Additionally ' +
       'requires `manage-clients`, the capability every other client read requires, refused ' +
@@ -805,10 +812,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-sessions',
     responseSchema: revokeClientGrantsResponseSchema,
     description:
-      'Revokes every grant issued through the client that nothing has revoked, whoever holds ' +
-      'it, so no refresh token the client holds is honoured again. Ends no session. A grant ' +
-      'whose subject holds an admin capability the caller does not is left alone and counted ' +
-      'under `beyond_ceiling`.',
+      'Revokes up to 10,000 of the grants issued through the client that nothing has revoked, ' +
+      'whoever holds them, so no refresh token the client holds is honoured again; `remaining` ' +
+      'says how many more are left (counted to 10,000), so a caller repeats the call until it ' +
+      'is 0 — one call is not every grant. Ends no session. A grant whose subject holds an ' +
+      'admin capability the caller does not is left alone and counted under `beyond_ceiling`.',
   },
   // RFC 7591 §3 initial access tokens, gated the same way clients above are —
   // `manage-clients`, since a token that mints a client is configuration for
@@ -899,6 +907,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     successStatus: 204,
     bodySchema: addRoleCompositeRequestSchema,
     description:
+      'A role nests at most 200 children; one more is refused with `409`. ' +
       'Nests `child_role_id` under this role. Refused with `403` when the child reaches an admin capability the caller does not hold, or any admin capability at all while a default role or a default group reaches this one; `409` on a cycle, and on a parent belonging to the tenant\u2019s built-in admin client, whose shape provisioning fixes. Answers the composites\u2019 new `ETag`, the one `GET …/composites` answers; `If-Match` is optional, and a stale one is refused with `412`.',
   },
   {
@@ -927,6 +936,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: roleSchema,
     bodySchema: setRoleDefaultRequestSchema,
     description:
+      'At most 200 roles are default at once; one more is refused with `409`. ' +
       'Sets whether every subject created afterwards, self-registered ones included, is granted this role. `true` is refused with `403` when the role reaches any admin capability, whoever the caller is; `false` is never refused. Answers the role\u2019s `ETag`; `If-Match` is optional, and a stale one is refused with `412`.',
   },
   {
@@ -994,6 +1004,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: setGroupRolesResponseSchema,
     bodySchema: setGroupRolesRequestSchema,
     description:
+      'More than 200 entries is refused with `400`. ' +
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
       DELTA_CEILING +
       LAST_ADMINISTRATOR,
@@ -1005,6 +1016,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: groupSchema,
     bodySchema: setGroupDefaultRequestSchema,
     description:
+      'At most 200 groups are default at once; one more is refused with `409`. ' +
       'Sets whether every subject created afterwards — by an administrator, by self-registration or by `odudu seed` — joins this group; an imported subject keeps the memberships its document lists. `true` is refused with `403` when the group\u2019s roles, or any ancestor\u2019s, reach an admin capability, whoever the caller is; `false` is never refused. While a group is a default, mapping a role that reaches a capability to it or to an ancestor, nesting one under a role it reaches, and moving it or an ancestor under a chain that reaches one are refused the same way. Answers the group\u2019s `ETag`; `If-Match` is optional, and a stale one is refused with `412`.',
   },
   {
@@ -1028,6 +1040,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: clientScopeSchema,
     successStatus: 201,
     bodySchema: createScopeRequestSchema,
+    description: 'A tenant defines at most 1,000 scopes; one more is refused with `409`.',
   },
   {
     method: 'GET',
@@ -1068,6 +1081,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: setScopeRolesResponseSchema,
     bodySchema: setScopeRolesRequestSchema,
     description:
+      'More than 200 entries is refused with `400`. ' +
       'Replaces the whole list. `If-Match` is mandatory: the matching `GET` answers an `ETag`, an absent header is refused with `428`, and a stale one with `412` — a last-write-wins here would silently reinstate what another administrator has just removed.' +
       DELTA_CEILING,
   },
@@ -1172,9 +1186,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-users',
     responseSchema: clearLockoutsResponseSchema,
     description:
-      'Clears every subject\u2019s run of failed sign-ins, locked or still counting, as ' +
-      '`DELETE …/subjects/{id}/lockout` clears one. A subject holding an admin capability the ' +
-      'caller does not keeps its count and is counted under `beyond_ceiling`.',
+      'Clears the run of failed sign-ins of up to 10,000 subjects a call, in id order, as ' +
+      '`DELETE …/subjects/{id}/lockout` clears one; `remaining` says how many more are left ' +
+      '(counted to 10,000), so a caller repeats the call until it is 0 — one call is not ' +
+      'every subject. A subject holding an admin capability the caller does not keeps its ' +
+      'count and is counted under `beyond_ceiling`.',
   },
   {
     method: 'DELETE',
