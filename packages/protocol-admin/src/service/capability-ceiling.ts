@@ -305,12 +305,13 @@ function idList(ids: readonly string[]): SQL {
   );
 }
 
-// The admin capabilities in a closure of (root, role_id) rows, by root.
-function capabilitiesIn(closure: SQL): SQL {
-  return sql`${closure}
-    SELECT c.root::text AS root, r.name AS name
-    FROM closure c
-    JOIN (
+// `granting(role_id, name)`: every role that reaches an admin capability, with
+// the capability, walked upward from the capability roles through the roles
+// that nest them. The few roles that reach a capability are what a page of roles
+// or groups is probed against, where walking down from the page costs the page
+// times what each reaches.
+function grantingCte(): SQL {
+  return sql`granting(role_id, name) AS (
       SELECT r.id, r.name
       FROM clients cl
       JOIN roles r ON r.client_id = cl.id
@@ -319,7 +320,13 @@ function capabilitiesIn(closure: SQL): SQL {
           ADMIN_CAPABILITIES.map((name) => sql`${name}`),
           sql`, `,
         )})
-    ) r ON r.id = c.role_id`;
+      UNION
+      SELECT rc.parent_role_id, g.name
+      FROM granting g
+      CROSS JOIN LATERAL (
+        SELECT parent_role_id FROM role_composites WHERE child_role_id = g.role_id OFFSET 0
+      ) rc
+    )`;
 }
 
 /**
@@ -332,18 +339,12 @@ export async function adminReachOfRoles(
   roleIds: readonly string[],
 ): Promise<ReadonlyMap<string, readonly string[]>> {
   if (roleIds.length === 0) return new Map();
-  const rows = await tx.execute(
-    capabilitiesIn(sql`
-      WITH RECURSIVE closure(root, role_id) AS (
-        SELECT id, id FROM roles WHERE id IN (${idList(roleIds)})
-        UNION
-        SELECT c.root, rc.child_role_id
-        FROM closure c
-        CROSS JOIN LATERAL (
-          SELECT child_role_id FROM role_composites WHERE parent_role_id = c.role_id OFFSET 0
-        ) rc
-      )`),
-  );
+  const rows = await tx.execute(sql`
+    WITH RECURSIVE ${grantingCte()}
+    SELECT g.role_id::text AS root, g.name AS name
+    FROM granting g
+    WHERE g.role_id IN (${idList(roleIds)})
+  `);
   return reachByRoot(roleIds, reachRowsSchema.parse(rows));
 }
 
@@ -370,22 +371,7 @@ export async function adminReachOfGroups(
         SELECT id, parent_id FROM groups WHERE id = ch.parent_id OFFSET 0
       ) g
     ),
-    granting(role_id, name) AS (
-      SELECT r.id, r.name
-      FROM clients cl
-      JOIN roles r ON r.client_id = cl.id
-      WHERE cl.client_id = ${ADMIN_CLIENT_ID}
-        AND r.name IN (${sql.join(
-          ADMIN_CAPABILITIES.map((name) => sql`${name}`),
-          sql`, `,
-        )})
-      UNION
-      SELECT rc.parent_role_id, g.name
-      FROM granting g
-      CROSS JOIN LATERAL (
-        SELECT parent_role_id FROM role_composites WHERE child_role_id = g.role_id OFFSET 0
-      ) rc
-    )
+    ${grantingCte()}
     SELECT DISTINCT ch.root::text AS root, g.name AS name
     FROM chain ch
     CROSS JOIN granting g
