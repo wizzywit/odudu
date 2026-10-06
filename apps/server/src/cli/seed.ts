@@ -27,6 +27,7 @@ import {
   ADMIN_CLIENT_ID,
   clientRegistrationTokenRepository,
   clientRepository,
+  ClientScopeLimitError,
   clientScopeRepository,
   isReservedTenantName,
   isSystemTenantName,
@@ -1490,7 +1491,14 @@ async function runAssignScopeCommand(
   return withTenant(runtimeDb, tenantId, async (tx) => {
     const clientDbId = await requireClientDbId(tx, clientId);
     const scopeId = await requireScopeId(tx, scopeName);
-    await clientScopeRepository(tx).assignOrUpdate(clientDbId, scopeId, assignment);
+    try {
+      await clientScopeRepository(tx).assignOrUpdate(clientDbId, scopeId, assignment);
+    } catch (error) {
+      if (error instanceof ClientScopeLimitError) {
+        throw new OduduError('seed_invalid_options', error.message);
+      }
+      throw error;
+    }
     return {
       command: 'assign-scope',
       tenant: tenantName,

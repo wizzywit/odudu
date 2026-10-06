@@ -355,7 +355,11 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
         '--assignment',
         'optional',
       ]),
-    ).rejects.toThrow(`a client carries at most ${String(CLIENT_SCOPE_LIMIT)} scopes`);
+    ).rejects.toMatchObject({
+      name: 'OduduError',
+      code: 'seed_invalid_options',
+      message: `a client carries at most ${String(CLIENT_SCOPE_LIMIT)} scopes`,
+    });
   });
 
   it('refuses to grant a role that does not exist rather than creating one', async () => {
