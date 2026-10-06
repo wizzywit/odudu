@@ -170,7 +170,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
     // `token_grants.client_id` and `client_oidc_config.client_id` are both
     // the clients table's surrogate id, never the OAuth client_id string,
     // so the join needs no third table. Filtered to `enabled`, the same way
-    // `webOriginsForTenant` (client-oidc-config.ts) is.
+    // `webOriginAllowed` (client-oidc-config.ts) is.
     async clientsForSession(sessionId: string): Promise<ClientLogoutTarget[]> {
       const rows = await tx
         .selectDistinct({

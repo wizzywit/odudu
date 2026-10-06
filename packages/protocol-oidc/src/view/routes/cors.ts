@@ -1,6 +1,7 @@
 import cors, { type FastifyCorsOptions } from '@fastify/cors';
 import { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { corsHeadersForPreflight } from '#/service/cors';
+import { normalizeOrigin } from '#/service/web-origin';
 
 // Matches only the two endpoints whose real request is enforced against a
 // resolved client rather than the tenant — a preflight carries no client
@@ -9,7 +10,8 @@ const TOKEN_OR_USERINFO_PATH = /^\/tenants\/([^/]+)\/protocol\/openid-connect\/(
 
 export interface CorsRouteDeps {
   findTenant(name: string): Promise<{ id: string; enabled: boolean } | null>;
-  webOriginsForTenant(tenantId: string): Promise<ReadonlySet<string>>;
+  /** Whether an enabled client of the tenant allows this normalised origin. */
+  webOriginAllowed(tenantId: string, origin: string): Promise<boolean>;
 }
 
 // Answers the preflight for /token and /userinfo from the tenant's union of
@@ -45,8 +47,11 @@ async function resolvePreflight(
   const tenant = await deps.findTenant(decodeURIComponent(tenantName));
   if (!tenant?.enabled) return { origin: false };
 
-  const allowed = await deps.webOriginsForTenant(tenant.id);
-  const headers = corsHeadersForPreflight(request.headers.origin, allowed);
+  const requested = request.headers.origin;
+  const normalized = requested === undefined ? null : normalizeOrigin(requested);
+  if (normalized === null) return { origin: false };
+  const allowed = (await deps.webOriginAllowed(tenant.id, normalized)) ? [normalized] : [];
+  const headers = corsHeadersForPreflight(requested, new Set(allowed));
   const origin = headers?.['access-control-allow-origin'];
   if (origin === undefined) return { origin: false };
 

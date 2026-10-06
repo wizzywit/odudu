@@ -1,6 +1,6 @@
 import { isUniqueViolation, tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId } from '@odudu/kernel';
-import { count, eq, lte } from 'drizzle-orm';
+import { count, eq, lte, sql } from 'drizzle-orm';
 import { clients, type ClientRecord } from '#/schema/clients';
 
 export type { ClientRecord } from '#/schema/clients';
@@ -52,7 +52,7 @@ export interface NewClient {
 
 // What the registration endpoint's cap check locks and counts, returned
 // together so a caller cannot read the count without having taken the lock
-// the comparison depends on.
+// the comparison depends on. `count` stops at `maxClients`.
 export interface ClientCapacity {
   maxClients: number;
   count: number;
@@ -198,10 +198,15 @@ export function clientRepository(tx: TenantScopedDatabase) {
       if (maxClients === undefined) {
         throw new Error(`tenant ${tenantId} not found while locking its client capacity`);
       }
-      const countRows = await tx
-        .select({ count: count() })
+      // Counted no further than the cap, which is all the comparison needs:
+      // a tenant with a million clients costs no more to refuse than one at it.
+      const held = tx
+        .select({ one: sql<number>`1`.as('one') })
         .from(clients)
-        .where(eq(clients.tenantId, tenantId));
+        .where(eq(clients.tenantId, tenantId))
+        .limit(maxClients)
+        .as('held');
+      const countRows = await tx.select({ count: count() }).from(held);
       return { maxClients, count: countRows[0]?.count ?? 0 };
     },
   };

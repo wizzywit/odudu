@@ -244,6 +244,17 @@ describe('clientRepository', () => {
     });
   });
 
+  it('counts clients no further than the tenant allows', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      await seedTenant(tx, tenantId);
+      await tx.update(tenants).set({ maxClients: 2 }).where(eq(tenants.id, tenantId));
+      for (let n = 0; n < 5; n += 1) await insertClient(tx, tenantId);
+      const capacity = await clientRepository(tx).lockCapacity(tenantId);
+      expect(capacity).toEqual({ maxClients: 2, count: 2 });
+    });
+  });
+
   it('cannot amend a client under a different tenant context', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {

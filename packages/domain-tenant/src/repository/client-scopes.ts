@@ -1,6 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { and, eq } from 'drizzle-orm';
+import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import {
   clientScopeAssignments,
   clientScopes,
@@ -57,6 +57,26 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
       const rows = await tx.select().from(clientScopes).where(eq(clientScopes.id, id));
       const row = rows[0];
       return row === undefined ? null : toRecord(row);
+    },
+
+    // How many scopes the tenant defines, counted no further than `limit`.
+    async countUpTo(limit: number): Promise<number> {
+      const held = tx
+        .select({ one: sql<number>`1`.as('one') })
+        .from(clientScopes)
+        .limit(limit)
+        .as('held');
+      const rows = await tx.select({ count: count() }).from(held);
+      return rows[0]?.count ?? 0;
+    },
+
+    async byNames(names: readonly string[]): Promise<ClientScopeRecord[]> {
+      if (names.length === 0) return [];
+      const rows = await tx
+        .select()
+        .from(clientScopes)
+        .where(inArray(clientScopes.name, [...names]));
+      return rows.map(toRecord);
     },
 
     async byName(name: string): Promise<ClientScopeRecord | null> {

@@ -1,8 +1,6 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { clients } from '@odudu/domain-tenant';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
-import { expandWebOrigins } from '#/service/web-origin';
 
 export type { ClientOidcConfig } from '#/schema/client-oidc-config';
 
@@ -175,6 +173,8 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
       if (row === undefined) {
         throw new Error(`client_oidc_config for client ${clientId} not found while amending it`);
       }
+      if (patch.webOrigins !== undefined || patch.redirectUris !== undefined) {
+      }
       return toRecord(row);
     },
 
@@ -194,21 +194,23 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
     // available at that moment is the tenant's union. The per-client list is
     // enforced on the real request, where the client is known. Joined to
     // `clients` and filtered to `enabled`: a client disabled because its
-    // origin was compromised must not keep that origin working here.
-    async webOriginsForTenant(): Promise<ReadonlySet<string>> {
-      const rows = await tx
-        .select({
-          webOrigins: clientOidcConfig.webOrigins,
-          redirectUris: clientOidcConfig.redirectUris,
-        })
-        .from(clientOidcConfig)
-        .innerJoin(clients, eq(clients.id, clientOidcConfig.clientId))
-        .where(eq(clients.enabled, true));
-      const union = new Set<string>();
-      for (const row of rows) {
-        for (const origin of expandWebOrigins(row.webOrigins, row.redirectUris)) union.add(origin);
-      }
-      return union;
+    // origin was compromised must not keep that origin working here. `origin`
+    // is the normalised form `expandWebOrigins` produces; `client_origins`
+    // (0096) holds each client's, kept by a trigger on its lists.
+    async webOriginAllowed(origin: string): Promise<boolean> {
+      // The origin's rows first, then each one's client, probed by key: left
+      // to join them as it likes the planner may walk every client of every
+      // tenant looking for the first with this origin.
+      const rows = await tx.execute(sql`
+        SELECT o.client_id
+        FROM client_origins o
+        CROSS JOIN LATERAL (
+          SELECT 1 FROM clients c WHERE c.id = o.client_id AND c.enabled OFFSET 0
+        ) enabled_client
+        WHERE o.origin = ${origin}
+        LIMIT 1
+      `);
+      return rows.length > 0;
     },
   };
 }

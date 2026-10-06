@@ -193,6 +193,69 @@ describe('byName', () => {
   });
 });
 
+describe('countUpTo', () => {
+  it('counts the scopes of the tenant, and stops at the limit', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    for (const name of ['a', 'b', 'c']) await create({ name, tenantId });
+
+    const counted = await withTenant(app.db, tenantId, async (tx) => ({
+      all: await clientScopeRepository(tx).countUpTo(10),
+      stopped: await clientScopeRepository(tx).countUpTo(2),
+    }));
+
+    expect(counted).toEqual({ all: 3, stopped: 2 });
+  });
+
+  it('counts no scope of another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await clientScopeRepository(tx).create({ tenantId, name: 'reports:read' });
+      },
+      verifySeeded: async (tx) => {
+        expect(await clientScopeRepository(tx).countUpTo(10)).toBe(1);
+      },
+      attempt: async (tx) => clientScopeRepository(tx).countUpTo(10),
+      expectBlocked: (result) => {
+        expect(result).toBe(0);
+      },
+    });
+  });
+});
+
+describe('byNames', () => {
+  it('finds the scopes named, in one read, and skips a name that is no scope', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    await create({ name: 'reports:read', tenantId });
+    await create({ name: 'reports:write', tenantId });
+
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).byNames(['reports:read', 'reports:write', 'nothing']),
+    );
+
+    expect(found.map((scope) => scope.name).sort()).toEqual(['reports:read', 'reports:write']);
+  });
+
+  it('cannot find another tenant’s scopes by name', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        await clientScopeRepository(tx).create({ tenantId, name: 'reports:read' });
+        return ['reports:read'];
+      },
+      verifySeeded: async (tx, names) => {
+        expect(await clientScopeRepository(tx).byNames(names)).toHaveLength(1);
+      },
+      attempt: async (tx, names) => clientScopeRepository(tx).byNames(names),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
 describe('assignment', () => {
   it('refuses an assignment that is neither default nor optional', async () => {
     const tenantId = newId();

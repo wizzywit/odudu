@@ -248,12 +248,18 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
         signingKeyRepository(tx).algorithmsAvailable(),
       );
 
-    // One definition, read by discovery for scopes_supported and by
-    // /authorize for what it will accept, so the advertised list and the
-    // accepted one cannot drift apart.
+    // Discovery's scopes_supported: every scope the tenant defines, at most
+    // SCOPE_LIMIT of them.
     const scopesForTenant = (tenantId: string): Promise<readonly string[]> =>
       withTenant(deps.database.db, tenantId, async (tx) =>
         (await clientScopeRepository(tx).allForTenant()).map((scope) => scope.name),
+      );
+
+    // What /authorize accepts of the scopes a request names, from the same
+    // table, so a scope it accepts is one discovery advertises.
+    const scopesNamed = (tenantId: string, names: readonly string[]): Promise<readonly string[]> =>
+      withTenant(deps.database.db, tenantId, async (tx) =>
+        (await clientScopeRepository(tx).byNames(names)).map((scope) => scope.name),
       );
 
     // The one definition of "is this subject's address verified", read by
@@ -616,7 +622,7 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
       tls,
       ...passkeyLogin,
       listPublishableKeys,
-      scopesForTenant,
+      scopesNamed,
       resolveClient: (tenantId, oauthClientId) =>
         withTenant(deps.database.db, tenantId, async (tx): Promise<ResolvedClient> => {
           const client = await clientRepository(tx).byClientId(oauthClientId);
@@ -852,9 +858,9 @@ export function oidcRoutes(deps: OidcRoutesDeps): FastifyPluginAsync {
     app.register((scope) => {
       registerCors(scope, {
         findTenant,
-        webOriginsForTenant: (tenantId) =>
+        webOriginAllowed: (tenantId, origin) =>
           withTenant(deps.database.db, tenantId, (tx) =>
-            clientOidcConfigRepository(tx).webOriginsForTenant(),
+            clientOidcConfigRepository(tx).webOriginAllowed(origin),
           ),
       });
       registerTokenRoute(scope, {

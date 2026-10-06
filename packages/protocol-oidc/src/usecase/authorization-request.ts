@@ -11,6 +11,7 @@ import { isUuid } from '@odudu/kernel';
 import { type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { type TenantLookup } from '#/repository/tenant-lookup';
 import {
+  requestedScopeTokens,
   validateAuthorizationRequest,
   type AuthorizeOutcome,
 } from '#/service/authorize-validation';
@@ -137,9 +138,10 @@ export interface AuthorizeUsecaseDeps extends ConsentGateDeps {
   // Scoped to the resolved tenant by the caller composing this dependency
   // (index.ts), the same way listPublishableKeys is for the JWKS route.
   resolveClient(tenantId: string, oauthClientId: string): Promise<ResolvedClient>;
-  // Shared with the discovery usecase, so a scope this endpoint accepts is
-  // one the discovery document advertises and vice versa.
-  scopesForTenant(tenantId: string): Promise<readonly string[]>;
+  // The names, of those given, that the tenant defines as scopes: the same
+  // vocabulary discovery advertises, asked about only the scopes a request
+  // names.
+  scopesNamed(tenantId: string, names: readonly string[]): Promise<readonly string[]>;
   startAuthentication(
     tenantId: string,
     request: Extract<AuthorizeOutcome, { kind: 'ok' }>['request'],
@@ -316,7 +318,7 @@ export async function handleAuthorizationRequest(
     params,
     resolved.client,
     resolved.config,
-    new Set(await deps.scopesForTenant(tenant.id)),
+    new Set(await deps.scopesNamed(tenant.id, requestedScopeTokens(params.scope))),
     new Set(resolved.scopes),
     repeatedKey,
   );
