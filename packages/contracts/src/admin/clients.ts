@@ -107,7 +107,7 @@ const clientFilters = {
 };
 // Addressed to the second field, the one a caller adds to an existing search.
 const oneClientSearchRule = {
-  message: 'search one field at a time: client_id or name, not both',
+  message: 'search one field at a time: client_id, client_id_exact or name, not more than one',
   path: ['name'],
 };
 const oneClientSearch = [

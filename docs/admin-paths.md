@@ -2335,7 +2335,9 @@ curl -sS \
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a109b6-b459-7bbd-8cb7-d533f4439711"}
 ```
 
-A `type` outside the enum, then two search fields at once:
+A `type` outside the enum, then two search fields at once (the second refusal was
+recaptured on the fifteenth stack, after `client_id_exact` joined the searches
+that may not be combined, so it names all three):
 
 ```bash
 curl -sS \
@@ -2348,7 +2350,7 @@ curl -sS \
 
 ```
 {"type":"about:blank","title":"Error","status":400,"detail":"querystring/type must be equal to one of the allowed values","errors":[{"path":"type","message":"must be equal to one of the allowed values"}],"instance":"01a109b6-b46c-7c9b-a932-b20917d2eb43"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id or name, not both","errors":[{"path":"name","message":"search one field at a time: client_id or name, not both"}],"instance":"01a109b6-b477-786a-aebe-4178c81aa673"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id, client_id_exact or name, not more than one","errors":[{"path":"name","message":"search one field at a time: client_id, client_id_exact or name, not more than one"}],"instance":"01a11154-0063-73bd-bbde-61a26127a013"}
 ```
 
 Reading one client by its internal id carries an `ETag` and never the
@@ -2544,7 +2546,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/clients?client_id_exact=bil
 ```
 [{"client_id":"billing","service_account_admin_reach":["view-users","manage-users"]}]
 {"items":[]}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id or name, not both","errors":[{"path":"name","message":"search one field at a time: client_id or name, not both"}],"instance":"01a11113-8a16-750f-a720-8f682e09b571"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id, client_id_exact or name, not more than one","errors":[{"path":"name","message":"search one field at a time: client_id, client_id_exact or name, not more than one"}],"instance":"01a11153-d113-793f-9af7-112ce85082ff"}
 ```
 
 The RFC 7591 metadata fields among them — `redirect_uris`, `grant_types`,

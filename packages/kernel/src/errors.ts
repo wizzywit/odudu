@@ -24,6 +24,7 @@ export type ErrorCode =
   | 'seed_admin_exists'
   | 'seed_system_tenant_conflict'
   | 'admin_client_not_builtin'
+  | 'admin_client_list_full'
   | 'insert_returned_no_row'
   | 'role_not_found'
   | 'role_composite_cycle'

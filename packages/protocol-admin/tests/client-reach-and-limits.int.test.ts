@@ -134,6 +134,32 @@ describe('GET /clients?client_id_exact=', () => {
       });
       expect(res.statusCode, res.payload).toBe(201);
     }
+    // Another tenant holds a client of the same id: neither found nor counted here.
+    const other = await fixture.createTenant(`exact-other-${newId()}`);
+    const otherToken = await fixture.adminToken(other.name, ['manage-clients']);
+    const made = await call(otherToken, 'POST', `/admin/tenants/${other.name}/clients`, {
+      payload: {
+        client_id: 'billing',
+        token_endpoint_auth_method: 'none',
+        redirect_uris: ['https://other.example/cb'],
+      },
+    });
+    expect(made.statusCode, made.payload).toBe(201);
+    const foreignId = made.json<Wire>().id;
+    const here = await call(
+      token,
+      'GET',
+      `/admin/tenants/${t.name}/clients?client_id_exact=billing`,
+    );
+    const found = here.json<{ items: Wire[] }>().items;
+    expect(found).toHaveLength(1);
+    expect(found.map((item) => item.id)).not.toContain(foreignId);
+    const counted = await call(
+      token,
+      'GET',
+      `/admin/tenants/${t.name}/clients/count?client_id_exact=billing`,
+    );
+    expect(counted.json<{ count: number }>().count).toBe(1);
     const ids = async (query: string) =>
       (await call(token, 'GET', `/admin/tenants/${t.name}/clients?${query}`))
         .json<{ items: Wire[] }>()
@@ -147,6 +173,13 @@ describe('GET /clients?client_id_exact=', () => {
       `/admin/tenants/${t.name}/clients?client_id_exact=billing&name=bill`,
     );
     expect(both.statusCode).toBe(400);
+    expect(both.json<{ errors: { path: string; message: string }[] }>().errors).toEqual([
+      {
+        path: 'name',
+        message:
+          'search one field at a time: client_id, client_id_exact or name, not more than one',
+      },
+    ]);
   });
 });
 

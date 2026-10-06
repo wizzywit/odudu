@@ -6,6 +6,7 @@ import {
   withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
+import { CLIENT_LIST_LIMIT } from '@odudu/contracts/admin';
 import { ADMIN_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -169,5 +170,57 @@ describe("provisionAdminClient: the console's URIs", () => {
       ADMIN_CLIENT_REDIRECT_URI,
       'https://idp.example.test/console/auth/callback',
     ]);
+  });
+
+  async function fill(
+    tenantId: string,
+    list: 'redirectUris' | 'postLogoutRedirectUris',
+    count: number,
+  ): Promise<void> {
+    await withTenant(app.db, tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      if (client === null) throw new Error('the admin client was not provisioned');
+      await clientOidcConfigRepository(tx).update(client.id, {
+        [list]: Array.from({ length: count }, (_, i) => `https://other.example/${String(i)}`),
+      });
+    });
+  }
+
+  it.each(['redirectUris', 'postLogoutRedirectUris'] as const)(
+    'refuses, by name, to push %s past the limit, and writes nothing',
+    async (list) => {
+      const tenantId = await freshTenant();
+      await provision(tenantId, {});
+      await fill(tenantId, list, CLIENT_LIST_LIMIT);
+      const before = await registeredUris(tenantId);
+
+      await expect(
+        provision(tenantId, { consoleBaseUrl: 'https://idp.example.test' }),
+      ).rejects.toMatchObject({ code: 'admin_client_list_full' });
+      expect(await registeredUris(tenantId)).toEqual(before);
+    },
+  );
+
+  it('replaces a registered console URI when the list is full, since that adds none', async () => {
+    const tenantId = await freshTenant();
+    await provision(tenantId, { consoleBaseUrl: 'https://old.example.test' });
+    await fill(tenantId, 'redirectUris', CLIENT_LIST_LIMIT - 1);
+    await withTenant(app.db, tenantId, async (tx) => {
+      const client = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      if (client === null) throw new Error('the admin client was not provisioned');
+      const config = await clientOidcConfigRepository(tx).byClientId(client.id);
+      await clientOidcConfigRepository(tx).update(client.id, {
+        redirectUris: [
+          ...(config?.redirectUris ?? []),
+          'https://old.example.test/console/auth/callback',
+        ],
+      });
+    });
+
+    await provision(tenantId, { consoleBaseUrl: 'https://new.example.test' });
+
+    const { redirectUris } = await registeredUris(tenantId);
+    expect(redirectUris).toHaveLength(CLIENT_LIST_LIMIT);
+    expect(redirectUris.at(-1)).toBe('https://new.example.test/console/auth/callback');
   });
 });

@@ -1662,8 +1662,8 @@ existed, over 200, still has its other fields amended (the amendment no longer
 re-checks `redirect_uris` it did not send), exports as it is stored, and is
 refused on re-import with the field, count and limit, so the document has to be
 trimmed first. Nothing in the database holds the bound: the doors are the
-validators above, and `provisionAdminClient`'s one appended console URI is the
-single write that is not bounded.
+validators above, and `provisionAdminClient` refuses by name
+(`admin_client_list_full`) to append the console's URI past it.
 
 **The ceiling over a client is judged from its record.** Every confidential
 client has a service account, and every write on the client is held to the

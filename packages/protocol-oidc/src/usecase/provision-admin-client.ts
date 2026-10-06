@@ -1,3 +1,4 @@
+import { CLIENT_LIST_LIMIT, listLimitProblem } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import {
   ADMIN_API_AUDIENCE,
@@ -7,6 +8,7 @@ import {
   type ProvisionAdminClientOptions as ClientAndRolesOptions,
   type ProvisionedAdminClient,
 } from '@odudu/domain-tenant';
+import { OduduError } from '@odudu/kernel';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 
 /**
@@ -69,6 +71,17 @@ async function registerConsoleUris(
     CONSOLE_POST_LOGOUT_PATH,
     baseUrl,
   );
+  for (const [field, list] of [
+    ['redirect_uris', redirectUris],
+    ['post_logout_redirect_uris', postLogoutRedirectUris],
+  ] as const) {
+    if (list.length > CLIENT_LIST_LIMIT) {
+      throw new OduduError(
+        'admin_client_list_full',
+        `the built-in admin client's ${listLimitProblem(field, list.length)}: the console's URI cannot be added`,
+      );
+    }
+  }
   const same = (a: readonly string[], b: readonly string[]): boolean =>
     a.length === b.length && a.every((value, index) => value === b[index]);
   if (
