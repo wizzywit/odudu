@@ -3,6 +3,7 @@ import {
   revokedText,
   revokeConsequence,
   revokeFailureText,
+  sessionsReadable,
 } from '#/features/clients/service/sessions.ts';
 
 describe('revokedText', () => {
@@ -23,13 +24,26 @@ describe('revokedText', () => {
 });
 
 it('states what revoking costs before it is asked for', () => {
-  expect(revokeConsequence('Billing')).toContain('Every grant issued through Billing is revoked');
-  expect(revokeConsequence('Billing')).toContain('cannot be undone');
+  expect(revokeConsequence('Billing', false)).toContain(
+    'Every grant issued through Billing is revoked',
+  );
+  expect(revokeConsequence('Billing', false)).toContain('cannot be undone');
+  expect(revokeConsequence('Billing', false)).not.toContain('console');
+});
+
+it("says on the console's own client that the caller is signed out of the console too", () => {
+  const text = revokeConsequence('Odudu admin', true);
+  expect(text).toContain('Every grant issued through Odudu admin is revoked');
+  expect(text).toContain('your own sign-in to this console is one of them');
+  expect(text).toContain('you will be signed out');
 });
 
 it('says a lost answer is not sent again, and the server reason otherwise', () => {
   expect(revokeFailureText({ ok: false, kind: 'network' }, 'Billing')).toContain(
     'It has not been sent again',
+  );
+  expect(revokeFailureText({ ok: false, kind: 'network' }, 'Billing')).toContain(
+    'whether the revocation for Billing was carried out',
   );
   expect(
     revokeFailureText(
@@ -40,5 +54,13 @@ it('says a lost answer is not sent again, and the server reason otherwise', () =
       },
       'Billing',
     ),
-  ).toBe('The grants of Billing was not revoked: no');
+  ).toBe('The revocation for Billing was not carried out: no');
+});
+
+describe('sessionsReadable', () => {
+  it('admits manage-sessions, and rules nobody out before whoami answers', () => {
+    expect(sessionsReadable({ capabilities: ['manage-sessions'], crossTenant: false })).toBe(true);
+    expect(sessionsReadable({ capabilities: ['manage-clients'], crossTenant: false })).toBe(false);
+    expect(sessionsReadable(undefined)).toBe(true);
+  });
 });

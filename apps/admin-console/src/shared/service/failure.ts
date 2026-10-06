@@ -44,17 +44,23 @@ export interface WriteCopy {
   missing?: string;
 }
 
+// A name that begins a sentence, as it reads inside one: "The secret" after "whether".
+function lowered(name: string): string {
+  return name.startsWith('The ') ? `t${name.slice(1)}` : name;
+}
+
 // What a failed write says. A lost answer is never a reason to send again,
 // and the console's own mistakes are never put to the user as theirs.
 export function writeFailureText(failure: GatewayFailure, copy: WriteCopy): string {
   const { name, verb } = copy;
+  const within = lowered(name);
   switch (failure.kind) {
     case 'network':
-      return `Could not confirm whether ${name} was ${verb}. It has not been sent again; look at ${copy.lookAt} before trying again.`;
+      return `Could not confirm whether ${within} was ${verb}. It has not been sent again; look at ${copy.lookAt} before trying again.`;
     case 'schema':
       return `${name} may have been ${verb}, but the answer could not be read. Reload to check.`;
     case 'defect':
-      return `The console could not finish, so ${name} was not ${verb}. This is a fault in the console, not something you did.`;
+      return `The console could not finish, so ${within} was not ${verb}. This is a fault in the console, not something you did.`;
     case 'problem': {
       const { problem } = failure;
       if (problem.status === 412 && copy.stale !== undefined) return copy.stale;

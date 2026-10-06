@@ -5,13 +5,23 @@ import {
   nameIndex,
   heldCapabilitiesText,
   roleUnavailable,
+  serviceAccess,
   serviceRolesRecord,
+  serviceRolesRecordOf,
   splitAssigned,
 } from '#/features/clients/service/account.ts';
 
 const ADMIN = { id: 'a1', name: 'manage-users', client_id: 'ac', client_key: 'odudu-admin' };
 const TENANT = { id: 't1', name: 'reader', client_id: null, client_key: null };
 const CLIENT = { id: 'c1', name: 'reader', client_id: 'cc', client_key: 'billing' };
+
+describe('serviceRolesRecordOf', () => {
+  it('is the account record of a client that has one, and nothing for one that has none', () => {
+    expect(serviceRolesRecordOf({ service_subject_id: 's1' })).toBe('subjects/s1/roles');
+    expect(serviceRolesRecordOf({ service_subject_id: null })).toBeNull();
+    expect(serviceRolesRecordOf(undefined)).toBeNull();
+  });
+});
 
 describe('the roles of a service account', () => {
   it('is the record the account own page reads', () => {
@@ -74,5 +84,36 @@ describe('assignedRoles', () => {
     expect(assignedRoles(['gone'], nameIndex())).toEqual([
       { id: 'gone', name: 'gone', client: null },
     ]);
+  });
+});
+
+describe('serviceAccess', () => {
+  const held = (capabilities: readonly ('manage-users' | 'view-users')[]) => ({
+    capabilities,
+    crossTenant: false,
+  });
+
+  it('says a client with no account has none, whoever asks', () => {
+    expect(serviceAccess({ service_subject_id: null }, held(['manage-users']))).toEqual({
+      status: 'none',
+    });
+    expect(serviceAccess({ service_subject_id: null }, undefined)).toEqual({ status: 'none' });
+  });
+
+  it('holds the roles from a caller without manage-users, and names the account for one with it', () => {
+    expect(serviceAccess({ service_subject_id: 's1' }, held(['view-users']))).toEqual({
+      status: 'denied',
+    });
+    expect(serviceAccess({ service_subject_id: 's1' }, held(['manage-users']))).toEqual({
+      status: 'ready',
+      subjectId: 's1',
+    });
+  });
+
+  it('rules nobody out before whoami has answered', () => {
+    expect(serviceAccess({ service_subject_id: 's1' }, undefined)).toEqual({
+      status: 'ready',
+      subjectId: 's1',
+    });
   });
 });

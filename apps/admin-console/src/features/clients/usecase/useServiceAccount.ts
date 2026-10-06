@@ -14,12 +14,14 @@ import {
   nameIndex,
   roleNameOf,
   roleUnavailable,
+  serviceAccess,
   serviceRolesRecord,
   SERVICE_CAPABILITY,
   SERVICE_SECTION,
   splitAssigned,
   type AssignedRole,
   type Reach,
+  type ServiceAccess,
 } from '#/features/clients/service';
 import type { RecordState } from '#/shared/repository/useRecord.ts';
 import { useRolePicker } from '#/shared/repository/useRolePicker.ts';
@@ -31,16 +33,8 @@ import { sortedIds } from '#/shared/service/ids.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
 import type { AdminCapability } from '#/shared/service/principal.ts';
 
-// Whether the tab can say anything of the account: there is one, and the
-// caller may read and set its roles.
-export type ServiceAccess =
-  { status: 'none' } | { status: 'denied' } | { status: 'ready'; subjectId: string };
-
 export function useServiceAccess(tenant: string, client: Client): ServiceAccess {
-  const authority = useAuthority(tenant);
-  if (client.service_subject_id === null) return { status: 'none' };
-  if (lacking(authority, [SERVICE_CAPABILITY]).length > 0) return { status: 'denied' };
-  return { status: 'ready', subjectId: client.service_subject_id };
+  return serviceAccess(client, useAuthority(tenant));
 }
 
 export function useServiceRolesRead(

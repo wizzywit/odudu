@@ -14,6 +14,7 @@ import {
   revokedText,
   revokeFailureText,
   SESSIONS_CAPABILITY,
+  sessionsReadable,
   type Reach,
 } from '#/features/clients/service';
 import { useGo } from '#/shared/repository/useGo.ts';
@@ -24,7 +25,7 @@ import type { GatewayFailure } from '#/shared/transport/gateway.ts';
 // Whether the caller may read them: whoami says manage-sessions is held,
 // or has not yet answered.
 export function useSessionsReadable(tenant: string): boolean {
-  return lacking(useAuthority(tenant), [SESSIONS_CAPABILITY]).length === 0;
+  return sessionsReadable(useAuthority(tenant));
 }
 
 export interface ClientSessions {
@@ -69,7 +70,7 @@ export function useClientSessionsTab(tenant: string, client: Client, reach: Reac
     },
     offered: canChange(reach, needs),
     confirming,
-    consequence: revokeConsequence(client.name),
+    consequence: revokeConsequence(client.name, client.builtin_admin),
     busy: revocation.busy,
     problem,
     result,

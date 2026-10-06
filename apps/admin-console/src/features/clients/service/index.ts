@@ -151,7 +151,9 @@ export {
   GRACE_LABEL,
   GRACE_MAX,
   GRACE_RULE,
+  previousSecretLine,
   rotationFailureText,
+  type PreviousSecret,
   rotatedNote,
   rotatedTitle,
   rotateConsequence,
@@ -186,8 +188,11 @@ export {
   NO_ACCOUNT,
   NO_ROLES,
   roleUnavailable,
+  serviceAccess,
+  type ServiceAccess,
   ROLES_LABEL,
   serviceRolesRecord,
+  serviceRolesRecordOf,
   SERVICE_CAPABILITY,
   SERVICE_RULE,
   splitAssigned,
@@ -216,6 +221,7 @@ export {
   SESSIONS_CAPABILITY,
   SESSIONS_NOUN,
   SESSIONS_RULE,
+  sessionsReadable,
 } from '#/features/clients/service/sessions.ts';
 export {
   ANY_STATUS,
@@ -236,6 +242,7 @@ export {
 } from '#/features/clients/service/installation.ts';
 export {
   artefactsOf,
+  evaluateAllowed,
   evaluatedScope,
   EVALUATE_CAPABILITY,
   EVALUATE_HEADING,

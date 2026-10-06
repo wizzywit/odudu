@@ -7,6 +7,7 @@ import {
   LIFETIMES,
   lifetimeBounds,
   lifetimeRule,
+  numberKept,
   tenantLifetimeLabel,
 } from '#/features/clients/service/tokens.ts';
 
@@ -84,5 +85,13 @@ describe('grantsBlock', () => {
 describe('idTokenAlgOptions', () => {
   it('offers the tenant key first and then each algorithm a key can be made for', () => {
     expect(idTokenAlgOptions().map((each) => each.id)).toEqual([AUTO, 'RS256', 'ES256']);
+  });
+});
+
+describe('numberKept', () => {
+  it('takes what was entered, and keeps what was there when the field was cleared', () => {
+    expect(numberKept(900, 600)).toBe(900);
+    expect(numberKept(0, 600)).toBe(0);
+    expect(numberKept(Number.NaN, 600)).toBe(600);
   });
 });

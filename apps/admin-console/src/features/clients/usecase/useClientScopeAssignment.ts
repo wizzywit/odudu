@@ -22,7 +22,7 @@ import {
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { lacking } from '#/shared/service/access.ts';
 import type { AdminCapability } from '#/shared/service/principal.ts';
-import type { PickerState } from '#/shared/service/picker.ts';
+import { lastChosen, type PickerState } from '#/shared/service/picker.ts';
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
 
 type Assigned = Client['scopes'][number];
@@ -132,7 +132,7 @@ export function useClientScopeAssignment({
     unavailableOf: (scope) => alreadyAssigned(scope, client.scopes),
     chosen,
     choose: (ids) => {
-      setChosenId(ids.at(-1) ?? null);
+      setChosenId(lastChosen(ids));
     },
     assignment,
     setAssignment,

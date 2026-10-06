@@ -1,6 +1,6 @@
 import { VisuallyHidden } from 'react-aria-components';
 import { formatAbsolute, formatRelative } from '#/shared/service/format.ts';
-import { useNow } from '#/shared/view/Timestamp/useNow.ts';
+import { useNow } from '#/shared/usecase/useNow.ts';
 import styles from '#/shared/view/Timestamp/Timestamp.module.css';
 
 // Fresh to within half a minute, finer than the minutes the label mostly shows.

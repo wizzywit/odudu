@@ -97,6 +97,21 @@ it('revokes every token only once the client ID is typed, and says what it did',
   expect(sent.filter((s) => s.method === 'DELETE')).toHaveLength(1);
 });
 
+it("tells whoever revokes the console's own client that they will be signed out", async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    '/console/acme/clients/c-admin?tab=sessions',
+    clientRoutes(undefined, {
+      [`GET ${C}/c-admin/sessions`]: json({ items: [] }),
+    }),
+  );
+  await screen.findByRole('region', { name: 'Revoke every token' });
+  await user.click(screen.getByRole('button', { name: /^Revoke every token of/u }));
+  const dialog = await screen.findByRole('alertdialog');
+  expect(dialog).toHaveTextContent('your own sign-in to this console is one of them');
+  expect(dialog).toHaveTextContent('you will be signed out');
+});
+
 it('says more remain when one call was not all of them', async () => {
   const user = userEvent.setup();
   renderConsoleAt(

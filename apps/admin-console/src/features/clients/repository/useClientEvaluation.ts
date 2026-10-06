@@ -29,14 +29,26 @@ export interface Evaluation {
 export function useEvaluation(
   tenant: string,
   clientDbId: string,
-  asked: { subject: string; scope: string } | null,
+  asked: { subject: string; scope: string; press: number } | null,
 ): Evaluation {
   const { gateway } = useTransport();
   const query = useQuery({
-    queryKey: ['evaluate', tenant, clientDbId, asked?.subject ?? '', asked?.scope ?? ''],
+    queryKey: [
+      'evaluate',
+      tenant,
+      clientDbId,
+      asked?.subject ?? '',
+      asked?.scope ?? '',
+      asked?.press ?? 0,
+    ],
     enabled: asked !== null,
-    staleTime: 0,
+    // Each ask is audited, so only the person asking makes one: not a
+    // refocused window, a reconnect or a remount.
+    staleTime: Infinity,
     gcTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
     queryFn: () =>
       asked === null ? Promise.resolve(null) : evaluateClaims(gateway, tenant, clientDbId, asked),
   });

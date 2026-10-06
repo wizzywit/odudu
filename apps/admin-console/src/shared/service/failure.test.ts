@@ -213,3 +213,20 @@ describe('isUnknownTenant', () => {
     expect(isUnknownTenant(undefined)).toBe(false);
   });
 });
+
+describe('a name that begins a sentence', () => {
+  it('is lowered when it comes after "whether"', () => {
+    const copy = { name: 'The secret of Ada', verb: 'rotated', lookAt: 'the client' };
+    expect(writeFailureText({ ok: false, kind: 'network' }, copy)).toContain(
+      'whether the secret of Ada was rotated',
+    );
+    expect(writeFailureText({ ok: false, kind: 'defect' }, copy)).toContain(
+      'so the secret of Ada was not rotated',
+    );
+  });
+
+  it('keeps a proper name as it is', () => {
+    const copy = { name: 'Ada', verb: 'deleted', lookAt: 'the list' };
+    expect(writeFailureText({ ok: false, kind: 'network' }, copy)).toContain('whether Ada was');
+  });
+});

@@ -1,5 +1,10 @@
 import { expect, it } from 'vitest';
-import { artefactsOf, evaluatedScope } from '#/features/clients/service/evaluate.ts';
+import {
+  artefactsOf,
+  evaluateAllowed,
+  evaluateFailureText,
+  evaluatedScope,
+} from '#/features/clients/service/evaluate.ts';
 
 const RESULT = {
   scope: 'openid profile',
@@ -23,4 +28,20 @@ it('has no ID token to show without openid', () => {
 it('names the scope it worked out, or says there was none', () => {
   expect(evaluatedScope(RESULT)).toBe('openid profile');
   expect(evaluatedScope({ ...RESULT, scope: '' })).toBe('no scope');
+});
+
+it('admits a caller who may read subjects, and rules nobody out before whoami answers', () => {
+  expect(evaluateAllowed({ capabilities: ['view-users'], crossTenant: false })).toBe(true);
+  expect(evaluateAllowed({ capabilities: ['manage-clients'], crossTenant: false })).toBe(false);
+  expect(evaluateAllowed(undefined)).toBe(true);
+});
+
+it("gives the server's reason in the singular, so it reads as a sentence", () => {
+  expect(
+    evaluateFailureText({
+      ok: false,
+      kind: 'problem',
+      problem: { type: 'about:blank', title: 'Forbidden', status: 403, detail: 'needs view-users' },
+    }),
+  ).toBe('The evaluation was not carried out: needs view-users');
 });

@@ -12,10 +12,10 @@ import {
 } from '#/shared/view/Field/Field.tsx';
 import styles from '#/shared/view/Field/Field.module.css';
 
-// Its own module, so react-aria's NumberField arrives with a page that
-// edits a number rather than with every page that has a text field.
 const UNIT_SYMBOL: Readonly<Record<string, string>> = { seconds: 's' };
 
+// Its own module, so react-aria's NumberField arrives with a page that
+// edits a number rather than with every page that has a text field.
 export function NumberWithUnitField({
   label,
   description,

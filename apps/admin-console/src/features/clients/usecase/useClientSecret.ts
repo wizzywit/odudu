@@ -1,7 +1,10 @@
 import type { Client } from '@odudu/contracts/admin';
 import { useState } from 'react';
+import { useNow } from '#/shared/usecase/useNow.ts';
 import { useRotateSecret } from '#/features/clients/repository/useRotateSecret.ts';
 import {
+  previousSecretLine,
+  type PreviousSecret,
   rotatedNote,
   rotatedTitle,
   rotateConsequence,
@@ -9,6 +12,8 @@ import {
 } from '#/features/clients/service';
 
 export interface ClientSecret {
+  // What became of the secret the last rotation replaced, or null.
+  previous: PreviousSecret | null;
   grace: number;
   setGrace: (seconds: number) => void;
   confirming: boolean;
@@ -26,11 +31,16 @@ export interface ClientSecret {
   closeSecret: () => void;
 }
 
+// Fresh to within half a minute, as a timestamp's own reading is.
+const NOW_MS = 30_000;
+
 export function useClientSecret(tenant: string, client: Client): ClientSecret {
   const rotation = useRotateSecret(tenant, client.id);
+  const now = useNow(NOW_MS);
   const [grace, setGrace] = useState(0);
   const [confirming, setConfirming] = useState(false);
   return {
+    previous: previousSecretLine(client.previous_secret_expires_at, now),
     grace,
     setGrace,
     confirming,

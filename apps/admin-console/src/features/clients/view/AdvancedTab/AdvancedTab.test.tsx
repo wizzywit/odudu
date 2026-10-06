@@ -287,6 +287,22 @@ it('says when the previous secret stops, once a rotation kept one', async () => 
   expect(await screen.findByText(/The previous secret authenticates until/u)).toBeVisible();
 });
 
+it('says the previous secret stopped, not that it authenticates, once its grace has passed', async () => {
+  renderConsoleAt(
+    AT,
+    clientRoutes(undefined, {
+      [`GET ${C}/c-bill`]: json(
+        { ...BILLING, previous_secret_expires_at: '2020-01-01T00:00:00.000Z' },
+        200,
+        { etag: '"c-bill-1"' },
+      ),
+    }),
+  );
+  await open();
+  expect(await screen.findByText(/The previous secret stopped authenticating/u)).toBeVisible();
+  expect(screen.queryByText(/authenticates until/u)).toBeNull();
+});
+
 it('says what a refused rotation was, and shows no secret', async () => {
   const user = userEvent.setup();
   renderConsoleAt(

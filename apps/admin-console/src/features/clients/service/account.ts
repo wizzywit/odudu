@@ -1,13 +1,21 @@
 import type { Role, SetRolesResponse } from '@odudu/contracts/admin';
+import { lacking } from '#/shared/service/access.ts';
 import { beyondCaller, isAdminRole } from '#/shared/service/capabilities';
 import { andList } from '#/shared/service/format.ts';
-import type { AdminCapability } from '#/shared/service/principal.ts';
+import type { AdminCapability, Authority } from '#/shared/service/principal.ts';
 
 export const SERVICE_CAPABILITY = 'manage-users';
 
 // The record the service account's own page reads, so the two stay in step.
 export function serviceRolesRecord(subjectId: string): string {
   return `subjects/${subjectId}/roles`;
+}
+
+// The record the account's roles are saved on, or none for a client with no account.
+export function serviceRolesRecordOf(
+  client: { service_subject_id: string | null } | undefined,
+): string | null {
+  return client?.service_subject_id == null ? null : serviceRolesRecord(client.service_subject_id);
 }
 
 export const SERVICE_RULE =
@@ -88,4 +96,18 @@ export function assignedRoles(
 
 export function roleNameOf(known: ReadonlyMap<string, Named>): (id: string) => string {
   return (id) => known.get(id)?.name ?? id;
+}
+
+// Whether the tab can say anything of the account: there is one, and the
+// caller may read and set its roles. Until whoami answers nothing is ruled out.
+export type ServiceAccess =
+  { status: 'none' } | { status: 'denied' } | { status: 'ready'; subjectId: string };
+
+export function serviceAccess(
+  client: { service_subject_id: string | null },
+  authority: Authority | undefined,
+): ServiceAccess {
+  if (client.service_subject_id === null) return { status: 'none' };
+  if (lacking(authority, [SERVICE_CAPABILITY]).length > 0) return { status: 'denied' };
+  return { status: 'ready', subjectId: client.service_subject_id };
 }

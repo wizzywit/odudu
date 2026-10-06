@@ -36,3 +36,22 @@ export function rotationFailureText(failure: GatewayFailure, name: string): stri
     refused: clientRefusal,
   });
 }
+
+export interface PreviousSecret {
+  lead: string;
+  // The instant it stops, or stopped, authenticating.
+  at: string;
+}
+
+// The server keeps the instant until a reaper clears it, so one past is still
+// returned: said in the past tense rather than as if it were live.
+export function previousSecretLine(expiresAt: string | null, now: Date): PreviousSecret | null {
+  if (expiresAt === null) return null;
+  const live = new Date(expiresAt).getTime() > now.getTime();
+  return {
+    lead: live
+      ? 'The previous secret authenticates until'
+      : 'The previous secret stopped authenticating',
+    at: expiresAt,
+  };
+}

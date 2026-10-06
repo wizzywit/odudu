@@ -22,3 +22,11 @@ it("names the sections of one record that hold unsaved edits, and no other recor
   });
   expect([...result.current]).toEqual([]);
 });
+
+it('names nothing for a record there is not, however much else is unsaved', () => {
+  const { result } = renderHook(() => useDirtySections('acme', null));
+  act(() => {
+    useUnsavedGuard.getState().setDirty('acme/subjects//roles#serviceRoles', 'Roles');
+  });
+  expect([...result.current]).toEqual([]);
+});

@@ -1,5 +1,7 @@
 import type { EvaluateClaimsResponse } from '@odudu/contracts/admin';
+import { holds } from '#/shared/service/access.ts';
 import { writeFailureText } from '#/shared/service/failure.ts';
+import type { Authority } from '#/shared/service/principal.ts';
 import type { GatewayFailure } from '#/shared/service/result.ts';
 
 export const EVALUATE_HEADING = 'Evaluate';
@@ -7,6 +9,11 @@ export const EVALUATE_RULE =
   'The claims a sign-in of one subject through this client would be issued, worked out as issuance works them out. Nothing is signed or issued, and the evaluation is recorded in the audit trail. It assumes consent is given.';
 
 export const EVALUATE_CAPABILITY = 'view-users';
+
+// Whether whoami admits the caller to a subject's claims: view-users is held, or not yet answered.
+export function evaluateAllowed(authority: Authority | undefined): boolean {
+  return authority === undefined || holds(authority, EVALUATE_CAPABILITY);
+}
 
 export const SUBJECT_PICKER_LABEL = 'Subject to evaluate';
 export const SCOPE_LABEL = 'Scope';
@@ -38,8 +45,8 @@ export function evaluatedScope(result: EvaluateClaimsResponse): string {
 
 export function evaluateFailureText(failure: GatewayFailure): string {
   return writeFailureText(failure, {
-    name: 'The claims',
-    verb: 'worked out',
+    name: 'The evaluation',
+    verb: 'carried out',
     lookAt: 'the audit trail',
   });
 }

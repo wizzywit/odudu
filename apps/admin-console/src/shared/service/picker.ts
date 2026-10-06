@@ -12,3 +12,8 @@ export interface PickerState<T> {
   loadMore: () => void;
   retry: () => void;
 }
+
+// A multiple-choice picker used to choose one reports every id it holds; the one chosen last is the choice.
+export function lastChosen(ids: readonly string[]): string | null {
+  return ids.at(-1) ?? null;
+}

@@ -8,7 +8,7 @@ import {
   clientRecord,
   clientReach,
   reachLine,
-  serviceRolesRecord,
+  serviceRolesRecordOf,
   tabsWithEdits,
   type ClientTab,
   type Reach,
@@ -42,10 +42,7 @@ export function useClientRecordPage(tenant: string, id: string): ClientRecordPag
   const authority = useAuthority(tenant);
   const { tab, selectTab } = useRecordTab(CLIENT_TABS);
   const dirty = useDirtySections(tenant, clientRecord(id));
-  const serviceDirty = useDirtySections(
-    tenant,
-    serviceRolesRecord(record.data?.service_subject_id ?? ''),
-  );
+  const serviceDirty = useDirtySections(tenant, serviceRolesRecordOf(record.data));
   const reach = clientReach(record.data, authority?.capabilities);
   const changeNeeds = lacking(authority, ['manage-clients']);
   return {

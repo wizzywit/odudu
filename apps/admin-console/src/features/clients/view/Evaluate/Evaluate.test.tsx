@@ -87,6 +87,41 @@ it('says there is no ID token when the scope names no openid', async () => {
   expect(await within(section).findByText('No ID token: the scope names no openid.')).toBeVisible();
 });
 
+it('asks for the claims once, since each ask is audited, however often the window is focused again', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    routes({
+      [EVALUATE]: json({ scope: 'openid', id_token: null, access_token: {}, userinfo: {} }),
+    }),
+  );
+  const section = await chooseAda(user);
+  await user.click(within(section).getByRole('button', { name: 'Evaluate claims' }));
+  await within(section).findByText(/^Claims for /u);
+  window.dispatchEvent(new Event('visibilitychange'));
+  window.dispatchEvent(new Event('focus'));
+  window.dispatchEvent(new Event('online'));
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  expect(sent.filter((s) => s.path === `${C}/c-bill/evaluate`)).toHaveLength(1);
+});
+
+it('asks again when the person presses Evaluate again', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    routes({
+      [EVALUATE]: json({ scope: 'openid', id_token: null, access_token: {}, userinfo: {} }),
+    }),
+  );
+  const section = await chooseAda(user);
+  await user.click(within(section).getByRole('button', { name: 'Evaluate claims' }));
+  await within(section).findByText(/^Claims for /u);
+  await user.click(within(section).getByRole('button', { name: 'Evaluate claims' }));
+  await waitFor(() => {
+    expect(sent.filter((s) => s.path === `${C}/c-bill/evaluate`)).toHaveLength(2);
+  });
+});
+
 it('holds Evaluate back until a subject is chosen', async () => {
   renderConsoleAt(AT, routes());
   const section = await screen.findByRole('region', { name: 'Evaluate' });
@@ -122,7 +157,7 @@ it("says in the server's words why the claims could not be worked out", async ()
   const section = await chooseAda(user);
   await user.click(within(section).getByRole('button', { name: 'Evaluate claims' }));
   expect(await within(section).findByRole('alert')).toHaveTextContent(
-    'The claims was not worked out: evaluating needs view-users',
+    'The evaluation was not carried out: evaluating needs view-users',
   );
 });
 

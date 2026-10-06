@@ -48,10 +48,9 @@ function Rotation({ client, secret }: { client: Client; secret: ClientSecret }) 
         {SECTIONS_ADVANCED.secret}
       </h2>
       <p className={styles.rule}>{SECRET_RULE}</p>
-      {client.previous_secret_expires_at === null ? null : (
+      {secret.previous === null ? null : (
         <p className={styles.text}>
-          The previous secret authenticates until{' '}
-          <Timestamp value={client.previous_secret_expires_at} />.
+          {secret.previous.lead} <Timestamp value={secret.previous.at} />.
         </p>
       )}
       <NumberWithUnitField

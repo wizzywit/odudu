@@ -7,18 +7,17 @@ import {
 } from '#/features/clients/repository/useClientEvaluation.ts';
 import {
   artefactsOf,
-  EVALUATE_CAPABILITY,
+  evaluateAllowed,
   evaluatedScope,
   evaluateFailureText,
   type Artefact,
 } from '#/features/clients/service';
-import { lacking } from '#/shared/service/access.ts';
-import type { PickerState } from '#/shared/service/picker.ts';
+import { lastChosen, type PickerState } from '#/shared/service/picker.ts';
 
 // Whether the caller may look at a subject's claims: whoami says view-users
 // is held, or has not yet answered.
 export function useEvaluateAllowed(tenant: string): boolean {
-  return lacking(useAuthority(tenant), [EVALUATE_CAPABILITY]).length === 0;
+  return evaluateAllowed(useAuthority(tenant));
 }
 
 export interface ClientEvaluate {
@@ -39,19 +38,22 @@ export function useClientEvaluate(tenant: string, client: Client): ClientEvaluat
   const picker = useSubjectPicker(tenant);
   const [chosenId, setChosenId] = useState<string | null>(null);
   const [scope, setScope] = useState('');
-  const [asked, setAsked] = useState<{ subject: string; scope: string } | null>(null);
+  const [asked, setAsked] = useState<{ subject: string; scope: string; press: number } | null>(
+    null,
+  );
   const evaluation = useEvaluation(tenant, client.id, asked);
   const answer = evaluation.result;
   return {
     picker,
     chosen: picker.options.find((subject) => subject.id === chosenId) ?? null,
     choose: (ids) => {
-      setChosenId(ids.at(-1) ?? null);
+      setChosenId(lastChosen(ids));
     },
     scope,
     setScope,
     evaluate: () => {
-      if (chosenId !== null) setAsked({ subject: chosenId, scope });
+      if (chosenId !== null)
+        setAsked((was) => ({ subject: chosenId, scope, press: (was?.press ?? 0) + 1 }));
     },
     busy: evaluation.status === 'loading',
     problem: answer === null || answer.ok ? null : evaluateFailureText(answer),
