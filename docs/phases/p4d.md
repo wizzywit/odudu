@@ -1856,6 +1856,14 @@ The check holds a searched list to two pages of reads on its own table.
   filters a large table: the holders beyond a caller's ceiling hashed against
   a scan of every grant and session.
 
+**The console's half.** The consents and effective-roles tabs follow `next`
+(the adapters take the cursor, `useResourceList` keeps the pages, the view
+says "Load more"). Nothing that decides on a subject's reach reads them: it
+reads `GET /subjects/:id/admin-capabilities`, the admin capabilities held and
+the roles that carry them, whole or refused (`complete`); that covers a
+subject's reach on its record and in the capability editor, the group-removal
+confirmation, and what a write would take from the signed-in administrator.
+
 **What was accepted, and why it is not in the list.** A count's `LIMIT` is a
 bound the planner may read up to: a capped count reads at most its cap, which
 is why the rule above allows a scan under a `LIMIT` that much. A capped count

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useAuthority, useRefusal, useRereadAuthority } from '#/features/session';
 import {
   useAdminRoleIds,
-  useEffectiveRoles,
+  useHeldCapabilities,
   useEnabledHolderCount,
   useRolesRecord,
   useSaveRoles,
@@ -104,7 +104,7 @@ export function useCapabilityEditor({
   const authority = useAuthority(authorityTenant);
   const refusal = useRefusal(authorityTenant);
   const reread = useRereadAuthority(authorityTenant);
-  const effective = useEffectiveRoles(tenant, subject.id);
+  const effective = useHeldCapabilities(tenant, subject.id);
   const adminRoles = useAdminRoleIds(tenant);
   const counted = administratorCapability(tenant);
   const enabledHolders = useEnabledHolderCount(tenant, counted);

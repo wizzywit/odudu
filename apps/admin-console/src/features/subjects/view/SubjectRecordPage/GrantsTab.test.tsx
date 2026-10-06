@@ -81,7 +81,7 @@ it("says that revoking your own console's grants signs you out", async () => {
     '/console/acme/subjects/s1?tab=grants',
     subjectRoutes(undefined, {
       [`GET ${own}`]: json(subject('s1', 'grace'), 200, { etag: '"s1"' }),
-      [`GET ${own}/effective-roles`]: json({ items: [] }),
+      [`GET ${own}/admin-capabilities`]: json({ items: [], complete: true }),
       [`GET ${own}/grants`]: json({
         items: [{ ...grant('g1', false), client_id: 'c-admin', client_key: 'odudu-admin' }],
       }),

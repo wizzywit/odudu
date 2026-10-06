@@ -58,10 +58,11 @@ export function readConsents(
   gateway: Gateway,
   tenant: string,
   subjectId: string,
+  query: URLSearchParams,
 ): Promise<GatewayResult<ListConsentsResponse>> {
   const t = encodeURIComponent(tenant);
   const id = encodeURIComponent(subjectId);
-  return gateway.request('GET', `admin/tenants/${t}/subjects/${id}/consents`, {
+  return gateway.request('GET', `admin/tenants/${t}/subjects/${id}/consents?${query.toString()}`, {
     schema: listConsentsResponseSchema,
   });
 }

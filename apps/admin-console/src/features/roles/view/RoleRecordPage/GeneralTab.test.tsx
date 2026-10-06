@@ -109,7 +109,7 @@ it('deletes a role after saying what goes with it, and what you lose yourself', 
     AT,
     roleRoutes(undefined, {
       [`GET ${R}/r-aud/composites`]: json({ items: [USERS] }, 200, { etag: '"c"' }),
-      [`GET ${S}/s1/effective-roles`]: json({
+      [`GET ${S}/s1/admin-capabilities`]: json({
         items: [
           {
             id: 'r-aud',
@@ -126,6 +126,7 @@ it('deletes a role after saying what goes with it, and what you lose yourself', 
             via: [{ kind: 'composite', parent_role_id: 'r-aud', parent_name: 'auditor' }],
           },
         ],
+        complete: true,
       }),
       [`DELETE ${R}/r-aud`]: () => new Response(null, { status: 204 }),
     }),

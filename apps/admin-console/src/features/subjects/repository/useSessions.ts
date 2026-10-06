@@ -1,10 +1,4 @@
-import type {
-  Consent,
-  EndSessionsResponse,
-  Grant,
-  ListConsentsResponse,
-  Session,
-} from '@odudu/contracts/admin';
+import type { Consent, EndSessionsResponse, Grant, Session } from '@odudu/contracts/admin';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   endAllSessions,
@@ -15,7 +9,6 @@ import {
   revokeConsent,
   revokeGrants,
 } from '#/features/subjects/adapter/sessions.ts';
-import { useSubjectRead, type Read } from '#/features/subjects/repository/useSubjectRead.ts';
 import { useResourceList } from '#/shared/repository/useResourceList.ts';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
@@ -23,6 +16,10 @@ import { useTransport } from '#/shared/transport/useTransport.ts';
 
 function sessionsResource(id: string): string {
   return `subjects/${id}/sessions`;
+}
+
+function consentsResource(id: string): string {
+  return `subjects/${id}/consents`;
 }
 
 function grantsResource(id: string): string {
@@ -45,9 +42,12 @@ export function useGrantList(tenant: string, id: string): ResourceListState<Gran
   });
 }
 
-export function useConsents(tenant: string, id: string): Read<ListConsentsResponse> {
-  const { gateway } = useTransport();
-  return useSubjectRead(['consents', tenant, id], true, () => readConsents(gateway, tenant, id));
+export function useConsentList(tenant: string, id: string): ResourceListState<Consent> {
+  return useResourceList({
+    tenant,
+    resource: consentsResource(id),
+    read: (gateway, query) => readConsents(gateway, tenant, id, query),
+  });
 }
 
 export interface Change<A, R> {
@@ -70,7 +70,7 @@ function useSubjectChange<A, R>(
       for (const key of [
         ['list', tenant, sessionsResource(id)],
         ['list', tenant, grantsResource(id)],
-        ['consents', tenant, id],
+        ['list', tenant, consentsResource(id)],
       ]) {
         client.invalidateQueries({ queryKey: key }).catch(() => undefined);
       }

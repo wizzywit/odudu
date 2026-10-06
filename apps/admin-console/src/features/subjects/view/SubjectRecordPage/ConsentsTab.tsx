@@ -3,12 +3,10 @@ import {
   useSubjectConsents,
   type SubjectConsents,
 } from '#/features/subjects/usecase/useSubjectSessions.ts';
-import { Panel } from '#/features/subjects/view/SubjectRecordPage/SessionsTab.tsx';
+import { PagedList, Panel } from '#/features/subjects/view/SubjectRecordPage/SessionsTab.tsx';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
-import { DataTable, type Column } from '#/shared/view/DataTable';
-import { EmptyState } from '#/shared/view/EmptyState';
-import { TableSkeleton } from '#/shared/view/Skeleton';
+import type { Column } from '#/shared/view/DataTable';
 import { Timestamp } from '#/shared/view/Timestamp';
 import styles from '#/features/subjects/view/SubjectRecordPage/Tab.module.css';
 
@@ -52,30 +50,16 @@ export function ConsentsTab({
   const page = useSubjectConsents(tenant, subject, canManage);
   const { name, consents, revoke } = page;
   const shape = columns(page);
-  let body;
-  if (consents.status === 'loading') {
-    body = <TableSkeleton label="Loading consents" columns={shape} rows={2} />;
-  } else if (consents.status === 'failed') {
-    body = (
-      <EmptyState
-        variant="failed"
-        title="The consents could not be loaded"
-        action={<Button onPress={consents.retry}>Try again</Button>}
-      >
-        The gateway did not answer, or answered with an error.
-      </EmptyState>
-    );
-  } else {
-    body = (
-      <DataTable
-        label={`Consents ${name} has given`}
-        columns={shape}
-        rows={consents.data.items}
-        rowKey={(consent) => consent.client_id}
-        empty={`${name} has given no consent to any client.`}
-      />
-    );
-  }
+  const body = (
+    <PagedList
+      list={consents}
+      label={`Consents ${name} has given`}
+      noun="consents"
+      columns={shape}
+      rowKey={(consent) => consent.client_id}
+      empty={`${name} has given no consent to any client.`}
+    />
+  );
   const asked = revoke.asking;
   return (
     <div className={styles.tab}>

@@ -5,8 +5,7 @@ import type {
   Subject,
 } from '@odudu/contracts/admin';
 import { useRefusal } from '#/features/session';
-import { useEffectiveRoles, useSaveRoles } from '#/features/subjects/repository/useAccess.ts';
-import type { Read } from '#/features/subjects/repository/useSubjectRead.ts';
+import { useEffectiveRoleList, useSaveRoles } from '#/features/subjects/repository/useAccess.ts';
 import {
   accessRefusal,
   assignmentsOf,
@@ -22,6 +21,7 @@ import { useSectionSave, type SectionSave } from '#/shared/repository/useSection
 import { describeIds } from '#/shared/service/format.ts';
 import { sortedIds } from '#/shared/service/ids.ts';
 import type { PickerState } from '#/shared/service/picker.ts';
+import type { ResourceListState } from '#/shared/service/resourceList.ts';
 
 export interface RoleValues extends Readonly<Record<string, unknown>> {
   role_ids: readonly string[];
@@ -38,7 +38,7 @@ export interface SubjectRoles {
   // Why a role is not chosen here: an admin capability has its own section.
   unavailableOf: (role: Role) => string | null;
   assigned: readonly Assignment[];
-  effective: Read<{ items: EffectiveRoleAssignment[] }>;
+  effective: ResourceListState<EffectiveRoleAssignment>;
 }
 
 export function useSubjectRoles(
@@ -52,7 +52,7 @@ export function useSubjectRoles(
   const name = subjectName(subject);
   const refusal = useRefusal(tenant);
   const picker = useRolePicker(tenant);
-  const effective = useEffectiveRoles(tenant, subject.id);
+  const effective = useEffectiveRoleList(tenant, subject.id);
   const saveRoles = useSaveRoles(tenant, subject.id);
   const split = splitRoles(data.items);
   const known = knownAssignments(data.items, picker.options);

@@ -23,6 +23,7 @@ afterEach(() => {
 const AT = `${ADA_AT}?tab=roles`;
 const R = `${S}/${ADA_ID}/roles`;
 const E = `${S}/${ADA_ID}/effective-roles`;
+const AC = `${S}/${ADA_ID}/admin-capabilities`;
 const BILLING = role('r-billing', 'billing-reader');
 const AUDITOR = role('r-auditor', 'billing-auditor');
 const FULL = ADMIN_ROLES[0] ?? role('r-full', 'tenant-admin', 'odudu-admin');
@@ -64,6 +65,60 @@ it('shows every role the subject holds, and how', async () => {
   expect(within(table).getByRole('row', { name: /billing-auditor/u })).toHaveTextContent(
     'directly',
   );
+});
+
+it('pages the roles held: Load more asks for the next page from the cursor', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`GET ${R}`]: json({ items: [] }, 200, { etag: '"r1"' }),
+      [`GET ${E}`]: (request) =>
+        json(
+          request.search.get('cursor') === 'c-next'
+            ? { items: [held(AUDITOR, [{ kind: 'direct' }])] }
+            : { items: [held(BILLING, [{ kind: 'direct' }])], next: 'c-next' },
+        )(request),
+    }),
+  );
+  const table = await screen.findByRole('grid', { name: 'Every role ada holds' });
+  expect(within(table).queryByRole('row', { name: /billing-auditor/u })).toBeNull();
+  await user.click(await screen.findByRole('button', { name: 'Load more every role ada holds' }));
+  await within(table).findByRole('row', { name: /billing-auditor/u });
+  expect(sent.filter((s) => s.path === E).map((s) => s.search.get('cursor'))).toEqual([
+    null,
+    'c-next',
+  ]);
+});
+
+it('judges the capability a subject holds from the capabilities read, not from a page of its roles', async () => {
+  renderConsoleAt(
+    AT,
+    subjectRoutes(['view-users', 'manage-users'], {
+      // The first page of the roles held holds no admin role, and says there are more.
+      [`GET ${E}`]: json({ items: [held(BILLING, [{ kind: 'direct' }])], next: 'c-next' }),
+      [`GET ${AC}`]: json({
+        items: [held(role('r-manage-keys', 'manage-keys', 'odudu-admin'), [{ kind: 'direct' }])],
+        complete: true,
+      }),
+    }),
+  );
+  expect(
+    await screen.findByText(
+      'ada holds manage-keys, which you do not, so you can view ada but change nothing here.',
+    ),
+  ).toBeVisible();
+});
+
+it('offers no change when the capabilities could not be read whole', async () => {
+  renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, { [`GET ${AC}`]: json({ items: [], complete: false }) }),
+  );
+  expect(
+    await screen.findByText(/could not be read, so nothing here can be changed/u),
+  ).toBeVisible();
+  expect(screen.queryByRole('checkbox')).toBeNull();
 });
 
 it('assigns a role, sending the admin capabilities back as they were', async () => {
@@ -121,12 +176,13 @@ it('says how a capability not assigned here is held, and where it is changed', a
   renderConsoleAt(
     AT,
     subjectRoutes(undefined, {
-      [`GET ${E}`]: json({
+      [`GET ${AC}`]: json({
         items: [
           held(role('r-view-audit', 'view-audit', 'odudu-admin'), [
             { kind: 'group', group_id: 'g', group_path: '/auditors' },
           ]),
         ],
+        complete: true,
       }),
     }),
   );
@@ -154,8 +210,9 @@ it('offers no change to a subject holding a capability the caller does not', asy
   renderConsoleAt(
     AT,
     subjectRoutes(['view-users', 'manage-users'], {
-      [`GET ${E}`]: json({
+      [`GET ${AC}`]: json({
         items: [held(role('r-manage-keys', 'manage-keys', 'odudu-admin'), [{ kind: 'direct' }])],
+        complete: true,
       }),
     }),
   );

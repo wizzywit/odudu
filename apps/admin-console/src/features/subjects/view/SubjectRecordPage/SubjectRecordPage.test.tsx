@@ -137,7 +137,7 @@ it('reads whoami once, however many parts of the page ask what it says', async (
 });
 
 const FULL_HOLDER = {
-  [`GET ${S}/${ADA_ID}/effective-roles`]: json({
+  [`GET ${S}/${ADA_ID}/admin-capabilities`]: json({
     items: ADMIN_ROLES.map((role, i) => ({
       ...assigned(role),
       via:
@@ -145,6 +145,7 @@ const FULL_HOLDER = {
           ? [{ kind: 'direct' }]
           : [{ kind: 'composite', parent_role_id: 'r-full', parent_name: 'tenant-admin' }],
     })),
+    complete: true,
   }),
 };
 
@@ -199,7 +200,7 @@ it('names both reasons when the caller lacks manage-users and the subject holds 
 it('offers no write until what the subject holds is read', async () => {
   renderConsoleAt(
     ADA_AT,
-    subjectRoutes(undefined, { [`GET ${S}/${ADA_ID}/effective-roles`]: pending() }),
+    subjectRoutes(undefined, { [`GET ${S}/${ADA_ID}/admin-capabilities`]: pending() }),
   );
   await screen.findByRole('heading', { level: 1, name: 'ada' });
   await screen.findByRole('region', { name: 'Account' });
@@ -212,7 +213,10 @@ it('holds every write when what the subject holds could not be read, and reads i
   renderConsoleAt(
     ADA_AT,
     subjectRoutes(undefined, {
-      [`GET ${S}/${ADA_ID}/effective-roles`]: inTurn(problem(500), json({ items: [] })),
+      [`GET ${S}/${ADA_ID}/admin-capabilities`]: inTurn(
+        problem(500),
+        json({ items: [], complete: true }),
+      ),
     }),
   );
   const note = await screen.findByText(/could not be read, so nothing here can be changed/u);

@@ -120,13 +120,14 @@ it('asks first when a role taken off the group is one you hold through it', asyn
     AT,
     groupRoutes(undefined, {
       [`GET ${R}`]: json({ items: [mapped(AUDIT)] }, 200, { etag: '"r1"' }),
-      [`GET ${S}/s1/effective-roles`]: json({
+      [`GET ${S}/s1/admin-capabilities`]: json({
         items: [
           {
             ...assigned(AUDIT),
             via: [{ kind: 'group', group_id: 'g-eng', group_path: '/eng' }],
           },
         ],
+        complete: true,
       }),
       [`GET ${S}/s1/groups`]: json({ items: [ENG] }, 200, { etag: '"m"' }),
       [`PUT ${R}`]: json({ items: [] }, 200, { etag: '"r2"' }),
@@ -161,13 +162,14 @@ it('passes axe in both themes, mapped and asking', async () => {
             [`GET ${R}`]: json({ items: [mapped(AUDIT), mapped(PORTAL_READER)] }, 200, {
               etag: '"r1"',
             }),
-            [`GET ${S}/s1/effective-roles`]: json({
+            [`GET ${S}/s1/admin-capabilities`]: json({
               items: [
                 {
                   ...assigned(AUDIT),
                   via: [{ kind: 'group', group_id: 'g-eng', group_path: '/eng' }],
                 },
               ],
+              complete: true,
             }),
             [`GET ${S}/s1/groups`]: json({ items: [ENG] }, 200, { etag: '"m"' }),
           }),

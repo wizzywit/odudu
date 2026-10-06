@@ -43,6 +43,31 @@ it('lists consents, and revokes one, saying its grants go with it', async () => 
   expect(await screen.findByText(/ada has given no consent/u)).toBeVisible();
 });
 
+it('pages the consents: the next page is asked for from the cursor, and its rows are added', async () => {
+  const user = userEvent.setup();
+  const second = { ...CONSENT, client_id: 'c-audit', client_key: 'audit' };
+  const { sent } = renderConsoleAt(
+    AT,
+    subjectRoutes(undefined, {
+      [`GET ${C}`]: (request) =>
+        json(
+          request.search.get('cursor') === 'c-next'
+            ? { items: [second] }
+            : { items: [CONSENT], next: 'c-next' },
+        )(request),
+    }),
+  );
+  const table = await screen.findByRole('grid', { name: 'Consents ada has given' });
+  expect(within(table).queryByRole('row', { name: /audit/u })).toBeNull();
+  await user.click(await screen.findByRole('button', { name: 'Load more consents ada has given' }));
+  await within(table).findByRole('row', { name: /audit/u });
+  expect(within(table).getByRole('row', { name: /billing/u })).toBeVisible();
+  expect(sent.filter((s) => s.path === C).map((s) => s.search.get('cursor'))).toEqual([
+    null,
+    'c-next',
+  ]);
+});
+
 it('offers a limited operator no revoke', async () => {
   renderConsoleAt(AT, subjectRoutes(['view-users'], { [`GET ${C}`]: json({ items: [CONSENT] }) }));
   await screen.findByRole('grid', { name: 'Consents ada has given' });

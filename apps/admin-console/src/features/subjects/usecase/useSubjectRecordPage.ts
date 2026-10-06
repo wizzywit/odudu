@@ -1,6 +1,6 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority, usePrincipal } from '#/features/session';
-import { useEffectiveRoles } from '#/features/subjects/repository/useAccess.ts';
+import { useHeldCapabilities } from '#/features/subjects/repository/useAccess.ts';
 import { useDirtyRecords } from '#/shared/repository/useDirtyRecords.ts';
 import { useSubjectRecord } from '#/features/subjects/repository/useSubjectRecord.ts';
 import {
@@ -44,7 +44,7 @@ export function useSubjectRecordPage(tenant: string, id: string): SubjectRecordP
   const authority = useAuthority(tenant);
   const { tab, selectTab } = useRecordTab(SUBJECT_TABS);
   const changeNeeds = lacking(authority, ['manage-users']);
-  const effective = useEffectiveRoles(tenant, id);
+  const effective = useHeldCapabilities(tenant, id);
   const beyond = subjectBeyond(effective, authority?.capabilities);
   const recordsOf = (each: SubjectTab): readonly string[] => TAB_RECORDS[each](id);
   const edited = useDirtyRecords(tenant, SUBJECT_TABS.flatMap(recordsOf));

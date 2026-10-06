@@ -1,6 +1,7 @@
 import type {
+  AdminCapabilitiesResponse,
   CountResponse,
-  ListEffectiveRolesResponse,
+  EffectiveRoleAssignment,
   RequiredAction,
   SetRequiredActionsResponse,
   SetRolesResponse,
@@ -8,6 +9,7 @@ import type {
 } from '@odudu/contracts/admin';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  readAdminCapabilities,
   readAdminRoles,
   readEffectiveRoles,
   readRequiredActions,
@@ -20,9 +22,11 @@ import { useSubjectRead, type Read } from '#/features/subjects/repository/useSub
 import { actionsRecord, groupsRecord, rolesRecord } from '#/features/subjects/service';
 import { readSubjectRoles, setSubjectRoles } from '#/shared/adapter/administrators.ts';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
+import { useResourceList } from '#/shared/repository/useResourceList.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
 import type { Holding } from '#/shared/service/capabilities';
 import { uniqueIds } from '#/shared/service/ids.ts';
+import type { ResourceListState } from '#/shared/service/resourceList.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
 
@@ -53,19 +57,37 @@ export function useActionsRecord(
   });
 }
 
-function effectiveKey(tenant: string, id: string) {
-  return ['effective-roles', tenant, id] as const;
+function effectiveRolesResource(id: string): string {
+  return `subjects/${id}/heldRoles`;
 }
 
-export function useEffectiveRoles(
+function heldKey(tenant: string, id: string) {
+  return ['held-capabilities', tenant, id] as const;
+}
+
+// The admin capabilities a subject holds, whole: every judgement of what it
+// may be given or refused is made from this, never from a page of its roles.
+export function useHeldCapabilities(
   tenant: string,
   id: string,
   asked = true,
-): Read<ListEffectiveRolesResponse> {
+): Read<AdminCapabilitiesResponse> {
   const { gateway } = useTransport();
-  return useSubjectRead(effectiveKey(tenant, id), asked, () =>
-    readEffectiveRoles(gateway, tenant, id),
+  return useSubjectRead(heldKey(tenant, id), asked, () =>
+    readAdminCapabilities(gateway, tenant, id),
   );
+}
+
+// Every role a subject holds, for reading: a page at a time, "Load more" for the rest.
+export function useEffectiveRoleList(
+  tenant: string,
+  id: string,
+): ResourceListState<EffectiveRoleAssignment> {
+  return useResourceList({
+    tenant,
+    resource: effectiveRolesResource(id),
+    read: (gateway, query) => readEffectiveRoles(gateway, tenant, id, query),
+  });
 }
 
 // A subject's own memberships, read only where asked: the principal's, to
@@ -105,7 +127,7 @@ function useAfterAccessChange(tenant: string, id: string) {
   return <R>(result: GatewayResult<R>): GatewayResult<R> => {
     if (result.ok) {
       for (const key of [
-        effectiveKey(tenant, id),
+        heldKey(tenant, id),
         ['memberships', tenant, id],
         ['holders', tenant],
         ['list', tenant],

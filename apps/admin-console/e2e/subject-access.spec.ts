@@ -16,7 +16,8 @@ const { admin, viewer } = subjects;
 const TENANT = admin.tenant;
 const PHONE = { width: 390, height: 844 };
 
-type Tab = 'profile' | 'credentials' | 'groups' | 'roles' | 'required-actions' | 'sessions';
+type Tab =
+  'profile' | 'credentials' | 'groups' | 'roles' | 'required-actions' | 'sessions' | 'consents';
 
 function sqlText(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
@@ -156,6 +157,31 @@ test('a required action is asked of the subject at its next sign-in', async ({ p
     other.getByRole('heading', { level: 1, name: 'Change your password' }),
   ).toBeVisible();
   await other.close();
+});
+
+test('a subject with more consents than a page holds has them paged, and Load more adds the rest', async ({
+  page,
+}) => {
+  const member = subjects.member;
+  const id = subjectId(member);
+  psql(`
+    with made as (
+      insert into clients (id, tenant_id, client_id, name, type)
+      select gen_random_uuid(), t.id, 'paged-' || g, 'Paged ' || g, 'public'
+        from tenants t, generate_series(1, 60) g where t.name = ${sqlText(TENANT)}
+      returning id, tenant_id),
+    configured as (
+      insert into client_oidc_config (client_id, tenant_id, redirect_uris, grant_types, token_endpoint_auth_method)
+      select id, tenant_id, '{https://paged.example/cb}', '{authorization_code}', 'none' from made)
+    insert into consents (id, tenant_id, subject_id, client_id)
+    select gen_random_uuid(), tenant_id, '${id}', id from made`);
+  await signIn(page, admin);
+  await openSubject(page, member, 'consents');
+  const table = page.getByRole('grid', { name: `Consents ${member} has given` });
+  await expect(table.getByRole('row')).toHaveCount(51);
+  await page.getByRole('button', { name: `Load more consents ${member} has given` }).click();
+  await expect(table.getByRole('row')).toHaveCount(61);
+  await expectAccessible(page);
 });
 
 test('an administrator ends their own sessions, is told so first, and is signed out', async ({

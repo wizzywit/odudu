@@ -2,7 +2,7 @@ import type { Group, GroupFields, SetSubjectGroupsResponse, Subject } from '@odu
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/features/session';
 import {
-  useEffectiveRoles,
+  useHeldCapabilities,
   useGroupsRecord,
   useSaveGroups,
   type GroupValues,
@@ -63,7 +63,7 @@ export function useSubjectGroups(
   const reread = useRereadAuthority(tenant);
   const [confirming, setConfirming] = useState<Confirmation | null>(null);
   const saveGroups = useSaveGroups(tenant, subject.id);
-  const effective = useEffectiveRoles(tenant, subject.id);
+  const effective = useHeldCapabilities(tenant, subject.id);
   const picker = useGroupPicker(tenant);
   const known = new Map<string, GroupFields>(
     [...data.items, ...picker.options].map((group) => [group.id, group]),

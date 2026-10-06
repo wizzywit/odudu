@@ -90,7 +90,7 @@ it('lists every holder from one paged read, with what each holds and how, and no
   expect(await screen.findByText('2 administrators')).toBeVisible();
   const reads = sent.filter((s) => s.path === S);
   expect(reads.map((s) => s.search.get('capability'))).toEqual(['any']);
-  expect(sent.some((s) => s.path.endsWith('/effective-roles'))).toBe(false);
+  expect(sent.some((s) => s.path.endsWith('/admin-capabilities'))).toBe(false);
 });
 
 it('narrows to the holders of one capability', async () => {
@@ -161,7 +161,7 @@ function systemHolders(extra: Record<string, Answer> = {}) {
       200,
       { etag: '"r0"' },
     ),
-    [`GET ${SYS}/s0/effective-roles`]: json({
+    [`GET ${SYS}/s0/admin-capabilities`]: json({
       items: [
         {
           id: 'r-full',
@@ -178,6 +178,7 @@ function systemHolders(extra: Record<string, Answer> = {}) {
           via: [{ kind: 'composite', parent_role_id: 'r-full', parent_name: 'tenant-admin' }],
         },
       ],
+      complete: true,
     }),
     [`GET ${SYS}/s-vera/roles`]: json(
       {
@@ -193,7 +194,7 @@ function systemHolders(extra: Record<string, Answer> = {}) {
       200,
       { etag: '"rv"' },
     ),
-    [`GET ${SYS}/s-vera/effective-roles`]: json({
+    [`GET ${SYS}/s-vera/admin-capabilities`]: json({
       items: [
         {
           id: 'r-tenants',
@@ -203,6 +204,7 @@ function systemHolders(extra: Record<string, Answer> = {}) {
           via: [{ kind: 'direct' }],
         },
       ],
+      complete: true,
     }),
     [`PUT ${SYS}/s-vera/roles`]: json({ items: [] }, 200, { etag: '"rv2"' }),
     [`PUT ${SYS}/s0/roles`]: json({ items: [] }, 200, { etag: '"r02"' }),
@@ -274,7 +276,7 @@ it('counts Full held through a group as keeping manage-tenants', async () => {
     SYSTEM_AT,
     systemHolders({
       [`GET ${SYS}/count`]: json({ count: 1, capped: false }),
-      [`GET ${SYS}/s-vera/effective-roles`]: json({
+      [`GET ${SYS}/s-vera/admin-capabilities`]: json({
         items: [
           {
             id: 'r-full',
@@ -294,6 +296,7 @@ it('counts Full held through a group as keeping manage-tenants', async () => {
             ],
           },
         ],
+        complete: true,
       }),
     }),
   );

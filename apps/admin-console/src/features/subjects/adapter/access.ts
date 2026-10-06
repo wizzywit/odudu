@@ -1,7 +1,9 @@
 import {
+  adminCapabilitiesResponseSchema,
   listEffectiveRolesResponseSchema,
   setRequiredActionsResponseSchema,
   setSubjectGroupsResponseSchema,
+  type AdminCapabilitiesResponse,
   type ListEffectiveRolesResponse,
   type RequiredAction,
   type SetRequiredActionsResponse,
@@ -76,12 +78,37 @@ export function readEffectiveRoles(
   gateway: Gateway,
   tenant: string,
   subjectId: string,
+  query: URLSearchParams,
 ): Promise<GatewayResult<ListEffectiveRolesResponse>> {
   const t = encodeURIComponent(tenant);
   const id = encodeURIComponent(subjectId);
-  return gateway.request('GET', `admin/tenants/${t}/subjects/${id}/effective-roles`, {
-    schema: listEffectiveRolesResponseSchema,
-  });
+  return gateway.request(
+    'GET',
+    `admin/tenants/${t}/subjects/${id}/effective-roles?${query.toString()}`,
+    { schema: listEffectiveRolesResponseSchema },
+  );
+}
+
+// The admin capabilities a subject holds, whole: what every judgement of its
+// reach reads, never a page of the roles it holds.
+export async function readAdminCapabilities(
+  gateway: Gateway,
+  tenant: string,
+  subjectId: string,
+): Promise<GatewayResult<AdminCapabilitiesResponse>> {
+  const t = encodeURIComponent(tenant);
+  const id = encodeURIComponent(subjectId);
+  const read = await gateway.request(
+    'GET',
+    `admin/tenants/${t}/subjects/${id}/admin-capabilities`,
+    { schema: adminCapabilitiesResponseSchema },
+  );
+  // More carriers than the server returns: nothing may be judged from part of them.
+  if (read.ok && !read.data.complete) {
+    console.error(`console defect: ${subjectId} of ${tenant} has more carriers than are returned`);
+    return { ok: false, kind: 'defect' };
+  }
+  return read;
 }
 
 // Through the role list, which view-users reads, rather than the client

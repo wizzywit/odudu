@@ -57,7 +57,7 @@ function useAfterRoleChange(tenant: string, deleted: string | null = null) {
       for (const key of [
         ['list', tenant],
         ['picker', tenant, 'roles'],
-        ['effective-roles', tenant],
+        ['held-capabilities', tenant],
         ['holders', tenant],
       ]) {
         client.invalidateQueries({ queryKey: key }).catch(() => undefined);

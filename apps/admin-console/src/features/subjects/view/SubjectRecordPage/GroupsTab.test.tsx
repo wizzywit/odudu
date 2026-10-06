@@ -108,7 +108,7 @@ it("asks for the name, typed, before leaving a group takes another's manage-tena
         200,
         { etag: '"v1"' },
       ),
-      [`GET ${VS}/effective-roles`]: json({
+      [`GET ${VS}/admin-capabilities`]: json({
         items: [
           {
             id: 'r-full',
@@ -125,6 +125,7 @@ it("asks for the name, typed, before leaving a group takes another's manage-tena
             via: [{ kind: 'composite', parent_role_id: 'r-full', parent_name: 'tenant-admin' }],
           },
         ],
+        complete: true,
       }),
       [`GET ${VS}/groups`]: json({ items: [ONCALL] }, 200, { etag: '"g1"' }),
       [`GET ${ADMIN}/system/groups`]: json({ items: [ONCALL] }),

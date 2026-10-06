@@ -2,14 +2,13 @@ import type {
   Consent,
   EndSessionsResponse,
   Grant,
-  ListConsentsResponse,
   RevokeGrantsResponse,
   Session,
   Subject,
 } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session';
 import {
-  useConsents,
+  useConsentList,
   useEndAllSessions,
   useEndSession,
   useGrantList,
@@ -17,7 +16,6 @@ import {
   useRevokeGrants,
   useSessionList,
 } from '#/features/subjects/repository/useSessions.ts';
-import type { Read } from '#/features/subjects/repository/useSubjectRead.ts';
 import {
   consentRevokedText,
   grantClients,
@@ -70,7 +68,7 @@ export function useSubjectSessions(tenant: string, subject: Subject): SubjectSes
 export interface SubjectConsents {
   name: string;
   canManage: boolean;
-  consents: Read<ListConsentsResponse>;
+  consents: ResourceListState<Consent>;
   revoke: Confirming<Consent>;
 }
 
@@ -83,7 +81,7 @@ export function useSubjectConsents(
   return {
     name,
     canManage,
-    consents: useConsents(tenant, subject.id),
+    consents: useConsentList(tenant, subject.id),
     revoke: useConfirmedChange({
       tenant,
       capability: 'manage-users',

@@ -1,5 +1,6 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import {
+  readAdminCapabilities,
   readAdminRoles,
   readEffectiveRoles,
   readRequiredActions,
@@ -65,17 +66,53 @@ it("reads and replaces a subject's required actions on the ETag it read", async 
   });
 });
 
-it('reads every role a subject holds, with how', async () => {
+it('reads a page of the roles a subject holds, with how, from the cursor it is given', async () => {
   const fake = fakeTransport({
-    [`GET ${S}/effective-roles`]: json({
+    [`GET ${S}/effective-roles`]: (request) =>
+      json({
+        items: [
+          { id: 'r1', name: 'x', client_id: null, client_key: null, via: [{ kind: 'direct' }] },
+        ],
+        next: request.search.get('cursor') === 'c1' ? undefined : 'c1',
+      })(request),
+  });
+  const first = await readEffectiveRoles(
+    fake.transport.gateway,
+    'acme',
+    's1',
+    new URLSearchParams(),
+  );
+  expect(first).toMatchObject({
+    ok: true,
+    data: { items: [{ id: 'r1', via: [{ kind: 'direct' }] }], next: 'c1' },
+  });
+  await readEffectiveRoles(
+    fake.transport.gateway,
+    'acme',
+    's1',
+    new URLSearchParams({ cursor: 'c1' }),
+  );
+  expect(fake.sent.at(-1)?.search.get('cursor')).toBe('c1');
+});
+
+it('reads the admin capabilities a subject holds, whole', async () => {
+  const fake = fakeTransport({
+    [`GET ${S}/admin-capabilities`]: json({
       items: [
-        { id: 'r1', name: 'x', client_id: null, client_key: null, via: [{ kind: 'direct' }] },
+        {
+          id: 'r1',
+          name: 'manage-users',
+          client_id: 'c1',
+          client_key: 'odudu-admin',
+          via: [{ kind: 'direct' }],
+        },
       ],
+      complete: true,
     }),
   });
-  expect(await readEffectiveRoles(fake.transport.gateway, 'acme', 's1')).toMatchObject({
+  expect(await readAdminCapabilities(fake.transport.gateway, 'acme', 's1')).toMatchObject({
     ok: true,
-    data: { items: [{ id: 'r1', via: [{ kind: 'direct' }] }] },
+    data: { items: [{ name: 'manage-users', client_key: 'odudu-admin' }] },
   });
 });
 
@@ -106,4 +143,17 @@ it("finds the built-in admin client's roles through the role list, by name", asy
     'name=tenant-admin',
     'client=c-admin&limit=200',
   ]);
+});
+
+it('refuses to judge from admin capabilities the server says it did not return whole', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  const fake = fakeTransport({
+    [`GET ${S}/admin-capabilities`]: json({ items: [], complete: false }),
+  });
+  expect(await readAdminCapabilities(fake.transport.gateway, 'acme', 's1')).toEqual({
+    ok: false,
+    kind: 'defect',
+  });
+  expect(error).toHaveBeenCalledOnce();
+  error.mockRestore();
 });

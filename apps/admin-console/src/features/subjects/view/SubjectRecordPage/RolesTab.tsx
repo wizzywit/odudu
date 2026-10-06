@@ -8,13 +8,14 @@ import {
 import { useSubjectRoles, type SubjectRoles } from '#/features/subjects/usecase/useSubjectRoles.ts';
 import { CapabilitySection } from '#/features/subjects/view/SubjectRecordPage/CapabilityEditor.tsx';
 import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf';
+import { PagedList } from '#/features/subjects/view/SubjectRecordPage/SessionsTab.tsx';
 import { provenanceText } from '#/shared/service/capabilities';
 import { Button } from '#/shared/view/Button';
-import { DataTable, type Column } from '#/shared/view/DataTable';
+import type { Column } from '#/shared/view/DataTable';
 import { EmptyState } from '#/shared/view/EmptyState';
 import { RolePicker } from '#/shared/view/RolePicker';
 import { Section } from '#/shared/view/Section';
-import { FormSkeleton, TableSkeleton } from '#/shared/view/Skeleton';
+import { FormSkeleton } from '#/shared/view/Skeleton';
 import styles from '#/features/subjects/view/SubjectRecordPage/Tab.module.css';
 
 const EFFECTIVE: readonly Column<EffectiveRoleAssignment>[] = [
@@ -25,31 +26,16 @@ const EFFECTIVE: readonly Column<EffectiveRoleAssignment>[] = [
 
 function Effective({ roles }: { roles: SubjectRoles }) {
   const heading = useId();
-  const read = roles.effective;
-  let body;
-  if (read.status === 'loading') {
-    body = <TableSkeleton label="Loading every role held" columns={EFFECTIVE} rows={2} />;
-  } else if (read.status === 'failed') {
-    body = (
-      <EmptyState
-        variant="failed"
-        title="The roles held could not be loaded"
-        action={<Button onPress={read.retry}>Try again</Button>}
-      >
-        The gateway did not answer, or answered with an error.
-      </EmptyState>
-    );
-  } else {
-    body = (
-      <DataTable
-        label={`Every role ${roles.name} holds`}
-        columns={EFFECTIVE}
-        rows={read.data.items}
-        rowKey={(role) => role.id}
-        empty={`${roles.name} holds no role, directly or otherwise.`}
-      />
-    );
-  }
+  const body = (
+    <PagedList
+      list={roles.effective}
+      label={`Every role ${roles.name} holds`}
+      noun="roles held"
+      columns={EFFECTIVE}
+      rowKey={(role) => role.id}
+      empty={`${roles.name} holds no role, directly or otherwise.`}
+    />
+  );
   return (
     <section aria-labelledby={heading} className={styles.panel}>
       <h2 id={heading} className={styles.heading}>

@@ -46,7 +46,9 @@ it('lists consents and revokes one by the client row id', async () => {
     [`GET ${S}/consents`]: json({ items: [consent] }),
     [`DELETE ${S}/consents/c1`]: noContent(),
   });
-  expect(await readConsents(fake.transport.gateway, 'acme', 's1')).toMatchObject({
+  expect(
+    await readConsents(fake.transport.gateway, 'acme', 's1', new URLSearchParams()),
+  ).toMatchObject({
     data: { items: [consent] },
   });
   expect(await revokeConsent(fake.transport.gateway, 'acme', 's1', 'c1')).toMatchObject({

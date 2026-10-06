@@ -292,7 +292,7 @@ it('never offers a capability-handing parent to a group holding a default, and s
 it('holds a delete while what it takes from yourself is read', async () => {
   renderConsoleAt(
     '/console/acme/groups/g-eng',
-    groupRoutes(undefined, { [`GET ${S}/s1/effective-roles`]: pending() }),
+    groupRoutes(undefined, { [`GET ${S}/s1/admin-capabilities`]: pending() }),
   );
   expect(await screen.findByText('Checking what its members hold through it…')).toBeVisible();
   expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
@@ -312,13 +312,14 @@ it('says exactly what a delete takes from yourself, from your own groups', async
         200,
         { etag: '"g-eng-1"' },
       ),
-      [`GET ${S}/s1/effective-roles`]: json({
+      [`GET ${S}/s1/admin-capabilities`]: json({
         items: [
           {
             ...assigned(USERS),
             via: [{ kind: 'group', group_id: 'g-eng', group_path: '/eng' }],
           },
         ],
+        complete: true,
       }),
       [`GET ${S}/s1/groups`]: json({ items: [PLATFORM] }, 200, { etag: '"m"' }),
     }),
