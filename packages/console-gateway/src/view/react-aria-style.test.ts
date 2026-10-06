@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { SHELL_CSP } from '#/view/spa';
 
 // React Aria prepends <style> elements whose text is fixed in its source.
@@ -109,10 +109,23 @@ describe("the shell's style-src and the React Aria it is built with", () => {
     },
   );
 
+  // Reading every module of three packages takes longer than a test's own
+  // budget on a cold checkout or a busy runner, so the read has a budget of its own.
+  const found: { rac: string[]; stately: string[]; aria: string[] } = {
+    rac: [],
+    stately: [],
+    aria: [],
+  };
+  beforeAll(() => {
+    found.rac = injectingModules(RAC_DIR);
+    found.stately = injectingModules(REACT_STATELY_DIR);
+    found.aria = injectingModules(REACT_ARIA_DIR);
+  }, 60_000);
+
   it('finds no style injection outside the modules it hashes', () => {
-    expect(injectingModules(RAC_DIR)).toEqual([]);
-    expect(injectingModules(REACT_STATELY_DIR)).toEqual([]);
-    expect(injectingModules(REACT_ARIA_DIR)).toEqual([...INJECTORS].sort());
+    expect(found.rac).toEqual([]);
+    expect(found.stately).toEqual([]);
+    expect(found.aria).toEqual([...INJECTORS].sort());
   });
 
   it("names the pressable style's hash", () => {

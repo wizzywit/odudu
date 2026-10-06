@@ -121,10 +121,12 @@ function seedClients(tenant: string): void {
     'kbadvanced',
     'racedtokens',
     'racedadvanced',
+    'racedservice',
   ];
   for (const clientId of [...own, ...configured]) confidential(clientId);
   seed(['scope', '--tenant', tenant, '--name', 'reports:read']);
   seed(['role', '--tenant', tenant, '--name', 'reader']);
+  seed(['role', '--tenant', tenant, '--name', 'writer']);
   seed(['role', '--tenant', tenant, '--name', 'approver', '--client-id', 'ledger']);
   confidential('lists', '--web-origin', 'https://lists.example');
   seed([

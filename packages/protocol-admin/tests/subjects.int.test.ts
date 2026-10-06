@@ -1440,6 +1440,9 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/credentials/{credentialId}', (
 
     // Prove the second factor is actually required before removing it —
     // otherwise this test could pass with delete doing nothing.
+    // The server reads the fixture's clock, which stands still while the run goes on, so a
+    // code is made for that clock's step, and a clock that has moved on still gets its own.
+    fixture.clock.advance(5 * 60 * 1000);
     const firstSession = await startAuthSession(t.name, client.clientId);
     const challenged = await submit(t.name, {
       auth_session_id: firstSession,
@@ -1450,7 +1453,7 @@ describe('DELETE /admin/tenants/{t}/subjects/{id}/credentials/{credentialId}', (
     expect(challenged.body).toContain('name="code"');
     const completed = await submit(t.name, {
       auth_session_id: firstSession,
-      code: totpCode(totpSecret, totpCounter(new Date())),
+      code: totpCode(totpSecret, totpCounter(fixture.clock.now())),
     });
     expect(completed.statusCode).toBe(302);
 

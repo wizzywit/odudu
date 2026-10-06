@@ -907,6 +907,26 @@ test('a lifetime changed behind an open page is shown beside yours, and keeping 
   await expect.poll(() => configColumn('racedtokens', 'access_token_ttl_seconds')).toBe('900');
 });
 
+test("a service account's roles changed behind an open page are shown beside yours, and keeping yours saves them", async ({
+  page,
+  problems,
+}) => {
+  await signIn(page, admin);
+  await openClient(page, 'racedservice', 'service');
+  const section = page.getByRole('region', { name: 'Roles' });
+  await section.getByRole('option', { name: 'reader, a tenant role' }).click();
+  psql(
+    `insert into subject_roles (tenant_id, subject_id, role_id) select c.tenant_id, c.service_subject_id, r.id from clients c join roles r on r.tenant_id = c.tenant_id and r.name = 'writer' and r.client_id is null where c.id = ${sqlText(clientId('racedservice'))}::uuid`,
+  );
+  await section.getByRole('button', { name: 'Save Roles' }).click();
+  await expect(section.getByText(/changed elsewhere/u).first()).toBeVisible();
+  await expectAccessible(page);
+  forgive(problems, `/subjects/`);
+  expect(serviceRoles('racedservice')).toBe('writer');
+  await section.getByRole('button', { name: 'Keep mine in Roles' }).click();
+  await expect.poll(() => serviceRoles('racedservice')).toBe('reader');
+});
+
 test('audiences changed behind an open page are shown beside yours, and taking theirs keeps theirs', async ({
   page,
   problems,
