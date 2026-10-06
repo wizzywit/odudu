@@ -6,8 +6,7 @@ import {
   USERINFO_SIGNING_ALGS,
   type Client,
 } from '@odudu/contracts/admin';
-import { AUTO, sentOf } from '#/features/clients/service/choices.ts';
-import type { SelectOption } from '#/shared/view/Field';
+import { AUTO, sentOf, type Choice } from '#/features/clients/service/choices.ts';
 
 export const SECTIONS_ADVANCED = {
   auth: 'Client authentication',
@@ -42,7 +41,7 @@ const AUTH_NOTES: Readonly<Record<string, string>> = {
 export const PUBLIC_AUTH_FIXED =
   'A public client authenticates with nothing, and a client cannot change between public and confidential once it is made.';
 
-export function authOptions(client: Pick<Client, 'type'>): SelectOption[] {
+export function authOptions(client: Pick<Client, 'type'>): Choice[] {
   return CLIENT_AUTH_METHODS.filter(
     (method) => (method === 'none') === (client.type === 'public'),
   ).map((id) => ({ id, label: AUTH_LABELS[id] ?? id }));
@@ -77,7 +76,7 @@ export function authPayload(values: {
 
 export type KeySource = 'none' | 'uri' | 'inline';
 
-export const KEY_SOURCES: readonly SelectOption[] = [
+export const KEY_SOURCES: readonly Choice[] = [
   { id: 'none', label: 'None published' },
   { id: 'uri', label: 'A JWKS URI' },
   { id: 'inline', label: 'A key set pasted here' },
@@ -156,7 +155,7 @@ export function keysPayload(values: { key_source: string; jwks_uri: string; jwks
 export const USERINFO_RULE =
   'How UserInfo answers this client: signed, and then encrypted to a key it publishes above. Left alone it answers plain JSON.';
 
-export function userinfoSigningOptions(): SelectOption[] {
+export function userinfoSigningOptions(): Choice[] {
   return [
     { id: AUTO, label: 'Plain JSON, not signed' },
     ...USERINFO_SIGNING_ALGS.map((id) => ({
@@ -166,14 +165,14 @@ export function userinfoSigningOptions(): SelectOption[] {
   ];
 }
 
-export function userinfoEncryptionOptions(): SelectOption[] {
+export function userinfoEncryptionOptions(): Choice[] {
   return [
     { id: AUTO, label: 'Not encrypted' },
     ...USERINFO_ENCRYPTION_ALGS.map((id) => ({ id, label: id })),
   ];
 }
 
-export function userinfoContentOptions(): SelectOption[] {
+export function userinfoContentOptions(): Choice[] {
   return [
     { id: AUTO, label: `Default (${USERINFO_ENCRYPTION_ENC_DEFAULT})` },
     ...USERINFO_ENCRYPTION_ENCS.map((id) => ({ id, label: id })),

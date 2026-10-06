@@ -6,10 +6,8 @@ import {
   type Client,
   type ClientTokenTtlField,
 } from '@odudu/contracts/admin';
-import { AUTO } from '#/features/clients/service/choices.ts';
+import { AUTO, type Choice } from '#/features/clients/service/choices.ts';
 import { formatDuration } from '#/shared/service/format.ts';
-import type { ChecklistOption } from '#/shared/view/ChecklistField';
-import type { SelectOption } from '#/shared/view/Field';
 
 export interface Lifetime {
   field: ClientTokenTtlField;
@@ -84,7 +82,15 @@ const GRANT_NOTES: Readonly<Record<string, string>> = {
 
 const NO_SECRET = 'A public client has no secret to authenticate with, so it cannot hold this.';
 
-export function grantOptions(client: Pick<Client, 'type' | 'grant_types'>): ChecklistOption[] {
+// One grant as a checklist draws it.
+export interface GrantOption {
+  id: string;
+  label: string;
+  description: string;
+  unavailable: string | null;
+}
+
+export function grantOptions(client: Pick<Client, 'type' | 'grant_types'>): GrantOption[] {
   return CLIENT_GRANT_TYPES.map((id) => ({
     id,
     label: GRANT_LABELS[id] ?? id,
@@ -115,7 +121,7 @@ export const CREDENTIALS_NOUN = 'scope names';
 export const FULL_SCOPE_RULE =
   'Off, a token carries only the roles a scope this client is assigned maps to. On, it carries every role the subject holds, whatever scope asked.';
 
-export function idTokenAlgOptions(): SelectOption[] {
+export function idTokenAlgOptions(): Choice[] {
   return [
     { id: AUTO, label: "The tenant's active signing key" },
     ...ID_TOKEN_SIGNING_ALGS.map((id) => ({ id, label: id })),

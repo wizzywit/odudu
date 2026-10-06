@@ -2,13 +2,13 @@ import type { Client, ClientScope } from '@odudu/contracts/admin';
 import { writeRefusal } from '#/shared/service/capabilities';
 import { writeFailureText } from '#/shared/service/failure.ts';
 import type { GatewayFailure, Problem } from '#/shared/service/result.ts';
-import type { SelectOption } from '#/shared/view/Field';
+import type { Choice } from '#/features/clients/service/choices.ts';
 
 export const SCOPES_CAPABILITY = 'manage-tenant';
 
 type Assignment = Client['scopes'][number];
 
-export const ASSIGNMENTS: readonly SelectOption[] = [
+export const ASSIGNMENTS: readonly Choice[] = [
   { id: 'default', label: 'Default' },
   { id: 'optional', label: 'Optional' },
 ];

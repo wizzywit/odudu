@@ -1,6 +1,5 @@
 import type { LogoutDelivery } from '@odudu/contracts/admin';
-import type { StatusTone } from '#/shared/view/StatusTag';
-import type { SelectOption } from '#/shared/view/Field';
+import type { Choice } from '#/features/clients/service/choices.ts';
 
 export const DELIVERIES_HEADING = 'Back-channel deliveries';
 export const DELIVERIES_RULE =
@@ -10,7 +9,7 @@ export const NO_DELIVERIES = 'No logout token has been queued for this client.';
 
 export const ANY_STATUS = 'any';
 
-export const STATUS_OPTIONS: readonly SelectOption[] = [
+export const STATUS_OPTIONS: readonly Choice[] = [
   { id: ANY_STATUS, label: 'Any status' },
   { id: 'pending', label: 'Pending' },
   { id: 'delivered', label: 'Delivered' },
@@ -22,7 +21,10 @@ export function statusFilter(choice: string): string | null {
   return choice === ANY_STATUS ? null : choice;
 }
 
-export function deliveryTone(status: LogoutDelivery['status']): StatusTone {
+// The tone a status is drawn in.
+export type DeliveryTone = 'active' | 'warning' | 'danger';
+
+export function deliveryTone(status: LogoutDelivery['status']): DeliveryTone {
   if (status === 'delivered') return 'active';
   return status === 'failed' ? 'danger' : 'warning';
 }
