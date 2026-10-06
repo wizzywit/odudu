@@ -42,6 +42,7 @@
 
 .description {
   max-inline-size: 68ch;
+  overflow-wrap: anywhere;
   font-size: var(--type-15);
   color: var(--ink-muted);
 }

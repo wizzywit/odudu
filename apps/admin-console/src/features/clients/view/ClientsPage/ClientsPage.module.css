@@ -1,0 +1,11 @@
+.name {
+  display: grid;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.clientId {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  overflow-wrap: anywhere;
+}

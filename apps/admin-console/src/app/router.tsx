@@ -318,6 +318,49 @@ const rolePages = [
 ] as const;
 const roleRecord = rolePages[2];
 
+function clientsPage(name: 'ClientsPage' | 'NewClientPage') {
+  return lazyFeatureRoute(
+    () => import('#/features/clients').then((feature) => feature[name]),
+    'Loading clients',
+  );
+}
+
+const Clients = clientsPage('ClientsPage');
+const NewClient = clientsPage('NewClientPage');
+const ClientRecord = lazyFeatureRoute(
+  () => import('#/features/clients').then((feature) => feature.ClientRecordPage),
+  'Loading the client',
+);
+
+const clientPages = [
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'clients',
+    component: function ClientList() {
+      const { tenant: name } = tenant.useParams();
+      return <Clients key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'clients/new',
+    component: function ClientCreation() {
+      const { tenant: name } = tenant.useParams();
+      return <NewClient key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'clients/$id',
+    component: function ClientAtId() {
+      const { tenant: name } = tenant.useParams();
+      const { id } = clientRecord.useParams();
+      return <ClientRecord key={`${name}/${id}`} tenant={name} id={id} />;
+    },
+  }),
+] as const;
+const clientRecord = clientPages[2];
+
 // Every feature chunk the routes load, for a caller that wants them all in
 // hand before the first render.
 export function preloadFeatures(): Promise<void> {
@@ -339,11 +382,22 @@ export function preloadFeatures(): Promise<void> {
     Roles,
     NewRole,
     RoleRecord,
+    Clients,
+    NewClient,
+    ClientRecord,
   ];
   return Promise.all(features.map((feature) => feature.preload())).then(() => undefined);
 }
 
-const TAKEN = new Set(['tenants', 'export', 'system-admins', 'subjects', 'groups', 'roles']);
+const TAKEN = new Set([
+  'tenants',
+  'export',
+  'system-admins',
+  'subjects',
+  'groups',
+  'roles',
+  'clients',
+]);
 
 const areas = EVERY_AREA.filter((area) => area !== OVERVIEW && !TAKEN.has(area.path)).map((area) =>
   createRoute({
@@ -366,6 +420,7 @@ const routeTree = root.addChildren([
     ...subjectPages,
     ...groupPages,
     ...rolePages,
+    ...clientPages,
     ...areas,
   ]),
 ]);
