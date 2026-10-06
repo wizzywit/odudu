@@ -1,3 +1,4 @@
+import { CLIENT_LIST_LIMIT } from '@odudu/contracts/admin';
 import { PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { describe, expect, it } from 'vitest';
 import { parseClientMetadata } from '#/service/client-metadata';
@@ -504,5 +505,29 @@ describe('the field an invalid outcome names', () => {
   it('is absent for a body that is not an object', () => {
     const outcome = parseClientMetadata([], { tlsClientAuthEnabled: false });
     expect(outcome.kind === 'invalid' && 'field' in outcome).toBe(false);
+  });
+});
+
+describe('the redirect_uris a client may hold', () => {
+  const many = (count: number): string[] =>
+    Array.from({ length: count }, (_, i) => `https://rp.example/cb/${String(i)}`);
+
+  it('accepts a list at the limit', () => {
+    const outcome = parseClientMetadata(ok({ redirect_uris: many(CLIENT_LIST_LIMIT) }), {
+      tlsClientAuthEnabled: false,
+    });
+    expect(outcome.kind).toBe('ok');
+  });
+
+  it('refuses one past it, saying how many it holds and how many it may', () => {
+    const outcome = parseClientMetadata(ok({ redirect_uris: many(CLIENT_LIST_LIMIT + 1) }), {
+      tlsClientAuthEnabled: false,
+    });
+    expect(outcome).toEqual({
+      kind: 'invalid',
+      error: 'invalid_redirect_uri',
+      description: `redirect_uris holds ${String(CLIENT_LIST_LIMIT + 1)} entries, at most ${String(CLIENT_LIST_LIMIT)}`,
+      field: 'redirect_uris',
+    });
   });
 });

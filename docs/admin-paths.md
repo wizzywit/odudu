@@ -265,6 +265,17 @@ counts and the answers to a subject's roles carry no role or group record and
 stay on the stacks they were captured against. It was torn down with
 `docker compose down -v` when the capture finished.
 
+**The fifteenth stack.** The refusals of a client list that holds too many
+entries, under `PATCH /clients/{id}` and in [docs/request-paths.md](request-paths.md#dynamic-client-registration),
+ran against one more stack: compose project `odudu-tx` on port 3082, its
+Postgres on 5464, built from this branch at `cca7a9f3` with the change those
+sections describe, from an empty volume. Against it: `seed admin --username
+ada`, whose token, got the way "Getting the token" shows, is `$ADMIN_TOKEN`,
+a tenant `client-lists-demo` made through `POST /admin/tenants`, and in it a
+confidential client `billing` made through `POST /clients`, row id
+`01a110be-0775-70ce-9a81-b9faa1e9e038`, with one redirect URI. It was torn
+down with `docker compose down -v` when the capture finished.
+
 ## The shape of it
 
 Most of the admin endpoint lives under `/admin/tenants/{tenant}/`, mirroring
@@ -2378,6 +2389,48 @@ silently reinstates exactly what another admin just removed, `If-Match` is
 every other field amends with `If-Match` optional, the same concurrency
 control `PATCH /settings` uses, row lock included. A stale `If-Match` is
 `412` either way, and nothing is changed.
+
+A list field holds at most 200 entries (`CLIENT_LIST_LIMIT`,
+`@odudu/contracts`), for `redirect_uris`, `web_origins`,
+`post_logout_redirect_uris`, `audiences` and `client_credentials_scopes`
+alike, on a create, a `PATCH`, dynamic registration and an import. A client is
+read and listed whole, and each redirect URI and web origin is expanded into
+`client_origins` rows when it is written, so this is what keeps both small.
+A longer list is refused with `400` naming the field, how many entries it
+held and how many it may, and nothing is changed; a list of exactly 200 is
+accepted. A web origin that is not a bare origin, and a redirect URI the
+registration validator refuses, are refused with the entry named, in the
+same `errors` shape. `$P` is `http://localhost:3082/admin/tenants` and `$ID` the
+client's row id. Each call sent the `ETag` the `GET` before it answered:
+
+```bash
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -H "If-Match: $ETAG" \
+  -d @over-origins.json $P/client-lists-demo/clients/$ID
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -H "If-Match: $ETAG" \
+  -d @over-uris.json $P/client-lists-demo/clients/$ID
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -H "If-Match: $ETAG" \
+  -d '{"web_origins":["https://app.example/"]}' $P/client-lists-demo/clients/$ID
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -H "If-Match: $ETAG" \
+  -d '{"redirect_uris":["http://billing.example/cb"]}' $P/client-lists-demo/clients/$ID
+```
+
+`over-origins.json` held 201 origins `https://o0.example` to
+`https://o200.example`, and `over-uris.json` 201 redirect URIs
+`https://billing.example/cb/0` to `…/cb/200`:
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: web_origins holds 201 entries, at most 200","errors":[{"path":"web_origins","message":"web_origins holds 201 entries, at most 200"}],"instance":"01a110be-27b1-7b84-b0df-c43bf021f349"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris holds 201 entries, at most 200","errors":[{"path":"redirect_uris","message":"redirect_uris holds 201 entries, at most 200"}],"instance":"01a110be-27d4-7870-b9b9-655871c3ce9e"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: web_origins entry \"https://app.example/\" is not an origin: expected a scheme and host with no path, or \"+\" for every registered redirect URI's origin","errors":[{"path":"web_origins","message":"web_origins entry \"https://app.example/\" is not an origin: expected a scheme and host with no path, or \"+\" for every registered redirect URI's origin"}],"instance":"01a110be-2834-7367-95ed-9b3b944bf82b"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris entry http://billing.example/cb is not valid","errors":[{"path":"redirect_uris","message":"redirect_uris entry http://billing.example/cb is not valid"}],"instance":"01a110be-2863-7f2e-948d-ba9c50781eb3"}
+```
+
+The same call with 200 origins, `at-origins.json`, answered `200` and the
+client read back with `.web_origins | length` of `200`.
 
 The RFC 7591 metadata fields among them — `redirect_uris`, `grant_types`,
 `token_endpoint_auth_method`, `jwks`, `jwks_uri`, the two logout URIs and

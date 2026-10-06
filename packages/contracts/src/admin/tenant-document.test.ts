@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CLIENT_LIST_LIMIT } from '#/admin/shared';
 import {
   REGISTRATION_POLICY_SETTINGS,
   tenantDocumentSchema,
@@ -127,6 +128,32 @@ const DOCUMENT: TenantDocument = {
   smtp: null,
   omitted: ['clients[0].secret'],
 };
+
+describe('the lists a client of a document may hold', () => {
+  it.each([
+    'redirect_uris',
+    'web_origins',
+    'post_logout_redirect_uris',
+    'audiences',
+    'client_credentials_scopes',
+  ] as const)('holds %s to the limit, saying how many it holds', (field) => {
+    const entries = Array.from({ length: CLIENT_LIST_LIMIT + 1 }, (_, i) => `x${String(i)}`);
+    const refused = tenantDocumentSchema.safeParse({
+      ...DOCUMENT,
+      clients: [{ ...CLIENT, [field]: entries }],
+    });
+    expect(refused.success).toBe(false);
+    expect(refused.error?.issues[0]).toMatchObject({
+      path: ['clients', 0, field],
+      message: `${String(CLIENT_LIST_LIMIT + 1)} entries, at most ${String(CLIENT_LIST_LIMIT)}`,
+    });
+    const atLimit = tenantDocumentSchema.safeParse({
+      ...DOCUMENT,
+      clients: [{ ...CLIENT, [field]: entries.slice(1) }],
+    });
+    expect(atLimit.success).toBe(true);
+  });
+});
 
 describe('tenantDocumentSchema', () => {
   it('accepts a document with no subjects', () => {

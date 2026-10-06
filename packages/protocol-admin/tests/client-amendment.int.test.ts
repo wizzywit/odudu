@@ -1,3 +1,4 @@
+import { CLIENT_LIST_LIMIT } from '@odudu/contracts/admin';
 import { newId } from '@odudu/kernel';
 import { isWellFormedWebOrigin } from '@odudu/protocol-oidc';
 import { sql } from 'drizzle-orm';
@@ -148,6 +149,40 @@ describe('PATCH clients, web_origins', () => {
     expect(res.statusCode).toBe(400);
     expect(res.json<{ detail: string }>().detail).toContain('https://app.example.test/callback');
   });
+
+  it.each(['web_origins', 'post_logout_redirect_uris', 'audiences', 'client_credentials_scopes'])(
+    'refuses %s past the limit, naming the field, and changes nothing',
+    async (field) => {
+      const t = await fixture.createTenant(`acme-${newId()}`);
+      const client = await fixture.createConfidentialClient(t.name, {});
+      const token = await fixture.adminToken(t.name, ['manage-clients']);
+      const etag = await currentEtag(t.name, client.id, token);
+      const entries = Array.from(
+        { length: CLIENT_LIST_LIMIT + 1 },
+        (_, i) => `https://o${String(i)}.example.test`,
+      );
+
+      const res = await fixture.http.inject({
+        method: 'PATCH',
+        url: `/admin/tenants/${t.name}/clients/${client.id}`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+          'if-match': etag,
+        },
+        payload: { [field]: entries },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json<{ errors: { path: string; message: string }[] }>().errors).toEqual([
+        {
+          path: field,
+          message: `${field} holds ${String(CLIENT_LIST_LIMIT + 1)} entries, at most ${String(CLIENT_LIST_LIMIT)}`,
+        },
+      ]);
+      expect(await currentEtag(t.name, client.id, token)).toBe(etag);
+    },
+  );
 
   it('accepts a bare origin and the + wildcard', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);

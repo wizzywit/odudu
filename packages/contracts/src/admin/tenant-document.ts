@@ -3,7 +3,12 @@ import { clientTypeSchema, registrationOriginSchema } from '#/admin/clients';
 import { executionRequirementSchema } from '#/admin/flow';
 import { profileSchema } from '#/admin/profile';
 import { clientScopeAssignmentSchema } from '#/admin/scopes';
-import { ASSIGNMENT_LIMIT, fieldErrorSchema, type FieldError } from '#/admin/shared';
+import {
+  ASSIGNMENT_LIMIT,
+  CLIENT_LIST_LIMIT,
+  fieldErrorSchema,
+  type FieldError,
+} from '#/admin/shared';
 import { requiredActionSchema } from '#/admin/subjects';
 import { tenantSchema } from '#/admin/tenants';
 
@@ -97,11 +102,19 @@ export const exportedFlowStepSchema = z.strictObject({
 
 // A set the admin API replaces whole, held to ASSIGNMENT_LIMIT: the refusal says
 // how many the document holds as well as how many it may.
-function assignmentSet<T extends z.ZodType>(item: T) {
-  return z.array(item).max(ASSIGNMENT_LIMIT, {
+function boundedSet<T extends z.ZodType>(item: T, limit: number) {
+  return z.array(item).max(limit, {
     error: (issue) =>
-      `${Array.isArray(issue.input) ? String(issue.input.length) : 'too many'} entries, at most ${String(ASSIGNMENT_LIMIT)}`,
+      `${Array.isArray(issue.input) ? String(issue.input.length) : 'too many'} entries, at most ${String(limit)}`,
   });
+}
+
+function assignmentSet<T extends z.ZodType>(item: T) {
+  return boundedSet(item, ASSIGNMENT_LIMIT);
+}
+
+function clientList() {
+  return boundedSet(z.string(), CLIENT_LIST_LIMIT);
 }
 
 export const exportedClientSchema = z.strictObject({
@@ -112,16 +125,16 @@ export const exportedClientSchema = z.strictObject({
   enabled: z.boolean(),
   full_scope_allowed: z.boolean(),
   registration_origin: registrationOriginSchema,
-  redirect_uris: z.array(z.string()),
+  redirect_uris: clientList(),
   grant_types: z.array(z.string()),
   token_endpoint_auth_method: z.string(),
-  audiences: z.array(z.string()),
+  audiences: clientList(),
   access_token_ttl_seconds: z.number().int().nullable(),
   id_token_ttl_seconds: z.number().int().nullable(),
   refresh_token_ttl_seconds: z.number().int().nullable(),
-  client_credentials_scopes: z.array(z.string()),
-  web_origins: z.array(z.string()),
-  post_logout_redirect_uris: z.array(z.string()),
+  client_credentials_scopes: clientList(),
+  web_origins: clientList(),
+  post_logout_redirect_uris: clientList(),
   jwks: z.unknown().nullable(),
   jwks_uri: z.string().nullable(),
   frontchannel_logout_uri: z.string().nullable(),

@@ -12,6 +12,15 @@ export const MAX_LIMIT = 200;
 export const ASSIGNMENT_LIMIT = MAX_LIMIT;
 
 /**
+ * The most entries one list on a client may hold: its redirect URIs, web
+ * origins, post-logout URIs, audiences and client-credentials scopes. A
+ * client is read and listed whole, and each redirect URI and web origin is
+ * expanded into `client_origins` rows when it is written, so this bound is
+ * what keeps both of those, and the page that edits them, small.
+ */
+export const CLIENT_LIST_LIMIT = ASSIGNMENT_LIMIT;
+
+/**
  * The most scopes a tenant defines. Discovery advertises all of them in the
  * one document it answers with, so they are what bounds it.
  */

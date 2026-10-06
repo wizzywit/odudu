@@ -634,6 +634,23 @@ curl -sS -X POST http://localhost:3000/tenants/reg-demo/clients-registrations/op
 }
 ```
 
+A client holds at most 200 redirect URIs, the bound every list on a client
+shares ([docs/admin-paths.md](admin-paths.md#patch-clientsid)); a longer list is
+refused with the count and the limit, and 200 exactly is registered. Captured
+on the stack `docs/admin-paths.md` calls its fifteenth, in the tenant
+`client-lists-demo`, with registration opened:
+
+```bash
+curl -sS -X POST http://localhost:3082/tenants/client-lists-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' -d @reg-over.json
+```
+
+`reg-over.json` held 201 URIs, `https://rp.example/cb/0` to `…/cb/200`:
+
+```
+{"error":"invalid_redirect_uri","error_description":"redirect_uris holds 201 entries, at most 200"}
+```
+
 `frontchannel_logout_uri` gets the same https/absolute/no-fragment policy
 `backchannel_logout_uri` already had — it is the `src` of an iframe the
 logout page now renders

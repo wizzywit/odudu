@@ -91,7 +91,10 @@ client identity to check against one) — see
 `seed client --web-origin` registers them as it creates a client, and
 `PATCH /admin/tenants/{tenant}/clients/{id}` amends the list afterwards —
 `seed client` itself refuses an existing client rather than widening a
-registered list on a re-run.
+registered list on a re-run. A client's redirect URIs, web origins,
+post-logout URIs, audiences and client-credentials scopes each hold at most
+200 entries, whichever door writes them (the admin API, dynamic registration
+or an import).
 
 `seed client --grant-type` names the grants a client is registered for,
 repeatable, and validates each one against the same list the

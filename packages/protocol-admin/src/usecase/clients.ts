@@ -1,4 +1,4 @@
-import { type Client, type ListClientsQuery } from '@odudu/contracts/admin';
+import { CLIENT_LIST_LIMIT, type Client, type ListClientsQuery } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roles } from '@odudu/domain-authz';
 import { subjectRepository } from '@odudu/domain-identity';
@@ -849,9 +849,15 @@ function checkedInteger(field: string, value: unknown): number | FieldError {
 }
 
 function checkedStringArray(field: string, value: unknown): string[] | FieldError {
-  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
-    ? value
-    : { field, description: `${field} must be an array of strings` };
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
+    return { field, description: `${field} must be an array of strings` };
+  }
+  return value.length > CLIENT_LIST_LIMIT
+    ? {
+        field,
+        description: `${field} holds ${String(value.length)} entries, at most ${String(CLIENT_LIST_LIMIT)}`,
+      }
+    : value;
 }
 
 function checkedDescription(value: unknown): string | null | FieldError {
