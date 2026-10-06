@@ -111,8 +111,31 @@ function seedClients(tenant: string): void {
   };
   const own = ['ledger', 'closed', 'doomed', 'held', UNBROKEN];
   // One per test that changes its tokens, scopes, keys, secret or service account.
-  const configured = ['tokens', 'scoped', 'keyed', 'rotated', 'serviced', 'revoked'];
+  const configured = [
+    'tokens',
+    'scoped',
+    'keyed',
+    'rotated',
+    'serviced',
+    'kbtokens',
+    'kbadvanced',
+    'racedtokens',
+    'racedadvanced',
+  ];
   for (const clientId of [...own, ...configured]) confidential(clientId);
+  // Public clients a person signs in through, from a loopback address nothing listens on.
+  for (const clientId of ['notified', 'granted']) {
+    seed([
+      'client',
+      '--tenant',
+      tenant,
+      '--client-id',
+      clientId,
+      '--public',
+      '--redirect-uri',
+      'http://127.0.0.1:9/callback',
+    ]);
+  }
   seed(['scope', '--tenant', tenant, '--name', 'reports:read']);
   seed(['role', '--tenant', tenant, '--name', 'reader']);
   seed(['role', '--tenant', tenant, '--name', 'approver', '--client-id', 'ledger']);
@@ -206,6 +229,13 @@ export default function globalSetup(): void {
   const clients = {
     admin: { tenant: `${run}-k`, username: 'gauss', password: password() },
     limited: { tenant: `${run}-k`, username: 'euler', password: password() },
+    // Holds manage-clients and manage-sessions, and no admin capability a tenant administrator holds.
+    sessions: { tenant: `${run}-k`, username: 'noether', password: password() },
+    // Signs in through a client, which gives it a session and a grant to list and revoke.
+    walkers: [
+      { tenant: `${run}-k`, username: 'wiles', password: password() },
+      { tenant: `${run}-k`, username: 'tao', password: password() },
+    ],
   };
   const tenants = {
     general: `${run}-d`,
@@ -285,6 +315,10 @@ export default function globalSetup(): void {
   administrator(clients.admin);
   subject(clients.limited);
   grant(clients.limited, 'odudu-admin:manage-clients');
+  subject(clients.sessions);
+  grant(clients.sessions, 'odudu-admin:manage-clients');
+  grant(clients.sessions, 'odudu-admin:manage-sessions');
+  for (const walker of clients.walkers) subject(walker);
   seedGroupsRoles(groupsRoles.admin.tenant);
   administrator(groupsRoles.admin);
   subject(groupsRoles.limited);

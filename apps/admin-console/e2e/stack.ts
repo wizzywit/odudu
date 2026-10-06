@@ -127,6 +127,10 @@ const seededSchema = z.object({
     admin: account,
     // Holds manage-clients alone.
     limited: account,
+    // Holds manage-clients and manage-sessions.
+    sessions: account,
+    // Sign in through a client, to have a session and a grant of their own.
+    walkers: z.array(account),
   }),
   // A tenant of its own for the Groups and Roles tests.
   groupsRoles: z.object({
@@ -152,4 +156,9 @@ export function seeded(): Seeded {
   const raw = process.env[STATE];
   if (raw === undefined) throw new Error(`${STATE} is unset; run through e2e/run.sh`);
   return seededSchema.parse(JSON.parse(raw));
+}
+
+// Sends the Logout Tokens that are due, as an operator would from the command line.
+export function sendLogouts(): string {
+  return compose(['exec', '-T', 'odudu', 'node', 'dist/main.js', 'send-logouts']);
 }

@@ -1,6 +1,15 @@
-import type { Locator, Page } from '@playwright/test';
-import { expect, expectAccessible, expectFitsViewport, forgive, signIn, test } from './fixtures.ts';
-import { psql, seeded } from './stack.ts';
+import { createHash, randomBytes } from 'node:crypto';
+import type { Browser, Locator, Page } from '@playwright/test';
+import {
+  expect,
+  expectAccessible,
+  expectFitsViewport,
+  forgive,
+  signIn,
+  signInAtTenant,
+  test,
+} from './fixtures.ts';
+import { psql, seeded, sendLogouts, type Account } from './stack.ts';
 
 const { clients } = seeded();
 const { admin, limited } = clients;
@@ -619,44 +628,258 @@ test("a client's installation is shown, and its claims are worked out for a subj
   await expectAccessible(page);
 });
 
-test("who is signed in through a client is listed, and revoking its tokens takes the client's ID", async ({
+const CALLBACK = 'http://127.0.0.1:9/callback';
+
+// A person signing in through a public client, as its application would send
+// them: a code, redeemed for the grant and the session the client's tabs list.
+async function signInThrough(browser: Browser, account: Account, clientKey: string): Promise<void> {
+  const verifier = randomBytes(32).toString('base64url');
+  const context = await browser.newContext();
+  try {
+    await context.route(`${CALLBACK}**`, (route) =>
+      route.fulfill({ status: 200, contentType: 'text/html', body: '<h1>Callback</h1>' }),
+    );
+    const page = await context.newPage();
+    const query = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientKey,
+      redirect_uri: CALLBACK,
+      scope: 'openid',
+      state: 'kept',
+      code_challenge: createHash('sha256').update(verifier).digest('base64url'),
+      code_challenge_method: 'S256',
+    });
+    await page.goto(`/tenants/${account.tenant}/protocol/openid-connect/auth?${query.toString()}`);
+    await signInAtTenant(page, account);
+    await page.waitForURL((url) => url.href.startsWith(CALLBACK));
+    const code = new URL(page.url()).searchParams.get('code') ?? '';
+    const redeemed = await page.request.post(
+      `/tenants/${account.tenant}/protocol/openid-connect/token`,
+      {
+        form: {
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: CALLBACK,
+          client_id: clientKey,
+          code_verifier: verifier,
+        },
+      },
+    );
+    expect(redeemed.status()).toBe(200);
+  } finally {
+    await context.close();
+  }
+}
+
+function liveGrants(clientKey: string): string {
+  return psql(
+    `select count(*) from token_grants where client_id = ${sqlText(clientId(clientKey))}::uuid and revoked_at is null`,
+  );
+}
+
+test('who is signed in through a client is listed, and revoking its tokens leaves what the caller may not touch', async ({
+  browser,
   page,
 }) => {
+  const [first, second] = clients.walkers;
+  if (first === undefined || second === undefined) throw new Error('no walkers were seeded');
+  await signInThrough(browser, first, 'granted');
+  await signInThrough(browser, admin, 'granted');
+  expect(liveGrants('granted')).toBe('2');
+
+  const context = await browser.newContext();
+  const operator = await context.newPage();
+  await signIn(operator, clients.sessions);
+  await openClient(operator, 'granted', 'sessions');
+  const sessions = operator.getByRole('grid', { name: /^Sessions through / });
+  await expect(sessions).toContainText(first.username);
+  await expect(sessions).toContainText(admin.username);
+  await expectAccessible(operator);
+  await operator.getByRole('button', { name: 'Revoke every token of granted' }).click();
+  const asked = operator.getByRole('alertdialog', { name: 'Revoke every token of granted?' });
+  await expect(asked.getByRole('button', { name: 'Revoke every token' })).toBeDisabled();
+  await asked.getByRole('textbox').fill('granted');
+  await asked.getByRole('button', { name: 'Revoke every token' }).click();
+  await expect(
+    operator.getByText(
+      '1 grant of granted revoked. 1 left alone, their subjects holding an admin capability you do not.',
+    ),
+  ).toBeVisible();
+  await expect.poll(() => liveGrants('granted')).toBe('1');
+  await expectAccessible(operator);
+  await context.close();
+
+  await signIn(page, admin);
+  await openClient(page, 'granted', 'sessions');
+  await page.getByRole('button', { name: 'Revoke every token of granted' }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Revoke every token of granted?' });
+  await dialog.getByRole('textbox').fill('granted');
+  await dialog.getByRole('button', { name: 'Revoke every token' }).click();
+  await expect(page.getByText('1 grant of granted revoked.', { exact: true })).toBeVisible();
+  await expect.poll(() => liveGrants('granted')).toBe('0');
+  await expect
+    .poll(() =>
+      psql(
+        `select count(*) from audit_events where tenant_id = ${IN_TENANT} and action = 'client.grants_revoke' and resource_id = ${sqlText(clientId('granted'))}`,
+      ),
+    )
+    .toBe('2');
+  await expectAccessible(page);
+});
+
+test("the console's own client says revoking its tokens signs the caller out", async ({ page }) => {
   await signIn(page, admin);
   await openClient(page, 'odudu-admin', 'sessions');
   const sessions = page.getByRole('grid', { name: /^Sessions through / });
   await expect(sessions).toContainText(admin.username);
+  await page.getByRole('button', { name: /^Revoke every token of/u }).click();
+  const dialog = page.getByRole('alertdialog', { name: /^Revoke every token of/u });
+  await expect(dialog).toContainText('you will be signed out');
   await expectAccessible(page);
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toBeHidden();
+});
 
-  await openClient(page, 'revoked', 'sessions');
-  await expect(page.getByText('Nobody is signed in through this client.')).toBeVisible();
-  await page.getByRole('button', { name: 'Revoke every token of revoked' }).click();
-  const dialog = page.getByRole('alertdialog', { name: 'Revoke every token of revoked?' });
-  await expect(dialog).toContainText('Every grant issued through revoked is revoked');
-  await expect(dialog.getByRole('button', { name: 'Revoke every token' })).toBeDisabled();
-  await expectAccessible(page);
-  await dialog.getByRole('textbox').fill('revoked');
-  await dialog.getByRole('button', { name: 'Revoke every token' }).click();
-  await expect(page.getByText('0 grants of revoked revoked.')).toBeVisible();
+test('the back-channel deliveries of a client are those its ended sessions queued, failed for an address nobody may reach', async ({
+  browser,
+  page,
+}) => {
+  await signIn(page, admin);
+  await openClient(page, 'notified', 'logout');
+  const channel = page.getByRole('region', { name: 'Back-channel logout' });
+  await channel
+    .getByRole('textbox', { name: 'Back-channel logout address' })
+    .fill('https://127.0.0.1:9/backchannel');
+  await channel.getByRole('button', { name: 'Save Back-channel logout' }).click();
+  await expect
+    .poll(() => configColumn('notified', 'backchannel_logout_uri'))
+    .toBe('https://127.0.0.1:9/backchannel');
+
+  const [first, second] = clients.walkers;
+  if (first === undefined || second === undefined) throw new Error('no walkers were seeded');
+  for (const walker of [first, second]) {
+    await signInThrough(browser, walker, 'notified');
+    const id = psql(
+      `select u.subject_id from users u join tenants t on t.id = u.tenant_id where t.name = ${sqlText(TENANT)} and u.username = ${sqlText(walker.username)}`,
+    );
+    await page.goto(`/console/${TENANT}/subjects/${id}?tab=sessions`);
+    await page.getByRole('button', { name: 'End every session' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'End every session' }).click();
+  }
+  const queued = (): string =>
+    psql(
+      `select count(*) from backchannel_logout_deliveries where client_id = ${sqlText(clientId('notified'))}::uuid`,
+    );
+  await expect.poll(queued).toBe('2');
+  sendLogouts();
   await expect
     .poll(() =>
       psql(
-        `select count(*) from audit_events where tenant_id = ${IN_TENANT} and action = 'client.grants_revoke' and resource_id = ${sqlText(clientId('revoked'))}`,
+        `select count(*) from backchannel_logout_deliveries where client_id = ${sqlText(clientId('notified'))}::uuid and delivered_at is null and attempts >= 5 and last_error is not null`,
       ),
     )
-    .toBe('1');
-  await expectAccessible(page);
-});
+    .toBe('2');
 
-test('the back-channel deliveries of a client are listed by status', async ({ page }) => {
-  await signIn(page, admin);
-  await openClient(page, 'ledger', 'logout');
+  await openClient(page, 'notified', 'logout');
   const section = page.getByRole('region', { name: 'Back-channel deliveries' });
+  const table = section.getByRole('grid', { name: /^Logout deliveries of / });
+  await expect(table.getByRole('row')).toHaveCount(3);
+  await expect(table.getByText('failed')).toHaveCount(2);
+  await expect(table).toContainText('https://127.0.0.1:9/backchannel');
+  await expectAccessible(page);
+
+  await section.getByRole('button', { name: /Show/u }).click();
+  await page.getByRole('option', { name: 'Delivered' }).click();
   await expect(section.getByText('No logout token has been queued for this client.')).toBeVisible();
   await section.getByRole('button', { name: /Show/u }).click();
   await page.getByRole('option', { name: 'Failed' }).click();
-  await expect(section.getByText('No logout token has been queued for this client.')).toBeVisible();
+  await expect(section.getByRole('grid').getByRole('row')).toHaveCount(3);
   await expectAccessible(page);
+});
+
+test('a lifetime is changed by keyboard alone', async ({ page }) => {
+  await signIn(page, admin);
+  await openClient(page, 'kbtokens', 'tokens');
+  const lifetimes = page.getByRole('region', { name: 'Token lifetimes' });
+  const toggle = lifetimes.getByRole('switch', { name: "Use the tenant's access token lifetime" });
+  await tabTo(page, toggle);
+  await page.keyboard.press('Space');
+  const field = lifetimes.getByRole('textbox', { name: 'Access token lifetime, in seconds' });
+  await tabTo(page, field);
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.type('1200');
+  await page.keyboard.press('Tab');
+  await expect(lifetimes.getByText('1200 s · 20 minutes')).toBeVisible();
+  const save = lifetimes.getByRole('button', { name: 'Save Token lifetimes' });
+  await tabTo(page, save);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => configColumn('kbtokens', 'access_token_ttl_seconds')).toBe('1200');
+  await expectAccessible(page);
+});
+
+test('an audience is added by keyboard alone', async ({ page }) => {
+  await signIn(page, admin);
+  await openClient(page, 'kbadvanced', 'advanced');
+  const section = page.getByRole('region', { name: 'Audiences' });
+  const add = section.getByRole('button', { name: 'Add audience' });
+  await tabTo(page, add);
+  await page.keyboard.press('Enter');
+  await expect(section.getByRole('textbox', { name: 'Audience 1' })).toBeFocused();
+  await page.keyboard.type('https://api.keyboard.example');
+  const save = section.getByRole('button', { name: 'Save Audiences' });
+  await tabTo(page, save);
+  await page.keyboard.press('Enter');
+  await expect
+    .poll(() => configList('kbadvanced', 'audiences'))
+    .toBe('https://api.keyboard.example');
+  await expectAccessible(page);
+});
+
+test('a lifetime changed behind an open page is shown beside yours, and keeping yours saves it', async ({
+  page,
+  problems,
+}) => {
+  await signIn(page, admin);
+  await openClient(page, 'racedtokens', 'tokens');
+  const lifetimes = page.getByRole('region', { name: 'Token lifetimes' });
+  await lifetimes.getByText("Use the tenant's access token lifetime", { exact: true }).click();
+  const field = lifetimes.getByRole('textbox', { name: 'Access token lifetime, in seconds' });
+  await field.fill('900');
+  await field.press('Tab');
+  psql(
+    `update client_oidc_config set access_token_ttl_seconds = 1800 where client_id = ${sqlText(clientId('racedtokens'))}::uuid`,
+  );
+  await lifetimes.getByRole('button', { name: 'Save Token lifetimes' }).click();
+  await expect(lifetimes.getByText(/changed elsewhere/u).first()).toBeVisible();
+  await expectAccessible(page);
+  forgive(problems, `/clients/${clientId('racedtokens')}`);
+  expect(configColumn('racedtokens', 'access_token_ttl_seconds')).toBe('1800');
+  await lifetimes.getByRole('button', { name: 'Keep mine in Token lifetimes' }).click();
+  await expect.poll(() => configColumn('racedtokens', 'access_token_ttl_seconds')).toBe('900');
+});
+
+test('audiences changed behind an open page are shown beside yours, and taking theirs keeps theirs', async ({
+  page,
+  problems,
+}) => {
+  await signIn(page, admin);
+  await openClient(page, 'racedadvanced', 'advanced');
+  const section = page.getByRole('region', { name: 'Audiences' });
+  await section.getByRole('button', { name: 'Add audience' }).click();
+  await section.getByRole('textbox', { name: 'Audience 1' }).fill('https://mine.example');
+  psql(
+    `update client_oidc_config set audiences = '{https://theirs.example}' where client_id = ${sqlText(clientId('racedadvanced'))}::uuid`,
+  );
+  await section.getByRole('button', { name: 'Save Audiences' }).click();
+  await expect(section.getByText(/changed elsewhere/u).first()).toBeVisible();
+  await expectAccessible(page);
+  forgive(problems, `/clients/${clientId('racedadvanced')}`);
+  expect(configList('racedadvanced', 'audiences')).toBe('https://theirs.example');
+  await section.getByRole('button', { name: 'Take theirs in Audiences' }).click();
+  await expect(section.getByRole('textbox', { name: 'Audience 1' })).toHaveValue(
+    'https://theirs.example',
+  );
+  expect(configList('racedadvanced', 'audiences')).toBe('https://theirs.example');
 });
 
 const PHONE_TABS: readonly { tab: string; ready: (page: Page) => Promise<void> }[] = [

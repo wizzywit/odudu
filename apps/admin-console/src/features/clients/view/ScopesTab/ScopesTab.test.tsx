@@ -180,6 +180,25 @@ it("says in the server's words why a scope was not assigned", async () => {
   );
 });
 
+it("says in the server's words that a client carries no more scopes", async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(
+    AT,
+    scopesRoutes([OPENID], {
+      [`PUT ${SCOPES}/s-bill/clients/c-bill`]: problem(409, 'about:blank', 'Conflict', {
+        detail: 'a client carries at most 200 scopes',
+      }),
+    }),
+  );
+  await open();
+  const assign = await screen.findByRole('region', { name: 'Assign a scope' });
+  await user.click(await within(assign).findByRole('option', { name: /billing/u }));
+  await user.click(within(assign).getByRole('button', { name: 'Assign scope billing' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'billing was not assigned: a client carries at most 200 scopes',
+  );
+});
+
 it('shows only as many scopes as a page, and the rest on request', async () => {
   const user = userEvent.setup();
   const many = Array.from({ length: 120 }, (_, i) => ({
