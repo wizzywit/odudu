@@ -693,12 +693,12 @@ Execution Time: 0.229 ms
 
 ## A subject's consents
 
-`revokeConsent` scans `token_grants` by `(subject_id, client_id)`
-(`revokeForSubjectClient`) with no index naming that pair — acceptable
-because this write is an infrequent, single-subject admin action, never a
-per-request path; a tenant large enough to need one names it against the
-same `token_grants` an already-open PR could give a covering index without
-touching this call.
+`revokeConsent` finds a subject's grants for one client with
+`token_grants_by_subject` (`subject_id`, `id`), which migration `0095` adds;
+the earlier text here accepted a scan of `token_grants` for this write as
+too rare to index, and at a million subjects that scan reads every grant of
+the tenant. The list is paged, so a subject with many consents answers a page
+(`GET /subjects/:id/consents`, `docs/admin-paths.md`).
 
 ## What export and import found
 
@@ -1644,7 +1644,9 @@ the base, 798 kB with the regression, and is 704 kB now.
 rule: both sit inside container queries, where `composes` is not allowed, so
 only the sign-in copy became `VisuallyHidden`.
 
-## Performance — the React Compiler
+## Performance
+
+### The React Compiler
 
 The compiler is on for all of `apps/admin-console/src` except test files
 (`*.test.ts(x)`, which are not shipped), in the build and in the DOM tests: `babel-plugin-react-compiler` 1.0.0, run by
@@ -1709,3 +1711,143 @@ after: subjects 421.41 / 120.14 to 502.29 / 150.32 kB; tenants 42.12 / 13.59 to
 `tests/lint/console-collection-dependencies.test.ts` is a backstop for the
 collection-cache case above; it cannot see a value reached through a called
 function.
+
+### Server query plans
+
+`apps/server/tests/query-plans.int.test.ts` runs the server's real code over a
+seeded volume and fails on what ADR 0041 forbids: a foreign key without an
+index, a collection answered with more than `MAX_LIMIT` rows, a list that
+sends more statements for 200 rows than for one, and a statement whose plan
+scans a large table or sorts an unbounded input.
+
+**Volume.** One tenant with 200,000 subjects, 10,000 clients, 5,000 roles,
+5,000 groups, 980 scopes, 200,000 sessions, 300,000 grants and refresh
+tokens, 100,000 each of authorization codes, mail, logout deliveries and
+client-assertion ids, and 600,000 audit events, beside 5,000 tenants with
+twenty subjects and clients each and 400,000 more audit events: about 3.5
+million rows (more once the roles, groups, scopes and console rows are counted), a fifth of the subjects, the design count of clients and a
+hundredth of the audit events (1,000,000 in all). The planner already prefers an index wherever
+one fits and a sequential scan wherever none does at that size, so a plan
+wrong there is wrong at the design volume. It is written in SQL
+(`apps/server/src/testing/plan-volume.ts`), with foreign keys and triggers
+off for the load, then vacuumed and analyzed. Loading takes 76 s and the whole test 176 s on a development machine at a load average near 30, so a CI run should expect more than a minute for it.
+
+**What runs.** 172 paths run, 171 of them sending statements: discovery, JWKS, authorize (with and without
+a session), login, consent, the token endpoint for every grant, userinfo,
+introspection, revocation, end-session, CORS preflights, registration,
+verification, reset, required actions, dynamic client registration, 57 admin
+lists, 20 admin reads, 22 admin writes, the mail and logout senders, every
+retention rule, the console gateway and the credential repository. Each
+statement is captured as the code sends it, under the connection's tenant
+setting, and replayed as `EXPLAIN (ANALYZE)` in a transaction that is rolled
+back (a statement that writes is explained without running, on estimates).
+
+**The rules.** A scan of a table over 5,000 rows is a finding when it reads
+more than 2,000 rows (ten pages), when it is a sequential scan not stopped
+inside that by a `LIMIT`, or when it sits under a `LIMIT` and still reads more
+than a count's own cap plus a page. A sort of more than 2,000 rows is a
+finding. A whole-tenant export and the retention deletes are exempt from the
+read-size rules: the first is bounded by the caps below and the second reads
+what it deletes. Rows read are counted from the executed plan, not estimated:
+the first runs flagged 188 to 221 findings from the planner's estimates alone,
+nearly all of them its misjudgement of a recursive query, and were replaced
+by what the plan actually read.
+
+**Plan before and after `ANALYZE`.** The subjects list searching
+`?username=user1` (`0073`'s `users_username_search`), with the statistics of
+`users` and `subjects` deleted and their row estimates reset, then with the
+statistics `ANALYZE` wrote. The plan does not change: both read 201 rows
+through the index, and the first plans and runs slower only because the
+planner is working from no statistics (the transaction was rolled back, so the
+deleted statistics were not lost):
+
+```
+ Limit (actual rows=201 loops=1)
+   ->  Nested Loop (actual rows=201 loops=1)
+         ->  Index Scan using users_username_search on users (actual rows=201 loops=1)
+               Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (username_search >= 'user1'::text) AND (username_search < 'user2'::text))
+         ->  Index Scan using subjects_pkey on subjects (actual rows=1 loops=201)
+               Index Cond: (id = users.subject_id)
+               Filter: (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)
+ Planning Time: 6.461 ms
+ Execution Time: 3.102 ms
+```
+
+```
+ Limit (actual rows=201 loops=1)
+   ->  Nested Loop (actual rows=201 loops=1)
+         ->  Index Scan using users_username_search on users (actual rows=201 loops=1)
+               Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (username_search >= 'user1'::text) AND (username_search < 'user2'::text))
+         ->  Index Scan using subjects_pkey on subjects (actual rows=1 loops=201)
+               Index Cond: (id = users.subject_id)
+               Filter: (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)
+ Planning Time: 4.128 ms
+ Execution Time: 0.687 ms
+```
+
+Migrations `0073` to `0076` added a search column and an index for each of
+subjects, tenants, clients, roles, groups, scopes and keys. Every search path
+reaches its index. Subjects and tenants read it in order and stop at the page
+(201 rows for a page of 200: `users_username_search`, `users_email_search`,
+`users_name_search`, `users_given_name_search`, `users_family_name_search`,
+`tenants_name_search`, `tenants_display_name_search`). Clients, roles, groups
+and scopes read it through a bitmap, which cannot stop early: a prefix that
+matches 11% of a tenant's 10,000 clients reads 1,112 of them and keeps the first
+page. The read is bounded by the
+table, not the page; P11 owns it (see the last paragraph).
+
+**Defects found, and fixed in the increment that found them.**
+
+- _The effective-roles walk read every role of the tenant_ on 96 paths,
+  because the planner hashed `roles` against its scan: authorize, every token
+  grant, userinfo, introspection and each admin read that evaluates
+  capabilities. Each hop of the closure is now a lateral lookup the planner
+  cannot hash (`closureOf` in `effective-roles.ts`), and the same in
+  `descendantsOf`, `ancestorsOf`, `closureFrom`, `rolesReachableFrom` and the
+  holder queries of `capability-ceiling.ts`.
+- _A CORS preflight read every client's origins in the tenant._ The union is
+  now `client_origins`, one row per origin, kept by a trigger on
+  `client_oidc_config` (migration `0096`), so the preflight is one probe and a
+  hand-written `UPDATE` still registers an origin.
+- _Twenty-two foreign keys had no index_, and about twenty lookups (a subject's
+  credentials, sessions, grants and action tokens, a client's grants, default
+  roles and groups, locked subjects, the disabled rows of clients and tenants,
+  every audit filter) had none either: migration `0095`.
+- _Six collections answered unbounded_: a subject's consents, its effective
+  roles, a role's composites, and the roles of a group, a scope and a
+  subject. The first two are now paged; the rest are whole sets with a write
+  cap of 200 (`ASSIGNMENT_LIMIT`) enforced on every route that writes them,
+  and a tenant defines at most 1,000 scopes (`SCOPE_LIMIT`).
+- _Unbounded counts and bulk writes:_ the tenant-sessions `remaining`, the
+  lockouts clear, a client's grants revoke and the tenant-delete preflight
+  counted or wrote without a ceiling; each is now capped (10,000, with
+  `remaining` reported where the call is repeatable).
+- _The tenant export read the whole tenant:_ refused above 20,000 clients,
+  roles or groups or 200,000 link rows, with `413`.
+- _Tenant enumeration read every tenant id into memory_ in the mail, logout
+  and retention passes; they page the ids (`tenantIdPages`, 500 at a time).
+- _Retention rules scanned_ because their cutoff depended on a joined tenant
+  row; each now binds a cutoff the index ranges on and applies the exact
+  window to the rows it finds.
+- _Authorize and discovery read every scope_ and then one by one; they ask for
+  the scopes the request names.
+- _The registration capacity count, the last-administrator guard and the
+  capability-holder merge_ read or sorted the tenant's subjects.
+- _`= ANY(ARRAY(...))`_, not a hashed subquery, wherever a set of subject ids
+  filters a large table: the holders beyond a caller's ceiling hashed against
+  a scan of every grant and session.
+
+**What was accepted, and why it is not in the list.** A count's `LIMIT` is a
+bound the planner may read up to: a capped count reads at most its cap, which
+is why the rule above allows a scan under a `LIMIT` that much. A capped count
+no longer orders by the list's key, because ordering by a column the filter
+does not lead with made the planner walk the whole index to find a rare
+client's few rows.
+
+**What this does not cover, for P11.** Replicas, load and partitioning:
+`audit_events` takes four more indexes here, each a write on every event, and
+at 100,000,000 events it needs partitioning by month with retention by
+dropping partitions, which no migration of this increment does. The retention
+deletes are one statement per tenant per table, unbatched by row count; at
+the design volume a batch size is P11's. Both are named in P11's row of the
+design spec, with the broad-prefix search above.

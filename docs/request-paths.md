@@ -8248,6 +8248,13 @@ belongs to a different client in the same tenant is, correctly, withheld on
 the real request — no status code or body changes, the header is just
 absent, and the browser discards the response on its own.
 
+The tenant's union is one index probe, not a read of every client: a
+trigger on `client_oidc_config` keeps a `client_origins` row for each
+`web_origins` entry (and each `redirect_uris` origin), so the preflight asks
+whether one origin is registered and a tenant with ten thousand clients pays
+what a tenant with one does. The trigger fires on a plain `UPDATE`, which is
+how the origins below were registered.
+
 `/certs` and `/.well-known/openid-configuration` are unauthenticated public
 documents: every origin gets `Access-Control-Allow-Origin: *` and no `Vary`.
 `/authorize` and `/login-actions/*` are top-level navigations and get no

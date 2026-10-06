@@ -1538,6 +1538,28 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"action":"capability.refused","outcome":"refused","actor_subject_id":"01a0e59a-b35c-7fb5-aa5a-78cdc389b30b","detail":{"reason":"missing_capability","capability":"manage-clients"}}
 ```
 
+### A tenant too large for one document
+
+The document is built in memory, so a tenant holding more than 20,000 clients,
+roles or groups, or more than 200,000 rows of any one link table (composites,
+group roles, scope role mappings, scope assignments, group memberships), is
+refused rather than read. On a tenant `big-demo`, given 20,001 clients with
+`insert into clients` (the `client_origins` rows follow by trigger):
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$B/admin/tenants/big-demo/export"
+```
+
+```
+HTTP/1.1 413 Payload Too Large
+x-request-id: 01a10f81-1193-7887-86e7-d45f15a0fdc7
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 218
+
+{"type":"about:blank#export-too-large","title":"Content Too Large","status":413,"detail":"the tenant holds more than 20000 clients, too many to export in one document","instance":"01a10f81-1193-7887-86e7-d45f15a0fdc7"}
+```
+
 ## `POST /admin/tenant-imports`
 
 `POST /admin/tenant-imports` requires `manage-tenants` and always creates a
@@ -2805,6 +2827,24 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 {"revoked":1,"beyond_ceiling":1}
 {"revoked":1,"beyond_ceiling":0}
+{"items":[]}
+```
+
+### How many one call revokes
+
+Likewise at most 10,000 grants per call, with `remaining` counting what is
+left; the transcript above predates it. Against `perf-demo`, with one grant
+for `grace` through `alpha-app` written by `insert into token_grants`:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/$G/grants"; echo
+curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$P/clients/$ALPHA/grants"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/$G/grants"; echo
+```
+
+```
+{"items":[{"id":"6f876d15-21b1-48f4-9062-8f83949fe351","client_id":"01a10f7d-edbc-792a-b693-f9abee8b7a7e","client_key":"alpha-app","scope":"openid","created_at":"2026-10-06T04:38:13.106Z","session_id":null,"offline":false,"refresh_expires_at":null}]}
+{"revoked":1,"beyond_ceiling":0,"remaining":0}
 {"items":[]}
 ```
 
@@ -4178,9 +4218,11 @@ Keep-Alive: timeout=72
 
 The read requires `view-users`, the delete `manage-users`. A consent is what
 the consent screen (`packages/protocol-oidc/src/usecase/consent-submission.ts`)
-records when a `consent_required` client asks and a subject allows — bounded
-per subject the same way `GET /subjects/:id/credentials` is, so this list
-carries no cursor either. Each entry names the client by both ids: `client_id`
+records when a `consent_required` client asks and a subject allows — paged
+by keyset on the client's own `client_id`, as every other collection is
+(`limit` up to 200, `link` and `next` as `GET /subjects` carries them), because
+the number of clients a subject has consented to is not bounded by anything the
+subject does. Each entry names the client by both ids: `client_id`
 is its row id, what `:clientId` on the delete names, and `client_key` its own
 OAuth `client_id` string, the one an operator actually recognises.
 `scope_names` is every scope currently granted, and `granted_at` is when the
@@ -4205,9 +4247,8 @@ the next refresh answers `invalid_grant`, and an outstanding access token
 introspects `active: false`, immediately, not at its own expiry.
 `tokenGrantRepository.revokeForSubjectClient` is the same idempotent
 `coalesce(revoked_at, …)` write `revokeForSession` already makes for a
-session's own grants (`docs/phases/p4d.md` has why this write scans
-`token_grants` with no index on `(subject_id, client_id)`, and why that is
-fine here). Demonstrated below, on the same stack.
+session's own grants (`token_grants_by_subject` serves its lookup; the
+Performance section of `docs/phases/p4d.md` has the plan). Demonstrated below, on the same stack.
 
 Captured against a tenant `consents-demo2` made for this section, on a
 confidential client `consents-demo-app2` created with `consent_required`
@@ -4415,6 +4456,28 @@ Keep-Alive: timeout=72
 {"type":"about:blank","title":"Not Found","status":404,"detail":"no subject 0199aa00-0000-7000-8000-0000000000ff","instance":"01a0e559-3dd9-7b6f-8091-e483704fa066"}
 ```
 
+### Paging a subject's consents
+
+Against a stack of its own (`perf-demo`, a subject `grace` and four clients
+`alpha-app` to `delta-app`, one consent each, written with `insert into
+consents` because the consent screen records one per sign-in), the first two:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/subjects/$G/consents?limit=2"
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a10f7d-ffee-775b-ab8d-3eff39fd45e8
+cache-control: no-store
+link: </admin/tenants/perf-demo/subjects/01a10f7d-bb83-7e78-ab4a-84756ef68b49/consents?limit=2&cursor=eyJhZnRlciI6ImJldGEtYXBwIiwiY29sbGVjdGlvbiI6ImNvbnNlbnRzIiwidGVuYW50SWQiOiIwMWExMGY3ZC1iYjBhLTdjYTctYjRhNS0xZjE3MzYwOWJmZjUiLCJmaWx0ZXJzIjoiMnl5WFJXMExValpHa2tfZ0dvR3Rlay04Qm0yeUZ6Mk9JZm9ZSE1MUUVVdyJ9.8a7ijDgE6fTMcaoWF-jKtQYjWaIOU58H3jE-WAI4mDc>; rel="next"
+content-type: application/json; charset=utf-8
+content-length: 550
+
+{"items":[{"client_id":"01a10f7d-edbc-792a-b693-f9abee8b7a7e","client_key":"alpha-app","scope_names":["openid"],"granted_at":"2026-10-06T04:34:33.829Z"},{"client_id":"01a10f7d-edff-7361-b906-289b7b5f7ef3","client_key":"beta-app","scope_names":["openid"],"granted_at":"2026-10-06T04:34:33.829Z"}],"next":"eyJhZnRlciI6ImJldGEtYXBwIiwiY29sbGVjdGlvbiI6ImNvbnNlbnRzIiwidGVuYW50SWQiOiIwMWExMGY3ZC1iYjBhLTdjYTctYjRhNS0xZjE3MzYwOWJmZjUiLCJmaWx0ZXJzIjoiMnl5WFJXMExValpHa2tfZ0dvR3Rlay04Qm0yeUZ6Mk9JZm9ZSE1MUUVVdyJ9.8a7ijDgE6fTMcaoWF-jKtQYjWaIOU58H3jE-WAI4mDc"}
+```
+
 ## `GET /subjects/:id/lockout`
 
 Requires `view-users`. The subject's run of failed sign-ins as the
@@ -4609,6 +4672,26 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"cleared":2,"beyond_ceiling":0}
 {"items":[]}
 {"locked":false,"locked_until":null,"failure_count":0,"last_failure_at":null}
+```
+
+### How many one call clears
+
+One call clears at most 10,000 subjects, in subject id order, and answers how
+many are left under `remaining` (counted to 10,000 and no further), so a
+tenant with more is cleared by calling again until `remaining` is `0`. The
+transcript above predates that field. Against `perf-demo`, with a run of five
+failures written for `grace` by `insert into login_failures`:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?locked=true"; echo
+curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$P/lockouts"; echo
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects?locked=true"; echo
+```
+
+```
+{"items":[{"id":"01a10f7d-bb83-7e78-ab4a-84756ef68b49","type":"user","username":"grace","email":null,"enabled":true,"created_at":"2026-10-06T04:34:20.673Z"}]}
+{"cleared":1,"beyond_ceiling":0,"remaining":0}
+{"items":[]}
 ```
 
 ## `POST /subjects/:id/password-reset` and `POST /subjects/:id/verification`
@@ -5235,6 +5318,30 @@ and two removals racing each other are what
 `packages/protocol-admin/tests/administrators.int.test.ts` shows; none of
 those was captured here.
 
+### The size of a replacement
+
+Every `PUT` that replaces a set — a subject's roles and groups, a group's roles,
+a scope's roles — refuses more than 200 ids with `400`, before it reads
+anything, so the set a `GET` answers and an `ETag` hashes is never larger than
+a page. Against the same stack as the other transcripts of this increment
+(`perf-demo`), 201 random ids:
+
+```bash
+curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'content-type: application/json' -H "If-Match: $ETAG" \
+  -d "{\"role_ids\":[$IDS_201]}" "$P/subjects/$G/roles"
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a10f7e-686f-7945-ac8b-8037916ab1d3
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 237
+
+{"type":"about:blank","title":"Error","status":400,"detail":"body/role_ids must NOT have more than 200 items","errors":[{"path":"role_ids","message":"must NOT have more than 200 items"}],"instance":"01a10f7e-686f-7945-ac8b-8037916ab1d3"}
+```
+
 ## `GET /subjects/:id/effective-roles`
 
 Requires `view-users`. Every role the subject holds — the set token issuance
@@ -5242,7 +5349,11 @@ and authorization read (`effectiveRoles`, `@odudu/domain-authz`), not only
 what `GET /subjects/:id/roles` assigns — each with `via`, every path it is held
 by: `direct`; `group`, naming the group the role is mapped to, which is the
 subject's own or one of its ancestors; or `composite`, naming the held role
-it is nested under. Unpaged, and with no `ETag`: `GET /subjects/:id/roles` is
+it is nested under. Paged in role id order, `limit` up to 200 and `link` and
+`next` as `GET /subjects` carries them, since a subject can reach more roles
+through groups and composites than any one assignment list holds; `via` is
+worked out for the page's roles only, in a constant number of queries. It has
+no `ETag`: `GET /subjects/:id/roles` is
 the list `PUT /subjects/:id/roles` replaces, and this is what follows from it.
 An unknown subject answers `404`.
 
@@ -5267,6 +5378,28 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 `billing-reader` is held twice over — through `/finance`, an ancestor of the
 group she is in, and nested under `billing-auditor` — and her assignments
 name neither.
+
+### Paging what a subject holds
+
+Against the stack of its own (`perf-demo`, `grace` assigned five tenant roles
+`role-reader`, `role-writer`, `role-auditor`, `role-billing` and `role-ops`),
+two at a time:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$P/subjects/$G/effective-roles?limit=2"
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a10f7e-2c5b-7c1d-88b0-0622d7c9fa00
+cache-control: no-store
+link: </admin/tenants/perf-demo/subjects/01a10f7d-bb83-7e78-ab4a-84756ef68b49/effective-roles?limit=2&cursor=eyJhZnRlciI6IjAxYTEwZjdlLTE4NDktNzY0MC1iZmQ2LTE5YThmZGY3YzA0NSIsImNvbGxlY3Rpb24iOiJlZmZlY3RpdmUtcm9sZXMiLCJ0ZW5hbnRJZCI6IjAxYTEwZjdkLWJiMGEtN2NhNy1iNGE1LTFmMTczNjA5YmZmNSIsImZpbHRlcnMiOiIyeXlYUlcwTFVqWkdra19nR29HdGVrLThCbTJ5RnoyT0lmb1lITUxRRVV3In0.CbEhjt6kfAHKMMl3V9_y4nRH3orhNcgZDKYzJT7wwN4>; rel="next"
+content-type: application/json; charset=utf-8
+content-length: 568
+
+{"items":[{"id":"01a10f7e-1815-797f-8beb-a15490ebc8b1","name":"role-reader","client_id":null,"client_key":null,"via":[{"kind":"direct"}]},{"id":"01a10f7e-1849-7640-bfd6-19a8fdf7c045","name":"role-writer","client_id":null,"client_key":null,"via":[{"kind":"direct"}]}],"next":"eyJhZnRlciI6IjAxYTEwZjdlLTE4NDktNzY0MC1iZmQ2LTE5YThmZGY3YzA0NSIsImNvbGxlY3Rpb24iOiJlZmZlY3RpdmUtcm9sZXMiLCJ0ZW5hbnRJZCI6IjAxYTEwZjdkLWJiMGEtN2NhNy1iNGE1LTFmMTczNjA5YmZmNSIsImZpbHRlcnMiOiIyeXlYUlcwTFVqWkdra19nR29HdGVrLThCbTJ5RnoyT0lmb1lITUxRRVV3In0.CbEhjt6kfAHKMMl3V9_y4nRH3orhNcgZDKYzJT7wwN4"}
+```
 
 ## `GET /subjects/:id/groups` and `PUT /subjects/:id/groups`
 
@@ -6148,6 +6281,28 @@ Keep-Alive: timeout=72
 {"type":"about:blank","title":"Conflict","status":409,"detail":"would create a role composite cycle","instance":"01a0ea62-7fdd-7315-8c7b-657bb3fb2b79"}
 ```
 
+### How many a role nests
+
+A role nests at most 200 composites, the size of the set `GET` returns whole.
+On `perf-demo`, after 200 `POST`s naming `kid-1` to `kid-200` under
+`parent-role-b`, the 201st:
+
+```bash
+curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'content-type: application/json' \
+  -d "{\"child_role_id\":\"$KID_201\"}" "$P/roles/$PARENT/composites"
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a10f7f-293d-76a0-ba3e-cc037c7c8436
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 151
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"a role nests at most 200 composites","instance":"01a10f7f-293d-76a0-ba3e-cc037c7c8436"}
+```
+
 ## `GET /roles/:id/composites` and `DELETE /roles/:id/composites/:childId`
 
 Both require `manage-tenant`. The read answers the role's **direct**
@@ -6498,6 +6653,31 @@ Keep-Alive: timeout=72
 {"type":"about:blank","title":"Forbidden","status":403,"detail":"a role handed to every new subject may reach no admin capability, and this one would reach: view-users","instance":"01a10bd5-5bf0-7460-9683-f92098742e2d"}
 {"id":"01a10bd5-5936-7527-bfc2-3cf4b330308c","name":"member","description":null,"client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-10-05T11:31:33.813Z","admin_reach":[]}
 ```
+
+### How many are handed out
+
+At most 200 roles are default at once, and at most 200 groups, because a new
+subject is given every one of them in one transaction. On `perf-demo`, after
+200 roles `dd-1` to `dd-200` were each set default, the 201st:
+
+```bash
+curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'content-type: application/json' -d '{"default":true}' \
+  "$P/roles/$DD_201/default"
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a10f7f-ccde-786c-ae84-8c0cda061c50
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 165
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"at most 200 roles are handed to every new subject","instance":"01a10f7f-ccde-786c-ae84-8c0cda061c50"}
+```
+
+`PUT /groups/:id/default` answers the same `409` for groups, with the detail
+`at most 200 groups are joined by every new subject`; it was not run separately.
 
 ## `GET /groups`, `POST /groups`, `GET /groups/:id`, `PATCH /groups/:id` and `DELETE /groups/:id`
 
@@ -7185,6 +7365,27 @@ curl -sS \
 ```
 {"items":[{"name":"profile"}],"next":null}
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"cursor is invalid or expired","errors":[{"path":"cursor","message":"is invalid or expired"}],"instance":"01a0ea5d-4b5b-7152-932f-b01589f6914d"}
+```
+
+### How many a tenant defines
+
+A tenant defines at most 1000 scopes: discovery and `/authorize` read the set,
+so it is bounded by the model rather than paged. On `perf-demo`, after `scope-1`
+to `scope-992` (the tenant provisions eight of its own), the next create:
+
+```bash
+curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'content-type: application/json' -d '{"name":"scope-extra"}' "$P/scopes"
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a10f80-e222-7bae-bfa8-615be1af2feb
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 152
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"a tenant defines at most 1000 scopes","instance":"01a10f80-e222-7bae-bfa8-615be1af2feb"}
 ```
 
 ## `GET /scopes/:id/roles` and `PUT /scopes/:id/roles`
