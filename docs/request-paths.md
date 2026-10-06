@@ -8263,25 +8263,54 @@ documents: every origin gets `Access-Control-Allow-Origin: *` and no `Vary`.
 CORS treatment of any kind — a header there would hand a script read access
 to the login page.
 
-`seed client --web-origin` registers origins as it creates a client, but
-the bootstrap `seed` form that also creates a user carries no such flag,
-and neither will add an origin to a client that already exists — so the
-three clients below were seeded normally and then given their origins with
-two direct `UPDATE`s against `client_oidc_config`, as captured; an `UPDATE`
-now empties a client's origins, so give them with `PATCH` or `seed client
---web-origin` instead — the commands after them are otherwise
-exactly what `## Path A` already used, against a second tenant seeded for
-this section (`cors-demo`, with clients `demo-spa` at
-`https://demo-spa.example`, `other-app` at `https://other-app.example`, and
-`spa-with-user` — also at `https://demo-spa.example` — carrying the user
-that signs in below).
+The origins are registered through the server, which is what keeps the
+preflight's table in step with them: `demo-spa` and `other-app` with `odudu
+seed client --public --web-origin`, and `spa-with-user`, created by the
+bootstrap `seed` form that carries no such flag, with a `PATCH` of its
+`web_origins` through the admin API. (An `UPDATE` in `psql` would empty a
+client's origins, not add one.) The tenant is `cors-demo`, on a stack of its
+own listening on port 3092, so the URLs below say `localhost:3092`; its
+clients are `demo-spa` at `https://demo-spa.example`, `other-app` at
+`https://other-app.example`, and `spa-with-user` — also at
+`https://demo-spa.example` — carrying the user `ada` that signs in below.
+Headers that differ on every run (`x-request-id`, `date`, `connection`,
+`keep-alive`) are left out of each response.
+
+```bash
+odudu seed tenant --name cors-demo
+odudu seed client --tenant cors-demo --client-id demo-spa --public \
+  --redirect-uri http://localhost:8080/callback --web-origin https://demo-spa.example
+odudu seed client --tenant cors-demo --client-id other-app --public \
+  --redirect-uri http://localhost:8080/callback --web-origin https://other-app.example
+odudu seed --tenant cors-demo --client spa-with-user \
+  --redirect-uri http://localhost:8080/callback \
+  --user ada --password correct-horse-battery --email ada@example.com
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H "If-Match: $ETAG" \
+  -H 'content-type: application/json' -d '{"web_origins":["https://demo-spa.example"]}' \
+  http://localhost:3092/admin/tenants/cors-demo/clients/$SPA_WITH_USER_ID
+```
+
+What that left, read with `psql` (the precondition of every answer below):
+
+```bash
+psql -c "select c.client_id, o.origin from client_origins o join clients c on c.id = o.client_id order by 1"
+```
+
+```
+   client_id   |          origin
+---------------+---------------------------
+ demo-spa      | https://demo-spa.example
+ other-app     | https://other-app.example
+ spa-with-user | https://demo-spa.example
+(3 rows)
+```
 
 A preflight for `/token`, from an origin that belongs to `other-app`, not to
 the client the real request below will name:
 
 ```bash
 curl -sS -D - -o /dev/null -X OPTIONS \
-  http://localhost:3000/tenants/cors-demo/protocol/openid-connect/token \
+  http://localhost:3092/tenants/cors-demo/protocol/openid-connect/token \
   -H "Origin: https://other-app.example" \
   -H "Access-Control-Request-Method: POST"
 ```
@@ -8303,7 +8332,7 @@ simply absent from a response that is otherwise unchanged:
 
 ```bash
 curl -sS -D - -o /dev/null -X POST \
-  http://localhost:3000/tenants/cors-demo/protocol/openid-connect/token \
+  http://localhost:3092/tenants/cors-demo/protocol/openid-connect/token \
   -H "Origin: https://other-app.example" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data "grant_type=refresh_token&refresh_token=bogus&client_id=demo-spa"
@@ -8315,6 +8344,7 @@ vary: Origin
 cache-control: no-store
 pragma: no-cache
 content-type: application/json; charset=utf-8
+content-length: 25
 ```
 
 (`access-control-allow-origin` does not appear in that response at all —
@@ -8330,6 +8360,7 @@ access-control-allow-origin: https://demo-spa.example
 cache-control: no-store
 pragma: no-cache
 content-type: application/json; charset=utf-8
+content-length: 25
 ```
 
 `/userinfo` takes the same split from the other side: the client comes from
@@ -8340,10 +8371,10 @@ header:
 
 ```bash
 curl -sS -D - -o /dev/null \
-  http://localhost:3000/tenants/cors-demo/protocol/openid-connect/userinfo \
+  http://localhost:3092/tenants/cors-demo/protocol/openid-connect/userinfo \
   -H "Authorization: Bearer $ACCESS_TOKEN" -H "Origin: https://demo-spa.example"
 curl -sS -D - -o /dev/null \
-  http://localhost:3000/tenants/cors-demo/protocol/openid-connect/userinfo \
+  http://localhost:3092/tenants/cors-demo/protocol/openid-connect/userinfo \
   -H "Authorization: Bearer $ACCESS_TOKEN" -H "Origin: https://other-app.example"
 ```
 
@@ -8352,22 +8383,24 @@ HTTP/1.1 200 OK
 vary: Origin
 access-control-allow-origin: https://demo-spa.example
 content-type: application/json; charset=utf-8
+content-length: 135
 ```
 
 ```
 HTTP/1.1 200 OK
 vary: Origin
 content-type: application/json; charset=utf-8
+content-length: 135
 ```
 
 The two public documents, from an origin nothing registered:
 
 ```bash
 curl -sS -D - -o /dev/null \
-  http://localhost:3000/tenants/cors-demo/protocol/openid-connect/certs \
+  http://localhost:3092/tenants/cors-demo/protocol/openid-connect/certs \
   -H "Origin: https://anything.example"
 curl -sS -D - -o /dev/null \
-  http://localhost:3000/tenants/cors-demo/.well-known/openid-configuration \
+  http://localhost:3092/tenants/cors-demo/.well-known/openid-configuration \
   -H "Origin: https://anything.example"
 ```
 
@@ -8375,12 +8408,14 @@ curl -sS -D - -o /dev/null \
 HTTP/1.1 200 OK
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
+content-length: 455
 ```
 
 ```
 HTTP/1.1 200 OK
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
+content-length: 2300
 ```
 
 (no `Vary` on either — a fixed wildcard has nothing to vary the response
@@ -8388,7 +8423,7 @@ on). And `/authorize`, which gets nothing:
 
 ```bash
 curl -sS -D - -o /dev/null -X OPTIONS \
-  http://localhost:3000/tenants/cors-demo/protocol/openid-connect/auth \
+  http://localhost:3092/tenants/cors-demo/protocol/openid-connect/auth \
   -H "Origin: https://other-app.example" \
   -H "Access-Control-Request-Method: GET"
 ```
@@ -8396,7 +8431,7 @@ curl -sS -D - -o /dev/null -X OPTIONS \
 ```
 HTTP/1.1 404 Not Found
 vary: Origin
-content-type: application/json; charset=utf-8
+content-type: application/problem+json; charset=utf-8
 ```
 
 No `access-control-allow-origin` — the browser gets nothing to read this
