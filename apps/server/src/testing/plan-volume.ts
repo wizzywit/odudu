@@ -32,6 +32,10 @@ export const PLAN_VOLUME = {
   // The size of each collection a drive pages through: more than MAX_LIMIT,
   // so a page of MAX_LIMIT is full and has a next page.
   fanOut: 300,
+  // Tables a tenant fills with one row per role, group or scope, or per sign-in:
+  // above the large-table threshold so a scan of one is caught.
+  registrationTokens: 6_000,
+  consoleRows: 6_000,
   // What a set the admin API replaces whole holds, at the most it may.
   assignments: ASSIGNMENT_LIMIT,
 } as const;
@@ -171,7 +175,28 @@ insert into client_scope_assignments (tenant_id, client_id, client_scope_id, ass
 select ${t}, c.id, s.id, 'optional' from vol_scopes s join vol_clients c on c.n <= ${v.fanOut} where s.n = 1;
 insert into client_registration_tokens (id, tenant_id, token_hash, remaining_uses, expires_at)
 select gen_random_uuid(), ${t}, md5(g::text) || md5('r' || g), 5, now() + interval '1 day'
-  from generate_series(1, ${v.fanOut}) g;
+  from generate_series(1, ${v.registrationTokens}) g;
+
+insert into group_roles (tenant_id, group_id, role_id)
+select ${t}, g.id, r.id from vol_groups g join vol_roles r on r.n = g.n where g.n between 2 and ${v.groups};
+insert into role_composites (tenant_id, parent_role_id, child_role_id)
+select ${t}, p.id, c.id from vol_roles p
+  join vol_roles c on c.n in (p.n + ${v.roles} / 2, p.n + ${v.roles} / 2 + 1)
+ where p.n between 2 and ${v.roles} / 2 - 1;
+insert into client_scope_roles (tenant_id, client_scope_id, role_id)
+select ${t}, s.id, r.id from vol_scopes s
+  join vol_roles r on r.n between s.n * 5 and s.n * 5 + 5 where s.n between 2 and ${v.scopes};
+insert into console_sessions (id, tenant_id, subject_id, secret_hash, access_token_wrapped,
+                              refresh_token_wrapped, id_token_wrapped, access_expires_at,
+                              created_at, last_seen_at, expires_at)
+select gen_random_uuid(), ${t}, s.id, decode(md5(g::text) || md5('s' || g), 'hex'), 'x', 'x', 'x',
+       now() + interval '5 minutes', now(), now(),
+       case when g <= ${v.consoleRows} / 50 then now() - interval '1 hour' else now() + interval '8 hours' end
+  from generate_series(1, ${v.consoleRows}) g join vol_subjects s on s.n = g;
+insert into console_logins (id, tenant_id, state_hash, verifier_wrapped, nonce, return_to, expires_at)
+select gen_random_uuid(), ${t}, decode(md5(g::text) || md5('l' || g), 'hex'), 'x', 'n', '/',
+       case when g <= ${v.consoleRows} / 50 then now() - interval '1 hour' else now() + interval '10 minutes' end
+  from generate_series(1, ${v.consoleRows}) g;
 
 insert into subject_roles (tenant_id, subject_id, role_id)
 select ${t}, s.id, r.id from vol_subjects s join vol_roles r on r.n = 1 + (s.n % ${v.roles});

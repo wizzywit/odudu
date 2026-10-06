@@ -47,3 +47,7 @@ CREATE INDEX audit_events_type
   ON audit_events (tenant_id, event_type, occurred_at DESC, id DESC);
 CREATE INDEX audit_events_outcome
   ON audit_events (tenant_id, outcome, occurred_at DESC, id DESC);
+CREATE INDEX client_oidc_config_by_tenant ON client_oidc_config (tenant_id, client_id);
+CREATE INDEX client_registration_tokens_spent ON client_registration_tokens (tenant_id, created_at)
+  WHERE remaining_uses = 0;
+CREATE INDEX console_sessions_by_seen ON console_sessions (tenant_id, last_seen_at);

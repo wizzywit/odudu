@@ -356,31 +356,43 @@ export async function adminReachOfGroups(
   groupIds: readonly string[],
 ): Promise<ReadonlyMap<string, readonly string[]>> {
   if (groupIds.length === 0) return new Map();
-  const rows = await tx.execute(
-    capabilitiesIn(sql`
-      WITH RECURSIVE chain(root, id, parent_id) AS (
-        SELECT id, id, parent_id FROM groups WHERE id IN (${idList(groupIds)})
-        UNION
-        SELECT ch.root, g.id, g.parent_id
-        FROM chain ch
-        CROSS JOIN LATERAL (
-          SELECT id, parent_id FROM groups WHERE id = ch.parent_id OFFSET 0
-        ) g
-      ),
-      closure(root, role_id) AS (
-        SELECT ch.root, gr.role_id
-        FROM chain ch
-        CROSS JOIN LATERAL (
-          SELECT role_id FROM group_roles WHERE group_id = ch.id OFFSET 0
-        ) gr
-        UNION
-        SELECT c.root, rc.child_role_id
-        FROM closure c
-        CROSS JOIN LATERAL (
-          SELECT child_role_id FROM role_composites WHERE parent_role_id = c.role_id OFFSET 0
-        ) rc
-      )`),
-  );
+  // Walked from the capabilities down to the page, not from the page up: the
+  // roles that reach an admin capability are few, where a page of groups can
+  // map two hundred roles each. `granting` is those roles; a group reaches a
+  // capability when it or an ancestor maps one, probed by (group, role).
+  const rows = await tx.execute(sql`
+    WITH RECURSIVE chain(root, id, parent_id) AS (
+      SELECT id, id, parent_id FROM groups WHERE id IN (${idList(groupIds)})
+      UNION
+      SELECT ch.root, g.id, g.parent_id
+      FROM chain ch
+      CROSS JOIN LATERAL (
+        SELECT id, parent_id FROM groups WHERE id = ch.parent_id OFFSET 0
+      ) g
+    ),
+    granting(role_id, name) AS (
+      SELECT r.id, r.name
+      FROM clients cl
+      JOIN roles r ON r.client_id = cl.id
+      WHERE cl.client_id = ${ADMIN_CLIENT_ID}
+        AND r.name IN (${sql.join(
+          ADMIN_CAPABILITIES.map((name) => sql`${name}`),
+          sql`, `,
+        )})
+      UNION
+      SELECT rc.parent_role_id, g.name
+      FROM granting g
+      CROSS JOIN LATERAL (
+        SELECT parent_role_id FROM role_composites WHERE child_role_id = g.role_id OFFSET 0
+      ) rc
+    )
+    SELECT DISTINCT ch.root::text AS root, g.name AS name
+    FROM chain ch
+    CROSS JOIN granting g
+    CROSS JOIN LATERAL (
+      SELECT 1 FROM group_roles gr WHERE gr.group_id = ch.id AND gr.role_id = g.role_id OFFSET 0
+    ) hit
+  `);
   return reachByRoot(groupIds, reachRowsSchema.parse(rows));
 }
 
