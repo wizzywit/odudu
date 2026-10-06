@@ -247,6 +247,9 @@ importers:
       '@odudu/console-gateway':
         specifier: workspace:*
         version: link:../../packages/console-gateway
+      '@odudu/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@odudu/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto

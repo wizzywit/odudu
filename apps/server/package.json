@@ -18,6 +18,7 @@
     "@odudu/account": "workspace:*",
     "@odudu/authn-flows": "workspace:*",
     "@odudu/console-gateway": "workspace:*",
+    "@odudu/contracts": "workspace:*",
     "@odudu/crypto": "workspace:*",
     "@odudu/db": "workspace:*",
     "@odudu/domain-audit": "workspace:*",
