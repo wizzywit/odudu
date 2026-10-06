@@ -290,3 +290,73 @@ describe('the scope default assignment, run by a schema owner that is not a supe
     expect(forced.map((table) => table.relforcerowsecurity)).toEqual([true]);
   }, 180_000);
 });
+
+// The last migration before each client's allowed origins got a table.
+const BEFORE_THE_ORIGINS = 95;
+
+describe('the client origins backfill, run by a schema owner that is not a superuser', () => {
+  let originsHandle: DatabaseHandle | undefined;
+
+  afterAll(async () => {
+    await originsHandle?.close();
+  });
+
+  it('writes a row for each existing client origin, and none for a form it cannot read', async () => {
+    const database = `${OWNER}_origins`;
+    await adminHandle?.sql.unsafe(`CREATE DATABASE ${database} OWNER ${OWNER}`);
+    const url = new URL(container.adminUrl);
+    url.username = OWNER;
+    url.password = OWNER;
+    url.pathname = `/${database}`;
+    originsHandle = createDatabase(url.toString(), { max: 2 });
+    const db = originsHandle;
+
+    const tenantId = newId();
+    const plain = newId();
+    const derived = newId();
+    const unicode = newId();
+    await runMigrations(db.db, await migrationsThrough(BEFORE_THE_ORIGINS));
+    await withTenant(db.db, tenantId, async (tx) => {
+      await tx.execute(
+        sql`insert into tenants (id, name) values (${tenantId}, ${`t-${tenantId}`})`,
+      );
+      for (const [id, uris, origins] of [
+        [plain, ['https://app.example/cb'], ['https://Listed.example:443']],
+        [derived, ['https://spa.example:8443/cb', 'myapp:/cb'], ['+']],
+        [unicode, ['https://münchen.example/cb'], ['https://münchen.example']],
+      ] as const) {
+        await tx.execute(sql`
+          insert into clients (id, tenant_id, client_id, name, type)
+          values (${id}, ${tenantId}, ${id}, ${id}, 'public')`);
+        await tx.execute(sql`
+          insert into client_oidc_config (client_id, tenant_id, redirect_uris, grant_types,
+                                          token_endpoint_auth_method, web_origins)
+          values (${id}, ${tenantId}, ${sql.raw(`ARRAY[${uris.map((u) => `'${u}'`).join(',')}]::text[]`)},
+                  ARRAY['authorization_code'], 'none',
+                  ${sql.raw(`ARRAY[${origins.map((o) => `'${o}'`).join(',')}]::text[]`)})`);
+      }
+    });
+
+    await runMigrations(db.db, MIGRATIONS_DIR);
+
+    const rows = await withTenant(db.db, tenantId, (tx) =>
+      tx.execute<{ client_id: string; origin: string }>(
+        sql`select client_id, origin from client_origins order by origin`,
+      ),
+    );
+    expect(
+      rows.map((row) => [
+        row.client_id === plain ? 'plain' : row.client_id === derived ? 'derived' : 'unicode',
+        row.origin,
+      ]),
+    ).toEqual([
+      ['plain', 'https://listed.example'],
+      ['derived', 'https://spa.example:8443'],
+    ]);
+    const forced = await db.sql<{ relname: string; relforcerowsecurity: boolean }[]>`
+      select relname, relforcerowsecurity from pg_class
+       where relname in ('client_oidc_config', 'client_origins') order by relname
+    `;
+    expect(forced.map((table) => table.relforcerowsecurity)).toEqual([true, true]);
+  }, 180_000);
+});

@@ -11,8 +11,8 @@ export function isWellFormedWebOrigin(value: string): boolean {
 
 export function normalizeOrigin(value: string): string | null {
   try {
-    const origin = new URL(value).origin;
-    return origin === 'null' ? null : origin;
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : null;
   } catch {
     return null;
   }

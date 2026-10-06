@@ -1,6 +1,8 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { eq, sql } from 'drizzle-orm';
 import { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
+import { clientOrigins } from '#/schema/client-origins';
+import { expandWebOrigins } from '#/service/web-origin';
 
 export type { ClientOidcConfig } from '#/schema/client-oidc-config';
 
@@ -97,6 +99,18 @@ export type NewClientOidcConfig = Omit<
   requireAuthTime?: boolean;
 };
 
+// The origins a client allows, rewritten from its lists as the server compares
+// origins (`expandWebOrigins`), so the preflight's probe and the request's
+// check cannot read the same entry two ways.
+async function writeOrigins(tx: TenantScopedDatabase, row: ClientOidcConfig): Promise<void> {
+  await tx.delete(clientOrigins).where(eq(clientOrigins.clientId, row.clientId));
+  const origins = [...expandWebOrigins(row.webOrigins, row.redirectUris)];
+  if (origins.length === 0) return;
+  await tx
+    .insert(clientOrigins)
+    .values(origins.map((origin) => ({ tenantId: row.tenantId, clientId: row.clientId, origin })));
+}
+
 export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
   return {
     // Keyed by the client's internal id (clients.id), not the OAuth
@@ -151,7 +165,9 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
       if (row === undefined) {
         throw new Error('insert into client_oidc_config returned no row');
       }
-      return toRecord(row);
+      const created = toRecord(row);
+      await writeOrigins(tx, created);
+      return created;
     },
 
     // Every amendable `client_oidc_config` column
@@ -173,9 +189,11 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
       if (row === undefined) {
         throw new Error(`client_oidc_config for client ${clientId} not found while amending it`);
       }
+      const updated = toRecord(row);
       if (patch.webOrigins !== undefined || patch.redirectUris !== undefined) {
+        await writeOrigins(tx, updated);
       }
-      return toRecord(row);
+      return updated;
     },
 
     // The exact-match list logout's confirmation and redirect decision reads
@@ -196,7 +214,7 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
     // `clients` and filtered to `enabled`: a client disabled because its
     // origin was compromised must not keep that origin working here. `origin`
     // is the normalised form `expandWebOrigins` produces; `client_origins`
-    // (0096) holds each client's, kept by a trigger on its lists.
+    // (0096) holds each client's, written with its lists.
     async webOriginAllowed(origin: string): Promise<boolean> {
       // The origin's rows first, then each one's client, probed by key: left
       // to join them as it likes the planner may walk every client of every

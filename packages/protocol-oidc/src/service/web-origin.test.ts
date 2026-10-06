@@ -42,6 +42,11 @@ describe('normalizeOrigin', () => {
   it('returns null for something that is not an origin', () => {
     expect(normalizeOrigin('not a url')).toBeNull();
   });
+
+  it('knows only http and https', () => {
+    expect(normalizeOrigin('ftp://files.example/cb')).toBeNull();
+    expect(normalizeOrigin('com.example.app:/cb')).toBeNull();
+  });
 });
 
 describe('expandWebOrigins', () => {

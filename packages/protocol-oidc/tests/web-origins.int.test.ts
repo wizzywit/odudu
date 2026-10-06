@@ -212,7 +212,7 @@ describe('clientOidcConfigRepository(tx).webOriginAllowed', () => {
     expect(await allowed(tenantId, 'https://after.example')).toBe(false);
   });
 
-  it('follows a change made in SQL, whoever makes it', async () => {
+  it('allows nothing for a client whose lists were edited in SQL, until the server rewrites them', async () => {
     const tenantId = newId();
     const clientId = await seedOne(tenantId, { webOrigins: ['https://before.example'] });
 
@@ -220,7 +220,23 @@ describe('clientOidcConfigRepository(tx).webOriginAllowed', () => {
       update client_oidc_config set web_origins = '{https://sql.example}' where client_id = ${clientId}`;
 
     expect(await allowed(tenantId, 'https://before.example')).toBe(false);
+    expect(await allowed(tenantId, 'https://sql.example')).toBe(false);
+
+    await withTenant(app.db, tenantId, (tx) =>
+      clientOidcConfigRepository(tx).update(clientId, { webOrigins: ['https://sql.example'] }),
+    );
     expect(await allowed(tenantId, 'https://sql.example')).toBe(true);
+  });
+
+  it('drops a client’s origins with its config row, whether or not the client stays', async () => {
+    const tenantId = newId();
+    const clientId = await seedOne(tenantId, { webOrigins: ['https://orphan.example'] });
+
+    await owner.sql`delete from client_oidc_config where client_id = ${clientId}`;
+
+    const [left] = await owner.sql<{ n: number }[]>`
+      select count(*)::int as n from client_origins where client_id = ${clientId}`;
+    expect(left?.n).toBe(0);
   });
 
   it('allows nothing another tenant lists', async () => {
@@ -252,25 +268,78 @@ describe('clientOidcConfigRepository(tx).webOriginAllowed', () => {
   });
 });
 
-describe('the origins the database derives from a client’s lists', () => {
-  const URIS = [
-    'https://App.Example:443/callback',
+// Strings the URL parser rewrites or rejects and a regular expression would
+// read differently: what the backfill declines, and what the server writes.
+const CORPUS = [
+  'https://app.example',
+  'https://App.Example:443',
+  'http://a.example:80',
+  'http://a.example:8080/x?y=z#f',
+  'HTTPS://UPPER.example/cb',
+  'https://sub.domain.example:8443',
+  'http://localhost:3000',
+  'https://127.0.0.1:8443/cb',
+  'https://münchen.example',
+  'https://a.example:0443',
+  'https://a.example:0080',
+  'https://a.example:65535',
+  'https://a.example:65536',
+  'https://a.example:99999',
+  'https://a.example:0',
+  'http://127.1',
+  'http://0x7f.1',
+  'http://2130706433',
+  'https://1.2.3',
+  'https://example.123',
+  'https://%61.example',
+  'https://[0:0:0:0:0:0:0:1]',
+  'https://[::1]:3000/cb',
+  'ftp://files.example/cb',
+  'com.example.app:/oauth2redirect',
+  'urn:ietf:wg:oauth:2.0:oob',
+  'https://evil.com\\@good.com/cb',
+  'https://user:secret@h.example/p',
+  'https://a.example.',
+  'https://a..example',
+  'https://-a.example',
+  ' https://a.example',
+  'https://a.example\n',
+  'https://a b.example',
+];
+
+describe('the origins of the backfill and of the server', () => {
+  it.each(CORPUS)('agree on %j, or the backfill declines it', async (value) => {
+    const [row] = await owner.sql<{ origin: string | null }[]>`
+      select client_origin_if_canonical(${value}) as origin`;
+    const server = [...expandWebOrigins([value], [])][0] ?? null;
+    const viaRedirect = [...expandWebOrigins(['+'], [value])][0] ?? null;
+    expect(viaRedirect).toBe(server);
+    if (row?.origin !== null && row?.origin !== undefined) expect(row.origin).toBe(server);
+  });
+
+  it.each([
+    'https://app.example',
+    'https://App.Example:443',
     'http://a.example:80',
     'http://a.example:8080/x?y=z#f',
-    'https://user:secret@h.example/p',
-    'HTTPS://UPPER.example/cb',
-    'https://[::1]:3000/cb',
-    'com.example.app:/oauth2redirect',
-    'urn:ietf:wg:oauth:2.0:oob',
-    'https://sub.domain.example:8443',
-  ];
+    'http://localhost:3000',
+    'https://127.0.0.1:8443/cb',
+  ])('reads %j as the server does', async (value) => {
+    const [row] = await owner.sql<{ origin: string | null }[]>`
+      select client_origin_if_canonical(${value}) as origin`;
+    expect(row?.origin).toBe([...expandWebOrigins([value], [])][0]);
+  });
 
-  it('are the ones the server compares: what expandWebOrigins gives for the same lists', async () => {
-    const [derived] = await owner.sql<{ origins: string[] }[]>`
-      select coalesce(array_agg(o order by o), '{}') as origins
-        from client_origins_of(${['+', 'https://Listed.example:443']}::text[], ${URIS}::text[]) o`;
-
-    const expected = [...expandWebOrigins(['+', 'https://Listed.example:443'], URIS)].sort();
-    expect(derived?.origins).toEqual(expected);
+  it.each(CORPUS)('are written as the server compares them for %j', async (value) => {
+    const tenantId = newId();
+    let clientId: string;
+    try {
+      clientId = await seedOne(tenantId, { webOrigins: [value] });
+    } catch {
+      return;
+    }
+    const rows = await owner.sql<{ origin: string }[]>`
+      select origin from client_origins where client_id = ${clientId} order by origin`;
+    expect(rows.map((row) => row.origin)).toEqual([...expandWebOrigins([value], [])].sort());
   });
 });

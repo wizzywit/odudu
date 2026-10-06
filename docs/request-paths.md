@@ -8248,12 +8248,14 @@ belongs to a different client in the same tenant is, correctly, withheld on
 the real request — no status code or body changes, the header is just
 absent, and the browser discards the response on its own.
 
-The tenant's union is one index probe, not a read of every client: a
-trigger on `client_oidc_config` keeps a `client_origins` row for each
-`web_origins` entry (and each `redirect_uris` origin), so the preflight asks
-whether one origin is registered and a tenant with ten thousand clients pays
-what a tenant with one does. The trigger fires on a plain `UPDATE`, which is
-how the origins below were registered.
+The tenant's union is one index probe, not a read of every client: the
+server keeps a `client_origins` row for each `web_origins` entry (and each
+`redirect_uris` origin, where `+` asks for them) whenever it writes those lists,
+with the same normaliser the request side uses, so the preflight asks whether
+one origin is registered and a tenant with ten thousand clients pays what a
+tenant with one does. A list edited in SQL empties that client's rows, so the
+origin is refused until the client is amended through the server (`PATCH`, or
+`seed client --web-origin`), never left allowed after it was removed.
 
 `/certs` and `/.well-known/openid-configuration` are unauthenticated public
 documents: every origin gets `Access-Control-Allow-Origin: *` and no `Vary`.
@@ -8265,8 +8267,9 @@ to the login page.
 the bootstrap `seed` form that also creates a user carries no such flag,
 and neither will add an origin to a client that already exists — so the
 three clients below were seeded normally and then given their origins with
-two direct `UPDATE`s against `client_oidc_config` — the commands after them
-are otherwise
+two direct `UPDATE`s against `client_oidc_config`, as captured; an `UPDATE`
+now empties a client's origins, so give them with `PATCH` or `seed client
+--web-origin` instead — the commands after them are otherwise
 exactly what `## Path A` already used, against a second tenant seeded for
 this section (`cors-demo`, with clients `demo-spa` at
 `https://demo-spa.example`, `other-app` at `https://other-app.example`, and

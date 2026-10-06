@@ -1806,9 +1806,12 @@ table, not the page; P11 owns it (see the last paragraph).
   `descendantsOf`, `ancestorsOf`, `closureFrom`, `rolesReachableFrom` and the
   holder queries of `capability-ceiling.ts`.
 - _A CORS preflight read every client's origins in the tenant._ The union is
-  now `client_origins`, one row per origin, kept by a trigger on
-  `client_oidc_config` (migration `0096`), so the preflight is one probe and a
-  hand-written `UPDATE` still registers an origin.
+  now `client_origins`, one row per origin, written by the repository with the
+  request side's own normaliser (migration `0096`), so the preflight is one
+  probe. The existing rows are backfilled in SQL only where the value is
+  already in the parser's form; an IDN, zero-padded port, numeric-shorthand
+  or IPv6 host gets no row until its client is amended, so it fails closed. A
+  hand-written `UPDATE` of the lists empties the client's rows.
 - _Twenty-two foreign keys had no index_, and about twenty lookups (a subject's
   credentials, sessions, grants and action tokens, a client's grants, default
   roles and groups, locked subjects, the disabled rows of clients and tenants,
