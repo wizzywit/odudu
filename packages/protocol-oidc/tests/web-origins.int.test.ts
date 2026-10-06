@@ -307,6 +307,63 @@ const CORPUS = [
   'https://a b.example',
 ];
 
+describe('page and rewriteOrigins, probed with a foreign tenant_id', () => {
+  const seeded = async (tx: TenantScopedDatabase, tenantId: string) => {
+    const clientId = newId();
+    await seedTenantAndClient(tx, tenantId, clientId);
+    const config = await clientOidcConfigRepository(tx).create({
+      clientId,
+      tenantId,
+      redirectUris: ['https://app.example/callback'],
+      grantTypes: ['authorization_code'],
+      tokenEndpointAuthMethod: 'client_secret_basic',
+      audiences: [],
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1_209_600,
+      webOrigins: ['https://probe.example'],
+    });
+    return { config, origin: 'https://probe.example' };
+  };
+
+  it('lists no other tenant’s config', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seeded,
+      verifySeeded: async (tx, { config }) => {
+        const page = await clientOidcConfigRepository(tx).page(undefined, 10);
+        expect(page.map((row) => row.clientId)).toContain(config.clientId);
+      },
+      attempt: (tx) => clientOidcConfigRepository(tx).page(undefined, 10),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+
+  it('writes no origin for another tenant’s config', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seeded,
+      verifySeeded: async (tx, { origin }) => {
+        expect(await clientOidcConfigRepository(tx).webOriginAllowed(origin)).toBe(true);
+      },
+      // Empty lists: what would delete the rows were the policy not there.
+      attempt: async (tx, { config }) => {
+        await clientOidcConfigRepository(tx).rewriteOrigins({
+          ...config,
+          webOrigins: [],
+          redirectUris: [],
+        });
+        return 'no-op';
+      },
+      expectBlocked: (result) => {
+        expect(result).toBe('no-op');
+      },
+      verifyTenantAUnaffected: async (tx, { origin }) => {
+        expect(await clientOidcConfigRepository(tx).webOriginAllowed(origin)).toBe(true);
+      },
+    });
+  });
+});
+
 describe('the origins of the backfill and of the server', () => {
   it.each(CORPUS)('agree on %j, or the backfill declines it', async (value) => {
     const [row] = await owner.sql<{ origin: string | null }[]>`

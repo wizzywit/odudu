@@ -138,6 +138,25 @@ describe('GET /subjects/:id/admin-capabilities', () => {
     expect(body.items.length).toBe(ADMIN_CARRIER_LIMIT);
   });
 
+  it('answers 404 for a subject of another tenant, whatever it holds', async () => {
+    const mine = await fixture.createTenant(`caps-${newId()}`);
+    const theirs = await fixture.createTenant(`caps-${newId()}`);
+    const foreign = await withTenant(fixture.app.db, theirs.id, async (tx) => {
+      const admin = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      const users =
+        admin === null ? null : await roleRepository(tx).byName('manage-users', admin.id);
+      if (users === null) throw new Error('no manage-users');
+      const subject = await subjectRepository(tx).create({ tenantId: theirs.id, type: 'user' });
+      await roleRepository(tx).assignToSubject(subject.id, users.id);
+      return subject.id;
+    });
+    const own = await fixture.adminToken(mine.name, ['view-users']);
+    const theirsToken = await fixture.adminToken(theirs.name, ['view-users']);
+
+    expect((await read(mine.name, foreign, own)).statusCode).toBe(404);
+    expect((await read(theirs.name, foreign, theirsToken)).statusCode).toBe(200);
+  });
+
   it('answers 404 for an id no subject holds, and 403 without view-users', async () => {
     const t = await fixture.createTenant(`caps-${newId()}`);
     const reader = await fixture.adminToken(t.name, ['view-users']);

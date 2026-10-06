@@ -5,7 +5,8 @@ import { ADMIN_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { adminReachOfGroups, adminReachOfRoles } from '#/service/capability-ceiling';
+import { sql } from 'drizzle-orm';
+import { adminReachOfGroups, adminReachOfRoles, grantingCte } from '#/service/capability-ceiling';
 import { etagOf } from '#/service/etag';
 import { storedFields } from '#/testing/stored-fields';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -309,6 +310,38 @@ describe('the batched reach reads, probed with a foreign tenant_id', () => {
       }),
       expectBlocked: (result) => {
         expect(result).toEqual({ roles: [[]], groups: [[]] });
+      },
+    });
+  });
+});
+
+describe('grantingCte, probed with a foreign tenant_id', () => {
+  it('reaches nothing of another tenant', async () => {
+    const reaching = async (tx: Parameters<typeof adminReachOfRoles>[0]): Promise<string[]> => {
+      const rows = await tx.execute<{ name: string }>(
+        sql`WITH RECURSIVE ${grantingCte()} SELECT name FROM granting ORDER BY name`,
+      );
+      return rows.map((row) => row.name);
+    };
+    await expectCrossTenantMethodProbe(fixture.app.db, {
+      seed: async (tx, tenantId) => {
+        await tx.insert(tenants).values({ id: tenantId, name: `probe-${newId()}` });
+        const client = await clientRepository(tx).create({
+          tenantId,
+          clientId: ADMIN_CLIENT_ID,
+          name: 'admin',
+          type: 'public',
+          secretHash: null,
+        });
+        await roleRepository(tx).create({ tenantId, name: 'view-audit', clientId: client.id });
+        return tenantId;
+      },
+      verifySeeded: async (tx) => {
+        expect(await reaching(tx)).toEqual(['view-audit']);
+      },
+      attempt: (tx) => reaching(tx),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
       },
     });
   });
