@@ -399,11 +399,17 @@ test('a token lifetime and a grant type are changed, each on its own save and re
   expect(configColumn('tokens', 'id_token_ttl_seconds')).toBe('<null>');
 
   const grants = page.getByRole('region', { name: 'Grant types' });
-  await grants.getByRole('checkbox', { name: /Refresh token/u }).click();
+  expect(configList('tokens', 'grant_types')).toBe(
+    'authorization_code,refresh_token,client_credentials',
+  );
+  await grants.getByText('Token exchange', { exact: true }).click();
+  await expect(grants.getByRole('checkbox', { name: 'Token exchange' })).toBeChecked();
   await grants.getByRole('button', { name: 'Save Grant types' }).click();
   await expect
     .poll(() => configList('tokens', 'grant_types'))
-    .toBe('authorization_code,refresh_token');
+    .toBe(
+      'authorization_code,refresh_token,client_credentials,urn:ietf:params:oauth:grant-type:token-exchange',
+    );
   await expectAccessible(page);
 
   // A lifetime past the range the server holds is held to it, and nothing is stored.
@@ -622,20 +628,20 @@ test("who is signed in through a client is listed, and revoking its tokens takes
   await expect(sessions).toContainText(admin.username);
   await expectAccessible(page);
 
-  await openClient(page, 'ledger', 'sessions');
+  await openClient(page, 'revoked', 'sessions');
   await expect(page.getByText('Nobody is signed in through this client.')).toBeVisible();
-  await page.getByRole('button', { name: /^Revoke every token of/u }).click();
-  const dialog = page.getByRole('alertdialog', { name: /^Revoke every token of/u });
-  await expect(dialog).toContainText('Every grant issued through Ledger is revoked');
+  await page.getByRole('button', { name: 'Revoke every token of revoked' }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Revoke every token of revoked?' });
+  await expect(dialog).toContainText('Every grant issued through revoked is revoked');
   await expect(dialog.getByRole('button', { name: 'Revoke every token' })).toBeDisabled();
   await expectAccessible(page);
-  await dialog.getByRole('textbox').fill('ledger');
+  await dialog.getByRole('textbox').fill('revoked');
   await dialog.getByRole('button', { name: 'Revoke every token' }).click();
-  await expect(page.getByText('0 grants of Ledger revoked.')).toBeVisible();
+  await expect(page.getByText('0 grants of revoked revoked.')).toBeVisible();
   await expect
     .poll(() =>
       psql(
-        `select count(*) from audit_events where tenant_id = ${IN_TENANT} and action = 'client.grants_revoke' and resource_id = ${sqlText(clientId('ledger'))}`,
+        `select count(*) from audit_events where tenant_id = ${IN_TENANT} and action = 'client.grants_revoke' and resource_id = ${sqlText(clientId('revoked'))}`,
       ),
     )
     .toBe('1');

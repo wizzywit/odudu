@@ -111,7 +111,7 @@ function seedClients(tenant: string): void {
   };
   const own = ['ledger', 'closed', 'doomed', 'held', UNBROKEN];
   // One per test that changes its tokens, scopes, keys, secret or service account.
-  const configured = ['tokens', 'scoped', 'keyed', 'rotated', 'serviced'];
+  const configured = ['tokens', 'scoped', 'keyed', 'rotated', 'serviced', 'revoked'];
   for (const clientId of [...own, ...configured]) confidential(clientId);
   seed(['scope', '--tenant', tenant, '--name', 'reports:read']);
   seed(['role', '--tenant', tenant, '--name', 'reader']);
