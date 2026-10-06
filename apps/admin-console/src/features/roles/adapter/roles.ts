@@ -1,16 +1,14 @@
 import {
-  countResponseSchema,
   listRoleCompositesResponseSchema,
   roleSchema,
-  type CountResponse,
   type ListRoleCompositesResponse,
   type Role,
 } from '@odudu/contracts/admin';
 import { z } from 'zod';
-import { readRolePage } from '#/shared/adapter/directory.ts';
+import { readRoleCount, readRolePage } from '#/shared/adapter/directory.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 
-export { readRolePage };
+export { readRoleCount, readRolePage };
 
 const nothing = z.undefined();
 
@@ -20,17 +18,6 @@ function path(tenant: string): string {
 
 function segment(id: string): string {
   return encodeURIComponent(id);
-}
-
-export function readRoleCount(
-  gateway: Gateway,
-  tenant: string,
-  query: URLSearchParams,
-): Promise<GatewayResult<CountResponse>> {
-  const t = path(tenant);
-  return gateway.request('GET', `admin/tenants/${t}/roles/count?${query.toString()}`, {
-    schema: countResponseSchema,
-  });
 }
 
 // A tenant role: a client's own roles are made from that client's page.

@@ -88,6 +88,11 @@
   transition: border-color var(--motion-fast) var(--ease);
 }
 
+.textarea[data-mono] {
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+}
+
 .textarea[data-hovered] {
   border-color: var(--ink-muted);
 }

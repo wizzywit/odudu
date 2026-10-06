@@ -262,7 +262,8 @@ function counted(length: number, limit: number): string {
 }
 
 // Free text of some length, such as a description: the one control taller
-// than --control-height, with a count against the limit the server holds.
+// than --control-height, with a count against the limit the server holds
+// where it holds one.
 export function TextAreaField({
   label,
   description,
@@ -271,14 +272,27 @@ export function TextAreaField({
   isDisabled,
   value,
   limit,
+  mono = false,
   onChange,
-}: Chrome & { value: string; limit: number; onChange: (value: string) => void }) {
+}: Chrome & {
+  value: string;
+  limit?: number;
+  // Text in a machine's syntax, such as a key set.
+  mono?: boolean;
+  onChange: (value: string) => void;
+}) {
   if (use(FieldsReadOnly)) {
     return (
-      <ReadOnlyValue label={label} value={value} description={description} changed={changed} />
+      <ReadOnlyValue
+        label={label}
+        value={value}
+        description={description}
+        mono={mono}
+        changed={changed}
+      />
     );
   }
-  const over = value.length > limit;
+  const over = limit !== undefined && value.length > limit;
   return (
     <AriaTextField
       {...VALIDATION}
@@ -291,12 +305,20 @@ export function TextAreaField({
       data-changed={changed === true || undefined}
     >
       <Header label={label} {...(changed === undefined ? {} : { changed })} />
-      <TextArea className={styles.textarea ?? ''} data-control rows={3} spellCheck />
+      <TextArea
+        className={styles.textarea ?? ''}
+        data-control
+        data-mono={mono || undefined}
+        rows={mono ? 8 : 3}
+        spellCheck={!mono}
+      />
       <Description>
         {description === undefined ? null : <>{description} </>}
-        <span className={styles.count} data-over={over || undefined}>
-          {counted(value.length, limit)}
-        </span>
+        {limit === undefined ? null : (
+          <span className={styles.count} data-over={over || undefined}>
+            {counted(value.length, limit)}
+          </span>
+        )}
       </Description>
       <Message error={error} />
     </AriaTextField>
@@ -694,7 +716,23 @@ function removeAt<T>(list: readonly T[], index: number): T[] {
   return list.filter((_, i) => i !== index);
 }
 
-export function UrlListField({
+interface ListFieldProps extends Chrome {
+  itemLabel: string;
+  itemErrors?: readonly (string | undefined)[];
+  value: readonly string[];
+  onChange: (value: readonly string[]) => void;
+}
+
+export function UrlListField(props: ListFieldProps) {
+  return <ListField {...props} type="url" />;
+}
+
+// Entries that are names or identifiers rather than addresses.
+export function TextListField(props: ListFieldProps) {
+  return <ListField {...props} type="text" />;
+}
+
+function ListField({
   label,
   itemLabel,
   description,
@@ -704,12 +742,8 @@ export function UrlListField({
   isDisabled = false,
   value,
   onChange,
-}: Chrome & {
-  itemLabel: string;
-  itemErrors?: readonly (string | undefined)[];
-  value: readonly string[];
-  onChange: (value: readonly string[]) => void;
-}) {
+  type,
+}: ListFieldProps & { type: 'url' | 'text' }) {
   const focus = useRowFocus(value.length);
   const rows = useRowIds(value.length);
   const readOnly = use(FieldsReadOnly);
@@ -745,7 +779,7 @@ export function UrlListField({
           <div key={rows.ids[i]} className={styles.row} data-row>
             <RowInput
               label={`${itemLabel} ${position}`}
-              type="url"
+              type={type}
               value={url}
               error={itemErrors[i]}
               isDisabled={isDisabled}

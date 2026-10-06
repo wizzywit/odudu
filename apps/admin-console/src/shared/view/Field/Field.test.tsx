@@ -11,6 +11,7 @@ import {
   SelectField,
   TextAreaField,
   TextField,
+  TextListField,
   ToggleField,
   UrlListField,
   type KeyValuePair,
@@ -290,6 +291,25 @@ describe('UrlListField', () => {
   });
 });
 
+describe('TextListField', () => {
+  it('holds names that are not addresses, in rows of plain text', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <TextListField
+        label="Audiences"
+        itemLabel="Audience"
+        value={['billing-api']}
+        onChange={onChange}
+      />,
+    );
+    const row = screen.getByRole('textbox', { name: 'Audience 1' });
+    expect(row).toHaveAttribute('type', 'text');
+    await user.click(screen.getByRole('button', { name: 'Add audience' }));
+    expect(onChange).toHaveBeenCalledWith(['billing-api', '']);
+  });
+});
+
 function Pairs({ initial }: { initial: readonly KeyValuePair[] }) {
   const [pairs, setPairs] = useState(initial);
   return (
@@ -484,6 +504,24 @@ it('offers no autofill unless a page declares the data the operator’s own', ()
     'autocomplete',
     'off',
   );
+});
+
+describe('TextAreaField without a limit', () => {
+  it('counts nothing, and holds machine text in its own face', () => {
+    render(<TextAreaField label="Key set" value='{"keys":[]}' mono onChange={vi.fn()} />);
+    const area = screen.getByRole('textbox', { name: 'Key set' });
+    expect(area).toHaveAttribute('data-mono');
+    expect(screen.queryByText(/characters/u)).toBeNull();
+  });
+
+  it('shows as text, in the same face, on a page that cannot be changed', () => {
+    render(
+      <ReadOnlyFields when>
+        <TextAreaField label="Key set" value='{"keys":[]}' mono onChange={vi.fn()} />
+      </ReadOnlyFields>,
+    );
+    expect(screen.getByText('{"keys":[]}')).toHaveAttribute('data-mono');
+  });
 });
 
 describe('TextAreaField', () => {
