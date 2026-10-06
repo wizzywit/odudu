@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 
 // Modules only some pages need must arrive with those pages' chunks, never
@@ -14,6 +15,11 @@ const FEATURE_ONLY = [
   { what: "react-aria's ComboBox", marker: 'react-aria-ComboBox' },
   { what: "react-aria's DateInput", marker: 'react-aria-DateInput' },
 ] as const;
+
+// The entry chunk's gzip size, in bytes (ADR 0041). Set at 145,018 B, the
+// size once the React Compiler was on, plus 5%, rounded up to a whole kB of
+// 1,000 B. A larger entry is a decision: raise this beside the reason.
+const ENTRY_GZIP_BUDGET = 153_000;
 
 interface Chunk {
   readonly name: string;
@@ -89,5 +95,15 @@ describe("the console's feature-only modules", () => {
       chunked.filter((c) => c.text.includes(FEATURE_ONLY[1].marker)).map((c) => c.name),
     ).toEqual(['shared-b.js']);
     expect(names).toContain('shared-b.js');
+  });
+
+  it('keeps the entry chunk within its gzip byte budget', () => {
+    const entry = all.find((chunk) => chunk.name.startsWith('index-'));
+    const bytes = entry === undefined ? 0 : gzipSync(Buffer.from(entry.text)).length;
+    expect(bytes, 'the entry chunk, gzipped').toBeGreaterThan(0);
+    expect(
+      bytes,
+      `${entry?.name ?? 'the entry'} is ${String(bytes)} B gzipped, over its budget of ${String(ENTRY_GZIP_BUDGET)} B`,
+    ).toBeLessThanOrEqual(ENTRY_GZIP_BUDGET);
   });
 });
