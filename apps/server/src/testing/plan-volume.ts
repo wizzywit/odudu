@@ -310,11 +310,27 @@ export async function seedPlanVolume(owner: DatabaseHandle, target: VolumeTarget
     // that would re-check every one are switched off for this connection:
     // with them the load takes more than twice as long.
     await connection.unsafe("set session_replication_role = 'replica'");
+    // Keys that are the same on every run: a gen_random_uuid() found first on
+    // the search path counts instead of drawing, so the same seed is the same
+    // data and the statistics taken of it do not move between runs.
+    await connection.unsafe(`
+      create schema vol_keys;
+      create sequence vol_keys.n;
+      create function vol_keys.gen_random_uuid() returns uuid language sql
+        as $$ select overlay(overlay(md5(nextval('vol_keys.n')::text) placing '4' from 13 for 1)
+                              placing '8' from 17 for 1)::uuid $$`);
+    await connection.unsafe('set search_path = vol_keys, public, pg_catalog');
     for (const statement of volumeStatements(target)) await connection.unsafe(statement);
-    // Vacuumed as well as analyzed: a table a server has run on has its
-    // visibility map set, which is what lets an index-only scan skip the heap.
+    await connection.unsafe('set search_path = public, pg_catalog');
+    await connection.unsafe('drop schema vol_keys cascade');
+    // Statistics from every row, not a sample of 30,000: a target of 10,000
+    // samples 3,000,000 rows, more than any table here holds, so the plans do
+    // not depend on which rows a random draw took. Vacuumed as well, which sets
+    // the visibility map an index-only scan relies on.
+    await connection.unsafe('set default_statistics_target = 10000');
     await connection.unsafe('vacuum analyze');
   } finally {
+    await connection.unsafe('reset default_statistics_target');
     await connection.unsafe('reset session_replication_role');
     connection.release();
   }

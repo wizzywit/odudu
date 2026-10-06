@@ -5,14 +5,18 @@ import {
   explain,
   findings,
   isWork,
+  readsOnly,
   scansOf,
   StatementRecorder,
+  type ExplainOptions,
+  type Finding,
   type PlanBudget,
+  type PlanNode,
   type ScanSummary,
   type Statement,
 } from '#/testing/plan-capture';
 import { MAX_LIMIT } from '@odudu/contracts/admin';
-import { COUNT_CAP } from '@odudu/protocol-admin';
+import { ADMIN_ROUTES, COUNT_CAP } from '@odudu/protocol-admin';
 import {
   adminIds,
   adminTokens,
@@ -47,6 +51,7 @@ let world: PlanWorld;
 let budget: PlanBudget;
 let counts: QueryCount[] = [];
 let sizes: ReadSize[] = [];
+const explained = { searched: 0, generic: 0 };
 const inventory: { path: string; area: string; query: string; scans: ScanSummary[] }[] = [];
 
 beforeAll(async () => {
@@ -102,12 +107,37 @@ function distinct(run: PathRun): Statement[] {
 // AUDIT_EXPORT_CAP), checked by the export tests, so no plan rule applies.
 const EXPORTS = /^GET \/admin\/tenants\/[^/]+\/(audit\/)?export$/u;
 
+// A search holds its own collection to two pages of reads: it must stop at the
+// page, not read what matches. Judged under a page cost a spinning disk gives, at
+// which the planner prices a bitmap of the matches under an ordered scan.
+const SEARCHED =
+  /^GET \/admin\/tenants\/[^/]+\/(clients|roles|groups|scopes|subjects|tenants)\?(name|client_id|username|email|given_name|family_name|display_name)=/u;
+const LISTED_TABLES: Record<string, readonly string[]> = {
+  clients: ['clients', 'client_oidc_config'],
+  roles: ['roles'],
+  groups: ['groups'],
+  scopes: ['client_scopes'],
+  subjects: ['users', 'subjects'],
+  tenants: ['tenants'],
+};
+const TWO_PAGES = 2 * (MAX_LIMIT + 1);
+const SPINNING_DISK = ['random_page_cost = 4'];
+
+function line(run: PathRun, finding: Finding, statement: Statement, note = ''): string {
+  return `${run.path}: ${finding.rule} on ${finding.table} (${finding.node}, ${String(finding.rows)} rows ${finding.basis}${note}): ${statement.query.replace(/\s+/gu, ' ').slice(0, 400)}`;
+}
+
+async function planned(statement: Statement, options?: ExplainOptions): Promise<PlanNode> {
+  return explain(statement.handle === 'owner' ? world.owner : world.app, statement, options);
+}
+
 async function violations(run: PathRun): Promise<string[]> {
   const out: string[] = [];
+  const searched = SEARCHED.exec(run.path);
   for (const statement of distinct(run)) {
-    let plan;
+    let plan: PlanNode;
     try {
-      plan = await explain(statement.handle === 'owner' ? world.owner : world.app, statement);
+      plan = await planned(statement);
     } catch (error) {
       throw new Error(`${run.path}: could not explain ${statement.query.slice(0, 300)}`, {
         cause: error,
@@ -119,12 +149,29 @@ async function violations(run: PathRun): Promise<string[]> {
       query: statement.query.replace(/\s+/gu, ' ').slice(0, 220),
       scans: scansOf(plan),
     });
+    if (EXPORTS.test(run.path)) continue;
     for (const finding of findings(plan, budget)) {
       if (run.outputBound === true && finding.rule === 'wide-scan') continue;
-      if (EXPORTS.test(run.path)) continue;
-      out.push(
-        `${run.path}: ${finding.rule} on ${finding.table} (${finding.node}, ${String(finding.rows)} rows ${finding.basis}): ${statement.query.replace(/\s+/gu, ' ').slice(0, 400)}`,
-      );
+      out.push(line(run, finding, statement));
+    }
+    const listed = searched?.[1] === undefined ? [] : (LISTED_TABLES[searched[1]] ?? []);
+    if (listed.length > 0 && readsOnly(statement)) {
+      explained.searched += 1;
+      const pessimistic = await planned(statement, { settings: SPINNING_DISK });
+      for (const finding of findings(pessimistic, { ...budget, rowsPerRead: TWO_PAGES })) {
+        if (listed.includes(finding.table)) {
+          out.push(line(run, finding, statement, ', a search holds to two pages'));
+        }
+      }
+    }
+    // The plan a prepared statement switches to after a few runs is made without
+    // the values: it must not be a scan of a large table either.
+    if (run.area === 'admin' && readsOnly(statement)) {
+      explained.generic += 1;
+      const generic = await planned(statement, { generic: true });
+      for (const finding of findings(generic, budget)) {
+        if (finding.rule === 'seq-scan') out.push(line(run, finding, statement, ', generic plan'));
+      }
     }
   }
   return out;
@@ -161,7 +208,7 @@ describe('every statement a path sends', () => {
       writeFileSync(join(out, 'inventory.json'), JSON.stringify(inventory, null, 1));
       writeFileSync(
         join(out, 'summary.txt'),
-        `seed ${String(world.volumeSeconds)} s, ${String(log.runs.length)} paths, ${String(inventory.length)} statements\n`,
+        `seed ${String(world.volumeSeconds)} s, ${String(log.runs.length)} paths, ${String(inventory.length)} statements, ${String(explained.searched)} held to two pages, ${String(explained.generic)} planned generically\n`,
       );
       writeFileSync(
         join(out, 'counts.txt'),
@@ -169,5 +216,44 @@ describe('every statement a path sends', () => {
       );
     }
     expect(all).toEqual([]);
+  }, 300_000);
+});
+
+// Routes the drives do not reach, each with the reason a plan over this volume
+// says nothing more about it. Every other route of the admin API is driven.
+const NOT_DRIVEN: Readonly<Record<string, string>> = {
+  'POST /admin/tenants/:tenant/smtp/test':
+    'reads the tenant\u2019s one settings row and opens a socket to the SMTP host: no query depends on the volume',
+};
+
+function routePattern(pattern: string): RegExp {
+  const source = pattern
+    .split('/')
+    .map((part) => (part.startsWith(':') ? '[^/?]+' : part.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')))
+    .join('/');
+  return new RegExp(`^${source}$`, 'u');
+}
+
+describe('every admin route', () => {
+  it('is driven by the check, or named as not driven with a reason', () => {
+    const driven = log.runs
+      .filter((run) => run.area === 'admin')
+      .map((run) => {
+        const [method = '', rest = ''] = run.path.split(' ', 2);
+        const url = (run.path.slice(method.length + 1).split(' (')[0] ?? rest).split('?')[0] ?? '';
+        return { method, url };
+      });
+    const missing = ADMIN_ROUTES.filter((route) => {
+      const key = `${route.method} ${route.pattern}`;
+      if (NOT_DRIVEN[key] !== undefined) return false;
+      const re = routePattern(route.pattern);
+      return !driven.some((run) => run.method === route.method && re.test(run.url));
+    }).map((route) => `${route.method} ${route.pattern}`);
+    expect(missing).toEqual([]);
+    expect(
+      Object.keys(NOT_DRIVEN).filter(
+        (key) => !ADMIN_ROUTES.some((r) => `${r.method} ${r.pattern}` === key),
+      ),
+    ).toEqual([]);
   });
 });

@@ -58,6 +58,40 @@ jobs:
       - name: Prune the Turborepo cache
         run: node tools/turbo-cache/src/index.ts .turbo/cache .turbo/runs
 
+  # Seeds a fifth of the design volume in a throwaway Postgres and holds the
+  # server's real query plans to ADR 0041. Minutes of seeding, so it is a job
+  # of its own and not part of `verify`.
+  query-plans:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      QUERY_PLANS_OUT: ${{ github.workspace }}/query-plans-out
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check the query plans at volume
+        run: pnpm test:plans
+
+      - name: Upload the plan inventory
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: query-plans-inventory
+          path: query-plans-out
+          retention-days: 14
+
   container:
     runs-on: ubuntu-latest
     timeout-minutes: 20

@@ -11,6 +11,12 @@ interface Call {
   // Fetched first, and sent as If-Match, for the routes that refuse without it.
   readonly etagFrom?: string;
   readonly system?: boolean;
+  readonly as?: 'usersOnly' | 'sessionsOnly';
+  // The `id` of this call's answer, kept to fill `{name}` in a later call's url.
+  readonly saveAs?: string;
+  // A body made from what another route answers, for a replacement of a set
+  // the tenant already holds.
+  readonly bodyFrom?: { readonly url: string; readonly make: (answer: unknown) => unknown };
 }
 
 // The mutating routes, each answering through the lookups a write makes: the
@@ -67,6 +73,53 @@ export async function driveAdminWrites(
       select subject_id as id from users where tenant_id = ${t} and username like 'user1%' limit 50`
   ).map((row) => row.id);
 
+  const one = pick;
+  const probe = ids.subject;
+  const credential = await one(
+    sql`select id from user_credentials where tenant_id = ${t} and subject_id = ${probe} limit 1`,
+    'credential',
+  );
+  const consentClient = await one(
+    sql`select client_id as id from consents where tenant_id = ${t} and subject_id = ${probe} limit 1`,
+    'consent',
+  );
+  const probeSession = await one(
+    sql`select id from sessions where tenant_id = ${t} and subject_id = ${probe} limit 1`,
+    'session',
+  );
+  const grantClient = await one(
+    sql`select client_id as id from token_grants where tenant_id = ${t} and subject_id = ${probe} limit 1`,
+    'grant',
+  );
+  const roleNamed = (name: string) =>
+    one(sql`select id from roles where tenant_id = ${t} and name = ${name}`, name);
+  const groupNamed = (name: string) =>
+    one(sql`select id from groups where tenant_id = ${t} and name = ${name}`, name);
+  const nestedParent = await roleNamed('role-3001');
+  const nestedChild = await roleNamed('role-3002');
+  const edgeChild = await roleNamed('role-2');
+  const defaultRole = await roleNamed('role-3003');
+  const defaultGroup = await groupNamed('group-3003');
+  const patchedRole = await roleNamed('role-3004');
+  const patchedGroup = await groupNamed('group-3004');
+  const mappedGroup = await groupNamed('group-3005');
+  const patchedScope = await one(
+    sql`select id from client_scopes where tenant_id = ${t} and name = 'scope-3'`,
+    'scope',
+  );
+  const scopeClient = await one(
+    sql`select id from clients where tenant_id = ${t} and client_id = 'app-20'`,
+    'client',
+  );
+  const secretClient = await one(
+    sql`select id from clients where tenant_id = ${t} and client_id = 'app-30' and type = 'confidential'
+        union all select id from clients where tenant_id = ${t} and client_id = 'plans-app' limit 1`,
+    'confidential client',
+  );
+  const [exportable] = await sql<{ name: string }[]>`
+    select name from tenants where name ~ '^tn11[0-9]*$' order by name limit 1`;
+  if (exportable === undefined) throw new Error('no small tenant to export');
+
   const calls: [string, Call][] = [
     [
       'create a subject',
@@ -103,6 +156,18 @@ export async function driveAdminWrites(
       { method: 'DELETE', url: `${T}/subjects/${editedSubject}/grants` },
     ],
     ['clear every lockout of the tenant', { method: 'DELETE', url: `${T}/lockouts` }],
+    [
+      'clear the lockouts as a caller holding one capability',
+      { method: 'DELETE', url: `${T}/lockouts`, as: 'usersOnly' },
+    ],
+    [
+      'end every session as a caller holding one capability',
+      { method: 'DELETE', url: `${T}/sessions`, as: 'sessionsOnly' },
+    ],
+    [
+      'revoke a client’s grants as a caller holding one capability',
+      { method: 'DELETE', url: `${T}/clients/${editedClient}/grants`, as: 'sessionsOnly' },
+    ],
     [
       'bulk disable subjects',
       { method: 'POST', url: `${T}/subjects/bulk`, body: { action: 'disable', ids: bulkIds } },
@@ -176,30 +241,233 @@ export async function driveAdminWrites(
       'delete a tenant',
       { method: 'DELETE', url: `/admin/tenants/${small.name}?confirm=${small.name}`, system: true },
     ],
+    [
+      'amend a subject’s profile',
+      {
+        method: 'PATCH',
+        url: `${T}/subjects/${editedSubject}/profile`,
+        body: { given_name: 'Plan' },
+      },
+    ],
+    [
+      'delete a credential',
+      { method: 'DELETE', url: `${T}/subjects/${probe}/credentials/${credential}` },
+    ],
+    [
+      'withdraw a consent',
+      { method: 'DELETE', url: `${T}/subjects/${probe}/consents/${consentClient}` },
+    ],
+    ['set a password', { method: 'POST', url: `${T}/subjects/${editedSubject}/password` }],
+    [
+      'mail a password reset',
+      { method: 'POST', url: `${T}/subjects/${editedSubject}/password-reset` },
+    ],
+    ['mail a verification', { method: 'POST', url: `${T}/subjects/${editedSubject}/verification` }],
+    [
+      'mail required actions',
+      {
+        method: 'POST',
+        url: `${T}/subjects/${editedSubject}/actions-email`,
+        body: { actions: ['update-password'] },
+      },
+    ],
+    ['clear one lockout', { method: 'DELETE', url: `${T}/subjects/${editedSubject}/lockout` }],
+    [
+      'delete the recovery codes',
+      { method: 'DELETE', url: `${T}/subjects/${editedSubject}/recovery-codes` },
+    ],
+    [
+      'require actions of a subject',
+      {
+        method: 'PUT',
+        url: `${T}/subjects/${editedSubject}/required-actions`,
+        body: { actions: ['update-password'] },
+      },
+    ],
+    [
+      'end one session',
+      { method: 'DELETE', url: `${T}/subjects/${probe}/sessions/${probeSession}` },
+    ],
+    [
+      'revoke a subject’s grants for one client',
+      { method: 'DELETE', url: `${T}/subjects/${probe}/grants/${grantClient}` },
+    ],
+    [
+      'import a tenant',
+      {
+        method: 'POST',
+        url: '/admin/tenant-imports',
+        system: true,
+        body: { name: `imported-${newId().slice(-8)}`, document: {} },
+        bodyFrom: {
+          url: `/admin/tenants/${exportable.name}/export`,
+          make: (answer: unknown) => ({ name: `imported-${newId().slice(-8)}`, document: answer }),
+        },
+      },
+    ],
+    [
+      'amend the tenant',
+      {
+        method: 'PATCH',
+        url: `/admin/tenants/${TARGET_TENANT}`,
+        system: true,
+        body: { display_name: 'Plans' },
+      },
+    ],
+    ['rotate a client secret', { method: 'POST', url: `${T}/clients/${secretClient}/secret` }],
+    [
+      'revoke a registration token',
+      { method: 'DELETE', url: `${T}/registration-tokens/${ids.registrationToken}` },
+    ],
+    [
+      'amend a role',
+      {
+        method: 'PATCH',
+        url: `${T}/roles/${patchedRole}`,
+        body: { description: 'amended' },
+        etagFrom: `${T}/roles/${patchedRole}`,
+      },
+    ],
+    [
+      'nest a role',
+      {
+        method: 'POST',
+        url: `${T}/roles/${nestedParent}/composites`,
+        body: { child_role_id: nestedChild },
+      },
+    ],
+    ['unnest a role', { method: 'DELETE', url: `${T}/roles/${ids.role}/composites/${edgeChild}` }],
+    [
+      'make a role a default',
+      { method: 'PUT', url: `${T}/roles/${defaultRole}/default`, body: { default: true } },
+    ],
+    [
+      'amend a group',
+      {
+        method: 'PATCH',
+        url: `${T}/groups/${patchedGroup}`,
+        body: { description: 'amended' },
+        etagFrom: `${T}/groups/${patchedGroup}`,
+      },
+    ],
+    [
+      'replace a group’s roles',
+      {
+        method: 'PUT',
+        url: `${T}/groups/${mappedGroup}/roles`,
+        body: { role_ids: [ids.role] },
+        etagFrom: `${T}/groups/${mappedGroup}/roles`,
+      },
+    ],
+    [
+      'make a group a default',
+      { method: 'PUT', url: `${T}/groups/${defaultGroup}/default`, body: { default: true } },
+    ],
+    [
+      'amend a scope',
+      {
+        method: 'PATCH',
+        url: `${T}/scopes/${patchedScope}`,
+        body: { description: 'amended' },
+        etagFrom: `${T}/scopes/${patchedScope}`,
+      },
+    ],
+    [
+      'replace a scope’s roles',
+      {
+        method: 'PUT',
+        url: `${T}/scopes/${ids.scope}/roles`,
+        body: { role_ids: [ids.role] },
+        etagFrom: `${T}/scopes/${ids.scope}/roles`,
+      },
+    ],
+    [
+      'set a scope’s mappers',
+      { method: 'PUT', url: `${T}/scopes/${patchedScope}/mappers`, body: { mapper_names: [] } },
+    ],
+    [
+      'assign a scope to a client',
+      {
+        method: 'PUT',
+        url: `${T}/scopes/${patchedScope}/clients/${scopeClient}`,
+        body: { assignment: 'optional' },
+      },
+    ],
+    [
+      'unassign a scope from a client',
+      { method: 'DELETE', url: `${T}/scopes/${patchedScope}/clients/${scopeClient}` },
+    ],
+    [
+      'create a signing key',
+      { method: 'POST', url: `${T}/keys`, body: { alg: 'ES256' }, saveAs: 'newKey' },
+    ],
+    ['promote a signing key', { method: 'POST', url: `${T}/keys/{newKey}/promote` }],
+    ['retire a signing key', { method: 'POST', url: `${T}/keys/{newKey}/retire` }],
+    ['delete a signing key', { method: 'DELETE', url: `${T}/keys/{newKey}` }],
+    [
+      'set the tenant’s SMTP',
+      {
+        method: 'PUT',
+        url: `${T}/smtp`,
+        body: { host: 'smtp.example.test', port: 587, from_address: 'plans@example.test' },
+      },
+    ],
+    ['delete the tenant’s SMTP', { method: 'DELETE', url: `${T}/smtp` }],
+    [
+      'replace the sign-in flow',
+      {
+        method: 'PUT',
+        url: `${T}/flow/executions`,
+        body: [],
+        bodyFrom: {
+          url: `${T}/flow/executions`,
+          make: (answer: unknown) =>
+            ((answer as { items?: unknown[] }).items ?? []).map((item) => ({
+              authenticator: (item as { authenticator: string }).authenticator,
+              requirement: (item as { requirement: string }).requirement,
+            })),
+        },
+      },
+    ],
   ];
 
+  const saved = new Map<string, string>();
   for (const [label, call] of calls) {
-    const token = call.system === true ? tokens.system : tokens.tenant;
+    const token =
+      call.as !== undefined
+        ? tokens[call.as]
+        : call.system === true
+          ? tokens.system
+          : tokens.tenant;
     const headers: Record<string, string> = { authorization: `Bearer ${token}` };
-    if (call.body !== undefined) headers['content-type'] = 'application/json';
+    const url = call.url.replace(/\{(\w+)\}/gu, (_, name: string) => saved.get(name) ?? name);
+    let body = call.body;
+    if (call.bodyFrom !== undefined) {
+      const from = await world.http.inject({ url: call.bodyFrom.url, headers });
+      body = call.bodyFrom.make(from.json());
+    }
+    if (body !== undefined) headers['content-type'] = 'application/json';
     if (call.etagFrom !== undefined) {
       const current = await world.http.inject({ url: call.etagFrom, headers });
       headers['if-match'] = String(current.headers.etag);
     }
     const res: LightMyRequestResponse = await capture(
-      `${call.method} ${call.url.replace(/[0-9a-f-]{36}/gu, '<id>')} (${label})`,
+      `${call.method} ${url.replace(/[0-9a-f-]{36}/gu, '<id>')} (${label})`,
       'admin',
       () =>
         world.http.inject({
           method: call.method,
-          url: call.url,
+          url,
           headers,
-          ...(call.body === undefined ? {} : { payload: JSON.stringify(call.body) }),
+          ...(body === undefined ? {} : { payload: JSON.stringify(body) }),
         }),
     );
+    if (call.saveAs !== undefined) {
+      saved.set(call.saveAs, res.json<{ id: string }>().id);
+    }
     if (res.statusCode >= 500 || res.statusCode === 401 || res.statusCode === 403) {
       throw new Error(
-        `${call.method} ${call.url} (${label}): ${String(res.statusCode)} ${res.body.slice(0, 300)}`,
+        `${call.method} ${url} (${label}): ${String(res.statusCode)} ${res.body.slice(0, 300)}`,
       );
     }
   }

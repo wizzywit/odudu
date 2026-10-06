@@ -40,6 +40,16 @@ export interface WorldConnections {
   readonly app: DatabaseOptions;
 }
 
+// The settings the plans are judged under, fixed so a run's plans depend on the
+// data and the code: no background analyze replacing the statistics mid-run, no
+// parallel workers, and the page cost of the SSD a deployment runs on.
+async function pinPlanner(owner: DatabaseHandle): Promise<void> {
+  await owner.sql.unsafe('alter system set autovacuum = off');
+  await owner.sql.unsafe('alter system set max_parallel_workers_per_gather = 0');
+  await owner.sql.unsafe('alter system set random_page_cost = 1.1');
+  await owner.sql.unsafe('select pg_reload_conf()');
+}
+
 // One tenant provisioned the way an operator does, scaled up in SQL, beside
 // thousands of small ones, and the real composition root over both
 // connections the server uses.
@@ -47,6 +57,7 @@ export async function startPlanWorld(connections: WorldConnections): Promise<Pla
   const container = await startTestDatabase();
   const owner = createDatabase(container.adminUrl, { max: 3, ...connections.owner });
   await runMigrations(owner.db, MIGRATIONS_DIR);
+  await pinPlanner(owner);
   const appUrl = await createAppRole(container.adminUrl);
   const app = createDatabase(appUrl, { max: 5, ...connections.app });
 

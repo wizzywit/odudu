@@ -1714,7 +1714,8 @@ function.
 
 ### Server query plans
 
-`apps/server/tests/query-plans.int.test.ts` runs the server's real code over a
+`apps/server/tests/query-plans.plan.test.ts` (`pnpm test:plans`, the
+`query-plans` job in CI, not part of `verify`) runs the server's real code over a
 seeded volume and fails on what ADR 0041 forbids: a foreign key without an
 index, a collection answered with more than `MAX_LIMIT` rows, a list that
 sends more statements for 200 rows than for one, and a statement whose plan

@@ -128,6 +128,10 @@ export async function mintAdminToken(
 export interface AdminTokens {
   readonly tenant: string;
   readonly system: string;
+  // Callers holding one capability each, which every other is beyond: the
+  // widest set of holders a ceiling over the tenant has to exclude.
+  readonly usersOnly: string;
+  readonly sessionsOnly: string;
 }
 
 export async function adminTokens(world: PlanWorld): Promise<AdminTokens> {
@@ -143,6 +147,12 @@ export async function adminTokens(world: PlanWorld): Promise<AdminTokens> {
     system: await mintAdminToken(world, { id: system.id, name: SYSTEM_TENANT_NAME }, [
       MANAGE_TENANTS,
       ...TENANT_CAPABILITIES,
+    ]),
+    usersOnly: await mintAdminToken(world, { id: world.tenantId, name: TARGET_TENANT }, [
+      'manage-users',
+    ]),
+    sessionsOnly: await mintAdminToken(world, { id: world.tenantId, name: TARGET_TENANT }, [
+      'manage-sessions',
     ]),
   };
 }

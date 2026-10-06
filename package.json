@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "turbo run test --concurrency=4",
+    "test:plans": "pnpm --filter @odudu/server test:plans",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:node-esm": "pnpm --filter @odudu/protocol-admin test:node-esm",

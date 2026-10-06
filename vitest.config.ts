@@ -11,7 +11,7 @@ const CONSOLE = 'apps/admin-console';
 // package alone, so each package's results can be cached on their own.
 const scope = relative(REPO_ROOT, process.cwd());
 
-function globs(): { unit: string[]; integration: string[]; dom: string[] } {
+function globs(): { unit: string[]; integration: string[]; dom: string[]; plans: string[] } {
   if (scope === '') {
     return {
       unit: [
@@ -24,18 +24,25 @@ function globs(): { unit: string[]; integration: string[]; dom: string[] } {
         '{packages,apps}/*/src/**/*.int.test.ts',
       ],
       dom: [`${CONSOLE}/src/**/*.test.{ts,tsx}`],
+      plans: ['{packages,apps}/*/tests/**/*.plan.test.ts'],
     };
   }
-  if (scope === 'tests') return { unit: ['**/*.test.ts'], integration: [], dom: [] };
-  if (scope === CONSOLE) return { unit: [], integration: [], dom: ['src/**/*.test.{ts,tsx}'] };
+  if (scope === 'tests') return { unit: ['**/*.test.ts'], integration: [], dom: [], plans: [] };
+  if (scope === CONSOLE) {
+    return { unit: [], integration: [], dom: ['src/**/*.test.{ts,tsx}'], plans: [] };
+  }
   return {
     unit: ['src/**/*.test.{ts,tsx}'],
     integration: ['tests/**/*.int.test.ts', 'src/**/*.int.test.ts'],
     dom: [],
+    plans: ['tests/**/*.plan.test.ts'],
   };
 }
 
-const { unit, integration, dom } = globs();
+const { unit, integration, dom, plans } = globs();
+// The query-plan check seeds millions of rows and takes minutes, so it runs
+// only where it is asked for (`pnpm test:plans`), in a job of its own.
+const planFiles = process.env.ODUDU_QUERY_PLANS === '1' ? plans : [];
 
 export default defineConfig({
   test: {
@@ -63,6 +70,17 @@ export default defineConfig({
           setupFiles: SETUP,
           testTimeout: 120_000,
           hookTimeout: 120_000,
+          fileParallelism: false,
+        },
+      },
+      {
+        test: {
+          name: 'plans',
+          include: planFiles,
+          environment: 'node',
+          setupFiles: SETUP,
+          testTimeout: 300_000,
+          hookTimeout: 600_000,
           fileParallelism: false,
         },
       },

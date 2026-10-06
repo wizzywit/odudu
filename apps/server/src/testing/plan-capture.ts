@@ -138,13 +138,29 @@ class Rolled extends Error {
   }
 }
 
-export async function explain(handle: DatabaseHandle, statement: Statement): Promise<PlanNode> {
-  const options = readsOnly(statement) ? 'ANALYZE, TIMING OFF, FORMAT JSON' : 'FORMAT JSON';
+export interface ExplainOptions {
+  // Planner settings to run under, each `name = value`, for one transaction.
+  readonly settings?: readonly string[];
+  // The plan a prepared statement is switched to after a few executions: one
+  // made without the values, which cannot see how few rows a value matches.
+  readonly generic?: boolean;
+}
+
+export async function explain(
+  handle: DatabaseHandle,
+  statement: Statement,
+  options: ExplainOptions = {},
+): Promise<PlanNode> {
+  const mode =
+    readsOnly(statement) && options.generic !== true
+      ? 'ANALYZE, TIMING OFF, FORMAT JSON'
+      : 'FORMAT JSON';
   try {
     await handle.sql.begin(async (tx) => {
       if (statement.tenantId !== undefined) {
         await tx`select set_config('app.tenant_id', ${statement.tenantId}, true)`;
       }
+      for (const setting of options.settings ?? []) await tx.unsafe(`set local ${setting}`);
       // Typed as the driver typed them when the statement ran. The hook sees
       // a value after the driver has serialized it, and a boolean is then
       // the text 't' or 'f', which the driver would serialize to 'f' again.
@@ -153,10 +169,44 @@ export async function explain(handle: DatabaseHandle, statement: Statement): Pro
         if (oid === BOOLEAN_OID) return tx.typed(value === 't', oid);
         return oid === 0 ? value : tx.typed(value, oid);
       }) as Parameters<typeof tx.unsafe>[1];
-      const rows = await tx.unsafe<{ 'QUERY PLAN': unknown }[]>(
-        `EXPLAIN (${options}) ${statement.query}`,
-        parameters,
-      );
+      let prepared = false;
+      let rows: { 'QUERY PLAN': unknown }[];
+      if (options.generic === true) {
+        await tx.unsafe('set local plan_cache_mode = force_generic_plan');
+        // EXECUTE is a utility statement and takes no bound parameters: the
+        // values are written into it as literals, the types as declared.
+        const typeNames = new Map<number, string>();
+        for (const oid of new Set(statement.types ?? [])) {
+          if (oid === 0) continue;
+          const [row] = await tx.unsafe<{ name: string }[]>(
+            `select format_type(${String(oid)}::oid, null) as name`,
+          );
+          typeNames.set(oid, row?.name ?? 'unknown');
+        }
+        const names = statement.parameters.map((_, index) => ({
+          name: typeNames.get(statement.types?.[index] ?? 0) ?? 'unknown',
+        }));
+        const declared = names.length === 0 ? '' : ` (${names.map((n) => n.name).join(', ')})`;
+        await tx.unsafe(`PREPARE plan_check${declared} AS ${statement.query}`);
+        prepared = true;
+        const literals = statement.parameters.map((value) => {
+          if (value === null || value === undefined) return 'NULL';
+          const text =
+            typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+              ? String(value)
+              : JSON.stringify(value);
+          return `'${text.replaceAll("'", "''")}'`;
+        });
+        rows = await tx.unsafe<{ 'QUERY PLAN': unknown }[]>(
+          `EXPLAIN (${mode}) EXECUTE plan_check${literals.length === 0 ? '' : `(${literals.join(', ')})`}`,
+        );
+      } else {
+        rows = await tx.unsafe<{ 'QUERY PLAN': unknown }[]>(
+          `EXPLAIN (${mode}) ${statement.query}`,
+          parameters,
+        );
+      }
+      if (prepared) await tx.unsafe('DEALLOCATE plan_check');
       throw new Rolled(rows[0]?.['QUERY PLAN']);
     });
   } catch (error) {

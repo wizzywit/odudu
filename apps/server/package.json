@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "dev": "node --watch --env-file-if-exists=../../.env src/main.ts",
     "build": "tsup",
+    "test:plans": "ODUDU_QUERY_PLANS=1 vitest run --config ../../vitest.config.ts --project plans",
     "test": "vitest run --config ../../vitest.config.ts --reporter=default --reporter=json --outputFile=trace-report.json"
   },
   "dependencies": {
