@@ -1,7 +1,11 @@
-import { render, screen } from '@testing-library/react';
-import { expect, it } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
 import { Timestamp } from '#/shared/view/Timestamp/Timestamp.tsx';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const NOW = new Date('2026-09-28T12:00:00Z');
 
@@ -21,4 +25,14 @@ it('passes axe in both themes', async () => {
   expect(await axeInBothThemes(() => <Timestamp value="2026-09-28T11:57:00Z" now={NOW} />)).toEqual(
     { light: [], dark: [] },
   );
+});
+
+it('moves its relative time on as the clock does, with no parent render', () => {
+  vi.useFakeTimers({ now: NOW });
+  render(<Timestamp value="2026-09-28T11:57:00Z" />);
+  expect(screen.getByText('3 minutes ago')).toBeInTheDocument();
+  act(() => {
+    vi.advanceTimersByTime(5 * 60_000);
+  });
+  expect(screen.getByText('8 minutes ago')).toBeInTheDocument();
 });
