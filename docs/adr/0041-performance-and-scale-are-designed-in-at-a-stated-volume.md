@@ -114,3 +114,37 @@ picked in the new-tenant flow from 134 to 125. The entry chunk grew from
 `useMemo`, `useCallback` or `memo()` needs a `// measured: <path>` line above
 it naming a file that exists (`tests/lint/console-no-manual-memo.test.ts`).
 Phase note: `docs/phases/p4d.md`, "Performance".
+
+## Amendment — 2026-10-07 — the server's bounds, measured
+
+**Fixed in size by the model.** A set the API replaces whole (a subject's
+roles and groups, a group's or scope's roles, a role's composites, the
+default roles and groups) holds at most `ASSIGNMENT_LIMIT` (200), a tenant at
+most `SCOPE_LIMIT` (1,000) scopes, and a bulk write or a count at most
+`BULK_WRITE_LIMIT` (10,000). Each is enforced where the rows are written, under
+a lock where two writers could both pass the check, and refused with a status
+that names the limit; an export or import past one says so with the count.
+That, not a page, is what "fixed in size by the model" means for a whole-set
+resource. A collection that grows without a limit is paged.
+
+**`jit = off`.** Every connection opens with the startup parameter
+`jit=off` (`createDatabase`). A recursive closure over roles or groups is
+costed above `jit_above_cost` whatever it reads, and compiling about 400
+functions for a seventeen-row lookup took 1.2 s. A deployment must not undo
+it: a client other than `createDatabase` has to set it, and a pooler in front
+of the database has to pass it, since PgBouncer refuses an unknown startup
+parameter unless `ignore_startup_parameters` names `jit`. `ALTER ROLE ... SET
+jit = off` on the serving role holds for every client and is the setting to
+prefer where the pooler is a given.
+
+**The plan check.** `apps/server/tests/query-plans.plan.test.ts` is the test
+the first consequence names. It runs as `pnpm test:plans`, in the `query-plans`
+job of `verify.yml` (15 minutes, uploading its inventory on failure) and not in
+`verify`: it seeds about a fifth of the subjects and the design count of
+clients, and takes minutes. It drives every admin route or names why not, holds
+a search to two pages under a spinning-disk page cost, and plans each admin read
+generically as well as with its values. The job is meant to be a required
+check; protection is the owner's to change. Its determinism is part of the
+design: keys that count, statistics taken from every row, autovacuum off,
+planner settings pinned. A run that fails names the path, table and node.
+Details: `docs/phases/p4d.md`, "Server query plans".
