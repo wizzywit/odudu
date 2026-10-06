@@ -921,7 +921,10 @@ test("a service account's roles changed behind an open page are shown beside you
   await section.getByRole('button', { name: 'Save Roles' }).click();
   await expect(section.getByText(/changed elsewhere/u).first()).toBeVisible();
   await expectAccessible(page);
-  forgive(problems, `/subjects/`);
+  forgive(
+    problems,
+    `/subjects/${psql(`select service_subject_id from clients where id = ${sqlText(clientId('racedservice'))}::uuid`)}/roles`,
+  );
   expect(serviceRoles('racedservice')).toBe('writer');
   await section.getByRole('button', { name: 'Keep mine in Roles' }).click();
   await expect.poll(() => serviceRoles('racedservice')).toBe('reader');
