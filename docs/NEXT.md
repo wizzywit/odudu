@@ -36,7 +36,10 @@ per-package Turbo test caching in CI (ADRs 0038 and 0039;
 console's foundation — the transport, the Instrument design system, the
 shell, the session and drafts, and the e2e harness
 ([docs/phases/p4d.md](phases/p4d.md)) — and **Part 4, the console's
-features, is next**; what it inherits and owes is below.
+features, is in progress**: Tasks 1–12 of
+[its plan](superpowers/plans/2026-09-29-p4d-part4-console-features.md) have
+landed, Clients included, and Task 12b (`odudu-admin` made confidential) is
+next. What Part 4 inherits and owes is below.
 
 **P4e filled that audit trail.** Beside `admin_mutation`, it writes
 `admin_access`, `authentication`, `session`, `token` and `credential` rows,
