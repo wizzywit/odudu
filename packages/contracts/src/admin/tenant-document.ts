@@ -7,6 +7,7 @@ import {
   ASSIGNMENT_LIMIT,
   CLIENT_LIST_LIMIT,
   fieldErrorSchema,
+  listLimitMessage,
   type FieldError,
 } from '#/admin/shared';
 import { requiredActionSchema } from '#/admin/subjects';
@@ -114,7 +115,9 @@ function assignmentSet<T extends z.ZodType>(item: T) {
 }
 
 function clientList() {
-  return boundedSet(z.string(), CLIENT_LIST_LIMIT);
+  return z.array(z.string()).max(CLIENT_LIST_LIMIT, {
+    error: (issue) => listLimitMessage(Array.isArray(issue.input) ? issue.input.length : 0),
+  });
 }
 
 export const exportedClientSchema = z.strictObject({

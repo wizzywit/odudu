@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLIENT_LIST_LIMIT } from '#/admin/shared';
+import { CLIENT_LIST_LIMIT, listLimitMessage } from '#/admin/shared';
 import {
   REGISTRATION_POLICY_SETTINGS,
   tenantDocumentSchema,
@@ -145,7 +145,7 @@ describe('the lists a client of a document may hold', () => {
     expect(refused.success).toBe(false);
     expect(refused.error?.issues[0]).toMatchObject({
       path: ['clients', 0, field],
-      message: `${String(CLIENT_LIST_LIMIT + 1)} entries, at most ${String(CLIENT_LIST_LIMIT)}`,
+      message: listLimitMessage(CLIENT_LIST_LIMIT + 1),
     });
     const atLimit = tenantDocumentSchema.safeParse({
       ...DOCUMENT,

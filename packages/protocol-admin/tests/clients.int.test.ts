@@ -180,7 +180,13 @@ describe('POST /admin/tenants/{t}/clients', () => {
     // Pinned to the body it was computed from, not merely present — an
     // ETag that stopped tracking the response (stale, or hashing a
     // different shape) would still satisfy `toBeDefined()`.
-    expect(read.headers.etag).toBe(etagOf(read.json()));
+    // The ETag is taken over the stored fields; what the service account
+    // holds is derived, and outside it.
+    const { service_account_admin_reach: reach, ...stored } = read.json<{
+      service_account_admin_reach: string[];
+    }>();
+    expect(reach).toEqual([]);
+    expect(read.headers.etag).toBe(etagOf(stored));
   });
 
   it('refuses the reserved client_id odudu-admin', async () => {

@@ -246,6 +246,25 @@ export async function adminCapabilitiesOf(
   return held;
 }
 
+/**
+ * What each of `subjectIds` holds of the admin capabilities, in the
+ * vocabulary's own order: one query for a whole page, the set every target
+ * ceiling on the subject is judged against, and so what a client's
+ * `service_account_admin_reach` reports.
+ */
+export async function adminReachOfSubjects(
+  tx: TenantScopedDatabase,
+  subjectIds: readonly string[],
+): Promise<ReadonlyMap<string, readonly (typeof ADMIN_CAPABILITIES)[number][]>> {
+  const held = await adminCapabilitiesOf(tx, subjectIds);
+  return new Map(
+    subjectIds.map((id) => {
+      const names = new Set((held.get(id) ?? []).map((capability) => capability.name));
+      return [id, ADMIN_CAPABILITIES.filter((name) => names.has(name))];
+    }),
+  );
+}
+
 const existsRowsSchema = z.array(z.object({ held: z.boolean() }));
 
 /**

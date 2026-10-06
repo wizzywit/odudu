@@ -265,16 +265,19 @@ counts and the answers to a subject's roles carry no role or group record and
 stay on the stacks they were captured against. It was torn down with
 `docker compose down -v` when the capture finished.
 
-**The fifteenth stack.** The refusals of a client list that holds too many
-entries, under `PATCH /clients/{id}` and in [docs/request-paths.md](request-paths.md#dynamic-client-registration),
-ran against one more stack: compose project `odudu-tx` on port 3082, its
-Postgres on 5464, built from this branch at `cca7a9f3` with the change those
-sections describe, from an empty volume. Against it: `seed admin --username
-ada`, whose token, got the way "Getting the token" shows, is `$ADMIN_TOKEN`,
-a tenant `client-lists-demo` made through `POST /admin/tenants`, and in it a
+**The fifteenth stack.** Every transcript about a client's service account reach, the exact
+lookup and the 200-entry bound under `GET /clients`, `PATCH /clients/{id}`
+and [docs/request-paths.md](request-paths.md#dynamic-client-registration) ran
+against one more stack: compose project `odudu-tx` on port 3082, its Postgres
+on 5464, built from this branch at `3cf8eceb` with the changes those sections
+describe, from an empty volume. Against it: `seed admin --username ada`, whose
+token, got the way "Getting the token" shows, is `$ADMIN_TOKEN`; a tenant
+`client-reach-demo` made through `POST /admin/tenants`, `$P` being
+`http://localhost:3082/admin/tenants/client-reach-demo`; and in it a
 confidential client `billing` made through `POST /clients`, row id
-`01a110be-0775-70ce-9a81-b9faa1e9e038`, with one redirect URI. It was torn
-down with `docker compose down -v` when the capture finished.
+`01a11113-6605-7a86-baa1-1f49b57fb240`, with one redirect URI. Rows a section
+writes by `psql`, which no route does, say so. It was torn down with `docker
+compose down -v` when the capture finished.
 
 ## The shape of it
 
@@ -2062,6 +2065,11 @@ curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ## `GET /clients`, `POST /clients` and `GET /clients/{id}`
 
+The client transcripts in this section, and those under `PATCH`, `DELETE` and
+`POST …/secret` below, were captured before a client answered
+`service_account_admin_reach`; each such response now carries it as the capture
+under `PATCH /clients/{id}` shows.
+
 Lists, reads and creates clients — the `clients` row and its OIDC
 configuration (`client_oidc_config`), joined into one resource keyed by the
 client's internal id (`{id}` above is that id, not the OAuth `client_id`
@@ -2393,44 +2401,151 @@ control `PATCH /settings` uses, row lock included. A stale `If-Match` is
 A list field holds at most 200 entries (`CLIENT_LIST_LIMIT`,
 `@odudu/contracts`), for `redirect_uris`, `web_origins`,
 `post_logout_redirect_uris`, `audiences` and `client_credentials_scopes`
-alike, on a create, a `PATCH`, dynamic registration and an import. A client is
-read and listed whole, and each redirect URI and web origin is expanded into
-`client_origins` rows when it is written, so this is what keeps both small.
-A longer list is refused with `400` naming the field, how many entries it
-held and how many it may, and nothing is changed; a list of exactly 200 is
-accepted. A web origin that is not a bare origin, and a redirect URI the
-registration validator refuses, are refused with the entry named, in the
-same `errors` shape. `$P` is `http://localhost:3082/admin/tenants` and `$ID` the
-client's row id. Each call sent the `ETag` the `GET` before it answered:
+alike, on a create, a `PATCH`, dynamic registration, an import and `odudu seed
+client`. A client is read and listed whole, and each redirect URI and web
+origin is expanded into `client_origins` rows when it is written, so this is
+what keeps both small. A longer list is refused with `400` naming the field,
+how many entries it held and how many it may, and nothing is changed; a list
+of exactly 200 is accepted. A web origin that is not a bare origin, and a
+redirect URI the registration validator refuses, are refused with the entry
+named, in the same `errors` shape. Each call sent the `ETag` the `GET` before
+it answered; `over-origins.json` held 201 origins `https://o0.example` to
+`https://o200.example`, and `over-uris.json` 201 redirect URIs
+`https://billing.example/cb/0` to `…/cb/200`:
 
 ```bash
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -H "If-Match: $ETAG" \
-  -d @over-origins.json $P/client-lists-demo/clients/$ID
+  -d @over-origins.json $P/clients/$ID
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -H "If-Match: $ETAG" \
-  -d @over-uris.json $P/client-lists-demo/clients/$ID
+  -d @over-uris.json $P/clients/$ID
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -H "If-Match: $ETAG" \
-  -d '{"web_origins":["https://app.example/"]}' $P/client-lists-demo/clients/$ID
+  -d '{"web_origins":["https://app.example/"]}' $P/clients/$ID
 curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" -H "If-Match: $ETAG" \
-  -d '{"redirect_uris":["http://billing.example/cb"]}' $P/client-lists-demo/clients/$ID
+  -d '{"redirect_uris":["http://billing.example/cb"]}' $P/clients/$ID
 ```
 
-`over-origins.json` held 201 origins `https://o0.example` to
-`https://o200.example`, and `over-uris.json` 201 redirect URIs
-`https://billing.example/cb/0` to `…/cb/200`:
-
 ```
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: web_origins holds 201 entries, at most 200","errors":[{"path":"web_origins","message":"web_origins holds 201 entries, at most 200"}],"instance":"01a110be-27b1-7b84-b0df-c43bf021f349"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris holds 201 entries, at most 200","errors":[{"path":"redirect_uris","message":"redirect_uris holds 201 entries, at most 200"}],"instance":"01a110be-27d4-7870-b9b9-655871c3ce9e"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: web_origins entry \"https://app.example/\" is not an origin: expected a scheme and host with no path, or \"+\" for every registered redirect URI's origin","errors":[{"path":"web_origins","message":"web_origins entry \"https://app.example/\" is not an origin: expected a scheme and host with no path, or \"+\" for every registered redirect URI's origin"}],"instance":"01a110be-2834-7367-95ed-9b3b944bf82b"}
-{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris entry http://billing.example/cb is not valid","errors":[{"path":"redirect_uris","message":"redirect_uris entry http://billing.example/cb is not valid"}],"instance":"01a110be-2863-7f2e-948d-ba9c50781eb3"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: holds 201 entries, at most 200","errors":[{"path":"web_origins","message":"holds 201 entries, at most 200"}],"instance":"01a11113-f50c-7ae6-aec4-a811e51b624a"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris holds 201 entries, at most 200","errors":[{"path":"redirect_uris","message":"redirect_uris holds 201 entries, at most 200"}],"instance":"01a11113-f533-7a77-8896-435d4b50b8cb"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: web_origins entry \"https://app.example/\" is not an origin: expected a scheme and host with no path, or \"+\" for every registered redirect URI's origin","errors":[{"path":"web_origins","message":"web_origins entry \"https://app.example/\" is not an origin: expected a scheme and host with no path, or \"+\" for every registered redirect URI's origin"}],"instance":"01a11113-f554-71d2-bcab-023d2110dd2b"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris entry http://billing.example/cb is not valid","errors":[{"path":"redirect_uris","message":"redirect_uris entry http://billing.example/cb is not valid"}],"instance":"01a11113-f571-7ff2-9da2-30785005fbfc"}
 ```
 
-The same call with 200 origins, `at-origins.json`, answered `200` and the
-client read back with `.web_origins | length` of `200`.
+The same call with 200 origins, `at-origins.json`, answered `200`, and
+`.web_origins | length` of the client it returned was `200`.
+
+A create is refused the same way. `create-over-uris.json` named a public client
+`too-many` with 201 redirect URIs, and `create-over-origins.json` one redirect
+URI and 201 web origins; no client was made by either:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d @create-over-uris.json $P/clients
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d @create-over-origins.json $P/clients
+```
+
+```
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris holds 201 entries, at most 200","errors":[{"path":"redirect_uris","message":"redirect_uris holds 201 entries, at most 200"}],"instance":"01a11113-ba82-7f0c-93e2-d62bfee7a71c"}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"web_origins: holds 201 entries, at most 200","errors":[{"path":"web_origins","message":"holds 201 entries, at most 200"}],"instance":"01a11113-ba98-7ea8-b109-d8ada7c90e77"}
+```
+
+**A client stored over the limit** — registered before it existed — is not
+refused for what a write does not change. `legacy` was made through `POST
+/clients`, and its `redirect_uris` then set to 201 entries with `psql`, which no
+route does:
+
+```bash
+docker compose -p odudu-tx exec -T postgres psql -U odudu -d odudu -tA -c \
+  "update client_oidc_config set redirect_uris = (select array_agg('https://legacy.example/cb/' || g) from generate_series(0, 200) g) where client_id = '$LID'"
+curl -sS -o /dev/null -w '%{http_code}\n' -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -H "If-Match: $ETAG" \
+  -d '{"client_uri":"https://legacy.example/about"}' $P/clients/$LID
+curl -sS -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -H "If-Match: $ETAG" \
+  -d @patch-over.json $P/clients/$LID
+```
+
+```
+UPDATE 1
+200
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"redirect_uris holds 201 entries, at most 200","errors":[{"path":"redirect_uris","message":"redirect_uris holds 201 entries, at most 200"}],"instance":"01a11113-bbfc-7e13-bb8d-1c5284aa1858"}
+```
+
+The `PATCH` that left `redirect_uris` alone was `200`; one that sends a list
+sends one under the limit or is refused (`patch-over.json` held 201 URIs). The
+export carries the stored list as it is, and importing that document is
+refused at the field, with its count and the limit, until it is trimmed:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $P/export > export.json
+jq -c '[.clients[] | {client_id, redirect_uris: (.redirect_uris | length)}]' export.json
+jq '{name: "client-reimport-demo", document: .}' export.json > import.json
+curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" -d @import.json \
+  http://localhost:3082/admin/tenant-imports
+```
+
+```
+[{"client_id":"billing","redirect_uris":1},{"client_id":"legacy","redirect_uris":201}]
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.clients[1].redirect_uris","message":"holds 201 entries, at most 200"}],"instance":"01a11113-bc50-707b-b6d5-0ea661576540"}
+```
+
+`odudu seed client` refuses a list over the limit in the same words, before it
+writes anything; given 201 `--redirect-uri` flags it ends with:
+
+```
+OduduError: redirect_uris holds 201 entries, at most 200
+```
+
+**A client answers what its service account holds.** `service_account_admin_reach`
+is the admin capabilities the client's service account holds, in the
+vocabulary's order, which every write on the client is judged against (the
+target ceiling): derived on every read, one query for a whole page, and outside
+the `ETag`, which is taken over the stored fields alone, as a group's
+`admin_reach` is outside its own. It is empty for a client with no service
+account. A caller needs no `view-users` to read it, so a console can judge the
+ceiling from the record. `billing`'s service account was then given
+`manage-users`, which nests `view-users`, with `psql` (no route assigns a role
+to a service account):
+
+```bash
+curl -sS -D - -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$ID | grep -i '^etag'
+jq -c '{client_id, service_account_admin_reach}' body.json
+docker compose -p odudu-tx exec -T postgres psql -U odudu -d odudu -tA -c \
+  "insert into subject_roles (tenant_id, subject_id, role_id) select c.tenant_id, c.service_subject_id, r.id from clients c join clients a on a.tenant_id = c.tenant_id and a.client_id = 'odudu-admin' join roles r on r.client_id = a.id and r.name = 'manage-users' where c.id = '$ID'"
+curl -sS -D - -o body.json -H "Authorization: Bearer $ADMIN_TOKEN" $P/clients/$ID | grep -i '^etag'
+jq -c '{client_id, service_account_admin_reach}' body.json
+```
+
+```
+etag: "eb96ee27db9b6e3b447636ee42e52ac5ab2208a2e784d63c9a404845e2a02039"
+{"client_id":"billing","service_account_admin_reach":[]}
+INSERT 0 1
+etag: "eb96ee27db9b6e3b447636ee42e52ac5ab2208a2e784d63c9a404845e2a02039"
+{"client_id":"billing","service_account_admin_reach":["view-users","manage-users"]}
+```
+
+The `ETag` did not move. `GET /clients?client_id_exact=` finds the one client
+whose `client_id` is exactly the value, case kept, through the unique index; a
+prefix finds none, and it is one of the three searches that may not be
+combined:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/clients?client_id_exact=billing" | jq -c '[.items[] | {client_id, service_account_admin_reach}]'
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/clients?client_id_exact=bill"
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/clients?client_id_exact=billing&name=b"
+```
+
+```
+[{"client_id":"billing","service_account_admin_reach":["view-users","manage-users"]}]
+{"items":[]}
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: client_id or name, not both","errors":[{"path":"name","message":"search one field at a time: client_id or name, not both"}],"instance":"01a11113-8a16-750f-a720-8f682e09b571"}
+```
 
 The RFC 7591 metadata fields among them — `redirect_uris`, `grant_types`,
 `token_endpoint_auth_method`, `jwks`, `jwks_uri`, the two logout URIs and

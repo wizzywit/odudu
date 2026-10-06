@@ -1,4 +1,5 @@
 import { actionTokens } from '@odudu/account';
+import { CLIENT_LIST_LIMIT, listLimitProblem } from '@odudu/contracts/admin';
 import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
 import { generateSigningKey, signingKeyRepository, signingKeys } from '@odudu/crypto';
 import {
@@ -867,6 +868,34 @@ describe('seed client and the tenant’s default scopes', () => {
     expect(await assignedScopes(first.tenantId, 'marked-spa')).toEqual(
       [...expected, 'reports:read'].sort(),
     );
+  });
+});
+
+describe('seed client and the limit on a client’s lists', () => {
+  it.each([
+    ['--redirect-uri', 'redirect_uris', (i: number) => `https://app.example/cb/${String(i)}`],
+    ['--web-origin', 'web_origins', (i: number) => `https://o${String(i)}.example`],
+    [
+      '--post-logout-redirect-uri',
+      'post_logout_redirect_uris',
+      (i: number) => `https://app.example/out/${String(i)}`,
+    ],
+  ])('refuses %s past the limit, in the words the API uses', async (flag, field, make) => {
+    const options = uniqueOptions();
+    await seed(options);
+    const flags = Array.from({ length: CLIENT_LIST_LIMIT + 1 }, (_, i) => [flag, make(i)]).flat();
+    await expect(
+      seed([
+        'client',
+        '--tenant',
+        options.tenant,
+        '--client-id',
+        'too-many',
+        '--public',
+        ...(flag === '--redirect-uri' ? [] : ['--redirect-uri', 'https://app.example/callback']),
+        ...flags,
+      ]),
+    ).rejects.toThrow(listLimitProblem(field, CLIENT_LIST_LIMIT + 1));
   });
 });
 

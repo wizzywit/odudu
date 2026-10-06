@@ -126,5 +126,6 @@ const clientDefaults = {
   require_auth_time: false,
   previous_secret_expires_at: null,
   service_subject_id: null,
+  service_account_admin_reach: [],
   scopes: [],
 };

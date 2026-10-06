@@ -93,8 +93,12 @@ client identity to check against one) — see
 `seed client` itself refuses an existing client rather than widening a
 registered list on a re-run. A client's redirect URIs, web origins,
 post-logout URIs, audiences and client-credentials scopes each hold at most
-200 entries, whichever door writes them (the admin API, dynamic registration
-or an import).
+200 entries, whichever door writes them (the admin API, dynamic registration,
+an import or `seed client`). A client stored over the limit before it existed
+exports as it is and is refused on re-import until it is trimmed. A client
+read answers `service_account_admin_reach`, what its service account holds of
+the admin capabilities, and `GET /clients?client_id_exact=` finds one by its
+exact `client_id`.
 
 `seed client --grant-type` names the grants a client is registered for,
 repeatable, and validates each one against the same list the

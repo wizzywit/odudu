@@ -519,6 +519,14 @@ describe('the redirect_uris a client may hold', () => {
     expect(outcome.kind).toBe('ok');
   });
 
+  it('leaves a list it was told not to bound, such as one stored before the bound', () => {
+    const outcome = parseClientMetadata(ok({ redirect_uris: many(CLIENT_LIST_LIMIT + 1) }), {
+      tlsClientAuthEnabled: false,
+      boundRedirectUris: false,
+    });
+    expect(outcome.kind).toBe('ok');
+  });
+
   it('refuses one past it, saying how many it holds and how many it may', () => {
     const outcome = parseClientMetadata(ok({ redirect_uris: many(CLIENT_LIST_LIMIT + 1) }), {
       tlsClientAuthEnabled: false,

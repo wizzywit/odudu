@@ -1,6 +1,8 @@
 export {
   ASSIGNMENT_LIMIT,
   CLIENT_LIST_LIMIT,
+  listLimitMessage,
+  listLimitProblem,
   SCOPE_LIMIT,
   DEFAULT_LIMIT,
   MAX_LIMIT,
@@ -62,6 +64,8 @@ export {
   registrationOriginSchema,
   clientSchema,
   type Client,
+  clientFieldsSchema,
+  type ClientFields,
   createClientResponseSchema,
   type CreateClientResponse,
   createClientRequestSchema,

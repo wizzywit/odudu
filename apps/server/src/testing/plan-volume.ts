@@ -16,6 +16,7 @@ export const PLAN_VOLUME = {
   scopesPerOtherTenant: 5,
   subjects: 200_000,
   clients: 10_000,
+  confidentialClients: 1_000,
   roles: 5_000,
   clientRoles: 10_000,
   groups: 5_000,
@@ -139,6 +140,20 @@ select id, ${t}, array['https://app' || (n % 5000) || '.example/cb'], '{authoriz
   from vol_clients;
 insert into client_origins (tenant_id, client_id, origin)
 select ${t}, id, 'https://app' || (n % 5000) || '.example' from vol_clients;
+
+-- Confidential clients, each with a service account, a fifth of them (never the ones the write drives edit) holding an
+-- admin capability: what a client's page of answers reads its reach from.
+create temp table vol_service as
+  select g n, gen_random_uuid() id from generate_series(1, ${v.confidentialClients}) g;
+insert into subjects (id, tenant_id, type) select id, ${t}, 'service' from vol_service;
+update clients c set type = 'confidential', secret_hash = 'x', service_subject_id = s.id
+  from vol_service s where c.tenant_id = ${t} and c.client_id = 'app-' || s.n;
+insert into subject_roles (tenant_id, subject_id, role_id)
+select ${t}, s.id, r.id
+  from vol_service s
+  join roles r on r.client_id = (select id from clients where tenant_id = ${t} and client_id = 'odudu-admin')
+              and r.name = 'view-users'
+ where s.n % 5 = 3;
 
 insert into client_scope_assignments (tenant_id, client_id, client_scope_id, assignment)
 select ${t}, c.id, a.client_scope_id, a.assignment
@@ -295,7 +310,7 @@ select gen_random_uuid(), ${t}, now() - (g || ' seconds')::interval,
   from generate_series(1, ${v.auditEvents}) g
   join vol_subjects s on s.n = 1 + (g % ${v.subjects});
 
-drop table vol_other, vol_subjects, vol_clients, vol_roles, vol_groups, vol_scopes, vol_sessions, vol_grants;
+drop table vol_other, vol_subjects, vol_clients, vol_service, vol_roles, vol_groups, vol_scopes, vol_sessions, vol_grants;
 `;
   return script
     .split(/;\n/u)

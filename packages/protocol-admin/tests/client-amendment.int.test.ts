@@ -1,4 +1,4 @@
-import { CLIENT_LIST_LIMIT } from '@odudu/contracts/admin';
+import { CLIENT_LIST_LIMIT, listLimitMessage } from '@odudu/contracts/admin';
 import { newId } from '@odudu/kernel';
 import { isWellFormedWebOrigin } from '@odudu/protocol-oidc';
 import { sql } from 'drizzle-orm';
@@ -177,7 +177,7 @@ describe('PATCH clients, web_origins', () => {
       expect(res.json<{ errors: { path: string; message: string }[] }>().errors).toEqual([
         {
           path: field,
-          message: `${field} holds ${String(CLIENT_LIST_LIMIT + 1)} entries, at most ${String(CLIENT_LIST_LIMIT)}`,
+          message: listLimitMessage(CLIENT_LIST_LIMIT + 1),
         },
       ]);
       expect(await currentEtag(t.name, client.id, token)).toBe(etag);

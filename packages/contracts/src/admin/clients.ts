@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { adminReachSchema } from '#/admin/roles';
 import { clientScopeAssignmentViewSchema } from '#/admin/scopes';
 import {
   createdAtSchema,
@@ -11,7 +12,8 @@ import {
 export const clientTypeSchema = z.enum(['public', 'confidential']);
 export const registrationOriginSchema = z.enum(['seeded', 'anonymous', 'token', 'operator']);
 
-export const clientSchema = z.object({
+// What the `ETag` is taken over: the stored fields alone.
+export const clientFieldsSchema = z.object({
   id: idSchema,
   client_id: z.string(),
   name: z.string(),
@@ -58,6 +60,15 @@ export const clientSchema = z.object({
   service_subject_id: z.uuid().nullable(),
   scopes: z.array(clientScopeAssignmentViewSchema),
 });
+export type ClientFields = z.infer<typeof clientFieldsSchema>;
+
+// `service_account_admin_reach` is what the client's service account holds of
+// the admin vocabulary, which every write on the client is held to (ADR
+// 0040): derived on every read, never stored, and outside the `ETag`. Empty
+// for a client with no service account.
+export const clientSchema = clientFieldsSchema.extend({
+  service_account_admin_reach: adminReachSchema,
+});
 export type Client = z.infer<typeof clientSchema>;
 
 // A confidential client's generated secret, carried only in the creation
@@ -84,6 +95,12 @@ export type CreateClientRequest = z.infer<typeof createClientRequestSchema>;
 
 const clientFilters = {
   client_id: searchPrefixSchema.optional(),
+  // One client by its exact `client_id`, served by the unique index.
+  client_id_exact: z
+    .string()
+    .min(1)
+    .regex(/^[^\u0000]*$/)
+    .optional(),
   name: searchPrefixSchema.optional(),
   type: clientTypeSchema.optional(),
   enabled: enabledFilterSchema.optional(),
@@ -94,8 +111,12 @@ const oneClientSearchRule = {
   path: ['name'],
 };
 const oneClientSearch = [
-  (query: { client_id?: string | undefined; name?: string | undefined }) =>
-    query.client_id === undefined || query.name === undefined,
+  (query: {
+    client_id?: string | undefined;
+    client_id_exact?: string | undefined;
+    name?: string | undefined;
+  }) =>
+    [query.client_id, query.client_id_exact, query.name].filter((v) => v !== undefined).length <= 1,
   oneClientSearchRule,
 ] as const;
 

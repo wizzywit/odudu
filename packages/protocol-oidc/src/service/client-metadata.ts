@@ -1,4 +1,4 @@
-import { CLIENT_LIST_LIMIT } from '@odudu/contracts/admin';
+import { CLIENT_LIST_LIMIT, listLimitProblem } from '@odudu/contracts/admin';
 import { z } from 'zod';
 import { JWE_ALGS_PERMITTED, PRIVATE_JWK_MEMBERS } from '@odudu/crypto';
 import { assertFetchableUrl, RemoteAddressRefused } from '#/service/remote-address';
@@ -252,7 +252,7 @@ const metadataShape = z.object({
 // jwks exclusivity, URI shape) run after the shape is known to be sound.
 export function parseClientMetadata(
   body: unknown,
-  options: { tlsClientAuthEnabled: boolean },
+  options: { tlsClientAuthEnabled: boolean; boundRedirectUris?: boolean },
 ): ClientMetadataOutcome {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return invalid('invalid_client_metadata', 'registration body must be a JSON object');
@@ -378,10 +378,10 @@ export function parseClientMetadata(
     userinfoEncryptedResponseAlg === null ? null : (providedEnc ?? USERINFO_ENCRYPTION_ENC_DEFAULT);
 
   const redirectUris = metadata.redirect_uris ?? [];
-  if (redirectUris.length > CLIENT_LIST_LIMIT) {
+  if (options.boundRedirectUris !== false && redirectUris.length > CLIENT_LIST_LIMIT) {
     return invalid(
       'invalid_redirect_uri',
-      `redirect_uris holds ${String(redirectUris.length)} entries, at most ${String(CLIENT_LIST_LIMIT)}`,
+      listLimitProblem('redirect_uris', redirectUris.length),
       'redirect_uris',
     );
   }

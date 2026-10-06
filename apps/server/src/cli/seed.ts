@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util';
+import { CLIENT_LIST_LIMIT, listLimitProblem } from '@odudu/contracts/admin';
 import { tenantSettingsRepository, sendVerificationEmail } from '@odudu/account';
 import { provisionTenant, requiredActionRepository } from '@odudu/authn-flows';
 import { grantNewSubjectDefaults, groupRepository, roleRepository } from '@odudu/domain-authz';
@@ -1152,6 +1153,15 @@ async function runClientCommand(
   const redirectUris = values['redirect-uri'] ?? [];
   const postLogoutRedirectUris = values['post-logout-redirect-uri'] ?? [];
   const webOrigins = values['web-origin'] ?? [];
+  for (const [field, entries] of [
+    ['redirect_uris', redirectUris],
+    ['post_logout_redirect_uris', postLogoutRedirectUris],
+    ['web_origins', webOrigins],
+  ] as const) {
+    if (entries.length > CLIENT_LIST_LIMIT) {
+      throw new OduduError('seed_invalid_options', listLimitProblem(field, entries.length));
+    }
+  }
   assertAbsoluteRedirectUris(redirectUris);
   // RP-Initiated Logout §2 matches these exactly, the same way §3 matches a
   // redirect URI, so a relative one is as meaningless here as there.

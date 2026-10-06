@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { cursorQuerySchema, MAX_LIMIT, problemDetailsSchema } from '#/admin/shared';
+import {
+  cursorQuerySchema,
+  listLimitMessage,
+  listLimitProblem,
+  MAX_LIMIT,
+  problemDetailsSchema,
+} from '#/admin/shared';
 
 describe('cursorQuerySchema', () => {
   // A shape check only: MAX_LIMIT is a page-size ceiling to coerce down to
@@ -35,5 +41,12 @@ describe('problemDetailsSchema', () => {
     const errors = [{ path: 'port', message: 'too big', code: 'x' }];
     const body = { type: 'about:blank', title: 'Bad Request', status: 400, instance: 'r', errors };
     expect(problemDetailsSchema.safeParse(body).success).toBe(false);
+  });
+});
+
+describe('the sentence a bounded client list is refused with', () => {
+  it('says how many it holds and how many it may, with and without its field', () => {
+    expect(listLimitMessage(201)).toBe('holds 201 entries, at most 200');
+    expect(listLimitProblem('web_origins', 201)).toBe('web_origins holds 201 entries, at most 200');
   });
 });

@@ -14,6 +14,7 @@ import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
 import {
   amendClient,
+  clientWire,
   clientWireShape,
   createClient,
   deleteClient,
@@ -73,7 +74,13 @@ export function serviceAccountCeilingProblem(
 // this serialises and the bytes `amendClient`'s own `If-Match` check hashes
 // can never drift apart.
 function toWireClient(view: ClientView): Client {
-  return clientWireShape(view);
+  return clientWire(view);
+}
+
+// The `ETag` is taken over the stored fields alone: what the service account
+// holds changes with its roles, which no write to the client made.
+function etagOfView(view: ClientView): string {
+  return etagOf(clientWireShape(view));
 }
 
 function ifMatchHeader(request: AdminRequest): string | undefined {
@@ -148,9 +155,8 @@ export function readClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
       );
     }
 
-    const wire = toWireClient(outcome.client);
-    reply.header('etag', etagOf(wire));
-    return reply.code(200).send(wire);
+    reply.header('etag', etagOfView(outcome.client));
+    return reply.code(200).send(toWireClient(outcome.client));
   };
 }
 
@@ -244,7 +250,7 @@ export function createClientHandler(deps: ClientsRouteDeps): AdminRouteHandler {
           ...client,
           ...(outcome.secret === null ? {} : { client_secret: outcome.secret }),
         };
-        reply.header('etag', etagOf(client));
+        reply.header('etag', etagOfView(outcome.client));
         return reply.code(201).send(wire);
       }
     }

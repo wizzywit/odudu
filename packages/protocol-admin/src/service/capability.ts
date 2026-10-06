@@ -185,13 +185,21 @@ const LAST_ADMINISTRATOR =
   ' Refused with `409` (`about:blank#last-administrator`) when it would leave no enabled ' +
   'subject holding `tenant-admin` \u2014 `manage-tenants` in the system tenant.';
 
-// The target ceiling, for every route that mutates one client: a confidential
-// client authenticates as its service account.
+// What a client answers beside its stored fields.
+const CLIENT_REACH =
+  '`service_account_admin_reach` is what the client\u2019s service account holds of the admin ' +
+  'capabilities, which every write on the client is judged against; derived on every read ' +
+  'and outside the `ETag`, empty for a client with no service account.';
+
+// A client's lists are bounded, whichever write names one.
 const CLIENT_LIST_BOUND =
   'A list on the client (`redirect_uris`, `web_origins`, `post_logout_redirect_uris`, ' +
   '`audiences`, `client_credentials_scopes`) holds at most 200 entries, refused with `400` ' +
-  'naming the field, how many it held and how many it may.';
+  'naming the field, how many it held and how many it may. A write refuses only a list it ' +
+  'changes: a client stored over the limit is amended in its other fields as it is.';
 
+// The target ceiling, for every route that mutates one client: a confidential
+// client authenticates as its service account.
 const SERVICE_ACCOUNT_CEILING =
   'Refused with `403` when the client\u2019s service account holds an admin capability ' +
   'the caller does not (the target ceiling).';
@@ -726,6 +734,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-clients',
     responseSchema: listClientsResponseSchema,
     querystringSchema: listClientsQuerySchema,
+    description:
+      `${CLIENT_REACH} \`client_id_exact\` finds the one client whose \`client_id\` is exactly ` +
+      'that, through the unique index.',
   },
   {
     method: 'GET',
@@ -748,6 +759,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/clients/:id',
     capability: 'manage-clients',
     responseSchema: clientSchema,
+    description: CLIENT_REACH,
   },
   {
     method: 'PATCH',

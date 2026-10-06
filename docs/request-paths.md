@@ -638,10 +638,10 @@ A client holds at most 200 redirect URIs, the bound every list on a client
 shares ([docs/admin-paths.md](admin-paths.md#patch-clientsid)); a longer list is
 refused with the count and the limit, and 200 exactly is registered. Captured
 on the stack `docs/admin-paths.md` calls its fifteenth, in the tenant
-`client-lists-demo`, with registration opened:
+`client-reach-demo`, with registration opened:
 
 ```bash
-curl -sS -X POST http://localhost:3082/tenants/client-lists-demo/clients-registrations/openid-connect \
+curl -sS -X POST http://localhost:3082/tenants/client-reach-demo/clients-registrations/openid-connect \
   -H 'content-type: application/json' -d @reg-over.json
 ```
 

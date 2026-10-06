@@ -209,6 +209,9 @@ export function adminPaths(ids: AdminIds): {
     { path: `${S}?locked=true` },
     { path: C },
     { path: `${C}?client_id=app-1` },
+    { path: `${C}?client_id_exact=app-1` },
+    { path: `${C}?type=confidential` },
+    { path: `${C}?enabled=false` },
     // A prefix every client of the tenant matches: more than a budget of rows.
     { path: `${C}?client_id=app-` },
     { path: `${C}?name=application` },

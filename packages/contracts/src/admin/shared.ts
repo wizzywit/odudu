@@ -20,6 +20,16 @@ export const ASSIGNMENT_LIMIT = MAX_LIMIT;
  */
 export const CLIENT_LIST_LIMIT = ASSIGNMENT_LIMIT;
 
+/** What a list holds against what it may: the sentence every door that bounds a client's lists says. */
+export function listLimitMessage(count: number): string {
+  return `holds ${String(count)} entries, at most ${String(CLIENT_LIST_LIMIT)}`;
+}
+
+/** `listLimitMessage` where no field path stands beside it, as registration's error does. */
+export function listLimitProblem(field: string, count: number): string {
+  return `${field} ${listLimitMessage(count)}`;
+}
+
 /**
  * The most scopes a tenant defines. Discovery advertises all of them in the
  * one document it answers with, so they are what bounds it.

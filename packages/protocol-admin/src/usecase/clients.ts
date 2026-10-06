@@ -1,4 +1,11 @@
-import { CLIENT_LIST_LIMIT, type Client, type ListClientsQuery } from '@odudu/contracts/admin';
+import {
+  type ADMIN_CAPABILITIES,
+  CLIENT_LIST_LIMIT,
+  listLimitMessage,
+  type Client,
+  type ClientFields,
+  type ListClientsQuery,
+} from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roles } from '@odudu/domain-authz';
 import { subjectRepository } from '@odudu/domain-identity';
@@ -24,7 +31,11 @@ import {
 import { and, asc, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { redactedDiff } from '#/service/audit-detail';
-import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
+import {
+  adminReachOfSubjects,
+  capabilitiesReachableFrom,
+  overreach,
+} from '#/service/capability-ceiling';
 import { checkDescription } from '#/service/description';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { readKeyedPage } from '#/service/in-order';
@@ -141,7 +152,11 @@ export interface ClientView {
   readonly requireAuthTime: boolean;
   readonly previousSecretExpiresAt: Date | null;
   readonly scopes: readonly ClientScopeAssignmentView[];
+  // Derived on every read and outside the ETag; empty without a service account.
+  readonly serviceAccountAdminReach: readonly (typeof ADMIN_CAPABILITIES)[number][];
 }
+
+type StoredView = Omit<ClientView, 'scopes' | 'serviceAccountAdminReach'>;
 
 export interface ClientScopeAssignmentView {
   readonly id: string;
@@ -178,23 +193,31 @@ async function scopesForClients(
   return map;
 }
 
-async function attachScopes(
-  tx: TenantScopedDatabase,
-  view: Omit<ClientView, 'scopes'>,
-): Promise<ClientView> {
-  const scopesByClient = await scopesForClients(tx, [view.id]);
-  return { ...view, scopes: scopesByClient.get(view.id) ?? [] };
+async function attachScopes(tx: TenantScopedDatabase, view: StoredView): Promise<ClientView> {
+  const [attached] = await attachScopesMany(tx, [view]);
+  if (attached === undefined) throw new Error('protocol-admin: a client view was not attached');
+  return attached;
 }
 
+// Scopes and reach each in one query for the whole page, never one per client.
 async function attachScopesMany(
   tx: TenantScopedDatabase,
-  views: readonly Omit<ClientView, 'scopes'>[],
+  views: readonly StoredView[],
 ): Promise<ClientView[]> {
   const scopesByClient = await scopesForClients(
     tx,
     views.map((view) => view.id),
   );
-  return views.map((view) => ({ ...view, scopes: scopesByClient.get(view.id) ?? [] }));
+  const reach = await adminReachOfSubjects(
+    tx,
+    views.flatMap((view) => (view.serviceSubjectId === null ? [] : [view.serviceSubjectId])),
+  );
+  return views.map((view) => ({
+    ...view,
+    scopes: scopesByClient.get(view.id) ?? [],
+    serviceAccountAdminReach:
+      view.serviceSubjectId === null ? [] : (reach.get(view.serviceSubjectId) ?? []),
+  }));
 }
 
 function clientsJoinedWithConfig(tx: TenantScopedDatabase) {
@@ -210,9 +233,7 @@ function clientsJoinedWithConfig(tx: TenantScopedDatabase) {
 // raw select reads them back as `string`, the same narrowing
 // `clientRepository`'s and `clientOidcConfigRepository`'s own `toRecord`
 // apply.
-function narrowRow(
-  row: Awaited<ReturnType<typeof clientsJoinedWithConfig>>[number],
-): Omit<ClientView, 'scopes'> {
+function narrowRow(row: Awaited<ReturnType<typeof clientsJoinedWithConfig>>[number]): StoredView {
   return {
     ...row,
     type: row.type as ClientView['type'],
@@ -291,6 +312,9 @@ function clientSearchOf(
 
 function exactClientConditions(filters: ClientFilters): SQL[] {
   return [
+    ...(filters.client_id_exact === undefined
+      ? []
+      : [eq(clients.clientId, filters.client_id_exact)]),
     ...(filters.type === undefined ? [] : [eq(clients.type, filters.type)]),
     ...(filters.enabled === undefined ? [] : [eq(clients.enabled, filters.enabled === 'true')]),
   ];
@@ -469,7 +493,7 @@ function clientType(tokenEndpointAuthMethod: string): 'public' | 'confidential' 
   return tokenEndpointAuthMethod === 'none' ? 'public' : 'confidential';
 }
 
-function toClientView(client: ClientRecord, config: ClientOidcConfig): Omit<ClientView, 'scopes'> {
+function toClientView(client: ClientRecord, config: ClientOidcConfig): StoredView {
   return {
     id: client.id,
     clientId: client.clientId,
@@ -708,7 +732,7 @@ export async function createClient(
 // the same mapping on a `GET` (view/routes/clients.ts's `toWireClient`
 // delegates here) and on the read `amendClient` does before writing, so an
 // `If-Match` taken from one always compares against the other.
-export function clientWireShape(view: ClientView): Client {
+export function clientWireShape(view: ClientView): ClientFields {
   return {
     id: view.id,
     client_id: view.clientId,
@@ -755,6 +779,14 @@ export function clientWireShape(view: ClientView): Client {
       name: scope.name,
       assignment: scope.assignment,
     })),
+  };
+}
+
+/** The answer a caller reads: the stored shape and what the service account holds. */
+export function clientWire(view: ClientView): Client {
+  return {
+    ...clientWireShape(view),
+    service_account_admin_reach: [...view.serviceAccountAdminReach],
   };
 }
 
@@ -855,7 +887,7 @@ function checkedStringArray(field: string, value: unknown): string[] | FieldErro
   return value.length > CLIENT_LIST_LIMIT
     ? {
         field,
-        description: `${field} holds ${String(value.length)} entries, at most ${String(CLIENT_LIST_LIMIT)}`,
+        description: listLimitMessage(value.length),
       }
     : value;
 }
@@ -1169,7 +1201,12 @@ export async function amendClient(
       ),
     };
 
-    const parsed = parseClientMetadata(merged, { tlsClientAuthEnabled: deps.tlsClientAuthEnabled });
+    const parsed = parseClientMetadata(merged, {
+      tlsClientAuthEnabled: deps.tlsClientAuthEnabled,
+      // A list stored before the bound existed is left as it is until a
+      // write changes it, which must then bring it under.
+      boundRedirectUris: 'redirect_uris' in input.values,
+    });
     if (parsed.kind === 'invalid') {
       return {
         kind: 'invalid_metadata',
