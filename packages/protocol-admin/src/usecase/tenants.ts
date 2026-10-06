@@ -21,7 +21,8 @@ import {
   BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
   provisionAdminClient,
 } from '@odudu/protocol-oidc';
-import { and, asc, count, eq, gt, isNull, lt, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull, lt, sql, type SQL } from 'drizzle-orm';
+import { countAtMost } from '#/usecase/capped-count';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import { capabilitiesHeldInTenant, overreach } from '#/service/capability-ceiling';
 import { etagOf, matches } from '#/service/etag';
@@ -537,23 +538,18 @@ export async function deleteTenantRows(
   // queued; deleting waits until none is left live and each token has been
   // offered, since the queue goes with the tenant.
   if (tenant.enabled) return { kind: 'enabled', name };
-  const live =
-    (
-      await tx.select({ n: count() }).from(sessions).where(liveSessionCondition(tenant, input.now))
-    )[0]?.n ?? 0;
+  const live = await countAtMost(tx, {
+    table: sessions,
+    where: liveSessionCondition(tenant, input.now),
+  });
   if (live > 0) return { kind: 'sessions_live', name, live };
-  const pending =
-    (
-      await tx
-        .select({ n: count() })
-        .from(backchannelLogoutDeliveries)
-        .where(
-          and(
-            isNull(backchannelLogoutDeliveries.deliveredAt),
-            lt(backchannelLogoutDeliveries.attempts, BACKCHANNEL_LOGOUT_MAX_ATTEMPTS),
-          ),
-        )
-    )[0]?.n ?? 0;
+  const pending = await countAtMost(tx, {
+    table: backchannelLogoutDeliveries,
+    where: and(
+      isNull(backchannelLogoutDeliveries.deliveredAt),
+      lt(backchannelLogoutDeliveries.attempts, BACKCHANNEL_LOGOUT_MAX_ATTEMPTS),
+    ),
+  });
   if (pending > 0) return { kind: 'logout_pending', name, pending };
   await tx.delete(tenants).where(eq(tenants.id, input.tenantId));
   return { kind: 'deleted', name };

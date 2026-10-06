@@ -148,9 +148,11 @@ export function revokeClientGrantsHandler(deps: GrantsRouteDeps): AdminRouteHand
       case 'target_ceiling':
         return targetCeilingProblem(reply, request, outcome.requested);
       case 'revoked':
-        return reply
-          .code(200)
-          .send({ revoked: outcome.revoked, beyond_ceiling: outcome.beyondCeiling });
+        return reply.code(200).send({
+          revoked: outcome.revoked,
+          beyond_ceiling: outcome.beyondCeiling,
+          remaining: outcome.remaining,
+        });
     }
   };
 }

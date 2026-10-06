@@ -3,6 +3,7 @@ import {
   amendSubjectRequestSchema,
   type AmendSubjectRequest,
   createSubjectRequestSchema,
+  listEffectiveRolesQuerySchema,
   listSubjectsQuerySchema,
   setRequiredActionsRequestSchema,
   setRolesRequestSchema,
@@ -613,8 +614,16 @@ export function listEffectiveRolesHandler(deps: SubjectsRouteDeps): AdminRouteHa
     if (id === undefined) {
       throw new Error('protocol-admin: GET effective-roles route received no :id');
     }
+    const query = listEffectiveRolesQuerySchema.parse(request.query);
+    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      listEffectiveRoles(tx, id),
+      listEffectiveRoles(tx, {
+        tenantId: targetTenantId,
+        subjectId: id,
+        limit,
+        cursor: query.cursor,
+        cursorKey: deps.cursorKey,
+      }),
     );
     if (outcome.kind === 'not_found') {
       return sendProblem(
@@ -623,7 +632,15 @@ export function listEffectiveRolesHandler(deps: SubjectsRouteDeps): AdminRouteHa
         problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
       );
     }
-    return reply.code(200).send({ items: outcome.items });
+    if (outcome.kind === 'invalid_cursor') return sendProblem(reply, request, cursorProblem());
+    if (outcome.next === null) return reply.code(200).send({ items: outcome.items });
+
+    const nextUrl = nextPageUrl(
+      `/admin/tenants/${request.params.tenant ?? ''}/subjects/${id}/effective-roles`,
+      { ...query, limit, cursor: outcome.next },
+    );
+    reply.header('link', `<${nextUrl}>; rel="next"`);
+    return reply.code(200).send({ items: outcome.items, next: outcome.next });
   };
 }
 

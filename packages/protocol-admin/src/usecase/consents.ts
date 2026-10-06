@@ -4,6 +4,7 @@ import { consentRepository, type SubjectConsent } from '@odudu/domain-tenant';
 import { tokenGrantRepository } from '@odudu/protocol-oidc';
 import { eq } from 'drizzle-orm';
 import { redactedDiff } from '#/service/audit-detail';
+import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 import {
   lockSubjectRow,
   refuseOverTargetCeiling,
@@ -28,12 +29,20 @@ export interface ConsentAuditEvent {
 /** See `Audit` in `#/usecase/tenants.ts` — the same transactional write. */
 export type Audit = (tx: TenantScopedDatabase, event: ConsentAuditEvent) => Promise<void>;
 
+const COLLECTION = 'consents';
+
 export interface ListConsentsInput {
+  readonly tenantId: string;
   readonly subjectId: string;
+  readonly limit: number;
+  readonly cursor: string | undefined;
+  readonly cursorKey: Uint8Array;
 }
 
 export type ListConsentsOutcome =
-  { kind: 'not_found' } | { kind: 'ok'; items: readonly SubjectConsent[] };
+  | { kind: 'not_found' }
+  | { kind: 'invalid_cursor' }
+  | { kind: 'ok'; items: readonly SubjectConsent[]; next: string | null };
 
 export async function listConsents(
   tx: TenantScopedDatabase,
@@ -45,8 +54,37 @@ export async function listConsents(
     .where(eq(subjects.id, input.subjectId));
   if (subjectRows.length === 0) return { kind: 'not_found' };
 
-  const items = await consentRepository(tx).forSubject(input.subjectId);
-  return { kind: 'ok', items };
+  const filters = filterDigest({ subject: input.subjectId });
+  let after: string | undefined;
+  if (input.cursor !== undefined) {
+    const decoded = decodeCursor(
+      input.cursorKey,
+      COLLECTION,
+      input.tenantId,
+      filters,
+      input.cursor,
+    );
+    if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
+    after = decoded.after;
+  }
+
+  const rows = await consentRepository(tx).forSubject(input.subjectId, {
+    after,
+    limit: input.limit + 1,
+  });
+  const hasMore = rows.length > input.limit;
+  const items = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = items[items.length - 1];
+  const next =
+    hasMore && last !== undefined
+      ? encodeCursor(input.cursorKey, {
+          after: last.clientKey,
+          collection: COLLECTION,
+          tenantId: input.tenantId,
+          filters,
+        })
+      : null;
+  return { kind: 'ok', items, next };
 }
 
 export interface RevokeConsentInput {
@@ -83,9 +121,8 @@ export async function revokeConsent(
   const refused = await refuseOverTargetCeiling(tx, deps.audit, 'consent.revoke', input);
   if (refused !== null) return refused;
 
-  const items = await consentRepository(tx).forSubject(input.subjectId);
-  const consent = items.find((item) => item.clientId === input.clientId);
-  if (consent === undefined) return { kind: 'not_found' };
+  const consent = await consentRepository(tx).forSubjectClient(input.subjectId, input.clientId);
+  if (consent === null) return { kind: 'not_found' };
 
   const removed = await consentRepository(tx).revoke(input.subjectId, input.clientId);
   if (!removed) return { kind: 'not_found' };

@@ -87,6 +87,41 @@ function itemsOf(res: LightMyRequestResponse): BulkItem[] {
   return res.json<{ items: BulkItem[] }>().items;
 }
 
+describe('clearLockouts, a batch at a time', () => {
+  it('clears at most a batch, and says how many locked subjects are left', async () => {
+    const t = await fixture.createTenant(`lockout-batch-${newId()}`);
+    for (let n = 0; n < 5; n += 1)
+      await fail(t.id, await seedUser(t.id, `locked-${String(n)}`), 60_000);
+
+    const outcomes = [];
+    for (let pass = 0; pass < 3; pass += 1) {
+      outcomes.push(
+        await withTenant(fixture.app.db, t.id, (tx) =>
+          clearLockouts(
+            tx,
+            { audit: () => Promise.resolve() },
+            {
+              tenantId: t.id,
+              callerCapabilities: EVERY_CAPABILITY,
+              limit: 2,
+              actorSubjectId: newId(),
+              actorTenantId: t.id,
+              actorClientId: newId(),
+            },
+          ),
+        ),
+      );
+    }
+
+    expect(outcomes).toEqual([
+      { cleared: 2, beyondCeiling: 0, remaining: 3 },
+      { cleared: 2, beyondCeiling: 0, remaining: 1 },
+      { cleared: 1, beyondCeiling: 0, remaining: 0 },
+    ]);
+    expect(await failuresOf(t.id)).toEqual([]);
+  });
+});
+
 describe('DELETE /lockouts', () => {
   it('clears every failure count within the caller’s ceiling, and counts the rest', async () => {
     const t = await fixture.createTenant(`lk-${newId()}`);
@@ -105,7 +140,7 @@ describe('DELETE /lockouts', () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ cleared: 2, beyond_ceiling: 1 });
+    expect(res.json()).toEqual({ cleared: 2, beyond_ceiling: 1, remaining: 0 });
     expect(await failuresOf(t.id)).toEqual([root]);
 
     const rows = await withTenant(fixture.app.db, t.id, (tx) =>
@@ -154,7 +189,7 @@ describe('DELETE /lockouts', () => {
           },
         ),
       expectBlocked: (result) => {
-        expect(result).toEqual({ cleared: 0, beyondCeiling: 0 });
+        expect(result).toEqual({ cleared: 0, beyondCeiling: 0, remaining: 0 });
       },
       verifyTenantAUnaffected: async (tx) => {
         expect(await tx.select().from(loginFailures)).toHaveLength(1);

@@ -1,4 +1,5 @@
 import {
+  EXPORT_COLLECTION_CAP,
   EXPORT_SUBJECT_CAP,
   TENANT_DOCUMENT_MEDIA_TYPE,
   tenantDocumentSchema,
@@ -386,6 +387,21 @@ describe('GET /admin/tenants/{tenant}/export', () => {
 
     expect((await exportTenant(token, t.name, '?include=sessions')).statusCode).toBe(400);
   });
+
+  it('refuses a tenant whose roles are more than one document holds, naming which, and 413 over HTTP', async () => {
+    const t = await fixture.createTenant(`export-${newId()}`);
+    await fixture.owner.sql`
+      insert into roles (id, tenant_id, name)
+      select gen_random_uuid(), ${t.id}, 'bulk-' || g
+        from generate_series(1, ${EXPORT_COLLECTION_CAP} - (select count(*) from roles where tenant_id = ${t.id}) + 1) g`;
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+
+    const res = await exportTenant(token, t.name);
+
+    expect(res.statusCode).toBe(413);
+    expect(res.json()).toMatchObject({ type: 'about:blank#export-too-large', status: 413 });
+    expect(JSON.stringify(res.json())).toContain('roles');
+  }, 60_000);
 
   it(`refuses ?include=subjects with 413 above ${String(EXPORT_SUBJECT_CAP)} subjects, naming P7`, async () => {
     const t = await fixture.createTenant(`export-${newId()}`);

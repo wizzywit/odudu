@@ -3,6 +3,20 @@ import { z } from 'zod';
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 200;
 
+/**
+ * The most entries a set the admin API replaces whole may hold: the roles a
+ * subject, a group or a scope is given, the groups a subject belongs to, the
+ * roles nested under one. Each is read whole too, under an `ETag`, so what
+ * bounds the read is this bound on the write.
+ */
+export const ASSIGNMENT_LIMIT = MAX_LIMIT;
+
+/**
+ * The most scopes a tenant defines. Discovery advertises all of them in the
+ * one document it answers with, so they are what bounds it.
+ */
+export const SCOPE_LIMIT = 1_000;
+
 // A shape check, not a policy check: an over-large `limit` is a page size
 // to coerce down, never a request to refuse (design spec §9, citing
 // AIP-158) — `MAX_LIMIT` is enforced exactly once, by

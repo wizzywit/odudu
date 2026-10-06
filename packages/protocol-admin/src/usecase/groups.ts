@@ -1,4 +1,4 @@
-import { type GroupFields, type ListGroupsQuery } from '@odudu/contracts/admin';
+import { ASSIGNMENT_LIMIT, type GroupFields, type ListGroupsQuery } from '@odudu/contracts/admin';
 import { isUniqueViolation, withSavepoint, type TenantScopedDatabase } from '@odudu/db';
 import { descendantsOf, groupRepository, groupRoles, groups, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
@@ -717,6 +717,7 @@ export interface SetGroupDefaultDeps {
 export type SetGroupDefaultOutcome =
   | { kind: 'not_found' }
   | { kind: 'default_group_capability'; capabilities: readonly string[] }
+  | { kind: 'too_many_defaults' }
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; group: GroupFields; etag: string };
 
@@ -737,6 +738,12 @@ export async function setGroupDefault(
 
   if (input.value) {
     await lockDefaultReach(tx);
+    if (
+      !locked.defaultForNewSubjects &&
+      (await groupRepository(tx).defaultsForTenant()).length >= ASSIGNMENT_LIMIT
+    ) {
+      return { kind: 'too_many_defaults' };
+    }
     const capabilities = [...(await capabilitiesOfGroupsAndAncestors(tx, [input.groupId]))].sort();
     if (capabilities.length > 0) {
       await deps.audit(tx, {

@@ -3,6 +3,7 @@ import {
   type ClientScope,
   type ListScopesQuery,
   type ScopeClient,
+  SCOPE_LIMIT,
 } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clientScopeRoles, roleRepository, roles } from '@odudu/domain-authz';
@@ -232,11 +233,22 @@ export interface CreateScopeDeps {
 // return — can un-abort it. The route catches it outside `withTenant`, the
 // same shape `ClientIdConflictError` is caught in
 // (`createClientHandler`, #/view/routes/clients.ts).
+/** Thrown by `createScope` when the tenant already defines `SCOPE_LIMIT` scopes. */
+export class ScopeLimitError extends Error {
+  constructor() {
+    super(`a tenant defines at most ${String(SCOPE_LIMIT)} scopes`);
+    this.name = 'ScopeLimitError';
+  }
+}
+
 export async function createScope(
   tx: TenantScopedDatabase,
   deps: CreateScopeDeps,
   input: CreateScopeInput,
 ): Promise<ClientScope> {
+  if ((await clientScopeRepository(tx).countUpTo(SCOPE_LIMIT)) >= SCOPE_LIMIT) {
+    throw new ScopeLimitError();
+  }
   const created = await clientScopeRepository(tx).create({
     tenantId: input.tenantId,
     name: input.name,

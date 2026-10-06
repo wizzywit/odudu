@@ -124,8 +124,10 @@ export function clearLockoutsHandler(deps: BulkSubjectsRouteDeps): AdminRouteHan
         },
       ),
     );
-    return reply
-      .code(200)
-      .send({ cleared: outcome.cleared, beyond_ceiling: outcome.beyondCeiling });
+    return reply.code(200).send({
+      cleared: outcome.cleared,
+      beyond_ceiling: outcome.beyondCeiling,
+      remaining: outcome.remaining,
+    });
   };
 }

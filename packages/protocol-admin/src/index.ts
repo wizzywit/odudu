@@ -213,6 +213,7 @@ import {
 } from '#/view/routes/tenant-sessions';
 
 export { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
+export { COUNT_CAP } from '#/usecase/counts';
 export { expireRotatedClientSecrets } from '#/usecase/client-secret-expiry';
 export { composeUserSubject, type ComposeUserSubjectInput } from '#/usecase/subjects';
 export { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
@@ -523,6 +524,7 @@ function buildAdminRoutes(
     };
     const consentsDeps: ConsentsRouteDeps = {
       database: deps.database.db,
+      cursorKey: deps.cursorKey,
       audit: consentAudit,
       callerCapabilities,
       now: () => clock.now(),

@@ -2,7 +2,12 @@ import { exportTenantQuerySchema, TENANT_DOCUMENT_MEDIA_TYPE } from '@odudu/cont
 import { type Database } from '@odudu/db';
 import { type TenantCapability } from '@odudu/domain-tenant';
 import { recordCapabilityRefused } from '#/usecase/access-audit';
-import { exportTenant, tooManySubjectsDetail, type Audit } from '#/usecase/tenant-export';
+import {
+  exportTenant,
+  tooLargeDetail,
+  tooManySubjectsDetail,
+  type Audit,
+} from '#/usecase/tenant-export';
 import { problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { recordRefusal, type AdminRouteHandler } from '#/view/routes/router';
@@ -62,6 +67,19 @@ export function exportTenantHandler(deps: TenantExportRouteDeps): AdminRouteHand
           'about:blank#export-too-large',
           'Content Too Large',
           tooManySubjectsDetail(outcome.cap),
+        ),
+      );
+    }
+
+    if (outcome.kind === 'too_large') {
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          413,
+          'about:blank#export-too-large',
+          'Content Too Large',
+          tooLargeDetail(outcome.collection, outcome.cap),
         ),
       );
     }

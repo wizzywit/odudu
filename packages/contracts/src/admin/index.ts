@@ -1,4 +1,6 @@
 export {
+  ASSIGNMENT_LIMIT,
+  SCOPE_LIMIT,
   DEFAULT_LIMIT,
   MAX_LIMIT,
   cursorQuerySchema,
@@ -156,6 +158,8 @@ export {
   type RoleProvenance,
   effectiveRoleSchema,
   type EffectiveRoleAssignment,
+  listEffectiveRolesQuerySchema,
+  type ListEffectiveRolesQuery,
   listEffectiveRolesResponseSchema,
   type ListEffectiveRolesResponse,
   BULK_SUBJECT_ACTIONS,
@@ -208,6 +212,8 @@ export {
 export {
   consentSchema,
   type Consent,
+  listConsentsQuerySchema,
+  type ListConsentsQuery,
   listConsentsResponseSchema,
   type ListConsentsResponse,
 } from '#/admin/consents';
@@ -343,6 +349,8 @@ export {
 } from '#/admin/flow';
 export { countResponseSchema, type CountResponse } from '#/admin/counts';
 export {
+  EXPORT_COLLECTION_CAP,
+  EXPORT_LINK_CAP,
   EXPORT_SUBJECT_CAP,
   TENANT_DOCUMENT_MEDIA_TYPE,
   REGISTRATION_POLICY_SETTINGS,

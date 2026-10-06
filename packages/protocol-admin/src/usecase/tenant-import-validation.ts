@@ -1,6 +1,8 @@
 import { startsALogin } from '@odudu/authn-flows';
 import {
+  ASSIGNMENT_LIMIT,
   EXPORT_SUBJECT_CAP,
+  SCOPE_LIMIT,
   smtpPortSchema,
   tenantDocumentSchema,
   type ExportedClient,
@@ -538,6 +540,21 @@ function invariantProblems(
     }
   };
 
+  if (document.scopes.length > SCOPE_LIMIT) {
+    problems.add('document.scopes', `a tenant defines at most ${String(SCOPE_LIMIT)} scopes`);
+  }
+  if (document.roles.filter((role) => role.default_for_new_subjects).length > ASSIGNMENT_LIMIT) {
+    problems.add(
+      'document.roles',
+      `at most ${String(ASSIGNMENT_LIMIT)} roles are handed to every new subject`,
+    );
+  }
+  if (document.groups.filter((group) => group.default_for_new_subjects).length > ASSIGNMENT_LIMIT) {
+    problems.add(
+      'document.groups',
+      `at most ${String(ASSIGNMENT_LIMIT)} groups are joined by every new subject`,
+    );
+  }
   document.roles.forEach((role, index) => {
     const path = `document.roles[${String(index)}]`;
     if (role.default_for_new_subjects) {

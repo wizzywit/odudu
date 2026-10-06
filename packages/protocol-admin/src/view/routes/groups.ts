@@ -1,5 +1,6 @@
 import {
   amendGroupRequestSchema,
+  ASSIGNMENT_LIMIT,
   createGroupRequestSchema,
   listGroupsQuerySchema,
   setGroupDefaultRequestSchema,
@@ -55,6 +56,15 @@ function defaultGroupCapabilityProblem(capabilities: readonly string[]): Problem
     'about:blank',
     'Forbidden',
     `a group every new subject joins may reach no admin capability, and this one would reach: ${capabilities.join(', ')}`,
+  );
+}
+
+function tooManyDefaults(): Problem {
+  return problem(
+    409,
+    'about:blank',
+    'Conflict',
+    `at most ${String(ASSIGNMENT_LIMIT)} groups are joined by every new subject`,
   );
 }
 
@@ -447,6 +457,8 @@ export function setGroupDefaultHandler(deps: GroupsRouteDeps): AdminRouteHandler
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'default_group_capability':
         return sendProblem(reply, request, defaultGroupCapabilityProblem(outcome.capabilities));
+      case 'too_many_defaults':
+        return sendProblem(reply, request, tooManyDefaults());
       case 'precondition_failed':
         return sendProblem(reply, request, ifMatchStale());
       case 'ok':

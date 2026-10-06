@@ -25,10 +25,11 @@ export async function lockDefaultReach(tx: TenantScopedDatabase): Promise<void> 
 /** Every role a default role or a default group hands out, composites expanded. */
 export async function defaultReachRoleIds(tx: TenantScopedDatabase): Promise<ReadonlySet<string>> {
   const seeds = new Set((await roleRepository(tx).defaultsForTenant()).map((role) => role.id));
-  const chain = new Set<string>();
-  for (const group of await groupRepository(tx).defaultsForTenant()) {
-    for (const id of await ancestorsOf(tx, group.id)) chain.add(id);
-  }
+  const defaults = await groupRepository(tx).defaultsForTenant();
+  const chain = await ancestorsOf(
+    tx,
+    defaults.map((group) => group.id),
+  );
   if (chain.size > 0) {
     const mapped = await tx
       .select({ roleId: groupRoles.roleId })

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ASSIGNMENT_LIMIT,
   createdAtSchema,
   cursorQuerySchema,
   enabledFilterSchema,
@@ -190,7 +191,7 @@ export const sendActionsEmailRequestSchema = z
 export type SendActionsEmailRequest = z.infer<typeof sendActionsEmailRequestSchema>;
 
 export const setRolesRequestSchema = z.object({
-  role_ids: z.array(idSchema),
+  role_ids: z.array(idSchema).max(ASSIGNMENT_LIMIT),
 });
 export type SetRolesRequest = z.infer<typeof setRolesRequestSchema>;
 
@@ -222,8 +223,12 @@ export const effectiveRoleSchema = roleAssignmentSchema.extend({
 });
 export type EffectiveRoleAssignment = z.infer<typeof effectiveRoleSchema>;
 
+export const listEffectiveRolesQuerySchema = cursorQuerySchema.extend({}).strict();
+export type ListEffectiveRolesQuery = z.infer<typeof listEffectiveRolesQuerySchema>;
+
 export const listEffectiveRolesResponseSchema = z.object({
   items: z.array(effectiveRoleSchema),
+  next: z.string().optional(),
 });
 export type ListEffectiveRolesResponse = z.infer<typeof listEffectiveRolesResponseSchema>;
 
@@ -252,10 +257,13 @@ export const bulkSubjectsResponseSchema = z.object({
 });
 export type BulkSubjectsResponse = z.infer<typeof bulkSubjectsResponseSchema>;
 
-// Cleared from every subject the caller's ceiling reaches; `beyond_ceiling`
-// counts the subjects left as they were.
+// Cleared from the subjects the caller's ceiling reaches, a batch at a time;
+// `remaining` counts those still locked, for the next call, and
+// `beyond_ceiling` the subjects left as they were. Neither counts past
+// 10,000.
 export const clearLockoutsResponseSchema = z.object({
   cleared: z.number().int().nonnegative(),
   beyond_ceiling: z.number().int().nonnegative(),
+  remaining: z.number().int().nonnegative(),
 });
 export type ClearLockoutsResponse = z.infer<typeof clearLockoutsResponseSchema>;

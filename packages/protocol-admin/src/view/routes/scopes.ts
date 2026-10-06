@@ -21,6 +21,7 @@ import {
   listScopes,
   readScope,
   readScopeRoles,
+  ScopeLimitError,
   setScopeRoles,
   unassignScopeFromClient,
   type AmendScopeOutcome,
@@ -143,6 +144,9 @@ export function createScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
       // The transaction has already rolled back by the time this is
       // caught — see the comment beside `createScope`'s own call
       // (#/usecase/scopes.ts).
+      if (error instanceof ScopeLimitError) {
+        return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', error.message));
+      }
       if (isUniqueViolation(error)) {
         return sendProblem(
           reply,

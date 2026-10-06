@@ -4,9 +4,9 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { users } from '@odudu/domain-identity';
 import { clients } from '@odudu/domain-tenant';
 import { tokenGrants, tokenGrantRepository } from '@odudu/protocol-oidc';
-import { and, asc, count, eq, gt, inArray, not, sql, type SQL } from 'drizzle-orm';
-import { subjectsBeyond } from '#/service/capability-ceiling';
-import { COUNT_CAP } from '#/usecase/counts';
+import { and, asc, count, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
+import { isBeyond, isNotBeyond, subjectsBeyond } from '#/service/capability-ceiling';
+import { COUNT_CAP, countAtMost } from '#/usecase/capped-count';
 import { endSessionsWhere, TENANT_SESSIONS_END_LIMIT } from '#/usecase/end-sessions';
 import { idPage, resumeAfter, type IdPageOutcome } from '#/usecase/id-page';
 
@@ -149,6 +149,10 @@ export interface EndTenantSessionsDeps {
 
 export interface EndTenantSessionsInput {
   readonly tenantId: string;
+  /** The most sessions this call ends: `TENANT_SESSIONS_END_LIMIT` unless a test says less. */
+  readonly endLimit?: number;
+  /** The most the counts it reports go to: `COUNT_CAP` unless a test says less. */
+  readonly countCap?: number;
   readonly lifespans: SessionLifespans;
   readonly now: Date;
   readonly issuer: string;
@@ -171,18 +175,31 @@ export async function endTenantSessions(
 ): Promise<{ ended: number; remaining: number; beyondCeiling: number }> {
   const live = liveSessionCondition(input.lifespans, input.now);
   const beyond = subjectsBeyond(input.callerCapabilities);
-  const reachable = beyond === null ? live : and(live, not(inArray(sessions.subjectId, beyond)));
-  const ended = await endSessionsWhere(tx, deps.kek, input, reachable, TENANT_SESSIONS_END_LIMIT);
-  const remaining = (await tx.select({ n: count() }).from(sessions).where(reachable))[0]?.n ?? 0;
+  const reachable = beyond === null ? live : and(live, isNotBeyond(sessions.subjectId, beyond));
+  const ended = await endSessionsWhere(
+    tx,
+    deps.kek,
+    input,
+    reachable,
+    input.endLimit ?? TENANT_SESSIONS_END_LIMIT,
+  );
+  const cap = input.countCap ?? COUNT_CAP;
+  const remaining = await countAtMost(
+    tx,
+    { table: sessions, where: reachable },
+    cap,
+  );
   const skipped =
     beyond === null
       ? 0
-      : ((
-          await tx
-            .select({ n: count() })
-            .from(sessions)
-            .where(and(live, inArray(sessions.subjectId, beyond)))
-        )[0]?.n ?? 0);
+      : await countAtMost(
+          tx,
+          {
+            table: sessions,
+            where: and(live, isBeyond(sessions.subjectId, beyond)),
+          },
+          cap,
+        );
 
   await deps.audit(tx, {
     action: 'session.end_all',

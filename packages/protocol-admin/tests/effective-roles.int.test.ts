@@ -3,9 +3,10 @@ import { expectCrossTenantMethodProbe } from '@odudu/db/testing';
 import { groupRepository, roleRepository } from '@odudu/domain-authz';
 import { subjectRepository } from '@odudu/domain-identity';
 import { newId } from '@odudu/kernel';
+import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
-import { listEffectiveRoles } from '#/usecase/effective-roles';
+import { listEffectiveRoles, type ListEffectiveRolesInput } from '#/usecase/effective-roles';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
@@ -67,6 +68,46 @@ describe('GET /subjects/:id/effective-roles', () => {
     ]);
   });
 
+  it('pages the set in id order, each page carrying the paths of its own roles', async () => {
+    const t = await fixture.createTenant(`eff-${newId()}`);
+    const subjectId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const repo = roleRepository(tx);
+      const top = await repo.create({ tenantId: t.id, name: 'top', clientId: null });
+      const subject = await subjectRepository(tx).create({ tenantId: t.id, type: 'user' });
+      await repo.assignToSubject(subject.id, top.id);
+      for (const name of ['a', 'b', 'c', 'd']) {
+        await repo.addComposite(top.id, (await repo.create({ tenantId: t.id, name })).id);
+      }
+      return subject.id;
+    });
+    const token = await fixture.adminToken(t.name, ['view-users']);
+    const base = `/admin/tenants/${t.name}/subjects/${subjectId}/effective-roles?limit=2`;
+
+    const seen: { id: string; name: string; via: Via[] }[] = [];
+    const sizes: number[] = [];
+    let url: string | undefined = base;
+    while (url !== undefined) {
+      const res: LightMyRequestResponse = await fixture.http.inject({
+        method: 'GET',
+        url,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body: { items: { id: string; name: string; via: Via[] }[]; next?: string } = res.json();
+      sizes.push(body.items.length);
+      seen.push(...body.items);
+      url = body.next === undefined ? undefined : `${base}&cursor=${encodeURIComponent(body.next)}`;
+    }
+
+    expect(sizes).toEqual([2, 2, 1]);
+    expect(seen.map((item) => item.id)).toEqual(seen.map((item) => item.id).sort());
+    const topItem = seen.find((item) => item.name === 'top');
+    expect(topItem?.via).toEqual([{ kind: 'direct' }]);
+    expect(seen.find((item) => item.name === 'a')?.via).toEqual([
+      { kind: 'composite', parent_role_id: topItem?.id, parent_name: 'top' },
+    ]);
+  });
+
   it('answers 404 for an id no subject holds, and 403 without view-users', async () => {
     const t = await fixture.createTenant(`eff-${newId()}`);
     const reader = await fixture.adminToken(t.name, ['view-users']);
@@ -87,6 +128,18 @@ describe('GET /subjects/:id/effective-roles', () => {
   });
 });
 
+const CURSOR_KEY = new Uint8Array(32).fill(3);
+
+function page(subjectId: string): ListEffectiveRolesInput {
+  return {
+    tenantId: newId(),
+    subjectId,
+    limit: 50,
+    cursor: undefined,
+    cursorKey: CURSOR_KEY,
+  };
+}
+
 describe('listEffectiveRoles, probed with a foreign tenant_id', () => {
   it('finds no subject across tenants', async () => {
     await expectCrossTenantMethodProbe(fixture.app.db, {
@@ -98,10 +151,10 @@ describe('listEffectiveRoles, probed with a foreign tenant_id', () => {
         return subject.id;
       },
       verifySeeded: async (tx, subjectId) => {
-        const outcome = await listEffectiveRoles(tx, subjectId);
+        const outcome = await listEffectiveRoles(tx, page(subjectId));
         expect(outcome.kind === 'ok' ? outcome.items.length : 0).toBe(1);
       },
-      attempt: (tx, subjectId) => listEffectiveRoles(tx, subjectId),
+      attempt: (tx, subjectId) => listEffectiveRoles(tx, page(subjectId)),
       expectBlocked: (result) => {
         expect(result).toEqual({ kind: 'not_found' });
       },

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createdAtSchema, idSchema } from '#/admin/shared';
+import { createdAtSchema, cursorQuerySchema, idSchema } from '#/admin/shared';
 
 // `client_id` is the client's own row id — what
 // `DELETE .../consents/{clientId}` names — and `client_key` is the OAuth
@@ -13,9 +13,13 @@ export const consentSchema = z.object({
 });
 export type Consent = z.infer<typeof consentSchema>;
 
-// Bounded per subject, the same as `listCredentialsResponseSchema` — no
-// cursor.
+export const listConsentsQuerySchema = cursorQuerySchema.extend({}).strict();
+export type ListConsentsQuery = z.infer<typeof listConsentsQuerySchema>;
+
+// A subject holds one consent per client it has used, and a tenant's clients
+// are not bounded by the subject, so the list is paged.
 export const listConsentsResponseSchema = z.object({
   items: z.array(consentSchema),
+  next: z.string().optional(),
 });
 export type ListConsentsResponse = z.infer<typeof listConsentsResponseSchema>;

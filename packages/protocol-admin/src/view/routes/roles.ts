@@ -1,5 +1,6 @@
 import {
   addRoleCompositeRequestSchema,
+  ASSIGNMENT_LIMIT,
   amendRoleRequestSchema,
   createRoleRequestSchema,
   listRolesQuerySchema,
@@ -55,6 +56,15 @@ function defaultRoleCapabilityProblem(capabilities: readonly string[]): Problem 
     'about:blank',
     'Forbidden',
     `a role handed to every new subject may reach no admin capability, and this one would reach: ${capabilities.join(', ')}`,
+  );
+}
+
+function tooManyDefaults(): Problem {
+  return problem(
+    409,
+    'about:blank',
+    'Conflict',
+    `at most ${String(ASSIGNMENT_LIMIT)} roles are handed to every new subject`,
   );
 }
 
@@ -194,6 +204,7 @@ export function createRoleHandler(deps: RolesRouteDeps): AdminRouteHandler {
         ),
       );
     }
+    if (outcome.kind === 'too_many_defaults') return sendProblem(reply, request, tooManyDefaults());
     reply.header('etag', etagOf(outcome.role));
     return reply.code(201).send(outcome.wire);
   };
@@ -340,6 +351,17 @@ function compositeProblem(
         request,
         problem(409, 'about:blank', 'Conflict', 'would create a role composite cycle'),
       );
+    case 'too_many_composites':
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          409,
+          'about:blank',
+          'Conflict',
+          `a role nests at most ${String(ASSIGNMENT_LIMIT)} composites`,
+        ),
+      );
     case 'precondition_failed':
       return sendProblem(reply, request, ifMatchStale());
   }
@@ -483,6 +505,8 @@ export function setRoleDefaultHandler(deps: RolesRouteDeps): AdminRouteHandler {
           request,
           problem(404, 'about:blank', 'Not Found', `no role ${id}`),
         );
+      case 'too_many_defaults':
+        return sendProblem(reply, request, tooManyDefaults());
       case 'default_role_capability':
         return sendProblem(reply, request, defaultRoleCapabilityProblem(outcome.capabilities));
       case 'precondition_failed':

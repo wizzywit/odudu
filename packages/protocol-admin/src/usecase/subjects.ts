@@ -260,7 +260,8 @@ function exactFilterConditions(
 ): SQL[] {
   const conditions: SQL[] = [];
   if (filters.type !== undefined) conditions.push(eq(subjects.type, filters.type));
-  if (filters.locked === 'true') conditions.push(inArray(subjects.id, lockedSubjects(tx, now)));
+  if (filters.locked === 'true')
+    conditions.push(sql`${subjects.id} = ANY (ARRAY(${lockedSubjects(tx, now)}))`);
   if (filters.locked === 'false') {
     conditions.push(notInArray(subjects.id, lockedSubjects(tx, now)));
   }
@@ -280,10 +281,13 @@ function exactFilterConditions(
       .where(eq(subjectGroups.groupId, filters.group));
     conditions.push(inArray(subjects.id, members));
   }
+  // Matched as an array the holders are collected into first, which the
+  // planner takes for a handful of keys: left as a subquery, its estimate for
+  // the recursive closure sends it through every subject of the tenant.
   if (filters.capability === 'any') {
-    conditions.push(sql`${subjects.id} IN ${holdersOfAny()}`);
+    conditions.push(sql`${subjects.id} = ANY (ARRAY${holdersOfAny()})`);
   } else if (filters.capability !== undefined) {
-    conditions.push(sql`${subjects.id} IN ${holdersOf(filters.capability)}`);
+    conditions.push(sql`${subjects.id} = ANY (ARRAY${holdersOf(filters.capability)})`);
   }
   return conditions;
 }

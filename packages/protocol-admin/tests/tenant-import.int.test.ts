@@ -1,6 +1,8 @@
 import { executionRepository, requiredActionRepository } from '@odudu/authn-flows';
 import {
+  ASSIGNMENT_LIMIT,
   EXPORT_SUBJECT_CAP,
+  SCOPE_LIMIT,
   TENANT_IMPORT_BODY_LIMIT,
   tenantDocumentSchema,
   type TenantDocument,
@@ -422,6 +424,63 @@ describe('POST /admin/tenant-imports', () => {
     expect(res.statusCode).toBe(400);
     const paths = (res.json<ImportRefusal>().errors ?? []).map((error) => error.path);
     expect(paths).toEqual(expect.arrayContaining(['document.version', 'document.clients']));
+  });
+
+  it('refuses a document that hands every new subject more roles than a subject may hold', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const broken: TenantDocument = {
+      ...document,
+      roles: [
+        ...document.roles,
+        ...Array.from({ length: ASSIGNMENT_LIMIT + 1 }, (_, n) => ({
+          name: `default-${String(n)}`,
+          client: null,
+          description: null,
+          default_for_new_subjects: true,
+          builtin: false,
+          composites: [],
+        })),
+      ],
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: broken });
+
+    expect(res.statusCode).toBe(400);
+    const paths = (res.json<ImportRefusal>().errors ?? []).map((error) => error.path);
+    expect(paths).toContain('document.roles');
+  });
+
+  it('refuses a document that defines more scopes than a tenant may', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const broken: TenantDocument = {
+      ...document,
+      scopes: [
+        ...document.scopes,
+        ...Array.from({ length: SCOPE_LIMIT }, (_, n) => ({
+          name: `bulk-${String(n)}`,
+          description: null,
+          include_in_id_token: false,
+          include_in_access_token: false,
+          default_client_assignment: null,
+          consent_text: null,
+          display_order: 0,
+          builtin: false,
+          roles: [],
+          mappers: [],
+          clients: [],
+        })),
+      ],
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: broken });
+
+    expect(res.statusCode).toBe(400);
+    const paths = (res.json<ImportRefusal>().errors ?? []).map((error) => error.path);
+    expect(paths).toContain('document.scopes');
   });
 
   it('refuses a built-in the new tenant does not provision, and a minted capability', async () => {

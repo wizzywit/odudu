@@ -559,12 +559,73 @@ describe('DELETE /clients/:id/grants', () => {
 
     const res = await call('DELETE', t.name, token, `clients/${client.id}/grants`);
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ revoked: 1, beyond_ceiling: 1 });
+    expect(res.json()).toEqual({ revoked: 1, beyond_ceiling: 1, remaining: 0 });
     await withTenant(fixture.app.db, t.id, async (tx) => {
       expect((await tokenGrantRepository(tx).byId(plain.grantId))?.revokedAt).not.toBeNull();
       expect((await tokenGrantRepository(tx).byId(guarded.grantId))?.revokedAt).toBeNull();
     });
     expect((await call('DELETE', t.name, token, `clients/${newId()}/grants`)).statusCode).toBe(404);
+  });
+});
+
+describe('the batches and counts of the tenant-wide writes', () => {
+  it('revokes a client’s grants a batch at a time, and says how many are left', async () => {
+    const t = await fixture.createTenant(`cgb-${newId()}`);
+    const client = await withTenant(fixture.app.db, t.id, (tx) => seedClient(tx, t.id));
+    const ada = await seedUser(t.id, 'ada');
+    const seeded: SeededSession[] = [];
+    for (let n = 0; n < 5; n += 1) seeded.push(await seedSession(t.id, ada, client));
+
+    const outcomes = [];
+    for (let pass = 0; pass < 3; pass += 1) {
+      outcomes.push(
+        await withTenant(fixture.app.db, t.id, (tx) =>
+          revokeClientGrants(
+            tx,
+            { audit: noAudit },
+            {
+              clientDbId: client.id,
+              now: fixture.clock.now(),
+              callerCapabilities: new Set(TENANT_CAPABILITIES),
+              limit: 2,
+              ...actor,
+            },
+          ),
+        ),
+      );
+    }
+
+    expect(outcomes).toEqual([
+      { kind: 'revoked', revoked: 2, beyondCeiling: 0, remaining: 3 },
+      { kind: 'revoked', revoked: 2, beyondCeiling: 0, remaining: 1 },
+      { kind: 'revoked', revoked: 1, beyondCeiling: 0, remaining: 0 },
+    ]);
+  });
+
+  it('counts the sessions left no further than the count ceiling', async () => {
+    const t = await fixture.createTenant(`cap-${newId()}`);
+    const client = await withTenant(fixture.app.db, t.id, (tx) => seedClient(tx, t.id));
+    const ada = await seedUser(t.id, 'ada');
+    for (let n = 0; n < 4; n += 1) await seedSession(t.id, ada, client);
+
+    const ended = await withTenant(fixture.app.db, t.id, (tx) =>
+      endTenantSessions(
+        tx,
+        { audit: noAudit, kek: Buffer.alloc(32, 7) },
+        {
+          tenantId: t.id,
+          lifespans: LIFESPANS,
+          now: fixture.clock.now(),
+          issuer: 'http://localhost/tenants/x',
+          callerCapabilities: new Set(TENANT_CAPABILITIES),
+          endLimit: 1,
+          countCap: 2,
+          ...actor,
+        },
+      ),
+    );
+
+    expect(ended).toMatchObject({ ended: 1, remaining: 2 });
   });
 });
 

@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { roleAssignmentSchema } from '#/admin/subjects';
-import { createdAtSchema, cursorQuerySchema, idSchema, searchPrefixSchema } from '#/admin/shared';
+import {
+  ASSIGNMENT_LIMIT,
+  createdAtSchema,
+  cursorQuerySchema,
+  idSchema,
+  searchPrefixSchema,
+} from '#/admin/shared';
 
 export const clientScopeAssignmentSchema = z.enum(['default', 'optional']);
 
@@ -58,7 +64,7 @@ export const amendScopeRequestSchema = z.record(z.string(), z.unknown());
 export type AmendScopeRequest = z.infer<typeof amendScopeRequestSchema>;
 
 export const setScopeRolesRequestSchema = z.object({
-  role_ids: z.array(idSchema),
+  role_ids: z.array(idSchema).max(ASSIGNMENT_LIMIT),
 });
 export type SetScopeRolesRequest = z.infer<typeof setScopeRolesRequestSchema>;
 

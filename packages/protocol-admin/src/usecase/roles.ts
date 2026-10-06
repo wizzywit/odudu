@@ -1,4 +1,4 @@
-import { type ListRolesQuery, type RoleFields } from '@odudu/contracts/admin';
+import { ASSIGNMENT_LIMIT, type ListRolesQuery, type RoleFields } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
 import { roleRepository, roles } from '@odudu/domain-authz';
 import { clients } from '@odudu/domain-tenant';
@@ -209,7 +209,14 @@ export interface CreateRoleDeps {
 export type CreateRoleOutcome =
   | { kind: 'unknown_client' }
   | { kind: 'default_on_admin_client'; adminClient: string }
+  | { kind: 'too_many_defaults' }
   | { kind: 'ok'; role: RoleFields };
+
+// Every new subject is handed all the default roles, so the set holds no more
+// than a subject's own roles may.
+async function defaultRolesAreFull(tx: TenantScopedDatabase): Promise<boolean> {
+  return (await roleRepository(tx).defaultsForTenant()).length >= ASSIGNMENT_LIMIT;
+}
 
 export async function createRole(
   tx: TenantScopedDatabase,
@@ -243,6 +250,10 @@ export async function createRole(
       });
       return { kind: 'default_on_admin_client', adminClient };
     }
+  }
+
+  if (input.defaultForNewSubjects && (await defaultRolesAreFull(tx))) {
+    return { kind: 'too_many_defaults' };
   }
 
   const created = await roleRepository(tx).create({
@@ -528,6 +539,7 @@ export type AddRoleCompositeOutcome =
   | { kind: 'capability_ceiling'; requested: readonly string[]; removed?: readonly string[] }
   | { kind: 'default_role_capability'; capabilities: readonly string[] }
   | { kind: 'cycle' }
+  | { kind: 'too_many_composites' }
   | { kind: 'precondition_failed' }
   | { kind: 'ok'; etag: string };
 
@@ -571,8 +583,10 @@ export async function addRoleComposite(
   if (parent === null) return { kind: 'not_found' };
   const child = await roleRepository(tx).byId(input.childRoleId);
   if (child === null) return { kind: 'unknown_child_role' };
-  const before = compositesEtag(await compositesOf(tx, input.parentRoleId));
+  const current = await compositesOf(tx, input.parentRoleId);
+  const before = compositesEtag(current);
   if (matches(input.ifMatch, before) === 'mismatch') return { kind: 'precondition_failed' };
+  if (current.length >= ASSIGNMENT_LIMIT) return { kind: 'too_many_composites' };
 
   // The other half of `removeRoleComposite`'s guard: a capability role's
   // shape is what provisioning gives it (`capabilityRoleGraph`), so nothing
@@ -789,6 +803,7 @@ export interface SetRoleDefaultDeps {
 export type SetRoleDefaultOutcome =
   | { kind: 'not_found' }
   | { kind: 'default_role_capability'; capabilities: readonly string[] }
+  | { kind: 'too_many_defaults' }
   | { kind: 'ok'; role: RoleFields; etag: string }
   | { kind: 'precondition_failed' };
 
@@ -807,6 +822,9 @@ export async function setRoleDefault(
 
   if (input.value) {
     await lockDefaultReach(tx);
+    if (!locked.defaultForNewSubjects && (await defaultRolesAreFull(tx))) {
+      return { kind: 'too_many_defaults' };
+    }
     const capabilities = [...(await capabilitiesReachableFrom(tx, [input.roleId]))].sort();
     if (capabilities.length > 0) {
       await deps.audit(tx, {

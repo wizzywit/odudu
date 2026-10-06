@@ -3,6 +3,7 @@ import { tenants, type Database, type TenantScopedDatabase } from '@odudu/db';
 import { groups, roles } from '@odudu/domain-authz';
 import { clients, clientScopes } from '@odudu/domain-tenant';
 import { and, count, sql, type SQL } from 'drizzle-orm';
+import { COUNT_CAP } from '#/usecase/capped-count';
 import { clientListConditions, clientListOrder, type ClientFilters } from '#/usecase/clients';
 import { groupListConditions, groupListOrder, type GroupFilters } from '#/usecase/groups';
 import { roleListConditions, roleListOrder, type RoleFilters } from '#/usecase/roles';
@@ -15,13 +16,7 @@ import {
 } from '#/usecase/subjects';
 import { tenantListConditions, tenantListOrder, type TenantFilters } from '#/usecase/tenants';
 
-// Counting stops one row past this, so a count reads at most that many
-// rows however large the collection, and says `capped` rather than guess.
-// Each count is its list's own statement — WHERE, joins and ORDER BY —
-// with a larger LIMIT: without the order the planner may filter a
-// sequential scan and hope to reach the LIMIT early, which is unbounded
-// when the matches are sparse (tests/list-plans.int.test.ts holds this).
-export const COUNT_CAP = 10_000;
+export { COUNT_CAP };
 
 export interface CountOptions {
   readonly cap?: number;

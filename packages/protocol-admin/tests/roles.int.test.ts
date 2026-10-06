@@ -1,3 +1,4 @@
+import { ASSIGNMENT_LIMIT } from '@odudu/contracts/admin';
 import { withTenant, type TenantScopedDatabase } from '@odudu/db';
 import { roleComposites, roleRepository, subjectRoles } from '@odudu/domain-authz';
 import {
@@ -458,6 +459,41 @@ describe('POST /admin/tenants/{t}/roles/{id}/composites', () => {
       payload: { child_role_id: manageUsersId },
     });
     expect(res.statusCode).toBe(204);
+  });
+
+  it('refuses the composite past the most a role may nest, and keeps the set as it was', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const parentId = await plainRole(t.id);
+    const token = await fixture.adminToken(t.name, [TENANT_ADMIN]);
+    const children = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const made: string[] = [];
+      for (let n = 0; n <= ASSIGNMENT_LIMIT; n += 1) {
+        made.push(
+          (await roleRepository(tx).create({ tenantId: t.id, name: `child-${String(n)}` })).id,
+        );
+      }
+      for (const id of made.slice(0, ASSIGNMENT_LIMIT)) {
+        await roleRepository(tx).addComposite(parentId, id);
+      }
+      return made;
+    });
+    const extra = children[ASSIGNMENT_LIMIT];
+    if (extra === undefined) throw new Error('fixture: no role past the limit');
+
+    const res = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/roles/${parentId}/composites`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: { child_role_id: extra },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ detail: string }>().detail).toContain(String(ASSIGNMENT_LIMIT));
+    const listed = await fixture.http.inject({
+      url: `/admin/tenants/${t.name}/roles/${parentId}/composites`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(listed.json<{ items: unknown[] }>().items).toHaveLength(ASSIGNMENT_LIMIT);
   });
 
   it('400s a child_role_id that is not an id at all, not 500', async () => {

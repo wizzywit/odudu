@@ -3,7 +3,7 @@ import { clientTypeSchema, registrationOriginSchema } from '#/admin/clients';
 import { executionRequirementSchema } from '#/admin/flow';
 import { profileSchema } from '#/admin/profile';
 import { clientScopeAssignmentSchema } from '#/admin/scopes';
-import { fieldErrorSchema, type FieldError } from '#/admin/shared';
+import { ASSIGNMENT_LIMIT, fieldErrorSchema, type FieldError } from '#/admin/shared';
 import { requiredActionSchema } from '#/admin/subjects';
 import { tenantSchema } from '#/admin/tenants';
 
@@ -11,6 +11,12 @@ import { tenantSchema } from '#/admin/tenants';
 // answered: moving users in bulk is inbound provisioning's job, not a
 // single response body's.
 export const EXPORT_SUBJECT_CAP = 10_000;
+
+// Above these a tenant's clients, roles or groups, and the links between
+// them, are too many for one document: it is read whole, held whole and
+// answered whole. The first is twice the design volume of clients in a tenant.
+export const EXPORT_COLLECTION_CAP = 20_000;
+export const EXPORT_LINK_CAP = 10 * EXPORT_COLLECTION_CAP;
 
 export const TENANT_DOCUMENT_MEDIA_TYPE = 'application/vnd.odudu.tenant+json';
 
@@ -127,7 +133,7 @@ export const exportedClientSchema = z.strictObject({
   require_auth_time: z.boolean(),
   // The roles a confidential client's own service account holds, which
   // its client_credentials tokens carry; empty for a public client.
-  service_account_roles: z.array(roleReferenceSchema),
+  service_account_roles: z.array(roleReferenceSchema).max(ASSIGNMENT_LIMIT),
 });
 export type ExportedClient = z.infer<typeof exportedClientSchema>;
 
@@ -140,7 +146,7 @@ export const exportedRoleSchema = z.strictObject({
   description: z.string().nullable(),
   default_for_new_subjects: z.boolean(),
   builtin: z.boolean(),
-  composites: z.array(roleReferenceSchema),
+  composites: z.array(roleReferenceSchema).max(ASSIGNMENT_LIMIT),
 });
 export type ExportedRole = z.infer<typeof exportedRoleSchema>;
 
@@ -148,7 +154,7 @@ export const exportedGroupSchema = z.strictObject({
   path: z.string(),
   description: z.string().nullable(),
   default_for_new_subjects: z.boolean(),
-  roles: z.array(roleReferenceSchema),
+  roles: z.array(roleReferenceSchema).max(ASSIGNMENT_LIMIT),
 });
 export type ExportedGroup = z.infer<typeof exportedGroupSchema>;
 
@@ -161,7 +167,7 @@ export const exportedScopeSchema = z.strictObject({
   consent_text: z.string().nullable(),
   display_order: z.number().int(),
   builtin: z.boolean(),
-  roles: z.array(roleReferenceSchema),
+  roles: z.array(roleReferenceSchema).max(ASSIGNMENT_LIMIT),
   mappers: z.array(z.string()),
   clients: z.array(
     z.strictObject({ client_id: z.string(), assignment: clientScopeAssignmentSchema }),
@@ -183,8 +189,8 @@ export const exportedSubjectSchema = z.strictObject({
   email: z.string().nullable(),
   enabled: z.boolean(),
   profile: z.strictObject(profileSchema.omit({ profile_updated_at: true }).shape),
-  roles: z.array(roleReferenceSchema),
-  groups: z.array(z.string()),
+  roles: z.array(roleReferenceSchema).max(ASSIGNMENT_LIMIT),
+  groups: z.array(z.string()).max(ASSIGNMENT_LIMIT),
   required_actions: z.array(requiredActionSchema),
 });
 export type ExportedSubject = z.infer<typeof exportedSubjectSchema>;

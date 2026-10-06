@@ -1,5 +1,7 @@
 import { authenticationExecutions, userRequiredActions } from '@odudu/authn-flows';
 import {
+  EXPORT_COLLECTION_CAP,
+  EXPORT_LINK_CAP,
   EXPORT_SUBJECT_CAP,
   profileSchema,
   REGISTRATION_POLICY_SETTINGS,
@@ -36,7 +38,9 @@ import {
   type ClientScopeAssignment,
 } from '@odudu/domain-tenant';
 import { clientOidcConfig } from '@odudu/protocol-oidc';
-import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { type PgTable } from 'drizzle-orm/pg-core';
+import { countAtMost } from '#/usecase/capped-count';
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 import { publicJwks } from '#/service/public-jwks';
 import { profileWireShape } from '#/usecase/profile';
@@ -69,7 +73,8 @@ export interface ExportTenantDeps {
 
 export type ExportTenantOutcome =
   | { readonly kind: 'exported'; readonly document: TenantDocument }
-  | { readonly kind: 'too_many_subjects'; readonly cap: number };
+  | { readonly kind: 'too_many_subjects'; readonly cap: number }
+  | { readonly kind: 'too_large'; readonly collection: string; readonly cap: number };
 
 // Byte order, not locale order, so the same tenant always exports the same
 // bytes whatever the server's locale — a document is diffed as often as it
@@ -174,6 +179,87 @@ async function subjectRoleReferences(
       and(eq(subjectRoles.tenantId, tenantId), inArray(subjectRoles.subjectId, [...subjectIds])),
     );
   return referencesByOwner(rows, roleById);
+}
+
+interface Bound {
+  readonly collection: string;
+  readonly table: PgTable;
+  readonly where: SQL | undefined;
+  readonly cap: number;
+}
+
+// The first of what a document holds that is more than a document holds,
+// each counted one row past its cap and no further.
+async function oversized(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  includeSubjects: boolean,
+  caps: { readonly collection: number; readonly link: number },
+): Promise<{ collection: string; cap: number } | null> {
+  const bounds: Bound[] = [
+    {
+      collection: 'clients',
+      table: clients,
+      where: and(eq(clients.tenantId, tenantId), eq(clients.builtinAdmin, false)),
+      cap: caps.collection,
+    },
+    {
+      collection: 'roles',
+      table: roles,
+      where: eq(roles.tenantId, tenantId),
+      cap: caps.collection,
+    },
+    {
+      collection: 'groups',
+      table: groups,
+      where: eq(groups.tenantId, tenantId),
+      cap: caps.collection,
+    },
+    {
+      collection: 'role composites',
+      table: roleComposites,
+      where: eq(roleComposites.tenantId, tenantId),
+      cap: caps.link,
+    },
+    {
+      collection: 'group role mappings',
+      table: groupRoles,
+      where: eq(groupRoles.tenantId, tenantId),
+      cap: caps.link,
+    },
+    {
+      collection: 'scope role mappings',
+      table: clientScopeRoles,
+      where: eq(clientScopeRoles.tenantId, tenantId),
+      cap: caps.link,
+    },
+    {
+      collection: 'scope assignments',
+      table: clientScopeAssignments,
+      where: eq(clientScopeAssignments.tenantId, tenantId),
+      cap: caps.link,
+    },
+    ...(includeSubjects
+      ? [
+          {
+            collection: 'group memberships',
+            table: subjectGroups,
+            where: eq(subjectGroups.tenantId, tenantId),
+            cap: caps.link,
+          },
+        ]
+      : []),
+  ];
+  for (const bound of bounds) {
+    const held = await countAtMost(tx, bound, bound.cap + 1);
+    if (held > bound.cap) return { collection: bound.collection, cap: bound.cap };
+  }
+  return null;
+}
+
+/** Why a collection is too large to move in one document. */
+export function tooLargeDetail(collection: string, cap: number): string {
+  return `the tenant holds more than ${String(cap)} ${collection}, too many to export in one document`;
 }
 
 /** Why a tenant's subjects are too many to move in one document, export and import alike. */
@@ -502,13 +588,22 @@ export async function exportTenant(
   tx: TenantScopedDatabase,
   deps: ExportTenantDeps,
   input: ExportTenantInput,
-  options: { readonly subjectCap?: number } = {},
+  options: {
+    readonly subjectCap?: number;
+    readonly collectionCap?: number;
+    readonly linkCap?: number;
+  } = {},
 ): Promise<ExportTenantOutcome> {
   const { tenantId } = input;
   const cap = options.subjectCap ?? EXPORT_SUBJECT_CAP;
   if (input.includeSubjects && (await exportableSubjectCount(tx, tenantId, cap)) > cap) {
     return { kind: 'too_many_subjects', cap };
   }
+  const tooLarge = await oversized(tx, tenantId, input.includeSubjects, {
+    collection: options.collectionCap ?? EXPORT_COLLECTION_CAP,
+    link: options.linkCap ?? EXPORT_LINK_CAP,
+  });
+  if (tooLarge !== null) return { kind: 'too_large', ...tooLarge };
 
   const record = await tenantSettingsRepository(tx).byId(tenantId);
   if (record === null) throw new Error(`tenant ${tenantId} has no settings row`);

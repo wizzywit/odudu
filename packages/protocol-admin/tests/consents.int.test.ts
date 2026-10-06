@@ -1,7 +1,7 @@
 import { withTenant, type TenantScopedDatabase } from '@odudu/db';
 import { auditRepository } from '@odudu/domain-audit';
 import { hashPassword, subjectRepository, userCredentials, users } from '@odudu/domain-identity';
-import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
+import { clients, consentRepository, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { clientOidcConfigRepository, tokenGrantRepository } from '@odudu/protocol-oidc';
 import { type LightMyRequestResponse } from 'fastify';
@@ -40,10 +40,19 @@ interface ConsentRequiredClient {
 // `setupTenant`. The fixture's `createTenant` already provisions the
 // tenant's flow and an active signing key, so neither is repeated here.
 async function createConsentRequiredClient(tenantId: string): Promise<ConsentRequiredClient> {
+  return withTenant(fixture.app.db, tenantId, (tx) =>
+    createConsentRequiredClientIn(tx, tenantId, `consent-client-${newId()}`),
+  );
+}
+
+async function createConsentRequiredClientIn(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  clientKey: string,
+): Promise<ConsentRequiredClient> {
   const secret = 'consent-required-client-secret';
-  return withTenant(fixture.app.db, tenantId, async (tx: TenantScopedDatabase) => {
+  {
     const clientDbId = newId();
-    const clientKey = `consent-client-${newId()}`;
     await tx.insert(clients).values({
       id: clientDbId,
       tenantId,
@@ -65,7 +74,7 @@ async function createConsentRequiredClient(tenantId: string): Promise<ConsentReq
       consentRequired: true,
     });
     return { id: clientDbId, clientId: clientKey, secret };
-  });
+  }
 }
 
 async function createPasswordSubject(tenantId: string): Promise<string> {
@@ -211,6 +220,42 @@ describe('GET /admin/tenants/{t}/subjects/{id}/consents', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json<{ items: unknown[] }>().items).toEqual([]);
+  });
+
+  it('pages the consents of a subject by client_id, each page as long as asked', async () => {
+    const t = await fixture.createTenant(`consents-paged-${newId()}`);
+    const { id: subjectId } = await fixture.createSubject(t.name, `many-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['view-users']);
+    const keys: string[] = [];
+    await withTenant(fixture.app.db, t.id, async (tx: TenantScopedDatabase) => {
+      for (let n = 0; n < 5; n += 1) {
+        const client = await createConsentRequiredClientIn(tx, t.id, `paged-${String(n)}`);
+        keys.push(client.clientId);
+        await consentRepository(tx).record(t.id, subjectId, client.id, []);
+      }
+    });
+
+    const seen: string[] = [];
+    let url: string | undefined = `/admin/tenants/${t.name}/subjects/${subjectId}/consents?limit=2`;
+    const pages: number[] = [];
+    while (url !== undefined) {
+      const res: LightMyRequestResponse = await fixture.http.inject({
+        method: 'GET',
+        url,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const page: { items: { client_key: string }[]; next?: string } = res.json();
+      pages.push(page.items.length);
+      seen.push(...page.items.map((item) => item.client_key));
+      url =
+        page.next === undefined
+          ? undefined
+          : `/admin/tenants/${t.name}/subjects/${subjectId}/consents?limit=2&cursor=${encodeURIComponent(page.next)}`;
+    }
+
+    expect(pages).toEqual([2, 2, 1]);
+    expect(seen).toEqual([...keys].sort());
   });
 
   it('answers 404 for an unknown subject', async () => {

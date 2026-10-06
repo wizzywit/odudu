@@ -13,7 +13,7 @@ import {
   TENANT_ADMIN,
   TENANT_CAPABILITIES,
 } from '@odudu/domain-tenant';
-import { inArray, sql, type SQL } from 'drizzle-orm';
+import { inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 
 /**
@@ -46,10 +46,7 @@ export async function capabilitiesOfGroupsAndAncestors(
   tx: TenantScopedDatabase,
   groupIds: readonly string[],
 ): Promise<ReadonlySet<string>> {
-  const chain = new Set<string>();
-  for (const groupId of groupIds) {
-    for (const id of await ancestorsOf(tx, groupId)) chain.add(id);
-  }
+  const chain = await ancestorsOf(tx, groupIds);
   if (chain.size === 0) return new Set();
   const mapped = await tx
     .select({ roleId: groupRoles.roleId })
@@ -143,17 +140,34 @@ export function holdersOf(name: string): SQL {
       SELECT r.id FROM roles r JOIN clients c ON c.id = r.client_id
       WHERE c.client_id = ${ADMIN_CLIENT_ID} AND r.name = ${name}
       UNION
-      SELECT rc.parent_role_id FROM role_composites rc
-      JOIN granting g ON rc.child_role_id = g.role_id
+      SELECT rc.parent_role_id
+      FROM granting g
+      CROSS JOIN LATERAL (
+        SELECT parent_role_id FROM role_composites WHERE child_role_id = g.role_id OFFSET 0
+      ) rc
     ),
     granting_groups(id) AS (
-      SELECT gr.group_id FROM group_roles gr JOIN granting g ON gr.role_id = g.role_id
+      SELECT gr.group_id
+      FROM granting g
+      CROSS JOIN LATERAL (
+        SELECT group_id FROM group_roles WHERE role_id = g.role_id OFFSET 0
+      ) gr
       UNION
-      SELECT ch.id FROM groups ch JOIN granting_groups p ON ch.parent_id = p.id
+      SELECT ch.id
+      FROM granting_groups p
+      CROSS JOIN LATERAL (SELECT id FROM groups WHERE parent_id = p.id OFFSET 0) ch
     )
-    SELECT sr.subject_id FROM subject_roles sr JOIN granting g ON g.role_id = sr.role_id
+    SELECT sr.subject_id
+    FROM granting g
+    CROSS JOIN LATERAL (
+      SELECT subject_id FROM subject_roles WHERE role_id = g.role_id OFFSET 0
+    ) sr
     UNION
-    SELECT sg.subject_id FROM subject_groups sg JOIN granting_groups gg ON gg.id = sg.group_id
+    SELECT sg.subject_id
+    FROM granting_groups gg
+    CROSS JOIN LATERAL (
+      SELECT subject_id FROM subject_groups WHERE group_id = gg.id OFFSET 0
+    ) sg
   )`;
 }
 
@@ -166,7 +180,19 @@ export function holdersOf(name: string): SQL {
 export function subjectsBeyond(held: ReadonlySet<string>): SQL | null {
   const missing = [...CAPABILITY_NAMES].filter((name) => !held.has(name));
   if (missing.length === 0) return null;
-  return sql`(${sql.join(missing.map(holdersOf), sql` UNION `)})`;
+  // An array, read once: the planner probes the filtered table by subject
+  // rather than hashing the holders against a scan of it.
+  return sql`ARRAY(${sql.join(missing.map(holdersOf), sql` UNION `)})`;
+}
+
+/** `column` is the id of a subject `subjectsBeyond` named. */
+export function isBeyond(column: AnyColumn, beyond: SQL): SQL {
+  return sql`${column} = ANY(${beyond})`;
+}
+
+/** `column` is not the id of a subject `subjectsBeyond` named. */
+export function isNotBeyond(column: AnyColumn, beyond: SQL): SQL {
+  return sql`${column} <> ALL(${beyond})`;
 }
 
 /** Every holder of any admin capability: the target ceiling's set with nothing held. */
@@ -245,7 +271,11 @@ export async function hasEnabledHolder(tx: TenantScopedDatabase, name: string): 
   const rows = existsRowsSchema.parse(
     await tx.execute(sql`
       SELECT EXISTS (
-        SELECT 1 FROM subjects s WHERE s.disabled_at IS NULL AND s.id IN ${holdersOf(name)}
+        SELECT 1
+        FROM ${holdersOf(name)} AS h(subject_id)
+        CROSS JOIN LATERAL (
+          SELECT 1 FROM subjects s WHERE s.id = h.subject_id AND s.disabled_at IS NULL OFFSET 0
+        ) enabled_holder
       ) AS held
     `),
   );
@@ -280,13 +310,16 @@ function capabilitiesIn(closure: SQL): SQL {
   return sql`${closure}
     SELECT c.root::text AS root, r.name AS name
     FROM closure c
-    JOIN roles r ON r.id = c.role_id
-    JOIN clients cl ON cl.id = r.client_id
-    WHERE cl.client_id = ${ADMIN_CLIENT_ID}
-      AND r.name IN (${sql.join(
-        ADMIN_CAPABILITIES.map((name) => sql`${name}`),
-        sql`, `,
-      )})`;
+    JOIN (
+      SELECT r.id, r.name
+      FROM clients cl
+      JOIN roles r ON r.client_id = cl.id
+      WHERE cl.client_id = ${ADMIN_CLIENT_ID}
+        AND r.name IN (${sql.join(
+          ADMIN_CAPABILITIES.map((name) => sql`${name}`),
+          sql`, `,
+        )})
+    ) r ON r.id = c.role_id`;
 }
 
 /**
@@ -305,7 +338,10 @@ export async function adminReachOfRoles(
         SELECT id, id FROM roles WHERE id IN (${idList(roleIds)})
         UNION
         SELECT c.root, rc.child_role_id
-        FROM role_composites rc JOIN closure c ON rc.parent_role_id = c.role_id
+        FROM closure c
+        CROSS JOIN LATERAL (
+          SELECT child_role_id FROM role_composites WHERE parent_role_id = c.role_id OFFSET 0
+        ) rc
       )`),
   );
   return reachByRoot(roleIds, reachRowsSchema.parse(rows));
@@ -325,13 +361,24 @@ export async function adminReachOfGroups(
       WITH RECURSIVE chain(root, id, parent_id) AS (
         SELECT id, id, parent_id FROM groups WHERE id IN (${idList(groupIds)})
         UNION
-        SELECT ch.root, g.id, g.parent_id FROM groups g JOIN chain ch ON g.id = ch.parent_id
+        SELECT ch.root, g.id, g.parent_id
+        FROM chain ch
+        CROSS JOIN LATERAL (
+          SELECT id, parent_id FROM groups WHERE id = ch.parent_id OFFSET 0
+        ) g
       ),
       closure(root, role_id) AS (
-        SELECT ch.root, gr.role_id FROM chain ch JOIN group_roles gr ON gr.group_id = ch.id
+        SELECT ch.root, gr.role_id
+        FROM chain ch
+        CROSS JOIN LATERAL (
+          SELECT role_id FROM group_roles WHERE group_id = ch.id OFFSET 0
+        ) gr
         UNION
         SELECT c.root, rc.child_role_id
-        FROM role_composites rc JOIN closure c ON rc.parent_role_id = c.role_id
+        FROM closure c
+        CROSS JOIN LATERAL (
+          SELECT child_role_id FROM role_composites WHERE parent_role_id = c.role_id OFFSET 0
+        ) rc
       )`),
   );
   return reachByRoot(groupIds, reachRowsSchema.parse(rows));

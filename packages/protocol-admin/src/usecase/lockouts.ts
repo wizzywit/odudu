@@ -1,7 +1,8 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { loginFailures } from '@odudu/domain-identity';
-import { count, inArray, not } from 'drizzle-orm';
-import { subjectsBeyond } from '#/service/capability-ceiling';
+import { asc, sql } from 'drizzle-orm';
+import { countAtMost } from '#/usecase/capped-count';
+import { isBeyond, isNotBeyond, subjectsBeyond } from '#/service/capability-ceiling';
 
 export interface LockoutsAuditEvent {
   readonly action: 'subject.lockouts_clear';
@@ -17,8 +18,13 @@ export interface LockoutsAuditEvent {
 /** The most subject ids a tenant-wide clear's audit row names. */
 export const AUDITED_SUBJECT_IDS = 100;
 
+/** How many lockouts one clear removes; the rest wait for the next. */
+export const LOCKOUTS_CLEAR_LIMIT = 10_000;
+
 export interface ClearLockoutsInput {
   readonly tenantId: string;
+  /** The most it clears in this call: `LOCKOUTS_CLEAR_LIMIT` unless a test says less. */
+  readonly limit?: number;
   readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
@@ -35,21 +41,30 @@ export async function clearLockouts(
   tx: TenantScopedDatabase,
   deps: { readonly audit: (tx: TenantScopedDatabase, event: LockoutsAuditEvent) => Promise<void> },
   input: ClearLockoutsInput,
-): Promise<{ cleared: number; beyondCeiling: number }> {
+): Promise<{ cleared: number; beyondCeiling: number; remaining: number }> {
   const beyond = subjectsBeyond(input.callerCapabilities);
+  const reachable = beyond === null ? undefined : isNotBeyond(loginFailures.subjectId, beyond);
+  const batch = tx
+    .select({ subjectId: loginFailures.subjectId })
+    .from(loginFailures)
+    .where(reachable)
+    .orderBy(asc(loginFailures.subjectId))
+    .limit(input.limit ?? LOCKOUTS_CLEAR_LIMIT);
   const cleared = await tx
     .delete(loginFailures)
-    .where(beyond === null ? undefined : not(inArray(loginFailures.subjectId, beyond)))
+    .where(sql`${loginFailures.subjectId} = ANY(ARRAY(${batch}))`)
     .returning({ subjectId: loginFailures.subjectId });
+  const remaining = await countAtMost(tx, {
+    table: loginFailures,
+    where: reachable,
+  });
   const beyondCeiling =
     beyond === null
       ? 0
-      : ((
-          await tx
-            .select({ n: count() })
-            .from(loginFailures)
-            .where(inArray(loginFailures.subjectId, beyond))
-        )[0]?.n ?? 0);
+      : await countAtMost(tx, {
+          table: loginFailures,
+          where: isBeyond(loginFailures.subjectId, beyond),
+        });
 
   await deps.audit(tx, {
     action: 'subject.lockouts_clear',
@@ -68,5 +83,5 @@ export async function clearLockouts(
         .slice(0, AUDITED_SUBJECT_IDS),
     },
   });
-  return { cleared: cleared.length, beyondCeiling };
+  return { cleared: cleared.length, beyondCeiling, remaining };
 }

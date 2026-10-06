@@ -2,8 +2,9 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clientRepository, clients } from '@odudu/domain-tenant';
 import { refreshTokens, tokenGrantRepository, tokenGrants } from '@odudu/protocol-oidc';
-import { and, asc, count, eq, gt, inArray, isNull, not, sql } from 'drizzle-orm';
-import { subjectsBeyond } from '#/service/capability-ceiling';
+import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { isBeyond, isNotBeyond, subjectsBeyond } from '#/service/capability-ceiling';
+import { countAtMost } from '#/usecase/capped-count';
 import { refuseOverServiceAccountCeiling } from '#/usecase/clients';
 import { idPage, resumeAfter, type IdPageOutcome } from '#/usecase/id-page';
 import {
@@ -138,8 +139,13 @@ export async function revokeSubjectGrants(
   return { kind: 'revoked', revoked };
 }
 
+/** How many grants one revocation through a client takes; the rest wait for the next. */
+export const CLIENT_GRANTS_REVOKE_LIMIT = 10_000;
+
 export interface RevokeClientGrantsInput {
   readonly clientDbId: string;
+  /** The most it revokes in this call: `CLIENT_GRANTS_REVOKE_LIMIT` unless a test says less. */
+  readonly limit?: number;
   readonly now: Date;
   readonly callerCapabilities: ReadonlySet<string>;
   readonly actorSubjectId: string;
@@ -150,7 +156,7 @@ export interface RevokeClientGrantsInput {
 export type RevokeClientGrantsOutcome =
   | { kind: 'not_found' }
   | TargetCeilingRefusal
-  | { kind: 'revoked'; revoked: number; beyondCeiling: number };
+  | { kind: 'revoked'; revoked: number; beyondCeiling: number; remaining: number };
 
 // Every live grant issued through the client, whoever holds it, except
 // those of a subject holding an admin capability the caller does not
@@ -182,20 +188,29 @@ export async function revokeClientGrants(
 
   const live = and(eq(tokenGrants.clientId, input.clientDbId), isNull(tokenGrants.revokedAt));
   const beyond = subjectsBeyond(input.callerCapabilities);
+  const reachable = beyond === null ? live : and(live, isNotBeyond(tokenGrants.subjectId, beyond));
+  const batch = tx
+    .select({ id: tokenGrants.id })
+    .from(tokenGrants)
+    .where(reachable)
+    .orderBy(asc(tokenGrants.id))
+    .limit(input.limit ?? CLIENT_GRANTS_REVOKE_LIMIT);
   const revoked = await tx
     .update(tokenGrants)
     .set({ revokedAt: input.now })
-    .where(beyond === null ? live : and(live, not(inArray(tokenGrants.subjectId, beyond))))
+    .where(inArray(tokenGrants.id, batch))
     .returning({ id: tokenGrants.id });
+  const remaining = await countAtMost(tx, {
+    table: tokenGrants,
+    where: reachable,
+  });
   const beyondCeiling =
     beyond === null
       ? 0
-      : ((
-          await tx
-            .select({ n: count() })
-            .from(tokenGrants)
-            .where(and(live, inArray(tokenGrants.subjectId, beyond)))
-        )[0]?.n ?? 0);
+      : await countAtMost(tx, {
+          table: tokenGrants,
+          where: and(live, isBeyond(tokenGrants.subjectId, beyond)),
+        });
 
   await deps.audit(tx, {
     action: 'client.grants_revoke',
@@ -207,5 +222,5 @@ export async function revokeClientGrants(
     outcome: 'allowed',
     detail: { revoked: revoked.length, beyond_ceiling: beyondCeiling },
   });
-  return { kind: 'revoked', revoked: revoked.length, beyondCeiling };
+  return { kind: 'revoked', revoked: revoked.length, beyondCeiling, remaining };
 }

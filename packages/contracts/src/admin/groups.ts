@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { roleAssignmentSchema } from '#/admin/subjects';
 import {
+  ASSIGNMENT_LIMIT,
   createdAtSchema,
   cursorQuerySchema,
   descriptionSchema,
@@ -74,7 +75,7 @@ export const setGroupDefaultRequestSchema = z.object({
 export type SetGroupDefaultRequest = z.infer<typeof setGroupDefaultRequestSchema>;
 
 export const setGroupRolesRequestSchema = z.object({
-  role_ids: z.array(idSchema),
+  role_ids: z.array(idSchema).max(ASSIGNMENT_LIMIT),
 });
 export type SetGroupRolesRequest = z.infer<typeof setGroupRolesRequestSchema>;
 
@@ -91,7 +92,7 @@ export type SetGroupRolesResponse = z.infer<typeof setGroupRolesResponseSchema>;
 // A subject's direct memberships. Lives beside `groupSchema` rather than in
 // #/admin/subjects, which this module already imports from.
 export const setSubjectGroupsRequestSchema = z.object({
-  group_ids: z.array(idSchema),
+  group_ids: z.array(idSchema).max(ASSIGNMENT_LIMIT),
 });
 export type SetSubjectGroupsRequest = z.infer<typeof setSubjectGroupsRequestSchema>;
 

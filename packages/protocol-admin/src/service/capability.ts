@@ -50,6 +50,7 @@ import {
   evaluateClaimsQuerySchema,
   listMailResponseSchema,
   listMailQuerySchema,
+  listConsentsQuerySchema,
   listConsentsResponseSchema,
   listCredentialsResponseSchema,
   listGroupsResponseSchema,
@@ -79,6 +80,7 @@ import {
   bulkSubjectsRequestSchema,
   bulkSubjectsResponseSchema,
   clearLockoutsResponseSchema,
+  listEffectiveRolesQuerySchema,
   listEffectiveRolesResponseSchema,
   listTenantsQuerySchema,
   countTenantsQuerySchema,
@@ -317,6 +319,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/subjects/:id/consents',
     capability: 'view-users',
     responseSchema: listConsentsResponseSchema,
+    querystringSchema: listConsentsQuerySchema,
   },
   {
     method: 'DELETE',
@@ -467,11 +470,12 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     pattern: '/admin/tenants/:tenant/subjects/:id/effective-roles',
     capability: 'view-users',
     responseSchema: listEffectiveRolesResponseSchema,
+    querystringSchema: listEffectiveRolesQuerySchema,
     description:
-      'Every role the subject holds, the set token issuance and authorization read, each ' +
-      'with every path it is held by: assigned directly, mapped to a group the subject ' +
-      'belongs to or to one of its ancestors, or nested under another role it holds. ' +
-      'Unpaged and carrying no `ETag`: `GET …/roles` is the list `PUT …/roles` replaces.',
+      'The roles the subject holds, the set token issuance and authorization read, in id ' +
+      'order, each with every path it is held by: assigned directly, mapped to a group the ' +
+      'subject belongs to or to one of its ancestors, or nested under another role it holds. ' +
+      'Paged, and carrying no `ETag`: `GET …/roles` is the list `PUT …/roles` replaces.',
   },
   // Joining a group grants its roles and its ancestors', so this route's
   // capability ceiling (`setSubjectGroups`, #/usecase/subjects.ts) is the

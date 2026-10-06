@@ -1,14 +1,16 @@
-import { type Consent } from '@odudu/contracts/admin';
+import { listConsentsQuerySchema, type Consent } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
 import { type SubjectConsent } from '@odudu/domain-tenant';
+import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { listConsents, revokeConsent, type Audit } from '#/usecase/consents';
-import { problem, sendProblem } from '#/view/problem';
+import { cursorProblem, problem, sendProblem } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRouteHandler } from '#/view/routes/router';
 import { targetCeilingProblem } from '#/view/routes/subjects';
 
 export interface ConsentsRouteDeps {
   readonly database: Database;
+  readonly cursorKey: Uint8Array;
   readonly audit: Audit;
   /** See `SubjectsRouteDeps.callerCapabilities` — the same resolution. */
   readonly callerCapabilities: (
@@ -34,8 +36,16 @@ export function listConsentsHandler(deps: ConsentsRouteDeps): AdminRouteHandler 
       throw new Error('protocol-admin: GET consents route received no :id');
     }
 
+    const query = listConsentsQuerySchema.parse(request.query);
+    const limit = coerceLimit(query.limit === undefined ? undefined : String(query.limit));
     const outcome = await adminTx(deps.database, request, targetTenantId, (tx) =>
-      listConsents(tx, { subjectId: id }),
+      listConsents(tx, {
+        tenantId: targetTenantId,
+        subjectId: id,
+        limit,
+        cursor: query.cursor,
+        cursorKey: deps.cursorKey,
+      }),
     );
     if (outcome.kind === 'not_found') {
       return sendProblem(
@@ -44,8 +54,21 @@ export function listConsentsHandler(deps: ConsentsRouteDeps): AdminRouteHandler 
         problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
       );
     }
+    if (outcome.kind === 'invalid_cursor') {
+      return sendProblem(reply, request, cursorProblem());
+    }
 
-    return reply.code(200).send({ items: outcome.items.map(consentWireShape) });
+    const items = outcome.items.map(consentWireShape);
+    if (outcome.next === null) return reply.code(200).send({ items });
+
+    const tenantName = request.params.tenant;
+    const nextUrl = nextPageUrl(`/admin/tenants/${tenantName ?? ''}/subjects/${id}/consents`, {
+      ...query,
+      limit,
+      cursor: outcome.next,
+    });
+    reply.header('link', `<${nextUrl}>; rel="next"`);
+    return reply.code(200).send({ items, next: outcome.next });
   };
 }
 

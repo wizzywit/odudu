@@ -1,7 +1,8 @@
 import { liveSessionCondition, sessions } from '@odudu/authn-flows';
 import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { endSession as endOidcSession } from '@odudu/protocol-oidc';
-import { asc, count, eq, type SQL } from 'drizzle-orm';
+import { asc, eq, type SQL } from 'drizzle-orm';
+import { countAtMost } from '#/usecase/capped-count';
 
 // Each through the one `endSession` a single end makes, locked in id order.
 export async function endSessionsWhere(
@@ -97,7 +98,7 @@ export async function endDisabledTenantSessions(
 
   const live = liveSessionCondition(tenant, input.now);
   const ended = await endSessionsWhere(tx, deps.kek, input, live, TENANT_SESSIONS_END_LIMIT);
-  const remaining = (await tx.select({ n: count() }).from(sessions).where(live))[0]?.n ?? 0;
+  const remaining = await countAtMost(tx, { table: sessions, where: live });
   if (ended > 0) {
     await deps.audit(tx, {
       action: 'session.end_all',
