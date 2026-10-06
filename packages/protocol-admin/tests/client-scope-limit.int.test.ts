@@ -95,6 +95,45 @@ describe('the scopes a client carries', () => {
   });
 });
 
+describe('a client stored with more scopes than the limit', () => {
+  it('keeps every one of them, changes and loses them as before, and takes no new one', async () => {
+    const { t, token, client, free, held } = await fullClient();
+    await fixture.owner.sql`
+      insert into client_scope_assignments (tenant_id, client_id, client_scope_id, assignment)
+      select ${t.id}, ${client.id}, id, 'optional' from client_scopes
+       where tenant_id = ${t.id}
+         and id not in (select client_scope_id from client_scope_assignments where client_id = ${client.id})
+       limit 5`;
+    const [carried] = await fixture.owner.sql<{ n: string }[]>`
+      select count(*) as n from client_scope_assignments where client_id = ${client.id}`;
+    expect(Number(carried?.n)).toBeGreaterThan(CLIENT_SCOPE_LIMIT);
+    const [spare] = await fixture.owner.sql<{ id: string }[]>`
+      select id from client_scopes where tenant_id = ${t.id}
+         and id not in (select client_scope_id from client_scope_assignments where client_id = ${client.id}) limit 1`;
+    const read = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients/${client.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(read.statusCode).toBe(200);
+    expect(read.json<{ scopes: unknown[] }>().scopes).toHaveLength(Number(carried?.n));
+    const refused = await authorised(
+      `/admin/tenants/${t.name}/scopes/${spare?.id ?? free}/clients/${client.id}`,
+      token,
+      'PUT',
+      { assignment: 'default' },
+    );
+    expect(refused.statusCode).toBe(409);
+    const changed = await authorised(
+      `/admin/tenants/${t.name}/scopes/${held}/clients/${client.id}`,
+      token,
+      'PUT',
+      { assignment: 'default' },
+    );
+    expect(changed.statusCode).toBe(200);
+  });
+});
+
 describe('the scopes a new client starts with', () => {
   async function fullDefaults() {
     const t = await fixture.createTenant(`cd-${newId()}`);

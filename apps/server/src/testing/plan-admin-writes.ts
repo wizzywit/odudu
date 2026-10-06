@@ -64,6 +64,10 @@ export async function driveAdminWrites(
     sql`select id from client_scopes where tenant_id = ${t} and name ~ '^scope-9[0-9]+$' order by name limit 1`,
     'scope',
   );
+  const markedScope = await pick(
+    sql`select id from client_scopes where tenant_id = ${t} and name ~ '^scope-8[0-9]+$' order by name limit 1`,
+    'scope',
+  );
   const [small] = await sql<
     { name: string }[]
   >`select name from tenants where name ~ '^tn7[0-9]*$' order by name limit 1`;
@@ -214,6 +218,23 @@ export async function driveAdminWrites(
     [
       'create a scope',
       { method: 'POST', url: `${T}/scopes`, body: { name: `made-${newId().slice(-8)}` } },
+    ],
+    [
+      'create a scope marked for every new client',
+      {
+        method: 'POST',
+        url: `${T}/scopes`,
+        body: { name: `marked-${newId().slice(-8)}`, default_client_assignment: 'default' },
+      },
+    ],
+    [
+      'mark a scope for every new client',
+      {
+        method: 'PATCH',
+        url: `${T}/scopes/${markedScope}`,
+        body: { default_client_assignment: 'optional' },
+        etagFrom: `${T}/scopes/${markedScope}`,
+      },
     ],
     ['delete a scope', { method: 'DELETE', url: `${T}/scopes/${victimScope}` }],
     [

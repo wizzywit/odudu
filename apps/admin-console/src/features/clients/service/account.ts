@@ -15,7 +15,8 @@ export function serviceRolesRecord(subjectId: string): string {
 export function serviceRolesRecordOf(
   client: { service_subject_id: string | null } | undefined,
 ): string | null {
-  return client?.service_subject_id == null ? null : serviceRolesRecord(client.service_subject_id);
+  const subject = client?.service_subject_id ?? null;
+  return subject === null ? null : serviceRolesRecord(subject);
 }
 
 export const SERVICE_RULE =

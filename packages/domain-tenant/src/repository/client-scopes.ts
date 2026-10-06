@@ -74,6 +74,8 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
     }
   };
   const refuseWhenDefaultsAreFull = async (tenantId: string): Promise<void> => {
+    // The tenant's lock, as `SCOPE_LIMIT`'s count takes it, so two marks cannot both count room.
+    await repository.lockCreation(tenantId);
     if ((await repository.countDefaultsUpTo(tenantId, CLIENT_SCOPE_LIMIT)) >= CLIENT_SCOPE_LIMIT) {
       throw new DefaultScopeLimitError();
     }
@@ -265,7 +267,9 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
       const clientRows = await tx
         .select({ tenantId: clients.tenantId })
         .from(clients)
-        .where(eq(clients.id, clientId));
+        .where(eq(clients.id, clientId))
+        // Held to the end of the transaction, so two assignments cannot both count room.
+        .for('no key update');
       const client = clientRows[0];
       if (client === undefined) {
         throw new Error(`cannot assign a scope to unknown client ${clientId}`);
@@ -293,7 +297,9 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
       const clientRows = await tx
         .select({ tenantId: clients.tenantId })
         .from(clients)
-        .where(eq(clients.id, clientId));
+        .where(eq(clients.id, clientId))
+        // Held to the end of the transaction, so two assignments cannot both count room.
+        .for('no key update');
       const client = clientRows[0];
       if (client === undefined) {
         throw new Error(`cannot assign a scope to unknown client ${clientId}`);
