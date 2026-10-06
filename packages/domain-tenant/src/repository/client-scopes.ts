@@ -1,4 +1,4 @@
-import { type TenantScopedDatabase } from '@odudu/db';
+import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
 import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import {
@@ -57,6 +57,19 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
       const rows = await tx.select().from(clientScopes).where(eq(clientScopes.id, id));
       const row = rows[0];
       return row === undefined ? null : toRecord(row);
+    },
+
+    // Takes the tenant row's lock for the rest of the transaction, so a count
+    // against a ceiling and the insert after it are one decision: two creates
+    // cannot both see room. The same lock `clientRepository.lockCapacity` takes,
+    // and it waits for no other tenant. True when the tenant row was there to lock.
+    async lockCreation(tenantId: string): Promise<boolean> {
+      const rows = await tx
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
+        .for('no key update');
+      return rows.length > 0;
     },
 
     // How many scopes the tenant defines, counted no further than `limit`.

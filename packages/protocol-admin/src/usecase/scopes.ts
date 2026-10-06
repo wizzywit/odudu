@@ -268,6 +268,7 @@ export async function createScope(
   deps: CreateScopeDeps,
   input: CreateScopeInput,
 ): Promise<ClientScope> {
+  await clientScopeRepository(tx).lockCreation(input.tenantId);
   if ((await clientScopeRepository(tx).countUpTo(SCOPE_LIMIT)) >= SCOPE_LIMIT) {
     throw new ScopeLimitError();
   }

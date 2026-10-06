@@ -224,6 +224,24 @@ describe('countUpTo', () => {
   });
 });
 
+describe('lockCreation', () => {
+  it('locks the tenant row it is asked about, and finds no other tenant’s', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        return tenantId;
+      },
+      verifySeeded: async (tx, tenantId) => {
+        expect(await clientScopeRepository(tx).lockCreation(tenantId)).toBe(true);
+      },
+      attempt: (tx, tenantId) => clientScopeRepository(tx).lockCreation(tenantId),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+    });
+  });
+});
+
 describe('byNames', () => {
   it('finds the scopes named, in one read, and skips a name that is no scope', async () => {
     const tenantId = newId();

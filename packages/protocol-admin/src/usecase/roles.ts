@@ -272,8 +272,10 @@ export async function createRole(
     }
   }
 
-  if (input.defaultForNewSubjects && (await defaultRolesAreFull(tx))) {
-    return { kind: 'too_many_defaults' };
+  if (input.defaultForNewSubjects) {
+    // The count and the insert are one decision, as `setRoleDefault` makes it.
+    await lockDefaultReach(tx);
+    if (await defaultRolesAreFull(tx)) return { kind: 'too_many_defaults' };
   }
 
   const created = await roleRepository(tx).create({
