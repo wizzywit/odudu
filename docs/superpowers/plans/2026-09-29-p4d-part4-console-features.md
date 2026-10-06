@@ -491,6 +491,56 @@ eight views. 28 shared service functions cover the duplicates.
 - **Service account:** its roles through `PUT …/subjects/:service_subject_id/roles`.
   It needs `manage-users`; show CapabilityNote otherwise.
 
+### Task 12b: `odudu-admin` becomes a confidential client (`private_key_jwt`)
+
+Added 2026-10-06. Nothing chose "public": it was the provisioning default
+from before the gateway existed, and ADR 0038 and the console spec record it
+only as a fact. The gateway is a server that can hold a credential, so per
+_OAuth 2.0 for Browser-Based Applications_ (BFF) it authenticates at the token
+endpoint. That adds a second lock to a stolen code, binds the refresh token to
+client authentication, and stops any page from starting a login as the
+console.
+
+- **ADR 0038 amendment, written first.** It records the decision, the rejected
+  alternatives (keep public; one `client_secret` per tenant, which means 10,000
+  secrets to hold and rotate), and how the key rotates.
+- **One gateway key pair, registered in every tenant.** The gateway signs a
+  client assertion (RFC 7523) on token, refresh and revocation calls
+  (`packages/console-gateway/src/adapter/odudu-client.ts`, the three requests
+  naming `ADMIN_CLIENT_ID`). Each tenant's `odudu-admin` gets
+  `token_endpoint_auth_method: private_key_jwt` and the public key, either in
+  `jwks` or via a `jwks_uri` the gateway serves. Pick one and argue it in the
+  ADR; rotation must not need every tenant edited.
+- **Key source.** It comes from configuration, the way the gateway's other
+  secrets do (`packages/console-gateway/src/service/secrets.ts`). The server
+  refuses to start without a key, naming the variable.
+- **Provisioning.** `provisionAdminClient`
+  (`packages/domain-tenant/src/usecase/provision-admin-client.ts:73-84`)
+  creates `type: 'confidential'`. Its comment there conflates subject
+  authentication with client authentication; correct it.
+  `odudu console provision` converts existing tenants. Re-running it is
+  idempotent and converts nothing twice.
+- **Decision to settle in the ADR.** `clients_secret_matches_type`
+  (`packages/db/drizzle/0004_clients.sql:17-20`) requires a `secret_hash` on
+  every confidential client, including `private_key_jwt` ones (grep:
+  `grep -n -A3 clients_secret_matches_type packages/db/drizzle/0004_clients.sql`).
+  Choose between relaxing it to `confidential AND (secret_hash IS NOT NULL OR
+token_endpoint_auth_method <> 'client_secret_*')`, and holding an unusable
+  hash. Relaxing is cleaner. The server's `private_key_jwt` support already
+  exists: `grep -rln private_key_jwt packages/protocol-oidc/src`.
+- **Tests first.**
+  - An assertion is accepted.
+  - An authorization code redeemed without one, or with a wrong key, is
+    refused.
+  - Refresh and revocation are refused without one.
+  - Provisioning converts a public `odudu-admin`.
+  - The gateway refuses to boot without a key.
+  - e2e sign-in passes unchanged.
+  - The query-plan check is unaffected or extended.
+- **Docs.** `docs/console-paths.md` and `docs/admin-paths.md` transcripts
+  re-captured, plus README (the new configuration variable), and the console
+  spec's line 1015 corrected.
+
 ### Task 13: Scopes (facts B-2 Scopes; Task 2 item 4)
 
 - General; Roles; Claim mappers (with the `available` list); Clients (Task 2
