@@ -30,6 +30,9 @@ export function createDatabase(url: string, options: DatabaseOptions = {}): Data
   const onQuery = options.onQueryForTests;
   const sql = postgres(url, {
     max: options.max ?? 10,
+    // A closure over roles or groups is costed above jit_above_cost whatever it
+    // reads, and compiling ~400 functions for a seventeen-row lookup took 1.2 s.
+    connection: { jit: 'off' },
     onnotice: () => undefined,
     ...(onQuery === undefined
       ? {}

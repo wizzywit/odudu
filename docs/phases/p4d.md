@@ -1843,6 +1843,12 @@ table, not the page; P11 owns it (see the last paragraph).
   the check failed on some runs and not others before they were fixed, and has
   passed three of three since; a plan can still flip, and the failure then
   names it.
+- _JIT compiled the closure queries_: a recursive closure is costed above
+  `jit_above_cost` (100,000) whatever it reads, so on a Postgres built with JIT
+  the holders query compiled 416 functions and took 1.2 s to return seventeen
+  ids; the end-to-end browser tests timed out on it. Every connection now opens
+  with `jit = off` (`createDatabase`). The check cannot see it: the test image
+  has no JIT, so it reads plans, not compile time.
 - _`= ANY(ARRAY(...))`_, not a hashed subquery, wherever a set of subject ids
   filters a large table: the holders beyond a caller's ceiling hashed against
   a scan of every grant and session.
