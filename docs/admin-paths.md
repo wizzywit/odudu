@@ -280,15 +280,19 @@ writes by `psql`, which no route does, say so. It was torn down with `docker
 compose down -v` when the capture finished.
 
 **The sixteenth stack.** The transcripts about the 200-scope bound under `PUT
-/scopes/{id}/clients/{clientId}` and `POST`/`PATCH /scopes` ran against one more
-stack: compose project `odudu-tx` on port 3082, its Postgres on 5464, built from
-this branch at `5c4feb72` from an empty volume, with `ODUDU_THROTTLE_LIMIT=1000`.
-Against it: `seed admin --username ada3`, whose token, got the way "Getting the
-token" shows, is `$ADMIN_TOKEN`; a tenant `scope-limit-docs` made through `POST
-/admin/tenants`; and in it a public client `limit-app` made through `POST
-/clients`, row id `01a11220-90a5-79ae-a7b2-a5f77c75b4f9`. The scopes the sections
-add to reach the limit were written by `psql`, which no route does, and say so. It
-was torn down with `docker compose down -v` when the capture finished.
+/scopes/{id}/clients/{clientId}`, `POST`/`PATCH /scopes`, `POST /admin/tenant-imports`
+and `odudu seed assign-scope` ran against one more stack: compose project
+`odudu-tx` on port 3082, its Postgres on 5464, built from this branch at
+`1b3ad4cd` from an empty volume, with `ODUDU_THROTTLE_LIMIT=1000`. Against it:
+`seed admin --username ada4`, whose token, got the way "Getting the token" shows,
+is `$ADMIN_TOKEN`; a tenant `scope-limit-docs` made through `POST /admin/tenants`,
+`$P` being `http://localhost:3082/admin/tenants/scope-limit-docs` and `$A` the
+same without the tenant; in it a public client `limit-app` made through `POST
+/clients`, row id `$CID` (`01a11266-76cd-7f4f-81a8-3e9b76d5b1b4`); and scopes
+`reports:read` (`$SID`, `01a11266-7838-7db8-9c08-e5c64a8cf4d7`) and `late` made
+through `POST /scopes`. The scopes the sections add to reach the limit were
+written by `psql`, which no route does, and say so. It was torn down with
+`docker compose down -v` when the capture finished.
 
 ## The shape of it
 
@@ -7621,14 +7625,16 @@ A new client is assigned every scope marked with a `default_client_assignment`,
 by an administrator, dynamic registration or `odudu seed`, so the marks are held
 to the same 200 as what a client carries: marking another, on `POST /scopes` or by
 `PATCH`, is refused with `409` once 200 are marked, and changing a marked scope
-between `default` and `optional`, or unmarking one, is not. A tenant import that
-marks more is refused with `400` at `document.scopes`.
+between `default` and `optional`, or unmarking one, is not. The count is taken
+under a lock on the tenant's row, as the 1,000-scope limit's is. A tenant import
+that marks more is refused with `400` at `document.scopes`.
 
-Against `scope-limit-docs` (the sixteenth stack), 200 scopes marked, the 8 the
-tenant is provisioned with and 192 written by `psql`, which no route does:
+Against `scope-limit-docs`, with 192 more marked scopes written by `psql` beside the
+8 the tenant is provisioned with, and `$SID` (`reports:read`) still unmarked:
 
 ```bash
 psql -tA -c "select count(*) from client_scopes s join tenants t on t.id = s.tenant_id where t.name = 'scope-limit-docs' and s.default_client_assignment is not null"
+psql -tA -c "select default_client_assignment is null from client_scopes where id = '$SID'"
 curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
   -d '{"name":"one-too-many","default_client_assignment":"default"}' "$P/scopes"
 curl -sS -D - -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
@@ -7637,21 +7643,20 @@ curl -sS -D - -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type:
 
 ```
 200
+t
 HTTP/1.1 409 Conflict
-x-request-id: 01a11220-9499-76bb-897b-6b98ddc73aab
+x-request-id: 01a11266-7e50-7aa7-b1c0-b61c81b5ffaa
 content-type: application/problem+json; charset=utf-8
 content-length: 167
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"at most 200 scopes are assigned to every new client","instance":"01a11220-9499-76bb-897b-6b98ddc73aab"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"at most 200 scopes are assigned to every new client","instance":"01a11266-7e50-7aa7-b1c0-b61c81b5ffaa"}
 HTTP/1.1 409 Conflict
-x-request-id: 01a11220-94b0-70f6-bf83-5cafe36c4ac3
+x-request-id: 01a11266-7e68-7325-9085-2fbd3433ea6d
 content-type: application/problem+json; charset=utf-8
 content-length: 167
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"at most 200 scopes are assigned to every new client","instance":"01a11220-94b0-70f6-bf83-5cafe36c4ac3"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"at most 200 scopes are assigned to every new client","instance":"01a11266-7e68-7325-9085-2fbd3433ea6d"}
 ```
-
-`$SID` is `reports:read`, unmarked until the `PATCH`.
 
 ## `GET /scopes/:id/roles` and `PUT /scopes/:id/roles`
 
@@ -7792,13 +7797,25 @@ the admin API replaces, though the tenant may define up to 1,000. A scope a
 client does not yet carry is refused with `409` once it holds 200; changing how
 one it already carries is assigned is not, and removing one makes room. A client
 that held more before the bound existed keeps what it has and takes no new scope
-until it is under. The same bound refuses, at the door they come through: a
-tenant import that gives a client more (`400` at `document.clients[i].scopes`), a
-scope marked for every new client past 200 (below), and `odudu seed assign-scope`.
+until it is under. The count is taken under a lock on the client's row, so two
+assignments at 199 let one in. The same bound refuses, at the door they come
+through: a tenant import that gives a client more, a scope marked for every new
+client past 200 (below), and `odudu seed assign-scope`.
 
-Against `scope-limit-docs`, the client's 8 default scopes plus 192 more written
-by `psql`, so that it carried exactly 200, and a scope `reports:read` made
-through `POST /scopes` (`$SID`), `$CID` being the client's row id:
+The client's 8 default scopes plus 192 `billing-N` written by `psql`, so that it
+carries exactly 200, and `reports:read` unmarked. The precondition, shown:
+
+```bash
+psql -tA -c "select count(*) from client_scope_assignments where client_id = '$CID'"
+psql -tA -c "select default_client_assignment is null from client_scopes where id = '$SID'"
+```
+
+```
+200
+t
+```
+
+Assigning a scope it does not carry:
 
 ```bash
 curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
@@ -7807,45 +7824,75 @@ curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: a
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a11220-9294-7f0c-93b5-b9738b77feb4
+x-request-id: 01a11266-79f9-7975-86e7-096bbe095f7a
 content-type: application/problem+json; charset=utf-8
 content-length: 151
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"a client carries at most 200 scopes","instance":"01a11220-9294-7f0c-93b5-b9738b77feb4"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"a client carries at most 200 scopes","instance":"01a11266-79f9-7975-86e7-096bbe095f7a"}
 ```
 
-Changing a scope it already carries answers `200`, then removing one lets
-`reports:read` in (the bodies, each the client's 200 scopes, are left out; the
-headers are the answers'):
+Changing one it carries (`$BID`, `billing-1`) answers `200`, removing it answers
+`204`, and `reports:read` then goes in. The bodies, each the client's 200 scopes,
+are left out with `-o /dev/null`; the headers are the answers':
 
 ```bash
-curl -sS -D - -o /dev/null -X PUT  ... -d '{"assignment":"default"}' "$P/scopes/$BID/clients/$CID"
-curl -sS -D - -o /dev/null -X DELETE ... "$P/scopes/$BID/clients/$CID"
-curl -sS -D - -o /dev/null -X PUT  ... -d '{"assignment":"optional"}' "$P/scopes/$SID/clients/$CID"
+curl -sS -D - -o /dev/null -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"assignment":"default"}' "$P/scopes/$BID/clients/$CID"
+curl -sS -D - -o /dev/null -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$P/scopes/$BID/clients/$CID"
+curl -sS -D - -o /dev/null -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"assignment":"optional"}' "$P/scopes/$SID/clients/$CID"
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a11220-932a-7152-a8f0-0680699b038e
-etag: "85b1ceeabb074c3439fa9847db5ad55dfedbcf488a037a879b3cd1aa5927598b"
+x-request-id: 01a11266-7a17-7584-8e68-b4b9c45f32b3
+etag: "503949510281d7d735db6e6e49b2c747bb77b4ab31a603787f51128c2d66278b"
 content-type: application/json; charset=utf-8
 content-length: 18114
 
 HTTP/1.1 204 No Content
-x-request-id: 01a11220-934a-7c00-a419-a166c28a143e
-etag: "00645c6b8ac95a48947c2836efe3d792fc3acc34546204ed4e93028f916d5806"
+x-request-id: 01a11266-7a3b-777b-8a1d-d24bebbc2997
+etag: "cf9515f4a03e3ad1376ded152fb7d06a21547fbc3fa73cb5fc11a2c0e18e4cdd"
 
 HTTP/1.1 200 OK
-x-request-id: 01a11220-9364-70d7-a999-c67f337ec93b
-etag: "804a9215edf93f7cb87c66e2cd01c6a9726399c89d2c4472cf82ce6e09cc3425"
+x-request-id: 01a11266-7a5d-7430-b8cf-9ae20b95ab3c
+etag: "70c5724820911f7214efcc042bf5eaabba371e3b0b22b95156a1bd5dab33c757"
 content-type: application/json; charset=utf-8
 content-length: 18118
 ```
 
-The published OpenAPI document says so in the route's description:
+The client carries 200 again, so `odudu seed assign-scope` of `late` is refused,
+the command exiting `1` with the error and the stack Node prints for every seed
+refusal (its Web Crypto warnings and the stack's frames are left out):
+
+```bash
+docker compose -p odudu-tx exec -T odudu node dist/main.js seed assign-scope \
+  --tenant scope-limit-docs --client-id limit-app --scope late --assignment optional
+```
 
 ```
-Assigns the scope to the client as default or optional, replacing any existing assignment. A client carries at most 200 scopes: a new one past that is refused with `409`, while changing one it already carries is not. Answers the client’s new `ETag`, since the client’s representation carries its scopes. Refused with `403` when the client’s service account holds an admin capability the caller does not (the target ceiling).
+OduduError: a client carries at most 200 scopes
+  code: 'seed_invalid_options'
+```
+
+A tenant import that gives a client more is refused with `400`, naming the
+client's place in the document and its count. The document is the tenant's own
+export with one more scope, `one-more`, listing `limit-app`, which makes 201:
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$P/export" > export.json
+# add to export.json's scopes an entry named one-more whose clients lists limit-app
+curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  --data @import.json "$A/../tenant-imports"
+```
+
+```
+HTTP/1.1 400 Bad Request
+x-request-id: 01a11266-7d24-7c2d-8672-de80c4d9f7bc
+content-type: application/problem+json; charset=utf-8
+content-length: 270
+
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"the import was refused for 1 problem(s), listed under errors","errors":[{"path":"document.clients[0].scopes","message":"holds 201 scopes, at most 200"}],"instance":"01a11266-7d24-7c2d-8672-de80c4d9f7bc"}
 ```
 
 The OpenAPI document declares that same shape as the `200`'s body —
