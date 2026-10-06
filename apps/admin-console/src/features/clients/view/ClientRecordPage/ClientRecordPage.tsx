@@ -18,6 +18,7 @@ import { LogoutTab } from '#/features/clients/view/ClientRecordPage/LogoutTab.ts
 import { RedirectsTab } from '#/features/clients/view/ClientRecordPage/RedirectsTab.tsx';
 import { RolesTab } from '#/features/clients/view/ClientRecordPage/RolesTab.tsx';
 import { ScopesTab } from '#/features/clients/view/ClientRecordPage/ScopesTab.tsx';
+import { SessionsTab } from '#/features/clients/view/ClientRecordPage/SessionsTab.tsx';
 import { ServiceAccountTab } from '#/features/clients/view/ClientRecordPage/ServiceAccountTab.tsx';
 import { TokensTab } from '#/features/clients/view/ClientRecordPage/TokensTab.tsx';
 import { ActivityTab } from '#/shared/view/ActivityTab';
@@ -85,6 +86,9 @@ const PANELS: Readonly<Record<ClientTab, (props: PanelProps) => ReactNode>> = {
       gone={props.gone}
       reach={props.reach}
     />
+  ),
+  sessions: (props) => (
+    <SessionsTab tenant={props.tenant} client={props.client} reach={props.reach} />
   ),
   activity: (props) => <Activity tenant={props.tenant} id={props.client.id} />,
 };

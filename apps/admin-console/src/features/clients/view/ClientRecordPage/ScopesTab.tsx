@@ -14,6 +14,7 @@ import {
   useClientScopeAssignment,
   type ClientScopes,
 } from '#/features/clients/usecase/useClientScopeAssignment.ts';
+import { Evaluate } from '#/features/clients/view/ClientRecordPage/Evaluate.tsx';
 import { Button } from '#/shared/view/Button';
 import { InlineFields, SelectField } from '#/shared/view/Field';
 import { Picker } from '#/shared/view/Picker';
@@ -148,6 +149,7 @@ export function ScopesTab({
       ) : null}
       <Assigned client={client} page={page} />
       {page.offered ? <Assign page={page} /> : null}
+      <Evaluate tenant={tenant} client={client} />
     </div>
   );
 }

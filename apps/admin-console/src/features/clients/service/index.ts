@@ -205,3 +205,45 @@ export {
   ROLES_CAPABILITY,
   roleOwnerLine,
 } from '#/features/clients/service/roles.ts';
+export {
+  NO_SESSIONS,
+  REVOKE_HEADING,
+  REVOKE_RULE,
+  revokedText,
+  revokeConsequence,
+  revokeFailureText,
+  SESSIONS_CAPABILITY,
+  SESSIONS_NOUN,
+  SESSIONS_RULE,
+} from '#/features/clients/service/sessions.ts';
+export {
+  ANY_STATUS,
+  attemptsText,
+  DELIVERIES_HEADING,
+  DELIVERIES_RULE,
+  deliveryTone,
+  NO_DELIVERIES,
+  STATUS_OPTIONS,
+  statusFilter,
+} from '#/features/clients/service/deliveries.ts';
+export {
+  INSTALLATION_HEADING,
+  INSTALLATION_RULE,
+  installationRows,
+  NONE,
+  type InstallationRow,
+} from '#/features/clients/service/installation.ts';
+export {
+  artefactsOf,
+  evaluatedScope,
+  EVALUATE_CAPABILITY,
+  EVALUATE_HEADING,
+  EVALUATE_LABEL,
+  EVALUATE_RULE,
+  evaluateFailureText,
+  NO_ID_TOKEN,
+  SCOPE_LABEL,
+  SCOPE_RULE,
+  SUBJECT_PICKER_LABEL,
+  type Artefact,
+} from '#/features/clients/service/evaluate.ts';

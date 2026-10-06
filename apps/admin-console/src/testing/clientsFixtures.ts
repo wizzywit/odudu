@@ -141,6 +141,20 @@ function listed(request: Sent) {
   );
 }
 
+function installationOf(each: ClientAnswer) {
+  return {
+    issuer: 'https://id.example/acme',
+    discovery_url: 'https://id.example/acme/.well-known/openid-configuration',
+    client_id: each.client_id,
+    client_type: each.type,
+    token_endpoint_auth_method: each.token_endpoint_auth_method,
+    redirect_uris: each.redirect_uris,
+    post_logout_redirect_uris: each.post_logout_redirect_uris,
+    grant_types: each.grant_types,
+    default_scope: 'openid',
+  };
+}
+
 // grace of acme, holding the capabilities given, among the built-in admin
 // client, billing and portal; every service account holds nothing.
 export function clientRoutes(
@@ -156,6 +170,18 @@ export function clientRoutes(
     ...Object.fromEntries(
       CLIENTS.map((each) => [`GET ${C}/${each.id}`, json(each, 200, { etag: `"${each.id}-1"` })]),
     ),
+    ...Object.fromEntries(
+      CLIENTS.flatMap((each) => [
+        [`GET ${C}/${each.id}/installation`, json(installationOf(each))],
+        [`GET ${C}/${each.id}/logout-deliveries`, json({ items: [] })],
+        [`GET ${C}/${each.id}/sessions`, json({ items: [] })],
+      ]),
+    ),
+    [`GET ${A}/sessions/count`]: json({ count: 0, capped: false }),
+    [`GET ${A}/subjects`]: json({ items: [] }),
+    [`GET ${A}/scopes`]: json({ items: [] }),
+    [`GET ${A}/roles`]: json({ items: [] }),
+    [`GET ${A}/roles/count`]: json({ count: 0, capped: false }),
     [`GET ${A}/audit`]: json({ items: [] }),
     ...extra,
   };

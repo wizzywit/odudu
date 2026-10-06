@@ -10,6 +10,7 @@ import {
   SECTIONS_LOGOUT,
 } from '#/features/clients/service';
 import { useClientLogout } from '#/features/clients/usecase/useClientLogout.ts';
+import { Deliveries } from '#/features/clients/view/ClientRecordPage/Deliveries.tsx';
 import { SaveSection } from '#/features/clients/view/ClientRecordPage/SaveSection.tsx';
 import { ReadOnlyFields, ToggleField, UrlField, UrlListField } from '#/shared/view/Field';
 import styles from '#/features/clients/view/ClientRecordPage/Tab.module.css';
@@ -96,6 +97,7 @@ export function LogoutTab({
           />
         </SaveSection>
       </ReadOnlyFields>
+      <Deliveries tenant={tenant} client={client} />
     </div>
   );
 }

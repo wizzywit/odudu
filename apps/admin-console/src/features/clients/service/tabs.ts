@@ -10,6 +10,7 @@ export const CLIENT_TABS = [
   'advanced',
   'roles',
   'service',
+  'sessions',
   'activity',
 ] as const;
 
@@ -24,6 +25,7 @@ export const CLIENT_TAB_LABELS: Readonly<Record<ClientTab, string>> = {
   advanced: 'Advanced',
   roles: 'Roles',
   service: 'Service account',
+  sessions: 'Sessions',
   activity: 'Activity',
 };
 
@@ -49,6 +51,7 @@ export const TAB_SECTIONS: Readonly<Record<ClientTab, readonly string[]>> = {
   advanced: ['auth', 'keys', 'userinfo', 'audiences', 'exchange'],
   roles: [],
   service: [],
+  sessions: [],
   activity: [],
 };
 

@@ -33,6 +33,31 @@ function configList(clientKey: string, column: string): string {
   );
 }
 
+// A column of the client's OpenID Connect configuration, as text.
+function configColumn(clientKey: string, column: string): string {
+  return psql(
+    `select coalesce(${column}::text, '<null>') from client_oidc_config where client_id = ${sqlText(clientId(clientKey))}::uuid`,
+  );
+}
+
+function keysStored(clientKey: string): string {
+  return psql(
+    `select (jwks is not null)::text from client_oidc_config where client_id = ${sqlText(clientId(clientKey))}::uuid`,
+  );
+}
+
+function scopeAssignments(clientKey: string, scope: string): string {
+  return psql(
+    `select count(*) from client_scope_assignments where client_id = ${sqlText(clientId(clientKey))}::uuid and client_scope_id = (select id from client_scopes where tenant_id = ${IN_TENANT} and name = ${sqlText(scope)})`,
+  );
+}
+
+function serviceRoles(clientKey: string): string {
+  return psql(
+    `select coalesce(string_agg(r.name, ','  order by r.name), '') from subject_roles sr join roles r on r.id = sr.role_id where sr.subject_id = (select service_subject_id from clients where id = ${sqlText(clientId(clientKey))}::uuid) and r.client_id is null`,
+  );
+}
+
 // Moves focus with Tab alone until it lands on `target`.
 async function tabTo(page: Page, target: Locator): Promise<void> {
   for (let pressed = 0; pressed < 80; pressed += 1) {
@@ -350,3 +375,327 @@ test('the clients pages fit a phone', async ({ page }) => {
     await expectAccessible(page);
   }
 });
+
+test('a token lifetime and a grant type are changed, each on its own save and read back as stored', async ({
+  page,
+}) => {
+  await signIn(page, admin);
+  await openClient(page, 'tokens', 'tokens');
+  const lifetimes = page.getByRole('region', { name: 'Token lifetimes' });
+  await expect(
+    lifetimes.getByRole('switch', { name: "Use the tenant's access token lifetime" }),
+  ).toBeVisible();
+  expect(configColumn('tokens', 'access_token_ttl_seconds')).toBe('<null>');
+  await expectAccessible(page);
+
+  await lifetimes.getByText("Use the tenant's access token lifetime", { exact: true }).click();
+  const access = lifetimes.getByRole('textbox', { name: 'Access token lifetime, in seconds' });
+  await access.fill('900');
+  await access.press('Tab');
+  await expect(lifetimes.getByText('900 s · 15 minutes')).toBeVisible();
+  await expectAccessible(page);
+  await lifetimes.getByRole('button', { name: 'Save Token lifetimes' }).click();
+  await expect.poll(() => configColumn('tokens', 'access_token_ttl_seconds')).toBe('900');
+  expect(configColumn('tokens', 'id_token_ttl_seconds')).toBe('<null>');
+
+  const grants = page.getByRole('region', { name: 'Grant types' });
+  await grants.getByRole('checkbox', { name: /Refresh token/u }).click();
+  await grants.getByRole('button', { name: 'Save Grant types' }).click();
+  await expect
+    .poll(() => configList('tokens', 'grant_types'))
+    .toBe('authorization_code,refresh_token');
+  await expectAccessible(page);
+
+  // A lifetime past the range the server holds is held to it, and nothing is stored.
+  await lifetimes.getByRole('textbox', { name: 'Access token lifetime, in seconds' }).fill('7200');
+  await lifetimes.getByRole('textbox', { name: 'Access token lifetime, in seconds' }).press('Tab');
+  await expect(
+    lifetimes.getByRole('textbox', { name: 'Access token lifetime, in seconds' }),
+  ).toHaveValue('3600');
+  expect(configColumn('tokens', 'access_token_ttl_seconds')).toBe('900');
+});
+
+test('a scope is assigned and unassigned, and the next save is on the fresh ETag', async ({
+  page,
+}) => {
+  await signIn(page, admin);
+  await openClient(page, 'scoped', 'scopes');
+  const assigned = page.getByRole('region', { name: 'Assigned scopes' });
+  await expect(assigned.getByText('openid', { exact: true })).toBeVisible();
+  expect(scopeAssignments('scoped', 'reports:read')).toBe('0');
+  await expectAccessible(page);
+
+  const assign = page.getByRole('region', { name: 'Assign a scope' });
+  await assign.getByRole('searchbox', { name: 'Search scopes by name' }).fill('reports');
+  await assign.getByRole('button', { name: 'Search' }).click();
+  await assign.getByRole('option', { name: /reports:read/u }).click();
+  await assign.getByRole('button', { name: 'Assign scope reports:read' }).click();
+  await expect.poll(() => scopeAssignments('scoped', 'reports:read')).toBe('1');
+  await expect(assigned.getByText('reports:read', { exact: true })).toBeVisible();
+  await expectAccessible(page);
+
+  // The record was read again, so a section saves with no conflict.
+  await page.getByRole('tab', { name: 'Tokens' }).click();
+  const lifetimes = page.getByRole('region', { name: 'Token lifetimes' });
+  await lifetimes.getByText("Use the tenant's refresh token lifetime", { exact: true }).click();
+  await lifetimes.getByRole('button', { name: 'Save Token lifetimes' }).click();
+  await expect.poll(() => configColumn('scoped', 'refresh_token_ttl_seconds')).toBe('86400');
+  await expect(page.getByText(/changed elsewhere/u)).toHaveCount(0);
+
+  await page.getByRole('tab', { name: 'Scopes' }).click();
+  await assigned.getByRole('button', { name: 'Remove reports:read' }).click();
+  await expect.poll(() => scopeAssignments('scoped', 'reports:read')).toBe('0');
+  await expect(assigned.getByText('reports:read', { exact: true })).toHaveCount(0);
+  await expect(assigned.getByRole('heading', { name: 'Assigned scopes' })).toBeFocused();
+  await expectAccessible(page);
+});
+
+test('a key set carrying a private member is refused in the server words, and a public one is kept', async ({
+  page,
+  problems,
+}) => {
+  await signIn(page, admin);
+  await openClient(page, 'keyed', 'advanced');
+  const section = page.getByRole('region', { name: 'Client keys' });
+  await expect(section.getByRole('button', { name: /Key source/u })).toBeVisible();
+  await section.getByRole('button', { name: /Key source/u }).click();
+  await page.getByRole('option', { name: 'A key set pasted here' }).click();
+  const publicKey = {
+    kty: 'EC',
+    crv: 'P-256',
+    x: 'f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU',
+    y: 'x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0',
+    kid: 'k1',
+    use: 'sig',
+  };
+  const box = section.getByRole('textbox', { name: 'Key set' });
+  await box.fill(
+    JSON.stringify({ keys: [{ ...publicKey, d: 'jpQNz0WqYeXx8MOD8fclvPHylIlzHp1dhCS7sKjvm3M' }] }),
+  );
+  await section.getByRole('button', { name: 'Save Client keys' }).click();
+  await expect(
+    section.getByText('jwks.keys[0] carries the private member d; register public keys only'),
+  ).toBeVisible();
+  await expect(box).toHaveAttribute('aria-invalid', 'true');
+  await expectAccessible(page);
+  forgive(problems, `/clients/${clientId('keyed')}`);
+  expect(configColumn('keyed', 'jwks')).toBe('<null>');
+
+  await box.fill(JSON.stringify({ keys: [publicKey] }));
+  await section.getByRole('button', { name: 'Save Client keys' }).click();
+  await expect.poll(() => keysStored('keyed')).toBe('true');
+  await expectAccessible(page);
+});
+
+test('a secret is rotated behind a confirmation, shown once, and the replaced one is kept for its grace', async ({
+  page,
+}) => {
+  await signIn(page, admin);
+  await openClient(page, 'rotated', 'advanced');
+  const section = page.getByRole('region', { name: 'Client secret' });
+  const before = clientColumn('rotated', 'secret_hash');
+  const grace = section.getByRole('textbox', { name: 'Grace period' });
+  await grace.fill('3600');
+  await grace.press('Tab');
+  await expect(section.getByText('3600 s · 1 hour')).toBeVisible();
+  await section.getByRole('button', { name: /^Rotate the secret of/u }).click();
+  const confirm = page.getByRole('alertdialog', { name: /^Rotate the secret of/u });
+  await expect(confirm).toContainText('keeps working for 3600 s · 1 hour, then stops');
+  await expectAccessible(page);
+  expect(clientColumn('rotated', 'secret_hash')).toBe(before);
+  await confirm.getByRole('button', { name: 'Rotate secret' }).click();
+
+  const dialog = page.getByRole('dialog', { name: /^New client secret for / });
+  await expect(dialog).toBeVisible();
+  await expectAccessible(page);
+  const secret = await takeSecret(dialog);
+  await expect.poll(() => clientColumn('rotated', 'secret_hash')).not.toBe(before);
+  expect(clientColumn('rotated', 'secret_hash')).not.toContain(secret);
+  expect(clientColumn('rotated', 'previous_secret_hash')).not.toBe('<null>');
+  await expect(page.getByText(/The previous secret authenticates until/u)).toBeVisible();
+  expect(await page.content()).not.toContain(secret);
+  const stored = await page.evaluate(() =>
+    [sessionStorage, localStorage]
+      .flatMap((storage) => Object.keys(storage).map((key) => storage.getItem(key) ?? ''))
+      .join('\n'),
+  );
+  expect(stored).not.toContain(secret);
+  await page.reload();
+  await expect(section.getByRole('textbox', { name: 'Grace period' })).toBeVisible();
+  expect(await page.content()).not.toContain(secret);
+  await expectAccessible(page);
+});
+
+test("a service account's roles are set, and a caller without manage-users is told what it needs", async ({
+  browser,
+  page,
+}) => {
+  await signIn(page, admin);
+  await openClient(page, 'serviced', 'service');
+  const section = page.getByRole('region', { name: 'Roles' });
+  await expect(section.getByRole('option', { name: /reader/u })).toBeVisible();
+  expect(serviceRoles('serviced')).toBe('');
+  await expectAccessible(page);
+  await section.getByRole('option', { name: 'reader, a tenant role' }).click();
+  await section.getByRole('button', { name: 'Save Roles' }).click();
+  await expect.poll(() => serviceRoles('serviced')).toBe('reader');
+  await expect(page.getByRole('list', { name: /service account/u })).toContainText('reader');
+  await expectAccessible(page);
+
+  const context = await browser.newContext();
+  const other = await context.newPage();
+  const asked: string[] = [];
+  other.on('request', (request) => {
+    if (request.url().includes('/subjects/')) asked.push(request.url());
+  });
+  await signIn(other, limited);
+  await openClient(other, 'serviced', 'service');
+  await expect(
+    other.getByText("The service account's roles needs the manage-users capability."),
+  ).toBeVisible();
+  await expect(other.getByRole('button', { name: /^Save/u })).toHaveCount(0);
+  await expectAccessible(other);
+  expect(asked).toEqual([]);
+  expect(serviceRoles('serviced')).toBe('reader');
+  await context.close();
+});
+
+test('a role is made for the client, and an operator without manage-tenant is told what it needs', async ({
+  browser,
+  page,
+}) => {
+  await signIn(page, admin);
+  await openClient(page, 'ledger', 'roles');
+  await expect(page.getByRole('grid', { name: /^Roles of / })).toContainText('approver');
+  await expectAccessible(page);
+  const section = page.getByRole('region', { name: 'New role' });
+  await section.getByRole('textbox', { name: 'Role name' }).fill('bookkeeper');
+  await section.getByRole('button', { name: 'Create role' }).click();
+  await expect(page.getByRole('grid', { name: /^Roles of / })).toContainText('bookkeeper');
+  expect(
+    psql(
+      `select count(*) from roles where tenant_id = ${IN_TENANT} and name = 'bookkeeper' and client_id = ${sqlText(clientId('ledger'))}::uuid`,
+    ),
+  ).toBe('1');
+  await expectAccessible(page);
+
+  const context = await browser.newContext();
+  const other = await context.newPage();
+  await signIn(other, limited);
+  await openClient(other, 'ledger', 'roles');
+  await expect(other.getByText('Roles needs the manage-tenant capability.')).toBeVisible();
+  await expectAccessible(other);
+  await context.close();
+});
+
+test("a client's installation is shown, and its claims are worked out for a subject", async ({
+  page,
+}) => {
+  await signIn(page, admin);
+  await openClient(page, 'ledger', 'advanced');
+  const installation = page.getByRole('region', { name: 'Installation' });
+  await expect(installation.getByRole('button', { name: 'Copy client id' })).toBeVisible();
+  await expect(installation).toContainText('https://ledger.example/callback');
+  await expect(installation).toContainText(`/${TENANT}`);
+  await expectAccessible(page);
+
+  await page.getByRole('tab', { name: 'Scopes' }).click();
+  const evaluate = page.getByRole('region', { name: 'Evaluate' });
+  await evaluate
+    .getByRole('searchbox', { name: 'Search subjects by username' })
+    .fill(admin.username);
+  await evaluate.getByRole('button', { name: 'Search' }).click();
+  await evaluate.getByRole('option', { name: new RegExp(admin.username, 'u') }).click();
+  await evaluate.getByRole('button', { name: 'Evaluate claims' }).click();
+  await expect(evaluate.getByText(/^Claims for openid/u)).toBeVisible();
+  await expect(evaluate.getByRole('region', { name: 'ID token claims' })).toContainText('"sub"');
+  await expect(evaluate.getByRole('region', { name: 'UserInfo claims' })).toContainText('"sub"');
+  await expectAccessible(page);
+});
+
+test("who is signed in through a client is listed, and revoking its tokens takes the client's ID", async ({
+  page,
+}) => {
+  await signIn(page, admin);
+  await openClient(page, 'odudu-admin', 'sessions');
+  const sessions = page.getByRole('grid', { name: /^Sessions through / });
+  await expect(sessions).toContainText(admin.username);
+  await expectAccessible(page);
+
+  await openClient(page, 'ledger', 'sessions');
+  await expect(page.getByText('Nobody is signed in through this client.')).toBeVisible();
+  await page.getByRole('button', { name: /^Revoke every token of/u }).click();
+  const dialog = page.getByRole('alertdialog', { name: /^Revoke every token of/u });
+  await expect(dialog).toContainText('Every grant issued through Ledger is revoked');
+  await expect(dialog.getByRole('button', { name: 'Revoke every token' })).toBeDisabled();
+  await expectAccessible(page);
+  await dialog.getByRole('textbox').fill('ledger');
+  await dialog.getByRole('button', { name: 'Revoke every token' }).click();
+  await expect(page.getByText('0 grants of Ledger revoked.')).toBeVisible();
+  await expect
+    .poll(() =>
+      psql(
+        `select count(*) from audit_events where tenant_id = ${IN_TENANT} and action = 'client.grants_revoke' and resource_id = ${sqlText(clientId('ledger'))}`,
+      ),
+    )
+    .toBe('1');
+  await expectAccessible(page);
+});
+
+test('the back-channel deliveries of a client are listed by status', async ({ page }) => {
+  await signIn(page, admin);
+  await openClient(page, 'ledger', 'logout');
+  const section = page.getByRole('region', { name: 'Back-channel deliveries' });
+  await expect(section.getByText('No logout token has been queued for this client.')).toBeVisible();
+  await section.getByRole('button', { name: /Show/u }).click();
+  await page.getByRole('option', { name: 'Failed' }).click();
+  await expect(section.getByText('No logout token has been queued for this client.')).toBeVisible();
+  await expectAccessible(page);
+});
+
+const PHONE_TABS: readonly { tab: string; ready: (page: Page) => Promise<void> }[] = [
+  {
+    tab: 'tokens',
+    ready: (page) => expect(page.getByRole('region', { name: 'Token lifetimes' })).toBeVisible(),
+  },
+  {
+    tab: 'scopes',
+    ready: (page) => expect(page.getByRole('region', { name: 'Assigned scopes' })).toBeVisible(),
+  },
+  {
+    tab: 'logout',
+    ready: (page) => expect(page.getByRole('region', { name: 'After sign-out' })).toBeVisible(),
+  },
+  {
+    tab: 'advanced',
+    ready: (page) => expect(page.getByRole('region', { name: 'Client secret' })).toBeVisible(),
+  },
+  {
+    tab: 'roles',
+    ready: (page) => expect(page.getByRole('region', { name: 'New role' })).toBeVisible(),
+  },
+  {
+    tab: 'service',
+    ready: (page) => expect(page.getByRole('option').first()).toBeVisible(),
+  },
+  {
+    tab: 'sessions',
+    ready: (page) => expect(page.getByRole('region', { name: 'Revoke every token' })).toBeVisible(),
+  },
+];
+
+for (const { tab, ready } of PHONE_TABS) {
+  test(`the ${tab} tab fits a phone`, async ({ page }) => {
+    test.slow();
+    await page.setViewportSize(PHONE);
+    await signIn(page, admin);
+    for (const key of ['ledger', UNBROKEN]) {
+      await openClient(page, key, tab);
+      await ready(page);
+      await expect(page.getByRole('progressbar')).toHaveCount(0);
+      await expect(page.locator('[role="status"]', { hasText: /^Loading/u })).toHaveCount(0);
+      await expectFitsViewport(page, `${tab} of ${key}`);
+      await expectAccessible(page);
+    }
+  });
+}

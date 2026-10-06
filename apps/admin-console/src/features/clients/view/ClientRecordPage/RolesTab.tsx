@@ -11,6 +11,7 @@ import {
 } from '#/features/clients/service';
 import {
   useClientRolesTab,
+  useRolesReadable,
   type ClientRoles,
 } from '#/features/clients/usecase/useClientRolesTab.ts';
 import { Button } from '#/shared/view/Button';
@@ -144,23 +145,29 @@ function NewRole({ page }: { page: ClientRoles }) {
   );
 }
 
-export function RolesTab({ tenant, client }: { tenant: string; client: Client }) {
+function Roles({ tenant, client }: { tenant: string; client: Client }) {
   const page = useClientRolesTab(tenant, client);
-  if (!page.readable) {
-    return (
-      <div className={styles.tab}>
-        <CapabilityNote capability={ROLES_CAPABILITY}>Roles</CapabilityNote>
-      </div>
-    );
-  }
   return (
-    <div className={styles.tab}>
+    <>
       <p className={styles.rule}>{CLIENT_ROLES_RULE}</p>
       <List client={client} page={page} />
       {page.needs.length === 0 ? (
         <NewRole page={page} />
       ) : (
         <ViewOnlyNote noun={`${client.name}'s roles`} change="make roles" needs={page.needs} />
+      )}
+    </>
+  );
+}
+
+export function RolesTab({ tenant, client }: { tenant: string; client: Client }) {
+  const readable = useRolesReadable(tenant);
+  return (
+    <div className={styles.tab}>
+      {readable ? (
+        <Roles tenant={tenant} client={client} />
+      ) : (
+        <CapabilityNote capability={ROLES_CAPABILITY}>Roles</CapabilityNote>
       )}
     </div>
   );

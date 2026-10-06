@@ -115,3 +115,21 @@
     grid-column: 1 / -1;
   }
 }
+
+.values {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.values code {
+  overflow-wrap: anywhere;
+}
+
+.claims {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}

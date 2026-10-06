@@ -40,6 +40,7 @@ it('heads the page with the breadcrumb, the name, its status and the tabs', asyn
     'Advanced',
     'Roles',
     'Service account',
+    'Sessions',
     'Activity',
   ]);
 });

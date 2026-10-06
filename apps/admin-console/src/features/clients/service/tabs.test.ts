@@ -18,6 +18,7 @@ it('keeps the tabs in the order the record page shows them', () => {
     'advanced',
     'roles',
     'service',
+    'sessions',
     'activity',
   ]);
   expect(clientRecord('c1')).toBe('clients/c1');

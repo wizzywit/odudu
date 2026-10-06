@@ -22,6 +22,7 @@ import {
 } from '#/features/clients/service';
 import { useClientAdvanced } from '#/features/clients/usecase/useClientAdvanced.ts';
 import { useClientSecret, type ClientSecret } from '#/features/clients/usecase/useClientSecret.ts';
+import { Installation } from '#/features/clients/view/ClientRecordPage/Installation.tsx';
 import { SaveSection } from '#/features/clients/view/ClientRecordPage/SaveSection.tsx';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
@@ -137,6 +138,7 @@ export function AdvancedTab({
   const source = keys.values.key_source;
   return (
     <div className={styles.tab}>
+      <Installation tenant={tenant} clientDbId={client.id} />
       <ReadOnlyFields when={!writable}>
         <SaveSection title={SECTIONS_ADVANCED.auth} save={auth}>
           {client.type === 'public' ? (

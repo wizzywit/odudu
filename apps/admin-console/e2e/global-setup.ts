@@ -109,7 +109,13 @@ function seedClients(tenant: string): void {
       ...extra,
     ]);
   };
-  for (const clientId of ['ledger', 'closed', 'doomed', 'held', UNBROKEN]) confidential(clientId);
+  const own = ['ledger', 'closed', 'doomed', 'held', UNBROKEN];
+  // One per test that changes its tokens, scopes, keys, secret or service account.
+  const configured = ['tokens', 'scoped', 'keyed', 'rotated', 'serviced'];
+  for (const clientId of [...own, ...configured]) confidential(clientId);
+  seed(['scope', '--tenant', tenant, '--name', 'reports:read']);
+  seed(['role', '--tenant', tenant, '--name', 'reader']);
+  seed(['role', '--tenant', tenant, '--name', 'approver', '--client-id', 'ledger']);
   confidential('lists', '--web-origin', 'https://lists.example');
   seed([
     'client',

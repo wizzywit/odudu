@@ -27,8 +27,12 @@ import type { GatewayFailure } from '#/shared/transport/gateway.ts';
 type Field = 'name' | 'description';
 type Errors = Partial<Record<Field, string>>;
 
+// Whether whoami admits the caller to the role list.
+export function useRolesReadable(tenant: string): boolean {
+  return rolesReadable(useAuthority(tenant));
+}
+
 export interface ClientRoles {
-  readable: boolean;
   list: ResourceListState<Role>;
   listHref: string;
   open: (id: string) => void;
@@ -72,7 +76,6 @@ export function useClientRolesTab(tenant: string, client: Client): ClientRoles {
   };
 
   return {
-    readable: rolesReadable(authority),
     list,
     listHref: clientRolesListHref(rolesHref(tenant), client.id),
     open: (id) => {
