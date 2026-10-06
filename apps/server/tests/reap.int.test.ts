@@ -455,6 +455,37 @@ describe('rotated-out client secrets', () => {
   });
 });
 
+describe('a tenant deleted while the pass is under way', () => {
+  it('yields nothing for it and carries on with the others', async () => {
+    await seedFixture();
+    const doomedId = newId();
+    await owner.db.execute(sql`
+      INSERT INTO tenants (id, name) VALUES (${doomedId}, ${`reap-doomed-${doomedId}`})
+    `);
+    // Deleted by the first statement the pass runs, so the id is already in
+    // the page it read when the pass reaches it.
+    await owner.sql.unsafe(`
+      CREATE FUNCTION reap_test_drop_tenant() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
+      BEGIN
+        DELETE FROM tenants WHERE id = '${doomedId}';
+        RETURN NULL;
+      END $$`);
+    await owner.sql.unsafe(`
+      CREATE TRIGGER reap_test_drop_tenant AFTER DELETE ON authentication_sessions
+        FOR EACH STATEMENT EXECUTE FUNCTION reap_test_drop_tenant()`);
+    try {
+      const outcome = await runPass();
+      expect(outcome.ran).toBe(true);
+      const left = await owner.db.execute<{ n: number }>(sql`
+        SELECT count(*)::int AS n FROM tenants WHERE id = ${doomedId}`);
+      expect(left[0]?.n).toBe(0);
+    } finally {
+      await owner.sql.unsafe('DROP TRIGGER reap_test_drop_tenant ON authentication_sessions');
+      await owner.sql.unsafe('DROP FUNCTION reap_test_drop_tenant()');
+    }
+  });
+});
+
 describe('odudu reap', () => {
   // First, and deliberately: the report is summed over every tenant in the
   // database, so this is the only point at which it can be compared to an

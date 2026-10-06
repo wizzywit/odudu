@@ -450,7 +450,7 @@ function emptyReport(): ReapReport {
 async function retentionTenantOf(
   tx: TenantScopedDatabase,
   tenantId: string,
-): Promise<RetentionTenant> {
+): Promise<RetentionTenant | undefined> {
   const rows = await tx
     .select({
       ssoSessionMaxSeconds: tenants.ssoSessionMaxSeconds,
@@ -459,9 +459,7 @@ async function retentionTenantOf(
     })
     .from(tenants)
     .where(eq(tenants.id, tenantId));
-  const row = rows[0];
-  if (row === undefined) throw new Error(`tenant ${tenantId} vanished while it was being reaped`);
-  return row;
+  return rows[0];
 }
 
 async function reapTenant(
@@ -472,6 +470,8 @@ async function reapTenant(
 ): Promise<{ deleted: ReapReport; cleared: ClearReport }> {
   const report = emptyReport();
   const tenant = await retentionTenantOf(tx, tenantId);
+  // Deleted since its page was read: nothing of it is left to reap.
+  if (tenant === undefined) return { deleted: report, cleared: { client_previous_secrets: 0 } };
   for (const table of REAP_ORDER) {
     const result = await tx.execute(RETENTION_RULES[table].statement(now, policy, tenant));
     report[table] = result.count;
@@ -498,6 +498,10 @@ export interface ReapDeps {
   readonly onLockAttempt?: (acquired: boolean) => Promise<void> | void;
 }
 
+async function* allTenantIds(owner: DatabaseHandle): AsyncGenerator<string> {
+  for await (const page of tenantIdPages(owner.db)) yield* page;
+}
+
 // Both halves of ADR 0021's claim that the policy is the scoping, checked
 // rather than hoped for. `tenants` carries FORCE ROW LEVEL SECURITY, which
 // removes even the owner's implicit exemption, so a listing role without
@@ -505,10 +509,6 @@ export interface ReapDeps {
 // serving role *with* the escape runs every DELETE unscoped while
 // `app.tenant_id` is bound, which is one unfiltered pass per tenant and no
 // error to say so. Both fail closed.
-async function* allTenantIds(owner: DatabaseHandle): AsyncGenerator<string> {
-  for await (const page of tenantIdPages(owner.db)) yield* page;
-}
-
 async function assertRolesAreRight(deps: ReapDeps): Promise<void> {
   if (!(await bypassesRowLevelSecurity(deps.ownerDatabase))) {
     throw new OduduError(
