@@ -225,14 +225,6 @@ export interface CreateScopeDeps {
   readonly audit: Audit;
 }
 
-// `client_scopes_name_unique` (0016_client_scopes.sql) is what actually
-// refuses a duplicate. It is left to propagate out of this function rather
-// than caught here: by the time the unique-index violation fires, the
-// INSERT has already aborted this transaction at the database level, and
-// nothing run afterward in the same transaction — including a normal
-// return — can un-abort it. The route catches it outside `withTenant`, the
-// same shape `ClientIdConflictError` is caught in
-// (`createClientHandler`, #/view/routes/clients.ts).
 /** Thrown by `createScope` when the tenant already defines `SCOPE_LIMIT` scopes. */
 export class ScopeLimitError extends Error {
   constructor() {
@@ -241,6 +233,14 @@ export class ScopeLimitError extends Error {
   }
 }
 
+// `client_scopes_name_unique` (0016_client_scopes.sql) is what actually
+// refuses a duplicate. It is left to propagate out of this function rather
+// than caught here: by the time the unique-index violation fires, the
+// INSERT has already aborted this transaction at the database level, and
+// nothing run afterward in the same transaction — including a normal
+// return — can un-abort it. The route catches it outside `withTenant`, the
+// same shape `ClientIdConflictError` is caught in
+// (`createClientHandler`, #/view/routes/clients.ts).
 export async function createScope(
   tx: TenantScopedDatabase,
   deps: CreateScopeDeps,

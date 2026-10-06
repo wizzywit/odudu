@@ -184,11 +184,7 @@ export async function endTenantSessions(
     input.endLimit ?? TENANT_SESSIONS_END_LIMIT,
   );
   const cap = input.countCap ?? COUNT_CAP;
-  const remaining = await countAtMost(
-    tx,
-    { table: sessions, where: reachable },
-    cap,
-  );
+  const remaining = await countAtMost(tx, { table: sessions, where: reachable }, cap);
   const skipped =
     beyond === null
       ? 0

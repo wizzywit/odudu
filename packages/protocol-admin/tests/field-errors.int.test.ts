@@ -128,6 +128,10 @@ describe('a refusal of the request shape names the field', () => {
       caller.create('/scopes', { name: `s-${newId()}` }),
     '/admin/tenants/:tenant/subjects/:id/grants': (caller) =>
       caller.create('/subjects', { username: `u-${newId()}` }),
+    '/admin/tenants/:tenant/subjects/:id/consents': (caller) =>
+      caller.create('/subjects', { username: `u-${newId()}` }),
+    '/admin/tenants/:tenant/subjects/:id/effective-roles': (caller) =>
+      caller.create('/subjects', { username: `u-${newId()}` }),
     '/admin/tenants/:tenant/clients/:id/sessions': (caller) =>
       caller.create('/clients', { client_id: `c-${newId()}`, grant_types: ['client_credentials'] }),
     '/admin/tenants/:tenant/clients/:id/logout-deliveries': (caller) =>

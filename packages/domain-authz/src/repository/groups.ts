@@ -86,16 +86,13 @@ export async function descendantsOf(
   return new Set(rows.map((row) => row.id));
 }
 
-// `startId` and everything above it up to the root, by following
-// `parent_id` edges upward — the same walk `effectiveRoles`' own
-// `group_closure` (#/repository/effective-roles.ts) does from a subject's
-// direct memberships, seeded here from one group instead. What a reparent's
-// own capability ceiling needs: a group moved under `startId` inherits
-// every role mapped to `startId` or any of its ancestors, via that same
-// closure, so the ceiling has to reach as far as this does.
+// `startId` and everything above it up to the root, by following `parent_id`
+// edges upward — the walk `effectiveRoles`' `group_closure` does from a
+// subject's memberships, seeded from one group instead. A reparent's ceiling
+// reaches as far as this does: a group moved under `startId` inherits every
+// role mapped to it or to any ancestor.
 //
-// Given several groups it answers the union of their chains, in the one
-// query: a caller with a set of groups never asks per group.
+// Given several groups it answers the union of their chains in one query.
 export async function ancestorsOf(
   tx: TenantScopedDatabase,
   start: string | readonly string[],

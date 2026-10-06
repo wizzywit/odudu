@@ -115,13 +115,11 @@ export function consentRepository(tx: TenantScopedDatabase) {
 
     // Two round trips rather than one join: a left join fanning consents
     // out across their scopes would need per-client deduplication in
-    // memory anyway, for a subject a caller never has more than a handful
-    // of consents for. `grantedAt` is the consent's own `updatedAt` — the
+    // memory anyway. `grantedAt` is the consent's own `updatedAt` — the
     // one write's own recording is a replacement of the whole granted set
     // (see `record` above), so that is when the grant, as it now reads,
-    // became what it currently is.
-    // One page, ordered by the client's own `client_id`: at most `limit` rows
-    // after `after`, however many consents the subject holds.
+    // became what it currently is. A page: at most `limit` rows after `after`,
+    // by the client's own `client_id`.
     async forSubject(
       subjectId: string,
       page: { readonly after: string | undefined; readonly limit: number },
