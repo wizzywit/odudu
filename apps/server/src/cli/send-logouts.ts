@@ -1,7 +1,7 @@
 import {
   bypassesRowLevelSecurity,
   createDatabase,
-  tenants,
+  tenantIdPages,
   withTenant,
   type DatabaseHandle,
 } from '@odudu/db';
@@ -87,41 +87,37 @@ export async function sendLogoutsAcrossTenants(
 ): Promise<LogoutSenderReport> {
   await assertRolesAreRight(deps);
 
-  const rows = await deps.ownerDatabase.db
-    .select({ id: tenants.id })
-    .from(tenants)
-    .orderBy(tenants.id);
-  const tenantIds = rows.map((row) => row.id);
-  if (tenantIds.length === 0) {
-    return { ran: false, reason: 'no tenant was enumerated' };
-  }
-
   let delivered = 0;
   let failed = 0;
-  for (const tenantId of tenantIds) {
-    const outcome = await withTenant(deps.database.db, tenantId, (tx) => {
-      const repository = logoutDeliveryRepository(tx);
-      return sendLogouts(
-        {
-          claimDue: (claimNow) =>
-            repository.claimDue({
-              now: claimNow,
-              limit: options.batchSize,
-              leaseSeconds: options.leaseSeconds,
-            }),
-          markDelivered: (id, at) => repository.markDelivered(id, at),
-          markFailed: (id, at, error) => repository.markFailed(id, at, error),
-          markAbandoned: (id, at, error) => repository.markAbandoned(id, at, error),
-          transport: deps.transport,
-          responseTimeoutMs: options.responseTimeoutMs,
-        },
-        now,
-      );
-    });
-    delivered += outcome.delivered;
-    failed += outcome.failed;
+  let visited = 0;
+  for await (const page of tenantIdPages(deps.ownerDatabase.db)) {
+    for (const tenantId of page) {
+      visited += 1;
+      const outcome = await withTenant(deps.database.db, tenantId, (tx) => {
+        const repository = logoutDeliveryRepository(tx);
+        return sendLogouts(
+          {
+            claimDue: (claimNow) =>
+              repository.claimDue({
+                now: claimNow,
+                limit: options.batchSize,
+                leaseSeconds: options.leaseSeconds,
+              }),
+            markDelivered: (id, at) => repository.markDelivered(id, at),
+            markFailed: (id, at, error) => repository.markFailed(id, at, error),
+            markAbandoned: (id, at, error) => repository.markAbandoned(id, at, error),
+            transport: deps.transport,
+            responseTimeoutMs: options.responseTimeoutMs,
+          },
+          now,
+        );
+      });
+      delivered += outcome.delivered;
+      failed += outcome.failed;
+    }
   }
 
+  if (visited === 0) return { ran: false, reason: 'no tenant was enumerated' };
   return { ran: true, delivered, failed };
 }
 

@@ -124,6 +124,19 @@ interface AdvisoryLockRow {
   got: boolean;
 }
 
+function isArray(ids: readonly string[] | AsyncIterable<string>): ids is readonly string[] {
+  return Array.isArray(ids);
+}
+
+function assertTenantId(tenantId: string): void {
+  if (!UUID_PATTERN.test(tenantId)) {
+    throw new OduduError(
+      'tenant_context_missing',
+      `withEachTenantExclusive requires UUID tenant ids, got ${JSON.stringify(tenantId)}`,
+    );
+  }
+}
+
 /**
  * One transaction, one Postgres advisory lock, each tenant's row-level
  * security context bound in turn — what a maintenance pass that spans every
@@ -133,20 +146,15 @@ interface AdvisoryLockRow {
 export async function withEachTenantExclusive<T>(
   db: Database,
   lockKey: number,
-  tenantIds: readonly string[],
+  tenantIds: readonly string[] | AsyncIterable<string>,
   fn: (tx: TenantScopedDatabase, tenantId: string) => Promise<T>,
   // Fires with the lock result before this transaction does anything else.
   // Production never passes it; a test uses it to hold a winning attempt
   // open until a concurrent one has made its own attempt on the same key.
   onLockAttempt?: (acquired: boolean) => Promise<void> | void,
 ): Promise<ExclusiveTenantPass<T>> {
-  for (const tenantId of tenantIds) {
-    if (!UUID_PATTERN.test(tenantId)) {
-      throw new OduduError(
-        'tenant_context_missing',
-        `withEachTenantExclusive requires UUID tenant ids, got ${JSON.stringify(tenantId)}`,
-      );
-    }
+  if (isArray(tenantIds)) {
+    for (const tenantId of tenantIds) assertTenantId(tenantId);
   }
 
   return db.transaction(async (tx) => {
@@ -161,8 +169,11 @@ export async function withEachTenantExclusive<T>(
     // a retry could achieve.
     if (!acquired) return { acquired: false };
 
+    // One result per tenant visited, so at most the tenant count: 10,000 at
+    // the design volume (ADR 0041).
     const values: T[] = [];
-    for (const tenantId of tenantIds) {
+    for await (const tenantId of tenantIds) {
+      assertTenantId(tenantId);
       // Re-bound per tenant at the top level of the transaction, never
       // nested: a savepoint releasing is what would make this unsafe, and
       // there is no savepoint here.

@@ -16,6 +16,7 @@ import {
   RETENTION_RULES,
   type ReapOutcome,
   type RetentionPolicy,
+  type RetentionTenant,
   type TableName,
 } from '#/cli/reap';
 
@@ -36,6 +37,12 @@ const SECOND = 1000;
 const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
+
+const TENANT: RetentionTenant = {
+  ssoSessionMaxSeconds: 36_000,
+  bruteForceFailureResetSeconds: 900,
+  auditRetentionDays: 90,
+};
 
 const POLICY: RetentionPolicy = {
   grantSeconds: 7 * 24 * 60 * 60,
@@ -582,7 +589,7 @@ describe('odudu reap', () => {
 
       const before = await countRows(theirs.tenantId, table);
       const pass = await withEachTenantExclusive(appDb.db, REAP_LOCK_KEY, [mine.tenantId], (tx) =>
-        tx.execute(RETENTION_RULES[table].statement(NOW, POLICY)),
+        tx.execute(RETENTION_RULES[table].statement(NOW, POLICY, TENANT)),
       );
       expect(pass.acquired).toBe(true);
 

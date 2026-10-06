@@ -1,6 +1,6 @@
 import {
   bypassesRowLevelSecurity,
-  tenants,
+  tenantIdPages,
   withTenant,
   type DatabaseHandle,
   type TenantScopedDatabase,
@@ -145,62 +145,75 @@ export async function sendPending(
 ): Promise<SendPendingOutcome> {
   await assertRolesAreRight(deps);
 
-  const rows = await deps.ownerDatabase.db
-    .select({ id: tenants.id })
-    .from(tenants)
-    .orderBy(tenants.id);
-  // Trustworthy, after the check above: an empty list means an empty
-  // database and not a filtered read.
-  if (rows.length === 0) return { ran: false, reason: 'no tenant was enumerated' };
-
   let sent = 0;
   let failed = 0;
+  let visited = 0;
 
-  for (const { id: tenantId } of rows) {
-    const claimed = await withTenant(deps.database.db, tenantId, (tx) =>
-      outboxRepository(tx).claimBatch({
-        limit: options.batchSize,
-        now,
-        maxAttempts: options.maxAttempts,
-        leaseSeconds: OUTBOX_CLAIM_LEASE_SECONDS,
-      }),
-    );
-    if (claimed.length === 0) continue;
-
-    // Resolved once for the whole batch, not once per message — the read
-    // itself is a brief, separate transaction (see resolveSender's own
-    // implementation), never held open across any of the sends below.
-    //
-    // Caught per tenant: unwrapping a stored SMTP password throws when its
-    // GCM tag no longer verifies, and a transient read throws here too. A
-    // throw escaping this loop would end the pass, so every tenant ordered
-    // after the failing one would get no mail on any pass at all.
-    let sender: EmailSender;
-    try {
-      sender = await deps.resolveSender(tenantId);
-    } catch (err) {
-      failed += claimed.length;
-      deps.log?.error(
-        { err, tenantId, claimed: claimed.length },
-        'outbox could not resolve this tenant sender; its batch is offered again once the lease elapses',
-      );
-      continue;
-    }
-
-    for (const message of claimed) {
-      // Per message, so one address the transport chokes on does not
-      // abandon the rest of the batch. A claimed message left unresolved
-      // by a throw here is offered again once its lease elapses.
-      try {
-        const delivery = await deliver(deps, sender, tenantId, message, now, options);
-        if (delivery === 'sent') sent += 1;
-        else if (delivery === 'failed') failed += 1;
-      } catch (err) {
-        failed += 1;
-        deps.log?.error({ err, messageId: message.id }, 'outbox message could not be resolved');
-      }
+  for await (const page of tenantIdPages(deps.ownerDatabase.db)) {
+    for (const tenantId of page) {
+      visited += 1;
+      const outcome = await sendTenantBatch(deps, tenantId, now, options);
+      sent += outcome.sent;
+      failed += outcome.failed;
     }
   }
 
+  // Trustworthy, after the check above: nothing visited means an empty
+  // database and not a filtered read.
+  if (visited === 0) return { ran: false, reason: 'no tenant was enumerated' };
   return { ran: true, sent, failed };
+}
+
+// One tenant's due messages, claimed and handed to its sender.
+async function sendTenantBatch(
+  deps: SendPendingDeps,
+  tenantId: string,
+  now: Date,
+  options: SendPendingOptions,
+): Promise<{ sent: number; failed: number }> {
+  const claimed = await withTenant(deps.database.db, tenantId, (tx) =>
+    outboxRepository(tx).claimBatch({
+      limit: options.batchSize,
+      now,
+      maxAttempts: options.maxAttempts,
+      leaseSeconds: OUTBOX_CLAIM_LEASE_SECONDS,
+    }),
+  );
+  if (claimed.length === 0) return { sent: 0, failed: 0 };
+
+  // Resolved once for the whole batch, not once per message — the read
+  // itself is a brief, separate transaction (see resolveSender's own
+  // implementation), never held open across any of the sends below.
+  //
+  // Caught per tenant: unwrapping a stored SMTP password throws when its
+  // GCM tag no longer verifies, and a transient read throws here too. A
+  // throw escaping the caller's loop would end the pass, so every tenant
+  // ordered after the failing one would get no mail on any pass at all.
+  let sender: EmailSender;
+  try {
+    sender = await deps.resolveSender(tenantId);
+  } catch (err) {
+    deps.log?.error(
+      { err, tenantId, claimed: claimed.length },
+      'outbox could not resolve this tenant sender; its batch is offered again once the lease elapses',
+    );
+    return { sent: 0, failed: claimed.length };
+  }
+
+  let sent = 0;
+  let failed = 0;
+  for (const message of claimed) {
+    // Per message, so one address the transport chokes on does not
+    // abandon the rest of the batch. A claimed message left unresolved
+    // by a throw here is offered again once its lease elapses.
+    try {
+      const delivery = await deliver(deps, sender, tenantId, message, now, options);
+      if (delivery === 'sent') sent += 1;
+      else if (delivery === 'failed') failed += 1;
+    } catch (err) {
+      failed += 1;
+      deps.log?.error({ err, messageId: message.id }, 'outbox message could not be resolved');
+    }
+  }
+  return { sent, failed };
 }
