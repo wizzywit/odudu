@@ -1,6 +1,6 @@
 import { join, relative } from 'node:path';
-import { reactCompiler } from './apps/admin-console/reactCompiler.ts';
 import { defineConfig } from 'vitest/config';
+import { reactCompiler } from './apps/admin-console/reactCompiler.ts';
 
 const REPO_ROOT = import.meta.dirname;
 const SETUP = [join(REPO_ROOT, 'tests/setup/runtime-warnings.ts')];
