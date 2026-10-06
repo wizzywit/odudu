@@ -21,6 +21,11 @@ const FEATURE_ONLY = [
 // 1,000 B. A larger entry is a decision: raise this beside the reason.
 const ENTRY_GZIP_BUDGET = 153_000;
 
+// The same bound over everything loaded first: the entry and each chunk it
+// imports statically. Set at 229,800 B, plus 5%, rounded up to a whole kB.
+// Lazy chunks are not budgeted.
+const FIRST_LOAD_GZIP_BUDGET = 242_000;
+
 interface Chunk {
   readonly name: string;
   readonly text: string;
@@ -105,5 +110,16 @@ describe("the console's feature-only modules", () => {
       bytes,
       `${entry?.name ?? 'the entry'} is ${String(bytes)} B gzipped, over its budget of ${String(ENTRY_GZIP_BUDGET)} B`,
     ).toBeLessThanOrEqual(ENTRY_GZIP_BUDGET);
+  });
+
+  it('keeps everything loaded first within its gzip byte budget', () => {
+    const bytes = loadedFirst(all).reduce(
+      (sum, chunk) => sum + gzipSync(Buffer.from(chunk.text)).length,
+      0,
+    );
+    expect(
+      bytes,
+      `the first load is ${String(bytes)} B gzipped, over its budget of ${String(FIRST_LOAD_GZIP_BUDGET)} B`,
+    ).toBeLessThanOrEqual(FIRST_LOAD_GZIP_BUDGET);
   });
 });

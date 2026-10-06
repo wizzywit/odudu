@@ -485,7 +485,7 @@ Tailwind v4 and vanilla-extract for styling, Next.js and React Router's
 framework mode for the build, an in-browser OAuth client and a
 token-mediating backend for authentication.
 
-The React Compiler is on for all of `src`, and a component it cannot compile
+The React Compiler is on for all of `src` but its test files, and a component it cannot compile
 fails the build; the entry chunk has a gzip byte budget beside the lint that
 keeps heavy modules out of it, and no `useMemo`, `useCallback` or `memo()` is
 written by hand without a measurement (ADR 0041).

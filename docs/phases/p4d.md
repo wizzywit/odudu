@@ -1646,8 +1646,8 @@ only the sign-in copy became `VisuallyHidden`.
 
 ## Performance — the React Compiler
 
-The compiler is on for all of `apps/admin-console/src`, in the build and in
-the DOM tests: `babel-plugin-react-compiler` 1.0.0, run by
+The compiler is on for all of `apps/admin-console/src` except test files
+(`*.test.ts(x)`, which are not shipped), in the build and in the DOM tests: `babel-plugin-react-compiler` 1.0.0, run by
 `@rolldown/plugin-babel` 0.2.4 through `@vitejs/plugin-react`'s
 `reactCompilerPreset` (`apps/admin-console/reactCompiler.ts`).
 `panicThreshold: 'all_errors'` makes a component it cannot compile fail the
@@ -1681,7 +1681,7 @@ compiler's cache code and its runtime. `ENTRY_GZIP_BUDGET` in
 `tests/lint/console-phone-chunk.test.ts` is the entry's gzipped size now
 plus 5 per cent, rounded up to a whole kB.
 
-The two hand-written `useMemo`s' worth, in `ClaimFields.tsx` and
+The four hand-written `useMemo`s, three in `ClaimFields.tsx` and one in
 `PhoneField.tsx`, went: the compiler memoises the same lists on the same
 keys. `tests/lint/console-no-manual-memo.test.ts` holds the rest of the
 console to none, unless the line above names a measurement.
@@ -1695,3 +1695,17 @@ read second) was never drawn. The browser test for the grant picker failed;
 its test re-renders with the same options and a new reason. The other dynamic
 collections (the field select, the filter bar's select, the combo box) read
 only their item.
+
+`Timestamp` took a default `now = new Date()`, which the compiler cannot
+handle, and caches `now ?? new Date()` once per mount; it now reads a clock
+(`useNow`, 30 s) so its relative time keeps moving. First load, entry
+and the chunks it imports statically, is budgeted at 242 kB gzipped
+(`FIRST_LOAD_GZIP_BUDGET`). Lazy chunks are not budgeted yet and grew more than
+the entry did, by the compiler's cache code. Raw / gzip by Vite, before to
+after: subjects 421.41 / 120.14 to 502.29 / 150.32 kB; tenants 42.12 / 13.59 to
+65.78 / 22.79; groups 30.25 / 9.77 to 49.26 / 16.62; roles 26.78 / 9.01 to
+44.52 / 15.60; overview 17.13 / 5.81 to 23.95 / 8.47; system-admins
+5.53 / 2.57 to 8.83 / 4.02; AuditActor 96.93 / 28.84 to 99.49 / 30.01.
+`tests/lint/console-collection-dependencies.test.ts` is a backstop for the
+collection-cache case above; it cannot see a value reached through a called
+function.
