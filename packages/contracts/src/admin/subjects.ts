@@ -232,10 +232,16 @@ export const listEffectiveRolesResponseSchema = z.object({
 });
 export type ListEffectiveRolesResponse = z.infer<typeof listEffectiveRolesResponseSchema>;
 
-// The admin capabilities a subject holds, each with how: at most one per
-// capability the admin API knows, so the answer is whole, never a page.
+// The admin capabilities a subject holds, each with how, and the roles that
+// carry them (a role nesting one, held directly or through a group): what a
+// reader needs to say what losing a role would take, which a page of the
+// subject's roles cannot answer. Sized by the model, at most
+// ADMIN_CARRIER_LIMIT; `complete` is false when more carry them, and a
+// reader must then judge nothing from it.
+export const ADMIN_CARRIER_LIMIT = 200;
 export const adminCapabilitiesResponseSchema = z.object({
   items: z.array(effectiveRoleSchema),
+  complete: z.boolean(),
 });
 export type AdminCapabilitiesResponse = z.infer<typeof adminCapabilitiesResponseSchema>;
 

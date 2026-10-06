@@ -489,9 +489,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: adminCapabilitiesResponseSchema,
     description:
       'The admin capabilities the subject holds, each as an effective role with every path it ' +
-      'is held by, found among the roles of the built-in admin client whatever else the ' +
-      'subject holds. At most one entry per capability, so the answer is whole, never a page: ' +
-      'what a console judges the subject\u2019s reach by.',
+      'is held by, and the roles that carry them (one nesting a capability, held directly or ' +
+      'through a group), found among the roles that reach a capability whatever else the ' +
+      'subject holds. Never a page: at most 200 carriers, and `complete` is false when more ' +
+      'exist, in which case nothing may be judged from it. What a console judges the ' +
+      'subject\u2019s reach, and what losing a role would take, by.',
   },
   // Joining a group grants its roles and its ancestors', so this route's
   // capability ceiling (`setSubjectGroups`, #/usecase/subjects.ts) is the

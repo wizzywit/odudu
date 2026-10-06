@@ -1,4 +1,4 @@
-import { ASSIGNMENT_LIMIT } from '@odudu/contracts/admin';
+import { ADMIN_CARRIER_LIMIT, ASSIGNMENT_LIMIT } from '@odudu/contracts/admin';
 import { withTenant } from '@odudu/db';
 import { groupRepository, roleRepository } from '@odudu/domain-authz';
 import { subjectRepository } from '@odudu/domain-identity';
@@ -98,9 +98,44 @@ describe('GET /subjects/:id/admin-capabilities', () => {
 
     const res = await read(t.name, subjectId, token);
 
-    const items = res.json<{ items: Held[] }>().items;
-    expect(items.map((item) => item.name)).toEqual(['manage-keys']);
-    expect(items[0]?.via).toMatchObject([{ kind: 'composite', parent_name: 'wrapper' }]);
+    const body = res.json<{ items: Held[]; complete: boolean }>();
+    expect(body.complete).toBe(true);
+    // The capability, and the role that carries it, which losing would take it.
+    expect(body.items.map((item) => item.name).sort()).toEqual(['manage-keys', 'wrapper']);
+    expect(body.items.find((item) => item.name === 'manage-keys')?.via).toMatchObject([
+      { kind: 'composite', parent_name: 'wrapper' },
+    ]);
+    expect(body.items.find((item) => item.name === 'wrapper')?.via).toEqual([{ kind: 'direct' }]);
+  });
+
+  it('says so when more roles carry a capability than a reader may judge from', async () => {
+    const t = await fixture.createTenant(`caps-${newId()}`);
+    const subjectId = await withTenant(fixture.app.db, t.id, async (tx) => {
+      const subject = await subjectRepository(tx).create({ tenantId: t.id, type: 'user' });
+      return subject.id;
+    });
+    await fixture.owner.sql`
+      with keys as (
+        select r.id from roles r join clients c on c.id = r.client_id
+         where r.tenant_id = ${t.id} and c.client_id = ${ADMIN_CLIENT_ID} and r.name = 'manage-keys'),
+      made as (
+        insert into roles (id, tenant_id, name)
+        select gen_random_uuid(), ${t.id}, 'carrier-' || g from generate_series(1, ${ADMIN_CARRIER_LIMIT + 1}) g
+        returning id),
+      nested as (
+        insert into role_composites (tenant_id, parent_role_id, child_role_id)
+        select ${t.id}, made.id, keys.id from made, keys)
+      insert into subject_roles (tenant_id, subject_id, role_id)
+      select ${t.id}, ${subjectId}, id from made`;
+    const token = await fixture.adminToken(t.name, ['view-users']);
+
+    const body = (await read(t.name, subjectId, token)).json<{
+      items: Held[];
+      complete: boolean;
+    }>();
+
+    expect(body.complete).toBe(false);
+    expect(body.items.length).toBe(ADMIN_CARRIER_LIMIT);
   });
 
   it('answers 404 for an id no subject holds, and 403 without view-users', async () => {

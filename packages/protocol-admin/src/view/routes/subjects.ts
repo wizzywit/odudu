@@ -624,7 +624,7 @@ export function readAdminCapabilitiesHandler(deps: SubjectsRouteDeps): AdminRout
         problem(404, 'about:blank', 'Not Found', `no subject ${id}`),
       );
     }
-    return reply.code(200).send({ items: outcome.items });
+    return reply.code(200).send({ items: outcome.items, complete: outcome.complete });
   };
 }
 

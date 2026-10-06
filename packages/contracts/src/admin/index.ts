@@ -162,6 +162,7 @@ export {
   type ListEffectiveRolesQuery,
   listEffectiveRolesResponseSchema,
   type ListEffectiveRolesResponse,
+  ADMIN_CARRIER_LIMIT,
   adminCapabilitiesResponseSchema,
   type AdminCapabilitiesResponse,
   BULK_SUBJECT_ACTIONS,

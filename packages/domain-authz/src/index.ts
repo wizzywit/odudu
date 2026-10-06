@@ -12,6 +12,7 @@ export {
   effectiveRoles,
   compositesWithin,
   heldAmong,
+  heldAmongQuery,
   rolesReachableFrom,
   type EffectiveRole,
 } from '#/repository/effective-roles';

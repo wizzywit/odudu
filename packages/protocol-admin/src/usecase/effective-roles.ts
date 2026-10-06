@@ -3,21 +3,19 @@ import { type TenantScopedDatabase } from '@odudu/db';
 import {
   compositesWithin,
   effectiveRolePage,
-  heldAmong,
+  heldAmongQuery,
   roles,
   subjectRoles,
 } from '@odudu/domain-authz';
 import { subjectRepository } from '@odudu/domain-identity';
-import { ADMIN_CLIENT_ID, clients, TENANT_ADMIN } from '@odudu/domain-tenant';
+import { clients } from '@odudu/domain-tenant';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { ADMIN_CAPABILITIES } from '@odudu/contracts/admin';
+import { ADMIN_CARRIER_LIMIT } from '@odudu/contracts/admin';
+import { grantingCte } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 
 const COLLECTION = 'effective-roles';
-
-// The roles of the built-in admin client a subject is judged by: Full and each capability.
-const HOLDINGS: readonly string[] = [TENANT_ADMIN, ...ADMIN_CAPABILITIES];
 
 export type ListEffectiveRolesOutcome =
   | { kind: 'not_found' }
@@ -165,27 +163,29 @@ export async function listEffectiveRoles(
 }
 
 export type AdminCapabilitiesOutcome =
-  { kind: 'not_found' } | { kind: 'ok'; items: readonly EffectiveRoleAssignment[] };
+  | { kind: 'not_found' }
+  | { kind: 'ok'; items: readonly EffectiveRoleAssignment[]; complete: boolean };
 
-// What the console judges a subject by: the admin capabilities it holds, found
-// among the few roles the built-in admin client defines instead of in the whole
-// effective set, which can be more than a page of roles. Sized by the model.
+// What the console judges a subject by: the admin capabilities it holds and the
+// held roles that carry them, found among the roles that reach a capability
+// (few) instead of in the whole effective set, which can be more than a page.
 export async function listAdminCapabilities(
   tx: TenantScopedDatabase,
   subjectId: string,
 ): Promise<AdminCapabilitiesOutcome> {
   if ((await subjectRepository(tx).byId(subjectId)) === null) return { kind: 'not_found' };
-  const candidates = await tx
-    .select({ id: roles.id })
-    .from(roles)
-    .innerJoin(clients, eq(clients.id, roles.clientId))
-    .where(and(eq(clients.clientId, ADMIN_CLIENT_ID), inArray(roles.name, [...HOLDINGS])));
-  const held = await heldAmong(
-    tx,
-    subjectId,
-    candidates.map((role) => role.id),
-  );
-  if (held.size === 0) return { kind: 'ok', items: [] };
-  const { rows, via } = await heldRolesWithPaths(tx, subjectId, [...held]);
-  return { kind: 'ok', items: rows.map((row) => ({ ...row, via: via.get(row.id) ?? [] })) };
+  const found = await heldAmongQuery(tx, subjectId, {
+    extraCtes: grantingCte(),
+    candidates: sql`SELECT role_id FROM granting`,
+    limit: ADMIN_CARRIER_LIMIT + 1,
+  });
+  const complete = found.length <= ADMIN_CARRIER_LIMIT;
+  const carriers = complete ? found : found.slice(0, ADMIN_CARRIER_LIMIT);
+  if (carriers.length === 0) return { kind: 'ok', items: [], complete };
+  const { rows, via } = await heldRolesWithPaths(tx, subjectId, carriers);
+  return {
+    kind: 'ok',
+    items: rows.map((row) => ({ ...row, via: via.get(row.id) ?? [] })),
+    complete,
+  };
 }

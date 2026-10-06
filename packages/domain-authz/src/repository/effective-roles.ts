@@ -98,6 +98,28 @@ export async function heldAmong(
   );
 }
 
+// The roles of a set the subject holds, effectively, where the set is a
+// subquery over `extraCtes` (a `granting(...) AS (...)` the caller writes): a
+// set too large to name in a list. At most `limit` come back, in role id order.
+export async function heldAmongQuery(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+  query: { readonly extraCtes: SQL; readonly candidates: SQL; readonly limit: number },
+): Promise<readonly string[]> {
+  const result = await tx.execute(sql`
+    ${closureOf(subjectId)},
+    ${query.extraCtes}
+    SELECT role_id FROM role_closure
+     WHERE role_id IN (${query.candidates})
+     ORDER BY role_id
+     LIMIT ${query.limit}
+  `);
+  return z
+    .array(z.object({ role_id: z.string() }))
+    .parse(result)
+    .map((row) => row.role_id);
+}
+
 export interface CompositeEdge {
   readonly parentRoleId: string;
   readonly parentName: string;

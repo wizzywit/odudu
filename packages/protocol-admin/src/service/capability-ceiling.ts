@@ -310,7 +310,7 @@ function idList(ids: readonly string[]): SQL {
 // that nest them. The few roles that reach a capability are what a page of roles
 // or groups is probed against, where walking down from the page costs the page
 // times what each reaches.
-function grantingCte(): SQL {
+export function grantingCte(): SQL {
   return sql`granting(role_id, name) AS (
       SELECT r.id, r.name
       FROM clients cl
