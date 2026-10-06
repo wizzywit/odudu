@@ -1,4 +1,4 @@
-import { createDatabase, tenants, withTenant, type DatabaseHandle } from '@odudu/db';
+import { createDatabase, tenantIdPages, withTenant, type DatabaseHandle } from '@odudu/db';
 import { SYSTEM_TENANT_ID } from '@odudu/domain-tenant';
 import { consoleBaseUrl, loadConfig, OduduError } from '@odudu/kernel';
 import { provisionAdminClient } from '@odudu/protocol-oidc';
@@ -21,19 +21,19 @@ export async function provisionConsole(
   deps: ProvisionConsoleDeps,
   baseUrl: string,
 ): Promise<number> {
-  const rows = await deps.ownerDatabase.db
-    .select({ id: tenants.id })
-    .from(tenants)
-    .orderBy(tenants.id);
-  for (const { id } of rows) {
-    await withTenant(deps.database.db, id, (tx) =>
-      provisionAdminClient(tx, id, {
-        crossTenant: id === SYSTEM_TENANT_ID,
-        consoleBaseUrl: baseUrl,
-      }),
-    );
+  let visited = 0;
+  for await (const page of tenantIdPages(deps.ownerDatabase.db)) {
+    for (const id of page) {
+      await withTenant(deps.database.db, id, (tx) =>
+        provisionAdminClient(tx, id, {
+          crossTenant: id === SYSTEM_TENANT_ID,
+          consoleBaseUrl: baseUrl,
+        }),
+      );
+      visited += 1;
+    }
   }
-  return rows.length;
+  return visited;
 }
 
 // `odudu console provision`: the command to run after setting or changing
