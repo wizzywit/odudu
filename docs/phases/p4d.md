@@ -1644,6 +1644,51 @@ the base, 798 kB with the regression, and is 704 kB now.
 rule: both sit inside container queries, where `composes` is not allowed, so
 only the sign-in copy became `VisuallyHidden`.
 
+## Part 4 — Clients: list, create, General and Redirects & origins
+
+**A client's lists had no bound.** Redirect URIs, web origins, post-logout
+URIs, audiences and client-credentials scopes were arrays of any length,
+though each web origin and redirect URI is expanded into `client_origins`
+rows when it is written and a client is listed whole. They now hold at most
+`CLIENT_LIST_LIMIT` (200, `@odudu/contracts`), refused with `400` naming the
+field, its count and the limit, on create, `PATCH`, dynamic registration and
+import. The console shows the count against the limit beside each list and
+takes the server's own refusal for a non-canonical origin or URI, placed under
+the list it names. Nothing in the database holds the bound: the four doors
+share `parseClientMetadata`, the amendment validators and the document
+schema, and `odudu seed client` takes no list long enough to matter.
+
+**The ceiling over a client is decided by what its service account holds.**
+Every confidential client has a service account, and every write on the client
+is held to the ceiling on it (ADR 0040). The console reads the account through
+`GET /subjects/:id/admin-capabilities`, which needs `view-users`, so an
+operator holding `manage-clients` alone sees a confidential client as text with
+one line saying why, and a public client, which has no service account, with
+every write. Offering nothing until the answer is whole is the rule, so a read
+that failed or came back incomplete says so and offers a retry. Whether
+`manage-clients` should reach a client's service-account reach without
+`view-users` is the same question groups answered with `admin_reach` on the
+record; it is not answered here.
+
+**Placed beside the brief.**
+
+- Delete, with the typed client ID, sits in General's danger zone as the design
+  spec has it; the brief for the remaining client tabs lists it under Advanced.
+- Activity is built, since neither brief lists it and the spec's tab table does.
+- Tokens, Scopes, Logout and Advanced are tabs that say they are not built yet.
+- Neither brief places `id_token_signed_response_alg`, `default_max_age`,
+  `require_auth_time`, `tls_client_auth_subject_dn` or
+  `token_exchange_impersonation_allowed`; the second increment is where they
+  go, or the plan names another.
+- A client is created with a client ID, name, description, type and redirect
+  URIs. A service-only client (`client_credentials`, no redirect URI) is made
+  by creating it and changing its grants from Tokens.
+
+**Not every test was seen red.** The `redirect_uris` bound in
+`parseClientMetadata` was. The document-schema and amendment cases of the
+bound, and the `SecretOnce` null-secret case, were written in the same step as
+their code and first run green; the last would only have failed `tsc`.
+
 ## Performance
 
 ### The React Compiler
