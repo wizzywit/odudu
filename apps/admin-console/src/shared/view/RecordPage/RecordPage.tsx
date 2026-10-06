@@ -24,7 +24,7 @@ export function RecordPage({
   tab,
   onTabChange,
   viewOnly,
-  readOnly = viewOnly !== undefined,
+  readOnly: readOnlyChoice,
 }: {
   record: RecordView;
   // Up to the list the record sits in, ending with the record itself.
@@ -45,6 +45,7 @@ export function RecordPage({
   // Every field in the tabs shows as text; by default, whenever the line is given.
   readOnly?: boolean;
 }) {
+  const readOnly = readOnlyChoice ?? viewOnly !== undefined;
   const head = (ready: boolean) => (
     <PageHeader
       breadcrumb={breadcrumb}

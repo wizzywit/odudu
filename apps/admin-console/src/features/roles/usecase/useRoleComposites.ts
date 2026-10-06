@@ -132,7 +132,7 @@ export function useRoleComposites({
   const run = async (child: Role): Promise<boolean> => {
     setRemoving(child.id);
     setMessage(null);
-    try {
+    const attempt = async (): Promise<boolean> => {
       const result = await removal.remove({ child: child.id, ifMatch: etag });
       if (result.ok) {
         push({ tone: 'success', message: unnestedText(child.name, role.name) });
@@ -142,9 +142,10 @@ export function useRoleComposites({
       refusal.report(result, 'manage-tenant');
       setMessage(compositeRemovalFailureText(role.name, child.name, result));
       return false;
-    } finally {
+    };
+    return attempt().finally(() => {
       setRemoving(null);
-    }
+    });
   };
 
   return {

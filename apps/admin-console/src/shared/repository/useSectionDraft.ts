@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDirtySection } from '#/shared/repository/useDirtySection.ts';
 import { sectionKey } from '#/shared/service/record.ts';
-import { useDrafts, type DraftFields, type KeptDraft } from '#/shared/repository/useDrafts.ts';
+import { currentDrafts, type DraftFields, type KeptDraft } from '#/shared/repository/useDrafts.ts';
 
 export interface SectionDraft {
   // Edits kept when a session ended, handed back once; the section applies
@@ -39,7 +39,7 @@ export function useSectionDraft({
   useEffect(() => {
     latest.current = { dirty, fields, etag };
   });
-  const drafts = useDrafts.getState();
+  const drafts = currentDrafts();
   const [restored, setRestored] = useState(() => drafts.restore(record, section));
   const kept = useRef(restored?.etag ?? null);
   useEffect(

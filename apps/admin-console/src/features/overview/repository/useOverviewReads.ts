@@ -47,31 +47,42 @@ function useTenantRead<T>(
   });
 }
 
+function ignoreAnswer(): void {
+  // Nobody listening.
+}
+
 export function useOverviewReads(
   tenant: string,
   asks: OverviewAsks,
-  onAnswer: OnAnswer = () => undefined,
+  onAnswer: OnAnswer = ignoreAnswer,
 ): OverviewReads {
   const count = (collection: Collection) => (gateway: Gateway) =>
     readCount(gateway, tenant, collection);
-  const useRead = <T>(
-    name: ReadName,
-    asked: boolean,
-    read: (gateway: Gateway) => Promise<GatewayResult<T>>,
-  ) => useTenantRead(tenant, name, asked, read, onAnswer);
   return {
-    discovery: useRead('discovery', asks.discovery, (g) => readDiscovery(g, tenant)),
-    jwks: useRead('jwks', asks.discovery, (g) => readJwks(g, tenant)),
+    discovery: useTenantRead(
+      tenant,
+      'discovery',
+      asks.discovery,
+      (g) => readDiscovery(g, tenant),
+      onAnswer,
+    ),
+    jwks: useTenantRead(tenant, 'jwks', asks.discovery, (g) => readJwks(g, tenant), onAnswer),
     counts: {
-      subjects: useRead('subjects', asks.subjects, count('subjects')),
-      clients: useRead('clients', asks.clients, count('clients')),
-      groups: useRead('groups', asks.groups, count('groups')),
-      roles: useRead('roles', asks.roles, count('roles')),
-      scopes: useRead('scopes', asks.scopes, count('scopes')),
+      subjects: useTenantRead(tenant, 'subjects', asks.subjects, count('subjects'), onAnswer),
+      clients: useTenantRead(tenant, 'clients', asks.clients, count('clients'), onAnswer),
+      groups: useTenantRead(tenant, 'groups', asks.groups, count('groups'), onAnswer),
+      roles: useTenantRead(tenant, 'roles', asks.roles, count('roles'), onAnswer),
+      scopes: useTenantRead(tenant, 'scopes', asks.scopes, count('scopes'), onAnswer),
     },
-    settings: useRead('settings', asks.settings, (g) => readSettings(g, tenant)),
-    smtp: useRead('smtp', asks.smtp, (g) => readSmtp(g, tenant)),
-    keys: useRead('keys', asks.keys, (g) => readKeys(g, tenant)),
-    audit: useRead('audit', asks.audit, (g) => readLatestAudit(g, tenant)),
+    settings: useTenantRead(
+      tenant,
+      'settings',
+      asks.settings,
+      (g) => readSettings(g, tenant),
+      onAnswer,
+    ),
+    smtp: useTenantRead(tenant, 'smtp', asks.smtp, (g) => readSmtp(g, tenant), onAnswer),
+    keys: useTenantRead(tenant, 'keys', asks.keys, (g) => readKeys(g, tenant), onAnswer),
+    audit: useTenantRead(tenant, 'audit', asks.audit, (g) => readLatestAudit(g, tenant), onAnswer),
   };
 }

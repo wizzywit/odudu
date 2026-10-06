@@ -15,9 +15,13 @@ export interface TenantExport {
   start: (includeSubjects: boolean) => Promise<GatewayResult<Exported>>;
 }
 
+function currentTime(): Date {
+  return new Date();
+}
+
 // The document is saved as the text the server sent and kept nowhere else:
 // what stays behind is its name, its size and what it says it left out.
-export function useExport(tenant: string, now: () => Date = () => new Date()): TenantExport {
+export function useExport(tenant: string, now: () => Date = currentTime): TenantExport {
   const { gateway } = useTransport();
   const fresh = useFreshRead();
   const start = async (includeSubjects: boolean): Promise<GatewayResult<Exported>> => {

@@ -71,3 +71,9 @@ export const useDrafts = create<Drafts>()(() => ({
     storeDrafts(null);
   },
 }));
+
+// The store's functions for a hook to hold: the compiler refuses a method
+// read off a hook.
+export function currentDrafts(): ReturnType<typeof useDrafts.getState> {
+  return useDrafts.getState();
+}

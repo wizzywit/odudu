@@ -172,16 +172,22 @@ export function useSectionSave<T extends Values, R>({
   const run = async (from: SectionState<T>): Promise<void> => {
     inFlight.current = true;
     update(savingSection);
-    try {
+    const attempt = async (): Promise<void> => {
       const values = { ...from.base, ...from.edits };
       await answer(from, await save(gateway, { changes: from.edits, values, ifMatch: from.etag }));
-    } catch {
-      const failed = saveOutcome({ ok: false, kind: 'defect' }, { label, capability, fields: [] });
-      update((was) => afterSave(was, failed, from.edits));
-      toast(failed);
-    } finally {
-      inFlight.current = false;
-    }
+    };
+    await attempt()
+      .catch(() => {
+        const failed = saveOutcome(
+          { ok: false, kind: 'defect' },
+          { label, capability, fields: [] },
+        );
+        update((was) => afterSave(was, failed, from.edits));
+        toast(failed);
+      })
+      .finally(() => {
+        inFlight.current = false;
+      });
   };
 
   const canStart = (from: SectionState<T>): boolean => !inFlight.current && startable(from, gone);

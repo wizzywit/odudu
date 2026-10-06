@@ -16,14 +16,14 @@ export function useFreshRead(): FreshRead {
   const [running, setRunning] = useState(0);
   return {
     pending: running > 0,
-    read: async (queryKey, queryFn) => {
+    read: (queryKey, queryFn) => {
       setRunning((count) => count + 1);
-      try {
-        return await client.query({ queryKey, queryFn, staleTime: 0, gcTime: 0, retry: false });
-      } finally {
-        client.removeQueries({ queryKey, exact: true });
-        setRunning((count) => count - 1);
-      }
+      return client
+        .query({ queryKey, queryFn, staleTime: 0, gcTime: 0, retry: false })
+        .finally(() => {
+          client.removeQueries({ queryKey, exact: true });
+          setRunning((count) => count - 1);
+        });
     },
   };
 }

@@ -58,7 +58,12 @@ export function PhoneField({
   if (readOnly) {
     return <ReadOnlyValue label={label} value={formatPhone(value)} mono changed={changed} />;
   }
-  const change = (region: string | null, national: string, extension = current.extension): void => {
+  const change = (
+    region: string | null,
+    national: string,
+    typedExtension?: string | null,
+  ): void => {
+    const extension = typedExtension === undefined ? current.extension : typedExtension;
     const pasted = readTypedNumber(national);
     const parts = pasted ?? { region, national };
     const next = composePhone(parts.region, parts.national, extension);
