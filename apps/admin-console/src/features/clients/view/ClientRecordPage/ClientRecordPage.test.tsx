@@ -38,6 +38,8 @@ it('heads the page with the breadcrumb, the name, its status and the tabs', asyn
     'Scopes',
     'Logout',
     'Advanced',
+    'Roles',
+    'Service account',
     'Activity',
   ]);
 });
@@ -106,11 +108,14 @@ it('lets a caller holding manage-clients alone edit a confidential client, with 
   expect(sent.filter((s) => s.path.endsWith('/admin-capabilities'))).toEqual([]);
 });
 
-it('shows the tabs not yet built as such', async () => {
+it('opens each tab the record page offers, and none is left unbuilt', async () => {
   const user = userEvent.setup();
   renderConsoleAt(AT, clientRoutes());
-  await user.click(await screen.findByRole('tab', { name: 'Tokens' }));
-  expect(await screen.findByText(/This tab is not built in this version/u)).toBeVisible();
+  for (const name of ['Tokens', 'Scopes', 'Logout', 'Advanced', 'Roles', 'Service account']) {
+    await user.click(await screen.findByRole('tab', { name }));
+    expect(await screen.findByRole('tabpanel', { name })).toBeVisible();
+    expect(screen.queryByText(/not built/u)).toBeNull();
+  }
 });
 
 it('lists the changes made to the client under Activity, from the audit trail', async () => {

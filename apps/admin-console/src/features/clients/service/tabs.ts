@@ -8,6 +8,8 @@ export const CLIENT_TABS = [
   'scopes',
   'logout',
   'advanced',
+  'roles',
+  'service',
   'activity',
 ] as const;
 
@@ -20,6 +22,8 @@ export const CLIENT_TAB_LABELS: Readonly<Record<ClientTab, string>> = {
   scopes: 'Scopes',
   logout: 'Logout',
   advanced: 'Advanced',
+  roles: 'Roles',
+  service: 'Service account',
   activity: 'Activity',
 };
 
@@ -39,10 +43,12 @@ export function clientRecord(id: string): string {
 export const TAB_SECTIONS: Readonly<Record<ClientTab, readonly string[]>> = {
   general: ['details', 'pages', 'availability', 'consent'],
   redirects: ['redirects', 'origins'],
-  tokens: [],
+  tokens: ['lifetimes', 'grants', 'credentials', 'fullScope', 'idToken'],
   scopes: [],
-  logout: [],
-  advanced: [],
+  logout: ['postLogout', 'backchannel', 'frontchannel'],
+  advanced: ['auth', 'keys', 'userinfo', 'audiences', 'exchange'],
+  roles: [],
+  service: [],
   activity: [],
 };
 

@@ -23,8 +23,6 @@ export const ORIGINS_RULE =
 export const PAGES_RULE =
   'Linked from the consent screen: an https address, or an http address on this machine. Leave one empty for none.';
 
-export const NOT_BUILT = 'This tab is not built in this version of the console yet.';
-
 export const POST_LOGOUT_NOTE =
   'Where a sign-out may send the browser back is set apart from these, under Logout.';
 

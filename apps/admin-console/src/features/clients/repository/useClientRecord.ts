@@ -73,10 +73,15 @@ export interface OriginValues extends Readonly<Record<string, unknown>> {
   web_origins: readonly string[];
 }
 
-export function useClientSaves(tenant: string, id: string) {
+// One amendment of the client, sent on the ETag the section read.
+export function useAmendClient(tenant: string, id: string) {
   const after = useAfterClientChange(tenant);
-  const amend = async (gateway: Gateway, changes: ClientChanges, ifMatch: string) =>
+  return async (gateway: Gateway, changes: ClientChanges, ifMatch: string) =>
     after(await amendClient(gateway, tenant, id, changes, ifMatch));
+}
+
+export function useClientSaves(tenant: string, id: string) {
+  const amend = useAmendClient(tenant, id);
   return {
     details: (gateway: Gateway, { values, ifMatch }: SaveInput<DetailValues>) =>
       amend(gateway, { name: values.name, description: values.description }, ifMatch),

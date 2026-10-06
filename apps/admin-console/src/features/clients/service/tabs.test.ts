@@ -16,6 +16,8 @@ it('keeps the tabs in the order the record page shows them', () => {
     'scopes',
     'logout',
     'advanced',
+    'roles',
+    'service',
     'activity',
   ]);
   expect(clientRecord('c1')).toBe('clients/c1');
@@ -26,6 +28,11 @@ it('marks the tab whose section holds edits, and no other', () => {
   expect([...tabsWithEdits(new Set(['origins']))]).toEqual(['redirects']);
   expect([...tabsWithEdits(new Set(['details', 'redirects']))]).toEqual(['general', 'redirects']);
   expect(tabsWithEdits(new Set())).toEqual(new Set());
+  expect([...tabsWithEdits(new Set(['grants', 'frontchannel', 'keys']))]).toEqual([
+    'tokens',
+    'logout',
+    'advanced',
+  ]);
 });
 
 it('names each section once', () => {

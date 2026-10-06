@@ -25,11 +25,9 @@ const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 // lands, and the list is empty when the console is complete.
 const TODO: readonly string[] = [
   'PATCH /admin/tenants/:tenant/settings',
-  'POST /admin/tenants/:tenant/clients/:id/secret',
   'GET /admin/tenants/:tenant/registration-tokens',
   'POST /admin/tenants/:tenant/registration-tokens',
   'DELETE /admin/tenants/:tenant/registration-tokens/:id',
-  'GET /admin/tenants/:tenant/scopes',
   'POST /admin/tenants/:tenant/scopes',
   'GET /admin/tenants/:tenant/scopes/:id',
   'PATCH /admin/tenants/:tenant/scopes/:id',
@@ -39,8 +37,6 @@ const TODO: readonly string[] = [
   'GET /admin/tenants/:tenant/scopes/:id/mappers',
   'PUT /admin/tenants/:tenant/scopes/:id/mappers',
   'GET /admin/tenants/:tenant/scopes/:id/clients',
-  'PUT /admin/tenants/:tenant/scopes/:id/clients/:clientId',
-  'DELETE /admin/tenants/:tenant/scopes/:id/clients/:clientId',
   'POST /admin/tenants/:tenant/keys',
   'POST /admin/tenants/:tenant/keys/:id/promote',
   'POST /admin/tenants/:tenant/keys/:id/retire',

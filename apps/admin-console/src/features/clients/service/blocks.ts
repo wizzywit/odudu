@@ -24,3 +24,11 @@ export function deleteFixed(client: Fixable): string | null {
 export function listsReadOnly(client: Fixable, writable: boolean): boolean {
   return !writable || redirectsFixed(client) !== null;
 }
+
+// A scope assigned to the built-in admin client stays: /authorize refuses
+// a scope the client is not assigned, so removing one could lock out every administrator.
+export function scopesFixed(client: Fixable): string | null {
+  return client.builtin_admin
+    ? `${client.client_id}'s scopes cannot be unassigned. ${BUILTIN_FIXED}`
+    : null;
+}
