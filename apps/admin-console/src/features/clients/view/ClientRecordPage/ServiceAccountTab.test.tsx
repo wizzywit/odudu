@@ -185,6 +185,16 @@ it('shows the roles as text, and no picker, while the account holds what the cal
   expect(screen.queryByRole('button', { name: 'Save Roles' })).toBeNull();
 });
 
+it('marks the tab with its dot while a role is chosen and not saved', async () => {
+  const user = userEvent.setup();
+  renderConsoleAt(AT, serviceRoutes([]));
+  await open();
+  const section = screen.getByRole('region', { name: 'Roles' });
+  await user.click(await within(section).findByRole('option', { name: 'reader, a tenant role' }));
+  expect(screen.getByRole('tab', { name: /^Service account/u })).toHaveAccessibleName(/unsaved/iu);
+  expect(screen.getByRole('tab', { name: 'General' })).toHaveAccessibleName('General');
+});
+
 it('links to the service account itself, where its admin capabilities are set', async () => {
   renderConsoleAt(AT, serviceRoutes([]));
   await open();

@@ -55,8 +55,18 @@ export const TAB_SECTIONS: Readonly<Record<ClientTab, readonly string[]>> = {
   activity: [],
 };
 
-export function tabsWithEdits(dirty: ReadonlySet<string>): ReadonlySet<ClientTab> {
+// The service account's roles are saved on its own record, so its dot is read from there.
+export const SERVICE_SECTION = 'serviceRoles';
+
+export function tabsWithEdits(
+  dirty: ReadonlySet<string>,
+  serviceDirty: ReadonlySet<string> = new Set(),
+): ReadonlySet<ClientTab> {
   return new Set(
-    CLIENT_TABS.filter((tab) => TAB_SECTIONS[tab].some((section) => dirty.has(section))),
+    CLIENT_TABS.filter(
+      (tab) =>
+        TAB_SECTIONS[tab].some((section) => dirty.has(section)) ||
+        (tab === 'service' && serviceDirty.has(SERVICE_SECTION)),
+    ),
   );
 }

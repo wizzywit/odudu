@@ -36,6 +36,15 @@ it('marks the tab whose section holds edits, and no other', () => {
   ]);
 });
 
+it("marks the service account's tab from the roles it saves on the account's own record", () => {
+  expect([...tabsWithEdits(new Set(), new Set(['serviceRoles']))]).toEqual(['service']);
+  expect([...tabsWithEdits(new Set(['grants']), new Set(['serviceRoles']))]).toEqual([
+    'tokens',
+    'service',
+  ]);
+  expect(tabsWithEdits(new Set(), new Set(['other']))).toEqual(new Set());
+});
+
 it('names each section once', () => {
   const all = Object.values(TAB_SECTIONS).flat();
   expect(new Set(all).size).toBe(all.length);

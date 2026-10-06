@@ -11,6 +11,7 @@ export {
   clientTabHref,
   chosenTab,
   clientRecord,
+  SERVICE_SECTION,
   tabsWithEdits,
 } from '#/features/clients/service/tabs.ts';
 export {

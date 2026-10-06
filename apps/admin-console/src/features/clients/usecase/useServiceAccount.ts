@@ -16,6 +16,7 @@ import {
   roleUnavailable,
   serviceRolesRecord,
   SERVICE_CAPABILITY,
+  SERVICE_SECTION,
   splitAssigned,
   type AssignedRole,
   type Reach,
@@ -97,7 +98,7 @@ export function useServiceRoles({
   const save = useSectionSave({
     tenant,
     record: serviceRolesRecord(subjectId),
-    section: 'serviceRoles',
+    section: SERVICE_SECTION,
     label: 'Roles',
     etag,
     capability: SERVICE_CAPABILITY,

@@ -8,6 +8,7 @@ import {
   clientRecord,
   clientReach,
   reachLine,
+  serviceRolesRecord,
   tabsWithEdits,
   type ClientTab,
   type Reach,
@@ -41,6 +42,10 @@ export function useClientRecordPage(tenant: string, id: string): ClientRecordPag
   const authority = useAuthority(tenant);
   const { tab, selectTab } = useRecordTab(CLIENT_TABS);
   const dirty = useDirtySections(tenant, clientRecord(id));
+  const serviceDirty = useDirtySections(
+    tenant,
+    serviceRolesRecord(record.data?.service_subject_id ?? ''),
+  );
   const reach = clientReach(record.data, authority?.capabilities);
   const changeNeeds = lacking(authority, ['manage-clients']);
   return {
@@ -52,7 +57,7 @@ export function useClientRecordPage(tenant: string, id: string): ClientRecordPag
       const chosen = chosenTab(next);
       if (chosen !== undefined) selectTab(chosen);
     },
-    dirty: tabsWithEdits(dirty),
+    dirty: tabsWithEdits(dirty, serviceDirty),
     reach,
     changeNeeds,
     writable: canChange(reach, changeNeeds),

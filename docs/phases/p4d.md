@@ -1693,7 +1693,7 @@ answer was lost uses, in place of paging a prefix.
   string and names no row, so the tab says it is not there. Showing both would
   need the audit read to take two ids or the console to merge two cursor-paged
   lists, which this does not do.
-- Tokens, Scopes, Logout and Advanced are tabs that say they are not built yet.
+- Tokens, Scopes, Logout and Advanced were tabs that said they were not built yet; the next section builds them.
 - A client is created as a web application, a service (`client_credentials`, no
   redirect URI) or a public application.
 
@@ -1701,6 +1701,57 @@ answer was lost uses, in place of paging a prefix.
 `parseClientMetadata`, the unbounded-field amendment, and the reach field's
 console judgement were. The document-schema, create-over-limit and `seed
 client` cases were written in the same step as their code and first run green.
+
+## Part 4 — Clients: Tokens, Scopes, Logout, Advanced, Roles, Service account and Sessions
+
+**What a client may be given is stated once.** The grant types, the
+authentication methods, the userinfo and ID-token algorithms, the userinfo
+encryption algorithms and encodings, and the token lifetime ranges now live in
+`@odudu/contracts` (`client-rules.ts`). The validators import them, so the
+console offers exactly the choices the server takes, and a parity test holds
+the encryption algorithms to `@odudu/crypto`'s. No server behaviour changed:
+no route, no response and no default moved, so `README.md`, `request-paths.md`,
+`admin-paths.md` and the OpenAPI document stand as they were, and the plan check
+had nothing new to drive.
+
+**Five routes the plan never placed are Clients'.** Task 8b built a client's
+sessions, the revocation of every grant it issued, its logout deliveries, its
+installation and the evaluation of a subject's claims, and no console task named
+a screen for any of them, so the route-coverage lint could never empty its
+list. They are on the client's page: Sessions (a tab, with the revocation behind
+the client's typed ID), Back-channel deliveries (under Logout), Installation
+(under Advanced) and Evaluate (under Scopes).
+
+**Placed beside the brief.**
+
+- `id_token_signed_response_alg`, `default_max_age` and `require_auth_time` are
+  Tokens' ID token section; `tls_client_auth_subject_dn` sits beside the
+  authentication method and is sent only for `tls_client_auth`, as the server
+  keeps it; `token_exchange_impersonation_allowed` is Advanced's own section.
+- Userinfo encryption (algorithm and content encryption) is on Advanced beside
+  signing, since the API takes it and the brief named signing alone.
+- A lifetime or the default maximum age is "the tenant's" or a number, the
+  toggle sending `null`. A number the server's range does not admit is held to it
+  by the field, and one it refuses is placed under it.
+- A JWKS pasted here is checked for shape only (JSON, a `keys` array); a private
+  member is the server's refusal, shown in the field in its words.
+- Scopes assign and unassign at once, not by a Save: the server's routes are one
+  assignment each, and each is followed by a read of the client for its new
+  `ETag`. A scope needs `manage-tenant`, not `manage-clients`, so a caller with
+  only the second sees the list as text and what it lacks.
+- The service account's admin capabilities are kept as they are by a save on
+  the tab, and set on the account's own page, which the tab links to.
+- Rotating a secret takes its grace period in seconds with the reading beside it,
+  confirms before it sends, and shows the secret once in the existing dialog.
+- `NumberWithUnitField` moved to a module of its own. Used for the first time,
+  it brought react-aria's NumberField into every page's first load through the
+  sign-in page's text field; the chunk lint now holds NumberField to a page that
+  edits a number.
+
+**No test was seen red before its code.** The tests were written beside the code
+in this increment, then run and their failures read. Two rules were checked by
+breaking the code by hand and watching the tests fail: the grants held back for a
+client with no redirect URI, and the one key source sent with the other cleared.
 
 ## Performance
 
