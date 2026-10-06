@@ -541,18 +541,23 @@ function invariantProblems(
   };
 
   if (document.scopes.length > SCOPE_LIMIT) {
-    problems.add('document.scopes', `a tenant defines at most ${String(SCOPE_LIMIT)} scopes`);
-  }
-  if (document.roles.filter((role) => role.default_for_new_subjects).length > ASSIGNMENT_LIMIT) {
     problems.add(
-      'document.roles',
-      `at most ${String(ASSIGNMENT_LIMIT)} roles are handed to every new subject`,
+      'document.scopes',
+      `${String(document.scopes.length)} scopes, a tenant defines at most ${String(SCOPE_LIMIT)}`,
     );
   }
-  if (document.groups.filter((group) => group.default_for_new_subjects).length > ASSIGNMENT_LIMIT) {
+  const defaultRoles = document.roles.filter((role) => role.default_for_new_subjects).length;
+  if (defaultRoles > ASSIGNMENT_LIMIT) {
+    problems.add(
+      'document.roles',
+      `${String(defaultRoles)} roles are handed to every new subject, at most ${String(ASSIGNMENT_LIMIT)}`,
+    );
+  }
+  const defaultGroups = document.groups.filter((group) => group.default_for_new_subjects).length;
+  if (defaultGroups > ASSIGNMENT_LIMIT) {
     problems.add(
       'document.groups',
-      `at most ${String(ASSIGNMENT_LIMIT)} groups are joined by every new subject`,
+      `${String(defaultGroups)} groups are joined by every new subject, at most ${String(ASSIGNMENT_LIMIT)}`,
     );
   }
   document.roles.forEach((role, index) => {

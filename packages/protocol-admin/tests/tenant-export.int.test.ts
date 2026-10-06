@@ -1,4 +1,5 @@
 import {
+  ASSIGNMENT_LIMIT,
   EXPORT_COLLECTION_CAP,
   EXPORT_SUBJECT_CAP,
   TENANT_DOCUMENT_MEDIA_TYPE,
@@ -401,6 +402,28 @@ describe('GET /admin/tenants/{tenant}/export', () => {
     expect(res.statusCode).toBe(413);
     expect(res.json()).toMatchObject({ type: 'about:blank#export-too-large', status: 413 });
     expect(JSON.stringify(res.json())).toContain('roles');
+  }, 60_000);
+
+  it('refuses a tenant whose one role nests more composites than an import takes, naming the count', async () => {
+    const t = await fixture.createTenant(`export-${newId()}`);
+    await fixture.owner.sql`
+      with parent as (
+        insert into roles (id, tenant_id, name) values (gen_random_uuid(), ${t.id}, 'big-parent')
+        returning id),
+      kids as (
+        insert into roles (id, tenant_id, name)
+        select gen_random_uuid(), ${t.id}, 'kid-' || g from generate_series(1, ${ASSIGNMENT_LIMIT + 1}) g
+        returning id)
+      insert into role_composites (tenant_id, parent_role_id, child_role_id)
+      select ${t.id}, parent.id, kids.id from parent, kids`;
+    const token = await fixture.adminToken(t.name, ['manage-tenant', 'manage-clients']);
+
+    const res = await exportTenant(token, t.name);
+
+    expect(res.statusCode).toBe(413);
+    const detail = String(res.json<{ detail?: unknown }>().detail);
+    expect(detail).toContain(String(ASSIGNMENT_LIMIT + 1));
+    expect(detail).toContain(String(ASSIGNMENT_LIMIT));
   }, 60_000);
 
   it(`refuses ?include=subjects with 413 above ${String(EXPORT_SUBJECT_CAP)} subjects, naming P7`, async () => {

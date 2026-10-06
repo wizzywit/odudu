@@ -79,7 +79,7 @@ export function exportTenantHandler(deps: TenantExportRouteDeps): AdminRouteHand
           413,
           'about:blank#export-too-large',
           'Content Too Large',
-          tooLargeDetail(outcome.collection, outcome.cap),
+          tooLargeDetail(outcome.collection, outcome.cap, outcome.count),
         ),
       );
     }

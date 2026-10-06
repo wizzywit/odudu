@@ -95,6 +95,15 @@ export const exportedFlowStepSchema = z.strictObject({
   requirement: executionRequirementSchema,
 });
 
+// A set the admin API replaces whole, held to ASSIGNMENT_LIMIT: the refusal says
+// how many the document holds as well as how many it may.
+function assignmentSet<T extends z.ZodType>(item: T) {
+  return z.array(item).max(ASSIGNMENT_LIMIT, {
+    error: (issue) =>
+      `${Array.isArray(issue.input) ? String(issue.input.length) : 'too many'} entries, at most ${String(ASSIGNMENT_LIMIT)}`,
+  });
+}
+
 export const exportedClientSchema = z.strictObject({
   client_id: z.string(),
   name: z.string(),
@@ -133,7 +142,7 @@ export const exportedClientSchema = z.strictObject({
   require_auth_time: z.boolean(),
   // The roles a confidential client's own service account holds, which
   // its client_credentials tokens carry; empty for a public client.
-  service_account_roles: z.array(roleReferenceSchema).max(ASSIGNMENT_LIMIT),
+  service_account_roles: assignmentSet(roleReferenceSchema),
 });
 export type ExportedClient = z.infer<typeof exportedClientSchema>;
 
@@ -146,7 +155,7 @@ export const exportedRoleSchema = z.strictObject({
   description: z.string().nullable(),
   default_for_new_subjects: z.boolean(),
   builtin: z.boolean(),
-  composites: z.array(roleReferenceSchema).max(ASSIGNMENT_LIMIT),
+  composites: assignmentSet(roleReferenceSchema),
 });
 export type ExportedRole = z.infer<typeof exportedRoleSchema>;
 
@@ -154,7 +163,7 @@ export const exportedGroupSchema = z.strictObject({
   path: z.string(),
   description: z.string().nullable(),
   default_for_new_subjects: z.boolean(),
-  roles: z.array(roleReferenceSchema).max(ASSIGNMENT_LIMIT),
+  roles: assignmentSet(roleReferenceSchema),
 });
 export type ExportedGroup = z.infer<typeof exportedGroupSchema>;
 
@@ -167,7 +176,7 @@ export const exportedScopeSchema = z.strictObject({
   consent_text: z.string().nullable(),
   display_order: z.number().int(),
   builtin: z.boolean(),
-  roles: z.array(roleReferenceSchema).max(ASSIGNMENT_LIMIT),
+  roles: assignmentSet(roleReferenceSchema),
   mappers: z.array(z.string()),
   clients: z.array(
     z.strictObject({ client_id: z.string(), assignment: clientScopeAssignmentSchema }),
@@ -189,8 +198,8 @@ export const exportedSubjectSchema = z.strictObject({
   email: z.string().nullable(),
   enabled: z.boolean(),
   profile: z.strictObject(profileSchema.omit({ profile_updated_at: true }).shape),
-  roles: z.array(roleReferenceSchema).max(ASSIGNMENT_LIMIT),
-  groups: z.array(z.string()).max(ASSIGNMENT_LIMIT),
+  roles: assignmentSet(roleReferenceSchema),
+  groups: assignmentSet(z.string()),
   required_actions: z.array(requiredActionSchema),
 });
 export type ExportedSubject = z.infer<typeof exportedSubjectSchema>;

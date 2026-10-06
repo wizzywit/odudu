@@ -1,5 +1,6 @@
 import { authenticationExecutions, userRequiredActions } from '@odudu/authn-flows';
 import {
+  ASSIGNMENT_LIMIT,
   EXPORT_COLLECTION_CAP,
   EXPORT_LINK_CAP,
   EXPORT_SUBJECT_CAP,
@@ -40,6 +41,7 @@ import {
 import { clientOidcConfig } from '@odudu/protocol-oidc';
 import { and, asc, count, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { type PgTable } from 'drizzle-orm/pg-core';
+import { z } from 'zod';
 import { countAtMost } from '#/usecase/capped-count';
 import { tenantSmtpRepository, type TenantSmtpRecord } from '#/repository/tenant-smtp';
 import { publicJwks } from '#/service/public-jwks';
@@ -74,7 +76,12 @@ export interface ExportTenantDeps {
 export type ExportTenantOutcome =
   | { readonly kind: 'exported'; readonly document: TenantDocument }
   | { readonly kind: 'too_many_subjects'; readonly cap: number }
-  | { readonly kind: 'too_large'; readonly collection: string; readonly cap: number };
+  | {
+      readonly kind: 'too_large';
+      readonly collection: string;
+      readonly cap: number;
+      readonly count?: number;
+    };
 
 // Byte order, not locale order, so the same tenant always exports the same
 // bytes whatever the server's locale — a document is diffed as often as it
@@ -257,8 +264,42 @@ async function oversized(
   return null;
 }
 
+// The first one owner holding more of a set than the document, and an import of
+// it, take: written before the limit existed, or in SQL, since the API refuses it.
+async function oversizedSet(
+  tx: TenantScopedDatabase,
+  tenantId: string,
+  includeSubjects: boolean,
+): Promise<{ collection: string; cap: number; count: number } | null> {
+  const sets = [
+    { collection: 'composites of one role', table: 'role_composites', owner: 'parent_role_id' },
+    { collection: 'roles of one group', table: 'group_roles', owner: 'group_id' },
+    { collection: 'roles of one scope', table: 'client_scope_roles', owner: 'client_scope_id' },
+    ...(includeSubjects
+      ? [
+          { collection: 'roles of one subject', table: 'subject_roles', owner: 'subject_id' },
+          { collection: 'groups of one subject', table: 'subject_groups', owner: 'subject_id' },
+        ]
+      : []),
+  ];
+  for (const set of sets) {
+    const rows = await tx.execute(sql`
+      SELECT count(*)::int AS n FROM ${sql.identifier(set.table)}
+       WHERE tenant_id = ${tenantId}
+       GROUP BY ${sql.identifier(set.owner)}
+      HAVING count(*) > ${ASSIGNMENT_LIMIT}
+       ORDER BY count(*) DESC LIMIT 1`);
+    const n = z.array(z.object({ n: z.number() })).parse(rows)[0]?.n;
+    if (n !== undefined) return { collection: set.collection, cap: ASSIGNMENT_LIMIT, count: n };
+  }
+  return null;
+}
+
 /** Why a collection is too large to move in one document. */
-export function tooLargeDetail(collection: string, cap: number): string {
+export function tooLargeDetail(collection: string, cap: number, count?: number): string {
+  if (count !== undefined) {
+    return `the tenant has ${String(count)} ${collection}, more than the ${String(cap)} a document takes`;
+  }
   return `the tenant holds more than ${String(cap)} ${collection}, too many to export in one document`;
 }
 
@@ -604,6 +645,8 @@ export async function exportTenant(
     link: options.linkCap ?? EXPORT_LINK_CAP,
   });
   if (tooLarge !== null) return { kind: 'too_large', ...tooLarge };
+  const tooBigASet = await oversizedSet(tx, tenantId, input.includeSubjects);
+  if (tooBigASet !== null) return { kind: 'too_large', ...tooBigASet };
 
   const record = await tenantSettingsRepository(tx).byId(tenantId);
   if (record === null) throw new Error(`tenant ${tenantId} has no settings row`);

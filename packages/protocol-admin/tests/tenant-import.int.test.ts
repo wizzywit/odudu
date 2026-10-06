@@ -448,8 +448,39 @@ describe('POST /admin/tenant-imports', () => {
     const res = await postImport(token, { name: `import-${newId()}`, document: broken });
 
     expect(res.statusCode).toBe(400);
-    const paths = (res.json<ImportRefusal>().errors ?? []).map((error) => error.path);
-    expect(paths).toContain('document.roles');
+    const errors = res.json<ImportRefusal>().errors ?? [];
+    expect(errors.map((error) => error.path)).toContain('document.roles');
+    const message = errors.find((error) => error.path === 'document.roles')?.message ?? '';
+    expect(message).toMatch(/^\d{3} roles are handed to every new subject, at most 200$/u);
+  });
+
+  it('names the limit and the count when a set in the document is over it', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const [first, ...rest] = document.roles;
+    if (first === undefined) throw new Error('the source has no role');
+    const broken: TenantDocument = {
+      ...document,
+      roles: [
+        {
+          ...first,
+          composites: Array.from({ length: ASSIGNMENT_LIMIT + 1 }, (_, n) => ({
+            name: `nested-${String(n)}`,
+            client: null,
+          })),
+        },
+        ...rest,
+      ],
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: broken });
+
+    expect(res.statusCode).toBe(400);
+    const errors = res.json<ImportRefusal>().errors ?? [];
+    const named = errors.find((error) => error.path === 'document.roles[0].composites');
+    expect(named?.message).toContain(String(ASSIGNMENT_LIMIT + 1));
+    expect(named?.message).toContain(String(ASSIGNMENT_LIMIT));
   });
 
   it('refuses a document that defines more scopes than a tenant may', async () => {
