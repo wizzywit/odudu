@@ -27,7 +27,8 @@ export function useSecretOnce<A, R, Rest>({
   split,
 }: {
   run: (gateway: Gateway, args: A) => Promise<GatewayResult<R>>;
-  split: (data: R) => { secret: string; rest: Rest };
+  // A null secret is an answer with nothing to show, as a public client's is.
+  split: (data: R) => { secret: string | null; rest: Rest };
 }): SecretOnce<A, Rest> {
   const { gateway } = useTransport();
   const [secret, setSecret] = useState<string | null>(null);

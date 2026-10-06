@@ -74,6 +74,28 @@ it('hands the secret to its dialog and keeps it out of the mutation cache', asyn
   expect(result.current.outcome).toEqual({ clientId: 'billing-portal' });
 });
 
+it('settles with no secret to show when the answer carries none', async () => {
+  const { wrapper } = harness(json({ client_id: 'portal', client_secret: '' }));
+  const { result } = renderHook(
+    () =>
+      useSecretOnce({
+        run: rotate,
+        split: (data: z.infer<typeof rotatedSchema>) => ({
+          secret: data.client_secret === '' ? null : data.client_secret,
+          rest: { clientId: data.client_id },
+        }),
+      }),
+    { wrapper },
+  );
+  act(() => {
+    result.current.start('c1');
+  });
+  await waitFor(() => {
+    expect(result.current.outcome).toEqual({ clientId: 'portal' });
+  });
+  expect(result.current.secret).toBeNull();
+});
+
 it('sends one request however often it is started while one is in flight', async () => {
   const { wrapper, sent } = harness(pending());
   const { result } = renderHook(() => useSecretOnce(options), { wrapper });
