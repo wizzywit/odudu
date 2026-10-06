@@ -1,4 +1,4 @@
-import { use, useMemo, useState } from 'react';
+import { use, useState } from 'react';
 import { useLocale } from 'react-aria-components';
 import {
   localeName,
@@ -28,7 +28,7 @@ type ClaimFieldProps = Chrome & { value: string; onChange: (value: string) => vo
 // list reads in the reader's language, and a name it does not hold is kept.
 export function CountryField({ value, onChange, ...chrome }: ClaimFieldProps) {
   const { locale } = useLocale();
-  const options = useMemo(() => countryOptions(locale), [locale]);
+  const options = countryOptions(locale);
   const region = regionOfCountryName(value);
   return (
     <ComboBoxField
@@ -46,7 +46,7 @@ export function CountryField({ value, onChange, ...chrome }: ClaimFieldProps) {
 }
 
 export function TimeZoneField({ value, onChange, error, ...chrome }: ClaimFieldProps) {
-  const options = useMemo(() => timeZoneOptions(new Date()), []);
+  const options = timeZoneOptions(new Date());
   const problem = zoneProblem(value) ?? undefined;
   const offset = value === '' || problem !== undefined ? null : safeOffset(value);
   return (
@@ -73,7 +73,7 @@ function safeOffset(zone: string): string | null {
 
 export function LocaleField({ value, onChange, error, ...chrome }: ClaimFieldProps) {
   const { locale } = useLocale();
-  const options = useMemo(() => localeOptions(locale, locale), [locale]);
+  const options = localeOptions(locale, locale);
   const problem = typingLocale(value, options) ? undefined : (localeProblem(value) ?? undefined);
   return (
     <ComboBoxField

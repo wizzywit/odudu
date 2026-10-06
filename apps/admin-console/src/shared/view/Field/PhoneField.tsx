@@ -1,4 +1,4 @@
-import { use, useMemo, useState } from 'react';
+import { use, useState } from 'react';
 import { useLocale } from 'react-aria-components';
 import {
   callingCodeOf,
@@ -48,7 +48,7 @@ export function PhoneField({
 }: Chrome & { value: string; onChange: (value: string) => void }) {
   const { locale } = useLocale();
   const readOnly = use(FieldsReadOnly);
-  const options = useMemo(() => callingOptions(locale), [locale]);
+  const options = callingOptions(locale);
   const [typed, setTyped] = useState<Typed>(() => ({ value, ...splitPhone(value) }));
   let current = typed;
   if (typed.value !== value) {
