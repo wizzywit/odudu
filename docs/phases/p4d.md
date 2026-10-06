@@ -1787,14 +1787,13 @@ deleted statistics were not lost):
 
 Migrations `0073` to `0076` added a search column and an index for each of
 subjects, tenants, clients, roles, groups, scopes and keys. Every search path
-reaches its index. Subjects and tenants read it in order and stop at the page
-(201 rows for a page of 200: `users_username_search`, `users_email_search`,
-`users_name_search`, `users_given_name_search`, `users_family_name_search`,
-`tenants_name_search`, `tenants_display_name_search`). Clients, roles, groups
-and scopes read it through a bitmap, which cannot stop early: a prefix that
-matches 11% of a tenant's 10,000 clients reads 1,112 of them and keeps the first
-page. The read is bounded by the
-table, not the page; P11 owns it (see the last paragraph).
+reaches its index and stops at the page. Subjects and tenants read it in
+order (201 rows for a page of 200). Clients, roles, groups and scopes read the
+page's keys from the index alone, an index-only scan that stops at the limit,
+then the rows by id: with one statement the planner chose a bitmap of every
+match (1,112 rows for a prefix matching 11% of 10,000 clients) whenever it priced
+that under an ordered scan, which it does for a prefix near five pages of matches.
+The check holds a searched list to two pages of reads on its own table.
 
 **Defects found, and fixed in the increment that found them.**
 
@@ -1869,4 +1868,4 @@ at 100,000,000 events it needs partitioning by month with retention by
 dropping partitions, which no migration of this increment does. The retention
 deletes are one statement per tenant per table, unbatched by row count; at
 the design volume a batch size is P11's. Both are named in P11's row of the
-design spec, with the broad-prefix search above.
+design spec.

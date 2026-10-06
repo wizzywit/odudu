@@ -448,7 +448,8 @@ describe('the plan each searched listing is given', () => {
       const nodes = allNodes(rootPlan(json));
       const scan = nodes.find((node) => node.indexName === planCase.index);
 
-      expect(scan?.nodeType).toBe('Index Scan');
+      // The keyed read of a two-step listing never touches the heap.
+      expect(['Index Scan', 'Index Only Scan']).toContain(scan?.nodeType);
       expect(scan?.indexCond).toContain(`${planCase.column} >=`);
       expect(scan?.indexCond).toContain(`${planCase.column} <`);
       if (later) expect(scan?.indexCond).toContain(`ROW(${planCase.column}`);

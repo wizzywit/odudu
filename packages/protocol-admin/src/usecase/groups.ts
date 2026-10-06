@@ -12,6 +12,7 @@ import {
   replacementOverreach,
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
+import { inOrderOf } from '#/service/in-order';
 import { checkDescription } from '#/service/description';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { groupWireShape } from '#/service/group-wire';
@@ -108,12 +109,31 @@ export async function listGroups(
   }
 
   const conditions = await groupListConditions(tx, input.filters, after);
-  const rows = await tx
-    .select()
-    .from(groups)
-    .where(conditions.length === 0 ? undefined : and(...conditions))
-    .orderBy(...groupListOrder(input.filters))
-    .limit(input.limit + 1);
+  const where = conditions.length === 0 ? undefined : and(...conditions);
+  const order = groupListOrder(input.filters);
+  // A search reads its page of keys from the search index alone, then the rows
+  // by id: the planner prices a bitmap of every match against an ordered scan,
+  // and the keys cost nothing it can get wrong.
+  let rows: (typeof groups.$inferSelect)[];
+  if (prefix === undefined) {
+    rows = await tx
+      .select()
+      .from(groups)
+      .where(where)
+      .orderBy(...order)
+      .limit(input.limit + 1);
+  } else {
+    const keyed = await tx
+      .select({ id: groups.id })
+      .from(groups)
+      .where(where)
+      .orderBy(...order)
+      .limit(input.limit + 1);
+    const ids = keyed.map((row) => row.id);
+    const full =
+      ids.length === 0 ? [] : await tx.select().from(groups).where(inArray(groups.id, ids));
+    rows = inOrderOf(ids, full, (row) => row.id);
+  }
 
   const hasMore = rows.length > input.limit;
   const page = hasMore ? rows.slice(0, input.limit) : rows;

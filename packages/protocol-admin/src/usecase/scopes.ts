@@ -23,6 +23,7 @@ import {
   replacementOverreach,
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
+import { inOrderOf } from '#/service/in-order';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
 import { checkConsentText, checkDisplayOrder } from '#/service/scope-consent';
@@ -157,12 +158,33 @@ export async function listScopes(
   }
 
   const conditions = await scopeListConditions(tx, input.filters, after);
-  const rows = await tx
-    .select()
-    .from(clientScopes)
-    .where(conditions.length === 0 ? undefined : and(...conditions))
-    .orderBy(...scopeListOrder(input.filters))
-    .limit(input.limit + 1);
+  const where = conditions.length === 0 ? undefined : and(...conditions);
+  const order = scopeListOrder(input.filters);
+  // A search reads its page of keys from the search index alone, then the rows
+  // by id: the planner prices a bitmap of every match against an ordered scan,
+  // and the keys cost nothing it can get wrong.
+  let rows: (typeof clientScopes.$inferSelect)[];
+  if (prefix === undefined) {
+    rows = await tx
+      .select()
+      .from(clientScopes)
+      .where(where)
+      .orderBy(...order)
+      .limit(input.limit + 1);
+  } else {
+    const keyed = await tx
+      .select({ id: clientScopes.id })
+      .from(clientScopes)
+      .where(where)
+      .orderBy(...order)
+      .limit(input.limit + 1);
+    const ids = keyed.map((row) => row.id);
+    const full =
+      ids.length === 0
+        ? []
+        : await tx.select().from(clientScopes).where(inArray(clientScopes.id, ids));
+    rows = inOrderOf(ids, full, (row) => row.id);
+  }
 
   const hasMore = rows.length > input.limit;
   const page = hasMore ? rows.slice(0, input.limit) : rows;
