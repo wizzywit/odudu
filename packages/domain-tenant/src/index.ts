@@ -55,6 +55,8 @@ export {
   type ClientScopeRecord,
 } from '#/schema/client-scopes';
 export {
+  ClientScopeLimitError,
+  DefaultScopeLimitError,
   clientScopeRepository,
   type NewClientScope,
   type ClientScopePatch,

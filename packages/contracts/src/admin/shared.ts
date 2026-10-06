@@ -20,6 +20,23 @@ export const ASSIGNMENT_LIMIT = MAX_LIMIT;
  */
 export const CLIENT_LIST_LIMIT = ASSIGNMENT_LIMIT;
 
+/**
+ * The most scopes one client carries. A client is read and listed with them
+ * all, so this is what bounds that read; the tenant's own scopes may be many
+ * more (`SCOPE_LIMIT`). A client with more before this bound existed keeps
+ * them, and takes no new one until it is under.
+ */
+export const CLIENT_SCOPE_LIMIT = ASSIGNMENT_LIMIT;
+
+export function clientScopeLimitMessage(): string {
+  return `a client carries at most ${String(CLIENT_SCOPE_LIMIT)} scopes`;
+}
+
+/** A new client is assigned every scope marked for it, so the marks are held to the same bound. */
+export function defaultScopeLimitMessage(): string {
+  return `at most ${String(CLIENT_SCOPE_LIMIT)} scopes are assigned to every new client`;
+}
+
 /** What a list holds against what it may: the sentence every door that bounds a client's lists says. */
 export function listLimitMessage(count: number): string {
   return `holds ${String(count)} entries, at most ${String(CLIENT_LIST_LIMIT)}`;

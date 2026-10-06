@@ -1,3 +1,4 @@
+import { CLIENT_SCOPE_LIMIT } from '@odudu/contracts/admin';
 import { createDatabase, MIGRATIONS_DIR, runMigrations, type DatabaseHandle } from '@odudu/db';
 import { users } from '@odudu/domain-identity';
 import { clientScopes } from '@odudu/domain-tenant';
@@ -314,6 +315,47 @@ describe('the seed CLI, provisioning the identity model it now has', () => {
       tenantName,
     });
     expect(decode(access_token).roles).toEqual(['reports-api:reader']);
+  });
+
+  it("refuses to assign a client a scope past what a client may carry, in the limit's words", async () => {
+    const tenantName = `demo-${newId()}`;
+    await seed(['tenant', '--name', tenantName]);
+    await seed([
+      'client',
+      '--tenant',
+      tenantName,
+      '--client-id',
+      'full',
+      '--public',
+      '--redirect-uri',
+      REDIRECT_URI,
+    ]);
+    await owner.sql`
+      insert into client_scopes (id, tenant_id, name)
+      select gen_random_uuid(), t.id, 'filler-' || g
+        from tenants t, generate_series(1, ${CLIENT_SCOPE_LIMIT} + 1) g where t.name = ${tenantName}`;
+    await seed(['scope', '--tenant', tenantName, '--name', 'extra']);
+    await owner.sql`
+      insert into client_scope_assignments (tenant_id, client_id, client_scope_id, assignment)
+      select c.tenant_id, c.id, s.id, 'optional'
+        from clients c join client_scopes s on s.tenant_id = c.tenant_id
+       where c.client_id = 'full' and s.name like 'filler-%'
+         and s.id not in (select client_scope_id from client_scope_assignments where client_id = c.id)
+       order by s.name
+       limit ${CLIENT_SCOPE_LIMIT} - (select count(*) from client_scope_assignments a join clients k on k.id = a.client_id where k.client_id = 'full')`;
+    await expect(
+      seed([
+        'assign-scope',
+        '--tenant',
+        tenantName,
+        '--client-id',
+        'full',
+        '--scope',
+        'extra',
+        '--assignment',
+        'optional',
+      ]),
+    ).rejects.toThrow(`a client carries at most ${String(CLIENT_SCOPE_LIMIT)} scopes`);
   });
 
   it('refuses to grant a role that does not exist rather than creating one', async () => {

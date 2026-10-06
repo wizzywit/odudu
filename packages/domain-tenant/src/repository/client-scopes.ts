@@ -1,6 +1,11 @@
+import {
+  CLIENT_SCOPE_LIMIT,
+  clientScopeLimitMessage,
+  defaultScopeLimitMessage,
+} from '@odudu/contracts/admin';
 import { tenants, type TenantScopedDatabase } from '@odudu/db';
 import { newId, OduduError } from '@odudu/kernel';
-import { and, count, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import {
   clientScopeAssignments,
   clientScopes,
@@ -46,11 +51,76 @@ export interface ClientScopePatch {
   displayOrder?: number;
 }
 
+/** Thrown when a client already carries `CLIENT_SCOPE_LIMIT` scopes and would take another. */
+export class ClientScopeLimitError extends Error {
+  constructor() {
+    super(clientScopeLimitMessage());
+    this.name = 'ClientScopeLimitError';
+  }
+}
+
+/** Thrown when `CLIENT_SCOPE_LIMIT` scopes are already marked for every new client. */
+export class DefaultScopeLimitError extends Error {
+  constructor() {
+    super(defaultScopeLimitMessage());
+    this.name = 'DefaultScopeLimitError';
+  }
+}
+
 export function clientScopeRepository(tx: TenantScopedDatabase) {
-  return {
+  const refuseWhenClientIsFull = async (clientId: string): Promise<void> => {
+    if ((await repository.countAssignedUpTo(clientId, CLIENT_SCOPE_LIMIT)) >= CLIENT_SCOPE_LIMIT) {
+      throw new ClientScopeLimitError();
+    }
+  };
+  const refuseWhenDefaultsAreFull = async (): Promise<void> => {
+    if ((await repository.countDefaultsUpTo(CLIENT_SCOPE_LIMIT)) >= CLIENT_SCOPE_LIMIT) {
+      throw new DefaultScopeLimitError();
+    }
+  };
+  const repository = {
     async allForTenant(): Promise<ClientScopeRecord[]> {
       const rows = await tx.select().from(clientScopes);
       return rows.map(toRecord);
+    },
+
+    // The scopes a client carries, counted no further than `limit`: its key
+    // leads with the client, so this reads that client's rows alone.
+    async countAssignedUpTo(clientId: string, limit: number): Promise<number> {
+      const held = tx
+        .select({ one: sql<number>`1`.as('one') })
+        .from(clientScopeAssignments)
+        .where(eq(clientScopeAssignments.clientId, clientId))
+        .limit(limit)
+        .as('held');
+      const rows = await tx.select({ count: count() }).from(held);
+      return rows[0]?.count ?? 0;
+    },
+
+    // The scopes marked for every new client, counted no further than `limit`.
+    async countDefaultsUpTo(limit: number): Promise<number> {
+      const held = tx
+        .select({ one: sql<number>`1`.as('one') })
+        .from(clientScopes)
+        .where(isNotNull(clientScopes.defaultClientAssignment))
+        .limit(limit)
+        .as('held');
+      const rows = await tx.select({ count: count() }).from(held);
+      return rows[0]?.count ?? 0;
+    },
+
+    // Whether the client already carries the scope, so a change to it is not a new one.
+    async assigned(clientId: string, clientScopeId: string): Promise<boolean> {
+      const rows = await tx
+        .select({ one: sql<number>`1` })
+        .from(clientScopeAssignments)
+        .where(
+          and(
+            eq(clientScopeAssignments.clientId, clientId),
+            eq(clientScopeAssignments.clientScopeId, clientScopeId),
+          ),
+        );
+      return rows.length > 0;
     },
 
     async byId(id: string): Promise<ClientScopeRecord | null> {
@@ -100,6 +170,13 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
     },
 
     async amend(id: string, patch: ClientScopePatch): Promise<ClientScopeRecord> {
+      if (patch.defaultClientAssignment !== undefined && patch.defaultClientAssignment !== null) {
+        const current = await tx
+          .select({ marked: clientScopes.defaultClientAssignment })
+          .from(clientScopes)
+          .where(eq(clientScopes.id, id));
+        if (current[0]?.marked === null) await refuseWhenDefaultsAreFull();
+      }
       const rows = await tx
         .update(clientScopes)
         .set(patch)
@@ -148,6 +225,9 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
     },
 
     async create(input: NewClientScope): Promise<ClientScopeRecord> {
+      if (input.defaultClientAssignment !== undefined && input.defaultClientAssignment !== null) {
+        await refuseWhenDefaultsAreFull();
+      }
       const rows = await tx
         .insert(clientScopes)
         .values({
@@ -185,6 +265,7 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
       if (client === undefined) {
         throw new Error(`cannot assign a scope to unknown client ${clientId}`);
       }
+      await refuseWhenClientIsFull(clientId);
 
       await tx.insert(clientScopeAssignments).values({
         tenantId: client.tenantId,
@@ -212,6 +293,9 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
       if (client === undefined) {
         throw new Error(`cannot assign a scope to unknown client ${clientId}`);
       }
+      if (!(await repository.assigned(clientId, clientScopeId))) {
+        await refuseWhenClientIsFull(clientId);
+      }
 
       await tx
         .insert(clientScopeAssignments)
@@ -238,4 +322,5 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
       return rows.length > 0;
     },
   };
+  return repository;
 }

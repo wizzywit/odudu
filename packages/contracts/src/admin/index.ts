@@ -1,6 +1,9 @@
 export {
   ASSIGNMENT_LIMIT,
   CLIENT_LIST_LIMIT,
+  CLIENT_SCOPE_LIMIT,
+  clientScopeLimitMessage,
+  defaultScopeLimitMessage,
   listLimitMessage,
   listLimitProblem,
   SCOPE_LIMIT,

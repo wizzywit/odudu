@@ -58,6 +58,8 @@ export const clientFieldsSchema = z.object({
   previous_secret_expires_at: z.string().nullable(),
   builtin_admin: z.boolean(),
   service_subject_id: z.uuid().nullable(),
+  // At most `CLIENT_SCOPE_LIMIT` for a client that has taken one since it was
+  // set, since a client is read and listed whole.
   scopes: z.array(clientScopeAssignmentViewSchema),
 });
 export type ClientFields = z.infer<typeof clientFieldsSchema>;

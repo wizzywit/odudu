@@ -8,6 +8,8 @@ import {
 import { type TenantScopedDatabase } from '@odudu/db';
 import { clientScopeRoles, roleRepository, roles } from '@odudu/domain-authz';
 import {
+  ClientScopeLimitError,
+  DefaultScopeLimitError,
   clientRepository,
   clientScopeAssignments,
   clientScopeRepository,
@@ -321,6 +323,7 @@ export type AmendScopeOutcome =
   | { kind: 'refused_field'; field: string; reason: string }
   | { kind: 'invalid_value'; field: string; description: string }
   | { kind: 'precondition_failed' }
+  | { kind: 'default_scope_limit'; message: string }
   | { kind: 'ok'; scope: ClientScope; etag: string };
 
 // Wrapped in `{ value }` rather than the bare type — see `SubjectPatch`
@@ -455,7 +458,14 @@ export async function amendScope(
     ...(patch.displayOrder !== undefined ? { displayOrder: patch.displayOrder.value } : {}),
   };
   if (Object.keys(columns).length > 0) {
-    await clientScopeRepository(tx).amend(input.scopeId, columns);
+    try {
+      await clientScopeRepository(tx).amend(input.scopeId, columns);
+    } catch (error) {
+      if (error instanceof DefaultScopeLimitError) {
+        return { kind: 'default_scope_limit', message: error.message };
+      }
+      throw error;
+    }
   }
 
   await deps.audit(tx, {
@@ -734,6 +744,7 @@ export type AssignScopeToClientOutcome =
   | { kind: 'scope_not_found' }
   | { kind: 'client_not_found' }
   | TargetCeilingRefusal
+  | { kind: 'client_scope_limit'; message: string }
   | { kind: 'ok'; assignments: AssignScopeToClientResponse; clientEtag: string };
 
 // The `ETag` `GET …/clients/:id` answers, which hashes the client's scopes too:
@@ -770,7 +781,14 @@ export async function assignScopeToClient(
   );
   if (refused !== null) return refused;
 
-  await clientScopeRepository(tx).assignOrUpdate(input.clientId, input.scopeId, input.assignment);
+  try {
+    await clientScopeRepository(tx).assignOrUpdate(input.clientId, input.scopeId, input.assignment);
+  } catch (error) {
+    if (error instanceof ClientScopeLimitError) {
+      return { kind: 'client_scope_limit', message: error.message };
+    }
+    throw error;
+  }
 
   await deps.audit(tx, {
     action: 'scope.assign_to_client',

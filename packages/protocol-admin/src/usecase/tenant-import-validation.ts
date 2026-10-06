@@ -1,6 +1,7 @@
 import { startsALogin } from '@odudu/authn-flows';
 import {
   ASSIGNMENT_LIMIT,
+  CLIENT_SCOPE_LIMIT,
   EXPORT_SUBJECT_CAP,
   SCOPE_LIMIT,
   smtpPortSchema,
@@ -546,6 +547,30 @@ function invariantProblems(
       `${String(document.scopes.length)} scopes, a tenant defines at most ${String(SCOPE_LIMIT)}`,
     );
   }
+  const markedScopes = document.scopes.filter(
+    (scope) => scope.default_client_assignment !== null,
+  ).length;
+  if (markedScopes > CLIENT_SCOPE_LIMIT) {
+    problems.add(
+      'document.scopes',
+      `${String(markedScopes)} scopes are assigned to every new client, at most ${String(CLIENT_SCOPE_LIMIT)}`,
+    );
+  }
+  const carried = new Map<string, number>();
+  for (const scope of document.scopes) {
+    for (const entry of scope.clients) {
+      carried.set(entry.client_id, (carried.get(entry.client_id) ?? 0) + 1);
+    }
+  }
+  document.clients.forEach((client, index) => {
+    const held = carried.get(client.client_id) ?? 0;
+    if (held > CLIENT_SCOPE_LIMIT) {
+      problems.add(
+        `document.clients[${String(index)}].scopes`,
+        `holds ${String(held)} scopes, at most ${String(CLIENT_SCOPE_LIMIT)}`,
+      );
+    }
+  });
   const defaultRoles = document.roles.filter((role) => role.default_for_new_subjects).length;
   if (defaultRoles > ASSIGNMENT_LIMIT) {
     problems.add(

@@ -12,6 +12,7 @@ import { isUniqueViolation, type Database } from '@odudu/db';
 import { type FastifyReply } from 'fastify';
 import { coerceLimit, nextPageUrl } from '#/service/cursor';
 import { etagOf } from '#/service/etag';
+import { DefaultScopeLimitError } from '@odudu/domain-tenant';
 import {
   amendScope,
   assignScopeToClient,
@@ -144,7 +145,7 @@ export function createScopeHandler(deps: ScopesRouteDeps): AdminRouteHandler {
       // The transaction has already rolled back by the time this is
       // caught — see the comment beside `createScope`'s own call
       // (#/usecase/scopes.ts).
-      if (error instanceof ScopeLimitError) {
+      if (error instanceof ScopeLimitError || error instanceof DefaultScopeLimitError) {
         return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', error.message));
       }
       if (isUniqueViolation(error)) {
@@ -193,6 +194,8 @@ function amendmentProblem(
         request,
         problem(412, 'about:blank', 'Precondition Failed', 'If-Match no longer matches'),
       );
+    case 'default_scope_limit':
+      return sendProblem(reply, request, problem(409, 'about:blank', 'Conflict', outcome.message));
   }
 }
 
@@ -384,6 +387,12 @@ export function assignScopeToClientHandler(deps: ScopesRouteDeps): AdminRouteHan
         );
       case 'target_ceiling':
         return serviceAccountCeilingProblem(reply, request, outcome.requested);
+      case 'client_scope_limit':
+        return sendProblem(
+          reply,
+          request,
+          problem(409, 'about:blank', 'Conflict', outcome.message),
+        );
       case 'ok':
         reply.header('etag', outcome.clientEtag);
         return reply.code(200).send(outcome.assignments);

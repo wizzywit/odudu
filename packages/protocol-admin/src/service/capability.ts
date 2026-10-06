@@ -649,7 +649,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: importTenantRequestSchema,
     bodyLimit: TENANT_IMPORT_BODY_LIMIT,
     description:
-      'A set over 200 entries, more than 1,000 scopes or more than 200 default roles or groups is refused in the same `400`, naming the limit and the count. ' +
+      'A set over 200 entries, more than 1,000 scopes, more than 200 scopes marked for every new client, a client given more than 200 scopes, or more than 200 default roles or groups is refused in the same `400`, naming the limit and the count. ' +
       'Creates a new tenant from a document `GET /admin/tenants/{tenant}/export` answered, with ' +
       'its own signing key and a fresh secret for each confidential client, answered once here. ' +
       'Every problem with the request is refused together in one `400` whose `errors` lists each ' +
@@ -1072,7 +1072,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     responseSchema: clientScopeSchema,
     successStatus: 201,
     bodySchema: createScopeRequestSchema,
-    description: 'A tenant defines at most 1,000 scopes; one more is refused with `409`.',
+    description:
+      'A tenant defines at most 1,000 scopes; one more is refused with `409`. ' +
+      'At most 200 scopes are marked (`default_client_assignment`) for every new client; marking another is refused with `409`.',
   },
   {
     method: 'GET',
@@ -1086,6 +1088,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'manage-tenant',
     responseSchema: clientScopeSchema,
     bodySchema: amendScopeRequestSchema,
+    description:
+      'Marking a scope for every new client (`default_client_assignment`) is refused with `409` once 200 are marked.',
   },
   {
     method: 'DELETE',
@@ -1155,6 +1159,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     bodySchema: assignScopeToClientRequestSchema,
     description:
       'Assigns the scope to the client as default or optional, replacing any existing assignment. ' +
+      'A client carries at most 200 scopes: a new one past that is refused with `409`, while changing one it already carries is not. ' +
       'Answers the client\u2019s new `ETag`, since the client\u2019s representation carries its scopes. ' +
       SERVICE_ACCOUNT_CEILING,
   },

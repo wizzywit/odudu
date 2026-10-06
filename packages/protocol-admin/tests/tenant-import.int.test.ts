@@ -1,6 +1,7 @@
 import { executionRepository, requiredActionRepository } from '@odudu/authn-flows';
 import {
   ASSIGNMENT_LIMIT,
+  CLIENT_SCOPE_LIMIT,
   EXPORT_SUBJECT_CAP,
   SCOPE_LIMIT,
   TENANT_IMPORT_BODY_LIMIT,
@@ -512,6 +513,73 @@ describe('POST /admin/tenant-imports', () => {
     expect(res.statusCode).toBe(400);
     const paths = (res.json<ImportRefusal>().errors ?? []).map((error) => error.path);
     expect(paths).toContain('document.scopes');
+  });
+
+  it('refuses a document marking more scopes for every new client than a client may carry', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const broken: TenantDocument = {
+      ...document,
+      scopes: [
+        ...document.scopes,
+        ...Array.from({ length: CLIENT_SCOPE_LIMIT + 1 }, (_, n) => ({
+          name: `marked-${String(n)}`,
+          description: null,
+          include_in_id_token: false,
+          include_in_access_token: false,
+          default_client_assignment: 'default' as const,
+          consent_text: null,
+          display_order: 0,
+          builtin: false,
+          roles: [],
+          mappers: [],
+          clients: [],
+        })),
+      ],
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: broken });
+
+    expect(res.statusCode).toBe(400);
+    const errors = res.json<ImportRefusal>().errors ?? [];
+    const message = errors.find((error) => error.path === 'document.scopes')?.message ?? '';
+    expect(message).toMatch(/^\d{3} scopes are assigned to every new client, at most 200$/u);
+  });
+
+  it('refuses a client the document gives more scopes than a client may carry', async () => {
+    const source = await seededSource();
+    const token = await operatorToken();
+    const document = await exportOf(token, source.name);
+    const [client] = document.clients;
+    if (client === undefined) throw new Error('the source has no client');
+    const broken: TenantDocument = {
+      ...document,
+      scopes: [
+        ...document.scopes,
+        ...Array.from({ length: CLIENT_SCOPE_LIMIT + 1 }, (_, n) => ({
+          name: `carried-${String(n)}`,
+          description: null,
+          include_in_id_token: false,
+          include_in_access_token: false,
+          default_client_assignment: null,
+          consent_text: null,
+          display_order: 0,
+          builtin: false,
+          roles: [],
+          mappers: [],
+          clients: [{ client_id: client.client_id, assignment: 'optional' as const }],
+        })),
+      ],
+    };
+
+    const res = await postImport(token, { name: `import-${newId()}`, document: broken });
+
+    expect(res.statusCode).toBe(400);
+    const errors = res.json<ImportRefusal>().errors ?? [];
+    const message =
+      errors.find((error) => error.path === `document.clients[0].scopes`)?.message ?? '';
+    expect(message).toMatch(/holds \d{3} scopes, at most 200$/u);
   });
 
   it('refuses a built-in the new tenant does not provision, and a minted capability', async () => {
