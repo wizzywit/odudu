@@ -121,6 +121,13 @@ const seededSchema = z.object({
     resumer: account,
     drafted: z.string(),
   }),
+  // A tenant of its own for the Clients tests.
+  clients: z.object({
+    // Holds tenant-admin there.
+    admin: account,
+    // Holds manage-clients alone.
+    limited: account,
+  }),
   // A tenant of its own for the Groups and Roles tests.
   groupsRoles: z.object({
     // Holds tenant-admin there.

@@ -92,6 +92,43 @@ function seedGroupsRoles(tenant: string): void {
   nest(tenant, 'deep', 'middle');
 }
 
+// The clients the Clients tests change, each changed by one test alone, and
+// one whose name and address are far wider than a phone.
+function seedClients(tenant: string): void {
+  seed(['tenant', '--name', tenant]);
+  const confidential = (clientId: string, ...extra: string[]): void => {
+    seed([
+      'client',
+      '--tenant',
+      tenant,
+      '--client-id',
+      clientId,
+      `--client-secret=${password()}`,
+      '--redirect-uri',
+      `https://${clientId}.example/callback`,
+      ...extra,
+    ]);
+  };
+  for (const clientId of ['ledger', 'closed', 'doomed', UNBROKEN]) confidential(clientId);
+  confidential('lists', '--web-origin', 'https://lists.example');
+  seed([
+    'client',
+    '--tenant',
+    tenant,
+    '--client-id',
+    'kiosk',
+    '--public',
+    '--redirect-uri',
+    'https://kiosk.example/callback',
+  ]);
+  psql(
+    `update clients set name = 'Ledger', description = 'Keeps the books' where client_id = 'ledger' and tenant_id = (select id from tenants where name = '${tenant}')`,
+  );
+  psql(
+    `update clients set description = '${UNBROKEN.repeat(4)}' where client_id = '${UNBROKEN}' and tenant_id = (select id from tenants where name = '${tenant}')`,
+  );
+}
+
 // No seed command nests a role, so the edge goes in as the database owner.
 // A child named `client:role` is that client's role; any other a tenant role.
 function nest(tenant: string, parent: string, child: string): void {
@@ -155,6 +192,10 @@ export default function globalSetup(): void {
     admin: { tenant: `${run}-r`, username: 'ines', password: password() },
     limited: { tenant: `${run}-r`, username: 'kepler', password: password() },
     member: 'curie',
+  };
+  const clients = {
+    admin: { tenant: `${run}-k`, username: 'gauss', password: password() },
+    limited: { tenant: `${run}-k`, username: 'euler', password: password() },
   };
   const tenants = {
     general: `${run}-d`,
@@ -230,6 +271,10 @@ export default function globalSetup(): void {
     '--role',
     'billing-reader',
   ]);
+  seedClients(clients.admin.tenant);
+  administrator(clients.admin);
+  subject(clients.limited);
+  grant(clients.limited, 'odudu-admin:manage-clients');
   seedGroupsRoles(groupsRoles.admin.tenant);
   administrator(groupsRoles.admin);
   subject(groupsRoles.limited);
@@ -270,6 +315,7 @@ export default function globalSetup(): void {
     tenants,
     systemAdmins,
     subjects,
+    clients,
     groupsRoles,
   });
 }
