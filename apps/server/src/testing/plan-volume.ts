@@ -306,7 +306,9 @@ export async function seedPlanVolume(owner: DatabaseHandle, target: VolumeTarget
     // with them the load takes more than twice as long.
     await connection.unsafe("set session_replication_role = 'replica'");
     for (const statement of volumeStatements(target)) await connection.unsafe(statement);
-    await connection.unsafe('analyze');
+    // Vacuumed as well as analyzed: a table a server has run on has its
+    // visibility map set, which is what lets an index-only scan skip the heap.
+    await connection.unsafe('vacuum analyze');
   } finally {
     await connection.unsafe('reset session_replication_role');
     connection.release();

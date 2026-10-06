@@ -160,6 +160,10 @@ describe('every statement a path sends', () => {
       mkdirSync(out, { recursive: true });
       writeFileSync(join(out, 'inventory.json'), JSON.stringify(inventory, null, 1));
       writeFileSync(
+        join(out, 'summary.txt'),
+        `seed ${String(world.volumeSeconds)} s, ${String(log.runs.length)} paths, ${String(inventory.length)} statements\n`,
+      );
+      writeFileSync(
         join(out, 'counts.txt'),
         counts.map((c) => `${String(c.small)} ${String(c.large)} ${c.path}`).join('\n'),
       );
