@@ -19,7 +19,7 @@ CREATE INDEX authentication_sessions_by_subject ON authentication_sessions (subj
   WHERE subject_id IS NOT NULL;
 CREATE INDEX consents_by_client ON consents (client_id);
 CREATE INDEX consent_scopes_by_scope ON consent_scopes (client_scope_id);
-CREATE INDEX client_scope_assignments_by_scope ON client_scope_assignments (client_scope_id);
+CREATE INDEX client_scope_assignments_by_scope ON client_scope_assignments (client_scope_id, client_id);
 CREATE INDEX role_composites_by_child ON role_composites (child_role_id);
 CREATE INDEX client_scope_roles_by_role ON client_scope_roles (role_id);
 CREATE INDEX group_roles_by_role ON group_roles (role_id);

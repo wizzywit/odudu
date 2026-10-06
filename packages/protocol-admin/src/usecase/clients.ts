@@ -346,7 +346,13 @@ export async function listClients(
     after = { id: decoded.after, sort: decoded.sort };
   }
 
-  const conditions = await clientListConditions(tx, input.filters, after);
+  // Row-level security scopes the rows, but the planner estimates its
+  // `current_setting` as an average tenant and walks the primary key across all
+  // of them; naming the tenant uses its own statistics.
+  const conditions = [
+    eq(clients.tenantId, input.tenantId),
+    ...(await clientListConditions(tx, input.filters, after)),
+  ];
   const rows = await tx
     .select({ view: CLIENT_VIEW_COLUMNS, searchKey: search?.column ?? sql<null>`null` })
     .from(clients)

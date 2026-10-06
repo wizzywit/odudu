@@ -916,10 +916,10 @@ export async function listScopeClients(
     .where(
       and(
         eq(clientScopeAssignments.clientScopeId, input.scopeId),
-        ...(after === undefined ? [] : [gt(clients.id, after)]),
+        ...(after === undefined ? [] : [gt(clientScopeAssignments.clientId, after)]),
       ),
     )
-    .orderBy(asc(clients.id))
+    .orderBy(asc(clientScopeAssignments.clientId))
     .limit(input.limit + 1);
 
   const hasMore = rows.length > input.limit;
