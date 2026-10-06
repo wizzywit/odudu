@@ -479,9 +479,14 @@ eight views. 28 shared service functions cover the duplicates.
   (facts).
 - **Logout:** the post-logout URIs, and back- and front-channel logout.
 - **Advanced:** token endpoint auth method, `jwks`/`jwks_uri` (private members
-  are refused, with the reason), userinfo signing, audiences, rotate secret
-  (shown once), and delete (typed confirmation). Fixed-by-design items are
+  are refused, with the reason), userinfo signing, audiences, and rotate
+  secret (shown once, with its rotation grace). Delete is already in
+  General's danger zone, so it is not rebuilt here. Fixed-by-design items are
   shown as fixed text: response type `code`, PKCE S256.
+- **Placed here on 2026-10-06, after Task 11 found them unplaced:**
+  `id_token_signed_response_alg`, `default_max_age` and `require_auth_time`
+  go on Tokens. `tls_client_auth_subject_dn` (beside the auth method) and
+  `token_exchange_impersonation_allowed` go on Advanced.
 - **Roles:** the client-scoped roles tab (UNCOVERED, now placed).
 - **Service account:** its roles through `PUT …/subjects/:service_subject_id/roles`.
   It needs `manage-users`; show CapabilityNote otherwise.
