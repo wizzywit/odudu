@@ -15,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   effectiveRolePage,
   effectiveRoles,
-  heldAmong,
+  compositesWithin,
   rolesReachableFrom,
 } from '#/repository/effective-roles';
 import { roleRepository, type RoleRecord } from '#/repository/roles';
@@ -279,35 +279,42 @@ describe('effectiveRolePage', () => {
   });
 });
 
-describe('heldAmong', () => {
-  it('names which of the given roles the subject holds, and no other', async () => {
+describe('compositesWithin', () => {
+  it('names the edges to the given roles from roles the subject holds, and no other', async () => {
     const subject = await testSubject();
-    const held = await subject.createRole('held');
-    const other = await subject.createRole('other');
-    await subject.assignToSubject(held.id);
+    const heldParent = await subject.createRole('held-parent');
+    const child = await subject.createRole('child');
+    await subject.assignToSubject(heldParent.id);
+    await subject.addComposite(heldParent.id, child.id);
+    for (let n = 0; n < 5; n += 1) {
+      const stranger = await subject.createRole(`stranger-${String(n)}`);
+      await subject.addComposite(stranger.id, child.id);
+    }
 
-    const found = await withTenant(app.db, subject.tenantId, (tx) =>
-      heldAmong(tx, subject.subjectId, [held.id, other.id]),
+    const edges = await withTenant(app.db, subject.tenantId, (tx) =>
+      compositesWithin(tx, subject.subjectId, [child.id]),
     );
 
-    expect([...found]).toEqual([held.id]);
+    expect(edges).toEqual([
+      { parentRoleId: heldParent.id, parentName: 'held-parent', childRoleId: child.id },
+    ]);
   });
 
-  it('holds nothing for a subject in another tenant', async () => {
+  it('names nothing for a subject in another tenant', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {
         await seedTenant(tx, tenantId);
         const subjectId = await insertSubject(tx, tenantId);
-        const admin = await roleRepository(tx).create({ tenantId, name: 'admin' });
-        await roleRepository(tx).assignToSubject(subjectId, admin.id);
-        return { subjectId, roleId: admin.id };
+        const parent = await roleRepository(tx).create({ tenantId, name: 'parent' });
+        const child = await roleRepository(tx).create({ tenantId, name: 'child' });
+        await roleRepository(tx).assignToSubject(subjectId, parent.id);
+        await roleRepository(tx).addComposite(parent.id, child.id);
+        return { subjectId, childId: child.id };
       },
       verifySeeded: async (tx, seeded) => {
-        expect([...(await heldAmong(tx, seeded.subjectId, [seeded.roleId]))]).toEqual([
-          seeded.roleId,
-        ]);
+        expect(await compositesWithin(tx, seeded.subjectId, [seeded.childId])).toHaveLength(1);
       },
-      attempt: async (tx, seeded) => [...(await heldAmong(tx, seeded.subjectId, [seeded.roleId]))],
+      attempt: (tx, seeded) => compositesWithin(tx, seeded.subjectId, [seeded.childId]),
       expectBlocked: (result) => {
         expect(result).toEqual([]);
       },

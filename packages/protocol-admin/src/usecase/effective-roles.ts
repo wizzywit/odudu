@@ -1,12 +1,6 @@
 import { type EffectiveRoleAssignment, type RoleProvenance } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import {
-  effectiveRolePage,
-  heldAmong,
-  roleComposites,
-  roles,
-  subjectRoles,
-} from '@odudu/domain-authz';
+import { compositesWithin, effectiveRolePage, roles, subjectRoles } from '@odudu/domain-authz';
 import { subjectRepository } from '@odudu/domain-identity';
 import { clients } from '@odudu/domain-tenant';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
@@ -123,28 +117,11 @@ export async function listEffectiveRoles(
       group_path: edge.group_path,
     });
   }
-  const nesting = await tx
-    .select({ parent: roleComposites.parentRoleId, child: roleComposites.childRoleId })
-    .from(roleComposites)
-    .where(inArray(roleComposites.childRoleId, heldIds))
-    .orderBy(asc(roleComposites.parentRoleId));
-  const heldParents = await heldAmong(tx, subjectId, [
-    ...new Set(nesting.map((edge) => edge.parent)),
-  ]);
-  const parentNames =
-    heldParents.size === 0
-      ? []
-      : await tx
-          .select({ id: roles.id, name: roles.name })
-          .from(roles)
-          .where(inArray(roles.id, [...heldParents]));
-  const names = new Map(parentNames.map((row) => [row.id, row.name]));
-  for (const edge of nesting) {
-    if (!heldParents.has(edge.parent)) continue;
-    via.get(edge.child)?.push({
+  for (const edge of await compositesWithin(tx, subjectId, heldIds)) {
+    via.get(edge.childRoleId)?.push({
       kind: 'composite',
-      parent_role_id: edge.parent,
-      parent_name: names.get(edge.parent) ?? '',
+      parent_role_id: edge.parentRoleId,
+      parent_name: edge.parentName,
     });
   }
 

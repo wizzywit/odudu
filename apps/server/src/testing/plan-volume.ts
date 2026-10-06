@@ -183,6 +183,11 @@ insert into role_composites (tenant_id, parent_role_id, child_role_id)
 select ${t}, p.id, c.id from vol_roles p
   join vol_roles c on c.n in (p.n + ${v.roles} / 2, p.n + ${v.roles} / 2 + 1)
  where p.n between 2 and ${v.roles} / 2 - 1;
+-- One role the probe subject holds, nested under most of the others: what a
+-- page of effective roles must not read in full.
+insert into role_composites (tenant_id, parent_role_id, child_role_id)
+select ${t}, p.id, c.id from vol_roles p join vol_roles c on c.n = 5
+ where p.n between ${v.roles} / 2 + 2 and ${v.roles} - 100;
 insert into client_scope_roles (tenant_id, client_scope_id, role_id)
 select ${t}, s.id, r.id from vol_scopes s
   join vol_roles r on r.n between s.n * 5 and s.n * 5 + 5 where s.n between 2 and ${v.scopes};

@@ -10,7 +10,7 @@ export { roleRepository, type NewRole, type RolePatch } from '#/repository/roles
 export {
   effectiveRolePage,
   effectiveRoles,
-  heldAmong,
+  compositesWithin,
   rolesReachableFrom,
   type EffectiveRole,
 } from '#/repository/effective-roles';

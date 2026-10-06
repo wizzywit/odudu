@@ -75,27 +75,47 @@ export async function effectiveRolePage(
   return effectiveRoleRowsSchema.parse(result).map(toEffectiveRole);
 }
 
-// Which of `roleIds` the subject holds, effectively.
-export async function heldAmong(
+export interface CompositeEdge {
+  readonly parentRoleId: string;
+  readonly parentName: string;
+  readonly childRoleId: string;
+}
+
+// The edges to `childIds` from roles the subject holds, found from the held
+// side: a role nested under thousands of others is read for the few that are
+// held, not for all of them.
+export async function compositesWithin(
   tx: TenantScopedDatabase,
   subjectId: string,
-  roleIds: readonly string[],
-): Promise<ReadonlySet<string>> {
-  if (roleIds.length === 0) return new Set();
+  childIds: readonly string[],
+): Promise<readonly CompositeEdge[]> {
+  if (childIds.length === 0) return [];
   const ids = sql.join(
-    roleIds.map((id) => sql`${id}::uuid`),
+    childIds.map((id) => sql`${id}::uuid`),
     sql`, `,
   );
   const result = await tx.execute(sql`
     ${closureOf(subjectId)}
-    SELECT role_id FROM role_closure WHERE role_id IN (${ids})
+    SELECT rc.parent_role_id AS parent_role_id, r.name AS parent_name,
+           rc.child_role_id AS child_role_id
+    FROM role_closure p
+    CROSS JOIN LATERAL (
+      SELECT parent_role_id, child_role_id FROM role_composites
+       WHERE parent_role_id = p.role_id AND child_role_id IN (${ids}) OFFSET 0
+    ) rc
+    CROSS JOIN LATERAL (SELECT name FROM roles WHERE id = rc.parent_role_id OFFSET 0) r
+    ORDER BY rc.parent_role_id
   `);
-  return new Set(
-    z
-      .array(z.object({ role_id: z.string() }))
-      .parse(result)
-      .map((row) => row.role_id),
-  );
+  return z
+    .array(
+      z.object({ parent_role_id: z.string(), parent_name: z.string(), child_role_id: z.string() }),
+    )
+    .parse(result)
+    .map((row) => ({
+      parentRoleId: row.parent_role_id,
+      parentName: row.parent_name,
+      childRoleId: row.child_role_id,
+    }));
 }
 
 function toEffectiveRole(row: z.infer<typeof effectiveRoleRowSchema>): EffectiveRole {
