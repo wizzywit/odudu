@@ -1,13 +1,23 @@
 import { type EffectiveRoleAssignment, type RoleProvenance } from '@odudu/contracts/admin';
 import { type TenantScopedDatabase } from '@odudu/db';
-import { compositesWithin, effectiveRolePage, roles, subjectRoles } from '@odudu/domain-authz';
+import {
+  compositesWithin,
+  effectiveRolePage,
+  heldAmong,
+  roles,
+  subjectRoles,
+} from '@odudu/domain-authz';
 import { subjectRepository } from '@odudu/domain-identity';
-import { clients } from '@odudu/domain-tenant';
+import { ADMIN_CLIENT_ID, clients, TENANT_ADMIN } from '@odudu/domain-tenant';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { ADMIN_CAPABILITIES } from '@odudu/contracts/admin';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
 
 const COLLECTION = 'effective-roles';
+
+// The roles of the built-in admin client a subject is judged by: Full and each capability.
+const HOLDINGS: readonly string[] = [TENANT_ADMIN, ...ADMIN_CAPABILITIES];
 
 export type ListEffectiveRolesOutcome =
   | { kind: 'not_found' }
@@ -60,6 +70,49 @@ export interface ListEffectiveRolesInput {
   readonly cursorKey: Uint8Array;
 }
 
+// The roles of `heldIds`, which the subject holds, each with the paths it is
+// held by: assigned, mapped to a group of its own or an ancestor's, nested
+// under another role it holds.
+export async function heldRolesWithPaths(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+  heldIds: readonly string[],
+) {
+  const rows = await tx
+    .select({
+      id: roles.id,
+      name: roles.name,
+      client_id: roles.clientId,
+      client_key: clients.clientId,
+    })
+    .from(roles)
+    .leftJoin(clients, eq(clients.id, roles.clientId))
+    .where(inArray(roles.id, [...heldIds]))
+    .orderBy(asc(roles.id));
+
+  const via = new Map<string, RoleProvenance[]>(heldIds.map((id) => [id, []]));
+  const direct = await tx
+    .select({ roleId: subjectRoles.roleId })
+    .from(subjectRoles)
+    .where(and(eq(subjectRoles.subjectId, subjectId), inArray(subjectRoles.roleId, [...heldIds])));
+  for (const row of direct) via.get(row.roleId)?.push({ kind: 'direct' });
+  for (const edge of await groupEdges(tx, subjectId, heldIds)) {
+    via.get(edge.role_id)?.push({
+      kind: 'group',
+      group_id: edge.group_id,
+      group_path: edge.group_path,
+    });
+  }
+  for (const edge of await compositesWithin(tx, subjectId, heldIds)) {
+    via.get(edge.childRoleId)?.push({
+      kind: 'composite',
+      parent_role_id: edge.parentRoleId,
+      parent_name: edge.parentName,
+    });
+  }
+  return { rows, via };
+}
+
 // Which roles a subject holds is `effectiveRoles`' answer, the one issuance
 // and authorization both read; this adds only how each was reached. Every
 // edge named is one inside that set, so a path never names a role the
@@ -92,38 +145,7 @@ export async function listEffectiveRoles(
   const heldIds = held.map((role) => role.roleId);
   if (heldIds.length === 0) return { kind: 'ok', items: [], next: null };
 
-  const rows = await tx
-    .select({
-      id: roles.id,
-      name: roles.name,
-      client_id: roles.clientId,
-      client_key: clients.clientId,
-    })
-    .from(roles)
-    .leftJoin(clients, eq(clients.id, roles.clientId))
-    .where(inArray(roles.id, heldIds))
-    .orderBy(asc(roles.id));
-
-  const via = new Map<string, RoleProvenance[]>(heldIds.map((id) => [id, []]));
-  const direct = await tx
-    .select({ roleId: subjectRoles.roleId })
-    .from(subjectRoles)
-    .where(and(eq(subjectRoles.subjectId, subjectId), inArray(subjectRoles.roleId, heldIds)));
-  for (const row of direct) via.get(row.roleId)?.push({ kind: 'direct' });
-  for (const edge of await groupEdges(tx, subjectId, heldIds)) {
-    via.get(edge.role_id)?.push({
-      kind: 'group',
-      group_id: edge.group_id,
-      group_path: edge.group_path,
-    });
-  }
-  for (const edge of await compositesWithin(tx, subjectId, heldIds)) {
-    via.get(edge.childRoleId)?.push({
-      kind: 'composite',
-      parent_role_id: edge.parentRoleId,
-      parent_name: edge.parentName,
-    });
-  }
+  const { rows, via } = await heldRolesWithPaths(tx, subjectId, heldIds);
 
   const last = held[held.length - 1];
   const next =
@@ -140,4 +162,30 @@ export async function listEffectiveRoles(
     items: rows.map((row) => ({ ...row, via: via.get(row.id) ?? [] })),
     next,
   };
+}
+
+export type AdminCapabilitiesOutcome =
+  { kind: 'not_found' } | { kind: 'ok'; items: readonly EffectiveRoleAssignment[] };
+
+// What the console judges a subject by: the admin capabilities it holds, found
+// among the few roles the built-in admin client defines instead of in the whole
+// effective set, which can be more than a page of roles. Sized by the model.
+export async function listAdminCapabilities(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+): Promise<AdminCapabilitiesOutcome> {
+  if ((await subjectRepository(tx).byId(subjectId)) === null) return { kind: 'not_found' };
+  const candidates = await tx
+    .select({ id: roles.id })
+    .from(roles)
+    .innerJoin(clients, eq(clients.id, roles.clientId))
+    .where(and(eq(clients.clientId, ADMIN_CLIENT_ID), inArray(roles.name, [...HOLDINGS])));
+  const held = await heldAmong(
+    tx,
+    subjectId,
+    candidates.map((role) => role.id),
+  );
+  if (held.size === 0) return { kind: 'ok', items: [] };
+  const { rows, via } = await heldRolesWithPaths(tx, subjectId, [...held]);
+  return { kind: 'ok', items: rows.map((row) => ({ ...row, via: via.get(row.id) ?? [] })) };
 }

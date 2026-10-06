@@ -232,6 +232,13 @@ export const listEffectiveRolesResponseSchema = z.object({
 });
 export type ListEffectiveRolesResponse = z.infer<typeof listEffectiveRolesResponseSchema>;
 
+// The admin capabilities a subject holds, each with how: at most one per
+// capability the admin API knows, so the answer is whole, never a page.
+export const adminCapabilitiesResponseSchema = z.object({
+  items: z.array(effectiveRoleSchema),
+});
+export type AdminCapabilitiesResponse = z.infer<typeof adminCapabilitiesResponseSchema>;
+
 export const BULK_SUBJECT_ACTIONS = ['disable', 'enable', 'delete', 'end-sessions'] as const;
 export const BULK_SUBJECT_LIMIT = 100;
 

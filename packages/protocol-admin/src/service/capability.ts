@@ -81,6 +81,7 @@ import {
   bulkSubjectsResponseSchema,
   clearLockoutsResponseSchema,
   listEffectiveRolesQuerySchema,
+  adminCapabilitiesResponseSchema,
   listEffectiveRolesResponseSchema,
   listTenantsQuerySchema,
   countTenantsQuerySchema,
@@ -480,6 +481,17 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'order, each with every path it is held by: assigned directly, mapped to a group the ' +
       'subject belongs to or to one of its ancestors, or nested under another role it holds. ' +
       'Paged, and carrying no `ETag`: `GET …/roles` is the list `PUT …/roles` replaces.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/subjects/:id/admin-capabilities',
+    capability: 'view-users',
+    responseSchema: adminCapabilitiesResponseSchema,
+    description:
+      'The admin capabilities the subject holds, each as an effective role with every path it ' +
+      'is held by, found among the roles of the built-in admin client whatever else the ' +
+      'subject holds. At most one entry per capability, so the answer is whole, never a page: ' +
+      'what a console judges the subject\u2019s reach by.',
   },
   // Joining a group grants its roles and its ancestors', so this route's
   // capability ceiling (`setSubjectGroups`, #/usecase/subjects.ts) is the

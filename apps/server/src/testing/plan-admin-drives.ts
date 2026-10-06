@@ -252,6 +252,7 @@ export function adminPaths(ids: AdminIds): {
     { path: `${S}/${ids.subject}/consents` },
     { path: `${S}/${ids.subject}/roles` },
     { path: `${S}/${ids.subject}/effective-roles` },
+    { path: `${S}/${ids.subject}/admin-capabilities` },
     { path: `${S}/${ids.subject}/groups` },
     { path: `${S}/${ids.subject}/sessions` },
     { path: `${S}/${ids.subject}/grants` },

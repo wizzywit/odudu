@@ -398,6 +398,7 @@ not re-run — each says so, and why, where it appears.
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Read a subject's roles                     |
 | `PUT`    | `/admin/tenants/{tenant}/subjects/:id/roles`                     | Replace a subject's roles                  |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/effective-roles`           | Read a subject's effective roles           |
+| `GET`    | `/admin/tenants/{tenant}/subjects/:id/admin-capabilities`        | Read a subject's admin capabilities        |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/groups`                    | Read a subject's groups                    |
 | `PUT`    | `/admin/tenants/{tenant}/subjects/:id/groups`                    | Replace a subject's groups                 |
 | `GET`    | `/admin/tenants/{tenant}/subjects/:id/sessions`                  | List a subject's live sessions             |
@@ -5402,6 +5403,47 @@ content-length: 568
 {"items":[{"id":"01a10f7e-1815-797f-8beb-a15490ebc8b1","name":"role-reader","client_id":null,"client_key":null,"via":[{"kind":"direct"}]},{"id":"01a10f7e-1849-7640-bfd6-19a8fdf7c045","name":"role-writer","client_id":null,"client_key":null,"via":[{"kind":"direct"}]}],"next":"eyJhZnRlciI6IjAxYTEwZjdlLTE4NDktNzY0MC1iZmQ2LTE5YThmZGY3YzA0NSIsImNvbGxlY3Rpb24iOiJlZmZlY3RpdmUtcm9sZXMiLCJ0ZW5hbnRJZCI6IjAxYTEwZjdkLWJiMGEtN2NhNy1iNGE1LTFmMTczNjA5YmZmNSIsImZpbHRlcnMiOiIyeXlYUlcwTFVqWkdra19nR29HdGVrLThCbTJ5RnoyT0lmb1lITUxRRVV3In0.CbEhjt6kfAHKMMl3V9_y4nRH3orhNcgZDKYzJT7wwN4"}
 ```
 
+## `GET /subjects/:id/admin-capabilities`
+
+Requires `view-users`. The admin capabilities the subject holds, each as the
+effective role it is, with every path it is held by (`direct`, `group`,
+`composite`, as `GET /subjects/:id/effective-roles` says them). The entries
+are found among the few roles the built-in `odudu-admin` client defines
+(Full and each capability), not among the whole effective set, so a subject
+holding more roles than one page of effective roles still answers every
+capability it holds. There is at most one entry per capability, so the answer
+is whole and carries no `next`: it is what a console judges a subject's reach
+by, and must not judge by a page. An unknown subject answers `404`.
+
+Against the stack of its own (`perf-demo`, `grace` assigned `manage-users`, and
+a member of `/auditors`, which maps `view-audit`), `manage-users` nests
+`view-users`:
+
+```bash
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/$G/admin-capabilities"
+curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$P/subjects/$UNKNOWN/admin-capabilities"
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1102b-9744-7e99-a092-9dfa8974a238
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 685
+
+{"items":[{"id":"01a1102b-7631-79fc-8d95-1a242a4e3b9e","name":"view-users","client_id":"01a1102b-7622-73ee-9a6c-924823336f39","client_key":"odudu-admin","via":[{"kind":"composite","parent_role_id":"01a1102b-7633-7fbb-bf93-ec2c2883508a","parent_name":"manage-users"}]},{"id":"01a1102b-7633-7fbb-bf93-ec2c2883508a","name":"manage-users","client_id":"01a1102b-7622-73ee-9a6c-924823336f39","client_key":"odudu-admin","via":[{"kind":"direct"}]},{"id":"01a1102b-7639-76ca-93f4-7775c0712172","name":"view-audit","client_id":"01a1102b-7622-73ee-9a6c-924823336f39","client_key":"odudu-admin","via":[{"kind":"group","group_id":"01a1102b-96ac-7ac9-83bb-3a14a3b2c70e","group_path":"/auditors"}]}]}
+```
+
+```
+HTTP/1.1 404 Not Found
+x-request-id: 01a1102b-9762-71b8-a0bb-5ff9194766a5
+cache-control: no-store
+content-type: application/problem+json; charset=utf-8
+content-length: 164
+
+{"type":"about:blank","title":"Not Found","status":404,"detail":"no subject 01a1102b-0000-7000-8000-000000000000","instance":"01a1102b-9762-71b8-a0bb-5ff9194766a5"}
+```
+
 ## `GET /subjects/:id/groups` and `PUT /subjects/:id/groups`
 
 The read requires `view-users`; the write requires `manage-users`. Both
@@ -9004,7 +9046,7 @@ Keep-Alive: timeout=72
 74
 ```
 
-305 KB and 74 paths, which is the whole route table. It is the one admin
+305 KB and 75 paths, which is the whole route table. It is the one admin
 response readable from any origin, so a viewer served from another port can
 load it — the local stack's optional Swagger UI does exactly that (see
 `README.md`, "Browsing the admin API"). No admin route carries that header,

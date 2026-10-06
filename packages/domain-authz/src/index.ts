@@ -11,6 +11,7 @@ export {
   effectiveRolePage,
   effectiveRoles,
   compositesWithin,
+  heldAmong,
   rolesReachableFrom,
   type EffectiveRole,
 } from '#/repository/effective-roles';

@@ -16,6 +16,7 @@ import {
   effectiveRolePage,
   effectiveRoles,
   compositesWithin,
+  heldAmong,
   rolesReachableFrom,
 } from '#/repository/effective-roles';
 import { roleRepository, type RoleRecord } from '#/repository/roles';
@@ -272,6 +273,42 @@ describe('effectiveRolePage', () => {
       },
       attempt: async (tx, seeded) =>
         effectiveRolePage(tx, seeded.subjectId, { after: undefined, limit: 5 }),
+      expectBlocked: (result) => {
+        expect(result).toEqual([]);
+      },
+    });
+  });
+});
+
+describe('heldAmong', () => {
+  it('names which of the given roles the subject holds, and no other', async () => {
+    const subject = await testSubject();
+    const held = await subject.createRole('held');
+    const other = await subject.createRole('other');
+    await subject.assignToSubject(held.id);
+
+    const found = await withTenant(app.db, subject.tenantId, (tx) =>
+      heldAmong(tx, subject.subjectId, [held.id, other.id]),
+    );
+
+    expect([...found]).toEqual([held.id]);
+  });
+
+  it('holds nothing for a subject in another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: async (tx, tenantId) => {
+        await seedTenant(tx, tenantId);
+        const subjectId = await insertSubject(tx, tenantId);
+        const admin = await roleRepository(tx).create({ tenantId, name: 'admin' });
+        await roleRepository(tx).assignToSubject(subjectId, admin.id);
+        return { subjectId, roleId: admin.id };
+      },
+      verifySeeded: async (tx, seeded) => {
+        expect([...(await heldAmong(tx, seeded.subjectId, [seeded.roleId]))]).toEqual([
+          seeded.roleId,
+        ]);
+      },
+      attempt: async (tx, seeded) => [...(await heldAmong(tx, seeded.subjectId, [seeded.roleId]))],
       expectBlocked: (result) => {
         expect(result).toEqual([]);
       },

@@ -75,6 +75,29 @@ export async function effectiveRolePage(
   return effectiveRoleRowsSchema.parse(result).map(toEffectiveRole);
 }
 
+// Which of `roleIds` the subject holds, effectively.
+export async function heldAmong(
+  tx: TenantScopedDatabase,
+  subjectId: string,
+  roleIds: readonly string[],
+): Promise<ReadonlySet<string>> {
+  if (roleIds.length === 0) return new Set();
+  const ids = sql.join(
+    roleIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+  const result = await tx.execute(sql`
+    ${closureOf(subjectId)}
+    SELECT role_id FROM role_closure WHERE role_id IN (${ids})
+  `);
+  return new Set(
+    z
+      .array(z.object({ role_id: z.string() }))
+      .parse(result)
+      .map((row) => row.role_id),
+  );
+}
+
 export interface CompositeEdge {
   readonly parentRoleId: string;
   readonly parentName: string;

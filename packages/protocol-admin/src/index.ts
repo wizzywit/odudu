@@ -158,6 +158,7 @@ import {
   deleteSubjectHandler,
   listCredentialsHandler,
   listEffectiveRolesHandler,
+  readAdminCapabilitiesHandler,
   listSubjectsHandler,
   readProfileHandler,
   readRequiredActionsHandler,
@@ -588,6 +589,8 @@ function buildAdminRoutes(
       'PUT /admin/tenants/:tenant/subjects/:id/roles': setRolesHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/effective-roles':
         listEffectiveRolesHandler(subjectsDeps),
+      'GET /admin/tenants/:tenant/subjects/:id/admin-capabilities':
+        readAdminCapabilitiesHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/groups': readSubjectGroupsHandler(subjectsDeps),
       'PUT /admin/tenants/:tenant/subjects/:id/groups': setSubjectGroupsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/:id/sessions': listSessionsHandler(sessionsDeps),
