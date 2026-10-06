@@ -18,7 +18,7 @@ import {
   setSubjectGroups,
 } from '#/features/subjects/adapter/access.ts';
 import { readSubjectCount } from '#/features/subjects/adapter/subjects.ts';
-import { useSubjectRead, type Read } from '#/features/subjects/repository/useSubjectRead.ts';
+import { useRead, type Read } from '#/shared/repository/useRead.ts';
 import { actionsRecord, groupsRecord, rolesRecord } from '#/features/subjects/service';
 import { readSubjectRoles, setSubjectRoles } from '#/shared/adapter/administrators.ts';
 import { useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
@@ -73,9 +73,7 @@ export function useHeldCapabilities(
   asked = true,
 ): Read<AdminCapabilitiesResponse> {
   const { gateway } = useTransport();
-  return useSubjectRead(heldKey(tenant, id), asked, () =>
-    readAdminCapabilities(gateway, tenant, id),
-  );
+  return useRead(heldKey(tenant, id), asked, () => readAdminCapabilities(gateway, tenant, id));
 }
 
 // Every role a subject holds, for reading: a page at a time, "Load more" for the rest.
@@ -98,20 +96,18 @@ export function useMemberships(
   asked: boolean,
 ): Read<SetSubjectGroupsResponse> {
   const { gateway } = useTransport();
-  return useSubjectRead(['memberships', tenant, id], asked, () =>
-    readSubjectGroups(gateway, tenant, id),
-  );
+  return useRead(['memberships', tenant, id], asked, () => readSubjectGroups(gateway, tenant, id));
 }
 
 export function useAdminRoleIds(tenant: string): Read<ReadonlyMap<Holding, string>> {
   const { gateway } = useTransport();
-  return useSubjectRead(['admin-roles', tenant], true, () => readAdminRoles(gateway, tenant));
+  return useRead(['admin-roles', tenant], true, () => readAdminRoles(gateway, tenant));
 }
 
 // How many enabled subjects hold what the last-administrator guard counts.
 export function useEnabledHolderCount(tenant: string, counted: string): Read<CountResponse> {
   const { gateway } = useTransport();
-  return useSubjectRead(['holders', tenant, 'enabled', counted], true, () =>
+  return useRead(['holders', tenant, 'enabled', counted], true, () =>
     readSubjectCount(
       gateway,
       tenant,

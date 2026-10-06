@@ -4,7 +4,7 @@ import type {
   Lockout,
 } from '@odudu/contracts/admin';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSubjectRead, type Read } from '#/features/subjects/repository/useSubjectRead.ts';
+import { useRead, type Read } from '#/shared/repository/useRead.ts';
 import {
   changeCredential,
   readCredentials,
@@ -32,14 +32,12 @@ export function useCredentials(
   asked: boolean,
 ): Read<ListCredentialsResponse> {
   const { gateway } = useTransport();
-  return useSubjectRead(credentialsKey(tenant, id), asked, () =>
-    readCredentials(gateway, tenant, id),
-  );
+  return useRead(credentialsKey(tenant, id), asked, () => readCredentials(gateway, tenant, id));
 }
 
 export function useLockout(tenant: string, id: string, asked: boolean): Read<Lockout> {
   const { gateway } = useTransport();
-  return useSubjectRead(lockoutKey(tenant, id), asked, () => readLockout(gateway, tenant, id));
+  return useRead(lockoutKey(tenant, id), asked, () => readLockout(gateway, tenant, id));
 }
 
 export type { CredentialChange };

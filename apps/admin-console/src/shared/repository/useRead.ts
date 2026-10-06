@@ -9,7 +9,7 @@ export type Read<T> =
   | { status: 'failed'; refused: boolean; retry: () => void };
 
 // One read a tab shows, keyed so a change elsewhere can ask for it again.
-export function useSubjectRead<T>(
+export function useRead<T>(
   key: readonly unknown[],
   asked: boolean,
   read: () => Promise<GatewayResult<T>>,
