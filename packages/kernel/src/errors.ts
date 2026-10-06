@@ -38,6 +38,7 @@ export type ErrorCode =
   | 'reap_requires_app_database_url'
   | 'reap_serving_role_bypasses_rls'
   | 'console_unknown_command'
+  | 'client_origins_unknown_command'
   | 'smtp_destination_refused'
   | 'outbox_cannot_enumerate_tenants'
   | 'outbox_requires_app_database_url'

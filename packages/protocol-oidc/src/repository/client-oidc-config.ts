@@ -1,5 +1,5 @@
 import { type TenantScopedDatabase } from '@odudu/db';
-import { eq, sql } from 'drizzle-orm';
+import { asc, eq, gt, sql } from 'drizzle-orm';
 import { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
 import { clientOrigins } from '#/schema/client-origins';
 import { expandWebOrigins } from '#/service/web-origin';
@@ -123,6 +123,23 @@ export function clientOidcConfigRepository(tx: TenantScopedDatabase) {
         .where(eq(clientOidcConfig.clientId, clientId));
       const row = rows[0];
       return row === undefined ? null : toRecord(row);
+    },
+
+    // One keyset page of the tenant's configs, by client id, for the command
+    // that rewrites every client's origins.
+    async page(after: string | undefined, limit: number): Promise<ClientOidcConfig[]> {
+      const rows = await tx
+        .select()
+        .from(clientOidcConfig)
+        .where(after === undefined ? undefined : gt(clientOidcConfig.clientId, after))
+        .orderBy(asc(clientOidcConfig.clientId))
+        .limit(limit);
+      return rows.map(toRecord);
+    },
+
+    // Writes the client's origins again from the lists it holds.
+    async rewriteOrigins(config: ClientOidcConfig): Promise<void> {
+      await writeOrigins(tx, config);
     },
 
     async create(input: NewClientOidcConfig): Promise<ClientOidcConfig> {

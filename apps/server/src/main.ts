@@ -2,6 +2,7 @@ import { createDatabase } from '@odudu/db';
 import { consoleBaseUrl, loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
+import { clientOriginsCommand } from '#/cli/client-origins';
 import { consoleCommand } from '#/cli/console';
 import { reapCommand } from '#/cli/reap';
 import { sendLogoutsCommand } from '#/cli/send-logouts';
@@ -59,6 +60,16 @@ if (process.argv[2] === 'send-logouts') {
 if (process.argv[2] === 'console') {
   try {
     console.log(await consoleCommand(process.argv.slice(3)));
+    process.exit(0);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+if (process.argv[2] === 'client-origins') {
+  try {
+    console.log(await clientOriginsCommand(process.argv.slice(3)));
     process.exit(0);
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));

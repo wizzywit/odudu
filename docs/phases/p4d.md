@@ -1810,7 +1810,8 @@ The check holds a searched list to two pages of reads on its own table.
   request side's own normaliser (migration `0096`), so the preflight is one
   probe. The existing rows are backfilled in SQL only where the value is
   already in the parser's form; an IDN, zero-padded port, numeric-shorthand
-  or IPv6 host gets no row until its client is amended, so it fails closed. A
+  or IPv6 host gets no row until its client is amended, so it fails closed until
+  `odudu client-origins rebuild` rewrites it. A
   hand-written `UPDATE` of the lists empties the client's rows.
 - _Twenty-two foreign keys had no index_, and about twenty lookups (a subject's
   credentials, sessions, grants and action tokens, a client's grants, default

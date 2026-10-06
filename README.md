@@ -1231,6 +1231,43 @@ by the current base's, and every other URI on the client, the loopback
 included, is kept. With `ODUDU_CONSOLE=false` it refuses, having nothing to
 register, and nothing else touches a registered console URI either.
 
+**Client origins are rebuilt once after upgrading past `0096`.** The
+migration backfills `client_origins` only for values already in the form the
+URL parser gives; a client whose `web_origins` or `redirect_uris` hold an
+internationalised host, a padded port (`:0443`), an IPv6 literal or the like
+has no row, so its preflight is refused, until this runs:
+
+```bash
+node --env-file=.env apps/server/src/main.ts client-origins rebuild
+```
+
+It rewrites every client's origins from its lists with the normaliser the
+server uses and prints `rebuilt the origins of <n> clients`. For a client
+`legacy-spa` listing `https://münchen.example` and `https://a.example:0443`,
+captured on a stack of its own (the origins joined to the client, before and
+after):
+
+```
+ client_id  | origins
+------------+---------
+ legacy-spa |
+(1 row)
+```
+
+```
+rebuilt the origins of 2 clients
+```
+
+```
+ client_id  |                      origins
+------------+---------------------------------------------------
+ legacy-spa | https://xn--mnchen-3ya.example, https://a.example
+(1 row)
+```
+
+(Two clients: the tenant's built-in admin client is rewritten too.) It is
+safe to repeat.
+
 **The console signs in through a gateway under `/console`**, which holds the
 tokens server-side and gives the browser nothing but a session cookie:
 

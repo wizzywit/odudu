@@ -46,7 +46,9 @@ $$;
 -- an owner that is neither SUPERUSER nor BYPASSRLS reads no row of it here
 -- and nothing is raised: lifted for the read and restored after it, as
 -- 0040_recovery_code_execution.sql does and gives the reasons for. A value the
--- function declines gets no row until the client is amended.
+-- function declines gets no row until the client is amended or `odudu
+-- client-origins rebuild` runs, which writes every client's rows with the server's
+-- own normaliser.
 ALTER TABLE client_oidc_config NO FORCE ROW LEVEL SECURITY;
 
 INSERT INTO client_origins (tenant_id, client_id, origin)
