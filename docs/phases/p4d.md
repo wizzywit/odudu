@@ -1833,6 +1833,16 @@ table, not the page; P11 owns it (see the last paragraph).
   the scopes the request names.
 - _The registration capacity count, the last-administrator guard and the
   capability-holder merge_ read or sorted the tenant's subjects.
+- _The clients list walked the primary key across every tenant_ (2,265 rows
+  for a page of 200) because the planner estimates a policy's `current_setting`
+  as an average tenant. The list now names the tenant, so the tenant's own
+  statistics choose `(tenant_id, id)`. _A scope's clients read every client of
+  the tenant_ when the planner hashed them; the page is now ordered by the
+  assignment index `(client_scope_id, client_id)` and probes `clients` by key.
+  Both were intermittent: the plan changed with the sample `ANALYZE` took, and
+  the check failed on some runs and not others before they were fixed, and has
+  passed three of three since; a plan can still flip, and the failure then
+  names it.
 - _`= ANY(ARRAY(...))`_, not a hashed subquery, wherever a set of subject ids
   filters a large table: the holders beyond a caller's ceiling hashed against
   a scan of every grant and session.
