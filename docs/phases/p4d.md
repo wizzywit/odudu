@@ -1753,6 +1753,38 @@ in this increment, then run and their failures read. Two rules were checked by
 breaking the code by hand and watching the tests fail: the grants held back for a
 client with no redirect URI, and the one key source sent with the other cleared.
 
+### Fix round
+
+**The scopes a client carries are bounded at 200.** The record and the list
+answered every assignment of a client, and the tenant's own 1,000 scopes were the
+only limit, so a page of 200 clients could carry 200,000 of them. Chosen: a bound
+per client, `CLIENT_SCOPE_LIMIT` (the `ASSIGNMENT_LIMIT` of every other set the
+API replaces), over a paged read of a client's scopes. A paged read would have
+taken `scopes` out of the client's record, its `ETag` and the assign routes'
+answers, a wire change for every caller, where a bound changes nothing for a
+client under it. Because a new client is assigned every scope marked for it, the
+marks are held to the same 200 (`DefaultScopeLimitError`), and the repository
+refuses past both, so the admin API (`409`), an import (`400` at the path), the
+seed command and registration all meet one rule. A client over it before keeps
+its scopes and takes no new one. The existing `query-plans` drive of `PUT
+/scopes/{id}/clients/{clientId}` covers the count it adds, which reads the
+client's own rows by the key that leads with the client.
+
+**What else changed.** Evaluate asks once per press, since each ask is audited, and
+not again on a refocus. Revoking the console's own client says you will be signed
+out. The access, readability and picker-choice decisions left the usecases. A
+previous secret past its grace reads as past. Each Clients view component is a
+folder. The back-channel deliveries, the revocation with real grants and the
+keyboard and conflict passes of Tokens and Advanced run against real data: a
+person signs in through an application of its own, a failed delivery is the
+sender's attempts spent on an address it may not reach, and the backoff between
+them is stepped over by moving `next_attempt_at`.
+
+**The entry has under 4 KB of headroom.** 149.04 KB gzip against a budget of 153
+KB (97.4%), and about 233.8 KB first load against 242 KB. The next task that
+imports a shared view with a heavy dependency should check the build before it
+spends the rest.
+
 ## Performance
 
 ### The React Compiler

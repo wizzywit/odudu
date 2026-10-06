@@ -279,6 +279,17 @@ confidential client `billing` made through `POST /clients`, row id
 writes by `psql`, which no route does, say so. It was torn down with `docker
 compose down -v` when the capture finished.
 
+**The sixteenth stack.** The transcripts about the 200-scope bound under `PUT
+/scopes/{id}/clients/{clientId}` and `POST`/`PATCH /scopes` ran against one more
+stack: compose project `odudu-tx` on port 3082, its Postgres on 5464, built from
+this branch at `5c4feb72` from an empty volume, with `ODUDU_THROTTLE_LIMIT=1000`.
+Against it: `seed admin --username ada3`, whose token, got the way "Getting the
+token" shows, is `$ADMIN_TOKEN`; a tenant `scope-limit-docs` made through `POST
+/admin/tenants`; and in it a public client `limit-app` made through `POST
+/clients`, row id `01a11220-90a5-79ae-a7b2-a5f77c75b4f9`. The scopes the sections
+add to reach the limit were written by `psql`, which no route does, and say so. It
+was torn down with `docker compose down -v` when the capture finished.
+
 ## The shape of it
 
 Most of the admin endpoint lives under `/admin/tenants/{tenant}/`, mirroring
@@ -7604,6 +7615,44 @@ content-length: 152
 {"type":"about:blank","title":"Conflict","status":409,"detail":"a tenant defines at most 1000 scopes","instance":"01a10f80-e222-7bae-bfa8-615be1af2feb"}
 ```
 
+### The most scopes marked for every new client
+
+A new client is assigned every scope marked with a `default_client_assignment`,
+by an administrator, dynamic registration or `odudu seed`, so the marks are held
+to the same 200 as what a client carries: marking another, on `POST /scopes` or by
+`PATCH`, is refused with `409` once 200 are marked, and changing a marked scope
+between `default` and `optional`, or unmarking one, is not. A tenant import that
+marks more is refused with `400` at `document.scopes`.
+
+Against `scope-limit-docs` (the sixteenth stack), 200 scopes marked, the 8 the
+tenant is provisioned with and 192 written by `psql`, which no route does:
+
+```bash
+psql -tA -c "select count(*) from client_scopes s join tenants t on t.id = s.tenant_id where t.name = 'scope-limit-docs' and s.default_client_assignment is not null"
+curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"one-too-many","default_client_assignment":"default"}' "$P/scopes"
+curl -sS -D - -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"default_client_assignment":"optional"}' "$P/scopes/$SID"
+```
+
+```
+200
+HTTP/1.1 409 Conflict
+x-request-id: 01a11220-9499-76bb-897b-6b98ddc73aab
+content-type: application/problem+json; charset=utf-8
+content-length: 167
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"at most 200 scopes are assigned to every new client","instance":"01a11220-9499-76bb-897b-6b98ddc73aab"}
+HTTP/1.1 409 Conflict
+x-request-id: 01a11220-94b0-70f6-bf83-5cafe36c4ac3
+content-type: application/problem+json; charset=utf-8
+content-length: 167
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"at most 200 scopes are assigned to every new client","instance":"01a11220-94b0-70f6-bf83-5cafe36c4ac3"}
+```
+
+`$SID` is `reports:read`, unmarked until the `PATCH`.
+
 ## `GET /scopes/:id/roles` and `PUT /scopes/:id/roles`
 
 Both require `manage-tenant`. The write replaces the scope's role mapping
@@ -7733,6 +7782,70 @@ carries, and nothing besides:
 
 ```
 {"client_id":"01a0d767-a054-7a00-b96d-eea9492c4e4d","scopes":[{"id":"01a0d764-e837-75cb-b5eb-bf56c1193e85","name":"openid","assignment":"default"},{"id":"01a0d764-e83b-7c1c-84cc-624bbbe5947d","name":"profile","assignment":"default"},{"id":"01a0d764-e83c-76ee-976a-14b79a5f8c8b","name":"email","assignment":"default"},{"id":"01a0d764-e83d-74c0-a341-bfc8dc17ece7","name":"address","assignment":"default"},{"id":"01a0d764-e83d-74c0-a341-bfc97cd8d0bd","name":"phone","assignment":"default"},{"id":"01a0d764-e83e-778c-8fe8-0b8122e3d178","name":"roles","assignment":"default"},{"id":"01a0d764-e83f-7e65-bb51-c62daaadd27d","name":"groups","assignment":"default"},{"id":"01a0d764-e83f-7e65-bb51-c62e4d176cc8","name":"offline_access","assignment":"optional"},{"id":"01a0d767-b5e6-74f8-89a0-f3afa7e2f6c0","name":"billing","assignment":"default"}]}
+```
+
+### The most scopes a client carries
+
+A client is read and listed with its scopes, so it carries at most 200
+(`CLIENT_SCOPE_LIMIT`, `@odudu/contracts`): the same bound as every other set
+the admin API replaces, though the tenant may define up to 1,000. A scope a
+client does not yet carry is refused with `409` once it holds 200; changing how
+one it already carries is assigned is not, and removing one makes room. A client
+that held more before the bound existed keeps what it has and takes no new scope
+until it is under. The same bound refuses, at the door they come through: a
+tenant import that gives a client more (`400` at `document.clients[i].scopes`), a
+scope marked for every new client past 200 (below), and `odudu seed assign-scope`.
+
+Against `scope-limit-docs`, the client's 8 default scopes plus 192 more written
+by `psql`, so that it carried exactly 200, and a scope `reports:read` made
+through `POST /scopes` (`$SID`), `$CID` being the client's row id:
+
+```bash
+curl -sS -D - -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"assignment":"default"}' "$P/scopes/$SID/clients/$CID"
+```
+
+```
+HTTP/1.1 409 Conflict
+x-request-id: 01a11220-9294-7f0c-93b5-b9738b77feb4
+content-type: application/problem+json; charset=utf-8
+content-length: 151
+
+{"type":"about:blank","title":"Conflict","status":409,"detail":"a client carries at most 200 scopes","instance":"01a11220-9294-7f0c-93b5-b9738b77feb4"}
+```
+
+Changing a scope it already carries answers `200`, then removing one lets
+`reports:read` in (the bodies, each the client's 200 scopes, are left out; the
+headers are the answers'):
+
+```bash
+curl -sS -D - -o /dev/null -X PUT  ... -d '{"assignment":"default"}' "$P/scopes/$BID/clients/$CID"
+curl -sS -D - -o /dev/null -X DELETE ... "$P/scopes/$BID/clients/$CID"
+curl -sS -D - -o /dev/null -X PUT  ... -d '{"assignment":"optional"}' "$P/scopes/$SID/clients/$CID"
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a11220-932a-7152-a8f0-0680699b038e
+etag: "85b1ceeabb074c3439fa9847db5ad55dfedbcf488a037a879b3cd1aa5927598b"
+content-type: application/json; charset=utf-8
+content-length: 18114
+
+HTTP/1.1 204 No Content
+x-request-id: 01a11220-934a-7c00-a419-a166c28a143e
+etag: "00645c6b8ac95a48947c2836efe3d792fc3acc34546204ed4e93028f916d5806"
+
+HTTP/1.1 200 OK
+x-request-id: 01a11220-9364-70d7-a999-c67f337ec93b
+etag: "804a9215edf93f7cb87c66e2cd01c6a9726399c89d2c4472cf82ce6e09cc3425"
+content-type: application/json; charset=utf-8
+content-length: 18118
+```
+
+The published OpenAPI document says so in the route's description:
+
+```
+Assigns the scope to the client as default or optional, replacing any existing assignment. A client carries at most 200 scopes: a new one past that is refused with `409`, while changing one it already carries is not. Answers the client’s new `ETag`, since the client’s representation carries its scopes. Refused with `403` when the client’s service account holds an admin capability the caller does not (the target ceiling).
 ```
 
 The OpenAPI document declares that same shape as the `200`'s body —
