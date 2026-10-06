@@ -180,7 +180,7 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
           .from(clientScopes)
           .where(eq(clientScopes.id, id));
         const row = current[0];
-        if (row !== undefined && row.marked === null) await refuseWhenDefaultsAreFull(row.tenantId);
+        if (row?.marked === null) await refuseWhenDefaultsAreFull(row.tenantId);
       }
       const rows = await tx
         .update(clientScopes)
