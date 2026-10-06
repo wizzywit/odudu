@@ -99,3 +99,18 @@ building things P11 would have to undo.
   events).** It would force audit-table partitioning now. That decision
   belongs to P11's retention and HA work, which can make it against
   measured growth.
+
+## Amendment — 2026-10-06 — the console's compiler, measured
+
+The compiler is `babel-plugin-react-compiler` 1.0.0, run by
+`@rolldown/plugin-babel` through `@vitejs/plugin-react`, in the build and in
+the DOM tests; `panicThreshold: 'all_errors'` fails the build on a component
+it cannot compile, which the ESLint plugin's compiler rules do not do. Ten
+characters typed into the subject Account tab went from 5,752 component
+renders to 332, a page of the Subjects list from 494 to 328, a capability
+picked in the new-tenant flow from 134 to 125. The entry chunk grew from
+136,410 B to 145,018 B gzipped, and its budget is that plus 5 per cent,
+153,000 B (`tests/lint/console-phone-chunk.test.ts`). A hand-written
+`useMemo`, `useCallback` or `memo()` needs a `// measured: <path>` line above
+it naming a file that exists (`tests/lint/console-no-manual-memo.test.ts`).
+Phase note: `docs/phases/p4d.md`, "Performance".

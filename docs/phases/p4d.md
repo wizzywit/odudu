@@ -1643,3 +1643,45 @@ the base, 798 kB with the regression, and is 704 kB now.
 `Rail.module.css` and `DataTable.module.css` keep their own visually-hidden
 rule: both sit inside container queries, where `composes` is not allowed, so
 only the sign-in copy became `VisuallyHidden`.
+
+## Performance — the React Compiler
+
+The compiler is on for all of `apps/admin-console/src`, in the build and in
+the DOM tests: `babel-plugin-react-compiler` 1.0.0, run by
+`@rolldown/plugin-babel` 0.2.4 through `@vitejs/plugin-react`'s
+`reactCompilerPreset` (`apps/admin-console/reactCompiler.ts`).
+`panicThreshold: 'all_errors'` makes a component it cannot compile fail the
+build. The ESLint plugin's compiler rules did not see any of the nine files
+the compiler refused (try/finally, a default parameter that reads another
+value, a hook declared inside a hook, a method read off a hook), so the build
+is the check that catches a bail-out, and the lint is the check for the
+patterns it does name.
+
+Function-component renders after the page is up, counted from React DOM's
+commit hook (`src/app/renderCounts/renderCounts.test.tsx`, which keeps the
+numbers as ceilings):
+
+| Journey                                      | Before             | After            |
+| -------------------------------------------- | ------------------ | ---------------- |
+| Ten characters typed into the Account tab    | 5,752 (12 commits) | 332 (12 commits) |
+| One page of the Subjects list                | 494 (11 commits)   | 328 (11 commits) |
+| One capability picked in the new-tenant flow | 134 (7 commits)    | 125 (7 commits)  |
+
+A keystroke used to re-render the whole profile form, some 575 components;
+it now renders `ProfileTab`, `OwnDataFields` and `Account` and what they
+hand a changed value to. Paging renders rows that are new, so most of what
+remains is mounting.
+
+Bundle, from `pnpm --filter @odudu/admin-console build`: the entry chunk was
+428.60 kB, 137.80 kB gzipped by Vite (136,410 B by `gzip` at its default
+level), and is 452.46 kB, 146.62 kB (145,018 B). Entry, zod and the chunks
+the entry imports first: 711,034 B raw and 219,445 B gzipped before,
+740,173 B and 229,795 B after, a rise of 4.7 per cent gzipped, which is the
+compiler's cache code and its runtime. `ENTRY_GZIP_BUDGET` in
+`tests/lint/console-phone-chunk.test.ts` is the entry's gzipped size now
+plus 5 per cent, rounded up to a whole kB.
+
+The two hand-written `useMemo`s' worth, in `ClaimFields.tsx` and
+`PhoneField.tsx`, went: the compiler memoises the same lists on the same
+keys. `tests/lint/console-no-manual-memo.test.ts` holds the rest of the
+console to none, unless the line above names a measurement.
