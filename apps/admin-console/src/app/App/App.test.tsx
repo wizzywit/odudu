@@ -2,7 +2,7 @@ import { createMemoryHistory } from '@tanstack/react-router';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import axe from 'axe-core';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { App } from '#/app/App/App.tsx';
 import { createConsoleRouter } from '#/app/router.tsx';
 import { createQueryClient } from '#/shared/repository/queryClient.ts';
@@ -55,6 +55,13 @@ function loginParams(url: string | undefined): URLSearchParams {
   expect(parsed.pathname).toBe('/console/auth/login');
   return parsed.searchParams;
 }
+
+// A feature's first import compiles it, which on a busy runner outlasts a
+// find; loading the routed features here keeps that out of every test's
+// timer, and the routes still reach them through import().
+beforeAll(async () => {
+  await Promise.all([import('#/features/overview'), import('#/features/tenants')]);
+}, 60_000);
 
 beforeEach(() => {
   localStorage.clear();
