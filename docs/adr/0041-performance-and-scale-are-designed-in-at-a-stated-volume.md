@@ -115,7 +115,7 @@ picked in the new-tenant flow from 134 to 125. The entry chunk grew from
 it naming a file that exists (`tests/lint/console-no-manual-memo.test.ts`).
 Phase note: `docs/phases/p4d.md`, "Performance".
 
-## Amendment — 2026-10-07 — the server's bounds, measured
+## Amendment — 2026-10-06 — the server's bounds, measured
 
 **Fixed in size by the model.** A set the API replaces whole (a subject's
 roles and groups, a group's or scope's roles, a role's composites, the
