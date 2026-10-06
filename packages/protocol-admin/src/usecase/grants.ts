@@ -4,6 +4,7 @@ import { clientRepository, clients } from '@odudu/domain-tenant';
 import { refreshTokens, tokenGrantRepository, tokenGrants } from '@odudu/protocol-oidc';
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { isBeyond, isNotBeyond, subjectsBeyond } from '#/service/capability-ceiling';
+import { BULK_WRITE_LIMIT } from '#/usecase/bulk-limit';
 import { countAtMost } from '#/usecase/capped-count';
 import { refuseOverServiceAccountCeiling } from '#/usecase/clients';
 import { idPage, resumeAfter, type IdPageOutcome } from '#/usecase/id-page';
@@ -140,7 +141,7 @@ export async function revokeSubjectGrants(
 }
 
 /** How many grants one revocation through a client takes; the rest wait for the next. */
-export const CLIENT_GRANTS_REVOKE_LIMIT = 10_000;
+export const CLIENT_GRANTS_REVOKE_LIMIT = BULK_WRITE_LIMIT;
 
 export interface RevokeClientGrantsInput {
   readonly clientDbId: string;

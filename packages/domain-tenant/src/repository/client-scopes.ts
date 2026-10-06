@@ -76,7 +76,8 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
         .select()
         .from(clientScopes)
         .where(inArray(clientScopes.name, [...names]));
-      return rows.map(toRecord);
+      const byName = new Map(rows.map((row) => [row.name, toRecord(row)]));
+      return [...new Set(names)].flatMap((name) => byName.get(name) ?? []);
     },
 
     async byName(name: string): Promise<ClientScopeRecord | null> {

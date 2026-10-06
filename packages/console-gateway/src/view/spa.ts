@@ -52,8 +52,10 @@ async function readAssets(
   assetsDir: string,
   warn: (message: string) => void,
 ): Promise<Map<string, Asset>> {
-  // The files of the built console, read once when the gateway starts: the
-  // build's own size, each file at most MAX_FILE_BYTES.
+  // The files of the built console, read once when the gateway starts and never
+  // again: the build's own size (about 35 files, 0.7 MB entry), each file at
+  // most MAX_FILE_BYTES (10 MiB), so the map holds a few MB, however many
+  // requests arrive.
   const assets = new Map<string, Asset>();
   async function walk(dir: string): Promise<void> {
     for (const entry of await readdir(dir, { withFileTypes: true })) {

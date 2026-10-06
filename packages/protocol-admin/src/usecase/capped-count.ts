@@ -1,13 +1,14 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { count, sql, type SQL } from 'drizzle-orm';
 import { type PgTable } from 'drizzle-orm/pg-core';
+import { BULK_WRITE_LIMIT } from '#/usecase/bulk-limit';
 
 // Counting stops one row past this, so a count reads at most that many
 // rows however large the collection, and says `capped` rather than guess.
 // A list's count keeps the list's own ORDER BY; this one does not, since
 // ordering by a column the filter does not lead with makes the planner walk
 // that order and discard rows until the LIMIT, unbounded when matches are sparse.
-export const COUNT_CAP = 10_000;
+export const COUNT_CAP = BULK_WRITE_LIMIT;
 
 /**
  * How many rows of `table` match `where`, no more than `cap`: for the

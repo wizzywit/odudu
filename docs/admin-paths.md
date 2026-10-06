@@ -1544,7 +1544,8 @@ The document is built in memory, so a tenant holding more than 20,000 clients,
 roles or groups, or more than 200,000 rows of any one link table (composites,
 group roles, scope role mappings, scope assignments, group memberships), is
 refused rather than read. On a tenant `big-demo`, given 20,001 clients with
-`insert into clients` (the `client_origins` rows follow by trigger):
+`insert into clients` and `insert into client_oidc_config` (no origins are
+needed for the count):
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" "$B/admin/tenants/big-demo/export"

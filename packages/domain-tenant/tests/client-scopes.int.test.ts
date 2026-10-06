@@ -238,6 +238,18 @@ describe('byNames', () => {
     expect(found.map((scope) => scope.name).sort()).toEqual(['reports:read', 'reports:write']);
   });
 
+  it('answers in the order the names were given, each once', async () => {
+    const tenantId = newId();
+    await withTenant(app.db, tenantId, (tx) => seedTenant(tx, tenantId));
+    for (const name of ['b', 'a', 'c', 'd']) await create({ name, tenantId });
+
+    const found = await withTenant(app.db, tenantId, (tx) =>
+      clientScopeRepository(tx).byNames(['d', 'b', 'x', 'a', 'd', 'c']),
+    );
+
+    expect(found.map((scope) => scope.name)).toEqual(['d', 'b', 'a', 'c']);
+  });
+
   it('cannot find another tenant’s scopes by name', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: async (tx, tenantId) => {

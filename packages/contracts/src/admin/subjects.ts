@@ -223,7 +223,7 @@ export const effectiveRoleSchema = roleAssignmentSchema.extend({
 });
 export type EffectiveRoleAssignment = z.infer<typeof effectiveRoleSchema>;
 
-export const listEffectiveRolesQuerySchema = cursorQuerySchema.extend({}).strict();
+export const listEffectiveRolesQuerySchema = cursorQuerySchema.strict();
 export type ListEffectiveRolesQuery = z.infer<typeof listEffectiveRolesQuerySchema>;
 
 export const listEffectiveRolesResponseSchema = z.object({

@@ -1,6 +1,7 @@
 import { type TenantScopedDatabase } from '@odudu/db';
 import { loginFailures } from '@odudu/domain-identity';
 import { asc, sql } from 'drizzle-orm';
+import { BULK_WRITE_LIMIT } from '#/usecase/bulk-limit';
 import { countAtMost } from '#/usecase/capped-count';
 import { isBeyond, isNotBeyond, subjectsBeyond } from '#/service/capability-ceiling';
 
@@ -19,7 +20,7 @@ export interface LockoutsAuditEvent {
 export const AUDITED_SUBJECT_IDS = 100;
 
 /** How many lockouts one clear removes; the rest wait for the next. */
-export const LOCKOUTS_CLEAR_LIMIT = 10_000;
+export const LOCKOUTS_CLEAR_LIMIT = BULK_WRITE_LIMIT;
 
 export interface ClearLockoutsInput {
   readonly tenantId: string;

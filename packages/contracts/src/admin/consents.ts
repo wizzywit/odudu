@@ -13,7 +13,7 @@ export const consentSchema = z.object({
 });
 export type Consent = z.infer<typeof consentSchema>;
 
-export const listConsentsQuerySchema = cursorQuerySchema.extend({}).strict();
+export const listConsentsQuerySchema = cursorQuerySchema.strict();
 export type ListConsentsQuery = z.infer<typeof listConsentsQuerySchema>;
 
 // A subject holds one consent per client it has used, and a tenant's clients

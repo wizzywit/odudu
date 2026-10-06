@@ -12,7 +12,7 @@ export const registrationTokenSchema = z.object({
 });
 export type RegistrationToken = z.infer<typeof registrationTokenSchema>;
 
-export const listRegistrationTokensQuerySchema = cursorQuerySchema.extend({}).strict();
+export const listRegistrationTokensQuerySchema = cursorQuerySchema.strict();
 export type ListRegistrationTokensQuery = z.infer<typeof listRegistrationTokensQuerySchema>;
 
 export const listRegistrationTokensResponseSchema = z.object({

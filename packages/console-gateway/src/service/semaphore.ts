@@ -4,8 +4,9 @@ export type Semaphore = <T>(run: () => Promise<T>) => Promise<T>;
 // arriving in between cannot take it as well.
 export function semaphore(limit: number): Semaphore {
   let running = 0;
-  // One entry per caller waiting for a slot, each a request the server has
-  // open: at most the requests it holds at once.
+  // One entry per caller waiting for a slot, each an open console request: at
+  // most the refreshes in flight at once, each of a different console session
+  // (single-flight merges the rest), so no more than the sessions signed in.
   const waiting: (() => void)[] = [];
   const acquire = async (): Promise<void> => {
     if (running < limit) {
