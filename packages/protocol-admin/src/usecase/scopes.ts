@@ -23,7 +23,7 @@ import {
   replacementOverreach,
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
-import { inOrderOf } from '#/service/in-order';
+import { readKeyedPage } from '#/service/in-order';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { AMENDABLE_SCOPE_FIELDS, refusalFor } from '#/service/scope-patch';
 import { checkConsentText, checkDisplayOrder } from '#/service/scope-consent';
@@ -172,18 +172,23 @@ export async function listScopes(
       .orderBy(...order)
       .limit(input.limit + 1);
   } else {
-    const keyed = await tx
-      .select({ id: clientScopes.id })
-      .from(clientScopes)
-      .where(where)
-      .orderBy(...order)
-      .limit(input.limit + 1);
-    const ids = keyed.map((row) => row.id);
-    const full =
-      ids.length === 0
-        ? []
-        : await tx.select().from(clientScopes).where(inArray(clientScopes.id, ids));
-    rows = inOrderOf(ids, full, (row) => row.id);
+    rows = await readKeyedPage(
+      async () =>
+        (
+          await tx
+            .select({ id: clientScopes.id })
+            .from(clientScopes)
+            .where(where)
+            .orderBy(...order)
+            .limit(input.limit + 1)
+        ).map((row) => row.id),
+      (ids) =>
+        tx
+          .select()
+          .from(clientScopes)
+          .where(inArray(clientScopes.id, [...ids])),
+      (row) => row.id,
+    );
   }
 
   const hasMore = rows.length > input.limit;

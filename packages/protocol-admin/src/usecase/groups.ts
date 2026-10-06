@@ -12,7 +12,7 @@ import {
   replacementOverreach,
 } from '#/service/capability-ceiling';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
-import { inOrderOf } from '#/service/in-order';
+import { readKeyedPage } from '#/service/in-order';
 import { checkDescription } from '#/service/description';
 import { etagOf, matches, requiredPrecondition } from '#/service/etag';
 import { groupWireShape } from '#/service/group-wire';
@@ -123,16 +123,23 @@ export async function listGroups(
       .orderBy(...order)
       .limit(input.limit + 1);
   } else {
-    const keyed = await tx
-      .select({ id: groups.id })
-      .from(groups)
-      .where(where)
-      .orderBy(...order)
-      .limit(input.limit + 1);
-    const ids = keyed.map((row) => row.id);
-    const full =
-      ids.length === 0 ? [] : await tx.select().from(groups).where(inArray(groups.id, ids));
-    rows = inOrderOf(ids, full, (row) => row.id);
+    rows = await readKeyedPage(
+      async () =>
+        (
+          await tx
+            .select({ id: groups.id })
+            .from(groups)
+            .where(where)
+            .orderBy(...order)
+            .limit(input.limit + 1)
+        ).map((row) => row.id),
+      (ids) =>
+        tx
+          .select()
+          .from(groups)
+          .where(inArray(groups.id, [...ids])),
+      (row) => row.id,
+    );
   }
 
   const hasMore = rows.length > input.limit;

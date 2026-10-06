@@ -27,7 +27,7 @@ import { redactedDiff } from '#/service/audit-detail';
 import { capabilitiesReachableFrom, overreach } from '#/service/capability-ceiling';
 import { checkDescription } from '#/service/description';
 import { decodeCursor, encodeCursor, filterDigest } from '#/service/cursor';
-import { inOrderOf } from '#/service/in-order';
+import { readKeyedPage } from '#/service/in-order';
 import {
   AMENDABLE_CLIENT_FIELDS,
   BUILTIN_ADMIN_AMENDABLE_FIELDS,
@@ -371,15 +371,19 @@ export async function listClients(
       .orderBy(...order)
       .limit(input.limit + 1);
   } else {
-    const keyed = await tx
-      .select({ id: clients.id })
-      .from(clients)
-      .where(where)
-      .orderBy(...order)
-      .limit(input.limit + 1);
-    const ids = keyed.map((row) => row.id);
-    const full = ids.length === 0 ? [] : await viewOf().where(inArray(clients.id, ids));
-    rows = inOrderOf(ids, full, (row) => row.view.id);
+    rows = await readKeyedPage(
+      async () =>
+        (
+          await tx
+            .select({ id: clients.id })
+            .from(clients)
+            .where(where)
+            .orderBy(...order)
+            .limit(input.limit + 1)
+        ).map((row) => row.id),
+      (ids) => viewOf().where(inArray(clients.id, [...ids])),
+      (row) => row.view.id,
+    );
   }
 
   const hasMore = rows.length > input.limit;

@@ -13,3 +13,24 @@ export function inOrderOf<R>(
   }
   return ordered;
 }
+
+// How many times a page is read again because a row vanished under it.
+const ATTEMPTS = 5;
+
+// A page read as its keys, then its rows by key. A row deleted between the two
+// statements would shorten the page, and with it hide the page after it, so the
+// keys are read again (they no longer hold it) until every key has its row.
+export async function readKeyedPage<R>(
+  readKeys: () => Promise<readonly string[]>,
+  readRows: (keys: readonly string[]) => Promise<readonly R[]>,
+  keyOf: (row: R) => string,
+): Promise<R[]> {
+  let page: R[] = [];
+  for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
+    const keys = await readKeys();
+    if (keys.length === 0) return [];
+    page = inOrderOf(keys, await readRows(keys), keyOf);
+    if (page.length === keys.length) return page;
+  }
+  return page;
+}
