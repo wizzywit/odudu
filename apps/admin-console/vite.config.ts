@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { reactCompiler } from './reactCompiler.ts';
 
 // The gateway serves the build under /console/, from /app/console in the
 // image. In development the dev server forwards the gateway's two routes
@@ -8,7 +9,7 @@ const upstream = process.env.ODUDU_CONSOLE_UPSTREAM ?? 'http://localhost:3000';
 
 export default defineConfig({
   base: '/console/',
-  plugins: [react()],
+  plugins: [react(), reactCompiler()],
   // gallery.html is a development-only page; the build reaches index.html alone.
   build: {
     outDir: 'dist',

@@ -1,4 +1,5 @@
 import { join, relative } from 'node:path';
+import { reactCompiler } from './apps/admin-console/reactCompiler.ts';
 import { defineConfig } from 'vitest/config';
 
 const REPO_ROOT = import.meta.dirname;
@@ -66,6 +67,8 @@ export default defineConfig({
         },
       },
       {
+        // The tests run the console as it is built: compiled.
+        plugins: [reactCompiler()],
         test: {
           name: 'dom',
           include: dom,

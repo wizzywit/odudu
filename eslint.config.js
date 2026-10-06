@@ -57,8 +57,12 @@ export default tseslint.config(
   {
     files: ['apps/admin-console/**/*.{ts,tsx}'],
     extends: [reactHooks.configs.flat.recommended],
-    // `eslint .` passes on a warning, so a missed dependency would ship.
-    rules: { 'react-hooks/exhaustive-deps': 'error' },
+    // `eslint .` passes on a warning, so a finding at warning severity would ship.
+    rules: {
+      'react-hooks/exhaustive-deps': 'error',
+      'react-hooks/incompatible-library': 'error',
+      'react-hooks/unsupported-syntax': 'error',
+    },
   },
   {
     files: [

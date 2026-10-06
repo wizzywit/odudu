@@ -15,7 +15,7 @@ afterEach(() => {
 // Function-component renders over one journey, after the page is up. These
 // are ceilings: a change that makes a keystroke or a click render more of the
 // page than this fails here.
-const CEILING = { typing: 5752, paging: 494, capability: 134 } as const;
+const CEILING = { typing: 365, paging: 360, capability: 130 } as const;
 
 function report(journey: string, ceiling: number): void {
   const count = renderCount();

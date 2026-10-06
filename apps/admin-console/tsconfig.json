@@ -9,5 +9,5 @@
     "allowImportingTsExtensions": true,
     "paths": { "#/*": ["./src/*"] }
   },
-  "include": ["src", "tests", "scripts", "e2e"]
+  "include": ["src", "tests", "scripts", "e2e", "reactCompiler.ts"]
 }
