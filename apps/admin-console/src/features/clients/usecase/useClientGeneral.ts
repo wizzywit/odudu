@@ -5,12 +5,14 @@ import { useGo } from '#/shared/repository/useGo.ts';
 import {
   useClientDeletion,
   useClientSaves,
+  useRereadClient,
   type ConsentValues,
   type DetailValues,
   type EnabledValues,
   type PageValues,
 } from '#/features/clients/repository/useClientRecord.ts';
 import {
+  ceilingRefused,
   CLIENT_CAPABILITY,
   clientRecord,
   clientRefusal,
@@ -69,6 +71,7 @@ export function useClientGeneral({
 }): ClientGeneral {
   const refusal = useRefusal(tenant);
   const saves = useClientSaves(tenant, client.id);
+  const reread = useRereadClient(tenant, client.id);
   const removal = useClientDeletion(tenant, client.id);
   const push = useToasts((queue) => queue.push);
   const go = useGo();
@@ -83,6 +86,7 @@ export function useClientGeneral({
     gone,
     onRefused: (failure: GatewayFailure) => {
       refusal.report(failure, CLIENT_CAPABILITY);
+      if (ceilingRefused(failure)) reread();
     },
     explain: clientRefusal,
   };
@@ -179,6 +183,7 @@ export function useClientGeneral({
               return;
             }
             refusal.report(result, CLIENT_CAPABILITY);
+            if (ceilingRefused(result)) reread();
             setProblem(writeFailureText(result, copy));
           })
           .catch(() => {

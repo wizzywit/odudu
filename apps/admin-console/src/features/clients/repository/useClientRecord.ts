@@ -7,7 +7,7 @@ import {
   type ClientChanges,
 } from '#/features/clients/adapter/clients.ts';
 import { clientRecord } from '#/features/clients/service';
-import { useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
+import { recordKey, useRecord, type RecordState } from '#/shared/repository/useRecord.ts';
 import type { SaveInput } from '#/shared/repository/useSectionSave.ts';
 import type { Gateway, GatewayResult } from '#/shared/transport/gateway.ts';
 import { useTransport } from '#/shared/transport/useTransport.ts';
@@ -18,6 +18,16 @@ export function useClientRecord(tenant: string, id: string): RecordState<Client>
     record: clientRecord(id),
     read: (gateway) => readClient(gateway, tenant, id),
   });
+}
+
+// Read the record again now rather than at the next refetch.
+export function useRereadClient(tenant: string, id: string): () => void {
+  const client = useQueryClient();
+  return () => {
+    client
+      .invalidateQueries({ queryKey: recordKey(tenant, clientRecord(id)), exact: true })
+      .catch(() => undefined);
+  };
 }
 
 // Every list of clients, and what counts them, reads again once one changes.

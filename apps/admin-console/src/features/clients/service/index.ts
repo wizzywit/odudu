@@ -60,4 +60,8 @@ export {
   secretNote,
 } from '#/features/clients/service/create.ts';
 export { CLIENT_LIST_LIMIT, entriesOf, listCount } from '#/features/clients/service/lists.ts';
-export { CLIENT_CAPABILITY, clientRefusal } from '#/features/clients/service/refusal.ts';
+export {
+  CLIENT_CAPABILITY,
+  ceilingRefused,
+  clientRefusal,
+} from '#/features/clients/service/refusal.ts';

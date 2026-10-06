@@ -204,6 +204,35 @@ it("says a refused delete in the dialog, in the server's words, and deletes noth
   ).toBeVisible();
 });
 
+it('reads the client again when the ceiling refuses a write, so the page says at once why it cannot change', async () => {
+  const user = userEvent.setup();
+  const { sent } = renderConsoleAt(
+    AT,
+    clientRoutes(['manage-clients'], {
+      [`GET ${C}/c-bill`]: inTurn(
+        json(BILLING, 200, { etag: '"c-bill-1"' }),
+        json({ ...BILLING, service_account_admin_reach: ['manage-users'] }, 200, {
+          etag: '"c-bill-1"',
+        }),
+      ),
+      [`PATCH ${C}/c-bill`]: problem(403, 'about:blank', 'Forbidden', {
+        detail: "the client's service account holds what the caller does not: manage-users",
+      }),
+    }),
+  );
+  await offered();
+  const details = screen.getByRole('region', { name: 'Details' });
+  await user.type(within(details).getByRole('textbox', { name: 'Name' }), '!');
+  await user.click(within(details).getByRole('button', { name: 'Save Details' }));
+  expect(
+    await screen.findByText(
+      "Billing's service account holds manage-users, which you do not, so you cannot change Billing.",
+    ),
+  ).toBeVisible();
+  expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
+  expect(sent.filter((s) => s.method === 'GET' && s.path === `${C}/c-bill`)).toHaveLength(2);
+});
+
 it('fixes what would lock every administrator out of the built-in admin client', async () => {
   renderConsoleAt('/console/acme/clients/c-admin', clientRoutes());
   await screen.findByRole('heading', { level: 1, name: 'Odudu admin' });

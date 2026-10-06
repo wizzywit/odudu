@@ -2,10 +2,12 @@ import type { Client } from '@odudu/contracts/admin';
 import { useRefusal } from '#/features/session';
 import {
   useClientSaves,
+  useRereadClient,
   type OriginValues,
   type RedirectValues,
 } from '#/features/clients/repository/useClientRecord.ts';
 import {
+  ceilingRefused,
   CLIENT_CAPABILITY,
   CLIENT_LIST_LIMIT,
   clientRecord,
@@ -47,6 +49,7 @@ export function useClientRedirects({
 }): ClientRedirects {
   const refusal = useRefusal(tenant);
   const saves = useClientSaves(tenant, client.id);
+  const reread = useRereadClient(tenant, client.id);
   const shared = {
     tenant,
     record: clientRecord(client.id),
@@ -55,6 +58,7 @@ export function useClientRedirects({
     gone,
     onRefused: (failure: GatewayFailure) => {
       refusal.report(failure, CLIENT_CAPABILITY);
+      if (ceilingRefused(failure)) reread();
     },
     explain: clientRefusal,
   };
