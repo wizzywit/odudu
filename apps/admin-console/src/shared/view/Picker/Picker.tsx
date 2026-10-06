@@ -185,6 +185,9 @@ function Options<T>({
       <ListBox
         aria-label={label}
         items={picker.options.map((item) => ({ id: idOf(item), item }))}
+        // React Aria keeps an item's rendering until the item changes; these
+        // are what the render function reads besides the item.
+        dependencies={[unavailable, idOf, nameOf, detailOf, accessibleNameOf]}
         selectionMode={selectionMode}
         selectedKeys={new Set(selected)}
         onSelectionChange={onChange}

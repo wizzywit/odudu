@@ -1685,3 +1685,13 @@ The two hand-written `useMemo`s' worth, in `ClaimFields.tsx` and
 `PhoneField.tsx`, went: the compiler memoises the same lists on the same
 keys. `tests/lint/console-no-manual-memo.test.ts` holds the rest of the
 console to none, unless the line above names a measurement.
+
+What the compiler changed that the DOM tests did not show: it keeps
+`picker.options.map(...)` as one array between renders, and React Aria caches
+a dynamic collection's item rendering by item, so a reason an option cannot be
+chosen that arrived after the options (the system administrators' holders,
+read second) was never drawn. The browser test for the grant picker failed;
+`Picker` now passes `dependencies` for everything its item render reads, and
+its test re-renders with the same options and a new reason. The other dynamic
+collections (the field select, the filter bar's select, the combo box) read
+only their item.

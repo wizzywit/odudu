@@ -82,6 +82,32 @@ it('marks an option that cannot be chosen, says why, and never reports it', asyn
   expect(onChange).not.toHaveBeenCalled();
 });
 
+const idOf = (scope: Scope): string => scope.id;
+const nameOf = (scope: Scope): string => scope.name;
+const detailOf = (): string => 'assigned by default';
+
+it('marks an option once a reason arrives for options already shown', () => {
+  const picker = state();
+  const view = (unavailableOf: (scope: Scope) => string | null) => (
+    <Picker
+      label="Scopes"
+      noun={{ one: 'scope', other: 'scopes' }}
+      picker={picker}
+      idOf={idOf}
+      nameOf={nameOf}
+      detailOf={detailOf}
+      unavailableOf={unavailableOf}
+      capability="manage-tenant"
+      selected={[]}
+      onChange={vi.fn()}
+    />
+  );
+  const { rerender } = render(view(() => null));
+  expect(screen.getByRole('option', { name: 'profile' })).not.toHaveAttribute('aria-disabled');
+  rerender(view((scope) => (scope.id === 's1' ? 'already assigned' : null)));
+  expect(screen.getByRole('option', { name: 'profile' })).toHaveAttribute('aria-disabled', 'true');
+});
+
 it('keeps an option that cannot be chosen reachable by the arrow keys', async () => {
   const user = userEvent.setup();
   const onChange = vi.fn();
