@@ -12,7 +12,7 @@ import {
   type ClientGeneral,
   type Deletion,
 } from '#/features/clients/usecase/useClientGeneral.ts';
-import { SectionNoticeOf } from '#/features/clients/view/SectionNoticeOf';
+import { SectionNoticeOf } from '#/shared/view/SectionNoticeOf';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { CopyValue } from '#/shared/view/CopyValue';

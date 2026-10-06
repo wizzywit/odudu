@@ -46,6 +46,7 @@ export interface ClientAnswer {
   previous_secret_expires_at: string | null;
   builtin_admin: boolean;
   service_subject_id: string | null;
+  service_account_admin_reach: readonly string[];
   scopes: readonly { id: string; name: string; assignment: 'default' | 'optional' }[];
 }
 
@@ -101,6 +102,7 @@ export function client(
     previous_secret_expires_at: null,
     builtin_admin: false,
     service_subject_id: serviceAccountOf(id),
+    service_account_admin_reach: [],
     scopes: [],
     ...extra,
   };
@@ -128,28 +130,15 @@ function listed(request: Sent) {
   const clientId = request.search.get('client_id');
   const type = request.search.get('type');
   const enabled = request.search.get('enabled');
+  const exact = request.search.get('client_id_exact');
   return CLIENTS.filter(
     (each) =>
+      (exact === null || each.client_id === exact) &&
       (name === null || each.name.toLowerCase().startsWith(name.toLowerCase())) &&
       (clientId === null || each.client_id.startsWith(clientId.toLowerCase())) &&
       (type === null || each.type === type) &&
       (enabled === null || String(each.enabled) === enabled),
   );
-}
-
-// What a subject holds, as admin-capabilities answers it: nothing, unless
-// `held` names capabilities of the built-in admin client.
-export function heldBy(held: readonly string[] = []) {
-  return {
-    items: held.map((name) => ({
-      id: `r-${name}`,
-      name,
-      client_id: 'c-admin',
-      client_key: 'odudu-admin',
-      via: [{ kind: 'direct' }],
-    })),
-    complete: true,
-  };
 }
 
 // grace of acme, holding the capabilities given, among the built-in admin
@@ -166,13 +155,6 @@ export function clientRoutes(
       json({ count: listed(request).length, capped: false })(request),
     ...Object.fromEntries(
       CLIENTS.map((each) => [`GET ${C}/${each.id}`, json(each, 200, { etag: `"${each.id}-1"` })]),
-    ),
-    ...Object.fromEntries(
-      CLIENTS.flatMap((each) =>
-        each.service_subject_id === null
-          ? []
-          : [[`GET ${A}/subjects/${each.service_subject_id}/admin-capabilities`, json(heldBy())]],
-      ),
     ),
     [`GET ${A}/audit`]: json({ items: [] }),
     ...extra,

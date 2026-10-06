@@ -54,8 +54,8 @@ it('creates a public client with no secret, and lands on its page at once', asyn
     AT,
     clientRoutes(undefined, { [`POST ${C}`]: json(PORTAL, 201, { etag: '"p1"' }) }),
   );
-  await user.click(await screen.findByRole('button', { name: /Confidential/u }));
-  await user.click(await screen.findByRole('option', { name: 'Public' }));
+  await user.click(await screen.findByRole('button', { name: /Web application/u }));
+  await user.click(await screen.findByRole('option', { name: 'Public application' }));
   await fill(user, 'portal', 'https://portal.example/cb');
   await user.click(screen.getByRole('button', { name: 'Create client' }));
   await waitFor(() => {
@@ -65,6 +65,34 @@ it('creates a public client with no secret, and lands on its page at once', asyn
     token_endpoint_auth_method: 'none',
   });
   expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('creates a service with the client credentials grant and no redirect URI, and shows its secret once', async () => {
+  const user = userEvent.setup();
+  const { sent, router } = renderConsoleAt(
+    AT,
+    clientRoutes(undefined, {
+      [`POST ${C}`]: json({ ...BILLING, client_secret: SECRET }, 201, { etag: '"b1"' }),
+    }),
+  );
+  await user.click(await screen.findByRole('button', { name: /Web application/u }));
+  await user.click(await screen.findByRole('option', { name: 'Service' }));
+  expect(screen.queryByRole('group', { name: 'Redirect URIs' })).toBeNull();
+  await user.type(screen.getByRole('textbox', { name: 'Client ID' }), 'worker');
+  await user.click(screen.getByRole('button', { name: 'Create client' }));
+  const dialog = await screen.findByRole('dialog', { name: /^Client secret for/u });
+  expect(within(dialog).getByText(SECRET)).toBeVisible();
+  expect(sent.find((s) => s.method === 'POST')?.body).toEqual({
+    client_id: 'worker',
+    token_endpoint_auth_method: 'client_secret_basic',
+    grant_types: ['client_credentials'],
+  });
+  expect(router.state.location.pathname).toBe('/acme/clients/new');
+  await user.click(within(dialog).getByRole('checkbox'));
+  await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/acme/clients/c-bill');
+  });
 });
 
 it('asks for a client ID before sending anything', async () => {

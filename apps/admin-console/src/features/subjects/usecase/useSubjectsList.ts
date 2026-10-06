@@ -1,6 +1,6 @@
 import type { Subject } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session';
-import { useGo } from '#/features/subjects/repository/useGo.ts';
+import { useGo } from '#/shared/repository/useGo.ts';
 import { useSubjectList } from '#/features/subjects/repository/useSubjectList.ts';
 import { createSubjectHref, subjectHref } from '#/features/subjects/service';
 import { lacking } from '#/shared/service/access.ts';

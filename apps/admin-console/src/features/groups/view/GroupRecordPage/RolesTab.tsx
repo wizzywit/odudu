@@ -6,7 +6,7 @@ import {
   type Mapped,
 } from '#/features/groups/usecase/useGroupRoles.ts';
 import type { Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
-import { SectionNoticeOf } from '#/features/groups/view/SectionNoticeOf';
+import { SectionNoticeOf } from '#/shared/view/SectionNoticeOf';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { EmptyState } from '#/shared/view/EmptyState';

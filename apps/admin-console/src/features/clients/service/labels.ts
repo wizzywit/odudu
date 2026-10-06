@@ -64,3 +64,6 @@ export const FIELD = {
   redirectUris: 'Redirect URIs',
   webOrigins: 'Web origins',
 } as const;
+
+export const ACTIVITY_NOTE =
+  'Every change made to this client, and every change refused. A creation refused before the client existed names no client, so it is not here.';

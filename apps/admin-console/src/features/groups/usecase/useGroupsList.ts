@@ -1,6 +1,6 @@
 import type { Group } from '@odudu/contracts/admin';
 import { useState } from 'react';
-import { useGo } from '#/features/groups/repository/useGo.ts';
+import { useGo } from '#/shared/repository/useGo.ts';
 import { useGroupChildren, useGroupList } from '#/features/groups/repository/useGroupList.ts';
 import { groupHref, newGroupHref } from '#/features/groups/service';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';

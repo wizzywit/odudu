@@ -1,22 +1,20 @@
 import type { Client } from '@odudu/contracts/admin';
 import type { ReactNode } from 'react';
+import { useAuditReadable } from '#/features/session';
 import { AreaGate, areaAt } from '#/features/shell';
 import {
   CLIENT_TAB_LABELS,
   CLIENT_TABS,
+  ACTIVITY_NOTE,
   clientsTrail,
   NOT_BUILT,
   type ClientTab,
 } from '#/features/clients/service';
-import {
-  useAuditReadable,
-  useClientActivity,
-} from '#/features/clients/usecase/useClientActivity.ts';
+import { useClientActivity } from '#/features/clients/usecase/useClientActivity.ts';
 import { useClientRecordPage } from '#/features/clients/usecase/useClientRecordPage.ts';
 import { GeneralTab } from '#/features/clients/view/ClientRecordPage/GeneralTab.tsx';
 import { RedirectsTab } from '#/features/clients/view/ClientRecordPage/RedirectsTab.tsx';
 import { ActivityTab } from '#/shared/view/ActivityTab';
-import { Button } from '#/shared/view/Button';
 import { CapabilityNote } from '#/shared/view/CapabilityNote';
 import { Note } from '#/shared/view/Note';
 import { RecordPage } from '#/shared/view/RecordPage';
@@ -41,7 +39,7 @@ function Activity({ tenant, id }: { tenant: string; id: string }) {
   const readable = useAuditReadable(tenant);
   return (
     <div className={styles.tab}>
-      <p className={styles.rule}>Every change made to this client, and every change refused.</p>
+      <p className={styles.rule}>{ACTIVITY_NOTE}</p>
       {readable ? (
         <Trail tenant={tenant} id={id} />
       ) : (
@@ -82,7 +80,6 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
     client === undefined || etag === null
       ? null
       : { tenant, client, etag, gone: page.record.gone, writable: page.writable };
-  const unreadable = page.reach.status === 'unreadable' ? page.reach : null;
   return (
     <RecordPage
       record={page.record}
@@ -104,19 +101,7 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
           {page.changeNeeds.length > 0 ? (
             <ViewOnlyNote noun="clients" needs={page.changeNeeds} />
           ) : null}
-          {page.line === null ? null : (
-            <Note>
-              {page.line}
-              {unreadable === null || unreadable.refused ? null : (
-                <>
-                  {' '}
-                  <Button size="small" variant="quiet" onPress={unreadable.retry}>
-                    Read it again
-                  </Button>
-                </>
-              )}
-            </Note>
-          )}
+          {page.line === null ? null : <Note>{page.line}</Note>}
         </>
       }
       readOnly={!page.writable}

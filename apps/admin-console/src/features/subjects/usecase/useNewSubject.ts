@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/features/session';
 import { useCreateSubject } from '#/features/subjects/repository/useCreateSubject.ts';
-import { useGo } from '#/features/subjects/repository/useGo.ts';
+import { useGo } from '#/shared/repository/useGo.ts';
 import {
   manageUsersRefusal,
   newSubjectSpec,

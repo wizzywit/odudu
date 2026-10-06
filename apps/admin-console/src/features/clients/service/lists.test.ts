@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/service/lists.ts';
+import { CLIENT_LIST_LIMIT, entriesOf, listCount } from '#/features/clients/service/lists.ts';
 
 const rows = (count: number): string[] =>
   Array.from({ length: count }, (_, i) => `row ${String(i)}`);
@@ -15,4 +15,8 @@ it('counts a row left empty as nothing', () => {
   expect(listCount(['https://a.example', '', '  '], 200, 'web origins')).toBe(
     '1 of 200 web origins.',
   );
+});
+
+it('takes a row left empty or padded to be no entry, once, for the count and for what is sent', () => {
+  expect(entriesOf(['https://a.example/cb ', '', '  '])).toEqual(['https://a.example/cb']);
 });

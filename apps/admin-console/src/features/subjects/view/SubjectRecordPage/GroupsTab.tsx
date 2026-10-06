@@ -5,7 +5,7 @@ import {
   type Membership,
   type SubjectGroups,
 } from '#/features/subjects/usecase/useSubjectGroups.ts';
-import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf';
+import { SectionNoticeOf } from '#/shared/view/SectionNoticeOf';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { EmptyState } from '#/shared/view/EmptyState';

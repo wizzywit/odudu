@@ -3,7 +3,7 @@ import { AreaGate, areaAt } from '#/features/shell';
 import {
   clientsTrail,
   SECRET_LABEL,
-  TYPE_CHOICES,
+  KIND_CHOICES,
   REDIRECTS_RULE,
 } from '#/features/clients/service';
 import { useNewClient } from '#/features/clients/usecase/useNewClient.ts';
@@ -20,7 +20,7 @@ function Form({ tenant }: { tenant: string }) {
     event.preventDefault();
     page.submit();
   };
-  const chosen = TYPE_CHOICES.find((choice) => choice.id === page.type);
+  const chosen = KIND_CHOICES.find((choice) => choice.id === page.kind);
   return (
     <>
       <form noValidate onSubmit={submit} className={styles.form}>
@@ -49,20 +49,22 @@ function Form({ tenant }: { tenant: string }) {
           onChange={page.editDescription}
         />
         <SelectField
-          label="Type"
+          label="Kind"
           description={chosen?.description}
-          options={TYPE_CHOICES.map((choice) => ({ id: choice.id, label: choice.label }))}
-          value={page.type}
-          onChange={page.editType}
+          options={KIND_CHOICES.map((choice) => ({ id: choice.id, label: choice.label }))}
+          value={page.kind}
+          onChange={page.editKind}
         />
-        <UrlListField
-          label="Redirect URIs"
-          itemLabel="Redirect URI"
-          description={`${REDIRECTS_RULE} ${page.redirectCount}`}
-          error={page.errors.redirect_uris}
-          value={page.redirectUris}
-          onChange={page.editRedirectUris}
-        />
+        {page.asksRedirects ? (
+          <UrlListField
+            label="Redirect URIs"
+            itemLabel="Redirect URI"
+            description={`${REDIRECTS_RULE} ${page.redirectCount}`}
+            error={page.errors.redirect_uris}
+            value={page.redirectUris}
+            onChange={page.editRedirectUris}
+          />
+        ) : null}
         <div className={styles.actions}>
           {page.unconfirmed ? (
             <Button variant="primary" isDisabled={page.busy} onPress={page.check}>

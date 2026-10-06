@@ -16,3 +16,4 @@ export {
   useTenantMissing,
 } from '#/features/session/usecase/useAuthority.ts';
 export { draftOwner } from '#/features/session/service';
+export { useAuditReadable } from '#/features/session/usecase/useAuditReadable.ts';

@@ -1,7 +1,7 @@
 import type { Client } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal } from '#/features/session';
-import { useGo } from '#/features/clients/repository/useGo.ts';
+import { useGo } from '#/shared/repository/useGo.ts';
 import {
   useClientDeletion,
   useClientSaves,

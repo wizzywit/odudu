@@ -1,5 +1,6 @@
 import type { GroupRecord } from '@odudu/contracts/admin';
 import type { ReactNode } from 'react';
+import { useAuditReadable } from '#/features/session';
 import { AreaGate, areaAt } from '#/features/shell';
 import { SubjectMembers } from '#/features/subjects';
 import {
@@ -8,7 +9,7 @@ import {
   groupsTrail,
   type GroupTab,
 } from '#/features/groups/service';
-import { useAuditReadable, useGroupActivity } from '#/features/groups/usecase/useGroupActivity.ts';
+import { useGroupActivity } from '#/features/groups/usecase/useGroupActivity.ts';
 import { useGroupRecordPage, type Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
 import { GeneralTab } from '#/features/groups/view/GroupRecordPage/GeneralTab.tsx';
 import { RolesTab } from '#/features/groups/view/GroupRecordPage/RolesTab.tsx';

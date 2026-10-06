@@ -109,7 +109,7 @@ function seedClients(tenant: string): void {
       ...extra,
     ]);
   };
-  for (const clientId of ['ledger', 'closed', 'doomed', UNBROKEN]) confidential(clientId);
+  for (const clientId of ['ledger', 'closed', 'doomed', 'held', UNBROKEN]) confidential(clientId);
   confidential('lists', '--web-origin', 'https://lists.example');
   seed([
     'client',
@@ -121,6 +121,10 @@ function seedClients(tenant: string): void {
     '--redirect-uri',
     'https://kiosk.example/callback',
   ]);
+  // Its service account holds an admin capability, which a caller without it cannot reach past.
+  psql(
+    `insert into subject_roles (tenant_id, subject_id, role_id) select t.id, c.service_subject_id, r.id from tenants t join clients c on c.tenant_id = t.id and c.client_id = 'held' join roles r on r.tenant_id = t.id and r.name = 'manage-users' and r.client_id = (select id from clients where tenant_id = t.id and client_id = 'odudu-admin') where t.name = '${tenant}'`,
+  );
   psql(
     `update clients set name = 'Ledger', description = 'Keeps the books' where client_id = 'ledger' and tenant_id = (select id from tenants where name = '${tenant}')`,
   );

@@ -2,7 +2,7 @@ import type { Group, GroupRecord } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal, useRereadAuthority } from '#/features/session';
 import { useOwnRoles } from '#/features/subjects';
-import { useGo } from '#/features/groups/repository/useGo.ts';
+import { useGo } from '#/shared/repository/useGo.ts';
 import {
   useGroupDeletion,
   useGroupSaves,

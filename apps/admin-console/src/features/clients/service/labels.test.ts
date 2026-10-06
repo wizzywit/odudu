@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { registeredText, TYPE_TEXT } from '#/features/clients/service/labels.ts';
+import { ACTIVITY_NOTE, registeredText, TYPE_TEXT } from '#/features/clients/service/labels.ts';
 
 it('says how a client came to be, in a phrase a person reads', () => {
   expect(registeredText('operator')).toBe('Created by an administrator');
@@ -9,4 +9,8 @@ it('says how a client came to be, in a phrase a person reads', () => {
 
 it('names the two types', () => {
   expect(TYPE_TEXT).toEqual({ confidential: 'Confidential', public: 'Public' });
+});
+
+it('says what the Activity tab leaves out', () => {
+  expect(ACTIVITY_NOTE).toContain('not here');
 });

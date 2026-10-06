@@ -1,6 +1,6 @@
 import type { Tenant } from '@odudu/contracts/admin';
 import { useAuthority } from '#/features/session';
-import { useGo } from '#/features/tenants/repository/useGo.ts';
+import { useGo } from '#/shared/repository/useGo.ts';
 import { useTenantList } from '#/features/tenants/repository/useTenantList.ts';
 import { tenantHref } from '#/features/tenants/service';
 import { lacking } from '#/shared/service/access.ts';

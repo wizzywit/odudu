@@ -5,8 +5,15 @@ import { Gallery } from '#/gallery/Gallery.tsx';
 import gallerySource from '#/gallery/Gallery.tsx?raw';
 
 // Drawn by other components rather than used on their own: every dialog,
-// every picker, and the text only a screen reader gets.
-const PARTS = new Set(['DialogFrame', 'Picker', 'VisuallyHidden', 'DataTable/DataTableShape']);
+// every picker, a section's save handed to its notice whole, and the text only
+// a screen reader gets.
+const PARTS = new Set([
+  'DialogFrame',
+  'Picker',
+  'SectionNoticeOf',
+  'VisuallyHidden',
+  'DataTable/DataTableShape',
+]);
 
 const modules = import.meta.glob<Record<string, unknown>>(
   ['../shared/view/*/*.tsx', '!../shared/view/*/*.test.tsx'],

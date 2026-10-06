@@ -1,5 +1,5 @@
 import type { Role } from '@odudu/contracts/admin';
-import { useGo } from '#/features/roles/repository/useGo.ts';
+import { useGo } from '#/shared/repository/useGo.ts';
 import { useRoleList } from '#/features/roles/repository/useRoleList.ts';
 import { newRoleHref, roleHref } from '#/features/roles/service';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';

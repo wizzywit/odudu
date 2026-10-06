@@ -2,7 +2,7 @@ import type { Client } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useRefusal } from '#/features/session';
 import { useCreateClient } from '#/features/clients/repository/useCreateClient.ts';
-import { useGo } from '#/features/clients/repository/useGo.ts';
+import { useGo } from '#/shared/repository/useGo.ts';
 import {
   CLIENT_CAPABILITY,
   CLIENT_ID_TAKEN,
@@ -14,11 +14,13 @@ import {
   DESCRIPTION_RULE,
   listCount,
   NEW_CLIENT_FIELDS,
-  newClientType,
+  newClientKind,
+  afterCreation,
+  asksRedirects,
   secretNote,
   secretTitle,
   type NewClientField,
-  type NewClientType,
+  type NewClientKind,
 } from '#/features/clients/service';
 import { useToasts } from '#/shared/repository/useToasts.ts';
 import { withoutField } from '#/shared/service/fieldErrors.ts';
@@ -34,7 +36,9 @@ export interface NewClientPage {
   clientId: string;
   name: string;
   description: string;
-  type: NewClientType;
+  kind: NewClientKind;
+  // Whether the form asks for redirect URIs, which a service has no use for.
+  asksRedirects: boolean;
   redirectUris: readonly string[];
   redirectCount: string;
   errors: Errors;
@@ -45,7 +49,7 @@ export interface NewClientPage {
   editClientId: (value: string) => void;
   editName: (value: string) => void;
   editDescription: (value: string) => void;
-  editType: (value: string) => void;
+  editKind: (value: string) => void;
   editRedirectUris: (value: readonly string[]) => void;
   submit: () => void;
   check: () => void;
@@ -63,7 +67,7 @@ export function useNewClient(tenant: string): NewClientPage {
   const [clientId, setClientId] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState<NewClientType>('confidential');
+  const [kind, setKind] = useState<NewClientKind>('confidential');
   const [redirectUris, setRedirectUris] = useState<readonly string[]>(['']);
   const [errors, setErrors] = useState<Errors>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -79,8 +83,8 @@ export function useNewClient(tenant: string): NewClientPage {
   const looked = lookupText('client', clientId, 'there');
 
   const creation = useCreateClient(tenant, {
-    created: (client, withSecret) => {
-      if (withSecret) setMade(client);
+    created: (client, secret) => {
+      if (afterCreation(secret) === 'acknowledge') setMade(client);
       else land(client);
     },
     failed: (failure: GatewayFailure) => {
@@ -109,7 +113,8 @@ export function useNewClient(tenant: string): NewClientPage {
     clientId,
     name,
     description,
-    type,
+    kind,
+    asksRedirects: asksRedirects(kind),
     redirectUris,
     redirectCount: listCount(redirectUris, CLIENT_LIST_LIMIT, 'redirect URIs'),
     errors,
@@ -128,8 +133,8 @@ export function useNewClient(tenant: string): NewClientPage {
       setDescription(value);
       edit('description');
     },
-    editType: (value) => {
-      setType(newClientType(value));
+    editKind: (value) => {
+      setKind(newClientKind(value));
     },
     editRedirectUris: (value) => {
       setRedirectUris(value);
@@ -144,7 +149,7 @@ export function useNewClient(tenant: string): NewClientPage {
       }
       setErrors({});
       setMessage(null);
-      creation.create({ clientId, name, description, type, redirectUris });
+      creation.create({ clientId, name, description, kind, redirectUris });
     },
     check: () => {
       if (creation.busy) return;

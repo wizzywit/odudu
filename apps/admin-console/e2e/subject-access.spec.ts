@@ -277,16 +277,19 @@ test('a membership changed behind an open page is shown beside yours, and nothin
   ).toBe('1');
 });
 
-test("a subject's tabs fit a phone", async ({ page }) => {
-  await page.setViewportSize(PHONE);
-  await signIn(page, admin);
-  for (const tab of ['groups', 'roles', 'required-actions', 'sessions'] as const) {
+// One test a tab, each with its own budget: a page is about a second of
+// loading and four axe passes, and all four in one test left the thirty
+// seconds a margin that the full run's parallel workers took away.
+for (const tab of ['groups', 'roles', 'required-actions', 'sessions'] as const) {
+  test(`a subject's ${tab} tab fits a phone`, async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await signIn(page, admin);
     await openSubject(page, subjects.member, tab);
     await expect(page.getByRole('progressbar')).toHaveCount(0);
     await expectFitsViewport(page, tab);
     await expectAccessible(page);
-  }
-});
+  });
+}
 
 test('a Profile edit made as the session ends is restored after signing in again, and guarded', async ({
   page,

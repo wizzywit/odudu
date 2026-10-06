@@ -23,6 +23,10 @@ export const CLIENT_TAB_LABELS: Readonly<Record<ClientTab, string>> = {
   activity: 'Activity',
 };
 
+export function chosenTab(name: string): ClientTab | undefined {
+  return CLIENT_TABS.find((tab) => tab === name);
+}
+
 export function clientTabHref(tenant: string, id: string, tab: ClientTab): string {
   return `${clientHref(tenant, id)}?tab=${tab}`;
 }

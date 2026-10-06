@@ -9,7 +9,7 @@ import {
   readClientPage,
 } from '#/features/clients/adapter/clients.ts';
 import { fakeTransport, json } from '#/testing/fakeTransport.ts';
-import { BILLING, C, client, PORTAL } from '#/testing/clientsFixtures.ts';
+import { BILLING, C } from '#/testing/clientsFixtures.ts';
 
 it('pages the clients, searched and filtered by the server, and counts them', async () => {
   const fake = fakeTransport({
@@ -36,7 +36,7 @@ it('creates a confidential client with the secret method, and a public one with 
     clientId: 'billing',
     name: 'Billing',
     description: '',
-    type: 'confidential',
+    kind: 'confidential',
     redirectUris: ['https://billing.example/callback'],
   });
   expect(made).toMatchObject({ ok: true, data: { client_secret: 'shh' } });
@@ -50,7 +50,7 @@ it('creates a confidential client with the secret method, and a public one with 
     clientId: 'portal',
     name: '',
     description: 'Staff portal',
-    type: 'public',
+    kind: 'public',
     redirectUris: ['https://portal.example/cb'],
   });
   expect(fake.sent.at(-1)?.body).toEqual({
@@ -58,6 +58,24 @@ it('creates a confidential client with the secret method, and a public one with 
     description: 'Staff portal',
     token_endpoint_auth_method: 'none',
     redirect_uris: ['https://portal.example/cb'],
+  });
+});
+
+it('creates a service with the client credentials grant and no redirect URI', async () => {
+  const fake = fakeTransport({
+    [`POST ${C}`]: json({ ...BILLING, client_secret: 'shh' }, 201, { etag: '"b1"' }),
+  });
+  await createClient(fake.transport.gateway, 'acme', {
+    clientId: 'worker',
+    name: '',
+    description: '',
+    kind: 'service',
+    redirectUris: ['https://ignored.example/cb'],
+  });
+  expect(fake.sent.at(-1)?.body).toEqual({
+    client_id: 'worker',
+    token_endpoint_auth_method: 'client_secret_basic',
+    grant_types: ['client_credentials'],
   });
 });
 
@@ -111,27 +129,19 @@ it('deletes a client', async () => {
   expect(await deleteClient(fake.transport.gateway, 'acme', 'c-bill')).toMatchObject({ ok: true });
 });
 
-it('looks for a client by its id, paging while the ids sort no later than it', async () => {
-  const folded = client('c-x', 'billing');
-  const fake = fakeTransport({
-    [`GET ${C}`]: (request) =>
-      json(
-        request.search.get('cursor') === null
-          ? { items: [folded], next: 'n1' }
-          : { items: [client('c-bill', 'Billing'), PORTAL] },
-      )(request),
-  });
-  const found = await findClient(fake.transport.gateway, 'acme', 'Billing');
+it('looks for a client by its exact id in one bounded request', async () => {
+  const fake = fakeTransport({ [`GET ${C}`]: json({ items: [BILLING] }) });
+  const found = await findClient(fake.transport.gateway, 'acme', 'billing');
   expect(found).toMatchObject({ ok: true, data: { id: 'c-bill' } });
-  expect(fake.sent.map((s) => s.search.get('client_id'))).toEqual(['Billing', 'Billing']);
-  expect(fake.sent.at(-1)?.search.get('cursor')).toBe('n1');
+  expect(fake.sent).toHaveLength(1);
+  expect(fake.sent[0]?.search.get('client_id_exact')).toBe('billing');
+  expect(fake.sent[0]?.search.get('limit')).toBe('1');
 });
 
-it('finds no client when the ids run past the one asked for', async () => {
-  const fake = fakeTransport({ [`GET ${C}`]: json({ items: [PORTAL], next: 'n1' }) });
+it('finds no client when the server answers none', async () => {
+  const fake = fakeTransport({ [`GET ${C}`]: json({ items: [] }) });
   expect(await findClient(fake.transport.gateway, 'acme', 'billing')).toMatchObject({
     ok: true,
     data: null,
   });
-  expect(fake.sent).toHaveLength(1);
 });

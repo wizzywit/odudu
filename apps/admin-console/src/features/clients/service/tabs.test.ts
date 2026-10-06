@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   CLIENT_TABS,
+  chosenTab,
   clientRecord,
   clientTabHref,
   TAB_SECTIONS,
@@ -30,4 +31,9 @@ it('marks the tab whose section holds edits, and no other', () => {
 it('names each section once', () => {
   const all = Object.values(TAB_SECTIONS).flat();
   expect(new Set(all).size).toBe(all.length);
+});
+
+it('narrows a tab name to a tab, and to none for one that is not', () => {
+  expect(chosenTab('redirects')).toBe('redirects');
+  expect(chosenTab('nonsense')).toBeUndefined();
 });

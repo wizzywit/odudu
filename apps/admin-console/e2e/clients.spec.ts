@@ -106,12 +106,13 @@ test('a public client is made by keyboard alone, with no secret to show', async 
   await page.goto(`/console/${TENANT}/clients/new`);
   await tabTo(page, page.getByRole('textbox', { name: 'Client ID' }));
   await page.keyboard.type('made-public');
-  const type = page.getByRole('button', { name: /Confidential/u });
-  await tabTo(page, type);
+  const kind = page.getByRole('button', { name: /Web application/u });
+  await tabTo(page, kind);
   await page.keyboard.press('Enter');
   await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('button', { name: /Public/u })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Public application/u })).toBeVisible();
   const uri = page.getByRole('textbox', { name: 'Redirect URI 1' });
   await tabTo(page, uri);
   await page.keyboard.type('https://made-public.example/callback');
@@ -121,6 +122,26 @@ test('a public client is made by keyboard alone, with no secret to show', async 
   await expect(page.getByRole('heading', { level: 1, name: 'made-public' })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect.poll(() => clientColumn('made-public', 'type')).toBe('public');
+  await expectAccessible(page);
+});
+
+test('a service is made with no redirect URI, and its secret is shown once', async ({ page }) => {
+  await signIn(page, admin);
+  await page.goto(`/console/${TENANT}/clients/new`);
+  await page.getByRole('button', { name: /Web application/u }).click();
+  await page.getByRole('option', { name: 'Service' }).click();
+  await expect(page.getByRole('group', { name: 'Redirect URIs' })).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Client ID' }).fill('made-service');
+  await expectAccessible(page);
+  await page.getByRole('button', { name: 'Create client' }).click();
+  const dialog = page.getByRole('dialog', { name: /^Client secret for / });
+  await expect(dialog).toBeVisible();
+  const secret = await takeSecret(dialog);
+  await expect(page.getByRole('heading', { level: 1, name: 'made-service' })).toBeVisible();
+  expect(await page.content()).not.toContain(secret);
+  await expect.poll(() => configList('made-service', 'grant_types')).toBe('client_credentials');
+  expect(configList('made-service', 'redirect_uris')).toBe('');
+  expect(clientColumn('made-service', 'type')).toBe('confidential');
   await expectAccessible(page);
 });
 
@@ -259,36 +280,52 @@ test('the built-in admin client is fixed, and said to be', async ({ page }) => {
   await expectAccessible(page);
 });
 
-test('an operator holding manage-clients alone is offered no write on a client with a service account', async ({
+test('an operator holding manage-clients alone edits a confidential client, with no read of its account', async ({
   page,
-  problems,
 }) => {
+  const read: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().endsWith('/admin-capabilities')) read.push(request.url());
+  });
   await signIn(page, limited);
   await openClient(page, 'closed');
+  await waitUntilOffered(page);
+  const section = page.getByRole('region', { name: 'Details' });
+  await section.getByRole('textbox', { name: 'Name' }).fill('Closed books');
+  await section.getByRole('button', { name: 'Save Details' }).click();
+  await expect.poll(() => clientColumn('closed', 'name')).toBe('Closed books');
+  await expectAccessible(page);
+  expect(read).toEqual([]);
+
+  await openClient(page, 'kiosk');
+  await expect(page.getByRole('textbox', { name: 'Name' })).toBeVisible();
+  await expectAccessible(page);
+});
+
+test('an operator is offered no write on a client whose service account holds what it does not', async ({
+  page,
+}) => {
+  await signIn(page, limited);
+  await openClient(page, 'held');
   await expect(
-    page.getByText(/reading that needs view-users, which you do not hold/u),
+    page.getByText(
+      "held's service account holds view-users and manage-users, which you do not, so you cannot change held.",
+    ),
   ).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Name' })).toHaveCount(0);
   await expect(page.getByRole('switch')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Delete/u })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Save/u })).toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Details' })).toContainText('closed');
+  await expect(page.getByRole('region', { name: 'Details' })).toContainText('held');
   await expectAccessible(page);
 
   await page.getByRole('tab', { name: 'Redirects & origins' }).click();
   await expect(page.getByRole('button', { name: 'Add redirect URI' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Redirect URIs' })).toContainText(
-    'https://closed.example/callback',
+    'https://held.example/callback',
   );
   await expectAccessible(page);
-  // What its service account holds is the one read this operator is refused.
-  forgive(problems, '/admin-capabilities');
-  expect(clientColumn('closed', 'name')).toBe('closed');
-
-  // A public client has no service account to judge, so its writes are offered at once.
-  await openClient(page, 'kiosk');
-  await expect(page.getByRole('textbox', { name: 'Name' })).toBeVisible();
-  await expectAccessible(page);
+  expect(clientColumn('held', 'name')).toBe('held');
 });
 
 test('the clients pages fit a phone', async ({ page }) => {

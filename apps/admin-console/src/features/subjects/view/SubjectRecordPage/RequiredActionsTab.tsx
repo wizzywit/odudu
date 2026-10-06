@@ -4,7 +4,7 @@ import {
   useRequiredActions,
   useRequiredActionsRead,
 } from '#/features/subjects/usecase/useRequiredActions.ts';
-import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf';
+import { SectionNoticeOf } from '#/shared/view/SectionNoticeOf';
 import { Button } from '#/shared/view/Button';
 import { ChecklistField } from '#/shared/view/ChecklistField';
 import { EmptyState } from '#/shared/view/EmptyState';

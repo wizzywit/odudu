@@ -9,7 +9,7 @@ import {
   type Place,
 } from '#/features/groups/usecase/useGroupGeneral.ts';
 import type { Ceiling } from '#/features/groups/usecase/useGroupRecordPage.ts';
-import { SectionNoticeOf } from '#/features/groups/view/SectionNoticeOf';
+import { SectionNoticeOf } from '#/shared/view/SectionNoticeOf';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';
 import { TextAreaField, ToggleField } from '#/shared/view/Field';

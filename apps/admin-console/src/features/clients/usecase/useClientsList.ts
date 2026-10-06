@@ -1,6 +1,6 @@
 import type { Client } from '@odudu/contracts/admin';
 import { useClientList } from '#/features/clients/repository/useClientList.ts';
-import { useGo } from '#/features/clients/repository/useGo.ts';
+import { useGo } from '#/shared/repository/useGo.ts';
 import { clientHref, newClientHref } from '#/features/clients/service';
 import type { ResourceListState } from '#/shared/service/resourceList.ts';
 

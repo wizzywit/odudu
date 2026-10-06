@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
-import { A, C, clientRoutes, heldBy, serviceAccountOf } from '#/testing/clientsFixtures.ts';
+import { A, BILLING, C, clientRoutes } from '#/testing/clientsFixtures.ts';
 import { json, pending, problem } from '#/testing/fakeTransport.ts';
 import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
 
@@ -12,7 +12,14 @@ afterEach(() => {
 });
 
 const AT = '/console/acme/clients/c-bill';
-const HELD = `GET ${A}/subjects/${serviceAccountOf('c-bill')}/admin-capabilities`;
+// The record as it answers a client whose service account holds `reach`.
+function reaching(...reach: string[]) {
+  return {
+    [`GET ${C}/c-bill`]: json({ ...BILLING, service_account_admin_reach: reach }, 200, {
+      etag: '"c-bill-1"',
+    }),
+  };
+}
 
 it('heads the page with the breadcrumb, the name, its status and the tabs', async () => {
   renderConsoleAt(AT, clientRoutes());
@@ -56,8 +63,11 @@ it('says there is no such client for an id that is not one', async () => {
   expect(await screen.findByText('No such client')).toBeVisible();
 });
 
-it('offers nothing to change until what its service account holds has been read', async () => {
-  renderConsoleAt(AT, clientRoutes(undefined, { [HELD]: pending() }));
+it('offers nothing to change until the caller capabilities are known', async () => {
+  renderConsoleAt(
+    AT,
+    clientRoutes(undefined, { [`GET ${A}/whoami`]: pending(), ...reaching('view-users') }),
+  );
   await screen.findByRole('heading', { level: 1, name: 'Billing' });
   await screen.findByRole('region', { name: 'Identity' });
   expect(screen.queryByRole('textbox', { name: 'Name' })).toBeNull();
@@ -69,9 +79,7 @@ it('offers nothing to change until what its service account holds has been read'
 it('offers nothing, and says why once, when the service account holds what the caller does not', async () => {
   renderConsoleAt(
     AT,
-    clientRoutes(['manage-clients', 'view-users'], {
-      [HELD]: json(heldBy(['manage-users', 'view-users'])),
-    }),
+    clientRoutes(['manage-clients', 'view-users'], reaching('manage-users', 'view-users')),
   );
   expect(
     await screen.findByText(
@@ -85,54 +93,17 @@ it('offers nothing, and says why once, when the service account holds what the c
 });
 
 it('offers every write when the service account holds nothing beyond the caller', async () => {
-  renderConsoleAt(
-    AT,
-    clientRoutes(['manage-clients', 'view-users'], { [HELD]: json(heldBy(['view-users'])) }),
-  );
+  renderConsoleAt(AT, clientRoutes(['manage-clients', 'view-users'], reaching('view-users')));
   expect(await screen.findByRole('textbox', { name: 'Name' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'Delete Billing' })).toBeVisible();
   expect(screen.queryByText(/service account holds/u)).toBeNull();
 });
 
-it('says reading the service account needs view-users when the caller lacks it, and offers nothing', async () => {
-  renderConsoleAt(
-    AT,
-    clientRoutes(['manage-clients'], {
-      [HELD]: problem(403, 'about:blank', 'Forbidden', { detail: 'needs view-users' }),
-    }),
-  );
-  expect(
-    await screen.findByText(/reading that needs view-users, which you do not hold/u),
-  ).toBeVisible();
-  expect(screen.queryByRole('textbox', { name: 'Name' })).toBeNull();
-  expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Read it again' })).toBeNull();
-});
-
-it('offers to read the service account again when the read failed for another reason', async () => {
-  const user = userEvent.setup();
-  let reads = 0;
-  renderConsoleAt(
-    AT,
-    clientRoutes(undefined, {
-      [HELD]: (request) => {
-        reads += 1;
-        return reads === 1
-          ? problem(500, 'about:blank', 'Internal Server Error')(request)
-          : json(heldBy())(request);
-      },
-    }),
-  );
-  await user.click(await screen.findByRole('button', { name: 'Read it again' }));
+it('lets a caller holding manage-clients alone edit a confidential client, with no read of its account', async () => {
+  const { sent } = renderConsoleAt(AT, clientRoutes(['manage-clients'], reaching()));
   expect(await screen.findByRole('textbox', { name: 'Name' })).toBeVisible();
-});
-
-it('judges nothing from a capabilities read that did not return them all', async () => {
-  renderConsoleAt(AT, clientRoutes(undefined, { [HELD]: json({ items: [], complete: false }) }));
-  expect(
-    await screen.findByText(/could not be read, so nothing here can be changed/u),
-  ).toBeVisible();
-  expect(screen.queryByRole('textbox', { name: 'Name' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Delete Billing' })).toBeVisible();
+  expect(sent.filter((s) => s.path.endsWith('/admin-capabilities'))).toEqual([]);
 });
 
 it('shows the tabs not yet built as such', async () => {
@@ -170,13 +141,7 @@ it('passes axe in both themes, open and limited', async () => {
   ).toEqual({ light: [], dark: [] });
   expect(
     await axeInBothThemes(
-      () =>
-        consoleAt(
-          AT,
-          clientRoutes(['manage-clients'], {
-            [HELD]: json(heldBy(['manage-users'])),
-          }),
-        ).element,
+      () => consoleAt(AT, clientRoutes(['manage-clients'], reaching('manage-users'))).element,
       () => screen.findByText(/service account holds manage-users/u),
     ),
   ).toEqual({ light: [], dark: [] });

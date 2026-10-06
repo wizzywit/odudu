@@ -4,7 +4,7 @@ import {
   useSubjectRolesRead,
   type CapabilityEditing,
 } from '#/features/subjects/usecase/useCapabilities.ts';
-import { SectionNoticeOf } from '#/features/subjects/view/SectionNoticeOf';
+import { SectionNoticeOf } from '#/shared/view/SectionNoticeOf';
 import { Link } from 'react-aria-components';
 import { Button } from '#/shared/view/Button';
 import { ConfirmDialog } from '#/shared/view/ConfirmDialog';

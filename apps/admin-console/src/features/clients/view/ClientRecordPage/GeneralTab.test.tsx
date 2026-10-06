@@ -209,6 +209,9 @@ it('fixes what would lock every administrator out of the built-in admin client',
   await screen.findByRole('heading', { level: 1, name: 'Odudu admin' });
   expect(await screen.findByText(/odudu-admin cannot be disabled\./u)).toBeVisible();
   expect(screen.queryByRole('switch', { name: 'Enabled' })).toBeNull();
+  expect(
+    within(screen.getByRole('region', { name: 'Availability' })).queryByRole('button'),
+  ).toBeNull();
   expect(screen.getByText(/odudu-admin cannot be deleted\./u)).toBeVisible();
   expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
   // Its name and consent are among what the server lets be amended.

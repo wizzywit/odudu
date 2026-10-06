@@ -9,6 +9,7 @@ export {
   type ClientTab,
   CLIENT_TAB_LABELS,
   clientTabHref,
+  chosenTab,
   clientRecord,
   tabsWithEdits,
 } from '#/features/clients/service/tabs.ts';
@@ -27,9 +28,9 @@ export {
   TYPE_TEXT,
   SECTION,
   FIELD,
+  ACTIVITY_NOTE,
 } from '#/features/clients/service/labels.ts';
 export {
-  type HeldRead,
   type Reach,
   clientReach,
   canChange,
@@ -44,16 +45,19 @@ export {
 } from '#/features/clients/service/blocks.ts';
 export { deleteConsequence, deletedText } from '#/features/clients/service/confirm.ts';
 export {
-  type NewClientType,
+  type NewClientKind,
   type NewClientField,
-  type TypeChoice,
-  TYPE_CHOICES,
+  type KindChoice,
+  KIND_CHOICES,
   NEW_CLIENT_FIELDS,
-  newClientType,
+  newClientKind,
+  asksRedirects,
+  splitSecret,
+  afterCreation,
   clientIdProblem,
   SECRET_LABEL,
   secretTitle,
   secretNote,
 } from '#/features/clients/service/create.ts';
-export { CLIENT_LIST_LIMIT, listCount } from '#/features/clients/service/lists.ts';
+export { CLIENT_LIST_LIMIT, entriesOf, listCount } from '#/features/clients/service/lists.ts';
 export { CLIENT_CAPABILITY, clientRefusal } from '#/features/clients/service/refusal.ts';

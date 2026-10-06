@@ -2,7 +2,7 @@ import type { Group } from '@odudu/contracts/admin';
 import { useState } from 'react';
 import { useAuthority, useRefusal } from '#/features/session';
 import { useCreateGroup } from '#/features/groups/repository/useCreateGroup.ts';
-import { useGo } from '#/features/groups/repository/useGo.ts';
+import { useGo } from '#/shared/repository/useGo.ts';
 import { useGroupNamed } from '#/features/groups/repository/useGroupRecord.ts';
 import {
   createHeld,

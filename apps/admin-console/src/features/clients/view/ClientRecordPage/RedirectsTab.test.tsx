@@ -2,15 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes.ts';
-import {
-  A,
-  BILLING,
-  C,
-  clientRoutes,
-  client,
-  heldBy,
-  serviceAccountOf,
-} from '#/testing/clientsFixtures.ts';
+import { BILLING, C, clientRoutes, client } from '#/testing/clientsFixtures.ts';
 import { json, problem } from '#/testing/fakeTransport.ts';
 import { consoleAt, renderConsoleAt, resetConsole } from '#/testing/renderConsole.tsx';
 
@@ -207,8 +199,10 @@ it('shows the lists as text, with no way to add or remove, where the ceiling hol
   renderConsoleAt(
     AT,
     clientRoutes(['manage-clients', 'view-users'], {
-      [`GET ${A}/subjects/${serviceAccountOf('c-bill')}/admin-capabilities`]: json(
-        heldBy(['manage-users']),
+      [`GET ${C}/c-bill`]: json(
+        { ...BILLING, service_account_admin_reach: ['manage-users'] },
+        200,
+        { etag: '"c-bill-1"' },
       ),
     }),
   );

@@ -21,7 +21,7 @@ export function useClientRecord(tenant: string, id: string): RecordState<Client>
 }
 
 // Every list of clients, and what counts them, reads again once one changes.
-function useAfterClientChange(tenant: string) {
+export function useAfterClientChange(tenant: string) {
   const client = useQueryClient();
   return <R>(result: GatewayResult<R>): GatewayResult<R> => {
     if (result.ok) {

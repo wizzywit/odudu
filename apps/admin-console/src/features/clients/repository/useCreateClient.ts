@@ -1,6 +1,7 @@
 import type { Client } from '@odudu/contracts/admin';
-import { useQueryClient } from '@tanstack/react-query';
 import { createClient, findClient, type NewClient } from '#/features/clients/adapter/clients.ts';
+import { useAfterClientChange } from '#/features/clients/repository/useClientRecord.ts';
+import { splitSecret } from '#/features/clients/service';
 import { useFreshRead } from '#/shared/repository/useFreshRead.ts';
 import { useSecretOnce, type SecretOnce } from '#/shared/repository/useSecretOnce.ts';
 import type { GatewayFailure, GatewayResult } from '#/shared/transport/gateway.ts';
@@ -20,35 +21,30 @@ export interface CreateClient {
 export function useCreateClient(
   tenant: string,
   told: {
-    // `withSecret` is whether a dialog is showing one, which the page waits on.
-    created: (client: Client, withSecret: boolean) => void;
+    // `secret` is what a dialog is about to show, which the page waits on.
+    created: (client: Client, secret: string | null) => void;
     failed: (failure: GatewayFailure) => void;
   },
 ): CreateClient {
   const { gateway } = useTransport();
-  const queries = useQueryClient();
+  const after = useAfterClientChange(tenant);
   const fresh = useFreshRead();
   const creation = useSecretOnce({
     run: async (at, input: NewClient) => {
-      const result = await createClient(at, tenant, input).catch((): GatewayFailure => {
-        return { ok: false, kind: 'defect' };
-      });
+      const result = after(
+        await createClient(at, tenant, input).catch((): GatewayFailure => {
+          return { ok: false, kind: 'defect' };
+        }),
+      );
       if (!result.ok) {
         told.failed(result);
         return result;
       }
-      for (const key of [
-        ['list', tenant, 'clients'],
-        ['count', tenant],
-      ]) {
-        queries.invalidateQueries({ queryKey: key }).catch(() => undefined);
-      }
-      // The secret is split off here, so nothing but the dialog's own state holds it.
-      const { client_secret: secret, ...client } = result.data;
-      told.created(client, secret !== undefined);
+      const { secret, rest } = splitSecret(result.data);
+      told.created(rest, secret);
       return result;
     },
-    split: ({ client_secret: secret, ...rest }) => ({ secret: secret ?? null, rest }),
+    split: (data) => splitSecret(data),
   });
   return {
     busy: creation.busy || fresh.pending,
