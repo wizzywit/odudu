@@ -1,4 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import type { Browser, Locator, Page } from '@playwright/test';
 import {
   expect,
@@ -9,7 +11,7 @@ import {
   signInAtTenant,
   test,
 } from './fixtures.ts';
-import { psql, seeded, sendLogouts, type Account } from './stack.ts';
+import { psql, seed, seeded, sendLogouts, type Account } from './stack.ts';
 
 const { clients } = seeded();
 const { admin, limited } = clients;
@@ -628,22 +630,58 @@ test("a client's installation is shown, and its claims are worked out for a subj
   await expectAccessible(page);
 });
 
-const CALLBACK = 'http://127.0.0.1:9/callback';
+interface Application {
+  readonly callback: string;
+  close(): Promise<void>;
+}
+
+// A public client whose application answers on an address of its own, which
+// the browser is sent back to: the one place a redirect off the console's
+// origin can be followed.
+async function application(clientKey: string): Promise<Application> {
+  const server: Server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    response.end('<!doctype html><title>Callback</title><h1>Callback</h1>');
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const callback = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/callback`;
+  seed([
+    'client',
+    '--tenant',
+    TENANT,
+    '--client-id',
+    clientKey,
+    '--public',
+    '--redirect-uri',
+    callback,
+  ]);
+  return {
+    callback,
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => {
+          resolve();
+        });
+      }),
+  };
+}
 
 // A person signing in through a public client, as its application would send
 // them: a code, redeemed for the grant and the session the client's tabs list.
-async function signInThrough(browser: Browser, account: Account, clientKey: string): Promise<void> {
+async function signInThrough(
+  browser: Browser,
+  account: Account,
+  clientKey: string,
+  callback: string,
+): Promise<void> {
   const verifier = randomBytes(32).toString('base64url');
   const context = await browser.newContext();
   try {
-    await context.route(`${CALLBACK}**`, (route) =>
-      route.fulfill({ status: 200, contentType: 'text/html', body: '<h1>Callback</h1>' }),
-    );
     const page = await context.newPage();
     const query = new URLSearchParams({
       response_type: 'code',
       client_id: clientKey,
-      redirect_uri: CALLBACK,
+      redirect_uri: callback,
       scope: 'openid',
       state: 'kept',
       code_challenge: createHash('sha256').update(verifier).digest('base64url'),
@@ -651,7 +689,7 @@ async function signInThrough(browser: Browser, account: Account, clientKey: stri
     });
     await page.goto(`/tenants/${account.tenant}/protocol/openid-connect/auth?${query.toString()}`);
     await signInAtTenant(page, account);
-    await page.waitForURL((url) => url.href.startsWith(CALLBACK));
+    await page.waitForURL((url) => url.href.startsWith(callback));
     const code = new URL(page.url()).searchParams.get('code') ?? '';
     const redeemed = await page.request.post(
       `/tenants/${account.tenant}/protocol/openid-connect/token`,
@@ -659,7 +697,7 @@ async function signInThrough(browser: Browser, account: Account, clientKey: stri
         form: {
           grant_type: 'authorization_code',
           code,
-          redirect_uri: CALLBACK,
+          redirect_uri: callback,
           client_id: clientKey,
           code_verifier: verifier,
         },
@@ -681,10 +719,12 @@ test('who is signed in through a client is listed, and revoking its tokens leave
   browser,
   page,
 }) => {
-  const [first, second] = clients.walkers;
-  if (first === undefined || second === undefined) throw new Error('no walkers were seeded');
-  await signInThrough(browser, first, 'granted');
-  await signInThrough(browser, admin, 'granted');
+  const [, , first] = clients.walkers;
+  if (first === undefined) throw new Error('no third walker was seeded');
+  const app = await application('granted');
+  await signInThrough(browser, first, 'granted', app.callback);
+  await signInThrough(browser, admin, 'granted', app.callback);
+  await app.close();
   expect(liveGrants('granted')).toBe('2');
 
   const context = await browser.newContext();
@@ -744,6 +784,7 @@ test('the back-channel deliveries of a client are those its ended sessions queue
   browser,
   page,
 }) => {
+  const app = await application('notified');
   await signIn(page, admin);
   await openClient(page, 'notified', 'logout');
   const channel = page.getByRole('region', { name: 'Back-channel logout' });
@@ -758,7 +799,7 @@ test('the back-channel deliveries of a client are those its ended sessions queue
   const [first, second] = clients.walkers;
   if (first === undefined || second === undefined) throw new Error('no walkers were seeded');
   for (const walker of [first, second]) {
-    await signInThrough(browser, walker, 'notified');
+    await signInThrough(browser, walker, 'notified', app.callback);
     const id = psql(
       `select u.subject_id from users u join tenants t on t.id = u.tenant_id where t.name = ${sqlText(TENANT)} and u.username = ${sqlText(walker.username)}`,
     );
@@ -766,12 +807,20 @@ test('the back-channel deliveries of a client are those its ended sessions queue
     await page.getByRole('button', { name: 'End every session' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'End every session' }).click();
   }
+  await app.close();
   const queued = (): string =>
     psql(
       `select count(*) from backchannel_logout_deliveries where client_id = ${sqlText(clientId('notified'))}::uuid`,
     );
   await expect.poll(queued).toBe('2');
-  sendLogouts();
+  // An address nobody may reach fails again each time it is tried, after a
+  // backoff; the backoff is stepped over so every attempt is spent.
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    psql(
+      `update backchannel_logout_deliveries set next_attempt_at = now() where client_id = ${sqlText(clientId('notified'))}::uuid and delivered_at is null`,
+    );
+    sendLogouts();
+  }
   await expect
     .poll(() =>
       psql(

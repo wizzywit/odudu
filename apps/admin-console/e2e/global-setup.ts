@@ -123,19 +123,6 @@ function seedClients(tenant: string): void {
     'racedadvanced',
   ];
   for (const clientId of [...own, ...configured]) confidential(clientId);
-  // Public clients a person signs in through, from a loopback address nothing listens on.
-  for (const clientId of ['notified', 'granted']) {
-    seed([
-      'client',
-      '--tenant',
-      tenant,
-      '--client-id',
-      clientId,
-      '--public',
-      '--redirect-uri',
-      'http://127.0.0.1:9/callback',
-    ]);
-  }
   seed(['scope', '--tenant', tenant, '--name', 'reports:read']);
   seed(['role', '--tenant', tenant, '--name', 'reader']);
   seed(['role', '--tenant', tenant, '--name', 'approver', '--client-id', 'ledger']);
@@ -235,6 +222,7 @@ export default function globalSetup(): void {
     walkers: [
       { tenant: `${run}-k`, username: 'wiles', password: password() },
       { tenant: `${run}-k`, username: 'tao', password: password() },
+      { tenant: `${run}-k`, username: 'ramanujan', password: password() },
     ],
   };
   const tenants = {
