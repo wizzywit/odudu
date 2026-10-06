@@ -73,8 +73,8 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
       throw new ClientScopeLimitError();
     }
   };
-  const refuseWhenDefaultsAreFull = async (): Promise<void> => {
-    if ((await repository.countDefaultsUpTo(CLIENT_SCOPE_LIMIT)) >= CLIENT_SCOPE_LIMIT) {
+  const refuseWhenDefaultsAreFull = async (tenantId: string): Promise<void> => {
+    if ((await repository.countDefaultsUpTo(tenantId, CLIENT_SCOPE_LIMIT)) >= CLIENT_SCOPE_LIMIT) {
       throw new DefaultScopeLimitError();
     }
   };
@@ -97,12 +97,16 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
       return rows[0]?.count ?? 0;
     },
 
-    // The scopes marked for every new client, counted no further than `limit`.
-    async countDefaultsUpTo(limit: number): Promise<number> {
+    // The scopes of one tenant marked for every new client, counted no further
+    // than `limit`: named rather than left to the row policy, so a connection
+    // that sees every tenant counts the same.
+    async countDefaultsUpTo(tenantId: string, limit: number): Promise<number> {
       const held = tx
         .select({ one: sql<number>`1`.as('one') })
         .from(clientScopes)
-        .where(isNotNull(clientScopes.defaultClientAssignment))
+        .where(
+          and(eq(clientScopes.tenantId, tenantId), isNotNull(clientScopes.defaultClientAssignment)),
+        )
         .limit(limit)
         .as('held');
       const rows = await tx.select({ count: count() }).from(held);
@@ -172,10 +176,11 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
     async amend(id: string, patch: ClientScopePatch): Promise<ClientScopeRecord> {
       if (patch.defaultClientAssignment !== undefined && patch.defaultClientAssignment !== null) {
         const current = await tx
-          .select({ marked: clientScopes.defaultClientAssignment })
+          .select({ marked: clientScopes.defaultClientAssignment, tenantId: clientScopes.tenantId })
           .from(clientScopes)
           .where(eq(clientScopes.id, id));
-        if (current[0]?.marked === null) await refuseWhenDefaultsAreFull();
+        const row = current[0];
+        if (row !== undefined && row.marked === null) await refuseWhenDefaultsAreFull(row.tenantId);
       }
       const rows = await tx
         .update(clientScopes)
@@ -226,7 +231,7 @@ export function clientScopeRepository(tx: TenantScopedDatabase) {
 
     async create(input: NewClientScope): Promise<ClientScopeRecord> {
       if (input.defaultClientAssignment !== undefined && input.defaultClientAssignment !== null) {
-        await refuseWhenDefaultsAreFull();
+        await refuseWhenDefaultsAreFull(input.tenantId);
       }
       const rows = await tx
         .insert(clientScopes)
