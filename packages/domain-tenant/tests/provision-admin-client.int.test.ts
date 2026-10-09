@@ -43,6 +43,17 @@ async function freshTenant(): Promise<string> {
   return tenantId;
 }
 
+// `xmin` is the version of the row's last write, so an unchanged value is a
+// pass that wrote nothing.
+async function rowVersion(tenantId: string): Promise<string> {
+  const rows = await owner.sql<{ xmin: string }[]>`
+    select xmin::text as xmin from clients
+    where tenant_id = ${tenantId} and client_id = ${ADMIN_CLIENT_ID}`;
+  const row = rows[0];
+  if (row === undefined) throw new Error('the admin client was not provisioned');
+  return row.xmin;
+}
+
 describe('provisionAdminClient', () => {
   it('creates the client and the seven capability roles', async () => {
     const tenantId = await freshTenant();
@@ -98,6 +109,74 @@ describe('provisionAdminClient', () => {
     await expect(
       withTenant(app.db, tenantId, (tx) => provisionAdminClient(tx, tenantId)),
     ).rejects.toMatchObject({ code: 'admin_client_not_builtin' });
+  });
+
+  it('creates a public client unless asked for a confidential one', async () => {
+    const tenantId = await freshTenant();
+    await withTenant(app.db, tenantId, (tx) => provisionAdminClient(tx, tenantId));
+    const client = await withTenant(app.db, tenantId, (tx) =>
+      clientRepository(tx).byClientId(ADMIN_CLIENT_ID),
+    );
+    expect(client).toMatchObject({ type: 'public', secretHash: null });
+  });
+
+  it('creates a confidential client holding no secret when asked', async () => {
+    const tenantId = await freshTenant();
+    await withTenant(app.db, tenantId, (tx) =>
+      provisionAdminClient(tx, tenantId, { confidential: true }),
+    );
+    const client = await withTenant(app.db, tenantId, (tx) =>
+      clientRepository(tx).byClientId(ADMIN_CLIENT_ID),
+    );
+    expect(client).toMatchObject({ type: 'confidential', secretHash: null, builtinAdmin: true });
+  });
+
+  it('converts an existing public client, and a second pass writes nothing', async () => {
+    const tenantId = await freshTenant();
+    await withTenant(app.db, tenantId, (tx) => provisionAdminClient(tx, tenantId));
+    await withTenant(app.db, tenantId, (tx) =>
+      provisionAdminClient(tx, tenantId, { confidential: true }),
+    );
+    const converted = await withTenant(app.db, tenantId, (tx) =>
+      clientRepository(tx).byClientId(ADMIN_CLIENT_ID),
+    );
+    expect(converted).toMatchObject({ type: 'confidential', secretHash: null });
+
+    const before = await rowVersion(tenantId);
+    await withTenant(app.db, tenantId, (tx) =>
+      provisionAdminClient(tx, tenantId, { confidential: true }),
+    );
+    expect(await rowVersion(tenantId)).toBe(before);
+  });
+
+  it('never makes a confidential client public again', async () => {
+    const tenantId = await freshTenant();
+    await withTenant(app.db, tenantId, (tx) =>
+      provisionAdminClient(tx, tenantId, { confidential: true }),
+    );
+    await withTenant(app.db, tenantId, (tx) => provisionAdminClient(tx, tenantId));
+    const client = await withTenant(app.db, tenantId, (tx) =>
+      clientRepository(tx).byClientId(ADMIN_CLIENT_ID),
+    );
+    expect(client?.type).toBe('confidential');
+  });
+
+  it("cannot change another tenant's client type", async () => {
+    const mine = await freshTenant();
+    const theirs = await freshTenant();
+    await withTenant(app.db, mine, (tx) => provisionAdminClient(tx, mine));
+    const mineId = await withTenant(app.db, mine, async (tx) => {
+      const client = await clientRepository(tx).byClientId(ADMIN_CLIENT_ID);
+      if (client === null) throw new Error('not provisioned');
+      return client.id;
+    });
+    await expect(
+      withTenant(app.db, theirs, (tx) =>
+        clientRepository(tx).update(mineId, { type: 'confidential' }),
+      ),
+    ).rejects.toThrow(/not found/u);
+    const after = await withTenant(app.db, mine, (tx) => clientRepository(tx).byId(mineId));
+    expect(after?.type).toBe('public');
   });
 
   it('is invisible from another tenant', async () => {

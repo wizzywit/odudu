@@ -14,6 +14,12 @@ import { provisionClientDefaults } from '#/usecase/provision-defaults';
 export interface ProvisionAdminClientOptions {
   /** Adds `manage-tenants`. Only the system tenant asks for it. */
   readonly crossTenant?: boolean;
+  /**
+   * Creates the client confidential, and makes an existing public one so;
+   * never the reverse. It holds no secret: it authenticates by a key the
+   * caller registers on its OIDC configuration.
+   */
+  readonly confidential?: boolean;
 }
 
 export interface CapabilityRoleGraph {
@@ -75,11 +81,11 @@ export async function provisionAdminClient(
       tenantId,
       clientId: ADMIN_CLIENT_ID,
       name: 'Odudu administration',
-      // Public: an administrator authenticates as a subject through the
-      // ordinary login flow, not this client through client_credentials, so
-      // it carries no secret — clients_secret_matches_type (0004_clients.sql)
-      // requires exactly that pairing for type = 'public'.
-      type: 'public',
+      // An administrator signs in as a subject through the ordinary login
+      // flow; this client is the application that flow serves, and that
+      // application either holds a credential of its own (confidential) or
+      // cannot keep one (public). Neither holds a secret hash here.
+      type: options.confidential === true ? 'confidential' : 'public',
       secretHash: null,
       builtinAdmin: true,
     });
@@ -88,6 +94,8 @@ export async function provisionAdminClient(
     // request. Only on the creating pass: the assignments are inserted
     // unconditionally, so a re-run would collide.
     await provisionClientDefaults(tx, client.id);
+  } else if (options.confidential === true && client.type === 'public') {
+    client = await clients.update(client.id, { type: 'confidential' });
   }
   const clientDbId = client.id;
 

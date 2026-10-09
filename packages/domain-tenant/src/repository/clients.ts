@@ -128,7 +128,10 @@ export function clientRepository(tx: TenantScopedDatabase) {
     async update(
       id: string,
       patch: Partial<
-        Pick<typeof clients.$inferInsert, 'name' | 'description' | 'enabled' | 'fullScopeAllowed'>
+        Pick<
+          typeof clients.$inferInsert,
+          'name' | 'description' | 'enabled' | 'fullScopeAllowed' | 'type'
+        >
       >,
     ): Promise<ClientRecord> {
       const rows = await tx.update(clients).set(patch).where(eq(clients.id, id)).returning();
