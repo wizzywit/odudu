@@ -14,10 +14,6 @@ if [ ! -f "$DOCKER_DIR/.env" ]; then
   exit 1
 fi
 
-# The stack refuses to start without the console's private key, which .env.example
-# cannot carry; this adds one to .env the first time and nothing after.
-"$DOCKER_DIR/ensure-console-key.sh"
-
 # The caller's ports win over whatever .env names for the development stack,
 # so this never lands on that stack's ports.
 host_port="${ODUDU_HOST_PORT:-3080}"
@@ -26,6 +22,10 @@ set -a
 # shellcheck source=/dev/null
 source "$DOCKER_DIR/.env"
 set +a
+# The stack refuses to start without the console's private key. Its database is
+# new on every run, so a key made for this run is enough, and nothing is written
+# to .env: a developer's own stack keeps the key it registered on its tenants.
+export ODUDU_CONSOLE_CLIENT_KEY="${ODUDU_CONSOLE_CLIENT_KEY:-$("$DOCKER_DIR/console-key.sh")}"
 export ODUDU_HOST_PORT="$host_port"
 export POSTGRES_HOST_PORT="$postgres_port"
 export COMPOSE_PROJECT_NAME=odudu-e2e

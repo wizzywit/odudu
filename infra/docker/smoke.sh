@@ -9,13 +9,12 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# The stack refuses to start without the console's private key, which
-# .env.example cannot carry; this adds one the first time and nothing after.
-./ensure-console-key.sh
-
 set -a
 source .env
 set +a
+# The stack refuses to start without the console's private key. Its database is
+# new on every run, so a key made for this run is enough and .env stays as it was.
+export ODUDU_CONSOLE_CLIENT_KEY="${ODUDU_CONSOLE_CLIENT_KEY:-$(./console-key.sh)}"
 
 # Its own project and ports, so that it runs beside the development stack
 # and tearing it down below never takes that stack's containers with it.

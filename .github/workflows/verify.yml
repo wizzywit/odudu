@@ -102,11 +102,9 @@ jobs:
 
       # smoke.sh fails closed if infra/docker/.env is missing (ADR 0015) —
       # this is the deliberate act CI performs in its place. The console's
-      # private key is made here, never committed in .env.example.
+      # private key is made by the script, never committed in .env.example.
       - name: Bootstrap infra/docker/.env
-        run: |
-          cp infra/docker/.env.example infra/docker/.env
-          ./infra/docker/ensure-console-key.sh
+        run: cp infra/docker/.env.example infra/docker/.env
 
       - name: Build and smoke-test the stack
         run: ./infra/docker/smoke.sh
@@ -135,9 +133,7 @@ jobs:
         run: pnpm --filter @odudu/admin-console exec playwright install --with-deps chromium
 
       - name: Bootstrap infra/docker/.env
-        run: |
-          cp infra/docker/.env.example infra/docker/.env
-          ./infra/docker/ensure-console-key.sh
+        run: cp infra/docker/.env.example infra/docker/.env
 
       - name: Run the console in a browser against the image
         run: ./apps/admin-console/e2e/run.sh
