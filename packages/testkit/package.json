@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@simplewebauthn/server": "14.0.2",
-    "@testcontainers/postgresql": "12.1.0",
+    "@testcontainers/postgresql": "12.2.0",
     "postgres": "3.4.9"
   }
 }
