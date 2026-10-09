@@ -755,6 +755,23 @@ database it was made for: a stack you keep keeps its key, and a different
 one means `odudu console provision` (below). With `ODUDU_CONSOLE=false` no key
 is read.
 
+**Upgrading an existing install.** The console needs the key to boot, so an
+install that predates it has two things to do, in this order:
+
+1. Give it a key. For the compose stack, `./infra/docker/ensure-console-key.sh`
+   adds one to its existing `infra/docker/.env` and leaves a key already there
+   alone; for a host run or a deployment, `console keygen` prints one to set as
+   `ODUDU_CONSOLE_CLIENT_KEY`. Start the new version.
+2. Register it, once: `node dist/main.js console provision` converts every
+   tenant's public `odudu-admin` to confidential under that key. Until it has
+   run, the console's sign-in is refused with `invalid_client` for the tenants it
+   has not reached, and nothing else changes. Running it again writes nothing.
+
+`infra/docker/smoke.sh` and `apps/admin-console/e2e/run.sh` start stacks with a
+new database each time, so each makes a key of its own for the run and writes
+nothing to `.env`; a stack you keep, such as the one in `infra/docker`, keeps the
+key `ensure-console-key.sh` gave it, which is registered on its tenants.
+
 That has a consequence worth knowing before you hit it. The two files hold
 **different** keys — the compose stack's throwaway one, and the one you just
 generated — and both point at the same database. Seed a tenant under one and
@@ -1601,7 +1618,8 @@ A real deployment today looks like:
    client-controlled — and with it the key the per-origin throttle counts
    on, which a spoofed `X-Forwarded-For` then bypasses a header at a time.
    Appending is not enough: the value must be replaced. The same flag now
-   also gates `tls_client_auth` client authentication at `/token`: with it
+   also gates `tls_client_auth` client authentication at `/token`, `/revoke` and
+   `/introspect`: with it
    on, the server reads the client certificate's subject from the header
    named by `ODUDU_TLS_CLIENT_CERT_HEADER` (default `x-ssl-client-s-dn`;
    the name is not standardized — Envoy, Apache and HAProxy each use a

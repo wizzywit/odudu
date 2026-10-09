@@ -1813,8 +1813,12 @@ client authenticating that way could not revoke its own token, so the gateway's
 logout would have answered `401` to a revocation it ignores the result of: the
 refresh token would have outlived the session it belonged to. The check moved to
 `usecase/private-key-jwt-authentication.ts` and both endpoints share it, with the
-token endpoint's URL as the one `aud` at all three. `tls_client_auth` stays at
-`/token` alone, placed on P13 as before.
+token endpoint's URL as the one `aud` at all three. `tls_client_auth` first stayed at
+`/token` alone, placed on P13, and was then brought across by the same dispatcher
+(`[ODUDU-TLS-CLIENT-AUTH-ENDPOINTS-01]`): a method shipped at `/token` is not one a
+client may be refused at its siblings. `client_secret_jwt` and
+`self_signed_tls_client_auth` are placed on P13 in the umbrella spec and in
+`request-paths.md`'s "What is not implemented".
 
 **A `/revoke` test against a fixed clock would have passed for the wrong reason.** Revoking an
 access token reads its signature and expiry against the real clock, so a token
@@ -1829,15 +1833,20 @@ each do differently. The `kid` is the RFC 7638 thumbprint, never configuration.
 The gateway stamps assertions with the wall clock, not the console clock tests move,
 because the server checks an assertion's lifetime against its own.
 
-**A refresh now holds three pooled connections, not two.** The assertion's `jti` is
-claimed in a transaction of its own, so it survives a rollback of the request, and
-that is a third connection while the token call's transaction and the gateway's row
-lock hold two. The refresh semaphore from Part 2, which kept two refreshes from
-deadlocking a pool, is now sized by three connections each, `floor((max - 2) / 3)`
-capped at 2: a pool of 10 still runs two, a pool of 7 or fewer runs one. The same
-claim bounds `/token` for any `private_key_jwt` client: as many concurrent assertions
-as the pool has connections each hold one and wait for another. That predates the
-console, is not bounded by the semaphore, and is placed on P11, which owns load.
+**The jti claim took a second pooled connection, and so did every token request.** The
+claim committed in a transaction of its own so a rollback could not release it, which
+held a second connection beside the request's. `/token` did the same for the claim
+context (`loadClaimContext`, a `withTenant` inside the request's transaction), for
+every grant. N concurrent assertions on a pool of N hung: `[ODUDU-PRIVATE-KEY-JWT-03]`
+failed first, then failed again after the jti was moved, until the claim context was
+read on the request's own transaction as well. Now the jti is claimed on the request's
+transaction (`claimWithin`), and a request that then fails spends it afterwards on a
+connection of its own (`spendAfterFailure`, once the transaction is gone), so a refused
+request still leaves its assertion unreplayable. A refresh token's rotation still takes
+a connection beside the request's, deliberately: reuse detection must survive the
+request's rollback (ADR 0019), which is why the console's refresh semaphore still
+allows two refreshes only where the pool keeps two connections free. An earlier
+resizing of that semaphore for the jti claim was reverted with the claim.
 
 **Rotation touches every tenant's row, and says so.** One `odudu console
 provision` pass visits each tenant in a transaction of its own and writes only where

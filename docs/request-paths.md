@@ -9497,10 +9497,11 @@ getting `invalid_request` rather than `invalid_client`.
 | An empty `client_id` from a public client                                                                                                                    | 401    | `invalid_client`         |
 | `GET` instead of `POST`                                                                                                                                      | 404    | —                        |
 
-`/revoke` and `/introspect` read the same client authentication: a
+`/revoke` and `/introspect` read the same client authentication as `/token`: a
 `private_key_jwt` assertion, whose `aud` is this tenant's `/token` URL at all
-three endpoints, or either password method, and refuse a failed one with the
-same `401` and `invalid_client`.
+three endpoints, a `tls_client_auth` certificate subject under the same
+`ODUDU_TRUST_PROXY` rule, or either password method, and refuse a failed one
+with the same `401` and `invalid_client`.
 The built-in `odudu-admin` client is one that authenticates this way, and the
 console's refusals and acceptances at `/token` and `/revoke` are transcripts in
 [Console paths](console-paths.md#the-gateway-is-a-confidential-client).
@@ -9525,6 +9526,167 @@ unavailable end to end, not only at `/token`: discovery's
 either — off on this stack, which is why the transcript above does not
 list it — and registering a client for it is itself `invalid_client_metadata`,
 the same as an unknown `token_endpoint_auth_method` would be.
+
+`/revoke` and `/introspect` take the same certificate subject under the same
+rule, from the same header, and discovery lists the method for both exactly
+when it lists it for `/token`. Captured on a stack of its own, the project
+`odudu-docs-12b` on `http://localhost:3082` at `b4efbb72` plus this change, with
+`ODUDU_TRUST_PROXY=true` added by a compose override (`ODUDU_TLS_CLIENT_CERT_HEADER`
+left at its default). A tenant, `tls-demo`, with registration open, and a client
+registered dynamically for `tls_client_auth` with the subject `CN=tls-demo-client,O=Example`:
+
+```bash
+docker compose exec -T odudu node dist/main.js seed tenant --name tls-demo --set client_registration_policy=open
+curl -sS -X POST http://localhost:3082/tenants/tls-demo/clients-registrations/openid-connect \
+  -H 'content-type: application/json' \
+  -d '{"client_name":"tls-demo-client","grant_types":["client_credentials"],"token_endpoint_auth_method":"tls_client_auth","tls_client_auth_subject_dn":"CN=tls-demo-client,O=Example"}'
+```
+
+```
+{"command":"tenant","created":true,"tenant":"tls-demo","tenantId":"01a1209c-e194-785e-82e5-4f027cdb9022","settings":["client_registration_policy"]}
+```
+
+```
+{"client_id":"01a1209c-e2f4-7913-adce-9c43e5cdeef2","client_id_issued_at":1791548514,"client_secret":"Lgpir8vBpe8TIXObBxvxdGrP3P5YNl2rFe4sUgil8kk","client_secret_expires_at":0,"redirect_uris":[],"grant_types":["client_credentials"],"token_endpoint_auth_method":"tls_client_auth","client_name":"tls-demo-client","tls_client_auth_subject_dn":"CN=tls-demo-client,O=Example"}
+```
+
+The client's token, with the header a proxy would set from the certificate it
+verified (`$CID` is the `client_id` above). Token strings are cut to 24
+characters, as elsewhere:
+
+```bash
+curl -sS -D - -H 'x-ssl-client-s-dn: CN=tls-demo-client,O=Example' \
+  --data-urlencode grant_type=client_credentials --data-urlencode client_id=$CID \
+  http://localhost:3082/tenants/tls-demo/protocol/openid-connect/token
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1209d-0501-742a-8c1d-4c4b577f8641
+vary: Origin
+cache-control: no-store
+pragma: no-cache
+content-type: application/json; charset=utf-8
+content-length: 957
+Date: Fri, 09 Oct 2026 12:22:03 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"access_token": "eyJhbGciOiJSUzI1NiIsImtp…", "token_type": "Bearer", "expires_in": 300, "scope": ""}
+```
+
+The subject must match. A different one is refused at `/introspect`, the same
+`invalid_client` as at `/token`; the matching one is answered (`active` is
+`false` because this client is not among the token's audiences, which
+[the introspection section](#token-introspection-and-revocation) explains):
+
+```bash
+curl -sS -D - -H 'x-ssl-client-s-dn: CN=someone-else' \
+  --data-urlencode "token=$ACCESS" --data-urlencode client_id=$CID \
+  http://localhost:3082/tenants/tls-demo/protocol/openid-connect/token/introspect
+curl -sS -D - -H 'x-ssl-client-s-dn: CN=tls-demo-client,O=Example' \
+  --data-urlencode "token=$ACCESS" --data-urlencode client_id=$CID \
+  http://localhost:3082/tenants/tls-demo/protocol/openid-connect/token/introspect
+```
+
+```
+HTTP/1.1 401 Unauthorized
+x-request-id: 01a1209d-05e9-79ae-962b-6f2f25031314
+www-authenticate: Basic realm="token"
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 26
+Date: Fri, 09 Oct 2026 12:22:04 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"error":"invalid_client"}
+```
+
+```
+HTTP/1.1 200 OK
+x-request-id: 01a1209d-0614-7dc3-b275-228300d01cb2
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 16
+Date: Fri, 09 Oct 2026 12:22:04 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"active":false}
+```
+
+At `/revoke`, the header sent twice is refused, never read as one value:
+
+```bash
+curl -sS -D - -H 'x-ssl-client-s-dn: CN=tls-demo-client,O=Example' \
+  -H 'x-ssl-client-s-dn: CN=tls-demo-client,O=Example' \
+  --data-urlencode "token=$ACCESS" --data-urlencode client_id=$CID \
+  http://localhost:3082/tenants/tls-demo/protocol/openid-connect/revoke
+```
+
+```
+HTTP/1.1 401 Unauthorized
+x-request-id: 01a1209d-0649-7872-8a47-0908b65b9b53
+www-authenticate: Basic realm="token"
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 26
+Date: Fri, 09 Oct 2026 12:22:04 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"error":"invalid_client"}
+```
+
+And a revocation is shown to revoke or not, by the grant's own row, scoped to the
+grant the token names (`grant_id`, read from the token's payload): a new token, the
+state, a revocation under the wrong subject and the state, a revocation under the
+right one and the state:
+
+```sql
+select revoked_at is not null as revoked from token_grants where id = '01a1209d-52ee-708b-a0d7-849089601673';
+```
+
+```
+ revoked
+---------
+ f
+(1 row)
+```
+
+```
+401
+```
+
+```
+ revoked
+---------
+ f
+(1 row)
+```
+
+```
+200
+```
+
+```
+ revoked
+---------
+ t
+(1 row)
+```
+
+(The two status codes are curl's `-w "%{http_code}"` of the wrong-subject and the
+matching revocation.) With this stack's `ODUDU_TRUST_PROXY=true`, the three
+`*_auth_methods_supported` members of `tls-demo`'s discovery document read, one
+per line as `python3` printed them:
+
+```
+token_endpoint_auth_methods_supported ["client_secret_basic", "client_secret_post", "none", "private_key_jwt", "tls_client_auth"]
+introspection_endpoint_auth_methods_supported ["client_secret_basic", "client_secret_post", "private_key_jwt", "tls_client_auth", "none"]
+revocation_endpoint_auth_methods_supported ["client_secret_basic", "client_secret_post", "private_key_jwt", "tls_client_auth", "none"]
+```
 
 RFC 6749 §2.3.1 puts both halves of the `Basic` payload through
 `application/x-www-form-urlencoded` before the base64, which is what lets a
@@ -10097,21 +10259,22 @@ session lifecycle. A citation of either half here means that half.
   included. **P13**, as above: the FAPI 2.0 plan cannot pass without one of
   them.
 
-**`/introspect` and `/revoke`**
+**Client authentication**
 
-- **A `tls_client_auth` client can never call either endpoint.** Both
-  authenticate through `authenticateEndpointClient`, which reads a
-  `private_key_jwt` assertion, a Basic header or a body `client_secret`; a
-  client registered for `tls_client_auth` presents none of them and is
-  refused every time. `private_key_jwt` reached both on 2026-10-09, for the
-  console's gateway, which signs its revocation. A decision, not a gap in
-  either RFC: neither requires a particular set of client-authentication
-  methods, and closing the rest extends `/token`'s certificate dispatch to
-  two more routes rather than changing introspection or revocation —
-  `rfc7662.md`'s "`tls_client_auth` does not reach this endpoint" carries the
-  reasoning. **P13** closes it, whose criterion now names that method at both
-  endpoints: it is a client-authentication change, and P13 is the phase that
-  reworks client authentication for FAPI 2.0.
+- **No `client_secret_jwt`.** OIDC Core §9's HMAC-signed assertion is not
+  accepted at `/token`, `/revoke` or `/introspect`, and is not a registrable
+  `token_endpoint_auth_method`. **P13**, whose criterion is that every
+  client authentication method in OIDC Core §9 and RFC 8705 is accepted at
+  every authenticated endpoint. Verifying one needs the secret readable,
+  where Odudu stores a hash only, so P13's spec decides its storage; the
+  likely answer is that secret alone, encrypted at rest. Under P13's FAPI
+  profile it is refused for a FAPI client and a FAPI tenant's discovery omits
+  it.
+- **No `self_signed_tls_client_auth`.** RFC 8705 §2.2's variant, where the
+  certificate is matched to a key registered in the client's `jwks` rather
+  than to a subject DN, is not accepted anywhere. **P13**, for the same
+  criterion; the console's Advanced tab offers it there. Under the FAPI
+  profile it is refused too, and a FAPI tenant's discovery omits it.
 
 **`/userinfo`**
 
