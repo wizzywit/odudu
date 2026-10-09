@@ -78,6 +78,14 @@ export interface AdminFixture {
   readonly app: DatabaseHandle;
   readonly http: FastifyInstance;
   readonly clock: FakeClock;
+  /**
+   * Moves `clock` on by the wall time that has passed since the last call (or
+   * since the fixture started), keeping whatever offset a test gave it. A code
+   * expires at `clock` plus its lifetime but is redeemed against the database's
+   * own now(), and `clock` moves only when told to, so a long run leaves it
+   * behind and a fresh code dead on arrival. Called before a login.
+   */
+  catchUpToWall(): void;
   readonly systemTenantId: string;
 
   /** Creates a tenant, provisions its flow and its admin client, mints a key. */
@@ -223,6 +231,12 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
   const app = createDatabase(appUrl, { max: 5 });
 
   const clock = new FakeClock(new Date(Math.floor(Date.now() / 1000) * 1000));
+  let syncedWall = Date.now();
+  const catchUpToWall = (): void => {
+    const wall = Date.now();
+    clock.advance(wall - syncedWall);
+    syncedWall = wall;
+  };
   // Shared with adminRoutes below — the same instance, so a test can bind a
   // mapper through the admin API and see it reach issuance, and so
   // GET /scopes/:id/mappers can never list a name issuance itself would not
@@ -858,6 +872,7 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
     app,
     http,
     clock,
+    catchUpToWall,
     systemTenantId: systemTenant.id,
     createTenant,
     stop,

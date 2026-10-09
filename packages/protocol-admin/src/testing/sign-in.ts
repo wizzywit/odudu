@@ -90,12 +90,7 @@ export async function submitPassword(
   password: string,
   scope = 'openid',
 ): Promise<LightMyRequestResponse> {
-  // A code expires at the fixture's clock plus its lifetime, and is redeemed
-  // against the database's own now(). The clock only moves when told to, so in
-  // a long run it falls behind and the code is dead on arrival: bring it up to
-  // the wall, never back past a time a test advanced it to.
-  const wall = new Date();
-  if (fixture.clock.now() < wall) fixture.clock.set(wall);
+  fixture.catchUpToWall();
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: clientId,

@@ -15,12 +15,21 @@ afterAll(async () => {
   await fixture.stop();
 });
 
-it('signs in when the fixture clock has fallen behind the database clock', async () => {
+it('signs in after real time has passed that the fixture clock never saw', async () => {
   const t = await fixture.createTenant(`flake-${newId()}`);
   const client = await createSignInClient(fixture, t.id);
   await createPasswordSubject(fixture, t.id, 'ada', 'correct horse battery staple');
-  // What 6 minutes of a loaded run does to a clock that only moves when told to.
-  fixture.clock.set(new Date(Date.now() - 6 * 60 * 1000));
+  const token = await fixture.adminToken(t.name, ['manage-tenant']);
+  const patched = await fixture.http.inject({
+    method: 'PATCH',
+    url: `/admin/tenants/${t.name}/settings`,
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    payload: { authorization_code_ttl_seconds: 5 },
+  });
+  expect(patched.statusCode).toBe(200);
+  // The database's clock runs on while the fixture's stands still: a code
+  // issued now, at the fixture's old time plus five seconds, is already past.
+  await new Promise((resolve) => setTimeout(resolve, 6000));
   expect(
     await signInForRefreshToken(fixture, t.name, client, 'ada', 'correct horse battery staple'),
   ).toEqual(expect.any(String));
