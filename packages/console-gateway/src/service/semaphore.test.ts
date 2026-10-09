@@ -50,10 +50,10 @@ describe('semaphore', () => {
 describe('refreshConcurrency', () => {
   it.each([
     [10, 2],
-    [5, 2],
-    [4, 2],
-    [3, 1],
-    [2, 1],
+    [8, 2],
+    [7, 1],
+    [5, 1],
+    [4, 1],
     [1, 1],
   ])('allows a pool of %i connections %i refreshes at once', (max, expected) => {
     expect(refreshConcurrency(max)).toBe(expected);

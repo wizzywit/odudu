@@ -1829,6 +1829,13 @@ each do differently. The `kid` is the RFC 7638 thumbprint, never configuration.
 The gateway stamps assertions with the wall clock, not the console clock tests move,
 because the server checks an assertion's lifetime against its own.
 
+**A refresh now holds three pooled connections, not two.** The assertion's `jti` is
+claimed in a transaction of its own, so it survives a rollback of the request, and
+that is a third connection while the token call's transaction and the gateway's row
+lock hold two. The refresh semaphore from Part 2, which kept two refreshes from
+deadlocking a pool, is now sized by three connections each, `floor((max - 2) / 3)`
+capped at 2: a pool of 10 still runs two, a pool of 7 or fewer runs one.
+
 **Rotation touches every tenant's row, and says so.** One `odudu console
 provision` pass visits each tenant in a transaction of its own and writes only where
 the registered keys differ; rotation is two such passes around a roll, and a third
