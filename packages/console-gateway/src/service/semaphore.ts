@@ -30,8 +30,10 @@ export function semaphore(limit: number): Semaphore {
   };
 }
 
-// A refresh holds one pooled connection while its token call needs another,
-// so at most two refreshes run at once and at least two connections stay free.
+// A refresh holds three pooled connections at once: the session's row lock, the
+// token request's transaction and, for a refresh token, the rotation's own
+// (committed on a connection of its own so reuse detection survives a rollback).
+// At most two run at once, and only as many as leave two connections free.
 export function refreshConcurrency(poolMax: number): number {
-  return Math.max(1, Math.min(2, poolMax - 2));
+  return Math.max(1, Math.min(2, Math.floor((poolMax - 2) / 3)));
 }
