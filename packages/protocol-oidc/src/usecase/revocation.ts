@@ -1,5 +1,6 @@
 import { AUDIENCE_UNCHECKED, verifyJwt, type SigningKeyRecord } from '@odudu/crypto';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { type ClientRecord } from '@odudu/domain-tenant';
 import { auditRepository } from '@odudu/domain-audit';
 import { tokenGrantRepository } from '#/repository/grants';
 import { refreshTokenRepository } from '#/repository/refresh';
@@ -58,10 +59,18 @@ export async function respondToRevocationRequest(
   request: ClientRequest,
   now: Date,
 ): Promise<void> {
-  const { body } = request;
-  const { client } = await authenticateEndpointClient(tx, deps, request);
+  const { client, settle } = await authenticateEndpointClient(tx, deps, request);
+  await settle(() => revokeFor(tx, deps, request, client, now));
+}
 
-  const token = readOptionalField(body, 'token') ?? '';
+async function revokeFor(
+  tx: TenantScopedDatabase,
+  deps: RevocationDeps,
+  request: ClientRequest,
+  client: ClientRecord,
+  now: Date,
+): Promise<void> {
+  const token = readOptionalField(request.body, 'token') ?? '';
   const grantId = await resolveGrantId(tx, deps, token);
   if (grantId === undefined) return;
 

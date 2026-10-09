@@ -90,8 +90,7 @@ export async function authenticatePrivateKeyJwt(
   deps: PrivateKeyJwtDeps,
   outcome: Exclude<AssertionOutcome, { kind: 'unsupported' }>,
   tokenEndpoint: string,
-  spends?: SpentAssertion[],
-): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
+): Promise<AuthenticatedClient> {
   const fail = (reason: string, resolved?: { client: ClientRecord; reason: AuditReason }): never =>
     refusePrivateKeyJwt(
       deps,
@@ -139,23 +138,31 @@ export async function authenticatePrivateKeyJwt(
   });
   if (!verified) return fail('assertion signature did not verify', badCredential);
 
-  const spent: SpentAssertion = {
-    tenantId: deps.tenantId,
-    oauthClientId: outcome.claimedClientId,
-    jti: outcome.jti,
-    expiresAt: outcome.expiresAt,
-  };
-  const claimed = await assertionJtiRepository(deps.database).claimWithin(
-    tx,
-    spent.tenantId,
-    spent.oauthClientId,
-    spent.jti,
-    spent.expiresAt,
-  );
-  if (!claimed) return fail('jti already spent', { client, reason: 'replayed' });
-  spends?.push(spent);
+  const jtis = assertionJtiRepository(deps.database);
+  const { claimedClientId: oauthClientId, jti, expiresAt } = outcome;
+  // Never waited for: whoever holds this lock is mid-way through using this
+  // very assertion, which makes this one a replay whatever becomes of that use.
+  if (!(await jtis.tryLock(tx, deps.tenantId, oauthClientId, jti))) {
+    return fail('jti is being used by another request', { client, reason: 'replayed' });
+  }
+  if (await jtis.spentWithin(tx, deps.tenantId, oauthClientId, jti)) {
+    return fail('jti already spent', { client, reason: 'replayed' });
+  }
 
-  return { client, config };
+  // Spent when the request's work is done, on its own transaction; spent on a
+  // connection of its own, before that transaction lets go of the lock, if the
+  // work fails, so no replay can slip between the rollback and the spending.
+  const settle: Settle = async (work) => {
+    try {
+      const result = await work();
+      await jtis.claimWithin(tx, deps.tenantId, oauthClientId, jti, expiresAt);
+      return result;
+    } catch (err) {
+      await spendQuietly(deps, { tenantId: deps.tenantId, oauthClientId, jti, expiresAt });
+      throw err;
+    }
+  };
+  return { client, config, settle };
 }
 
 // Shares `refusePrivateKeyJwt`'s shape (same log message pattern, same
@@ -262,30 +269,51 @@ export interface SpentAssertion {
   readonly expiresAt: Date;
 }
 
-/**
- * An assertion's jti is claimed on the request's own transaction, so a
- * request that then fails rolls the claim back. Called once that transaction
- * is gone, this spends each jti the request had claimed on a connection of
- * its own, so a refused request does not leave its assertion replayable.
- */
-export async function spendAfterFailure(
-  database: DatabaseHandle,
-  spends: readonly SpentAssertion[],
-): Promise<void> {
-  for (const spent of spends) {
-    await assertionJtiRepository(database).claim(
-      spent.tenantId,
-      spent.oauthClientId,
-      spent.jti,
-      spent.expiresAt,
+// How long a failing request waits for a connection to spend its jti on before
+// it gives up and logs: the pool being exhausted is the one case it cannot spend.
+const SPEND_PATIENCE_MS = 2000;
+
+// Never throws and never delays the refusal it follows by more than the
+// patience above: an error here must not turn a refused request into a 500.
+async function spendQuietly(deps: PrivateKeyJwtDeps, spent: SpentAssertion): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      assertionJtiRepository(deps.database).claim(
+        spent.tenantId,
+        spent.oauthClientId,
+        spent.jti,
+        spent.expiresAt,
+      ),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, SPEND_PATIENCE_MS);
+      }),
+    ]);
+  } catch (err) {
+    deps.logger.warn(
+      {
+        claimedClientId: spent.oauthClientId,
+        error: err instanceof Error ? err.message : 'unknown',
+      },
+      'an assertion jti could not be spent after a refused request',
     );
+  } finally {
+    clearTimeout(timer);
   }
 }
 
+/** Runs what a request does once authenticated, and spends its assertion's jti either way. */
+export type Settle = <T>(work: () => Promise<T>) => Promise<T>;
+
+export interface AuthenticatedClient {
+  readonly client: ClientRecord;
+  readonly config: ClientOidcConfig;
+  readonly settle: Settle;
+}
+
+const NOTHING_TO_SETTLE: Settle = (work) => work();
+
 export interface ClientRequest {
-  // Filled with each assertion this authentication claims; the route passes
-  // it to `spendAfterFailure` if the request fails.
-  readonly spends?: SpentAssertion[];
   readonly body: Record<string, string | string[] | undefined>;
   readonly authorizationHeader: string | undefined;
   readonly headers: Record<string, string | string[] | undefined>;
@@ -305,7 +333,7 @@ export async function authenticateEndpointClient(
   tx: TenantScopedDatabase,
   deps: EndpointAuthenticationDeps,
   request: ClientRequest,
-): Promise<{ client: ClientRecord; config: ClientOidcConfig }> {
+): Promise<AuthenticatedClient> {
   const { body } = request;
   const tokenEndpoint = tokenEndpointOf(deps.issuer);
   const assertion = parseClientAssertion(body, deps.now(), { audience: tokenEndpoint });
@@ -339,10 +367,24 @@ export async function authenticateEndpointClient(
 
   const clientId = readOptionalField(body, 'client_id');
   if (assertion.kind !== 'unsupported') {
-    return authenticatePrivateKeyJwt(tx, deps, assertion, tokenEndpoint, request.spends);
+    // RFC 7521 §4.2: a client_id sent beside an assertion identifies the same
+    // client the assertion's subject does.
+    if (
+      assertion.kind === 'ok' &&
+      clientId !== undefined &&
+      clientId !== assertion.claimedClientId
+    ) {
+      refusePrivateKeyJwt(
+        deps,
+        'client_id does not match the assertion',
+        assertion.claimedClientId,
+      );
+    }
+    return authenticatePrivateKeyJwt(tx, deps, assertion, tokenEndpoint);
   }
-  if (certificateSubject !== null) {
-    return authenticateTlsClientAuth(tx, deps, certificateSubject, clientId);
-  }
-  return authenticateClient(tx, deps, basic, clientId, bodyClientSecret);
+  const authenticated =
+    certificateSubject !== null
+      ? await authenticateTlsClientAuth(tx, deps, certificateSubject, clientId)
+      : await authenticateClient(tx, deps, basic, clientId, bodyClientSecret);
+  return { ...authenticated, settle: NOTHING_TO_SETTLE };
 }

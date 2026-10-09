@@ -26,13 +26,14 @@ export async function respondToIntrospectionRequest(
   request: ClientRequest,
   now: Date,
 ): Promise<IntrospectionResponse> {
-  const { body } = request;
-  const { client, config } = await authenticateEndpointClient(tx, deps, request);
+  const { client, config, settle } = await authenticateEndpointClient(tx, deps, request);
 
-  const token = readOptionalField(body, 'token') ?? '';
-  return introspect(
-    deps,
-    { token, caller: { clientId: client.clientId, audiences: config.audiences } },
-    now,
+  const token = readOptionalField(request.body, 'token') ?? '';
+  return settle(() =>
+    introspect(
+      deps,
+      { token, caller: { clientId: client.clientId, audiences: config.audiences } },
+      now,
+    ),
   );
 }

@@ -63,10 +63,7 @@ import {
   type ClientAuthenticationDeps,
   type RefusalLogger,
 } from '#/usecase/client-authentication';
-import {
-  authenticateEndpointClient,
-  type SpentAssertion,
-} from '#/usecase/private-key-jwt-authentication';
+import { authenticateEndpointClient } from '#/usecase/private-key-jwt-authentication';
 import { loadClaimContextIn } from '#/usecase/evaluate-claims';
 import { resolveExchangeToken, type ResolveDeps } from '#/usecase/token-exchange-subject';
 
@@ -1213,25 +1210,25 @@ export async function issueTokens(
   // check; `headers` above cannot answer that question (see
   // tls-client-auth.ts's own comment on why).
   rawHeaders: readonly string[],
-  spends?: SpentAssertion[],
 ): Promise<TokenResponse> {
   const request = parseStructure(body);
-  const { client, config } = await authenticateEndpointClient(tx, deps, {
+  const { client, config, settle } = await authenticateEndpointClient(tx, deps, {
     body,
     authorizationHeader,
     headers,
     rawHeaders,
-    ...(spends === undefined ? {} : { spends }),
   });
 
-  try {
-    return await issueForAuthenticatedClient(tx, deps, request, client, config);
-  } catch (err) {
-    if (err instanceof TokenError && err.audit === undefined) {
-      throw annotatedAfterAuthentication(err, request.grantType, client);
+  return settle(async () => {
+    try {
+      return await issueForAuthenticatedClient(tx, deps, request, client, config);
+    } catch (err) {
+      if (err instanceof TokenError && err.audit === undefined) {
+        throw annotatedAfterAuthentication(err, request.grantType, client);
+      }
+      throw err;
     }
-    throw err;
-  }
+  });
 }
 
 const GRANT_REFUSAL_ACTIONS: Readonly<

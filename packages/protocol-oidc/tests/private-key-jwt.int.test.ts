@@ -11,7 +11,7 @@ import {
   type TenantScopedDatabase,
 } from '@odudu/db';
 import { hashPassword, subjectRepository } from '@odudu/domain-identity';
-import { clients } from '@odudu/domain-tenant';
+import { clientRepository, clients } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
 import Fastify, {
@@ -25,6 +25,8 @@ import { oidcRoutes } from '#/index';
 import { clientKeySet, type ClientKeyRequest } from '#/repository/client-keys';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository } from '#/repository/grants';
+import { refreshTokenRepository } from '#/repository/refresh';
+import { generateRefreshToken, hashRefreshToken } from '#/service/refresh';
 import { CLIENT_ASSERTION_TYPE } from '#/service/client-assertion';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
 import {
@@ -139,6 +141,8 @@ async function createClient(
     jwks?: unknown;
     jwksUri?: string;
     enabled?: boolean;
+    grantTypes?: string[];
+    redirectUris?: string[];
   },
 ): Promise<void> {
   const dbId = newId();
@@ -159,8 +163,8 @@ async function createClient(
   await clientOidcConfigRepository(tx).create({
     clientId: dbId,
     tenantId: TENANT_ID,
-    redirectUris: [],
-    grantTypes: ['client_credentials'],
+    redirectUris: input.redirectUris ?? [],
+    grantTypes: input.grantTypes ?? ['client_credentials'],
     tokenEndpointAuthMethod: input.method,
     audiences: [],
     accessTokenTtlSeconds: 300,
@@ -193,6 +197,13 @@ async function setupTenant(): Promise<void> {
       clientId: 'pkj-client',
       method: 'private_key_jwt',
       jwksUri: 'https://pkj-client.example/jwks.json',
+    });
+    await createClient(tx, {
+      clientId: 'refresh-client',
+      method: 'private_key_jwt',
+      jwks: jwksFor(inlineKey),
+      grantTypes: ['client_credentials', 'refresh_token'],
+      redirectUris: ['https://app.example/cb'],
     });
     await createClient(tx, {
       clientId: 'inline-jwks-client',
@@ -708,4 +719,182 @@ describe('[ODUDU-PRIVATE-KEY-JWT-03] a pool no larger than the requests in fligh
       }
     },
   );
+});
+
+async function bareServer(
+  size: number,
+): Promise<{ server: FastifyInstance; close: () => Promise<void> }> {
+  const small = createDatabase(appUrlForPools, { max: size });
+  const server = Fastify();
+  await server.register(formbody);
+  await server.register(
+    oidcRoutes({
+      database: small,
+      ownerDatabase: owner,
+      kek: KEK,
+      clientSecretLimiter: UNLIMITED_CLIENT_SECRET_LIMITER,
+      auditRefusalBudget: UNLIMITED_AUDIT_REFUSAL_BUDGET,
+      clientKeySet: clientKeySet({ lookup, request, now: () => NOW, allowPrivate: false }),
+      clock: { now: () => NOW },
+    }),
+  );
+  await server.ready();
+  return {
+    server,
+    close: async () => {
+      await server.close();
+      await small.close();
+    },
+  };
+}
+
+function tokenForm(
+  assertion: string,
+  extra: Record<string, string> = {},
+): { method: 'POST'; url: string; payload: string; headers: Record<string, string> } {
+  return {
+    method: 'POST',
+    url: `/tenants/${TENANT}/protocol/openid-connect/token`,
+    payload: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_assertion_type: CLIENT_ASSERTION_TYPE,
+      client_assertion: assertion,
+      ...extra,
+    }).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  };
+}
+
+async function spentJtis(jti: string): Promise<number> {
+  const rows = await owner.sql<{ n: string }[]>`
+    select count(*)::text as n from client_assertion_jti where jti = ${jti}`;
+  return Number(rows[0]?.n ?? '0');
+}
+
+describe('[ODUDU-PRIVATE-KEY-JWT-04] a jti is never waited on', () => {
+  it.each([1, 2, 3, 4, 5])(
+    'refuses a concurrent replay while the other use is refused after authentication (round %i)',
+    async () => {
+      const jti = newId();
+      const assertion = await signAssertion(inlineKey, 'inline-jwks-client', { jti });
+      // Both ask for a scope the client may not have, so whichever authenticates
+      // fails afterwards. Exactly one may get that far: the other is a replay.
+      const answers = await Promise.all([
+        http.inject(tokenForm(assertion, { scope: 'not-a-scope-this-client-has' })),
+        http.inject(tokenForm(assertion, { scope: 'not-a-scope-this-client-has' })),
+      ]);
+      expect(answers.map((answer) => answer.statusCode).sort()).toEqual([400, 401]);
+      expect(await spentJtis(jti)).toBe(1);
+    },
+  );
+
+  it('leaves the jti spent after a request that failed after authentication', async () => {
+    const jti = newId();
+    const assertion = await signAssertion(inlineKey, 'inline-jwks-client', { jti });
+    const first = await http.inject(tokenForm(assertion, { scope: 'not-a-scope-this-client-has' }));
+    expect(first.statusCode).toBeGreaterThanOrEqual(400);
+    expect(first.statusCode).not.toBe(401);
+    expect((await http.inject(tokenForm(assertion))).statusCode).toBe(401);
+    expect(await spentJtis(jti)).toBe(1);
+  });
+
+  it('survives its own spending failing: the refusal is still answered', async () => {
+    const jti = `poison-${newId()}`;
+    await owner.sql`
+      create or replace function reject_poisoned_jti() returns trigger language plpgsql as $$
+      begin
+        if new.jti like 'poison-%' then raise exception 'jti store unavailable'; end if;
+        return new;
+      end $$`;
+    await owner.sql`create trigger reject_poisoned_jti before insert on client_assertion_jti
+      for each row execute function reject_poisoned_jti()`;
+    try {
+      const assertion = await signAssertion(inlineKey, 'inline-jwks-client', { jti });
+      const res = await http.inject(tokenForm(assertion, { scope: 'not-a-scope-this-client-has' }));
+      expect(res.statusCode).toBe(400);
+      expect(res.json<{ error: string }>().error).toBe('invalid_scope');
+    } finally {
+      await owner.sql`drop trigger reject_poisoned_jti on client_assertion_jti`;
+    }
+  });
+
+  it('refuses N+1 replays of one assertion on a pool of N without hanging, beside a refresh', async () => {
+    const size = 3;
+    const { server, close } = await bareServer(size);
+    try {
+      const refresh = await withTenant(app.db, TENANT_ID, async (tx) => {
+        const client = await clientRepository(tx).byClientId('refresh-client');
+        if (client === null) throw new Error('no refresh-client');
+        const grant = await tokenGrantRepository(tx).create({
+          id: newId(),
+          tenantId: TENANT_ID,
+          clientId: client.id,
+          subjectId: serviceSubjectId,
+          scope: '',
+          audience: [],
+        });
+        const token = generateRefreshToken();
+        await refreshTokenRepository(tx).create({
+          tokenHash: hashRefreshToken(token),
+          tenantId: TENANT_ID,
+          grantId: grant.id,
+          expiresAt: new Date(NOW.getTime() + 1_209_600_000),
+        });
+        return token;
+      });
+      const replayed = await signAssertion(inlineKey, 'inline-jwks-client', { jti: newId() });
+      const refreshAssertion = await signAssertion(inlineKey, 'refresh-client');
+      const calls = [
+        ...Array.from({ length: size + 1 }, () => server.inject(tokenForm(replayed))),
+        server.inject(
+          tokenForm(refreshAssertion, { grant_type: 'refresh_token', refresh_token: refresh }),
+        ),
+      ];
+      const answers = await Promise.race([
+        Promise.all(calls),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('requests are waiting: the pool is starved'));
+          }, 8000);
+        }),
+      ]);
+      const replays = answers.slice(0, size + 1).map((answer) => answer.statusCode);
+      expect(replays.filter((status) => status === 200)).toHaveLength(1);
+      expect(replays.filter((status) => status === 401)).toHaveLength(size);
+      expect(answers[size + 1]?.statusCode).toBe(200);
+    } finally {
+      await close();
+    }
+  });
+});
+
+describe('[ODUDU-PRIVATE-KEY-JWT-05] what an assertion must agree with', () => {
+  it('refuses a body client_id that names another client than the assertion', async () => {
+    const assertion = await signAssertion(inlineKey, 'inline-jwks-client');
+    const res = await http.inject(tokenForm(assertion, { client_id: 'pkj-client' }));
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(REFUSAL);
+    expect(lastLoggedReason()).toBe('client_id does not match the assertion');
+  });
+
+  it('accepts a body client_id that names the assertion’s own client', async () => {
+    const assertion = await signAssertion(inlineKey, 'inline-jwks-client');
+    const res = await http.inject(tokenForm(assertion, { client_id: 'inline-jwks-client' }));
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('allows no clock leeway: an assertion that expired a second ago is refused', async () => {
+    const assertion = await signAssertion(inlineKey, 'inline-jwks-client', {
+      exp: Math.floor(NOW.getTime() / 1000) - 1,
+    });
+    expect((await http.inject(tokenForm(assertion))).statusCode).toBe(401);
+  });
+
+  it('allows no clock leeway at the far end: a lifetime of 301 s is refused, 300 s accepted', async () => {
+    const base = Math.floor(NOW.getTime() / 1000);
+    const tooLong = await signAssertion(inlineKey, 'inline-jwks-client', { exp: base + 301 });
+    const longest = await signAssertion(inlineKey, 'inline-jwks-client', { exp: base + 300 });
+    expect((await http.inject(tokenForm(tooLong))).statusCode).toBe(401);
+    expect((await http.inject(tokenForm(longest))).statusCode).toBe(200);
+  });
 });

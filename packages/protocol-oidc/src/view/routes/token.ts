@@ -10,7 +10,6 @@ import { type ClientSecretLimiter } from '#/service/client-secret-throttle';
 import { TokenError, TokenRateLimited } from '#/service/errors';
 import { issueTokens, type ClientKeySet, type TokenResponse } from '#/usecase/token-issuance';
 import { tenantIssuerFor } from '#/view/issuer';
-import { spendAfterFailure, type SpentAssertion } from '#/usecase/private-key-jwt-authentication';
 import { recordRefusal } from '#/usecase/record-refusal';
 
 export interface TokenRouteDeps {
@@ -79,7 +78,6 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
     const issuer = tenantIssuerFor(request, request.params.tenant);
 
     const context = requestContextFrom(request);
-    const spends: SpentAssertion[] = [];
     try {
       const response: TokenResponse = await withTenant(
         deps.database.db,
@@ -113,7 +111,6 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
             request.headers.authorization,
             request.headers,
             request.raw.rawHeaders,
-            spends,
           ),
         context,
       );
@@ -125,7 +122,6 @@ export function registerTokenRoute(app: FastifyInstance, deps: TokenRouteDeps): 
         .header('pragma', 'no-cache')
         .send(response);
     } catch (err) {
-      await spendAfterFailure(deps.database, spends);
       if (err instanceof TokenRateLimited || err instanceof TokenError) {
         await recordRefusal(
           { database: deps.database, logger: request.log, budget: deps.auditRefusalBudget },

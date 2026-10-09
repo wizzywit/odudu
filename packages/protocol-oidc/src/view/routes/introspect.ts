@@ -14,7 +14,6 @@ import {
   respondToIntrospectionRequest,
   type IntrospectionRequestDeps,
 } from '#/usecase/introspection-request';
-import { spendAfterFailure, type SpentAssertion } from '#/usecase/private-key-jwt-authentication';
 import { recordRefusal } from '#/usecase/record-refusal';
 import { tenantIssuerFor } from '#/view/issuer';
 
@@ -93,7 +92,6 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
     };
 
     const context = requestContextFrom(request);
-    const spends: SpentAssertion[] = [];
     try {
       const response = await withTenant(
         deps.database.db,
@@ -107,7 +105,6 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
               authorizationHeader: request.headers.authorization,
               headers: request.headers,
               rawHeaders: request.raw.rawHeaders,
-              spends,
             },
             now,
           ),
@@ -115,7 +112,6 @@ export function registerIntrospectRoute(app: FastifyInstance, deps: IntrospectRo
       );
       return await reply.code(200).header('cache-control', 'no-store').send(response);
     } catch (err) {
-      await spendAfterFailure(deps.database, spends);
       if (err instanceof TokenRateLimited || err instanceof TokenError) {
         await recordRefusal(
           { database: deps.database, logger: request.log, budget: deps.auditRefusalBudget },
