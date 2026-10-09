@@ -267,6 +267,14 @@ const schema = z.object({
   // while on it needs ODUDU_PUBLIC_BASE_URL: its redirect URI is built from
   // that base, never from a request (apps/server/src/config-guard.ts).
   ODUDU_CONSOLE: enabledEnvVar,
+  // The one key pair the console's gateway authenticates with as every
+  // tenant's built-in admin client (private_key_jwt): an ES256 private JWK on
+  // one line, which `odudu console keygen` prints. Required while the
+  // console is on; apps/server/src/console-key.ts reads it.
+  ODUDU_CONSOLE_CLIENT_KEY: z.string().min(1).optional(),
+  // The key being replaced, kept registered on every tenant until the pass
+  // that drops it. A private or a public JWK; only the public half is used.
+  ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS: z.string().min(1).optional(),
   // The built console's static files, as the container image lays them out.
   ODUDU_CONSOLE_DIR: z.string().min(1).default(DEFAULT_CONSOLE_DIR),
   // Lets a bounded address-checked fetch — the JWKS fetcher

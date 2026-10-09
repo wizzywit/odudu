@@ -45,7 +45,7 @@ import {
   tenantSettingProblems,
   type TenantSettingValue,
 } from '@odudu/domain-tenant';
-import { consoleBaseUrl, loadConfig, newId, OduduError } from '@odudu/kernel';
+import { loadConfig, newId, OduduError } from '@odudu/kernel';
 import {
   clientOidcConfigRepository,
   GRANT_TYPES_PERMITTED,
@@ -55,6 +55,7 @@ import {
   type ClientOidcConfig,
 } from '@odudu/protocol-oidc';
 import { eq, getTableColumns } from 'drizzle-orm';
+import { consoleProvisioning, type ConsoleProvisioning } from '#/console-key';
 import { createLogger } from '#/logger';
 
 // A confidential client's method of proving its secret at /token: either
@@ -372,7 +373,7 @@ async function performSeed(
   runtimeDb: Database,
   kek: Uint8Array,
   opts: SeedOptions,
-  consoleBase: string | undefined,
+  consoleOptions: ConsoleProvisioning,
 ): Promise<SeedResult> {
   const {
     tenantId,
@@ -387,7 +388,7 @@ async function performSeed(
     // Idempotent, so a tenant seeded before this client existed gains one
     // here rather than being left without — only the flow and signing key
     // above are creation-only.
-    await provisionAdminClient(tx, tenantId, { consoleBaseUrl: consoleBase });
+    await provisionAdminClient(tx, tenantId, consoleOptions);
 
     const existingClient = await clientRepository(tx).byClientId(opts.clientId);
     if (existingClient !== null) {
@@ -530,7 +531,7 @@ async function seedClientBootstrap(opts: SeedOptions): Promise<SeedResult> {
       runtime.db,
       config.ODUDU_KEK,
       opts,
-      consoleBaseUrl(config),
+      await consoleProvisioning(config),
     );
 
     // Sent only after performSeed's transaction commits (withTenant cannot
@@ -644,6 +645,7 @@ async function insertSystemTenant(tx: TenantScopedDatabase): Promise<boolean> {
 // client and roles, and only adds the new subject.
 export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin> {
   const config = loadConfig();
+  const consoleOptions = await consoleProvisioning(config);
   const owner = createDatabase(config.ODUDU_DATABASE_URL);
   const runtime = config.ODUDU_APP_DATABASE_URL
     ? createDatabase(config.ODUDU_APP_DATABASE_URL)
@@ -660,7 +662,7 @@ export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin>
       }
       const { clientDbId } = await provisionAdminClient(tx, tenantId, {
         crossTenant: true,
-        consoleBaseUrl: consoleBaseUrl(config),
+        ...consoleOptions,
       });
       await ensureSigningKey(tx, tenantId, config.ODUDU_KEK);
 
@@ -953,7 +955,7 @@ async function runTenantCommand(
   runtimeDb: Database,
   kek: Uint8Array,
   argv: readonly string[],
-  consoleBase: string | undefined,
+  consoleOptions: ConsoleProvisioning,
 ): Promise<TenantCommandResult> {
   const { values } = parseArgs({
     args: [...argv],
@@ -995,9 +997,7 @@ async function runTenantCommand(
   }
   // Idempotent, so a tenant this command finds rather than creates still
   // gets one if an earlier run predates the admin client's existence.
-  await withTenant(runtimeDb, tenantId, (tx) =>
-    provisionAdminClient(tx, tenantId, { consoleBaseUrl: consoleBase }),
-  );
+  await withTenant(runtimeDb, tenantId, (tx) => provisionAdminClient(tx, tenantId, consoleOptions));
 
   if (settings.length > 0) {
     // The CHECK constraints (migrations 0028, 0035, 0041) remain the
@@ -1871,7 +1871,7 @@ async function runSeedCommand(argv: readonly string[]): Promise<SeedCommandResul
           runtime.db,
           config.ODUDU_KEK,
           rest,
-          consoleBaseUrl(config),
+          await consoleProvisioning(config),
         );
       case 'client':
         return await runClientCommand(owner.db, runtime.db, rest);

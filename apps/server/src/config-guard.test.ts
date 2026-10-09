@@ -152,7 +152,16 @@ describe('assertProductionPasskeyRelyingParty', () => {
   });
 });
 
+const KEY = '{"kty":"EC","crv":"P-256"}';
+
 describe('assertConsoleConfigured', () => {
+  it('refuses to start the console without its client key, naming the variable and the switch', () => {
+    const config = loadConfig({ ...base, ODUDU_PUBLIC_BASE_URL: 'http://localhost:3000' });
+    expect(() => {
+      assertConsoleConfigured(config);
+    }).toThrow(/ODUDU_CONSOLE_CLIENT_KEY.*ODUDU_CONSOLE=false/su);
+  });
+
   it('refuses to start the console without a base URL, naming the base and the switch', () => {
     const config = loadConfig(base);
     expect(() => {
@@ -176,8 +185,12 @@ describe('assertConsoleConfigured', () => {
     }).not.toThrow();
   });
 
-  it('passes with an http base URL', () => {
-    const config = loadConfig({ ...base, ODUDU_PUBLIC_BASE_URL: 'http://localhost:3000' });
+  it('passes with an http base URL and a client key', () => {
+    const config = loadConfig({
+      ...base,
+      ODUDU_PUBLIC_BASE_URL: 'http://localhost:3000',
+      ODUDU_CONSOLE_CLIENT_KEY: KEY,
+    });
     expect(() => {
       assertConsoleConfigured(config);
     }).not.toThrow();
@@ -200,6 +213,7 @@ describe('assertConsoleConfigured', () => {
       ...base,
       ODUDU_PUBLIC_BASE_URL: 'https://idp.example.test',
       ODUDU_TRUST_PROXY: 'true',
+      ODUDU_CONSOLE_CLIENT_KEY: KEY,
     });
     expect(() => {
       assertConsoleConfigured(config);
@@ -227,6 +241,17 @@ describe('assertConsoleConfigured', () => {
       ...base,
       ODUDU_TLS: 'true',
       ODUDU_PUBLIC_BASE_URL: 'http://idp.example.test',
+      ODUDU_CONSOLE: 'false',
+    });
+    expect(() => {
+      assertConsoleConfigured(config);
+    }).not.toThrow();
+  });
+
+  it('does not ask for a client key while the console is off', () => {
+    const config = loadConfig({
+      ...base,
+      ODUDU_PUBLIC_BASE_URL: 'http://localhost:3000',
       ODUDU_CONSOLE: 'false',
     });
     expect(() => {

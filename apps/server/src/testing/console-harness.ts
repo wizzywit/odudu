@@ -1,4 +1,4 @@
-import { unwrapSecret } from '@odudu/crypto';
+import { signClientAssertion, unwrapSecret } from '@odudu/crypto';
 import { type DatabaseHandle } from '@odudu/db';
 import { ADMIN_API_AUDIENCE, ADMIN_CLIENT_ID, SYSTEM_TENANT_NAME } from '@odudu/domain-tenant';
 import { FakeClock, loadConfig, newId } from '@odudu/kernel';
@@ -11,6 +11,7 @@ import { expect } from 'vitest';
 import { buildApp, type ThrottleSettings } from '#/app';
 import { seed, seedAdmin } from '#/cli/seed';
 import { createLogger } from '#/logger';
+import { CONSOLE_KEYS } from '#/testing/console-key';
 
 // A browser for the console's integration tests: it drives the gateway's
 // redirect, the server's own login form and forced password change, and
@@ -77,6 +78,7 @@ export async function startConsoleApp(
     logger: createLogger(config, destination),
     publicBaseUrl: base,
     consoleBaseUrl: base,
+    consoleKeys: CONSOLE_KEYS,
     consoleNow: () => clock.now(),
     // An https base is served behind a proxy: boot refuses it otherwise.
     trustProxy: baseUrl.protocol === 'https:',
@@ -251,19 +253,32 @@ export async function storedRefreshToken(
   return unwrapSecret(row.refresh_token_wrapped, KEK);
 }
 
+const SYSTEM_TOKEN_ENDPOINT = `/tenants/${SYSTEM_TENANT_NAME}/protocol/openid-connect/token`;
+
+/**
+ * The assertion the gateway would sign for the system tenant's endpoints: the
+ * form fields that authenticate `odudu-admin` there.
+ */
+export async function adminAssertion(stack: ConsoleStack): Promise<Record<string, string>> {
+  return {
+    client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+    client_assertion: await signClientAssertion(CONSOLE_KEYS.key, {
+      clientId: ADMIN_CLIENT_ID,
+      audience: `${stack.base.origin}${SYSTEM_TOKEN_ENDPOINT}`,
+      now: new Date(),
+    }),
+  };
+}
+
 /** Presents a refresh token at the tenant's token endpoint: `ok`, or the error code. */
 export async function refreshAtOp(stack: ConsoleStack, refreshToken: string): Promise<string> {
-  const res = await post(
-    stack,
-    new Jar(),
-    `/tenants/${SYSTEM_TENANT_NAME}/protocol/openid-connect/token`,
-    {
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: ADMIN_CLIENT_ID,
-      resource: ADMIN_API_AUDIENCE,
-    },
-  );
+  const res = await post(stack, new Jar(), SYSTEM_TOKEN_ENDPOINT, {
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    client_id: ADMIN_CLIENT_ID,
+    resource: ADMIN_API_AUDIENCE,
+    ...(await adminAssertion(stack)),
+  });
   if (res.statusCode === 200) return 'ok';
   return res.json<{ error: string }>().error;
 }

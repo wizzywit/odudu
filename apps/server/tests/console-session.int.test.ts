@@ -7,6 +7,7 @@ import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import { provisionConsole } from '#/cli/console';
 import { seedAdmin } from '#/cli/seed';
+import { CONSOLE_CLIENT_KEY, CONSOLE_KEYS } from '#/testing/console-key';
 import {
   browse,
   type ConsoleStack,
@@ -41,6 +42,7 @@ beforeAll(async () => {
   process.env.ODUDU_DATABASE_URL = containerHandle.adminUrl;
   process.env.ODUDU_APP_DATABASE_URL = appUrl;
   process.env.ODUDU_KEK = KEK.toString('base64');
+  process.env.ODUDU_CONSOLE_CLIENT_KEY = CONSOLE_CLIENT_KEY;
   process.env.ODUDU_PUBLIC_BASE_URL = BASE;
   await seedAdmin({ username: `setup-${newId()}` });
 }, 120_000);
@@ -49,6 +51,7 @@ afterAll(async () => {
   delete process.env.ODUDU_DATABASE_URL;
   delete process.env.ODUDU_APP_DATABASE_URL;
   delete process.env.ODUDU_KEK;
+  delete process.env.ODUDU_CONSOLE_CLIENT_KEY;
   delete process.env.ODUDU_PUBLIC_BASE_URL;
   await appHandle?.close();
   await ownerHandle?.close();
@@ -236,10 +239,16 @@ describe('the session cookie', () => {
     const databases = { database: appDb, ownerDatabase: owner };
     onTestFinished(async () => {
       process.env.ODUDU_PUBLIC_BASE_URL = BASE;
-      await provisionConsole(databases, BASE);
+      await provisionConsole(databases, {
+        consoleBaseUrl: BASE,
+        consoleClientJwks: CONSOLE_KEYS.jwks,
+      });
     });
     process.env.ODUDU_PUBLIC_BASE_URL = TLS_BASE;
-    await provisionConsole(databases, TLS_BASE);
+    await provisionConsole(databases, {
+      consoleBaseUrl: TLS_BASE,
+      consoleClientJwks: CONSOLE_KEYS.jwks,
+    });
     await withStack(TLS_BASE, async (stack) => {
       const jar = new Jar();
       const { response, subjectId } = await signIn(stack, jar);

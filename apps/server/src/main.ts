@@ -19,6 +19,7 @@ import {
   warnIfTlsDisabled,
 } from '#/config-guard';
 import { buildEmailSender, resolveSender, smtpDestinationPolicyFor } from '#/email';
+import { loadConsoleKeys } from '#/console-key';
 import { createLogger } from '#/logger';
 import { createLogoutDeliveryTransport } from '#/logout-delivery-transport';
 import { databaseModule } from '#/modules/database';
@@ -101,6 +102,7 @@ assertProductionTls(config);
 assertProductionPasskeyRelyingParty(config);
 assertProductionNoPrivateClientUrls(config);
 assertConsoleConfigured(config);
+const consoleKeys = await loadConsoleKeys(config);
 warnIfTlsDisabled(config, (message) => {
   logger.warn({}, message);
 });
@@ -132,6 +134,7 @@ const app = buildApp({
     ? { publicBaseUrl: config.ODUDU_PUBLIC_BASE_URL }
     : {}),
   consoleBaseUrl: consoleBaseUrl(config),
+  consoleKeys,
   consoleDir: config.ODUDU_CONSOLE_DIR,
   trustProxy: config.ODUDU_TRUST_PROXY,
   tlsClientCertHeader: config.ODUDU_TLS_CLIENT_CERT_HEADER,

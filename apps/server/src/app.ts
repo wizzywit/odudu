@@ -36,6 +36,7 @@ import Fastify, { type FastifyInstance, type RawServerDefault } from 'fastify';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { type Logger as PinoLogger } from 'pino';
 import { createClientKeyRequest, defaultClientKeyLookup } from '#/client-key-transport';
+import { type ConsoleKeys, missingConsoleKey } from '#/console-key';
 import { registerHealth } from '#/health';
 import { slidingWindow } from '#/throttle';
 
@@ -74,6 +75,13 @@ export interface AppDeps {
    * redirect and post-logout URIs under it.
    */
   readonly consoleBaseUrl?: string | undefined;
+  /**
+   * The key the gateway authenticates with as every tenant's admin client,
+   * and the public set a tenant created through the admin API registers.
+   * Required with `consoleBaseUrl`: a console that cannot authenticate
+   * would fail every sign-in rather than the boot.
+   */
+  readonly consoleKeys?: ConsoleKeys | undefined;
   /**
    * `ODUDU_CONSOLE_DIR`: the built single-page app the gateway serves under
    * `/console/*`. Defaults to the same path the config schema does, so a
@@ -281,12 +289,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   registerHealth(app, deps);
   if (deps.consoleBaseUrl !== undefined) {
+    if (deps.consoleKeys === undefined) throw missingConsoleKey();
     app.register(
       consoleGateway({
         database: deps.database,
         ownerDatabase: deps.ownerDatabase,
         kek: deps.kek,
         publicBaseUrl: deps.consoleBaseUrl,
+        clientKey: deps.consoleKeys.key,
         consoleDir: deps.consoleDir ?? DEFAULT_CONSOLE_DIR,
         ...(deps.consoleNow === undefined ? {} : { now: deps.consoleNow }),
       }),
@@ -300,6 +310,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       cursorKey: deps.kek,
       kek: deps.kek,
       consoleBaseUrl: deps.consoleBaseUrl,
+      consoleClientJwks: deps.consoleKeys?.jwks,
       trustProxy: deps.trustProxy ?? false,
       claimMappers,
       allowPrivateSmtpHosts: deps.allowPrivateSmtpHosts ?? false,

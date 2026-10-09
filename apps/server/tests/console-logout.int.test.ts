@@ -7,9 +7,11 @@ import { sql } from 'drizzle-orm';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedAdmin } from '#/cli/seed';
+import { CONSOLE_CLIENT_KEY } from '#/testing/console-key';
 import {
   beginLogin,
   browse,
+  adminAssertion,
   holdSessionLock,
   type ConsoleStack,
   Jar,
@@ -48,6 +50,7 @@ beforeAll(async () => {
   process.env.ODUDU_DATABASE_URL = containerHandle.adminUrl;
   process.env.ODUDU_APP_DATABASE_URL = appUrl;
   process.env.ODUDU_KEK = KEK.toString('base64');
+  process.env.ODUDU_CONSOLE_CLIENT_KEY = CONSOLE_CLIENT_KEY;
   process.env.ODUDU_PUBLIC_BASE_URL = BASE;
   await seedAdmin({ username: `setup-${newId()}` });
 }, 120_000);
@@ -56,6 +59,7 @@ afterAll(async () => {
   delete process.env.ODUDU_DATABASE_URL;
   delete process.env.ODUDU_APP_DATABASE_URL;
   delete process.env.ODUDU_KEK;
+  delete process.env.ODUDU_CONSOLE_CLIENT_KEY;
   delete process.env.ODUDU_PUBLIC_BASE_URL;
   await appHandle?.close();
   await ownerHandle?.close();
@@ -153,7 +157,12 @@ async function refreshAtOp(stack: ConsoleStack, refreshToken: string): Promise<s
     stack,
     new Jar(),
     `/tenants/${SYSTEM_TENANT_NAME}/protocol/openid-connect/token`,
-    { grant_type: 'refresh_token', refresh_token: refreshToken, client_id: ADMIN_CLIENT_ID },
+    {
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: ADMIN_CLIENT_ID,
+      ...(await adminAssertion(stack)),
+    },
   );
   expect(res.statusCode).toBe(400);
   return res.json<{ error: string }>().error;

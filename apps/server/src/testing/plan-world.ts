@@ -11,6 +11,7 @@ import { type FastifyInstance } from 'fastify';
 import { buildApp } from '#/app';
 import { seed, seedAdmin } from '#/cli/seed';
 import { createLogger } from '#/logger';
+import { CONSOLE_CLIENT_KEY, CONSOLE_KEYS } from '#/testing/console-key';
 import { seedPlanVolume } from '#/testing/plan-volume';
 
 export const KEK = Buffer.alloc(32, 7);
@@ -65,6 +66,7 @@ export async function startPlanWorld(connections: WorldConnections): Promise<Pla
   process.env.ODUDU_APP_DATABASE_URL = appUrl;
   process.env.ODUDU_KEK = KEK.toString('base64');
   process.env.ODUDU_PUBLIC_BASE_URL = PUBLIC_BASE_URL;
+  process.env.ODUDU_CONSOLE_CLIENT_KEY = CONSOLE_CLIENT_KEY;
 
   const seeded = await seed({
     tenant: TARGET_TENANT,
@@ -95,6 +97,7 @@ export async function startPlanWorld(connections: WorldConnections): Promise<Pla
     logger: createLogger(config),
     publicBaseUrl: PUBLIC_BASE_URL,
     consoleBaseUrl: PUBLIC_BASE_URL,
+    consoleKeys: CONSOLE_KEYS,
     throttle: { limit: 1_000_000, windowSeconds: 60 },
     clientSecretThrottle: { limit: 1_000_000, windowSeconds: 60 },
   });
@@ -118,6 +121,7 @@ export async function startPlanWorld(connections: WorldConnections): Promise<Pla
         'ODUDU_APP_DATABASE_URL',
         'ODUDU_KEK',
         'ODUDU_PUBLIC_BASE_URL',
+        'ODUDU_CONSOLE_CLIENT_KEY',
       ]) {
         Reflect.deleteProperty(process.env, name);
       }

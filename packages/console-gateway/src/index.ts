@@ -1,3 +1,4 @@
+import { type ClientKey } from '@odudu/crypto';
 import { type DatabaseHandle } from '@odudu/db';
 import { type FastifyPluginAsync } from 'fastify';
 import { oduduClient } from '#/adapter/odudu-client';
@@ -30,6 +31,8 @@ export interface ConsoleGatewayDeps {
   readonly publicBaseUrl: string;
   /** `ODUDU_CONSOLE_DIR`: the built single-page app, read once at registration. */
   readonly consoleDir: string;
+  /** `ODUDU_CONSOLE_CLIENT_KEY`: what the gateway authenticates with as `odudu-admin`. */
+  readonly clientKey: ClientKey;
   readonly now?: () => Date;
 }
 
@@ -47,7 +50,9 @@ export function consoleGateway(deps: ConsoleGatewayDeps): FastifyPluginAsync {
   };
   const now = deps.now ?? (() => new Date());
   return (fastify) => {
-    const odudu = oduduClient(fastify, base);
+    // Stamped by the wall clock, never `now` above, which tests move: the
+    // server checks an assertion's lifetime against its own.
+    const odudu = oduduClient(fastify, base, { key: deps.clientKey, now: () => new Date() });
     fastify.register(
       (auth) => {
         registerAuthRoutes(auth, {

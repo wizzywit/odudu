@@ -1,3 +1,4 @@
+import { type ClientKey, signClientAssertion } from '@odudu/crypto';
 import { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { ADMIN_API_AUDIENCE, ADMIN_CLIENT_ID } from '@odudu/domain-tenant';
 import { z } from 'zod';
@@ -12,6 +13,8 @@ import {
   type RefreshOutcome,
   type TokenSet,
 } from '#/service/odudu-port';
+
+const CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
 
 // Loose: the console shows every field the public document carries, not
 // only the ones the gateway itself reads.
@@ -43,7 +46,22 @@ function json(res: LightMyRequestResponse): unknown {
 // callback's iss, the ID token's iss and the admin API's issuer check on
 // one string. The forwarded pair is read only while ODUDU_TRUST_PROXY is
 // on, which boot requires for an https base.
-export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
+export interface ClientAuthentication {
+  /** The key every tenant's admin client is registered with. */
+  readonly key: ClientKey;
+  readonly now: () => Date;
+}
+
+// The gateway is a confidential client: every request that names
+// `odudu-admin` at the token or revocation endpoint carries an assertion
+// (RFC 7523) signed with the one key registered on every tenant. The
+// audience is the tenant's token endpoint at all three, the one value the
+// server accepts.
+export function oduduClient(
+  fastify: FastifyInstance,
+  base: URL,
+  authentication: ClientAuthentication,
+): OduduPort {
   const authority = {
     host: base.host,
     'x-forwarded-host': base.host,
@@ -56,6 +74,14 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
     'x-request-id': from.requestId,
   });
   const tenantPath = (tenant: string): string => `/tenants/${encodeURIComponent(tenant)}`;
+  async function clientAuthentication(tenant: string): Promise<Record<string, string>> {
+    const assertion = await signClientAssertion(authentication.key, {
+      clientId: ADMIN_CLIENT_ID,
+      audience: `${base.origin}${tenantPath(tenant)}/protocol/openid-connect/token`,
+      now: authentication.now(),
+    });
+    return { client_assertion_type: CLIENT_ASSERTION_TYPE, client_assertion: assertion };
+  }
 
   async function discoveryOf(tenant: string, from: Caller): Promise<DiscoveryDocument | null> {
     const res = await fastify.inject({
@@ -102,6 +128,7 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
           client_id: ADMIN_CLIENT_ID,
           code_verifier: input.verifier,
           resource: ADMIN_API_AUDIENCE,
+          ...(await clientAuthentication(input.tenant)),
         }).toString(),
       });
       if (res.statusCode !== 200) return null;
@@ -125,6 +152,7 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
           token: refreshToken,
           token_type_hint: 'refresh_token',
           client_id: ADMIN_CLIENT_ID,
+          ...(await clientAuthentication(tenant)),
         }).toString(),
       });
     },
@@ -140,6 +168,7 @@ export function oduduClient(fastify: FastifyInstance, base: URL): OduduPort {
           refresh_token: refreshToken,
           client_id: ADMIN_CLIENT_ID,
           resource: ADMIN_API_AUDIENCE,
+          ...(await clientAuthentication(tenant)),
         }).toString(),
       });
       if (

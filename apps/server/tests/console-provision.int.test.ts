@@ -7,6 +7,7 @@ import {
 } from '@odudu/db';
 import { roles } from '@odudu/domain-authz';
 import { ADMIN_CLIENT_ID, clients, MANAGE_TENANTS, SYSTEM_TENANT_ID } from '@odudu/domain-tenant';
+import { generateClientKey, loadClientKey } from '@odudu/crypto';
 import { newId } from '@odudu/kernel';
 import { ADMIN_CLIENT_REDIRECT_URI, clientOidcConfig } from '@odudu/protocol-oidc';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
@@ -22,6 +23,9 @@ let app: DatabaseHandle;
 const OLD_BASE = 'http://localhost:3000';
 const NEW_BASE = 'https://idp.example.test';
 
+let KEY_A: string;
+let KEY_B: string;
+
 beforeAll(async () => {
   container = await startTestDatabase();
   owner = createDatabase(container.adminUrl);
@@ -32,6 +36,8 @@ beforeAll(async () => {
   process.env.ODUDU_DATABASE_URL = container.adminUrl;
   process.env.ODUDU_APP_DATABASE_URL = appUrl;
   process.env.ODUDU_KEK = Buffer.alloc(32, 7).toString('base64');
+  KEY_A = await generateClientKey();
+  KEY_B = await generateClientKey();
 }, 120_000);
 
 afterAll(async () => {
@@ -94,8 +100,9 @@ function registeredUnder(base: string): {
 }
 
 async function seedTenantUnder(base: string): Promise<string> {
-  const result = await withEnv({ ODUDU_PUBLIC_BASE_URL: base }, () =>
-    seed(['tenant', '--name', `console-${newId()}`]),
+  const result = await withEnv(
+    { ODUDU_PUBLIC_BASE_URL: base, ODUDU_CONSOLE_CLIENT_KEY: KEY_A },
+    () => seed(['tenant', '--name', `console-${newId()}`]),
   );
   if (result.command !== 'tenant') throw new Error('expected the tenant command');
   return result.tenantId;
@@ -107,7 +114,10 @@ describe('provisionConsole', () => {
     const second = await seedTenantUnder(OLD_BASE);
     expect(await adminClientUris(first)).toEqual(registeredUnder(OLD_BASE));
 
-    const provisioned = await provisionConsole({ database: app, ownerDatabase: owner }, NEW_BASE);
+    const provisioned = await provisionConsole(
+      { database: app, ownerDatabase: owner },
+      { consoleBaseUrl: NEW_BASE, consoleClientJwks: await jwksOf(KEY_A) },
+    );
 
     expect(provisioned).toBe(2);
     expect(await adminClientUris(first)).toEqual(registeredUnder(NEW_BASE));
@@ -117,15 +127,20 @@ describe('provisionConsole', () => {
 
 describe('odudu console provision', () => {
   it('re-registers every tenant, the system tenant included, and says how many', async () => {
-    const admin = await withEnv({ ODUDU_PUBLIC_BASE_URL: OLD_BASE }, () =>
-      seedAdmin({ username: `root-${newId()}` }),
+    const admin = await withEnv(
+      { ODUDU_PUBLIC_BASE_URL: OLD_BASE, ODUDU_CONSOLE_CLIENT_KEY: KEY_A },
+      () => seedAdmin({ username: `root-${newId()}` }),
     );
     expect(admin.tenantId).toBe(SYSTEM_TENANT_ID);
     const tenant = await seedTenantUnder(OLD_BASE);
     const everyTenant = await owner.db.select({ id: tenants.id }).from(tenants);
 
     const message = await withEnv(
-      { ODUDU_PUBLIC_BASE_URL: NEW_BASE, ODUDU_TRUST_PROXY: 'true' },
+      {
+        ODUDU_PUBLIC_BASE_URL: NEW_BASE,
+        ODUDU_TRUST_PROXY: 'true',
+        ODUDU_CONSOLE_CLIENT_KEY: KEY_A,
+      },
       () => consoleCommand(['provision']),
     );
 
@@ -142,6 +157,14 @@ describe('odudu console provision', () => {
     );
   });
 
+  it('refuses with no client key, naming the variable and the switch', async () => {
+    await expect(
+      withEnv({ ODUDU_PUBLIC_BASE_URL: NEW_BASE, ODUDU_TRUST_PROXY: 'true' }, () =>
+        consoleCommand(['provision']),
+      ),
+    ).rejects.toThrow(/ODUDU_CONSOLE_CLIENT_KEY.*ODUDU_CONSOLE=false/su);
+  });
+
   it('refuses with the console off, having nothing to register', async () => {
     await expect(
       withEnv({ ODUDU_PUBLIC_BASE_URL: NEW_BASE, ODUDU_CONSOLE: 'false' }, () =>
@@ -154,5 +177,99 @@ describe('odudu console provision', () => {
     await expect(
       withEnv({ ODUDU_PUBLIC_BASE_URL: NEW_BASE }, () => consoleCommand(['provison'])),
     ).rejects.toMatchObject({ code: 'console_unknown_command' });
+  });
+});
+
+async function jwksOf(serialized: string): Promise<{ keys: Record<string, unknown>[] }> {
+  return { keys: [(await loadClientKey(serialized)).publicJwk] };
+}
+
+async function adminClientAuthentication(
+  tenantId: string,
+): Promise<{ type: string; method: string; kids: string[] }> {
+  const rows = await owner.db
+    .select({
+      type: clients.type,
+      method: clientOidcConfig.tokenEndpointAuthMethod,
+      jwks: clientOidcConfig.jwks,
+    })
+    .from(clientOidcConfig)
+    .innerJoin(clients, eq(clients.id, clientOidcConfig.clientId))
+    .where(and(eq(clients.tenantId, tenantId), eq(clients.clientId, ADMIN_CLIENT_ID)));
+  const row = rows[0];
+  if (row === undefined) throw new Error('no admin client');
+  const keys = (row.jwks as { keys: { kid: string }[] } | null)?.keys ?? [];
+  return { type: row.type, method: row.method, kids: keys.map((key) => key.kid) };
+}
+
+async function rowVersions(tenantId: string): Promise<string> {
+  const rows = await owner.sql<{ versions: string }[]>`
+    select k.xmin::text || '/' || c.xmin::text as versions
+    from clients k join client_oidc_config c on c.client_id = k.id
+    where k.tenant_id = ${tenantId} and k.client_id = ${ADMIN_CLIENT_ID}`;
+  return rows[0]?.versions ?? '';
+}
+
+describe('odudu console provision: the console key', () => {
+  const env = (extra: Record<string, string> = {}): Record<string, string> => ({
+    ODUDU_PUBLIC_BASE_URL: NEW_BASE,
+    ODUDU_TRUST_PROXY: 'true',
+    ...extra,
+  });
+
+  it('converts a public admin client to private_key_jwt, and a second run writes nothing', async () => {
+    const seeded = await seed(['tenant', '--name', `public-${newId()}`]);
+    if (seeded.command !== 'tenant') throw new Error('expected the tenant command');
+    expect(await adminClientAuthentication(seeded.tenantId)).toMatchObject({
+      type: 'public',
+      method: 'none',
+    });
+
+    await withEnv(env({ ODUDU_CONSOLE_CLIENT_KEY: KEY_A }), () => consoleCommand(['provision']));
+    const kid = (await loadClientKey(KEY_A)).kid;
+    expect(await adminClientAuthentication(seeded.tenantId)).toEqual({
+      type: 'confidential',
+      method: 'private_key_jwt',
+      kids: [kid],
+    });
+
+    const before = await rowVersions(seeded.tenantId);
+    await withEnv(env({ ODUDU_CONSOLE_CLIENT_KEY: KEY_A }), () => consoleCommand(['provision']));
+    expect(await rowVersions(seeded.tenantId)).toBe(before);
+  });
+
+  it('registers a key beside the one it replaces, then drops the old one', async () => {
+    const seeded = await seed(['tenant', '--name', `rotate-${newId()}`]);
+    if (seeded.command !== 'tenant') throw new Error('expected the tenant command');
+    const [a, b] = [(await loadClientKey(KEY_A)).kid, (await loadClientKey(KEY_B)).kid];
+    await withEnv(env({ ODUDU_CONSOLE_CLIENT_KEY: KEY_A }), () => consoleCommand(['provision']));
+
+    await withEnv(
+      env({ ODUDU_CONSOLE_CLIENT_KEY: KEY_B, ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS: KEY_A }),
+      () => consoleCommand(['provision']),
+    );
+    expect((await adminClientAuthentication(seeded.tenantId)).kids).toEqual([b, a]);
+
+    await withEnv(env({ ODUDU_CONSOLE_CLIENT_KEY: KEY_B }), () => consoleCommand(['provision']));
+    expect((await adminClientAuthentication(seeded.tenantId)).kids).toEqual([b]);
+  });
+});
+
+describe('odudu console keygen', () => {
+  it('prints a line of configuration holding a key that loads', async () => {
+    const line = await consoleCommand(['keygen']);
+    expect(line.startsWith('ODUDU_CONSOLE_CLIENT_KEY=')).toBe(true);
+    const key = await loadClientKey(line.slice('ODUDU_CONSOLE_CLIENT_KEY='.length));
+    expect(key.kid).toMatch(/\S+/u);
+  });
+});
+
+describe('seeding under a console base', () => {
+  it('refuses with no client key, naming the variable, rather than leave the client public', async () => {
+    await expect(
+      withEnv({ ODUDU_PUBLIC_BASE_URL: NEW_BASE, ODUDU_TRUST_PROXY: 'true' }, () =>
+        seed(['tenant', '--name', `refused-${newId()}`]),
+      ),
+    ).rejects.toThrow(/ODUDU_CONSOLE_CLIENT_KEY/u);
   });
 });

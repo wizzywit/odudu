@@ -4,6 +4,7 @@ import { reactCompiler } from './apps/admin-console/reactCompiler.ts';
 
 const REPO_ROOT = import.meta.dirname;
 const SETUP = [join(REPO_ROOT, 'tests/setup/runtime-warnings.ts')];
+const INTEGRATION_SETUP = [...SETUP, join(REPO_ROOT, 'tests/setup/console-client-key.ts')];
 const CONSOLE = 'apps/admin-console';
 
 // Run from the repository root this config covers every package; run from a
@@ -67,7 +68,7 @@ export default defineConfig({
           name: 'integration',
           include: integration,
           environment: 'node',
-          setupFiles: SETUP,
+          setupFiles: INTEGRATION_SETUP,
           testTimeout: 120_000,
           hookTimeout: 120_000,
           fileParallelism: false,
@@ -78,7 +79,7 @@ export default defineConfig({
           name: 'plans',
           include: planFiles,
           environment: 'node',
-          setupFiles: SETUP,
+          setupFiles: INTEGRATION_SETUP,
           testTimeout: 300_000,
           hookTimeout: 600_000,
           fileParallelism: false,

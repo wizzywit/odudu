@@ -296,6 +296,20 @@ describe('loadConfig', () => {
     expect(consoleBaseUrl(loadConfig(minimal))).toBeUndefined();
   });
 
+  it("carries the console's client key and the key it replaces, both optional", () => {
+    const config = loadConfig({
+      ...minimal,
+      ODUDU_CONSOLE_CLIENT_KEY: '{"a":1}',
+      ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS: '{"b":2}',
+    });
+    expect(config.ODUDU_CONSOLE_CLIENT_KEY).toBe('{"a":1}');
+    expect(config.ODUDU_CONSOLE_CLIENT_KEY_PREVIOUS).toBe('{"b":2}');
+    expect(loadConfig(minimal).ODUDU_CONSOLE_CLIENT_KEY).toBeUndefined();
+    expect(() => loadConfig({ ...minimal, ODUDU_CONSOLE_CLIENT_KEY: '' })).toThrow(
+      /ODUDU_CONSOLE_CLIENT_KEY/u,
+    );
+  });
+
   it('leaves ODUDU_PUBLIC_BASE_URL unset by default', () => {
     expect('ODUDU_PUBLIC_BASE_URL' in loadConfig(minimal)).toBe(false);
   });

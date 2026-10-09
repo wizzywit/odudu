@@ -1,5 +1,6 @@
 import { relyingPartyId, warnIfCookieFallbackActive } from '@odudu/authn-flows';
 import { type Config, consoleBaseUrl, OduduError } from '@odudu/kernel';
+import { missingConsoleKey } from '#/console-key';
 
 /**
  * `ODUDU_DATABASE_URL` is the owner role, which can switch row-level
@@ -128,6 +129,7 @@ export function assertConsoleConfigured(config: Config): void {
         'ODUDU_CONSOLE=false.',
     );
   }
+  if (config.ODUDU_CONSOLE_CLIENT_KEY === undefined) throw missingConsoleKey();
 }
 
 /** ADR 0020's boot warning, for the console cookie, whose mode follows the base's scheme. */

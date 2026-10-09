@@ -9,7 +9,9 @@ import { randomBytes } from 'node:crypto';
 import http from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedAdmin } from '#/cli/seed';
+import { CONSOLE_CLIENT_KEY } from '#/testing/console-key';
 import {
+  adminAssertion,
   browse,
   type ConsoleAppOptions,
   type ConsoleStack,
@@ -51,6 +53,7 @@ beforeAll(async () => {
   process.env.ODUDU_DATABASE_URL = containerHandle.adminUrl;
   process.env.ODUDU_APP_DATABASE_URL = appUrl;
   process.env.ODUDU_KEK = KEK.toString('base64');
+  process.env.ODUDU_CONSOLE_CLIENT_KEY = CONSOLE_CLIENT_KEY;
   process.env.ODUDU_PUBLIC_BASE_URL = BASE;
   await seedAdmin({ username: `setup-${newId()}` });
 }, 120_000);
@@ -59,6 +62,7 @@ afterAll(async () => {
   delete process.env.ODUDU_DATABASE_URL;
   delete process.env.ODUDU_APP_DATABASE_URL;
   delete process.env.ODUDU_KEK;
+  delete process.env.ODUDU_CONSOLE_CLIENT_KEY;
   delete process.env.ODUDU_PUBLIC_BASE_URL;
   await appHandle?.close();
   await ownerHandle?.close();
@@ -863,6 +867,7 @@ describe('an ended session or grant', () => {
         token: unwrapSecret(session.refresh_token_wrapped, KEK),
         token_type_hint: 'refresh_token',
         client_id: 'odudu-admin',
+        ...(await adminAssertion(stack)),
       }).toString(),
     });
     expect(res.statusCode, res.body).toBe(200);
